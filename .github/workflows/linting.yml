@@ -30,4 +30,4 @@ jobs:
         run: npm run lint
 
       - name: Typechecking
-        run: npm run check
+        run: npm run check
