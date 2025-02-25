@@ -1,4 +1,4 @@
 // src/stores/mapFieldStore.ts
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store"
 
-export const mapFieldsStore = writable([]);
+export const mapFieldsStore = writable([])

@@ -1,3 +1,3 @@
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store"
 
-export const userFilesStore = writable<string[]>([]);
+export const userFilesStore = writable<string[]>([])

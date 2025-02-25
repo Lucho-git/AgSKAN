@@ -1,27 +1,27 @@
 // routes/logout/+page.server.ts
-import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
-import type { Actions } from './$types';
+import { redirect } from "@sveltejs/kit"
+import type { PageServerLoad } from "./$types"
+import type { Actions } from "./$types"
 
 export const load: PageServerLoad = async ({ locals: { getSession } }) => {
-    const session = await getSession();
+  const session = await getSession()
 
-    return {
-        session
-    };
-};
+  return {
+    session,
+  }
+}
 
 export const actions: Actions = {
-    logout: async ({ locals: { supabase } }) => {
-        const { error } = await supabase.auth.signOut();
+  logout: async ({ locals: { supabase } }) => {
+    const { error } = await supabase.auth.signOut()
 
-        if (error) {
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-
-        throw redirect(303, '/login');
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      }
     }
-};
+
+    throw redirect(303, "/login")
+  },
+}

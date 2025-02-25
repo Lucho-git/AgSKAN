@@ -1,4 +1,4 @@
 // src/stores/fieldStore.ts
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store"
 
-export const fieldStore = writable([]);
+export const fieldStore = writable([])

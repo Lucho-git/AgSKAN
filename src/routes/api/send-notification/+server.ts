@@ -8,7 +8,6 @@
 
 //     console.log('Sending push notification serverside...');
 
-
 //     webpush.setVapidDetails(
 //         'mailto:lachie@skanfarming.com',
 //         PUBLIC_VAPID_KEY,
