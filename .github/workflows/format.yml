@@ -10,21 +10,29 @@ env:
   PUBLIC_SITE_NAME: 'SaaS Starter Build Test'
 
 jobs:
-  build_and_test:
-    name: Build
+  format_check:
+    name: Format Check
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      # Add Node.js setup step
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
+          cache: 'npm'
 
       - name: NPM install
-        run: npm install
+        run: |
+          npm ci
+          npm list prettier
+          npm list prettier-plugin-svelte
+
+      - name: Check package.json scripts
+        run: grep -A 15 '"scripts"' package.json
 
       - name: Check Code Format
-        run: npm run format_check
+        run: |
+          echo "Running format check..."
+          npm run format_check
