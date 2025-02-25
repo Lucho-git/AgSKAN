@@ -2,14 +2,6 @@ name: Build
 
 on: [push]
 
-env:
-  PUBLIC_SUPABASE_URL: 'https://fake_test_url.supabase.co'
-  PUBLIC_SUPABASE_ANON_KEY: 'fake_anon_key'
-  PRIVATE_SUPABASE_SERVICE_ROLE: 'fake_service_role'
-  PRIVATE_STRIPE_WEBHOOK_SECRET: 'fake_webhook_secret' 
-  PRIVATE_STRIPE_API_KEY: 'fake_strip_api_key'
-  PUBLIC_SITE_NAME: 'SaaS Starter Build Test'
-
 jobs:
   build_and_test:
     name: Build
@@ -25,7 +17,14 @@ jobs:
           cache: 'npm'
 
       - name: NPM install
-        run: npm ci
+        run: |
+          npm ci
+          npm install dotenv --no-save
+
+      - name: Generate CI environment variables
+        run: node .github/scripts/generate-ci-env.js
+        env:
+          GITHUB_ENV: ${{ github.env }}
 
       - name: SvelteKit Build 
         run: npm run build
