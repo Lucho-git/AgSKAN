@@ -78,7 +78,7 @@
           class="flex h-full flex-col items-center justify-center p-2"
         >
           <Route class="mb-1 h-4 w-4 text-primary" />
-          <p class="text-xs font-semibold text-base-content">Trail Points</p>
+          <p class="text-xs font-semibold text-base-content">Worked Hectares</p>
           <span class="text-base font-bold text-base-content">
             {formatNumber(trailCoordinates)}
           </span>
