@@ -2,6 +2,27 @@ name: Build
 
 on: [push]
 
+env:
+  PUBLIC_SUPABASE_URL: 'https://fake.example.com'
+  PUBLIC_SUPABASE_ANON_KEY: 'fake_anon_key'
+  PRIVATE_SUPABASE_SERVICE_ROLE: 'fake_service_role'
+  PRIVATE_STRIPE_WEBHOOK_SECRET: 'fake_webhook_secret' 
+  PRIVATE_STRIPE_API_KEY: 'fake_api_key'
+  PUBLIC_SITE_NAME: 'SaaS Starter Build Test'
+  PUBLIC_VAPID_APPLICATION_SERVER_KEY: '[0,0,0,0]'
+  PUBLIC_VAPID_KEY: '{"fake":"value"}'
+  PRIVATE_VAPID_KEY: '{"fake":"value"}'
+  PUBLIC_ONESIGNAL_APP_ID: 'fake_app_id'
+  ONESIGNAL_REST_API_KEY: 'fake_rest_api_key'
+  USER_AUTH_KEY: 'fake_auth_key'
+  PRIVATE_KEY: '{"fake":"value"}'
+  PUBLIC_KEY: 'fake_public_key'
+  PRIVATE_SENDGRID_API_KEY: 'fake_sendgrid_key'
+  PRIVATE_RESEND_API_KEY: 'fake_resend_key'
+  PUBLIC_RESEND_AUDIENCE_ID: 'fake_audience_id'
+  PUBLIC_APP_VERSION: '0.0.0'
+  SUPABASE_PASS: 'fake_password'
+
 jobs:
   build_and_test:
     name: Build
@@ -17,14 +38,7 @@ jobs:
           cache: 'npm'
 
       - name: NPM install
-        run: |
-          npm ci
-          npm install dotenv --no-save
-
-      - name: Generate CI environment variables
-        run: node .github/scripts/generate-ci-env.js
-        env:
-          GITHUB_ENV: ${{ github.env }}
+        run: npm ci
 
       - name: SvelteKit Build 
         run: npm run build
