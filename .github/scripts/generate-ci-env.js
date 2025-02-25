@@ -1,49 +1,53 @@
-const fs = require('fs');
-const dotenv = require('dotenv');
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import path from 'path';
 
-// Load the .env file to get all variable names
-dotenv.config();
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Generate dummy values for CI
-const generateDummyEnv = () => {
-  const envVars = {};
+// Read .env file
+const envPath = path.resolve(__dirname, '../../.env');
+const envFile = fs.readFileSync(envPath, 'utf8');
+
+// Parse .env file
+const envVars = {};
+envFile.split('\n').forEach(line => {
+  // Skip empty lines and comments
+  if (!line || line.startsWith('#')) return;
   
-  // Process all environment variables
-  Object.keys(process.env).forEach(key => {
-    // Only process environment variables that appear to be application config
-    if (key.startsWith('PUBLIC_') || 
-        key.startsWith('PRIVATE_') || 
-        key.startsWith('ONESIGNAL_') ||
-        key === 'USER_AUTH_KEY' ||
-        key === 'SUPABASE_PASS') {
-      
-      // Generate appropriate dummy values based on variable type
-      if (key.includes('KEY') || key.includes('SECRET')) {
-        envVars[key] = 'fake_' + key.toLowerCase();
-      } else if (key.includes('URL')) {
-        envVars[key] = 'https://fake.example.com';
-      } else if (key.includes('VERSION')) {
-        envVars[key] = '0.0.0';
-      } else if (process.env[key].startsWith('{')) {
-        // This appears to be JSON
-        envVars[key] = '{"fake":"value"}';
-      } else if (process.env[key].startsWith('[')) {
-        // This appears to be an array
-        envVars[key] = '[0,0,0]';
-      } else {
-        envVars[key] = 'fake_value';
-      }
+  const match = line.match(/^([^=]+)=(.*)$/);
+  if (match) {
+    const key = match[1].trim();
+    let value = match[2].trim();
+    
+    // Generate fake value based on variable type
+    if (key.includes('KEY') || key.includes('SECRET')) {
+      envVars[key] = 'fake_' + key.toLowerCase();
+    } else if (key.includes('URL')) {
+      envVars[key] = 'https://fake.example.com';
+    } else if (key.includes('VERSION')) {
+      envVars[key] = '0.0.0';
+    } else if (value.startsWith('{')) {
+      envVars[key] = '{"fake":"value"}';
+    } else if (value.startsWith('[')) {
+      envVars[key] = '[0,0,0,0]';
+    } else {
+      envVars[key] = 'fake_value';
     }
-  });
-  
-  return envVars;
-};
+  }
+});
 
-// Output to GitHub Actions environment file
-const ciEnv = generateDummyEnv();
-const output = Object.entries(ciEnv)
-  .map(([key, value]) => `${key}=${value}`)
-  .join('\n');
-
-fs.writeFileSync(process.env.GITHUB_ENV || '.env.ci', output);
-console.log('Generated dummy environment variables for CI');
+// Write to GitHub environment file
+const githubEnvPath = process.env.GITHUB_ENV;
+if (githubEnvPath) {
+  const output = Object.entries(envVars)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+  fs.appendFileSync(githubEnvPath, output + '\n');
+  console.log('Added fake environment variables to GITHUB_ENV');
+} else {
+  console.log('GITHUB_ENV not set, would have added these variables:');
+  console.log(envVars);
+}
