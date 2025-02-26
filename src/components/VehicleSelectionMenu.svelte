@@ -100,7 +100,40 @@
 
   let isMobile = false
 
-  const colors = ["Red", "Blue", "Green", "Yellow", "Orange", "Purple"]
+  const colors = [
+    // Original colors
+    "Red",
+    "Blue",
+    "Green",
+    "Yellow",
+    "Orange",
+    "Purple",
+    "SkyBlue",
+    "LightGreen",
+    "HotPink",
+
+    // // Additional distinctive colors
+    // "Crimson", // Deeper red
+    // "RoyalBlue", // Richer blue
+    // "ForestGreen", // Darker green
+    // "Gold", // Richer yellow
+    // "Coral", // Distinctive orange-pink
+    // "Indigo", // Deep purple-blue
+    // "DodgerBlue", // Vibrant medium blue
+    // "MediumSeaGreen", // Balanced green
+    // "HotPink", // Vibrant pink
+    // "Chocolate", // Brown-orange
+    // "Teal", // Blue-green
+    // "DarkViolet", // Rich purple
+    // "Tomato", // Red-orange
+    // "SteelBlue", // Gray-blue
+    // "MediumOrchid", // Medium purple
+    // "OliveDrab", // Olive green
+    // "SlateBlue", // Blue-purple
+    // "DarkCyan", // Dark blue-green
+    // "Firebrick", // Dark red
+    // "MediumTurquoise", // Bright blue-green
+  ]
 
   onMount(() => {
     const checkMobile = () => {
