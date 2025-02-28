@@ -1,10 +1,36 @@
-<!-- Parent component -->
+<!-- src/routes/(admin)/account/user_survey/+page.svelte -->
 <script lang="ts">
   import FeatheryForm from "../../../../components/FeatheryForm.svelte"
   import { goto } from "$app/navigation"
+  import { onMount } from "svelte"
+  import { supabase } from "$lib/stores/sessionStore"
+  import { profileStore } from "../../../../stores/profileStore"
 
-  export let data
   let loading = false
+
+  // Ensure profile is marked as onboarded on load
+  onMount(async () => {
+    try {
+      // If we're here, the user has completed previous steps, so mark them as onboarded
+      if ($profileStore?.id) {
+        await supabase
+          .from("profiles")
+          .update({
+            onboarded: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", $profileStore.id)
+
+        // Update local store
+        profileStore.update((profile) => ({
+          ...profile,
+          onboarded: true,
+        }))
+      }
+    } catch (error) {
+      console.error("Error updating onboarded status:", error)
+    }
+  })
 
   async function handleSkipSurvey() {
     loading = true

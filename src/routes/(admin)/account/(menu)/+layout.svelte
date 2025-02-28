@@ -6,14 +6,23 @@
   import icons from "$lib/icons"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
+  import { profileStore } from "../../../../stores/profileStore"
+  import { subscriptionStore } from "../../../../stores/subscriptionStore"
+  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { mapActivityStore } from "../../../../stores/mapActivityStore"
+  import {
+    operationStore,
+    selectedOperationStore,
+  } from "$lib/stores/operationStore.js"
+  import { browser } from "$app/environment"
 
   import CrispChatWidget from "../../../../components/CrispChatWidget.svelte"
 
   const adminSectionStore = writable("")
   setContext("adminSection", adminSectionStore)
 
-  export let data
-  //   console.log("LayoutData", data)
+  // No longer using data prop
+  // export let data
 
   let isExpanded = true
 
@@ -34,11 +43,13 @@
     }
   }
 
-  // Stub variables
-  let seatsUsed = 1
-  let totalSeats = 1
-  let trailLaid = 100000
-  let totalTrail = 100000
+  // Calculate usage statistics from mapActivity and subscription stores
+  $: seatsUsed = $connectedMapStore?.is_connected
+    ? $mapActivityStore?.connected_profiles?.length || 0
+    : 1
+  $: totalSeats = $subscriptionStore?.current_seats || 1
+  $: trailLaid = $mapActivityStore?.trail_count || 0
+  $: totalTrail = $subscriptionStore?.trail_limit || 100000
 
   // Calculate percentages
   $: seatsPercentage = (seatsUsed / totalSeats) * 100
@@ -102,12 +113,9 @@
   //Controls the currectSection selection
   $: currentSection = $adminSectionStore
 
-  //Logs current section changes
-  $: {
-    // console.log("Current section changed:", currentSection)
-    // console.log($page.url.pathname)
-    // console.log(data)
-  }
+  // Wait for stores to be populated
+  $: storesReady =
+    browser && $profileStore?.id && $subscriptionStore?.subscription
 </script>
 
 <div class="drawer lg:drawer-open">
@@ -226,32 +234,89 @@
           <hr class=" transform border-neutral-content opacity-20" />
         </li>
 
-        <li class="my-1">
-          <div class="{hoverColor} group flex items-center px-3 py-2">
-            <div class="flex flex-col items-center">
-              <Icon
-                icon="solar:user-circle-bold-duotone"
-                width="32"
-                height="32"
-                class="flex-shrink-0"
-              />
-              {#if !isExpanded}
-                <div class="mt-4 flex flex-col items-center space-y-1">
+        {#if storesReady}
+          <li class="my-1">
+            <div class="{hoverColor} group flex items-center px-3 py-2">
+              <div class="flex flex-col items-center">
+                <Icon
+                  icon="solar:user-circle-bold-duotone"
+                  width="32"
+                  height="32"
+                  class="flex-shrink-0"
+                />
+                {#if !isExpanded}
+                  <div class="mt-4 flex flex-col items-center space-y-1">
+                    <div
+                      class=" flex items-center"
+                      data-tip="Seats: {seatsUsed}/{totalSeats}"
+                    >
+                      <Icon
+                        icon="solar:users-group-rounded-bold"
+                        width="12"
+                        height="12"
+                        class="mr-1"
+                      />
+                      <progress
+                        class="progress progress-primary w-8 bg-neutral-content group-hover:bg-neutral"
+                        value={seatsPercentage}
+                        max="100"
+                      ></progress>
+                    </div>
+                    <div
+                      class=" flex items-center"
+                      data-tip="Trail: {trailLaid}/{totalTrail}"
+                    >
+                      <Icon
+                        icon="solar:routing-bold"
+                        width="12"
+                        height="12"
+                        class="mr-1"
+                      />
+                      <progress
+                        class="progress progress-secondary w-8 bg-neutral-content group-hover:bg-neutral"
+                        value={trailPercentage}
+                        max="100"
+                      ></progress>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+              {#if isExpanded}
+                <div class="ml-2 flex-grow">
+                  <p class="text-sm font-semibold">
+                    {$profileStore?.full_name || "Loading..."}
+                  </p>
+                  {#if $subscriptionStore?.subscription === "FREE"}
+                    <p class="text-xs opacity-70">Free Plan</p>
+                  {:else}
+                    <p class="flex items-center text-xs opacity-70">
+                      Pro Plan
+                      <Icon
+                        icon="solar:fire-bold"
+                        width="12"
+                        height="12"
+                        class="ml-1"
+                      />
+                    </p>
+                  {/if}
+                </div>
+                <div class="flex flex-col space-y-2">
                   <div
                     class=" flex items-center"
                     data-tip="Seats: {seatsUsed}/{totalSeats}"
                   >
                     <Icon
                       icon="solar:users-group-rounded-bold"
-                      width="12"
-                      height="12"
+                      width="16"
+                      height="16"
                       class="mr-1"
                     />
                     <progress
-                      class="progress progress-primary w-8 bg-neutral-content group-hover:bg-neutral"
+                      class="progress progress-primary w-16 bg-neutral-content group-hover:bg-neutral"
                       value={seatsPercentage}
                       max="100"
                     ></progress>
+                    <span class="ml-1 w-2 text-right text-xs">Seats</span>
                   </div>
                   <div
                     class=" flex items-center"
@@ -259,75 +324,43 @@
                   >
                     <Icon
                       icon="solar:routing-bold"
-                      width="12"
-                      height="12"
+                      width="16"
+                      height="16"
                       class="mr-1"
                     />
                     <progress
-                      class="progress progress-secondary w-8 bg-neutral-content group-hover:bg-neutral"
+                      class="progress progress-secondary w-16 bg-neutral-content group-hover:bg-neutral"
                       value={trailPercentage}
                       max="100"
                     ></progress>
+                    <span class="ml-1 mr-8 w-0 text-right text-xs">Trail</span>
                   </div>
                 </div>
               {/if}
             </div>
-            {#if isExpanded}
-              <div class="ml-2 flex-grow">
-                <p class="text-sm font-semibold">{data.profile?.full_name}</p>
-                {#if data.subscription.subscription === "FREE"}
-                  <p class="text-xs opacity-70">Free Plan</p>
-                {:else}
-                  <p class="flex items-center text-xs opacity-70">
-                    Pro Plan
-                    <Icon
-                      icon="solar:fire-bold"
-                      width="12"
-                      height="12"
-                      class="ml-1"
-                    />
-                  </p>
-                {/if}
-              </div>
-              <div class="flex flex-col space-y-2">
+          </li>
+        {:else}
+          <!-- Placeholder while waiting for stores to load -->
+          <li class="my-1">
+            <div class="flex items-center px-3 py-2">
+              <div class="flex-shrink-0">
                 <div
-                  class=" flex items-center"
-                  data-tip="Seats: {seatsUsed}/{totalSeats}"
-                >
-                  <Icon
-                    icon="solar:users-group-rounded-bold"
-                    width="16"
-                    height="16"
-                    class="mr-1"
-                  />
-                  <progress
-                    class="progress progress-primary w-16 bg-neutral-content group-hover:bg-neutral"
-                    value={seatsPercentage}
-                    max="100"
-                  ></progress>
-                  <span class="ml-1 w-2 text-right text-xs">Seats</span>
-                </div>
-                <div
-                  class=" flex items-center"
-                  data-tip="Trail: {trailLaid}/{totalTrail}"
-                >
-                  <Icon
-                    icon="solar:routing-bold"
-                    width="16"
-                    height="16"
-                    class="mr-1"
-                  />
-                  <progress
-                    class="progress progress-secondary w-16 bg-neutral-content group-hover:bg-neutral"
-                    value={trailPercentage}
-                    max="100"
-                  ></progress>
-                  <span class="ml-1 mr-8 w-0 text-right text-xs">Trail</span>
-                </div>
+                  class="h-8 w-8 animate-pulse rounded-full bg-neutral-content bg-opacity-20"
+                ></div>
               </div>
-            {/if}
-          </div>
-        </li>
+              {#if isExpanded}
+                <div class="ml-2 flex-grow">
+                  <div
+                    class="h-4 w-24 animate-pulse rounded bg-neutral-content bg-opacity-20"
+                  ></div>
+                  <div
+                    class="mt-1 h-3 w-16 animate-pulse rounded bg-neutral-content bg-opacity-20"
+                  ></div>
+                </div>
+              {/if}
+            </div>
+          </li>
+        {/if}
 
         <li class="my-1">
           <hr class="rotate-180 border-neutral-content opacity-20" />
