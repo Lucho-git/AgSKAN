@@ -1,12 +1,27 @@
+<!-- src/routes/login/+layout.svelte -->
 <script>
-  import { Auth } from "@supabase/auth-ui-svelte"
-  import { sharedAppearance } from "./login_config"
+  import { onMount } from "svelte"
+  import { session } from "$lib/stores/sessionStore"
+  import { goto } from "$app/navigation"
+  import { browser } from "$app/environment"
+
+  // Redirect logged-in users away from login pages
+  onMount(() => {
+    if (browser && $session) {
+      goto("/static_auth")
+    }
+  })
+
+  // Also watch for session changes
+  $: if (browser && $session) {
+    goto("/static_auth")
+  }
 </script>
 
 <div
-  class="text-center content-center max-w-lg mx-auto min-h-[70vh] mb-12 flex items-center place-content-center"
+  class="mx-auto mb-12 flex min-h-[70vh] max-w-lg place-content-center content-center items-center text-center"
 >
-  <div class="flex flex-col w-64 lg:w-80">
+  <div class="flex w-64 flex-col lg:w-80">
     <slot />
   </div>
 </div>

@@ -1,20 +1,24 @@
+// +layout.ts
 import {
-  PUBLIC_SUPABASE_ANON_KEY,
-  PUBLIC_SUPABASE_URL,
-} from "$env/static/public"
-import { createSupabaseLoadClient } from "@supabase/auth-helpers-sveltekit"
+    PUBLIC_SUPABASE_ANON_KEY,
+    PUBLIC_SUPABASE_URL,
+} from "$env/static/public";
+import { createClient } from "@supabase/supabase-js";
 
-export const load = async ({ fetch, data, depends }) => {
-  depends("supabase:auth")
+export const load = async ({ depends, url }) => {
+    depends("supabase:auth");
 
-  const supabase = createSupabaseLoadClient({
-    supabaseUrl: PUBLIC_SUPABASE_URL,
-    supabaseKey: PUBLIC_SUPABASE_ANON_KEY,
-    event: { fetch },
-    serverSession: data.session,
-  })
+    const supabase = createClient(
+        PUBLIC_SUPABASE_URL,
+        PUBLIC_SUPABASE_ANON_KEY
+    );
 
-  const url = data.url
+    // Check session client-side
+    const { data: { session } } = await supabase.auth.getSession();
 
-  return { supabase, url }
-}
+    return {
+        supabase,
+        session,
+        url: url.origin
+    };
+};

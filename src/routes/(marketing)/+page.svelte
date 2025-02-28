@@ -8,14 +8,14 @@
   import SignupSection from "./SignupSection.svelte"
   import { onMount } from "svelte"
   import { afterNavigate } from "$app/navigation"
-
-  export let data
-  $: ({ supabase, url, session } = data)
+  import { browser } from "$app/environment"
 
   // Function to reset focus and scroll
   const resetFocusAndScroll = () => {
-    window.scrollTo(0, 0)
-    document.activeElement?.blur()
+    if (browser) {
+      window.scrollTo(0, 0)
+      document.activeElement?.blur()
+    }
   }
 
   // Handle after navigation
@@ -28,7 +28,9 @@
     resetFocusAndScroll()
 
     // Additional safety measure
-    setTimeout(resetFocusAndScroll, 0)
+    if (browser) {
+      setTimeout(resetFocusAndScroll, 0)
+    }
   })
 </script>
 
@@ -38,7 +40,5 @@
   <PaddockPath />
   <Partners />
   <QandA />
-  {#if supabase}
-    <SignupSection {supabase} {url} />
-  {/if}
+  <SignupSection />
 </main>
