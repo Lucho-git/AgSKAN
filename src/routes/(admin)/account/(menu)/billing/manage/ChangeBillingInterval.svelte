@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Skeleton } from "$lib/components/ui/skeleton"
-  import { enhance } from "$app/forms"
   import { toast } from "svelte-sonner"
+  import { session } from "$lib/stores/sessionStore"
 
   export let subscriptionData
 
@@ -18,14 +18,25 @@
     loading = true
     previewData = null
 
-    let formData = new FormData()
-    formData.append("interval", isYearly ? "month" : "year")
-    console.log("Switching to ", isYearly ? "month" : "year")
     try {
-      const response = await fetch("?/getIntervalChangePreview", {
-        method: "POST",
-        body: formData,
-      })
+      const response = await fetch(
+        "/api/subscription/previews/interval-change",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${$session.access_token}`,
+          },
+          body: JSON.stringify({
+            interval: isYearly ? "month" : "year",
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch preview")
+      }
 
       const result = await response.json()
       console.log("Interval Change Preview:", result)
@@ -33,46 +44,58 @@
       if (result.type === "success") {
         previewData = JSON.parse(result.data)
         console.log("Preview Data:", previewData)
-
-        previewData = JSON.parse(previewData[3])
-        console.log("Proration Preview:", previewData)
       } else {
         throw new Error(result.error || "Failed to fetch preview")
       }
     } catch (error) {
       console.error("Error fetching interval change preview:", error)
+      toast.error("Failed to load billing cycle preview")
     } finally {
       loading = false
     }
   }
 
-  async function handleConfirm(event) {
-    event.preventDefault()
-    loading = true
-
-    const formData = new FormData()
-    formData.append("interval", previewData.newBillingCycle)
-    formData.append("trialEnd", previewData.currentAnchorDate.toString())
-
+  async function changeBillingInterval() {
     try {
-      const response = await fetch("?/changeInterval", {
-        method: "POST",
-        body: formData,
-      })
+      loading = true
 
-      const result = await response.json()
-      updateResult = result
+      const response = await fetch(
+        "/api/subscription/actions/change-interval",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${$session.access_token}`,
+          },
+          body: JSON.stringify({
+            interval: previewData.newBillingCycle,
+            trialEnd: Math.floor(
+              new Date(previewData.currentAnchorDate).getTime() / 1000,
+            ),
+            promotionCode: "promo_1PmvAuK3At0l0k1H32XUkuL5", // Using same promo code as server side
+          }),
+        },
+      )
 
-      if (result.success) {
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update billing cycle")
+      }
+
+      updateResult = await response.json()
+
+      if (updateResult.success) {
         toast.success("Billing cycle updated successfully")
-        showBillingCycleModal = false
-        // Optionally, refresh the page or update the subscription data
       } else {
-        toast.error(`Failed to update billing cycle: ${result.error}`)
+        throw new Error(updateResult.error || "Update failed")
       }
     } catch (error) {
       console.error("Error updating billing cycle:", error)
-      toast.error("An unexpected error occurred")
+      toast.error("Failed to update billing cycle")
+      updateResult = {
+        success: false,
+        error: error.message,
+      }
     } finally {
       loading = false
     }
@@ -234,32 +257,14 @@
       {/if}
       <div class="modal-action mt-6">
         {#if !updateResult && previewData}
-          <form
-            method="POST"
-            action="?/changeInterval"
-            use:enhance={({ form, data, action, cancel }) => {
-              return async ({ result, update }) => {
-                updateResult = result.data
-                await update()
-              }
-            }}
+          <button
+            type="button"
+            class="btn btn-primary"
+            disabled={loading}
+            on:click={changeBillingInterval}
           >
-            <input
-              type="hidden"
-              name="interval"
-              value={previewData.newBillingCycle}
-            />
-            <input
-              type="hidden"
-              name="trialEnd"
-              value={Math.floor(
-                new Date(previewData.currentAnchorDate).getTime() / 1000,
-              )}
-            />
-            <button type="submit" class="btn btn-primary" disabled={loading}>
-              Confirm New Billing Cycle
-            </button>
-          </form>
+            Confirm New Billing Cycle
+          </button>
         {/if}
         <button
           class="btn btn-outline"

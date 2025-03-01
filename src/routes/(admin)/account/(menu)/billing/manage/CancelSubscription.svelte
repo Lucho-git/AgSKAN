@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { enhance } from "$app/forms"
   import { Skeleton } from "$lib/components/ui/skeleton"
   import { toast } from "svelte-sonner"
+  import { session } from "$lib/stores/sessionStore"
 
   export let subscriptionData
   $: isScheduledForCancellation =
@@ -16,6 +16,54 @@
     loading = false
     cancelResult = null
     console.log("Subscription Data:", subscriptionData)
+  }
+
+  async function handleCancelAction(isReversal = false) {
+    try {
+      loading = true
+
+      const endpoint = isReversal
+        ? "/api/subscription/actions/reverse-cancel"
+        : "/api/subscription/actions/cancel"
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${$session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Request failed")
+      }
+
+      cancelResult = await response.json()
+
+      if (cancelResult.success) {
+        toast.success(
+          isReversal
+            ? "Cancellation reversed successfully"
+            : "Subscription cancelled successfully",
+        )
+      } else {
+        throw new Error(cancelResult.message || "Action failed")
+      }
+    } catch (error) {
+      console.error("Error processing cancel action:", error)
+      toast.error(
+        isReversal
+          ? "Failed to reverse cancellation"
+          : "Failed to cancel subscription",
+      )
+      cancelResult = {
+        success: false,
+        message: error.message,
+      }
+    } finally {
+      loading = false
+    }
   }
 </script>
 
@@ -138,45 +186,18 @@
       {/if}
       <div class="modal-action mt-6">
         {#if !cancelResult}
-          <form
-            method="POST"
-            action={isScheduledForCancellation
-              ? "?/reverseSubscriptionCancellation"
-              : "?/cancelSubscription"}
-            use:enhance={({ form, data, action, cancel }) => {
-              loading = true
-              return async ({ result, update }) => {
-                cancelResult = result.data
-                await update()
-                loading = false
-                if (cancelResult.success) {
-                  toast.success(
-                    isScheduledForCancellation
-                      ? "Cancellation reversed successfully"
-                      : "Subscription cancelled successfully",
-                  )
-                } else {
-                  toast.error(
-                    isScheduledForCancellation
-                      ? "Failed to reverse cancellation"
-                      : "Failed to cancel subscription",
-                  )
-                }
-              }
-            }}
+          <button
+            type="button"
+            class="btn"
+            class:btn-error={!isScheduledForCancellation}
+            class:btn-success={isScheduledForCancellation}
+            disabled={loading}
+            on:click={() => handleCancelAction(isScheduledForCancellation)}
           >
-            <button
-              type="submit"
-              class="btn"
-              class:btn-error={!isScheduledForCancellation}
-              class:btn-success={isScheduledForCancellation}
-              disabled={loading}
-            >
-              {isScheduledForCancellation
-                ? "Confirm Reversal"
-                : "Confirm Cancellation"}
-            </button>
-          </form>
+            {isScheduledForCancellation
+              ? "Confirm Reversal"
+              : "Confirm Cancellation"}
+          </button>
         {/if}
         <button
           class="btn btn-outline"

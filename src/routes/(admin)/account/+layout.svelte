@@ -1,11 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { goto } from "$app/navigation"
-  import {
-    session,
-    supabase,
-    initializeSession,
-  } from "$lib/stores/sessionStore"
+  import { session, supabase } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"
   import { page } from "$app/stores"
   import { fly } from "svelte/transition"
@@ -21,12 +17,18 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore.js"
 
-  let loading = true
-  let error = null
+  // Accept data from load function
+  export let data
+
+  let loading =
+    data.sessionStatus === "loading" || data.sessionStatus === "initializing"
+  let error = data.error || null
   let redirecting = false
   let authStateUnsubscribe = null
+  let userDataLoaded = false
 
   console.log("Account layout initializing")
+  console.log("Current session status:", data.sessionStatus)
   console.log("Current session state:", $session)
 
   async function loadUserData() {
@@ -265,19 +267,11 @@
     }
   }
 
-  // Main initialization function
-  async function initialize() {
-    if (!browser) return
-
+  // Complete data loading after session is ready
+  async function completeDataLoading() {
     try {
-      console.log("Initializing session...")
-      await initializeSession()
-
-      console.log("Session initialized:", $session?.user?.id)
-
-      // If no session after initialization, redirect to login
-      if (!$session) {
-        console.log("No session found, redirecting to login")
+      if (!$session?.user?.id) {
+        console.log("No valid session, redirecting to login")
         redirecting = true
         goto("/login")
         return
@@ -285,6 +279,7 @@
 
       // Load all user data
       const userData = await loadUserData()
+      userDataLoaded = true
 
       // Check onboarding status and redirect if needed
       if (userData) {
@@ -295,11 +290,37 @@
         )
       }
 
-      console.log("Initialization complete")
+      console.log("Data loading complete")
     } catch (e) {
-      console.error("Initialization error:", e)
+      console.error("Data loading error:", e)
       error = e
     } finally {
+      loading = false
+    }
+  }
+
+  // Process the session promise from the load function
+  async function processSessionPromise() {
+    if (data.sessionPromise) {
+      try {
+        const sessionData = await data.sessionPromise
+
+        if (!sessionData.isAuthenticated) {
+          console.log("Session not authenticated, redirecting to login")
+          redirecting = true
+          goto("/login")
+          return
+        }
+
+        // Continue with data loading once session is ready
+        await completeDataLoading()
+      } catch (e) {
+        console.error("Error processing session:", e)
+        error = e
+        loading = false
+      }
+    } else if (data.sessionStatus === "error") {
+      // Already have error from load function
       loading = false
     }
   }
@@ -308,8 +329,19 @@
   onMount(() => {
     console.log("Account layout mounted")
 
-    // Start initialization
-    initialize()
+    // Process session if we have a promise
+    if (data.sessionPromise) {
+      processSessionPromise()
+    }
+    // If no promise but session exists, complete data loading
+    else if ($session?.user?.id) {
+      completeDataLoading()
+    }
+    // No session, no promise - redirect
+    else if (!loading) {
+      redirecting = true
+      goto("/login")
+    }
 
     // Set up auth state subscription
     const { data: authSubscription } = supabase.auth.onAuthStateChange(
@@ -391,7 +423,7 @@
         </div>
       </div>
     </div>
-  {:else if $session}
+  {:else if $session && (userDataLoaded || data.sessionStatus === "ready")}
     <slot />
   {:else}
     <div class="flex h-screen w-full items-center justify-center">
