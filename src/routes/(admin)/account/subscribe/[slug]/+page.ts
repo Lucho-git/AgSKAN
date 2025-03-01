@@ -1,21 +1,9 @@
-// In +page.ts
-import type { PageLoad } from "./$types"
+// src/routes/(admin)/account/subscribe/[slug]/+page.ts
+import { browser } from "$app/environment";
 
-export const load: PageLoad = async ({ data }) => {
-  console.log("CLIENT LOAD PAGE WOOO")
+export const load = ({ params }) => {
+    if (!browser) return {};
 
-  // Check if we have a Stripe URL to redirect to
-  if (data.stripeUrl) {
-    window.location.href = data.stripeUrl
-    return new Promise(() => {})
-  }
-
-  // Check if the subscription was updated
-  if (data.subscriptionUpdated) {
-    window.location.href = "/account"
-    return new Promise(() => {})
-  }
-
-  // Return the data from the server load function
-  return data
-}
+    // Just return the slug - most logic moved to onMount in the svelte component
+    return { slug: params.slug };
+};
