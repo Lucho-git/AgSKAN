@@ -2,70 +2,70 @@
 import { json } from "@sveltejs/kit";
 import { PRIVATE_STRIPE_API_KEY } from "$env/static/private";
 import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public";
 
 const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" });
 
-export async function POST({ request }) {
+export async function POST({ request, fetch, url }) {
     const authHeader = request.headers.get("Authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return json({ error: "Unauthorized - no valid token" }, { status: 401 });
     }
 
-    const token = authHeader.split(" ")[1];
-
     try {
-        // Create a Supabase client with the provided token
-        const supabase = createClient(
-            PUBLIC_SUPABASE_URL,
-            PUBLIC_SUPABASE_ANON_KEY,
-            {
-                global: {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
+        // Step 1: Get the customer ID using the existing endpoint
+        // We need to use the absolute URL since we're in a server context
+        const baseUrl = url.origin;
+
+        const customerResponse = await fetch(`${baseUrl}/api/customer/id`, {
+            method: "GET",
+            headers: {
+                "Authorization": authHeader
             }
-        );
+        });
 
-        // Verify the token by getting user info
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return json({ error: "Invalid or expired token" }, { status: 401 });
+        if (!customerResponse.ok) {
+            const errorData = await customerResponse.json();
+            return json({ error: errorData.error || "Failed to retrieve customer data" }, { status: customerResponse.status });
         }
 
-        // Get the customer ID
-        const { data: customerData, error: customerError } = await supabase
-            .from("stripe_customers")
-            .select("stripe_customer_id")
-            .eq("user_id", user.id)
-            .single();
+        const customerData = await customerResponse.json();
+        const customerId = customerData.customerId;
 
-        if (customerError || !customerData?.stripe_customer_id) {
+        console.log("API: Got customer ID for reverse cancellation:", customerId);
+
+        if (!customerId) {
             return json({ error: "Customer not found" }, { status: 404 });
         }
 
-        const customerId = customerData.stripe_customer_id;
-
-        // Fetch subscription
+        // Fetch subscription (include all to find those scheduled for cancellation)
         const subscriptions = await stripe.subscriptions.list({
             customer: customerId,
             status: 'all'
         });
 
+        console.log(`API: Found ${subscriptions.data.length} subscriptions`);
+
         if (!subscriptions?.data?.length) {
-            return json({ error: "No subscription found" }, { status: 404 });
+            return json({
+                success: false,
+                error: "No subscription found",
+                message: "No subscription found for this customer"
+            }, { status: 404 });
         }
 
         // Find subscription scheduled for cancellation
         const subscription = subscriptions.data.find(sub => sub.cancel_at_period_end);
 
         if (!subscription) {
-            return json({ error: "No subscription scheduled for cancellation found" }, { status: 404 });
+            return json({
+                success: false,
+                error: "No subscription scheduled for cancellation found",
+                message: "Could not find any subscription scheduled for cancellation"
+            }, { status: 404 });
         }
+
+        console.log(`API: Found subscription scheduled for cancellation: ${subscription.id}`);
 
         // Reverse cancellation
         const updatedSubscription = await stripe.subscriptions.update(
@@ -75,15 +75,19 @@ export async function POST({ request }) {
             }
         );
 
+        console.log(`API: Successfully reversed cancellation for subscription: ${subscription.id}`);
+
         return json({
             success: true,
             message: "Subscription cancellation reversed. Your subscription will continue.",
             cancelAtPeriodEnd: updatedSubscription.cancel_at_period_end,
+            subscription: updatedSubscription
         });
     } catch (error) {
         console.error("Error reversing subscription cancellation:", error);
         return json({
             success: false,
+            error: error.message || "An unexpected error occurred",
             message: "Failed to reverse subscription cancellation. Please try again or contact support."
         }, { status: 500 });
     }

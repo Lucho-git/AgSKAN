@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Skeleton } from "$lib/components/ui/skeleton"
   import { toast } from "svelte-sonner"
   import { session } from "$lib/stores/sessionStore"
 
@@ -13,18 +12,35 @@
 
   function openCancelModal() {
     showCancelModal = true
-    loading = false
+    loading = true
     cancelResult = null
     console.log("Subscription Data:", subscriptionData)
+
+    // Start with immediate loading state, then perform action if reversal
+    if (isScheduledForCancellation) {
+      // Delay slightly to show loading skeleton
+      setTimeout(() => {
+        handleCancelAction(true)
+      }, 100)
+    } else {
+      // For regular cancellation, just show the confirmation screen
+      setTimeout(() => {
+        loading = false
+      }, 300) // Brief skeleton for visual consistency
+    }
   }
 
   async function handleCancelAction(isReversal = false) {
     try {
       loading = true
+      console.log("Starting cancel action, isReversal=", isReversal)
 
       const endpoint = isReversal
         ? "/api/subscription/actions/reverse-cancel"
         : "/api/subscription/actions/cancel"
+
+      console.log("Using endpoint:", endpoint)
+      console.log("Authorization token available:", !!$session.access_token)
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -32,14 +48,28 @@
           "Content-Type": "application/json",
           Authorization: `Bearer ${$session.access_token}`,
         },
+        // Send an empty object to ensure we have a valid JSON body
+        body: JSON.stringify({}),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Request failed")
-      }
+      console.log("Response status:", response.status)
 
-      cancelResult = await response.json()
+      // Check if response has content
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json()
+        console.log("Response data:", data)
+
+        if (!response.ok) {
+          throw new Error(data.error || data.message || "Request failed")
+        }
+
+        cancelResult = data
+      } else {
+        // Handle empty response
+        console.error("Empty or non-JSON response")
+        throw new Error("Invalid response from server")
+      }
 
       if (cancelResult.success) {
         toast.success(
@@ -94,14 +124,85 @@
           : "Cancel Subscription"}
       </h3>
       {#if loading}
-        <div class="py-4">
-          <Skeleton class="mb-2 h-[20px] w-full rounded-full" />
-          <Skeleton class="h-[20px] w-3/4 rounded-full" />
+        <div class="space-y-6">
+          <!-- Daisy UI Skeleton for subscription details -->
+          <div class="rounded-lg bg-base-200 p-6">
+            <div class="skeleton mb-3 h-6 w-60"></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="rounded bg-base-100 p-3">
+                <div class="skeleton mb-1 h-3 w-12"></div>
+                <div class="skeleton h-5 w-24"></div>
+              </div>
+              <div class="rounded bg-base-100 p-3">
+                <div class="skeleton mb-1 h-3 w-16"></div>
+                <div class="skeleton h-5 w-20"></div>
+              </div>
+              <div class="rounded bg-base-100 p-3">
+                <div class="skeleton mb-1 h-3 w-20"></div>
+                <div class="skeleton h-5 w-8"></div>
+              </div>
+              <div class="rounded bg-base-100 p-3">
+                <div class="skeleton mb-1 h-3 w-24"></div>
+                <div class="skeleton h-5 w-24"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Skeleton for cancellation/reversal information -->
+          <div class="rounded-lg bg-base-200 p-6">
+            <div class="skeleton mb-3 h-6 w-48"></div>
+            <div class="skeleton mb-4 h-4 w-full"></div>
+            <div class="space-y-3">
+              <div class="flex items-start">
+                <div
+                  class="skeleton mr-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+                ></div>
+                <div class="skeleton h-4 w-full"></div>
+              </div>
+              <div class="flex items-start">
+                <div
+                  class="skeleton mr-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+                ></div>
+                <div class="skeleton h-4 w-full"></div>
+              </div>
+              <div class="flex items-start">
+                <div
+                  class="skeleton mr-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+                ></div>
+                <div class="skeleton h-4 w-full"></div>
+              </div>
+              <div class="flex items-start">
+                <div
+                  class="skeleton mr-2 mt-1.5 h-2.5 w-2.5 rounded-full"
+                ></div>
+                <div class="skeleton h-4 w-full"></div>
+              </div>
+            </div>
+          </div>
         </div>
       {:else if cancelResult}
         <p class="mb-4 rounded-lg bg-base-200 p-4">
           {cancelResult.message}
         </p>
+        {#if cancelResult.success}
+          <div class="mt-4 rounded-lg bg-success/10 p-4">
+            {#if isScheduledForCancellation}
+              <p>Your subscription will continue without interruption.</p>
+            {:else}
+              <p>
+                Your subscription will remain active until the end of your
+                current billing period.
+              </p>
+            {/if}
+          </div>
+        {:else}
+          <div class="mt-4 rounded-lg bg-error/10 p-4">
+            <p>
+              There was a problem with your request. Please try again or contact
+              support.
+            </p>
+          </div>
+        {/if}
       {:else}
         <div class="space-y-6">
           <div class="rounded-lg bg-base-200 p-6">
@@ -185,7 +286,7 @@
         </div>
       {/if}
       <div class="modal-action mt-6">
-        {#if !cancelResult}
+        {#if !cancelResult && !loading}
           <button
             type="button"
             class="btn"
@@ -201,6 +302,7 @@
         {/if}
         <button
           class="btn btn-outline"
+          disabled={loading}
           on:click={() => {
             if (cancelResult && cancelResult.success) {
               window.location.reload()

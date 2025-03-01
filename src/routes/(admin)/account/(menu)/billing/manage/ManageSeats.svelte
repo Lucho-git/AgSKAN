@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { enhance } from "$app/forms"
-  import { Skeleton } from "$lib/components/ui/skeleton"
+  import { toast } from "svelte-sonner"
+  import { session } from "$lib/stores/sessionStore"
 
   export let data
   let { subscriptionData, seatManagementInfo } = data
@@ -11,6 +11,7 @@
   let modalContent = null
   let importantInfo = null
   let updateResult = null
+  let previewError = null
 
   $: seatDifference = selectedSeats - currentSeats
   $: isIncreasing = seatDifference > 0
@@ -24,92 +25,173 @@
     if (selectedSeats > 1) selectedSeats -= 1
   }
 
-  async function openSeatsModal() {
+  function openSeatsModal() {
     showSeatsModal = true
     loading = true
     modalContent = null
-    importantInfo = null // Reset importantInfo
+    importantInfo = null
+    previewError = null
 
-    let formData = new FormData()
-    formData.append("quantity", selectedSeats.toString())
-    formData.append("appliedDate", isIncreasing ? "now" : "later")
-    console.log("applieddate", isIncreasing ? "now" : "later")
+    // Fetch data after modal is opened
+    fetchProratedSeatsPreview()
+  }
 
+  async function fetchProratedSeatsPreview() {
     try {
-      const response = await fetch("?/getProratedSeatsPreview", {
-        method: "POST",
-        body: formData,
-      })
+      console.log("Fetching seat proration preview...")
+      console.log(
+        "Current auth token:",
+        $session.access_token ? "Available" : "Not available",
+      )
+
+      const response = await fetch(
+        "/api/subscription/previews/prorated-seats",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${$session.access_token}`,
+          },
+          body: JSON.stringify({
+            quantity: selectedSeats,
+            appliedDate: isIncreasing ? "now" : "later",
+          }),
+        },
+      )
+
+      console.log("Response status:", response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Preview error response:", errorData)
+        previewError = errorData.error || "Failed to fetch preview"
+        throw new Error(previewError)
+      }
 
       const result = await response.json()
-      console.log("Proration Preview:", result)
-      console.log("Price info", seatManagementInfo)
+      console.log("Proration Preview result:", result)
 
       if (result.type === "success") {
-        console.log("Parsing Data:", result.type)
         const parsedData = JSON.parse(result.data)
-        const prorationPreview = JSON.parse(parsedData[3])[2]
-        console.log("Parsed Data:", prorationPreview)
+        const prorationPreview = parsedData[2]
+        console.log("Parsed Proration Preview:", prorationPreview)
         modalContent = prorationPreview
 
         importantInfo = extractImportantInfo(prorationPreview, isIncreasing)
-
         console.log("Important Information:", importantInfo)
+      } else {
+        previewError = result.error || "Failed to calculate preview"
+        throw new Error(previewError)
       }
     } catch (error) {
       console.error("Error fetching proration preview:", error)
+      toast.error("Failed to load seat pricing preview")
+      previewError = error.message || "An unexpected error occurred"
     } finally {
       loading = false
     }
   }
 
   function extractImportantInfo(prorationPreview, isIncreasing) {
-    const lines = prorationPreview.lines.data
+    try {
+      const lines = prorationPreview.lines.data
 
-    const currentSeats = lines[0].quantity
-    const newSeats = lines[1].quantity
-    const anchorDate = new Date(lines[0].period.end * 1000)
-    const daysUntilAnchor = Math.ceil(
-      (lines[0].period.end - lines[0].period.start) / (24 * 60 * 60),
-    )
-    const futureCost = lines[2].amount / 100
-    const immediateCharge = isIncreasing
-      ? (lines[0].amount + lines[1].amount) / 100
-      : 0
-    const billingCycle = lines[0].price.recurring.interval
-    console.log("IsIncreasing?", isIncreasing)
-    const nextPaymentDate = isIncreasing ? anchorDate : new Date()
-    const currency = lines[0].currency
+      const currentSeats = lines[0].quantity
+      const newSeats = lines[1].quantity
+      const anchorDate = new Date(lines[0].period.end * 1000)
+      const daysUntilAnchor = Math.ceil(
+        (lines[0].period.end - lines[0].period.start) / (24 * 60 * 60),
+      )
+      const futureCost = lines[2].amount / 100
+      const immediateCharge = isIncreasing
+        ? (lines[0].amount + lines[1].amount) / 100
+        : 0
+      const billingCycle = lines[0].price.recurring.interval
+      console.log("IsIncreasing?", isIncreasing)
+      const nextPaymentDate = isIncreasing ? anchorDate : new Date()
+      const currency = lines[0].currency
 
-    // Calculate monthly costs
-    const baseRatePerSeat = futureCost / newSeats
-    const monthlyCost =
-      billingCycle === "year" ? baseRatePerSeat / 12 : baseRatePerSeat
-    const oldMonthly = currentSeats * monthlyCost
-    const newMonthly = newSeats * monthlyCost
-    const monthlyDifference = newMonthly - oldMonthly
+      // Calculate monthly costs
+      const baseRatePerSeat = futureCost / newSeats
+      const monthlyCost =
+        billingCycle === "year" ? baseRatePerSeat / 12 : baseRatePerSeat
+      const oldMonthly = currentSeats * monthlyCost
+      const newMonthly = newSeats * monthlyCost
+      const monthlyDifference = newMonthly - oldMonthly
 
-    return {
-      currentSeats,
-      newSeats,
-      billingCycle: billingCycle === "year" ? "annual" : "monthly",
-      currency,
-      changeAppliedDate: isIncreasing ? "immediately" : "on next billing date",
-      immediateCharge,
-      futureCost,
-      anchorDate: anchorDate.toISOString().split("T")[0],
-      daysUntilAnchor,
-      isIncreasing,
-      nextPaymentDate: nextPaymentDate.toISOString().split("T")[0],
-      lineItems: lines.map((item) => ({
-        description: item.description,
-        amount: item.amount / 100,
-        proration: item.proration,
-      })),
-      oldMonthly,
-      newMonthly,
-      monthlyDifference,
-      monthlyCost,
+      return {
+        currentSeats,
+        newSeats,
+        billingCycle: billingCycle === "year" ? "annual" : "monthly",
+        currency,
+        changeAppliedDate: isIncreasing
+          ? "immediately"
+          : "on next billing date",
+        immediateCharge,
+        futureCost,
+        anchorDate: anchorDate.toISOString().split("T")[0],
+        daysUntilAnchor,
+        isIncreasing,
+        nextPaymentDate: nextPaymentDate.toISOString().split("T")[0],
+        lineItems: lines.map((item) => ({
+          description: item.description,
+          amount: item.amount / 100,
+          proration: item.proration,
+        })),
+        oldMonthly,
+        newMonthly,
+        monthlyDifference,
+        monthlyCost,
+      }
+    } catch (error) {
+      console.error("Error extracting important info:", error)
+      // Return null and let the component handle it
+      return null
+    }
+  }
+
+  async function updateSeats() {
+    try {
+      loading = true
+      console.log("Updating seats...")
+
+      const response = await fetch("/api/subscription/actions/update-seats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${$session.access_token}`,
+        },
+        body: JSON.stringify({
+          quantity: importantInfo.newSeats,
+          appliedDate: importantInfo.isIncreasing ? "now" : "later",
+        }),
+      })
+
+      console.log("Update response status:", response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Update error response:", errorData)
+        throw new Error(errorData.error || "Failed to update seats")
+      }
+
+      updateResult = await response.json()
+      console.log("Update result:", updateResult)
+
+      if (updateResult.success) {
+        toast.success("Subscription updated successfully")
+      } else {
+        throw new Error(updateResult.error || "Update failed")
+      }
+    } catch (error) {
+      console.error("Error updating seats:", error)
+      toast.error("Failed to update subscription")
+      updateResult = {
+        success: false,
+        error: error.message,
+      }
+    } finally {
+      loading = false
     }
   }
 </script>
@@ -130,7 +212,7 @@
     </span>
     <button
       class="btn btn-outline btn-sm {isIncreasing
-        ? 'bg-gradient-to-r from-secondary to-accent text-secondary-content hover:from-secondary-focus hover:to-accent-focus'
+        ? 'hover:from-secondary-focus hover:to-accent-focus bg-gradient-to-r from-secondary to-accent text-secondary-content'
         : ''}"
       on:click={incrementSeats}
     >
@@ -142,8 +224,8 @@
     class="btn w-full {seatDifference === 0
       ? 'btn-disabled'
       : isDecreasing
-        ? 'btn-warning btn-outline'
-        : 'bg-gradient-to-r from-secondary to-accent text-secondary-content hover:from-secondary-focus hover:to-accent-focus'}"
+        ? 'btn-outline btn-warning'
+        : 'hover:from-secondary-focus hover:to-accent-focus bg-gradient-to-r from-secondary to-accent text-secondary-content'}"
     disabled={seatDifference === 0}
   >
     {#if isDecreasing}
@@ -170,6 +252,9 @@
                 A discount has been applied to your subscription.
               </p>
             {/if}
+            <p class="rounded-lg bg-success/20 p-4">
+              Your seat count has been updated to {updateResult.newQuantity}.
+            </p>
           </div>
         {:else}
           <h3 class="mb-6 text-2xl font-bold">Update Failed</h3>
@@ -189,9 +274,41 @@
       {:else}
         <h3 class="mb-6 text-2xl font-bold">Confirm Seat Update</h3>
         {#if loading}
-          <div class="py-4">
-            <Skeleton class="mb-2 h-[20px] w-full rounded-full" />
-            <Skeleton class="h-[20px] w-3/4 rounded-full" />
+          <div class="space-y-6">
+            <!-- Skeleton for the seat change details using Daisy UI skeleton -->
+            <div class="py-4">
+              <div class="skeleton mb-2 h-6 w-3/4"></div>
+            </div>
+
+            <!-- Skeleton for Immediate Changes -->
+            <div class="rounded-lg bg-base-200 p-6">
+              <div class="skeleton mb-4 h-6 w-1/2"></div>
+              <div class="skeleton mb-3 h-5 w-full"></div>
+              <div class="skeleton h-4 w-2/3"></div>
+            </div>
+
+            <!-- Skeleton for Future Billing -->
+            <div class="rounded-lg bg-base-200 p-6">
+              <div class="skeleton mb-4 h-6 w-1/2"></div>
+              <div class="skeleton mb-3 h-5 w-full"></div>
+              <div class="skeleton mb-6 h-4 w-4/5"></div>
+
+              <div class="border-t pt-4">
+                <div class="skeleton mx-auto mb-4 h-5 w-1/2"></div>
+
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="skeleton h-4 w-1/3"></div>
+                  <div class="skeleton h-5 w-20"></div>
+                </div>
+
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="skeleton h-4 w-1/3"></div>
+                  <div class="skeleton h-5 w-20"></div>
+                </div>
+
+                <div class="skeleton mx-auto mt-4 h-5 w-2/3"></div>
+              </div>
+            </div>
           </div>
         {:else if importantInfo}
           <div class="space-y-6">
@@ -305,41 +422,27 @@
               </div>
             </div>
           </div>
-        {:else}
-          <p class="rounded-lg bg-error/20 py-4">
-            Unable to load preview information. Please try again.
-          </p>
+        {:else if previewError}
+          <div class="rounded-lg bg-error/20 p-4">
+            <p>Unable to load preview information. Please try again.</p>
+            <span class="mt-2 block font-medium">Error: {previewError}</span>
+          </div>
         {/if}
       {/if}
       <div class="modal-action mt-6">
         {#if !updateResult && importantInfo}
-          <form
-            method="POST"
-            action="?/updateSeats"
-            use:enhance={({ form, data, action, cancel }) => {
-              return async ({ result, update }) => {
-                updateResult = result.data
-                await update()
-              }
-            }}
+          <button
+            type="button"
+            class="btn btn-primary"
+            disabled={loading}
+            on:click={updateSeats}
           >
-            <input
-              type="hidden"
-              name="quantity"
-              value={importantInfo.newSeats}
-            />
-            <input
-              type="hidden"
-              name="appliedDate"
-              value={importantInfo.isIncreasing ? "now" : "later"}
-            />
-            <button type="submit" class="btn btn-primary" disabled={loading}
-              >Confirm Update</button
-            >
-          </form>
+            Confirm Update
+          </button>
         {/if}
         <button
           class="btn btn-outline"
+          disabled={loading}
           on:click={() => {
             if (updateResult && updateResult.success) {
               window.location.reload()

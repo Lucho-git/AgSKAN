@@ -21,43 +21,8 @@
   let subscriptionData = data.subscriptionData
 
   $: currentPlanName = subscriptionData?.appSubscription?.name || "Free Plan"
-
-  // Refresh data if needed
-  async function refreshData() {
-    try {
-      loading = true
-      error = null
-
-      // Fetch subscription data from our API
-      const response = await fetch("/api/customer/subscription", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${$session.access_token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch subscription data")
-      }
-
-      const responseData = await response.json()
-
-      // Update our local state
-      isActiveCustomer = !!responseData.primarySubscription
-      hasEverHadSubscription = responseData.hasEverHadSubscription
-      currentPlanId =
-        responseData.primarySubscription?.appSubscription?.id || "free"
-      subscriptionData = responseData.primarySubscription
-    } catch (err) {
-      console.error("Error refreshing billing data:", err)
-      error = err.message
-      toast.error("Failed to load billing information")
-    } finally {
-      loading = false
-    }
-  }
+  $: isFreePlan =
+    currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
 </script>
 
 <svelte:head>
@@ -66,9 +31,7 @@
 
 {#if loading}
   <div class="flex h-48 items-center justify-center">
-    <div
-      class="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"
-    ></div>
+    <div class="skeleton h-12 w-12 rounded-full"></div>
   </div>
 {:else if error}
   <div class="mx-auto my-8 max-w-xl rounded-lg bg-red-50 p-6 text-center">
@@ -76,20 +39,24 @@
       Error Loading Billing Information
     </h2>
     <p class="text-red-600">{error}</p>
-    <div class="mt-4 flex justify-center gap-4">
-      <button
+    <div class="mt-4">
+      <a
+        href="/account/billing"
         class="rounded bg-primary px-4 py-2 text-white"
-        on:click={refreshData}
       >
         Try Again
-      </button>
+      </a>
     </div>
   </div>
 {:else if !isActiveCustomer}
   <div class="container mx-auto px-4">
     <div class="py-2">
-      <h1 class="mb-4 text-center text-4xl font-bold">Select a Plan</h1>
-      <PricingSection currentPlanId="none" useFullPrice={true} />
+      <h1 class="mb-4 text-center text-4xl font-bold">Upgrade Your Account</h1>
+      <p class="mb-8 text-center text-lg text-base-content/80">
+        Choose a paid plan to unlock additional features and capabilities
+      </p>
+      <!-- Only show the pro plan by setting currentPlanId to "free" -->
+      <PricingSection currentPlanId="free" useFullPrice={true} />
     </div>
 
     {#if hasEverHadSubscription}
@@ -148,13 +115,12 @@
       editLink="/account/billing/manage"
     />
 
-    <div class="mt-8 flex justify-center">
-      <button
-        class="rounded bg-secondary px-4 py-2 text-white"
-        on:click={refreshData}
-      >
-        Refresh Billing Information
-      </button>
-    </div>
+    {#if isFreePlan}
+      <div class="mt-12">
+        <h2 class="mb-6 text-center text-xl font-bold">Upgrade Options</h2>
+        <!-- Only show the pro plan by setting currentPlanId to "free" -->
+        <PricingSection currentPlanId="free" useFullPrice={true} />
+      </div>
+    {/if}
   </div>
 {/if}

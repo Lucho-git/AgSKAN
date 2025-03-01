@@ -2,59 +2,57 @@
 import { json } from "@sveltejs/kit";
 import { PRIVATE_STRIPE_API_KEY } from "$env/static/private";
 import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public";
 
 const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" });
 
-export async function POST({ request }) {
+export async function POST({ request, fetch, url }) {
     const authHeader = request.headers.get("Authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return json({ error: "Unauthorized - no valid token" }, { status: 401 });
     }
 
-    const token = authHeader.split(" ")[1];
-
     try {
-        // Create a Supabase client with the provided token
-        const supabase = createClient(
-            PUBLIC_SUPABASE_URL,
-            PUBLIC_SUPABASE_ANON_KEY,
-            {
-                global: {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
+        // Step 1: Get the customer ID using the existing endpoint
+        const baseUrl = url.origin;
+
+        const customerResponse = await fetch(`${baseUrl}/api/customer/id`, {
+            method: "GET",
+            headers: {
+                "Authorization": authHeader
             }
-        );
+        });
 
-        // Verify the token by getting user info
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (!customerResponse.ok) {
+            const errorData = await customerResponse.json();
+            return json({
+                success: false,
+                error: errorData.error || "Failed to retrieve customer data"
+            }, { status: customerResponse.status });
+        }
 
-        if (authError || !user) {
-            return json({ error: "Invalid or expired token" }, { status: 401 });
+        const customerData = await customerResponse.json();
+        const customerId = customerData.customerId;
+
+        console.log("API: Got customer ID for seat update:", customerId);
+
+        if (!customerId) {
+            return json({
+                success: false,
+                error: "Customer not found"
+            }, { status: 404 });
         }
 
         // Parse request body
         const data = await request.json();
         const newQuantity = parseInt(data.quantity);
         const appliedDate = data.appliedDate;
-        const promotionCode = data.promotionCode || "promo_1PmvAuK3At0l0k1H32XUkuL5";
+        const promotionCode = data.promotionCode || null; // Make it optional
 
-        // Get the customer ID
-        const { data: customerData, error: customerError } = await supabase
-            .from("stripe_customers")
-            .select("stripe_customer_id")
-            .eq("user_id", user.id)
-            .single();
-
-        if (customerError || !customerData?.stripe_customer_id) {
-            return json({ error: "Customer not found" }, { status: 404 });
+        console.log(`API: Updating to ${newQuantity} seats, applied ${appliedDate}`);
+        if (promotionCode) {
+            console.log(`API: Using promotion code: ${promotionCode}`);
         }
-
-        const customerId = customerData.stripe_customer_id;
 
         // Fetch active subscription
         const subscriptions = await stripe.subscriptions.list({
@@ -62,11 +60,17 @@ export async function POST({ request }) {
             status: 'active'
         });
 
+        console.log(`API: Found ${subscriptions.data.length} active subscriptions`);
+
         if (!subscriptions?.data?.length) {
-            return json({ error: "No active subscription found" }, { status: 404 });
+            return json({
+                success: false,
+                error: "No active subscription found"
+            }, { status: 404 });
         }
 
         const subscription = subscriptions.data[0];
+        console.log(`API: Found subscription: ${subscription.id}`);
 
         // Update the subscription
         try {
@@ -81,14 +85,24 @@ export async function POST({ request }) {
                 proration_behavior: isIncrease ? "always_invoice" : "none",
             };
 
+            console.log(`API: Is seat increase: ${isIncrease}`);
+            console.log(`API: Update params:`, JSON.stringify(updateParams));
+
             if (!isIncrease) {
                 updateParams.billing_cycle_anchor = "unchanged";
             }
 
+            // Only add the promotion code if it's provided
             if (promotionCode) {
-                const promotion = await stripe.promotionCodes.retrieve(promotionCode);
-                if (promotion.coupon) {
-                    updateParams.coupon = promotion.coupon.id;
+                try {
+                    const promotion = await stripe.promotionCodes.retrieve(promotionCode);
+                    if (promotion.coupon) {
+                        updateParams.coupon = promotion.coupon.id;
+                        console.log(`API: Applied coupon: ${promotion.coupon.id}`);
+                    }
+                } catch (promoError) {
+                    console.log(`API: Failed to apply promotion code: ${promoError.message}`);
+                    // Continue without the promotion code
                 }
             }
 
@@ -97,10 +111,19 @@ export async function POST({ request }) {
                 updateParams
             );
 
-            // Update user_subscriptions table
-            await supabase
-                .from("user_subscriptions")
-                .update({
+            console.log(`API: Subscription updated successfully`);
+
+            // Get the token from the request
+            const token = authHeader.split(" ")[1];
+
+            // Create a request to update the user_subscriptions table
+            const updateResponse = await fetch(`${baseUrl}/api/customer/subscription/update-metadata`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": authHeader
+                },
+                body: JSON.stringify({
                     current_seats: newQuantity,
                     lingering_seats: isIncrease
                         ? null
@@ -108,9 +131,14 @@ export async function POST({ request }) {
                     next_billing_date: new Date(
                         updatedSubscription.current_period_end * 1000
                     ).toISOString(),
-                    updated_at: new Date().toISOString(),
                 })
-                .eq("user_id", user.id);
+            });
+
+            if (!updateResponse.ok) {
+                console.log(`API: Failed to update subscription metadata, but seat update was successful`);
+            } else {
+                console.log(`API: Updated subscription metadata`);
+            }
 
             return json({
                 success: true,
@@ -122,6 +150,7 @@ export async function POST({ request }) {
             });
         } catch (e) {
             if (e instanceof Stripe.errors.StripeError) {
+                console.error("API: Stripe error:", e.message, e.code, e.type);
                 return json({
                     success: false,
                     error: e.message,

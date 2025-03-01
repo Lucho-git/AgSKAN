@@ -2,12 +2,14 @@
 import { browser } from "$app/environment";
 import { goto } from "$app/navigation";
 import { session } from "$lib/stores/sessionStore";
-import { fetchSubscription } from "$lib/helpers/subscriptionHelpers";
 import { get } from "svelte/store";
 
-export const load = async () => {
+export const load = async ({ parent }) => {
     // Skip SSR - only run in browser
     if (!browser) return { loading: true };
+
+    // Wait for parent layout data - this ensures session is initialized
+    const layoutData = await parent();
 
     // Default data structure
     const defaultData = {
