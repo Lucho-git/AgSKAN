@@ -1,5 +1,4 @@
 <script>
-  import { userStore } from "../stores/userStore"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public"
