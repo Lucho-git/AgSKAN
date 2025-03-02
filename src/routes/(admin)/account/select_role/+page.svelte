@@ -11,7 +11,7 @@
     Navigation,
   } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
 
   let selectedRole: "manager" | "operator" | null = null

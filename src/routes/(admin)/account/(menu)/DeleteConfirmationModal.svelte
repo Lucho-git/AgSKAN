@@ -1,6 +1,6 @@
 <script lang="ts">
   import { menuStore } from "../../../../stores/menuStore"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { enhance, applyAction } from "$app/forms"
   import { toast } from "svelte-sonner"
   import { goto } from "$app/navigation"

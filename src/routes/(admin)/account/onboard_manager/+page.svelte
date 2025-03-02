@@ -3,8 +3,8 @@
   import { goto } from "$app/navigation"
   import { User, Building2, Phone } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
-  import { profileStore } from "../../../../stores/profileStore"
-  import { subscriptionStore } from "../../../../stores/subscriptionStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { subscriptionStore } from "$lib/stores/subscriptionStore"
   import { toast } from "svelte-sonner"
 
   let formError: string | null = null

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { v4 as uuidv4 } from "uuid"
   import { menuStore } from "../../../../stores/menuStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { enhance } from "$app/forms"
   import { toast } from "svelte-sonner"
   import { Map } from "lucide-svelte"

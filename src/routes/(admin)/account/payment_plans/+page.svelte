@@ -3,7 +3,7 @@
   import { onMount } from "svelte"
   import PricingSection from "$lib/components/PricingSection.svelte"
   import { supabase, session } from "$lib/stores/sessionStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
   import { goto } from "$app/navigation"
 

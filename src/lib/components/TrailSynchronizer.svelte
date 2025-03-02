@@ -21,7 +21,7 @@
 
   import { mapActivityStore } from "../../stores/mapActivityStore"
 
-  import { profileStore } from "../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
 
   import EndTrailModal from "$lib/components/EndTrailModal.svelte"
   import TrailView from "$lib/components/TrailView.svelte"

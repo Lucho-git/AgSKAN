@@ -4,9 +4,9 @@
   import { Map, User } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
 
-  import { profileStore } from "../../../../stores/profileStore"
-  import { subscriptionStore } from "../../../../stores/subscriptionStore"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { subscriptionStore } from "$lib/stores/subscriptionStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
   import {
     operationStore,

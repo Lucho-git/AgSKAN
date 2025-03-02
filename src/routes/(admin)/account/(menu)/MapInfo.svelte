@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { menuStore } from "../../../../stores/menuStore"
   import OperationModal from "./OperationModal.svelte"
   import Icon from "@iconify/svelte"

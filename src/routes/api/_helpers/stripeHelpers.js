@@ -163,7 +163,7 @@ export const createStripeCheckoutSession = async ({
       customer: customerId,
       mode: isOneTimePayment ? "payment" : "subscription",
       success_url: `${origin}/account`,
-      cancel_url: `${origin}/account/payment_plans`,
+      cancel_url: `${origin}/account/`,
       consent_collection: {
         terms_of_service: "required",
       },

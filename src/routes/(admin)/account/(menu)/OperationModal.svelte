@@ -6,7 +6,7 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { menuStore } from "../../../../stores/menuStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
   import { invalidate, invalidateAll } from "$app/navigation"

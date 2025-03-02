@@ -4,7 +4,7 @@
   import { goto } from "$app/navigation"
   import { onMount } from "svelte"
   import { supabase } from "$lib/stores/sessionStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
 
   let loading = false
 

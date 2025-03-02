@@ -8,8 +8,8 @@
   import { page } from "$app/stores"
   import AlertBanner from "../../../../components/AlertBanner.svelte"
   import { Skeleton } from "$lib/components/ui/skeleton/index.js"
-  import { profileStore } from "../../../../stores/profileStore"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import MasterMapManager from "./MasterMapManager.svelte"
 
   export let data

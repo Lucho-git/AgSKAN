@@ -12,7 +12,7 @@
   import GeoJSONMap from "$lib/components/GeoJsonMap.svelte"
   import { toast } from "svelte-sonner"
 
-  import { connectedMapStore } from "../../../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
   export let data
 

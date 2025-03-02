@@ -1,7 +1,7 @@
 <script lang="ts">
   import { menuStore } from "../../../../stores/menuStore"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
   import { enhance } from "$app/forms"
   import { toast } from "svelte-sonner"

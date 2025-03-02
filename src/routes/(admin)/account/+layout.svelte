@@ -8,9 +8,9 @@
   import { toast } from "svelte-sonner"
 
   // Import necessary stores
-  import { profileStore } from "../../../stores/profileStore"
-  import { subscriptionStore } from "../../../stores/subscriptionStore"
-  import { connectedMapStore } from "../../../stores/connectedMapStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { subscriptionStore } from "$lib/stores/subscriptionStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "../../../stores/mapActivityStore"
   import {
     operationStore,
@@ -280,6 +280,8 @@
       // Load all user data
       const userData = await loadUserData()
       userDataLoaded = true
+
+      console.log("Loaded User Data:", userData)
 
       // Check onboarding status and redirect if needed
       if (userData) {

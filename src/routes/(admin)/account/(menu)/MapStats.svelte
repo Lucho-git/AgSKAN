@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Skeleton } from "$lib/components/ui/skeleton"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "../../../../stores/mapActivityStore"
   import { Card, CardContent } from "$lib/components/ui/card"
   import { Truck, Route } from "lucide-svelte"

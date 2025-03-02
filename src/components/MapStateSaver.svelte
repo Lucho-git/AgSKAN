@@ -9,7 +9,7 @@
   } from "../stores/mapStore"
 
   import { mapActivityStore } from "../stores/mapActivityStore"
-  import { profileStore } from "../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { LngLatBounds } from "mapbox-gl"
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { supabase } from "../lib/supabaseClient"
