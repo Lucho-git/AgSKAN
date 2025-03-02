@@ -9,7 +9,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { subscriptionStore } from "$lib/stores/subscriptionStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
-  import { mapActivityStore } from "../../../../stores/mapActivityStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import {
     operationStore,
     selectedOperationStore,

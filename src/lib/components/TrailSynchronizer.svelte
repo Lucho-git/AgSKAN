@@ -19,7 +19,7 @@
     otherActiveTrailStore,
   } from "$lib/stores/otherTrailStore"
 
-  import { mapActivityStore } from "../../stores/mapActivityStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
 
   import { profileStore } from "$lib/stores/profileStore"
 

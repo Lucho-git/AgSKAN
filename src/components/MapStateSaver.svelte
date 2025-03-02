@@ -8,11 +8,11 @@
     syncStore,
   } from "../stores/mapStore"
 
-  import { mapActivityStore } from "../stores/mapActivityStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { LngLatBounds } from "mapbox-gl"
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
-  import { supabase } from "../lib/supabaseClient"
+  import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { debounce } from "lodash-es"
 

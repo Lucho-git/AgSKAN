@@ -11,7 +11,7 @@
   import { enhance, applyAction } from "$app/forms"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
-  import { mapActivityStore } from "../../../../stores/mapActivityStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { goto } from "$app/navigation"
   import Icon from "@iconify/svelte"
 

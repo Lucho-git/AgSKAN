@@ -1,8 +1,12 @@
 // src/routes/api/customer/status/+server.ts
 import { json } from "@sveltejs/kit"
-import { getOrCreateCustomerId, fetchSubscription } from "../../../(admin)/account/subscription_helpers.server"
 import { createClient } from '@supabase/supabase-js'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
+import { PRIVATE_STRIPE_API_KEY } from "$env/static/private"
+import Stripe from "stripe"
+import { pricingPlans } from "../../../(marketing)/pricing/pricing_plans"
+
+const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" })
 
 export async function GET({ request, locals }) {
     const authHeader = request.headers.get('Authorization')
@@ -35,56 +39,110 @@ export async function GET({ request, locals }) {
             return json({ error: "Invalid or expired token" }, { status: 401 })
         }
 
-        // Create a session object similar to what getSession() would return
-        const session = {
-            user,
-            access_token: token
+        // Get customer ID directly from the database
+        const { data: dbCustomer, error: customerError } = await supabaseServiceRole
+            .from("stripe_customers")
+            .select("stripe_customer_id")
+            .eq("user_id", user.id)
+            .single()
+
+        let customerId = dbCustomer?.stripe_customer_id;
+
+        // If customer ID doesn't exist, create a new one
+        if (!customerId) {
+            // Fetch user profile data
+            const { data: profile, error: profileError } = await supabaseServiceRole
+                .from("profiles")
+                .select(`full_name, website, company_name`)
+                .eq("id", user.id)
+                .single()
+
+            if (profileError) {
+                return json({
+                    error: `Error fetching profile: ${profileError.message}`,
+                    isActiveCustomer: false,
+                    currentPlanId: null,
+                }, { status: 500 })
+            }
+
+            // Create Stripe customer
+            try {
+                const customer = await stripe.customers.create({
+                    email: user.email,
+                    name: profile.full_name ?? "",
+                    metadata: {
+                        user_id: user.id,
+                        company_name: profile.company_name ?? "",
+                        website: profile.website ?? "",
+                    },
+                })
+
+                customerId = customer.id
+
+                // Store customer ID in database
+                const { error: insertError } = await supabaseServiceRole
+                    .from("stripe_customers")
+                    .insert({
+                        user_id: user.id,
+                        stripe_customer_id: customer.id,
+                        updated_at: new Date(),
+                    })
+
+                if (insertError) {
+                    return json({
+                        error: `Error saving customer ID: ${insertError.message}`,
+                        isActiveCustomer: false,
+                        currentPlanId: null,
+                    }, { status: 500 })
+                }
+            } catch (stripeError) {
+                return json({
+                    error: `Error creating Stripe customer: ${stripeError.message}`,
+                    isActiveCustomer: false,
+                    currentPlanId: null,
+                }, { status: 500 })
+            }
         }
 
-        const result = await getOrCreateCustomerId({
-            supabaseServiceRole,
-            session,
-        })
+        // Now that we have a customer ID, fetch subscription information
+        try {
+            const stripeSubscriptions = await stripe.subscriptions.list({
+                customer: customerId,
+                limit: 100,
+                status: "all",
+            })
 
-        if (!result || typeof result !== "object") {
+            // Find primary subscription
+            const primaryStripeSubscription = stripeSubscriptions.data.find((x) => {
+                return (
+                    x.status === "active" ||
+                    x.status === "trialing" ||
+                    x.status === "past_due"
+                )
+            })
+
+            let appSubscription = null;
+            if (primaryStripeSubscription) {
+                const productId =
+                    primaryStripeSubscription?.items?.data?.[0]?.price.product ?? ""
+
+                appSubscription = pricingPlans.find((x) => {
+                    return x.stripe_product_id === productId
+                })
+            }
+
             return json({
-                error: "Invalid response from customer creation",
+                isActiveCustomer: !!primaryStripeSubscription,
+                hasEverHadSubscription: stripeSubscriptions.data.length > 0,
+                currentPlanId: appSubscription?.id || "free",
+            })
+        } catch (stripeError) {
+            return json({
+                error: `Error fetching subscriptions: ${stripeError.message}`,
                 isActiveCustomer: false,
                 currentPlanId: null,
             }, { status: 500 })
         }
-
-        const { error: idError, customerId } = result
-
-        if (idError || !customerId) {
-            return json({
-                error: `Error creating customer ID: ${idError}`,
-                isActiveCustomer: false,
-                currentPlanId: null,
-            }, { status: 500 })
-        }
-
-        const {
-            primarySubscription,
-            hasEverHadSubscription,
-            error: fetchErr,
-        } = await fetchSubscription({
-            customerId,
-        })
-
-        if (fetchErr) {
-            return json({
-                error: `Error fetching subscription: ${fetchErr}`,
-                isActiveCustomer: false,
-                currentPlanId: null,
-            }, { status: 500 })
-        }
-
-        return json({
-            isActiveCustomer: !!primarySubscription,
-            hasEverHadSubscription,
-            currentPlanId: primarySubscription?.appSubscription?.id || "free",
-        })
     } catch (err) {
         console.error("Error in customer status API:", err)
         return json({

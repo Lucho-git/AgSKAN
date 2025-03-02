@@ -27,7 +27,7 @@
     SquarePen,
   } from "lucide-svelte"
 
-  import { connectedMapStore } from "../../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { fieldStore } from "../../../../../stores/fieldStore"
   import { get } from "svelte/store"
   import FieldIcon from "$lib/components/FieldIcon.svelte"

@@ -15,6 +15,7 @@ export const GET = async ({ url, locals: { supabase } }) => {
       if (authError) throw authError
 
       if (session) {
+        console.log('CREATING NEW PROFILE IN AUTH CALLBACK')
         // Try to create profile for new user
         const { error: profileError } = await supabase
           .from("profiles")
