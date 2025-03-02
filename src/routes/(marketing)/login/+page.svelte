@@ -2,10 +2,10 @@
   import { onMount } from "svelte"
   import { Auth } from "@supabase/auth-ui-svelte"
   import { sharedAppearance, oauthProviders } from "./login_config"
-  import { goto } from "$app/navigation"
   import { page } from "$app/stores"
   import { browser } from "$app/environment"
   import { supabase, setPendingMapId } from "$lib/stores/sessionStore"
+  import { setupAuthListener } from "$lib/helpers/authHelpers"
 
   $: activeTab =
     $page.url.searchParams.get("tab") === "sign_up" ? "sign_up" : "sign_in"
@@ -13,6 +13,8 @@
   // Process URL parameters
   onMount(() => {
     if (browser) {
+      console.log("Login page mounted")
+
       // Handle map_id from URL if present
       const urlParams = new URLSearchParams(window.location.search)
       const mapId = urlParams.get("map_id")
@@ -20,21 +22,17 @@
         setPendingMapId(mapId)
       }
 
-      // Set up auth state change listener
+      // Set up auth state change listener with consistent behavior
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((event, newSession) => {
-        if (event === "SIGNED_IN") {
-          console.log("About to sign in :)")
-          setTimeout(() => {
-            console.log("Going to static auth route")
-            goto("/static_auth")
-          }, 1)
-        }
-      })
+        checkNow,
+      } = setupAuthListener("/static_auth")
+
+      // Force check for existing session
+      checkNow()
 
       return () => {
-        subscription?.unsubscribe()
+        subscription.unsubscribe()
       }
     }
   })
@@ -61,7 +59,7 @@
       <Auth
         supabaseClient={supabase}
         view={activeTab}
-        redirectTo={`${$page.url.origin}/auth/callback`}
+        redirectTo={`${$page.url.origin}/auth/callback?next=/static_auth`}
         providers={oauthProviders}
         socialLayout="horizontal"
         showLinks={false}

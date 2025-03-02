@@ -58,6 +58,7 @@
         profileStore.set({
           id: profile.id,
           full_name: profile.full_name,
+          email: profile.email,
           company_name: profile.company_name,
           website: profile.website,
           user_type: profile.role,

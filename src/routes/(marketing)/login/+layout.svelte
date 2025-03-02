@@ -5,16 +5,23 @@
   import { goto } from "$app/navigation"
   import { browser } from "$app/environment"
 
-  // Redirect logged-in users away from login pages
+  // Flag to track initial session check
+  let initialCheckComplete = false
+
+  // Only redirect if user is already logged in when they visit the page
   onMount(() => {
     if (browser && $session) {
+      console.log("User already logged in, redirecting away from login page")
       goto("/static_auth")
     }
+    initialCheckComplete = true
   })
 
-  // Also watch for session changes
-  $: if (browser && $session) {
-    goto("/static_auth")
+  // Don't redirect on session changes after initial load
+  // This prevents redirecting away during the authentication process
+  $: if (browser && initialCheckComplete && $session) {
+    // Do nothing - we'll let the Auth UI handle the redirect
+    console.log("Session detected, but letting Auth UI handle redirect flow")
   }
 </script>
 

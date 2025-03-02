@@ -4,7 +4,7 @@
   import { screenSize } from "../stores/screenSizeStore"
   import { page } from "$app/stores"
   import { derived } from "svelte/store"
-  import { userStore } from "../stores/userStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
 
   const WEBSITE_ID = "961bded6-4b5a-45e3-8a71-a57bcc27934a"
@@ -17,17 +17,17 @@
   )
 
   // Handle user information updates
-  $: if (isInitialized && $userStore.id) {
+  $: if (isInitialized && $profileStore?.id) {
     setUserInfo()
   }
 
   function setUserInfo() {
-    if (isInitialized && $userStore.id) {
-      Crisp.user.setEmail($userStore.email)
-      Crisp.user.setNickname($userStore.fullName)
+    if (isInitialized && $profileStore?.id) {
+      Crisp.user.setEmail($profileStore.email)
+      Crisp.user.setNickname($profileStore.full_name)
       Crisp.session.setData({
-        company: $userStore.companyName,
-        website: $userStore.website,
+        company: $profileStore.company_name,
+        website: $profileStore.website,
       })
     }
   }
@@ -131,7 +131,7 @@
       console.log("Initialization complete")
 
       // Initialize user info after Crisp is fully initialized
-      if ($userStore.id) {
+      if ($profileStore?.id) {
         setUserInfo()
       }
     }

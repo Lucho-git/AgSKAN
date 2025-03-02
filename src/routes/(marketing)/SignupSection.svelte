@@ -2,10 +2,10 @@
   import { Auth } from "@supabase/auth-ui-svelte"
   import { sharedAppearance, oauthProviders } from "./login/login_config"
   import { onMount } from "svelte"
-  import { goto } from "$app/navigation"
   import { supabase, session } from "$lib/stores/sessionStore"
   import { page } from "$app/stores"
   import { browser } from "$app/environment"
+  import { setupAuthListener } from "$lib/helpers/authHelpers"
 
   let mounted = false
 
@@ -13,13 +13,16 @@
     mounted = true
 
     if (browser) {
+      console.log("SignupSection mounted")
+
+      // Use the shared auth listener for consistent behavior
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN") {
-          goto("/static_auth") // Updated to your new auth route
-        }
-      })
+        checkNow,
+      } = setupAuthListener("/static_auth")
+
+      // Force check for existing session
+      checkNow()
 
       return () => {
         subscription.unsubscribe()
