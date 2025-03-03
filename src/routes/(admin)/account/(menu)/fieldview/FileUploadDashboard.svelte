@@ -260,7 +260,7 @@
 
 <!-- Delete File Modal -->
 <dialog id={deleteModalId} class="modal modal-bottom sm:modal-middle">
-  <div class="desktop-wider mobile-fix modal-box">
+  <div class="modal-box">
     <div class="flex items-center gap-2">
       <div class="rounded-lg bg-destructive/10 p-2">
         <AlertTriangle class="h-5 w-5 text-destructive" />
@@ -590,25 +590,6 @@
 </div>
 
 <style>
-  /* Desktop-only width enhancement for modal */
-  @media (min-width: 768px) {
-    .desktop-wider {
-      width: 800px;
-      max-width: 90%;
-    }
-  }
-
-  /* Mobile bottom spacing fix for modal */
-  @media (max-width: 640px) {
-    .mobile-fix {
-      padding-bottom: 5rem;
-    }
-
-    .modal.modal-bottom {
-      padding-bottom: 2rem;
-    }
-  }
-
   /* Improved hover effect for table rows */
   :global(.table tbody tr) {
     transition: background-color 0.2s;
