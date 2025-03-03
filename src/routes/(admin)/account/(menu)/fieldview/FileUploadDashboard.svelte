@@ -4,9 +4,9 @@
   import { goto } from "$app/navigation"
   import { userFilesStore } from "../../../../../stores/userFilesStore" // Adjust path if necessary
   import { menuStore } from "../../../../../stores/menuStore"
+  import { session } from "$lib/stores/sessionStore" // Import session store
 
   import type { FileUpload } from "$lib/types"
-  import MapCarousel from "./MapCarousel.svelte"
 
   import {
     Table,
@@ -69,10 +69,16 @@
   }
 
   async function handleDownload(file: FileUpload) {
-    console.log(`Downloading ${file.name}`)
     try {
+      // Include Authorization header with the token
+      const headers = new Headers()
+      if ($session?.access_token) {
+        headers.append("Authorization", `Bearer ${$session.access_token}`)
+      }
+
       const response = await fetch(
         `/api/files/download?fileName=${encodeURIComponent(file.name)}`,
+        { headers },
       )
 
       if (!response.ok) {
@@ -90,20 +96,23 @@
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error("Error downloading file:", error)
       errorMessage = `Error downloading file: ${error.message}`
     }
   }
 
   async function deleteFile(fileName: string) {
-    console.log("Attempting to delete file:", fileName)
-
     try {
+      // Include Authorization header with the token
+      const headers = new Headers({
+        "Content-Type": "application/json",
+      })
+      if ($session?.access_token) {
+        headers.append("Authorization", `Bearer ${$session.access_token}`)
+      }
+
       const response = await fetch("/api/files/delete", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ fileName }),
       })
 
@@ -119,10 +128,7 @@
       userFilesStore.update((files) => {
         return files.filter((f) => f.name !== fileName)
       })
-
-      console.log(result.message) // Log success message
     } catch (error) {
-      console.error(`Error deleting file ${fileName}:`, error.message)
       errorMessage = `Error deleting file ${fileName}: ${error.message}`
     }
   }
@@ -149,7 +155,6 @@
         `/account/fieldview/landwizard?fileName=${encodedFileName}&fileId=${encodedFileId}`,
       )
     } catch (error) {
-      console.error("Error in handleProcess:", error)
       toast.error(`Error initiating process for ${file.name}: ${error.message}`)
     }
   }

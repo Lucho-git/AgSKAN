@@ -2,7 +2,7 @@
 <script lang="ts">
   import { getContext } from "svelte"
   import type { Writable } from "svelte/store"
-  import UploadPopoverTrigger from "../../../../../components/UploadPopoverTrigger.svelte"
+  import UploadPopoverTrigger from "./UploadPopoverTrigger.svelte"
   import FileUploadDashboard from "./FileUploadDashboard.svelte"
   import FieldsOverview from "./FieldsOverview.svelte"
   import { Info, FileUp, Loader } from "lucide-svelte"
