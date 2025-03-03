@@ -17,6 +17,7 @@
     CardTitle,
   } from "$lib/components/ui/card"
   import { Input } from "$lib/components/ui/input"
+  import { Label } from "$lib/components/ui/label"
 
   import {
     MapPinned,
@@ -25,10 +26,12 @@
     ChevronUp,
     LandPlot,
     SquarePen,
+    AlertTriangle,
   } from "lucide-svelte"
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { fieldStore } from "../../../../../stores/fieldStore"
+  import { session } from "$lib/stores/sessionStore" // Import session
   import { get } from "svelte/store"
   import FieldIcon from "$lib/components/FieldIcon.svelte"
   import { toast } from "svelte-sonner"
@@ -36,11 +39,22 @@
   $: fields = $fieldStore
   $: connectedMap = $connectedMapStore
   $: farmName = connectedMap.is_connected ? connectedMap.map_name : null
+  $: authToken = $session?.access_token
 
   let isExpanded = true
-  let modalId = "edit-field-modal"
-  let currentEditingField: { field_id: string; name: string } | null = null
+  let editModalId = "edit-field-modal"
+  let deleteModalId = "delete-field-modal"
+  let currentEditingField: {
+    field_id: string
+    name: string
+    area: number
+  } | null = null
+  let fieldToDelete: {
+    field_id: string
+    name: string
+  } | null = null
   let newFieldName = ""
+  let newFieldArea = 0
 
   function toggleExpand() {
     isExpanded = !isExpanded
@@ -57,27 +71,44 @@
   function openEditModal(field: any) {
     currentEditingField = field
     newFieldName = field.name
-    const modal = document.getElementById(modalId) as HTMLDialogElement
+    newFieldArea = field.area
+    const modal = document.getElementById(editModalId) as HTMLDialogElement
     if (modal) modal.showModal()
   }
 
-  function closeModal() {
-    const modal = document.getElementById(modalId) as HTMLDialogElement
+  function openDeleteModal(field: any) {
+    fieldToDelete = {
+      field_id: field.field_id,
+      name: field.name,
+    }
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
+    if (modal) modal.showModal()
+  }
+
+  function closeEditModal() {
+    const modal = document.getElementById(editModalId) as HTMLDialogElement
+    if (modal) modal.close()
+  }
+
+  function closeDeleteModal() {
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
     if (modal) modal.close()
   }
 
   async function handleEditField() {
-    if (!currentEditingField || !newFieldName.trim()) return
+    if (!currentEditingField || !newFieldName.trim() || !authToken) return
 
     try {
       const response = await fetch("/api/files/update_field", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           fieldId: currentEditingField.field_id,
           name: newFieldName.trim(),
+          area: parseFloat(newFieldArea.toString()),
         }),
       })
 
@@ -87,65 +118,53 @@
         fieldStore.update((fields: any) =>
           fields.map((field: any) =>
             field.field_id === currentEditingField?.field_id
-              ? { ...field, name: newFieldName.trim() }
+              ? {
+                  ...field,
+                  name: newFieldName.trim(),
+                  area: parseFloat(newFieldArea.toString()),
+                }
               : field,
           ),
         )
-        toast.success("Field name updated successfully")
-        closeModal()
+        toast.success("Field updated successfully")
+        closeEditModal()
       } else {
-        throw new Error(result.error || "Failed to update field name")
+        throw new Error(result.error || "Failed to update field")
       }
     } catch (error) {
-      console.error("Error updating field name:", error)
-      toast.error("Failed to update field name. Please try again.")
+      toast.error("Failed to update field. Please try again.")
     }
   }
 
   function handleLocateField(fieldId: string) {
-    console.log("locating field", fieldId)
     goto(`/account/mapviewer?field=${fieldId}`)
   }
 
-  async function handleDeleteField(fieldId: string) {
-    const fieldToDelete = $fieldStore.find(
-      (field) => field.field_id === fieldId,
-    )
+  async function handleDeleteField() {
+    if (!authToken || !fieldToDelete) return
 
-    if (!fieldToDelete) {
-      toast.error("Field not found")
-      return
-    }
-
-    const isConfirmed = confirm(
-      `Are you sure you want to delete the field "${fieldToDelete.name}"?`,
-    )
-
-    if (!isConfirmed) return
-
-    console.log("Deleting field with ID:", fieldId)
     try {
       const response = await fetch("/api/files/delete_fields", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ fieldId }),
+        body: JSON.stringify({ fieldId: fieldToDelete.field_id }),
       })
 
       const result = await response.json()
 
       if (response.ok) {
         fieldStore.update((fields) =>
-          fields.filter((field) => field.field_id !== fieldId),
+          fields.filter((field) => field.field_id !== fieldToDelete.field_id),
         )
         toast.success(`Field "${fieldToDelete.name}" deleted successfully`)
-        console.log($fieldStore)
+        closeDeleteModal()
       } else {
         throw new Error(result.error || "Failed to delete field")
       }
     } catch (error) {
-      console.error("Error deleting field:", error)
       toast.error(
         `Failed to delete field "${fieldToDelete.name}". Please try again.`,
       )
@@ -157,28 +176,41 @@
   let actionsCellStyle = "width: 20%; min-width: 20vw;"
 </script>
 
-<!-- DaisyUI Modal -->
-<dialog id={modalId} class="modal modal-bottom sm:modal-middle">
+<!-- Edit Field Modal -->
+<dialog id={editModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
     <div class="flex items-center gap-2">
       <div class="rounded-lg bg-primary/10 p-2">
         <SquarePen class="h-5 w-5 text-primary" />
       </div>
       <div>
-        <h3 class="text-lg font-bold">Edit Field Name</h3>
-        <p class="text-sm text-muted-foreground">
-          Change the name of your field
-        </p>
+        <h3 class="text-lg font-bold">Edit Field</h3>
+        <p class="text-sm text-muted-foreground">Change field information</p>
       </div>
     </div>
 
     <div class="space-y-4 p-4">
-      <Input
-        id="name"
-        bind:value={newFieldName}
-        placeholder="Enter new field name"
-        class="w-full"
-      />
+      <div class="grid gap-2">
+        <Label for="name">Field Name</Label>
+        <Input
+          id="name"
+          bind:value={newFieldName}
+          placeholder="Enter field name"
+          class="w-full"
+        />
+      </div>
+
+      <div class="grid gap-2">
+        <Label for="area">Area (ha)</Label>
+        <Input
+          id="area"
+          type="number"
+          step="0.1"
+          bind:value={newFieldArea}
+          placeholder="Enter area in hectares"
+          class="w-full"
+        />
+      </div>
     </div>
 
     <div class="modal-action">
@@ -186,12 +218,59 @@
         <Button
           variant="outline"
           class="flex-1 sm:flex-none"
-          on:click={closeModal}
+          on:click={closeEditModal}
         >
           Cancel
         </Button>
         <Button class="flex-1 sm:flex-none" on:click={handleEditField}>
           Save changes
+        </Button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Delete Field Modal -->
+<dialog id={deleteModalId} class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <div class="flex items-center gap-2">
+      <div class="rounded-lg bg-destructive/10 p-2">
+        <AlertTriangle class="h-5 w-5 text-destructive" />
+      </div>
+      <div>
+        <h3 class="text-lg font-bold">Delete Field</h3>
+        <p class="text-sm text-muted-foreground">
+          This action cannot be undone
+        </p>
+      </div>
+    </div>
+
+    <div class="p-4">
+      {#if fieldToDelete}
+        <p>
+          Are you sure you want to delete the field "{fieldToDelete.name}"?
+        </p>
+      {/if}
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog" class="flex w-full gap-2 sm:w-auto">
+        <Button
+          variant="outline"
+          class="flex-1 sm:flex-none"
+          on:click={closeDeleteModal}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          class="flex-1 sm:flex-none"
+          on:click={handleDeleteField}
+        >
+          Delete
         </Button>
       </form>
     </div>
@@ -273,7 +352,7 @@
                         size="icon"
                         class="h-8 w-8"
                         aria-label="Delete field"
-                        on:click={() => handleDeleteField(field.field_id)}
+                        on:click={() => openDeleteModal(field)}
                       >
                         <Trash2 class="h-4 w-4" />
                       </Button>

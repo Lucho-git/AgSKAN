@@ -2,8 +2,8 @@ import type { PageLoad } from "./$types"
 import { error, redirect } from "@sveltejs/kit"
 import { userFilesStore } from "../../../../../../stores/userFilesStore"
 import { connectedMapStore } from "$lib/stores/connectedMapStore"
+import { session } from "$lib/stores/sessionStore" // Import session store
 import { get } from "svelte/store"
-
 import { browser } from "$app/environment"
 
 const showPromiseToast = async (promise: Promise<any>, fileName: string) => {
@@ -37,9 +37,13 @@ const showErrorToast = async (message: string) => {
 }
 
 export const load: PageLoad = async ({ url, fetch }) => {
+    // Skip on server
+    if (!browser) {
+        return { loading: true };
+    }
+
     // Check if user is connected to a map using the store
     const connectedMap = get(connectedMapStore)
-    console.log("Connected Map:", connectedMap)
     if (!connectedMap.is_connected || !connectedMap.id) {
         await showErrorToast("Please connect to a map before processing files.")
         throw redirect(303, "/account/fieldview/")
@@ -52,11 +56,19 @@ export const load: PageLoad = async ({ url, fetch }) => {
         throw error(400, "Missing file information")
     }
 
+    // Get the current session
+    const currentSession = get(session);
+    if (!currentSession?.user?.id) {
+        await showErrorToast("Please log in to process files.")
+        throw redirect(303, "/login")
+    }
+
     const processFile = async () => {
         const response = await fetch("/api/files/process", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "Authorization": `Bearer ${currentSession.access_token}`
             },
             body: JSON.stringify({ fileName }),
         })
@@ -80,15 +92,13 @@ export const load: PageLoad = async ({ url, fetch }) => {
                     : f,
             ),
         )
-        console.log("Result:", result)
+
         return {
             processedData: result,
             fileName,
             fileId,
         }
     } catch (err) {
-        console.error("Error processing file:", err)
-
         // Update userFilesStore to reflect the error
         userFilesStore.update((files) =>
             files.map((f) =>

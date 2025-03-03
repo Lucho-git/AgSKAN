@@ -1,6 +1,6 @@
 <!-- src/routes/admin/fieldview/FileUploadDashboard.svelte -->
 <script lang="ts">
-  import { onMount } from "svelte"
+  import { onMount, afterUpdate } from "svelte" // Added afterUpdate
   import { goto } from "$app/navigation"
   import { userFilesStore } from "../../../../../stores/userFilesStore" // Adjust path if necessary
   import { menuStore } from "../../../../../stores/menuStore"
@@ -31,6 +31,7 @@
     Minimize,
     Maximize2,
     Play,
+    AlertTriangle,
   } from "lucide-svelte"
 
   import { toast } from "svelte-sonner"
@@ -38,12 +39,21 @@
   // Read the files once from the store
   $: files = $userFilesStore
 
+  // Track previous files to detect new additions
+  let previousFiles: FileUpload[] = []
+  let isFirstLoad = true
+  let autoProcessingFile = false
+
   // Local state for handling errors
   let errorMessage = ""
 
   // State for expanded/condensed view
   let isExpanded = true
   let isMobile = false
+
+  // State for delete modal
+  let deleteModalId = "delete-file-modal"
+  let fileToDelete: FileUpload | null = null
 
   onMount(() => {
     const mediaQuery = window.matchMedia("(max-width: 768px)")
@@ -54,6 +64,40 @@
       isMobile = e.matches
       isExpanded = !isMobile
     })
+
+    // Initialize previous files
+    previousFiles = [...files]
+    isFirstLoad = false
+  })
+
+  // Watch for changes to detect newly uploaded files
+  afterUpdate(() => {
+    if (isFirstLoad || autoProcessingFile) return
+
+    // Check if a new file was added
+    if (files.length > previousFiles.length) {
+      const newFiles = files.filter(
+        (current) => !previousFiles.some((prev) => prev.id === current.id),
+      )
+
+      // If we have new files, process the first one
+      if (newFiles.length > 0) {
+        autoProcessingFile = true
+        const newFile = newFiles[0]
+
+        toast.info(`Processing newly uploaded file: ${newFile.name}`, {
+          duration: 3000,
+        })
+
+        // Use a slight delay to ensure the store is updated and toast is shown
+        setTimeout(() => {
+          handleProcess(newFile)
+        }, 800)
+      }
+    }
+
+    // Update previous files for next comparison
+    previousFiles = [...files]
   })
 
   function toggleView() {
@@ -100,7 +144,21 @@
     }
   }
 
-  async function deleteFile(fileName: string) {
+  function openDeleteModal(file: FileUpload) {
+    fileToDelete = file
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
+    if (modal) modal.showModal()
+  }
+
+  function closeDeleteModal() {
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
+    if (modal) modal.close()
+    fileToDelete = null
+  }
+
+  async function deleteFile() {
+    if (!fileToDelete) return
+
     try {
       // Include Authorization header with the token
       const headers = new Headers({
@@ -113,7 +171,7 @@
       const response = await fetch("/api/files/delete", {
         method: "POST",
         headers,
-        body: JSON.stringify({ fileName }),
+        body: JSON.stringify({ fileName: fileToDelete.name }),
       })
 
       const result = await response.json()
@@ -126,16 +184,17 @@
 
       // Update the store by removing the deleted file
       userFilesStore.update((files) => {
-        return files.filter((f) => f.name !== fileName)
+        return files.filter((f) => f.name !== fileToDelete.name)
       })
-    } catch (error) {
-      errorMessage = `Error deleting file ${fileName}: ${error.message}`
-    }
-  }
 
-  function handleDelete(file: FileUpload) {
-    if (!confirm(`Are you sure you want to delete ${file.name}?`)) return
-    deleteFile(file.name)
+      toast.success(`File "${fileToDelete.name}" deleted successfully`)
+
+      // Close the modal
+      closeDeleteModal()
+    } catch (error) {
+      errorMessage = `Error deleting file ${fileToDelete.name}: ${error.message}`
+      toast.error(`Failed to delete file: ${error.message}`)
+    }
   }
 
   function truncateFileName(name: string, maxLength: number = 20): string {
@@ -155,10 +214,58 @@
         `/account/fieldview/landwizard?fileName=${encodedFileName}&fileId=${encodedFileId}`,
       )
     } catch (error) {
+      autoProcessingFile = false // Reset flag if there's an error
       toast.error(`Error initiating process for ${file.name}: ${error.message}`)
     }
   }
 </script>
+
+<!-- Delete File Modal -->
+<dialog id={deleteModalId} class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <div class="flex items-center gap-2">
+      <div class="rounded-lg bg-destructive/10 p-2">
+        <AlertTriangle class="h-5 w-5 text-destructive" />
+      </div>
+      <div>
+        <h3 class="text-lg font-bold">Delete File</h3>
+        <p class="text-sm text-muted-foreground">
+          This action cannot be undone
+        </p>
+      </div>
+    </div>
+
+    <div class="p-4">
+      {#if fileToDelete}
+        <p>
+          Are you sure you want to delete the file "{fileToDelete.name}"?
+        </p>
+      {/if}
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog" class="flex w-full gap-2 sm:w-auto">
+        <Button
+          variant="outline"
+          class="flex-1 sm:flex-none"
+          on:click={closeDeleteModal}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          class="flex-1 sm:flex-none"
+          on:click={deleteFile}
+        >
+          Delete
+        </Button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 
 <div class="width-auto py-6" class:expanded-mobile={isMobile && isExpanded}>
   <Card>
@@ -276,18 +383,16 @@
                         <Download class="h-4 w-4" />
                         <span class="sr-only">Download {file.name}</span>
                       </Button>
-                      {#if isExpanded}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          on:click={() => handleDelete(file)}
-                          class="h-8 w-8 text-red-600"
-                          aria-label={`Delete ${file.name}`}
-                        >
-                          <Trash class="h-4 w-4" />
-                          <span class="sr-only">Delete {file.name}</span>
-                        </Button>
-                      {/if}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        on:click={() => openDeleteModal(file)}
+                        class="h-8 w-8 text-red-600"
+                        aria-label={`Delete ${file.name}`}
+                      >
+                        <Trash class="h-4 w-4" />
+                        <span class="sr-only">Delete {file.name}</span>
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
