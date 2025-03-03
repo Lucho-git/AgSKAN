@@ -8,7 +8,7 @@
     userVehicleStore,
     userVehicleTrailing,
   } from "../../stores/vehicleStore"
-  import { trailingButtonPressed } from "../../stores/controlStore"
+  import { trailingButtonPressed } from "$lib/stores/controlStore"
   import {
     currentTrailStore,
     coordinateBufferStore,

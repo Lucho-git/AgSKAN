@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { Trash2 } from "lucide-svelte"
-  import { showEndTrailModal } from "../../stores/controlStore"
+  import { showEndTrailModal } from "$lib/stores/controlStore"
   import {
     userVehicleTrailing,
     userVehicleStore,

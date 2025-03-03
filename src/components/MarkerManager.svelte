@@ -7,7 +7,7 @@
     markerActionsStore,
     locationMarkerStore,
   } from "../stores/mapStore"
-  import { controlStore } from "$lib/stores/connectedMapStore"
+  import { controlStore } from "$lib/stores/controlStore"
   import { getContext, onMount, onDestroy } from "svelte"
   import mapboxgl from "mapbox-gl"
   import { v4 as uuidv4 } from "uuid"

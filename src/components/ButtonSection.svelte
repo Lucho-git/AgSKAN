@@ -10,7 +10,7 @@
     controlStore,
     trailingButtonPressed,
     drawingModeEnabled,
-  } from "../stores/controlStore"
+  } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"

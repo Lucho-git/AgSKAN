@@ -23,12 +23,34 @@
 
   function setUserInfo() {
     if (isInitialized && $profileStore?.id) {
-      Crisp.user.setEmail($profileStore.email)
-      Crisp.user.setNickname($profileStore.full_name)
-      Crisp.session.setData({
-        company: $profileStore.company_name,
-        website: $profileStore.website,
-      })
+      try {
+        // Check if values are actually defined before setting them
+        const email = $profileStore.email
+        const fullName = $profileStore.full_name
+        const companyName = $profileStore.company_name
+        const website = $profileStore.website
+
+        // Only set values that actually exist
+        if (email) {
+          Crisp.user.setEmail(email)
+        }
+
+        if (fullName) {
+          Crisp.user.setNickname(fullName)
+        }
+
+        // For session data, only include properties that exist
+        const sessionData = {}
+        if (companyName) sessionData.company = companyName
+        if (website) sessionData.website = website
+
+        // Only call setData if we have at least one property
+        if (Object.keys(sessionData).length > 0) {
+          Crisp.session.setData(sessionData)
+        }
+      } catch (error) {
+        console.error("Error setting Crisp user info:", error)
+      }
     }
   }
 
@@ -82,57 +104,65 @@
   async function initCrispChat() {
     console.log("initCrispChat called, isInitialized:", isInitialized)
     if (!isInitialized) {
-      console.log("Configuring Crisp...")
-      Crisp.configure(WEBSITE_ID, {
-        autoload: true,
-      })
+      try {
+        console.log("Configuring Crisp...")
+        Crisp.configure(WEBSITE_ID, {
+          autoload: true,
+        })
 
-      console.log("Waiting for Crisp to initialize...")
-      await new Promise<void>((resolve) => {
-        const interval = setInterval(() => {
-          if (window.$crisp) {
-            clearInterval(interval)
-            resolve()
-          }
-        }, 100)
-      })
+        console.log("Waiting for Crisp to initialize...")
+        await new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            if (window.$crisp) {
+              clearInterval(interval)
+              resolve()
+            }
+          }, 100)
+        })
 
-      console.log("$crisp loaded, waiting for DOM element...")
-      await waitForCrispElement()
+        console.log("$crisp loaded, waiting for DOM element...")
+        await waitForCrispElement()
 
-      console.log("Crisp fully initialized, setting up initial state")
+        console.log("Crisp fully initialized, setting up initial state")
 
-      // Set initial visibility based on both screen size AND drawer state
-      visible = $screenSize === "lg" && $shouldShowDrawer
-      updateCrispVisibility(visible)
+        // Set initial visibility based on both screen size AND drawer state
+        visible = $screenSize === "lg" && $shouldShowDrawer
+        updateCrispVisibility(visible)
 
-      if (!visible) {
-        window.$crisp.push(["do", "chat:hide"])
-      }
+        if (!visible) {
+          window.$crisp.push(["do", "chat:hide"])
+        }
 
-      // Set up event listeners
-      window.$crisp.push([
-        "on",
-        "chat:closed",
-        () => {
-          console.log("Chat closed by Crisp UI")
-          visible = false
-          // Only update visibility if on small screen
-          if ($screenSize === "sm") {
-            updateCrispVisibility(false)
-          }
-        },
-      ])
+        // Set up event listeners
+        window.$crisp.push([
+          "on",
+          "chat:closed",
+          () => {
+            console.log("Chat closed by Crisp UI")
+            visible = false
+            // Only update visibility if on small screen
+            if ($screenSize === "sm") {
+              updateCrispVisibility(false)
+            }
+          },
+        ])
 
-      // Add message received listener
-      window.$crisp.push(["on", "message:received", handleNewMessage])
+        // Add message received listener
+        window.$crisp.push(["on", "message:received", handleNewMessage])
 
-      isInitialized = true
-      console.log("Initialization complete")
+        isInitialized = true
+        console.log("Initialization complete")
 
-      // Initialize user info after Crisp is fully initialized
-      if ($profileStore?.id) {
-        setUserInfo()
+        // Initialize user info after Crisp is fully initialized
+        if ($profileStore?.id) {
+          // Delay setting user info slightly to ensure Crisp is fully ready
+          setTimeout(() => {
+            setUserInfo()
+          }, 500)
+        }
+      } catch (error) {
+        console.error("Error initializing Crisp:", error)
+        isInitialized = false
       }
     }
   }
