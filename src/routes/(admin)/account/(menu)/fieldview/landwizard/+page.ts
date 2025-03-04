@@ -1,6 +1,6 @@
 import type { PageLoad } from "./$types"
 import { error, redirect } from "@sveltejs/kit"
-import { userFilesStore } from "../../../../../../stores/userFilesStore"
+import { userFilesStore } from "../userFilesStore"
 import { connectedMapStore } from "$lib/stores/connectedMapStore"
 import { session } from "$lib/stores/sessionStore" // Import session store
 import { get } from "svelte/store"

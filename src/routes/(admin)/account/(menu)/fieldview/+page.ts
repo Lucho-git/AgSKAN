@@ -1,6 +1,6 @@
 // src/routes/admin/fieldview/+page.ts
 import type { PageLoad } from "./$types";
-import { userFilesStore } from "../../../../../stores/userFilesStore";
+import { userFilesStore } from "./userFilesStore";
 import { fieldStore } from "../../../../../stores/fieldStore";
 import { browser } from "$app/environment";
 import { goto } from "$app/navigation";

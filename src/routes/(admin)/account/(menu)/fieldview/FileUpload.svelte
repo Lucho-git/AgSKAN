@@ -1,7 +1,7 @@
 <!-- FileUpload.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from "svelte"
-  import { userFilesStore } from "../../../../../stores/userFilesStore"
+  import { userFilesStore } from "./userFilesStore"
   import FileInspector from "../../../../../components/FileInspector.svelte"
   import { session } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"

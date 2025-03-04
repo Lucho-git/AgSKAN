@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount, afterUpdate } from "svelte" // Added afterUpdate
   import { goto } from "$app/navigation"
-  import { userFilesStore } from "../../../../../stores/userFilesStore" // Adjust path if necessary
+  import { userFilesStore } from "./userFilesStore" // Adjust path if necessary
   import { menuStore } from "../../../../../stores/menuStore"
   import { session } from "$lib/stores/sessionStore" // Import session store
 

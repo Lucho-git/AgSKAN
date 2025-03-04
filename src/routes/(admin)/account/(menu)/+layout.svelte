@@ -1,8 +1,9 @@
 <script lang="ts">
   import { page } from "$app/stores"
+  import { afterNavigate } from "$app/navigation"
   import "../../../../app.css"
   import { writable, derived } from "svelte/store"
-  import { setContext } from "svelte"
+  import { setContext, onMount } from "svelte"
   import icons from "$lib/icons"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
@@ -10,19 +11,18 @@
   import { subscriptionStore } from "$lib/stores/subscriptionStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
-  import {
-    operationStore,
-    selectedOperationStore,
-  } from "$lib/stores/operationStore.js"
   import { browser } from "$app/environment"
 
   import CrispChatWidget from "../../../../components/CrispChatWidget.svelte"
 
   const adminSectionStore = writable("")
+  const isNavigating = writable(false)
   setContext("adminSection", adminSectionStore)
 
-  // No longer using data prop
-  // export let data
+  // When navigation completes, update this flag
+  afterNavigate(() => {
+    isNavigating.set(false)
+  })
 
   let isExpanded = true
 
@@ -35,7 +35,7 @@
     isExpanded = !isExpanded
   }
 
-  let crispComponent: any // Add this at the top with other declarations
+  let crispComponent: any
 
   function handleChatClick() {
     if (crispComponent) {
@@ -67,6 +67,7 @@
       labelId: "home",
       topBarIcon: "solar:home-angle-bold-duotone",
       topBarLabel: "Dashboard",
+      path: "home",
     },
     {
       href: "/account/mapviewer",
@@ -75,6 +76,7 @@
       labelId: "mapviewer",
       topBarIcon: "solar:map-point-search-bold-duotone",
       topBarLabel: "Map Viewer",
+      path: "mapviewer",
     },
     {
       href: "/account/fieldview",
@@ -83,6 +85,7 @@
       labelId: "fieldview",
       topBarIcon: "solar:map-bold-duotone",
       topBarLabel: "Field Overview",
+      path: "fieldview",
     },
     {
       href: "/account/pathplanner",
@@ -91,6 +94,7 @@
       labelId: "pathplanner",
       topBarIcon: "solar:routing-2-bold-duotone",
       topBarLabel: "Path Planner",
+      path: "pathplanner",
     },
     {
       href: "/account/billing",
@@ -99,6 +103,7 @@
       labelId: "billing",
       topBarIcon: "solar:bill-list-bold-duotone",
       topBarLabel: "Billing & Invoices",
+      path: "billing",
     },
     {
       href: "/account/settings",
@@ -107,11 +112,31 @@
       labelId: "settings",
       topBarIcon: "solar:settings-minimalistic-bold-duotone",
       topBarLabel: "Account Settings",
+      path: "settings",
     },
   ]
 
-  //Controls the currectSection selection
+  // Directly determine the current section from the URL path
+  $: {
+    const path = $page.url.pathname
+    if (path === "/account" || path === "/account/") {
+      $adminSectionStore = "home"
+    } else {
+      // Extract the part after "/account/"
+      const pathPart = path.split("/account/")[1]?.split("/")[0]
+      $adminSectionStore = pathPart || "home"
+    }
+  }
+
   $: currentSection = $adminSectionStore
+
+  // Function to handle navigation
+  function handleNavigation(e, item) {
+    // Only set flag to true if navigating to a different section
+    if (currentSection !== item.path) {
+      isNavigating.set(true)
+    }
+  }
 
   // Wait for stores to be populated
   $: storesReady =
@@ -129,16 +154,14 @@
       >
         <div class="flex items-center">
           <Icon
-            icon={menuItems.find(
-              (item) => item.labelId.toLowerCase() === currentSection,
-            )?.topBarIcon || menuItems[0].topBarIcon}
+            icon={menuItems.find((item) => item.path === currentSection)
+              ?.topBarIcon || menuItems[0].topBarIcon}
             width="24"
             height="24"
           />
           <span class="ml-3 font-semibold"
-            >{menuItems.find(
-              (item) => item.labelId.toLowerCase() === currentSection,
-            )?.topBarLabel || menuItems[0].topBarLabel}</span
+            >{menuItems.find((item) => item.path === currentSection)
+              ?.topBarLabel || menuItems[0].topBarLabel}</span
           >
         </div>
         <button
@@ -170,8 +193,9 @@
             <li class="flex-1">
               <a
                 href={item.href}
-                class="flex h-full flex-col items-center justify-center p-1 {currentSection ===
-                item.label.toLowerCase()
+                on:click={(e) => handleNavigation(e, item)}
+                class="flex h-full flex-col items-center justify-center p-1
+                  {!$isNavigating && currentSection === item.path
                   ? 'bg-neutral-content text-neutral'
                   : ''} transition-colors duration-200 hover:bg-neutral-content hover:text-neutral"
               >
@@ -215,7 +239,8 @@
           <li class="my-1">
             <a
               href={item.href}
-              class="{currentSection === item.label.toLowerCase()
+              on:click={(e) => handleNavigation(e, item)}
+              class="{!$isNavigating && currentSection === item.path
                 ? activeColor
                 : ''} {hoverColor} flex items-center rounded-lg px-5"
             >

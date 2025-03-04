@@ -14,7 +14,7 @@
     HelpCircle,
     ExternalLink,
   } from "lucide-svelte"
-  import { userFilesStore } from "../../../../../stores/userFilesStore"
+  import { userFilesStore } from "./userFilesStore"
   import { fieldStore } from "../../../../../stores/fieldStore"
   import { session } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"
