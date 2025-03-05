@@ -6,6 +6,10 @@
   import { mapApi } from "$lib/api/mapApi"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import {
+    operationStore,
+    selectedOperationStore,
+  } from "$lib/stores/operationStore"
 
   let newMapName = ""
   let generatedMapId = uuidv4()
@@ -26,17 +30,50 @@
     try {
       const result = await mapApi.createAndJoinMap(newMapName, generatedMapId)
 
-      if (result.success) {
-        // Update the connected map store directly with the new map information
+      if (result.success && result.data) {
+        const { mapId, mapName, operationId } = result.data
+
+        // Update the connected map store with the new map information
         connectedMapStore.set({
-          id: generatedMapId,
-          map_name: newMapName,
+          id: mapId,
+          map_name: mapName,
           master_user_id: $profileStore?.id,
           owner: $profileStore?.full_name,
           is_owner: true,
           masterSubscription: $profileStore?.subscription,
           is_connected: true,
         })
+
+        // Create a new default operation object
+        const newOperation = {
+          id: operationId,
+          name: "Farm Management",
+          year: 2024,
+          description: `Completing work around '${mapName}'s farm`,
+          master_map_id: mapId,
+        }
+
+        // Update the operation store with the new operation
+        operationStore.update((operations) => [newOperation])
+
+        // Update the selected operation store with the new operation
+        selectedOperationStore.set(newOperation)
+
+        // Update the profile store with the new map connection
+        if ($profileStore) {
+          // Update recent maps in the profile store
+          let recentMaps = $profileStore.recent_maps || []
+          recentMaps = recentMaps.filter((id) => id !== mapId)
+          recentMaps.unshift(mapId)
+          recentMaps = recentMaps.slice(0, 10)
+
+          profileStore.update((profile) => ({
+            ...profile,
+            master_map_id: mapId,
+            recent_maps: recentMaps,
+            selected_operation_id: operationId,
+          }))
+        }
 
         toast.success("Map created successfully", {
           description: "You have been connected to your new map",

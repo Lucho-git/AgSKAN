@@ -118,30 +118,61 @@ export const mapApi = {
             }
 
             // Create default operation
-            const { error: operationError } = await supabase
+            const { data: operation, error: operationError } = await supabase
                 .from("operations")
                 .insert({
                     master_map_id: mapId,
                     name: "Farm Management",
                     year: 2024,
                     description: `Completing work around '${mapName}'s farm`,
-                });
+                })
+                .select()
+                .single();
 
             if (operationError) {
                 throw new Error("Failed to create default operation");
             }
 
-            // Connect to the map
+            // Get current user data to update recent maps
+            const { data: userData, error: userError } = await supabase
+                .from("profiles")
+                .select("recent_maps")
+                .eq("id", session.session.user.id)
+                .single();
+
+            if (userError) {
+                throw new Error("Failed to fetch user data");
+            }
+
+            // Update recent_maps
+            let recentMaps = userData.recent_maps || [];
+            recentMaps = recentMaps.filter((id) => id !== mapId);
+            recentMaps.unshift(mapId);
+            recentMaps = recentMaps.slice(0, 10);
+
+            // Connect to the map and update profile with default operation and recent maps
             const { error: updateError } = await supabase
                 .from("profiles")
-                .update({ master_map_id: mapId })
+                .update({
+                    master_map_id: mapId,
+                    recent_maps: recentMaps,
+                    selected_operation_id: operation.id
+                })
                 .eq("id", session.session.user.id);
 
             if (updateError) {
                 throw new Error("Failed to connect to map");
             }
 
-            return { success: true, message: "Successfully created and joined map" };
+            return {
+                success: true,
+                message: "Successfully created and joined map",
+                data: {
+                    mapId,
+                    mapName,
+                    operationId: operation.id
+                }
+            };
         } catch (error) {
             console.error("Error creating map:", error);
             return { success: false, message: error.message };

@@ -9,7 +9,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
-  import { invalidate, invalidateAll } from "$app/navigation"
+  import { operationApi } from "$lib/api/operationApi"
 
   onMount(() => {
     console.log("Initial Operation Store:", $operationStore)
@@ -30,29 +30,21 @@
     const selectedOperation = $operationStore.find((op) => op.id === selectedId)
     console.log("3. Found Selected Operation:", selectedOperation)
 
-    if (selectedOperation) {
+    if (selectedOperation && $profileStore?.id) {
       try {
         console.log("4. Starting API Call...")
-        const response = await fetch(
-          "/api/profiles/update-selected-operation",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              profileId: $profileStore.id,
-              operationId: selectedId,
-            }),
-          },
+
+        // Use the operationApi.updateSelectedOperation function
+        const result = await operationApi.updateSelectedOperation(
+          $profileStore.id,
+          selectedId,
         )
 
-        const result = await response.json()
         console.log("5. API Response:", result)
 
-        if (!response.ok) {
-          console.error("Failed to update selected operation:", result.error)
-          toast.error(`Failed to update selected operation: ${result.error}`)
+        if (!result.success) {
+          console.error("Failed to update selected operation:", result.message)
+          toast.error(`Failed to update selected operation: ${result.message}`)
           return
         }
 
@@ -72,21 +64,6 @@
           "7. After Store Update - New Store:",
           $selectedOperationStore,
         )
-
-        // invalidateAll((url) => {
-        //   return url.pathname.startsWith("/(admin)/account")
-        //     ? {
-        //         data: (existing) => ({
-        //           ...existing,
-        //           profile: {
-        //             ...existing.profile,
-        //             selected_operation_id: selectedId,
-        //           },
-        //           operations: $operationStore,
-        //         }),
-        //       }
-        //     : undefined
-        // })
 
         toast.success("Successfully updated selected operation")
       } catch (error) {
