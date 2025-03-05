@@ -1,16 +1,61 @@
 <script lang="ts">
   import { v4 as uuidv4 } from "uuid"
   import { menuStore } from "../../../../stores/menuStore"
-  import { profileStore } from "$lib/stores/profileStore"
-  import { enhance } from "$app/forms"
   import { toast } from "svelte-sonner"
   import { Map } from "lucide-svelte"
+  import { mapApi } from "$lib/api/mapApi"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { profileStore } from "$lib/stores/profileStore"
 
   let newMapName = ""
   let generatedMapId = uuidv4()
+  let isLoading = false
 
   function cancelGenerateMap() {
     menuStore.update((store) => ({ ...store, showGenerateModal: false }))
+  }
+
+  async function handleCreateMap() {
+    if (!newMapName.trim()) {
+      toast.error("Please enter a map name")
+      return
+    }
+
+    isLoading = true
+
+    try {
+      const result = await mapApi.createAndJoinMap(newMapName, generatedMapId)
+
+      if (result.success) {
+        // Update the connected map store directly with the new map information
+        connectedMapStore.set({
+          id: generatedMapId,
+          map_name: newMapName,
+          master_user_id: $profileStore?.id,
+          owner: $profileStore?.full_name,
+          is_owner: true,
+          masterSubscription: $profileStore?.subscription,
+          is_connected: true,
+        })
+
+        toast.success("Map created successfully", {
+          description: "You have been connected to your new map",
+        })
+
+        // Close the modal
+        menuStore.update((store) => ({ ...store, showGenerateModal: false }))
+      } else {
+        toast.error("Failed to create map", {
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast.error("An error occurred", {
+        description: error.message,
+      })
+    } finally {
+      isLoading = false
+    }
   }
 </script>
 
@@ -36,58 +81,40 @@
       </div>
     </div>
 
-    <form
-      method="POST"
-      action="?/createAndJoinMap"
-      use:enhance={({ formElement, formData, action, cancel }) => {
-        return async ({ result, update }) => {
-          if (result.type === "success") {
-            toast.promise(
-              update().then(() => {
-                menuStore.update((store) => ({
-                  ...store,
-                  showGenerateModal: false,
-                }))
-                return "You have successfully created and joined the new map"
-              }),
-              {
-                loading: "Creating and joining new map...",
-                success: (data) => data,
-                error: (error) => `Error: ${error.message}`,
-              },
-            )
-          } else {
-            toast.error("Failed to create and join map", {
-              description: result.data?.message || "An error occurred",
-            })
-          }
-        }
-      }}
-    >
-      <div class="form-control">
-        <label for="mapName" class="label">
-          <span class="label-text">Map Name</span>
-        </label>
-        <input
-          id="mapName"
-          type="text"
-          name="mapName"
-          placeholder="Enter map name"
-          class="input input-bordered w-full"
-          bind:value={newMapName}
-        />
-      </div>
-      <input type="hidden" name="mapId" value={generatedMapId} />
-      <div class="mt-6 flex justify-center space-x-4">
-        <button type="submit" class="btn btn-primary"> Create Map </button>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          on:click={cancelGenerateMap}
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+    <div class="form-control">
+      <label for="mapName" class="label">
+        <span class="label-text">Map Name</span>
+      </label>
+      <input
+        id="mapName"
+        type="text"
+        name="mapName"
+        placeholder="Enter map name"
+        class="input input-bordered w-full"
+        bind:value={newMapName}
+      />
+    </div>
+
+    <div class="mt-6 flex justify-center space-x-4">
+      <button
+        type="button"
+        class="btn btn-primary"
+        on:click={handleCreateMap}
+        disabled={isLoading}
+      >
+        {#if isLoading}
+          <span class="loading loading-spinner loading-sm mr-2"></span>
+        {/if}
+        Create Map
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost"
+        on:click={cancelGenerateMap}
+        disabled={isLoading}
+      >
+        Cancel
+      </button>
+    </div>
   </div>
 </div>
