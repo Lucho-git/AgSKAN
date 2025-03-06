@@ -266,8 +266,13 @@
             {/if}
           </button>
         </HoverCard.Trigger>
-        <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-          Drawing Mode
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Drawing Mode</span>
         </HoverCard.Content>
       </HoverCard.Root>
 
@@ -292,8 +297,15 @@
             <Icons.location_drop width="48" height="48" fill="currentColor" />
           </button>
         </HoverCard.Trigger>
-        <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-          Instant Location Marker
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white"
+            >Instant Location Marker</span
+          >
         </HoverCard.Content>
       </HoverCard.Root>
 
@@ -309,8 +321,13 @@
             <Icons.locate_home width="40" height="40" fill="currentColor" />
           </button>
         </HoverCard.Trigger>
-        <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-          Locate Home
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Locate Home</span>
         </HoverCard.Content>
       </HoverCard.Root>
 
@@ -337,8 +354,13 @@
             </div>
           </button>
         </HoverCard.Trigger>
-        <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-          Vehicle Selection
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Vehicle Selection</span>
         </HoverCard.Content>
       </HoverCard.Root>
 
@@ -368,8 +390,13 @@
                 ></path>
               </svg>
             </HoverCard.Trigger>
-            <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-              Trailing
+            <HoverCard.Content
+              side="left"
+              align="center"
+              style="width: auto; max-width: 250px; word-wrap: break-word;"
+              class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              <span class="text-gray-900 dark:text-white">Trailing</span>
             </HoverCard.Content>
           </HoverCard.Root>
         {:else}
@@ -388,8 +415,13 @@
                 ></path>
               </svg>
             </HoverCard.Trigger>
-            <HoverCard.Content side="left" align="center" style="width: auto; max-width: 250px; word-wrap: break-word;">
-              Trailing
+            <HoverCard.Content
+              side="left"
+              align="center"
+              style="width: auto; max-width: 250px; word-wrap: break-word;"
+              class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              <span class="text-gray-900 dark:text-white">Trailing</span>
             </HoverCard.Content>
           </HoverCard.Root>
         {/if}
