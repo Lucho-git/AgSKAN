@@ -20,6 +20,8 @@
   import Icons from "$lib/icons"
   import { Home, PencilRuler, PenOff } from "lucide-svelte"
 
+  import * as HoverCard from "$lib/components/ui/hover-card"
+
   let isCircular = true
   let currentStyle = "skan"
 
@@ -249,18 +251,30 @@
       </button> -->
 
       <!-- Drawing Mode Toggle Button -->
-      <button
-        class="menu-button {currentStyle} btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={toggleDrawingMode}
-      >
-        {#if $drawingModeEnabled}
-          <PenOff size={24} />
-        {:else}
-          <PencilRuler size={24} />
-        {/if}
-      </button>
+      <HoverCard.Root>
+        <HoverCard.Trigger>
+          <button
+            class="menu-button {currentStyle} btn {isCircular
+              ? 'btn-circle'
+              : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+            on:click={toggleDrawingMode}
+          >
+            {#if $drawingModeEnabled}
+              <PenOff size={24} />
+            {:else}
+              <PencilRuler size={24} />
+            {/if}
+          </button>
+        </HoverCard.Trigger>
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Drawing Mode</span>
+        </HoverCard.Content>
+      </HoverCard.Root>
 
       <!-- <button
         class="menu-button {currentStyle} btn {isCircular
@@ -272,47 +286,83 @@
       </button> -->
 
       <!-- InstantLocationMarker Button-->
-
-      <button
-        class="menu-button {currentStyle} btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white text-sm hover:bg-opacity-90"
-        on:click={handleLocationClick}
-      >
-        <Icons.location_drop width="48" height="48" fill="currentColor" />
-      </button>
+      <HoverCard.Root>
+        <HoverCard.Trigger>
+          <button
+            class="menu-button {currentStyle} btn {isCircular
+              ? 'btn-circle'
+              : 'btn-square'} btn-lg bg-white text-sm hover:bg-opacity-90"
+            on:click={handleLocationClick}
+          >
+            <Icons.location_drop width="48" height="48" fill="currentColor" />
+          </button>
+        </HoverCard.Trigger>
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white"
+            >Instant Location Marker</span
+          >
+        </HoverCard.Content>
+      </HoverCard.Root>
 
       <!-- Locate Home Button -->
-
-      <button
-        class="menu-button {currentStyle} btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={handleLocateHome}
-      >
-        <Icons.locate_home width="40" height="40" fill="currentColor" />
-      </button>
+      <HoverCard.Root>
+        <HoverCard.Trigger>
+          <button
+            class="menu-button {currentStyle} btn {isCircular
+              ? 'btn-circle'
+              : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+            on:click={handleLocateHome}
+          >
+            <Icons.locate_home width="40" height="40" fill="currentColor" />
+          </button>
+        </HoverCard.Trigger>
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Locate Home</span>
+        </HoverCard.Content>
+      </HoverCard.Root>
 
       <!-- Vehicle Selection Button -->
-      <button
-        class="menu-button {currentStyle} btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={toggleVehicleMenu}
-      >
-        <div class="flex h-full w-full items-center justify-center">
-          {#if VehicleIcon}
-            <svelte:component
-              this={VehicleIcon}
-              bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
-              size={$userVehicleStore.vehicle_marker.size}
-              swath={$userVehicleStore.vehicle_marker.swath}
-            />
-          {:else}
-            Loading...
-          {/if}
-        </div>
-      </button>
+      <HoverCard.Root>
+        <HoverCard.Trigger>
+          <button
+            class="menu-button {currentStyle} btn {isCircular
+              ? 'btn-circle'
+              : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+            on:click={toggleVehicleMenu}
+          >
+            <div class="flex h-full w-full items-center justify-center">
+              {#if VehicleIcon}
+                <svelte:component
+                  this={VehicleIcon}
+                  bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
+                  size={$userVehicleStore.vehicle_marker.size}
+                  swath={$userVehicleStore.vehicle_marker.swath}
+                />
+              {:else}
+                Loading...
+              {/if}
+            </div>
+          </button>
+        </HoverCard.Trigger>
+        <HoverCard.Content
+          side="left"
+          align="center"
+          style="width: auto; max-width: 250px; word-wrap: break-word;"
+          class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        >
+          <span class="text-gray-900 dark:text-white">Vehicle Selection</span>
+        </HoverCard.Content>
+      </HoverCard.Root>
 
       <!-- Toggle Trailing Button -->
       <button
@@ -324,34 +374,56 @@
         on:click={toggleTrailing}
       >
         {#if $userVehicleTrailing}
-          <svg
-            class={$userVehicleTrailing ? "animate-trail" : ""}
-            fill="currentColor"
-            width="36px"
-            height="36px"
-            viewBox="0 0 32 32"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <title>trail</title>
-            <path
-              d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-            ></path>
-          </svg>
+          <HoverCard.Root>
+            <HoverCard.Trigger>
+              <svg
+                class={$userVehicleTrailing ? "animate-trail" : ""}
+                fill="currentColor"
+                width="36px"
+                height="36px"
+                viewBox="0 0 32 32"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                ></path>
+              </svg>
+            </HoverCard.Trigger>
+            <HoverCard.Content
+              side="left"
+              align="center"
+              style="width: auto; max-width: 250px; word-wrap: break-word;"
+              class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              <span class="text-gray-900 dark:text-white">Trailing</span>
+            </HoverCard.Content>
+          </HoverCard.Root>
         {:else}
-          <svg
-            fill="currentColor"
-            width="36px"
-            height="36px"
-            viewBox="0 0 32 32"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <title>trail</title>
-            <path
-              d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-            ></path>
-          </svg>
+          <HoverCard.Root>
+            <HoverCard.Trigger>
+              <svg
+                fill="currentColor"
+                width="36px"
+                height="36px"
+                viewBox="0 0 32 32"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                ></path>
+              </svg>
+            </HoverCard.Trigger>
+            <HoverCard.Content
+              side="left"
+              align="center"
+              style="width: auto; max-width: 250px; word-wrap: break-word;"
+              class="max-w-xs rounded-lg border bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              <span class="text-gray-900 dark:text-white">Trailing</span>
+            </HoverCard.Content>
+          </HoverCard.Root>
         {/if}
       </button>
     </div>
