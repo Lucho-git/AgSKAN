@@ -14,9 +14,13 @@
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { goto } from "$app/navigation"
   import Icon from "@iconify/svelte"
+  // Import the mapApi for direct client-side calls
+  import { mapApi } from "$lib/api/mapApi"
 
   let loading = true
   let activeTab = "navigate"
+  let disconnectingFromMap = false
+  let kickingUser = null
 
   $: currentUserId = $profileStore.id
   $: is_owner = $connectedMapStore.is_owner
@@ -54,17 +58,8 @@
     const updateTime = DateTime.fromISO(lastUpdate, { zone: "utc" })
     const now = DateTime.utc()
 
-    console.log(`Input lastUpdate string: ${lastUpdate}`)
-    console.log(
-      `Parsed UTC time: ${updateTime.toFormat("yyyy-MM-dd HH:mm:ss")} UTC`,
-    )
-    console.log(`Current UTC time: ${now.toFormat("yyyy-MM-dd HH:mm:ss")} UTC`)
-
     // Use the toRelative method to get human-readable duration
     const timeDifference = updateTime.toRelative({ base: now })
-
-    console.log(`Time difference: ${timeDifference}`)
-
     return timeDifference
   }
 
@@ -73,7 +68,6 @@
   }
 
   function updateStores() {
-    console.log("updating stores")
     connectedMapStore.set({
       id: null,
       map_name: null,
@@ -83,12 +77,16 @@
       masterSubscription: null,
       is_connected: false,
     })
-    console.log($connectedMapStore)
-    console.log($mapActivityStore)
-    console.log($profileStore)
+    // Also clear the mapActivityStore to a default state
+    mapActivityStore.set({
+      marker_count: 0,
+      trail_count: 0,
+      connected_profiles: [],
+      vehicle_states: [],
+    })
   }
 
-  function kickUser(id: string) {
+  function removeUserFromStore(id: string) {
     mapActivityStore.update((store) => ({
       ...store,
       connected_profiles: store.connected_profiles.filter(
@@ -98,6 +96,62 @@
         (vehicle) => vehicle.vehicle_id !== id,
       ),
     }))
+  }
+
+  async function handleDisconnectFromMap() {
+    try {
+      disconnectingFromMap = true
+      const result = await mapApi.disconnectFromMap()
+
+      if (result.success) {
+        updateStores()
+        toast.success("Disconnected from map", {
+          description: "You have successfully left the map",
+        })
+        goto("/account")
+      } else {
+        toast.error("Failed to disconnect", {
+          description: result.message || "An error occurred",
+        })
+      }
+    } catch (error) {
+      toast.error("Failed to disconnect", {
+        description: error.message || "An unexpected error occurred",
+      })
+    } finally {
+      disconnectingFromMap = false
+    }
+  }
+
+  async function handleKickUser(profile) {
+    if (!is_owner) {
+      toast.error("Permission denied", {
+        description: "Only the map owner can kick users",
+      })
+      return
+    }
+
+    try {
+      kickingUser = profile.id
+      const result = await mapApi.kickUser(profile.id)
+
+      if (result.success) {
+        removeUserFromStore(profile.id)
+        toast.success("User kicked", {
+          description: `${profile.full_name} has been removed from the map`,
+        })
+      } else {
+        toast.error("Failed to kick user", {
+          description: result.message || "An error occurred",
+        })
+      }
+    } catch (error) {
+      toast.error("Failed to kick user", {
+        description: error.message || "An unexpected error occurred",
+      })
+    } finally {
+      kickingUser = null
+    }
   }
 
   function handleLocate(profile: any) {
@@ -185,61 +239,27 @@
         </div>
         {#if activeTab === "manage"}
           {#if is_user(profile.id)}
-            <form
-              method="POST"
-              action="?/disconnectFromMap"
-              class="m-auto"
-              use:enhance={() => {
-                return async ({ result }) => {
-                  if (result.type === "success") {
-                    updateStores()
-                    toast.success("Disconnected from map", {
-                      description: "You have successfully left the map",
-                    })
-                    goto("/account")
-                  } else if (result.type === "failure") {
-                    toast.error("Failed to disconnect", {
-                      description: result.data?.message || "An error occurred",
-                    })
-                  }
-                  await applyAction(result)
-                }
-              }}
+            <button
+              class="btn btn-warning btn-sm m-auto"
+              on:click={handleDisconnectFromMap}
+              disabled={disconnectingFromMap}
             >
-              <button class="btn btn-warning btn-sm" type="submit">
-                Leave
-              </button>
-            </form>
+              {#if disconnectingFromMap}
+                <span class="loading loading-spinner loading-xs"></span>
+              {/if}
+              Leave
+            </button>
           {:else}
-            <form
-              method="POST"
-              action="?/kickUser"
-              class="m-auto"
-              use:enhance={() => {
-                return async ({ result }) => {
-                  if (result.type === "success") {
-                    kickUser(profile.id)
-                    toast.success("User kicked", {
-                      description: `${profile.full_name} has been removed from the map`,
-                    })
-                  } else if (result.type === "failure") {
-                    toast.error("Failed to kick user", {
-                      description: result.data?.message || "An error occurred",
-                    })
-                  }
-                  await applyAction(result)
-                }
-              }}
+            <button
+              class="btn {buttonClass} btn-sm m-auto"
+              on:click={() => handleKickUser(profile)}
+              disabled={!is_owner || kickingUser === profile.id}
             >
-              <input type="hidden" name="userId" value={profile.id} />
-              <button
-                class="btn {buttonClass} btn-sm"
-                type="submit"
-                disabled={!is_owner}
-              >
-                {buttonText}
-              </button>
-            </form>
+              {#if kickingUser === profile.id}
+                <span class="loading loading-spinner loading-xs"></span>
+              {/if}
+              {buttonText}
+            </button>
           {/if}
         {:else}
           <button

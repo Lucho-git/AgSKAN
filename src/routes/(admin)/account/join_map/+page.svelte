@@ -7,12 +7,15 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { subscriptionStore } from "$lib/stores/subscriptionStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
 
   import {
     operationStore,
     selectedOperationStore,
   } from "$lib/stores/operationStore.js"
   import { toast } from "svelte-sonner"
+  // Import mapApi
+  import { mapApi } from "$lib/api/mapApi"
 
   let formError: string | null = null
   let skipMapId = false
@@ -21,6 +24,7 @@
   let connectedMap: { id: string; map_name: string; owner: string } | null =
     null
   let isLoading = false
+  let isJoiningMap = false
   let fullName = ""
 
   // Check if already connected to a map
@@ -46,101 +50,44 @@
     isValidMapId = !error && map !== null
   }
 
-  async function setupFreeSubscription() {
-    try {
-      // Create a free subscription for the user
-      const { error } = await supabase.from("user_subscriptions").upsert({
-        user_id: $profileStore.id,
-        subscription: "FREE",
-        marker_limit: 100,
-        trail_limit: 10000,
-        current_seats: 5,
-        lingering_seats: 0,
-        next_billing_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000,
-        ).toISOString(), // 1 year from now
-      })
-
-      if (error) throw error
-
-      // Update subscription store
-      subscriptionStore.set({
-        subscription: "FREE",
-        marker_limit: 100,
-        trail_limit: 10000,
-        lingering_seats: 0,
-        current_seats: 5,
-        next_billing_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      })
-    } catch (error) {
-      console.error("Failed to setup subscription:", error)
-      throw new Error("Failed to setup subscription")
-    }
-  }
-
   async function handleJoinMap() {
-    isLoading = true
+    isJoiningMap = true
     formError = null
 
     try {
-      // First fetch map details
-      const { data: mapData, error: mapError } = await supabase
-        .from("master_maps")
-        .select(
-          `
-              id,
-              map_name,
-              master_user_id,
-              profiles:master_user_id (
-                full_name
-              )
-            `,
-        )
-        .eq("id", joinMapId)
-        .single()
+      // Use mapApi instead of direct Supabase calls
+      const result = await mapApi.connectToMap(joinMapId)
 
-      if (mapError || !mapData) {
-        throw new Error("Map not found")
+      if (!result.success) {
+        throw new Error(result.message || "Failed to join map")
       }
 
-      // Then update the profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          master_map_id: joinMapId,
-        })
-        .eq("id", $profileStore.id)
-
-      if (updateError) {
-        throw new Error("Failed to join map")
-      }
-
-      // Update local state to show success
+      // Update local stores using the response data
       connectedMap = {
-        id: mapData.id,
-        map_name: mapData.map_name,
-        owner: mapData.profiles.full_name,
+        id: result.data.connectedMap.id,
+        map_name: result.data.connectedMap.map_name,
+        owner: result.data.connectedMap.owner,
       }
 
-      // Update connectedMapStore
-      connectedMapStore.set({
-        id: mapData.id,
-        map_name: mapData.map_name,
-        master_user_id: mapData.master_user_id,
-        owner: mapData.profiles.full_name,
-        is_owner: $profileStore.id === mapData.master_user_id,
-        masterSubscription: null,
-        is_connected: true,
-      })
+      // Update the stores with the data from the API response
+      connectedMapStore.set(result.data.connectedMap)
+      mapActivityStore.set(result.data.mapActivity)
+
+      // Update operation stores if operations are included
+      if (result.data.operations && result.data.operations.length > 0) {
+        operationStore.set(result.data.operations)
+
+        if (result.data.operation) {
+          selectedOperationStore.set(result.data.operation)
+        }
+      }
 
       toast.success("Successfully joined map")
     } catch (error) {
       formError = error.message || "Failed to join map"
       toast.error(formError)
     } finally {
-      isLoading = false
+      isJoiningMap = false
     }
   }
 
@@ -149,9 +96,6 @@
     formError = null
 
     try {
-      // Ensure we have a free subscription
-      await setupFreeSubscription()
-
       const updates = {
         full_name: fullName,
         role: "operator",
@@ -209,6 +153,27 @@
           : null,
         selected_operation_id: updates["selected_operation_id"] || null,
       }))
+
+      // Update the user's name in the mapActivityStore if connected to a map
+      if (hasConnectedMap) {
+        mapActivityStore.update((store) => {
+          // Find and update the current user's profile in connected_profiles
+          const updatedProfiles = store.connected_profiles.map((profile) => {
+            if (profile.id === $profileStore.id) {
+              return {
+                ...profile,
+                full_name: fullName,
+              }
+            }
+            return profile
+          })
+
+          return {
+            ...store,
+            connected_profiles: updatedProfiles,
+          }
+        })
+      }
 
       // Navigate to account homepage
       toast.success("Setup completed successfully!")
@@ -328,10 +293,10 @@
                 <button
                   type="button"
                   class="btn btn-primary"
-                  disabled={!isValidMapId || isLoading}
+                  disabled={!isValidMapId || isJoiningMap}
                   on:click={handleJoinMap}
                 >
-                  {#if isLoading}
+                  {#if isJoiningMap}
                     <span class="loading loading-spinner" />
                   {/if}
                   Join
