@@ -57,6 +57,8 @@
 
   function updateStores() {
     console.log("updating stores")
+
+    // Update connectedMapStore
     connectedMapStore.set({
       id: null,
       map_name: null,
@@ -66,6 +68,15 @@
       masterSubscription: null,
       is_connected: false,
     })
+
+    // Also reset mapActivityStore with default values
+    mapActivityStore.set({
+      marker_count: 0,
+      trail_count: 0,
+      connected_profiles: [],
+      vehicle_states: [],
+    })
+
     console.log($connectedMapStore)
     console.log($mapActivityStore)
     console.log($profileStore)

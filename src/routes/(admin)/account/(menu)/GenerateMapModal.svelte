@@ -4,6 +4,8 @@
   import { toast } from "svelte-sonner"
   import { Map } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
+
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { profileStore } from "$lib/stores/profileStore"
   import {
@@ -31,33 +33,14 @@
       const result = await mapApi.createAndJoinMap(newMapName, generatedMapId)
 
       if (result.success && result.data) {
-        const { mapId, mapName, operationId } = result.data
+        const { mapId, mapName, connectedMap, mapActivity, operation } =
+          result.data
 
-        // Update the connected map store with the new map information
-        connectedMapStore.set({
-          id: mapId,
-          map_name: mapName,
-          master_user_id: $profileStore?.id,
-          owner: $profileStore?.full_name,
-          is_owner: true,
-          masterSubscription: $profileStore?.subscription,
-          is_connected: true,
-        })
-
-        // Create a new default operation object
-        const newOperation = {
-          id: operationId,
-          name: "Farm Management",
-          year: 2024,
-          description: `Completing work around '${mapName}'s farm`,
-          master_map_id: mapId,
-        }
-
-        // Update the operation store with the new operation
-        operationStore.update((operations) => [newOperation])
-
-        // Update the selected operation store with the new operation
-        selectedOperationStore.set(newOperation)
+        // Update all stores using the data structures from the API
+        connectedMapStore.set(connectedMap)
+        mapActivityStore.set(mapActivity)
+        operationStore.set([operation])
+        selectedOperationStore.set(operation)
 
         // Update the profile store with the new map connection
         if ($profileStore) {
@@ -71,7 +54,7 @@
             ...profile,
             master_map_id: mapId,
             recent_maps: recentMaps,
-            selected_operation_id: operationId,
+            selected_operation_id: operation.id,
           }))
         }
 

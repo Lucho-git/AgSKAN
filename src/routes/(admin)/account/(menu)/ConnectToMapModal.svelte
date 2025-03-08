@@ -1,6 +1,7 @@
 <script lang="ts">
   import { menuStore } from "../../../../stores/menuStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import {
     operationStore,
@@ -43,11 +44,11 @@
         .from("master_maps")
         .select(
           `
-              id, 
-              map_name, 
-              master_user_id,
-              profiles:master_user_id(full_name)
-            `,
+                id, 
+                map_name, 
+                master_user_id,
+                profiles:master_user_id(full_name)
+              `,
         )
         .in("id", $profileStore.recent_maps)
 
@@ -78,11 +79,11 @@
         .from("master_maps")
         .select(
           `
-              id, 
-              map_name, 
-              master_user_id,
-              profiles:master_user_id(full_name)
-            `,
+                id, 
+                map_name, 
+                master_user_id,
+                profiles:master_user_id(full_name)
+              `,
         )
         .eq("master_user_id", $profileStore.id)
         .then(({ data, error }) => {
@@ -112,60 +113,20 @@
     try {
       const result = await mapApi.connectToMap(mapId)
 
-      if (result.success) {
-        // Fetch map data to update the connectedMapStore
-        const { data: mapData, error: mapError } = await supabase
-          .from("master_maps")
-          .select(
-            `
-              id,
-              map_name,
-              master_user_id,
-              profiles:master_user_id(full_name)
-            `,
-          )
-          .eq("id", mapId)
-          .single()
-
-        if (mapError || !mapData) {
-          throw new Error("Failed to fetch map data")
-        }
-
-        // Fetch operations
-        const { data: operations, error: operationsError } = await supabase
-          .from("operations")
-          .select("*")
-          .eq("master_map_id", mapId)
-          .order("year", { ascending: false })
-
-        if (operationsError) {
-          throw new Error("Failed to fetch operations")
-        }
+      if (result.success && result.data) {
+        // Directly use the data from the API response
+        const { connectedMap, mapActivity, operations, operation } = result.data
 
         // Update stores
-        connectedMapStore.set({
-          id: mapData.id,
-          map_name: mapData.map_name,
-          master_user_id: mapData.master_user_id,
-          owner: mapData.profiles.full_name,
-          is_owner: mapData.master_user_id === $profileStore.id,
-          masterSubscription: null, // This would need to be fetched separately
-          is_connected: true,
-        })
+        connectedMapStore.set(connectedMap)
+        mapActivityStore.set(mapActivity)
 
         if (operations && operations.length > 0) {
           operationStore.set(operations)
-
-          // Find the selected operation based on profile
-          const selectedOperation =
-            operations.find(
-              (op) => op.id === $profileStore.selected_operation_id,
-            ) || operations[0]
-
-          selectedOperationStore.set(selectedOperation)
+          selectedOperationStore.set(operation || operations[0])
         }
 
-        // Update profile
+        // Update profile store to stay in sync
         profileStore.update((profile) => ({
           ...profile,
           master_map_id: mapId,
