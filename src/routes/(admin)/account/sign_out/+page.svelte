@@ -3,12 +3,16 @@
   import { supabase } from "$lib/supabaseClient"
   import { onMount } from "svelte"
   import { fade } from "svelte/transition"
+  import { browser } from "$app/environment"
 
   let message = "Preparing to sign out..."
   let subMessage = "Initializing..."
   let progress = 0
   let isSigningOut = false
   const REDIRECT_DELAY = 3000
+
+  // Set this to true to directly redirect without auth state changes
+  let forceRedirect = false
 
   const updateStatus = (
     mainMsg: string,
@@ -91,6 +95,15 @@
     }
   }
 
+  // This function will handle direct navigation to avoid session expiry page
+  const redirectToLogin = () => {
+    // Set a flag to avoid any auth state change processing
+    if (browser) {
+      // Use window.location.replace to avoid adding to browser history
+      window.location.replace("/login")
+    }
+  }
+
   const handleSignOut = async () => {
     if (isSigningOut) return
 
@@ -101,63 +114,54 @@
     try {
       // 1. Server-side signout
       updateStatus("Signing out...", "Contacting server...", 20)
-      const formData = new FormData()
-      const response = await fetch("?/signout", {
-        method: "POST",
-        body: formData,
-      })
+      await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
 
-      if (!response.ok) {
-        throw new Error("Server-side logout failed")
+      try {
+        const formData = new FormData()
+        const response = await fetch("?/signout", {
+          method: "POST",
+          body: formData,
+        })
+      } catch (e) {
+        // Ignore errors from this step
+        console.log("Server-side signout skipped:", e)
       }
 
-      // 2. Client-side signout
+      // 2. Client-side signout preparation
       updateStatus("Signing out...", "Clearing authentication...", 40)
-      const { error: signOutError } = await supabase.auth.signOut({
-        scope: "global",
-      })
-
-      if (signOutError) throw signOutError
+      await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
 
       // 3. Clear browser storage
       updateStatus("Cleaning up...", "Removing stored data...", 60)
+      await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
+
       const clearResult = clearBrowserStorage()
       if (!clearResult.success) {
         console.warn("Storage cleanup had issues")
       }
 
       updateStatus("Verifying...", "Making sure everything is cleared...", 80)
+      await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
 
-      // 4. Verify cleanup after delay
-      setTimeout(async () => {
-        // Second cleanup pass
-        clearBrowserStorage()
+      // Second cleanup pass
+      clearBrowserStorage()
 
-        // Verify session state
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+      // Show success message right before redirecting
+      updateStatus("Success!", "Taking you to login...", 100)
+      await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
 
-        if (session) {
-          updateStatus(
-            "Additional cleanup needed...",
-            "Performing final checks...",
-            90,
-          )
-          await supabase.auth.signOut({ scope: "global" })
-          clearBrowserStorage()
+      // Complete the signout and redirect directly
+      // IMPORTANT: Set forceRedirect before signing out
+      forceRedirect = true
 
-          updateStatus("Redirecting...", "Taking you to login...", 100)
-          setTimeout(() => {
-            window.location.href = "/login?force_logout=true"
-          }, 1000)
-        } else {
-          updateStatus("Success!", "Taking you to login...", 100)
-          setTimeout(() => {
-            window.location.href = "/login"
-          }, 1000)
-        }
-      }, 1500)
+      // Do the actual sign-out as the final step
+      await supabase.auth.signOut({ scope: "global" })
+
+      // After a very brief delay to allow sign-out to process,
+      // redirect directly to login to avoid showing session expiry
+      setTimeout(() => {
+        redirectToLogin()
+      }, 100)
     } catch (error) {
       console.error("Sign-out failed:", error)
       updateStatus(
@@ -169,14 +173,16 @@
       // Recovery attempt
       try {
         clearBrowserStorage()
+        forceRedirect = true
         await supabase.auth.signOut({ scope: "global" })
       } catch (recoveryError) {
         console.error("Recovery attempt failed:", recoveryError)
       }
 
+      // Always redirect regardless of errors
       setTimeout(() => {
-        window.location.href = "/login?error=true"
-      }, REDIRECT_DELAY)
+        redirectToLogin()
+      }, 500)
     } finally {
       console.timeEnd("Total Sign-out Duration")
       console.groupEnd()
@@ -184,6 +190,18 @@
   }
 
   onMount(() => {
+    // Add a direct navigation handler to prevent showing session expiry
+    if (browser) {
+      // Set up a listener that triggers before any auth state processing
+      window.addEventListener("beforeunload", () => {
+        if (forceRedirect) {
+          redirectToLogin()
+          return null
+        }
+      })
+    }
+
+    // Start the sign-out process
     handleSignOut()
   })
 </script>

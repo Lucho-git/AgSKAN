@@ -262,6 +262,7 @@
       userId: newSession?.user?.id,
     })
 
+    // When signed out, just redirect to login without showing session expired message
     if (event === "SIGNED_OUT" && !redirecting) {
       redirecting = true
       goto("/login")
@@ -426,22 +427,7 @@
         </div>
       </div>
     </div>
-  {:else if $session && (userDataLoaded || data.sessionStatus === "ready")}
-    <slot />
   {:else}
-    <div class="flex h-screen w-full items-center justify-center">
-      <div class="max-w-md rounded-lg bg-yellow-50 p-6 text-center shadow-lg">
-        <h2 class="text-2xl font-bold text-yellow-700">Session Expired</h2>
-        <p class="mt-2">Your session has expired or you are not logged in.</p>
-        <div class="mt-6">
-          <a
-            href="/login"
-            class="inline-block rounded bg-primary px-4 py-2 text-white"
-          >
-            Go to Login
-          </a>
-        </div>
-      </div>
-    </div>
+    <slot />
   {/if}
 {/if}
