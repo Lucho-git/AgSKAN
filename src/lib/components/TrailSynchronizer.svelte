@@ -3,6 +3,7 @@
   import { onMount, onDestroy } from "svelte"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
+  import { get } from "svelte/store"
 
   import {
     userVehicleStore,
@@ -22,6 +23,7 @@
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
 
   import { profileStore } from "$lib/stores/profileStore"
+  import { session, initializeSession } from "$lib/stores/sessionStore"
 
   import EndTrailModal from "$lib/components/EndTrailModal.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
@@ -41,8 +43,40 @@
     unsavedCoordinatesUnsubscribe: null,
   }
 
+  // Helper function to make authenticated API calls
+  async function authenticatedFetch(url, method = "POST", body = {}) {
+    // Get the current session
+    const currentSession = get(session)
+
+    if (!currentSession?.user?.id) {
+      // If no session available, try to initialize it
+      await initializeSession()
+      const refreshedSession = get(session)
+
+      if (!refreshedSession?.user?.id) {
+        throw new Error("Authentication required")
+      }
+    }
+
+    // Re-get the session to ensure we have the most up-to-date token
+    const activeSession = get(session)
+
+    return fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+      body: method !== "GET" ? JSON.stringify(body) : undefined,
+    })
+  }
+
   onMount(async () => {
     console.log("🚀 TrailSynchronizer: Initializing...")
+
+    // Make sure session is initialized
+    await initializeSession()
+
     await checkOpenTrails()
     await checkOtherActiveTrails()
     await fetchOperationTrails()
@@ -407,11 +441,12 @@
         `📤 TrailSynchronizer: Sending batch of ${coordinatesToSend.length} coordinates`,
       )
 
-      const response = await fetch("/api/map-trails/save-coordinate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      // Using the authenticatedFetch helper
+      const response = await authenticatedFetch(
+        "/api/map-trails/save-coordinate",
+        "POST",
+        payload,
+      )
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -440,11 +475,12 @@
 
   async function getOperationTrails(operation_id) {
     try {
-      const response = await fetch("/api/map-trails/get-operation-trails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operation_id }),
-      })
+      // Using the authenticatedFetch helper
+      const response = await authenticatedFetch(
+        "/api/map-trails/get-operation-trails",
+        "POST",
+        { operation_id },
+      )
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -498,15 +534,12 @@
 
   async function checkOpenTrails() {
     try {
-      const response = await fetch("/api/map-trails/check-open-trails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          vehicle_id: $profileStore.id,
-        }),
-      })
+      // Using the authenticatedFetch helper
+      const response = await authenticatedFetch(
+        "/api/map-trails/check-open-trails",
+        "POST",
+        { vehicle_id: $profileStore.id },
+      )
 
       if (!response.ok) {
         throw new Error("Failed to check for open trails")
@@ -556,17 +589,14 @@
           "and profile:",
           $profileStore.id,
         )
-        const response = await fetch(
+
+        // Using the authenticatedFetch helper
+        const response = await authenticatedFetch(
           "/api/map-trails/check-other-active-trails",
+          "POST",
           {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              operation_id: selectedOperation.id,
-              current_vehicle_id: $profileStore.id,
-            }),
+            operation_id: selectedOperation.id,
+            current_vehicle_id: $profileStore.id,
           },
         )
 
@@ -669,17 +699,17 @@
 
   async function createNewTrail(vehicleId) {
     console.log("🆕 TrailSynchronizer: Creating new trail")
-    const createResponse = await fetch("/api/map-trails/open-new-trail", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+
+    // Using the authenticatedFetch helper
+    const createResponse = await authenticatedFetch(
+      "/api/map-trails/open-new-trail",
+      "POST",
+      {
         vehicle_id: vehicleId,
         operation_id: selectedOperation.id,
         vehicle_info: $userVehicleStore,
-      }),
-    })
+      },
+    )
 
     const createData = await createResponse.json()
 

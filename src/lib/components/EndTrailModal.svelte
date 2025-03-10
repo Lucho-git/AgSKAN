@@ -15,7 +15,8 @@
   } from "$lib/stores/currentTrailStore"
 
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
-
+  import { session, initializeSession } from "$lib/stores/sessionStore"
+  import { get } from "svelte/store"
   import { toast } from "svelte-sonner"
 
   let timeDifference: number
@@ -24,7 +25,38 @@
   let syncInterval: number
   let showDeleteConfirm = false
 
-  onMount(() => {
+  // Helper function to make authenticated API calls
+  async function authenticatedFetch(url, method = "POST", body = {}) {
+    // Get the current session
+    const currentSession = get(session)
+
+    if (!currentSession?.user?.id) {
+      // If no session available, try to initialize it
+      await initializeSession()
+      const refreshedSession = get(session)
+
+      if (!refreshedSession?.user?.id) {
+        throw new Error("Authentication required")
+      }
+    }
+
+    // Re-get the session to ensure we have the most up-to-date token
+    const activeSession = get(session)
+
+    return fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+      body: method !== "GET" ? JSON.stringify(body) : undefined,
+    })
+  }
+
+  onMount(async () => {
+    // Make sure session is initialized
+    await initializeSession()
+
     if ($unsavedTrailsStore.length > 0) {
       startPeriodicSync()
     }
@@ -43,11 +75,11 @@
 
   async function deleteTrail(trail_id: string) {
     try {
-      const response = await fetch("/api/map-trails/delete-trail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trail_id }),
-      })
+      const response = await authenticatedFetch(
+        "/api/map-trails/delete-trail",
+        "POST",
+        { trail_id },
+      )
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -91,11 +123,11 @@
 
     for (const trailData of $unsavedTrailsStore) {
       try {
-        const response = await fetch("/api/map-trails/close-trail", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(trailData),
-        })
+        const response = await authenticatedFetch(
+          "/api/map-trails/close-trail",
+          "POST",
+          trailData,
+        )
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
@@ -178,11 +210,11 @@
     }
 
     try {
-      const response = await fetch("/api/map-trails/close-trail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(trailData),
-      })
+      const response = await authenticatedFetch(
+        "/api/map-trails/close-trail",
+        "POST",
+        trailData,
+      )
 
       const data = await response.json()
 

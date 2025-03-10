@@ -1,26 +1,28 @@
 // src/routes/api/map-trails/get-user-trails/+server.ts
-
 import { json } from "@sveltejs/kit"
 import type { RequestHandler } from "./$types"
 import wkx from "wkx"
+import { verifyClientToken } from "$lib/helpers/authHelpers"
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const session = await locals.getSession()
-  if (!session) {
-    return json({ error: "Unauthorized" }, { status: 401 })
-  }
+    // Check authentication using our helper
+    const session = await verifyClientToken(request, locals.supabase)
 
-  const { vehicle_id, operation_id } = await request.json()
+    if (!session) {
+        return json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  if (!vehicle_id || !operation_id) {
-    return json({ error: "Missing required fields" }, { status: 400 })
-  }
+    const { vehicle_id, operation_id } = await request.json()
 
-  try {
-    const { data, error } = await locals.supabase
-      .from("trails")
-      .select(
-        `
+    if (!vehicle_id || !operation_id) {
+        return json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    try {
+        const { data, error } = await locals.supabase
+            .from("trails")
+            .select(
+                `
                 id,
                 vehicle_id,
                 operation_id,
@@ -30,43 +32,43 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 trail_width,
                 path
             `,
-      )
-      .eq("vehicle_id", vehicle_id)
-      .eq("operation_id", operation_id)
-      .order("start_time", { ascending: true })
+            )
+            .eq("vehicle_id", vehicle_id)
+            .eq("operation_id", operation_id)
+            .order("start_time", { ascending: true })
 
-    if (error) throw error
+        if (error) throw error
 
-    console.log("Raw data from Supabase:", data)
+        console.log("Raw data from Supabase:", data)
 
-    // Convert path to GeoJSON on the server
-    const trailsWithGeoJSON =
-      data?.map((trail) => {
-        let geojson
-        try {
-          if (typeof trail.path === "string") {
-            // Assuming the path is in Well-Known Binary (WKB) format
-            const geometry = wkx.Geometry.parse(Buffer.from(trail.path, "hex"))
-            geojson = geometry.toGeoJSON()
-          } else if (typeof trail.path === "object") {
-            geojson = trail.path
-          } else {
-            console.error("Unexpected path format:", trail.path)
-            geojson = null
-          }
-        } catch (e) {
-          console.error("Error parsing path:", e)
-          geojson = null
-        }
-        return {
-          ...trail,
-          path: geojson,
-        }
-      }) || []
+        // Convert path to GeoJSON on the server
+        const trailsWithGeoJSON =
+            data?.map((trail) => {
+                let geojson
+                try {
+                    if (typeof trail.path === "string") {
+                        // Assuming the path is in Well-Known Binary (WKB) format
+                        const geometry = wkx.Geometry.parse(Buffer.from(trail.path, "hex"))
+                        geojson = geometry.toGeoJSON()
+                    } else if (typeof trail.path === "object") {
+                        geojson = trail.path
+                    } else {
+                        console.error("Unexpected path format:", trail.path)
+                        geojson = null
+                    }
+                } catch (e) {
+                    console.error("Error parsing path:", e)
+                    geojson = null
+                }
+                return {
+                    ...trail,
+                    path: geojson,
+                }
+            }) || []
 
-    return json({ trails: trailsWithGeoJSON })
-  } catch (error) {
-    console.error("Error fetching user trails:", error)
-    return json({ error: "Failed to fetch user trails" }, { status: 500 })
-  }
+        return json({ trails: trailsWithGeoJSON })
+    } catch (error) {
+        console.error("Error fetching user trails:", error)
+        return json({ error: "Failed to fetch user trails" }, { status: 500 })
+    }
 }

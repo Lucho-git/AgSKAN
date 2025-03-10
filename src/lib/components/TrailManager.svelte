@@ -8,7 +8,9 @@
     otherActiveTrailStore,
   } from "$lib/stores/otherTrailStore"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
+  import { initializeSession } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
+  import { authenticatedFetch } from "$lib/helpers/authHelpers"
 
   export const TRAIL_CONFIG = {
     MULTIPLIER: 1,
@@ -111,13 +113,12 @@
 
   export async function deleteTrail(trailId: string) {
     try {
-      const response = await fetch("/api/map-trails/delete-trail", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ trail_id: trailId }),
-      })
+      // Use the centralized authenticatedFetch helper
+      const response = await authenticatedFetch(
+        "/api/map-trails/delete-trail",
+        "POST",
+        { trail_id: trailId },
+      )
 
       if (!response.ok) {
         toast.error("Failed to delete trail")
@@ -137,7 +138,6 @@
       return false
     }
   }
-
   export function addTrail(trail: Trail) {
     const { sourceId, layerId } = generateTrailIds(trail.id)
     const zoomDependentWidth = calculateZoomDependentWidth(
@@ -381,4 +381,5 @@
   }
 </script>
 
+svelte Copy
 <slot {calculateZoomDependentWidth} {generateTrailIds} {deleteTrail} />

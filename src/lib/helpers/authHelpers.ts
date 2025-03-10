@@ -2,9 +2,69 @@
 import { supabase } from "$lib/stores/sessionStore";
 import type { Session } from "@supabase/supabase-js";
 import { goto } from "$app/navigation";
+import { session, initializeSession } from "$lib/stores/sessionStore";
+import { get } from "svelte/store";
 
 // Set to track already processed sessions
 const handledSessions = new Set<string>();
+
+/**
+ * Helper function to make authenticated API calls using the session token
+ * @param url The API endpoint URL
+ * @param method The HTTP method to use (default: POST)
+ * @param body The request body (for non-GET requests)
+ * @returns Promise with the fetch response
+ */
+export async function authenticatedFetch(url: string, method: string = "POST", body: any = {}) {
+    // Get the current session
+    const currentSession = get(session);
+
+    if (!currentSession?.user?.id) {
+        // If no session available, try to initialize it
+        await initializeSession();
+        const refreshedSession = get(session);
+
+        if (!refreshedSession?.user?.id) {
+            throw new Error("Authentication required");
+        }
+    }
+
+    // Re-get the session to ensure we have the most up-to-date token
+    const activeSession = get(session);
+
+    return fetch(url, {
+        method,
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${activeSession.access_token}`
+        },
+        body: method !== "GET" ? JSON.stringify(body) : undefined
+    });
+}
+export async function verifyClientToken(request, supabaseClient) {
+    // Check for client-side authorization token
+    const authHeader = request.headers.get('Authorization')
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return null;
+    }
+
+    const token = authHeader.substring(7)
+
+    try {
+        const { data, error } = await supabaseClient.auth.getUser(token)
+        if (!error && data?.user) {
+            return {
+                user: data.user,
+                access_token: token
+            }
+        }
+    } catch (e) {
+        console.error("Token verification failed:", e)
+    }
+
+    return null;
+}
 
 export async function updateOrCreateProfile(sessionData: Session) {
     if (!sessionData || !sessionData.user) {

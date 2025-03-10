@@ -1,26 +1,28 @@
 // src/routes/api/map-trails/get-operation-trails/+server.ts
-
 import { json } from "@sveltejs/kit"
 import type { RequestHandler } from "./$types"
 import wkx from "wkx"
+import { verifyClientToken } from "$lib/helpers/authHelpers"
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const session = await locals.getSession()
-  if (!session) {
-    return json({ error: "Unauthorized" }, { status: 401 })
-  }
+    // Check authentication using our helper
+    const session = await verifyClientToken(request, locals.supabase)
 
-  const { operation_id } = await request.json()
+    if (!session) {
+        return json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  if (!operation_id) {
-    return json({ error: "Missing operation_id" }, { status: 400 })
-  }
+    const { operation_id } = await request.json()
 
-  try {
-    const { data, error } = await locals.supabase
-      .from("trails")
-      .select(
-        `
+    if (!operation_id) {
+        return json({ error: "Missing operation_id" }, { status: 400 })
+    }
+
+    try {
+        const { data, error } = await locals.supabase
+            .from("trails")
+            .select(
+                `
                 id,
                 vehicle_id,
                 operation_id,
@@ -30,41 +32,41 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 trail_width,
                 path
             `,
-      )
-      .eq("operation_id", operation_id)
-      .not("end_time", "is", null) // Only get trails with an end_time
-      .order("start_time", { ascending: true })
+            )
+            .eq("operation_id", operation_id)
+            .not("end_time", "is", null) // Only get trails with an end_time
+            .order("start_time", { ascending: true })
 
-    if (error) throw error
+        if (error) throw error
 
-    // Convert path to GeoJSON on the server
-    const trailsWithGeoJSON =
-      data?.map((trail) => {
-        let geojson
-        try {
-          if (typeof trail.path === "string") {
-            // Assuming the path is in Well-Known Binary (WKB) format
-            const geometry = wkx.Geometry.parse(Buffer.from(trail.path, "hex"))
-            geojson = geometry.toGeoJSON()
-          } else if (typeof trail.path === "object") {
-            geojson = trail.path
-          } else {
-            console.error("Unexpected path format:", trail.path)
-            geojson = null
-          }
-        } catch (e) {
-          console.error("Error parsing path:", e)
-          geojson = null
-        }
-        return {
-          ...trail,
-          path: geojson,
-        }
-      }) || []
+        // Convert path to GeoJSON on the server
+        const trailsWithGeoJSON =
+            data?.map((trail) => {
+                let geojson
+                try {
+                    if (typeof trail.path === "string") {
+                        // Assuming the path is in Well-Known Binary (WKB) format
+                        const geometry = wkx.Geometry.parse(Buffer.from(trail.path, "hex"))
+                        geojson = geometry.toGeoJSON()
+                    } else if (typeof trail.path === "object") {
+                        geojson = trail.path
+                    } else {
+                        console.error("Unexpected path format:", trail.path)
+                        geojson = null
+                    }
+                } catch (e) {
+                    console.error("Error parsing path:", e)
+                    geojson = null
+                }
+                return {
+                    ...trail,
+                    path: geojson,
+                }
+            }) || []
 
-    return json({ trails: trailsWithGeoJSON })
-  } catch (error) {
-    console.error("Error fetching operation trails:", error)
-    return json({ error: "Failed to fetch operation trails" }, { status: 500 })
-  }
+        return json({ trails: trailsWithGeoJSON })
+    } catch (error) {
+        console.error("Error fetching operation trails:", error)
+        return json({ error: "Failed to fetch operation trails" }, { status: 500 })
+    }
 }
