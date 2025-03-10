@@ -206,7 +206,7 @@ export async function createSubscriptionIfNeeded(userId: string) {
 }
 
 // Helper function to set up the auth listener in a consistent way
-export function setupAuthListener(redirectPath = "/static_auth") {
+export function setupAuthListener(redirectPath = "/account") {
     console.log("[Auth Helper] Setting up auth listener with redirect to:", redirectPath);
 
     let isProcessingAuth = false;

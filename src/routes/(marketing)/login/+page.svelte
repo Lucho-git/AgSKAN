@@ -26,7 +26,7 @@
       const {
         data: { subscription },
         checkNow,
-      } = setupAuthListener("/static_auth")
+      } = setupAuthListener("/account")
 
       // Force check for existing session
       checkNow()
@@ -59,7 +59,7 @@
       <Auth
         supabaseClient={supabase}
         view={activeTab}
-        redirectTo={`${$page.url.origin}/auth/callback?next=/static_auth`}
+        redirectTo={`${$page.url.origin}/auth/callback?next=/account`}
         providers={oauthProviders}
         socialLayout="horizontal"
         showLinks={false}

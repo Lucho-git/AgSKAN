@@ -135,7 +135,7 @@
       const queryParams = new URLSearchParams(window.location.search)
 
       // Get next URL from query params or use default
-      debugInfo.redirectTo = queryParams.get("next") || "/static_auth"
+      debugInfo.redirectTo = queryParams.get("next") || "/account"
 
       console.log("Auth callback parameters:", {
         hash: hashParams.toString(),

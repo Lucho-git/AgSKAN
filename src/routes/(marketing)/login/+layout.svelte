@@ -12,7 +12,7 @@
   onMount(() => {
     if (browser && $session) {
       console.log("User already logged in, redirecting away from login page")
-      goto("/static_auth")
+      goto("/account")
     }
     initialCheckComplete = true
   })

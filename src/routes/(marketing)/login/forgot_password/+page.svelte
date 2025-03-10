@@ -100,7 +100,7 @@
   <Auth
     supabaseClient={supabase}
     view="forgotten_password"
-    redirectTo={`${$page.url.origin}/auth/callback?next=%2Fstatic_auth`}
+    redirectTo={`${$page.url.origin}/auth/callback?next=%account`}
     providers={oauthProviders}
     socialLayout="horizontal"
     showLinks={false}

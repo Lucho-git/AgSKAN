@@ -19,7 +19,7 @@
       const {
         data: { subscription },
         checkNow,
-      } = setupAuthListener("/static_auth")
+      } = setupAuthListener("/account")
 
       // Force check for existing session
       checkNow()
@@ -56,7 +56,7 @@
               You're already signed in!
             </p>
             <a
-              href="/static_auth"
+              href="/account"
               class="mt-3 inline-block rounded-md bg-primary px-4 py-2 text-white"
             >
               Go to your account
