@@ -1,3 +1,4 @@
+<!-- settings/+page.svelte -->
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
@@ -8,6 +9,8 @@
   import { goto } from "$app/navigation"
   import FloatingChat from "../../../../../components/FloatingChat.svelte"
   import TestButton from "./test_button.svelte"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { toast } from "svelte-sonner"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("settings")
@@ -46,6 +49,20 @@
     }
   }
 
+  // Handle sign out
+  async function handleSignOut() {
+    try {
+      const result = await userSettingsApi.signOut()
+      if (result.success) {
+        toast.success("Signed out successfully")
+      }
+    } catch (error) {
+      console.error("Error signing out:", error)
+      // Still redirect even if there's an error
+      goto("/")
+    }
+  }
+
   onMount(async () => {
     // Check if user is authenticated
     if (!$session) {
@@ -76,16 +93,6 @@
     currentPlan === "FREE"
       ? "Free Plan"
       : currentPlan.charAt(0) + currentPlan.slice(1).toLowerCase() + " Plan"
-
-  // Helper function to handle null values gracefully
-  function getSafe(obj: any, path: string[], defaultValue: any = "N/A") {
-    let current = obj
-    for (const key of path) {
-      if (current === null || current === undefined) return defaultValue
-      current = current[key]
-    }
-    return current ?? defaultValue
-  }
 </script>
 
 <svelte:head>
@@ -99,6 +106,7 @@
     <div class="loading loading-spinner loading-lg"></div>
   </div>
 {:else}
+  <!-- settings/+page.svelte (updated Profile card section) -->
   <SettingsModule
     title="Profile"
     editable={false}
