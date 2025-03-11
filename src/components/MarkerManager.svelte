@@ -7,6 +7,7 @@
     markerActionsStore,
     locationMarkerStore,
   } from "../stores/mapStore"
+  import { profileStore } from "../stores/profileStore"
   import { controlStore } from "../stores/controlStore"
   import { getContext, onMount, onDestroy } from "svelte"
   import mapboxgl from "mapbox-gl"
@@ -404,10 +405,13 @@
 
   function removeMarker() {
     // Remove the recent marker from the map
+
     if ($selectedMarkerStore) {
       const { marker, id } = $selectedMarkerStore
       marker.remove()
       selectedMarkerStore.set(null)
+
+      let deletedBy = $profileStore.id
 
       const existingMarker = $confirmedMarkersStore.find((m) => m.id === id)
       if (existingMarker) {
@@ -416,7 +420,7 @@
           const updatedMarkers = markers.filter((m) => m.id !== id)
           removeMarkerStore.update((removedMarkers) => [
             ...removedMarkers,
-            { id, last_confirmed: existingMarker.last_confirmed },
+            { id, deletedBy, last_confirmed: existingMarker.last_confirmed },
           ])
           return updatedMarkers
         })
