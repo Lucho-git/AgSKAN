@@ -50,6 +50,17 @@
   },
   "type": "module",
   "dependencies": {
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/cli": "^7.0.1",
+    "@capacitor/core": "^7.0.1",
+    "@capacitor/device": "^7.0.0",
+    "@capacitor/geolocation": "^7.1.1",
+    "@capacitor/ios": "^7.0.1",
+    "@capacitor/network": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0",
+    "@capacitor/share": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
     "@fontsource/archivo": "^5.0.17",
     "@fontsource/roboto": "^5.0.13",
     "@lottiefiles/svelte-lottie-player": "^0.3.1",
@@ -101,5 +112,5 @@
   },
   "engines": {
     "node": ">=18.x"
-}
+  }
 }

@@ -10,7 +10,7 @@ const config = {
             pages: 'build',         // Output folder for pages
             assets: 'build',        // Output folder for assets
             fallback: 'index.html', // Fallback for SPA navigation
-            precompress: true,      // Enable precompression for better performance
+            precompress: false,     // Disable precompression to avoid .gz files for Capacitor
             strict: false           // Set to true to error if a page can't be prerendered
         }),
         

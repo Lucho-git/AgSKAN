@@ -2,7 +2,10 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- UPDATED: Combined and enhanced viewport meta tag for Capacitor -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    
     <meta
       name="facebook-domain-verification"
       content="336vfi1l9zfva9cxs7h2nd0304eqam"
@@ -18,13 +21,15 @@
       name="description"
       content="Live vehicle tracking. Auto-Path for your Paddocks."
     />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
 
+    <!-- ADDED: Specific mobile settings for Capacitor -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- UPDATED: Theme color handling for Capacitor -->
     <meta name="theme-color" content="#f9e58a" id="theme-color" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="google" content="notranslate" />
 
     <!-- Twitter Card -->
@@ -116,6 +121,32 @@
       window
         .matchMedia("(prefers-color-scheme: dark)")
         .addListener(updateThemeColor)
+    </script>
+
+    <!-- ADDED: Handle Capacitor-specific init for both PWA and native apps -->
+    <script>
+      // Wait for the DOM to be ready
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check if running in Capacitor
+        const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform();
+        
+        if (isCapacitor) {
+          // Initialize Capacitor plugins
+          const { SplashScreen, StatusBar } = Capacitor.Plugins;
+          
+          // Set status bar styling based on theme
+          if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            StatusBar.setStyle({ style: 'DARK' });
+          } else {
+            StatusBar.setStyle({ style: 'LIGHT' });
+          }
+          
+          // Hide splash screen with a delay
+          setTimeout(() => {
+            SplashScreen.hide();
+          }, 500);
+        }
+      });
     </script>
 
     <!-- 100% privacy-first analytics, simpleanalytics.com -->
