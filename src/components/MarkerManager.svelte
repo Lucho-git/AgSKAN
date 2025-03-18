@@ -164,7 +164,10 @@
   export let markerPlacementEvent = null
   export let markerClickEvent = null
 
+  let isDragging = false;
   let pressTimer;
+  const MOVE_THRESHOLD = 5; // Adjust for sensitivity
+  let startX, startY;
 
   const LONG_PRESS_DURATION = 500; // 0.3 second
 
@@ -193,21 +196,40 @@
 
     // Handle marker placement with long press
     map.on("mousedown", (event) => startPressTimer(event, map));
-    map.on("touchstart", (event) => startPressTimer(event, map));
+    map.on("mousemove", checkForDrag);
     map.on("mouseup", cancelPressTimer);
+
+    map.on("touchstart", (event) => startPressTimer(event, map));
+    map.on("touchmove", checkForDrag);
     map.on("touchend", cancelPressTimer);
   })
 
   function startPressTimer(event, map) {
     if (event.lngLat) {
+      isDragging = false;
+      startX = event.point.x;
+      startY = event.point.y;
+
       pressTimer = setTimeout(() => {
-        placeMarker(event.lngLat, map);
+        if (!isDragging) {
+          placeMarker(event.lngLat, map);
+        }
       }, LONG_PRESS_DURATION);
     }
   }
 
   function cancelPressTimer() {
     clearTimeout(pressTimer);
+  }
+
+  function checkForDrag(event) {
+    const deltaX = Math.abs(event.point.x - startX);
+    const deltaY = Math.abs(event.point.y - startY);
+
+    if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
+      isDragging = true;
+      clearTimeout(pressTimer);
+    }
   }
 
   onDestroy(async() => {
@@ -231,8 +253,11 @@
 
     const map = await getMap()
     map.off("mousedown", startPressTimer);
-    map.off("touchstart", startPressTimer);
+    map.off("mousemove", checkForDrag);
     map.off("mouseup", cancelPressTimer);
+
+    map.off("touchstart", startPressTimer);
+    map.off("touchmove", checkForDrag);
     map.off("touchend", cancelPressTimer);
   })
 
