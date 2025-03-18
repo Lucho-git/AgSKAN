@@ -1,0 +1,66 @@
+{
+    "name": "Skan Farming",
+    "short_name": "AgSKAN",
+    "description": "",
+    "theme_color": "#f9e58a",
+    "background_color": "#d4fea9",
+    "display": "standalone",
+    "orientation": "any",
+    "scope": "/",
+    "start_url": "/account",
+    "icons": [
+        {
+            "src": "icons/icon_96.png",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/maskable_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/maskable_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+
+ 
+
+    "screenshots": [
+        {
+         "src": "/images/mobiledisplay1.jpg",
+          "sizes": "1080x1920",
+          "type": "image/jpg",
+          "label": "MapDisplay"
+        },
+        {
+            "src": "/images/mobiledisplay2.jpg",
+             "sizes": "1080x1920",
+             "type": "image/jpg",
+             "label": "MarkerDisplay"
+        },
+           {
+            "src": "/images/mobiledisplay3.jpg",
+             "sizes": "1080x1920",
+             "type": "image/jpg",
+             "label": "UploadDisplay"
+        }
+    ]
+}
