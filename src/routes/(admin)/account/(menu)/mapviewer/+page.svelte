@@ -121,11 +121,16 @@
     try {
       // Ensure we have a session
       if (!$session?.access_token) {
+        console.error("No access token available")
         return null
       }
 
       // Get token from session store
       const token = $session.access_token
+      console.log(
+        "Using token for location API:",
+        token.substring(0, 5) + "...",
+      )
 
       const response = await fetch(
         `/api/location?type=${data.type}&id=${data.id}`,
@@ -133,12 +138,13 @@
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          credentials: "include",
         },
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error("Location API error:", response.status, errorText)
+        throw new Error(`Failed to fetch location: ${response.status}`)
       }
 
       const locationData = await response.json()
