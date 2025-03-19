@@ -3,6 +3,8 @@
   import { onMount, onDestroy } from "svelte"
   import { Trash2 } from "lucide-svelte"
   import { showEndTrailModal } from "$lib/stores/controlStore"
+  import { trailsApi } from "$lib/api/trailsApi"
+
   import {
     userVehicleTrailing,
     userVehicleStore,
@@ -75,17 +77,12 @@
 
   async function deleteTrail(trail_id: string) {
     try {
-      const response = await authenticatedFetch(
-        "/api/map-trails/delete-trail",
-        "POST",
-        { trail_id },
-      )
+      const result = await trailsApi.deleteTrail(trail_id)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (result.error) {
+        throw new Error(result.message || "Failed to delete trail")
       }
 
-      await response.json()
       toast.success("Trail deleted successfully")
 
       // Reset all states
@@ -95,7 +92,7 @@
       showDeleteConfirm = false
     } catch (error) {
       console.error("Error deleting trail:", error)
-      toast.error("Failed to delete trail")
+      toast.error(`Failed to delete trail: ${error.message}`)
     }
   }
 
@@ -123,17 +120,12 @@
 
     for (const trailData of $unsavedTrailsStore) {
       try {
-        const response = await authenticatedFetch(
-          "/api/map-trails/close-trail",
-          "POST",
-          trailData,
-        )
+        const result = await trailsApi.closeTrail(trailData)
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+        if (result.error) {
+          throw new Error(result.message || "Failed to close trail")
         }
 
-        await response.json()
         unsavedTrailsStore.remove(trailData)
         unsavedCoordinatesStore.clear()
         toast.success(`Successfully synced trail ${trailData.trail_id}`)
@@ -196,7 +188,7 @@
       const message =
         pathData.length === 0 ? "empty trail" : "trail with only one coordinate"
       toast.info(`Deleting ${message}`)
-      await deleteTrail($currentTrailStore.id)
+      await trailsApi.deleteTrail($currentTrailStore.id)
       return
     }
 
@@ -210,16 +202,10 @@
     }
 
     try {
-      const response = await authenticatedFetch(
-        "/api/map-trails/close-trail",
-        "POST",
-        trailData,
-      )
+      const result = await trailsApi.closeTrail(trailData)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to close trail")
+      if (result.error) {
+        throw new Error(result.message || "Failed to close trail")
       }
 
       // Convert the path data to the required GeoJSON LineString format
@@ -230,7 +216,7 @@
 
       // Create the historical trail object
       const historicalTrail = {
-        ...data.trail,
+        ...result.trail,
         path: lineStringPath,
       }
 
@@ -238,7 +224,7 @@
       historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
       toast.success("Trail closed successfully")
-      console.log("Trail closed successfully:", data)
+      console.log("Trail closed successfully:", result)
 
       // Clear unsaved coordinates
       unsavedCoordinatesStore.clear()

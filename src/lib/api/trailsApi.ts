@@ -1,7 +1,6 @@
 // src/lib/api/trailsApi.ts
 import { supabase } from '$lib/supabaseClient';
 
-
 const TRAIL_DATA_RETENTION_DAYS = 300; // Same as server-side
 
 /**
@@ -37,6 +36,66 @@ const DEFAULT_CONFIG: TrailTimeoutConfig = {
 };
 
 /**
+ * Calculate perpendicular distance from a point to a line
+ */
+function perpendicularDistance(point: Point, lineStart: Point, lineEnd: Point): number {
+    const dx = lineEnd.longitude - lineStart.longitude;
+    const dy = lineEnd.latitude - lineStart.latitude;
+
+    // If it's a point, not a line, return distance between points
+    if (dx === 0 && dy === 0) {
+        const diffX = point.longitude - lineStart.longitude;
+        const diffY = point.latitude - lineStart.latitude;
+        return Math.sqrt(diffX * diffX + diffY * diffY);
+    }
+
+    // Calculate perpendicular distance
+    const numerator = Math.abs(
+        dy * point.longitude - dx * point.latitude +
+        lineEnd.longitude * lineStart.latitude -
+        lineEnd.latitude * lineStart.longitude
+    );
+    const denominator = Math.sqrt(dx * dx + dy * dy);
+
+    return numerator / denominator;
+}
+
+/**
+ * Simplify a path using Douglas-Peucker algorithm
+ */
+function simplifyPath(points: Point[], tolerance: number): Point[] {
+    if (points.length <= 2) {
+        return points;
+    }
+
+    // Find the point with the maximum distance
+    let maxDistance = 0;
+    let index = 0;
+    const start = points[0];
+    const end = points[points.length - 1];
+
+    for (let i = 1; i < points.length - 1; i++) {
+        const distance = perpendicularDistance(points[i], start, end);
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            index = i;
+        }
+    }
+
+    // If max distance is greater than tolerance, recursively simplify
+    if (maxDistance > tolerance) {
+        // Recursive call
+        const firstLine = simplifyPath(points.slice(0, index + 1), tolerance);
+        const secondLine = simplifyPath(points.slice(index), tolerance);
+
+        // Concat the two simplified lines
+        return [...firstLine.slice(0, -1), ...secondLine];
+    } else {
+        return [start, end];
+    }
+}
+
+/**
  * Close a trail with path data
  */
 async function closeTrailWithPath(
@@ -44,14 +103,35 @@ async function closeTrailWithPath(
     endTime: string,
     path?: Point[],
 ) {
-    // On the client side, we'll use the close_trail RPC function
-    // rather than try to duplicate path simplification logic
+    if (!path || path.length === 0) {
+        // If no path is provided, just update the end time
+        return await supabase.rpc("close_trail", {
+            trail_id_param: trail_id,
+            end_time_param: endTime,
+            path_param: null,
+            detailed_path_param: null
+        });
+    }
+
+    // Format the detailed path with timestamps (LINESTRING M format)
+    const detailedLineString = path
+        .map((point) => `${point.longitude} ${point.latitude} ${point.timestamp}`)
+        .join(",");
+    const detailedPathString = `SRID=4326;LINESTRING M(${detailedLineString})`;
+
+    // Create a simplified path for display using Douglas-Peucker algorithm
+    const simplifiedPath = simplifyPath(path, 0.000005);
+    const simplifiedLineString = simplifiedPath
+        .map((point) => `${point.longitude} ${point.latitude}`)
+        .join(",");
+    const pathString = `SRID=4326;LINESTRING(${simplifiedLineString})`;
+
+    // Call the RPC function with both path strings
     return await supabase.rpc("close_trail", {
         trail_id_param: trail_id,
         end_time_param: endTime,
-        // Skip sending the path params - database trigger should handle if needed
-        path_param: null,
-        detailed_path_param: null
+        path_param: pathString,
+        detailed_path_param: detailedPathString
     });
 }
 
@@ -137,12 +217,16 @@ async function processAndCloseTrail(trail_id: string) {
         return { deleted: true, reason: "insufficient_points" };
     }
 
-    // Trail has enough points, close it with the last timestamp
-    const trailEndTime = trailPoints[trailPoints.length - 1].timestamp;
+    // Extract path points from trail data
+    const pathPoints = trailPoints.map((point) => ({
+        longitude: point.coordinate.coordinates[0],
+        latitude: point.coordinate.coordinates[1],
+        timestamp: new Date(point.timestamp).getTime(),
+    }));
 
-    // We skip sending the path data in the client-side implementation
-    // to keep things simpler. The database can rebuild if needed.
-    const result = await closeTrailWithPath(trail_id, trailEndTime);
+    // Trail has enough points, close it with the last timestamp and path data
+    const trailEndTime = trailPoints[trailPoints.length - 1].timestamp;
+    const result = await closeTrailWithPath(trail_id, trailEndTime, pathPoints);
 
     if (result.error) {
         throw new Error(`Failed to close trail: ${result.error.message}`);
@@ -236,6 +320,84 @@ async function handleOpenTrails(
 }
 
 export const trailsApi = {
+    /**
+     * Close a trail
+     */
+    async closeTrail(trailData: {
+        trail_id: string;
+        vehicle_id: string;
+        operation_id: string;
+        path: Array<{
+            latitude: number;
+            longitude: number;
+            timestamp: number;
+        }>;
+        trail_color: string;
+        trail_width: number;
+    }) {
+        try {
+            console.log(`Closing trail ${trailData.trail_id}`);
+
+            // Get user session
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.error("No authenticated user session");
+                throw new Error("Authentication required");
+            }
+
+            // Transform path data for closeTrailWithPath
+            const pathForClosing = trailData.path.map(point => ({
+                longitude: point.longitude,
+                latitude: point.latitude,
+                timestamp: point.timestamp
+            }));
+
+            // Use the updated closeTrailWithPath function
+            const { error: closeError } = await closeTrailWithPath(
+                trailData.trail_id,
+                new Date().toISOString(),
+                pathForClosing
+            );
+
+            if (closeError) {
+                console.error("Error closing trail:", closeError);
+                throw new Error(`Failed to close trail: ${closeError.message}`);
+            }
+
+            // Get the updated trail data to return
+            const { data: trailResult, error: getError } = await supabase
+                .from('trails')
+                .select('*')
+                .eq('id', trailData.trail_id)
+                .single();
+
+            if (getError) {
+                console.error("Error fetching updated trail:", getError);
+                // Don't throw here - the close operation likely succeeded
+            }
+
+            return {
+                success: true,
+                trail: trailResult || {
+                    id: trailData.trail_id,
+                    vehicle_id: trailData.vehicle_id,
+                    operation_id: trailData.operation_id,
+                    trail_color: trailData.trail_color,
+                    trail_width: trailData.trail_width,
+                    // We don't have the start/end times without the DB query
+                }
+            };
+
+        } catch (error) {
+            console.error("Error in closeTrail:", error);
+            return {
+                error: true,
+                message: error.message || "Failed to close trail"
+            };
+        }
+    },
+
+
     /**
      * Load trail data for a specific master map
      */
@@ -544,79 +706,7 @@ export const trailsApi = {
             };
         }
     },
-    /**
-     * Close a trail
-     */
-    async closeTrail(trailData: {
-        trail_id: string;
-        vehicle_id: string;
-        operation_id: string;
-        path: Array<{
-            latitude: number;
-            longitude: number;
-            timestamp: number;
-        }>;
-        trail_color: string;
-        trail_width: number;
-    }) {
-        try {
-            console.log(`Closing trail ${trailData.trail_id}`);
 
-            // Get user session
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (!sessionData?.session?.user) {
-                console.error("No authenticated user session");
-                throw new Error("Authentication required");
-            }
-
-            // Use the closeTrailWithPath function directly
-            const { error: closeError } = await closeTrailWithPath(
-                trailData.trail_id,
-                new Date().toISOString(),
-                trailData.path.map(point => ({
-                    longitude: point.longitude,
-                    latitude: point.latitude,
-                    timestamp: point.timestamp
-                }))
-            );
-
-            if (closeError) {
-                console.error("Error closing trail:", closeError);
-                throw new Error(`Failed to close trail: ${closeError.message}`);
-            }
-
-            // Get the updated trail data to return
-            const { data: trailResult, error: getError } = await supabase
-                .from('trails')
-                .select('*')
-                .eq('id', trailData.trail_id)
-                .single();
-
-            if (getError) {
-                console.error("Error fetching updated trail:", getError);
-                // Don't throw here - the close operation likely succeeded
-            }
-
-            return {
-                success: true,
-                trail: trailResult || {
-                    id: trailData.trail_id,
-                    vehicle_id: trailData.vehicle_id,
-                    operation_id: trailData.operation_id,
-                    trail_color: trailData.trail_color,
-                    trail_width: trailData.trail_width,
-                    // We don't have the start/end times without the DB query
-                }
-            };
-
-        } catch (error) {
-            console.error("Error in closeTrail:", error);
-            return {
-                error: true,
-                message: error.message || "Failed to close trail"
-            };
-        }
-    },
     /**
      * Delete a trail
      */
