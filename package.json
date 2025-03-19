@@ -75,6 +75,7 @@
     "@vectopus/atlas-icons": "^0.0.7",
     "@xmldom/xmldom": "^0.9.3",
     "bits-ui": "^0.21.13",
+    "buffer": "^6.0.3",
     "chart.js": "^4.4.2",
     "clsx": "^2.1.1",
     "crisp-sdk-web": "^1.0.25",

@@ -4,6 +4,7 @@
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { get } from "svelte/store"
+  import { trailsApi } from "$lib/api/trailsApi"
 
   import {
     userVehicleStore,
@@ -428,31 +429,23 @@
     unsavedCoordinatesStore.set([])
 
     try {
-      const payload = {
-        operation_id: selectedOperation.id,
-        trail_id: $currentTrailStore.id,
-        coordinates_batch: coordinatesToSend.map((coord) => ({
-          coordinates: coord.coordinates,
-          timestamp: coord.timestamp,
-        })),
-      }
-
       console.log(
         `📤 TrailSynchronizer: Sending batch of ${coordinatesToSend.length} coordinates`,
       )
 
-      // Using the authenticatedFetch helper
-      const response = await authenticatedFetch(
-        "/api/map-trails/save-coordinate",
-        "POST",
-        payload,
+      const result = await trailsApi.saveCoordinates(
+        selectedOperation.id,
+        $currentTrailStore.id,
+        coordinatesToSend.map((coord) => ({
+          coordinates: coord.coordinates,
+          timestamp: coord.timestamp,
+        })),
       )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (result.error) {
+        throw new Error(result.message || "Failed to save coordinates")
       }
 
-      await response.json()
       console.log(
         `✅ TrailSynchronizer: Successfully synced ${coordinatesToSend.length} coordinates`,
       )
@@ -534,18 +527,14 @@
 
   async function checkOpenTrails() {
     try {
-      // Using the authenticatedFetch helper
-      const response = await authenticatedFetch(
-        "/api/map-trails/check-open-trails",
-        "POST",
-        { vehicle_id: $profileStore.id },
-      )
+      // Using our client-side API instead of authenticatedFetch
+      const result = await trailsApi.checkOpenTrails($profileStore.id)
 
-      if (!response.ok) {
-        throw new Error("Failed to check for open trails")
+      if (result.error) {
+        throw new Error(result.message || "Failed to check for open trails")
       }
 
-      const { openTrail, trailData } = await response.json()
+      const { openTrail, trailData } = result
       console.log("Opentrail", openTrail, "data", trailData)
 
       if (openTrail) {
@@ -590,21 +579,15 @@
           $profileStore.id,
         )
 
-        // Using the authenticatedFetch helper
-        const response = await authenticatedFetch(
-          "/api/map-trails/check-other-active-trails",
-          "POST",
-          {
-            operation_id: selectedOperation.id,
-            current_vehicle_id: $profileStore.id,
-          },
+        // Using our client-side API instead of authenticatedFetch
+        const data = await trailsApi.checkOtherActiveTrails(
+          selectedOperation.id,
+          $profileStore.id,
         )
 
-        const data = await response.json()
-
-        if (!response.ok) {
+        if (data.error) {
           throw new Error(
-            data.error || "Failed to check for other active trails",
+            data.message || "Failed to check for other active trails",
           )
         }
 
@@ -700,33 +683,32 @@
   async function createNewTrail(vehicleId) {
     console.log("🆕 TrailSynchronizer: Creating new trail")
 
-    // Using the authenticatedFetch helper
-    const createResponse = await authenticatedFetch(
-      "/api/map-trails/open-new-trail",
-      "POST",
-      {
-        vehicle_id: vehicleId,
-        operation_id: selectedOperation.id,
-        vehicle_info: $userVehicleStore,
-      },
-    )
+    try {
+      const result = await trailsApi.openNewTrail(
+        vehicleId,
+        selectedOperation.id,
+        $userVehicleStore,
+      )
 
-    const createData = await createResponse.json()
+      if (result.error) {
+        throw new Error(result.message || "Failed to create trail")
+      }
 
-    if (!createResponse.ok) {
-      throw new Error(createData.error || "Failed to create trail")
+      console.log("✅ TrailSynchronizer: New trail created successfully")
+      toast.success("New trail created successfully")
+      currentTrailStore.set({
+        ...result.trail,
+        start_time: result.trail.start_time,
+        trail_color: result.trail.trail_color,
+        trail_width: result.trail.trail_width,
+        path: [],
+      })
+      userVehicleTrailing.set(true)
+    } catch (error) {
+      console.error("❌ TrailSynchronizer: Error creating trail:", error)
+      toast.error(`Error creating trail: ${error.message}`)
+      throw error // Re-throw to be handled by the caller
     }
-
-    console.log("✅ TrailSynchronizer: New trail created successfully")
-    toast.success("New trail created successfully")
-    currentTrailStore.set({
-      ...createData.trail,
-      start_time: createData.trail.start_time,
-      trail_color: createData.trail.trail_color,
-      trail_width: createData.trail.trail_width,
-      path: [],
-    })
-    userVehicleTrailing.set(true)
   }
 
   function updateTrailPath(newCoordinateData) {
