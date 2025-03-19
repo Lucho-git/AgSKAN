@@ -6,11 +6,12 @@ import { browser } from "$app/environment";
 import { goto } from "$app/navigation";
 import { session, initializeSession } from "$lib/stores/sessionStore";
 import { get } from "svelte/store";
+import { fileApi } from "$lib/api/fileApi";
 
 // Set export const ssr = false to disable SSR for this route
 export const ssr = false;
 
-export const load: PageLoad = async ({ fetch, url }) => {
+export const load: PageLoad = async () => {
     // Skip on server
     if (!browser) {
         return { loading: true };
@@ -32,44 +33,25 @@ export const load: PageLoad = async ({ fetch, url }) => {
         let fieldsData = [];
         let error = null;
 
-        // Fetch files with Authorization header
+        // Fetch files using fileApi
         try {
-            const filesResponse = await fetch("/api/files", {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${currentSession.access_token}`
-                },
-            });
-
-            if (!filesResponse.ok) {
-                throw new Error(
-                    `Failed to fetch files: ${filesResponse.status} ${filesResponse.statusText}`
-                );
-            }
-
-            filesData = await filesResponse.json();
+            filesData = await fileApi.getUserFiles();
             userFilesStore.set(filesData);
         } catch (fileError) {
+            console.error("Error fetching files:", fileError);
             error = "Failed to fetch files.";
         }
 
         // Attempt to fetch fields
         if (!error) {
             try {
-                const fieldsResponse = await fetch("/api/files/load_fields", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${currentSession.access_token}`
-                    },
-                });
-
-                if (fieldsResponse.ok) {
-                    const fieldsResult = await fieldsResponse.json();
-                    fieldsData = fieldsResult.fields || [];
+                const fieldsResult = await fileApi.loadFields();
+                if (fieldsResult.fields) {
+                    fieldsData = fieldsResult.fields;
                     fieldStore.set(fieldsData);
                 }
             } catch (fieldError) {
+                console.error("Error fetching fields:", fieldError);
                 // We don't set error here as it's not critical
             }
         }
@@ -81,6 +63,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
             loading: false
         };
     } catch (error) {
+        console.error("Load error:", error);
         return {
             files: [],
             fields: [],

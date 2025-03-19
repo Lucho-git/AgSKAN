@@ -1,10 +1,12 @@
+// src/routes/admin/fieldview/process/+page.ts
 import type { PageLoad } from "./$types"
 import { error, redirect } from "@sveltejs/kit"
 import { userFilesStore } from "../userFilesStore"
 import { connectedMapStore } from "$lib/stores/connectedMapStore"
-import { session } from "$lib/stores/sessionStore" // Import session store
+import { session } from "$lib/stores/sessionStore"
 import { get } from "svelte/store"
 import { browser } from "$app/environment"
+import { processBoundariesApi } from "$lib/api/processBoundariesApi"
 
 const showPromiseToast = async (promise: Promise<any>, fileName: string) => {
     if (browser) {
@@ -36,7 +38,7 @@ const showErrorToast = async (message: string) => {
     }
 }
 
-export const load: PageLoad = async ({ url, fetch }) => {
+export const load: PageLoad = async ({ url }) => {
     // Skip on server
     if (!browser) {
         return { loading: true };
@@ -64,21 +66,13 @@ export const load: PageLoad = async ({ url, fetch }) => {
     }
 
     const processFile = async () => {
-        const response = await fetch("/api/files/process", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${currentSession.access_token}`
-            },
-            body: JSON.stringify({ fileName }),
-        })
+        const result = await processBoundariesApi.processFile(fileName);
 
-        const result = await response.json()
-        if (!response.ok) {
-            throw new Error(result.message || "Failed to process file")
+        if (result.error) {
+            throw new Error(result.message || "Failed to process file");
         }
 
-        return result
+        return result;
     }
 
     try {

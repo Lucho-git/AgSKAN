@@ -13,6 +13,8 @@
   import { toast } from "svelte-sonner"
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { fileApi } from "$lib/api/fileApi"
+
   import { session } from "$lib/stores/sessionStore" // Import session store
 
   export let data
@@ -90,26 +92,9 @@
   async function finish() {
     const map_id = $connectedMapStore.id
 
-    // Include Authorization header with the token
-    const headers = new Headers({
-      "Content-Type": "application/json",
-    })
-
-    if ($session?.access_token) {
-      headers.append("Authorization", `Bearer ${$session.access_token}`)
-    }
-
-    const promise = fetch("/api/files/upload_fields", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        map_id: map_id,
-        fields: paddocks,
-      }),
-    }).then(async (response) => {
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error)
+    const promise = fileApi.uploadFields(map_id, paddocks).then((result) => {
+      if (!result.success) {
+        throw new Error(result.message)
       }
       return result
     })

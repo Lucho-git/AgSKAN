@@ -5,6 +5,7 @@
   import { userFilesStore } from "./userFilesStore" // Adjust path if necessary
   import { menuStore } from "../../../../../stores/menuStore"
   import { session } from "$lib/stores/sessionStore" // Import session store
+  import { fileApi } from "$lib/api/fileApi"
 
   import type { FileUpload } from "$lib/types"
 
@@ -141,23 +142,13 @@
 
   async function handleDownload(file: FileUpload) {
     try {
-      // Include Authorization header with the token
-      const headers = new Headers()
-      if ($session?.access_token) {
-        headers.append("Authorization", `Bearer ${$session.access_token}`)
+      const result = await fileApi.downloadFile(file.name)
+
+      if (!result.success || !result.data) {
+        throw new Error(result.message || "Failed to download file")
       }
 
-      const response = await fetch(
-        `/api/files/download?fileName=${encodeURIComponent(file.name)}`,
-        { headers },
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to download file")
-      }
-
-      const blob = await response.blob()
+      const blob = result.data
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -168,6 +159,7 @@
       document.body.removeChild(a)
     } catch (error) {
       errorMessage = `Error downloading file: ${error.message}`
+      toast.error(errorMessage)
     }
   }
 
@@ -187,26 +179,10 @@
     if (!fileToDelete) return
 
     try {
-      // Include Authorization header with the token
-      const headers = new Headers({
-        "Content-Type": "application/json",
-      })
-      if ($session?.access_token) {
-        headers.append("Authorization", `Bearer ${$session.access_token}`)
-      }
+      const result = await fileApi.deleteFile(fileToDelete.name)
 
-      const response = await fetch("/api/files/delete", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ fileName: fileToDelete.name }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          result.error || `HTTP error! status: ${response.status}`,
-        )
+      if (!result.success) {
+        throw new Error(result.message)
       }
 
       // Update the store by removing the deleted file

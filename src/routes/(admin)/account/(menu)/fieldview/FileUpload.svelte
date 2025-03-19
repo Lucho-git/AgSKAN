@@ -7,6 +7,7 @@
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
+  import { fileApi } from "$lib/api/fileApi"
 
   // Lottie animations
   import OneFileMovement from "$lib/animations/OneFileMovement.json"
@@ -77,25 +78,10 @@
       errorMessage = ""
       successMessage = ""
 
-      const formData = new FormData()
-      formData.append("file", file)
-
       try {
-        // Include the Authorization header with the token
-        const headers = new Headers()
-        if ($session?.access_token) {
-          headers.append("Authorization", `Bearer ${$session.access_token}`)
-        }
+        const result = await fileApi.uploadFile(file)
 
-        const response = await fetch("/api/files/upload", {
-          method: "POST",
-          headers,
-          body: formData,
-        })
-
-        const result = await response.json()
-
-        if (response.ok) {
+        if (result.success) {
           // Normalize the new file data
           const normalizedFile = {
             id: result.file.file_id,
@@ -122,7 +108,7 @@
           }, 1500) // Give the user 1.5 seconds to see the success message
         } else {
           errorMessage =
-            result.error ||
+            result.message ||
             "An error occurred while uploading the file. Please try again."
           isFileValid = false
           toast.error(errorMessage)

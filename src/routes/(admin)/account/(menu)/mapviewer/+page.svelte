@@ -9,6 +9,7 @@
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { session } from "$lib/stores/sessionStore"
+  import { fileApi } from "$lib/api/fileApi" // Import the fileApi
 
   export let data: PageData
 
@@ -69,40 +70,27 @@
     }
   }
 
-  // Fixed function to load fields - now with explicit auth token
+  // Updated function to load fields using fileApi
   async function loadFields() {
     if (!browser) return
 
     try {
-      console.log("Attempting to fetch fields...")
+      console.log("Attempting to fetch fields using fileApi...")
 
       // Ensure we have a session
-      if (!$session?.access_token) {
-        console.error("No access token available")
+      if (!$session?.user?.id) {
+        console.error("No authenticated user")
         throw new Error("Authentication required")
       }
 
-      // Get token from session store
-      const token = $session.access_token
-      console.log("Using access token:", token.substring(0, 10) + "...")
+      const result = await fileApi.loadFields()
 
-      const fieldsResponse = await fetch("/api/files/load_fields", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      })
-
-      if (!fieldsResponse.ok) {
-        const errorText = await fieldsResponse.text()
-        console.error("Fields API error:", fieldsResponse.status, errorText)
-        throw new Error(`Failed to fetch fields: ${fieldsResponse.status}`)
+      if (result.error) {
+        console.error("Fields API error:", result.error)
+        throw new Error(`Failed to fetch fields: ${result.error}`)
       }
 
-      const fieldsData = await fieldsResponse.json()
-      fields = fieldsData.fields || []
+      fields = result.fields || []
       mapFieldsStore.set(fields)
       console.log("Fields loaded successfully:", fields)
       return fields

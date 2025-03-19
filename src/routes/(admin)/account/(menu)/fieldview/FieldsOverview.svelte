@@ -40,6 +40,7 @@
   import { get } from "svelte/store"
   import FieldIcon from "$lib/components/FieldIcon.svelte"
   import { toast } from "svelte-sonner"
+  import { fileApi } from "$lib/api/fileApi"
 
   $: fields = $fieldStore
   $: connectedMap = $connectedMapStore
@@ -153,32 +154,24 @@
   }
 
   async function handleEditField() {
-    if (!currentEditingField || !newFieldName.trim() || !authToken) return
+    if (!currentEditingField || !newFieldName.trim()) return
 
     try {
-      const response = await fetch("/api/files/update_field", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          fieldId: currentEditingField.field_id,
-          name: newFieldName.trim(),
-          area: parseFloat(newFieldArea.toString()),
-        }),
-      })
+      const area = parseFloat(newFieldArea.toString())
+      const result = await fileApi.updateField(
+        currentEditingField.field_id,
+        newFieldName.trim(),
+        area,
+      )
 
-      const result = await response.json()
-
-      if (response.ok) {
-        fieldStore.update((fields: any) =>
-          fields.map((field: any) =>
+      if (result.success) {
+        fieldStore.update((fields) =>
+          fields.map((field) =>
             field.field_id === currentEditingField?.field_id
               ? {
                   ...field,
                   name: newFieldName.trim(),
-                  area: parseFloat(newFieldArea.toString()),
+                  area: area,
                 }
               : field,
           ),
@@ -186,7 +179,7 @@
         toast.success("Field updated successfully")
         closeEditModal()
       } else {
-        throw new Error(result.error || "Failed to update field")
+        throw new Error(result.message || "Failed to update field")
       }
     } catch (error) {
       toast.error("Failed to update field. Please try again.")
@@ -198,28 +191,19 @@
   }
 
   async function handleDeleteField() {
-    if (!authToken || !fieldToDelete) return
+    if (!fieldToDelete) return
 
     try {
-      const response = await fetch("/api/files/delete_fields", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ fieldId: fieldToDelete.field_id }),
-      })
+      const result = await fileApi.deleteField(fieldToDelete.field_id)
 
-      const result = await response.json()
-
-      if (response.ok) {
+      if (result.success) {
         fieldStore.update((fields) =>
           fields.filter((field) => field.field_id !== fieldToDelete.field_id),
         )
         toast.success(`Field "${fieldToDelete.name}" deleted successfully`)
         closeDeleteModal()
       } else {
-        throw new Error(result.error || "Failed to delete field")
+        throw new Error(result.message || "Failed to delete field")
       }
     } catch (error) {
       toast.error(
