@@ -468,26 +468,66 @@
 
   async function getOperationTrails(operation_id) {
     try {
-      // Using the authenticatedFetch helper
-      const response = await authenticatedFetch(
-        "/api/map-trails/get-operation-trails",
-        "POST",
-        { operation_id },
+      console.log(`Fetching trails for operation ${operation_id}`)
+
+      // Get trails without paths first
+      const { data: trails, error: trailsError } = await supabase
+        .from("trails")
+        .select(
+          `
+        id,
+        vehicle_id,
+        operation_id,
+        start_time,
+        end_time,
+        trail_color,
+        trail_width
+        `,
+        )
+        .eq("operation_id", operation_id)
+        .not("end_time", "is", null)
+        .order("start_time", { ascending: true })
+
+      if (trailsError) {
+        console.error("Error fetching trails:", trailsError)
+        throw new Error(`Failed to fetch trails: ${trailsError.message}`)
+      }
+
+      if (!trails || trails.length === 0) {
+        console.log("No trails found for this operation")
+        return []
+      }
+
+      console.log(`Found ${trails.length} trails, fetching path data...`)
+
+      // Fetch path data for each trail using our RPC function
+      const trailsWithPaths = await Promise.all(
+        trails.map(async (trail) => {
+          try {
+            const { data: pathData, error: pathError } = await supabase.rpc(
+              "get_trail_path_as_geojson",
+              { trail_id_param: trail.id },
+            )
+
+            if (pathError) {
+              console.error(
+                `Error fetching path for trail ${trail.id}:`,
+                pathError,
+              )
+              return { ...trail, path: null }
+            }
+
+            return { ...trail, path: pathData }
+          } catch (error) {
+            console.error(`Error processing path for trail ${trail.id}:`, error)
+            return { ...trail, path: null }
+          }
+        }),
       )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const text = await response.text()
-
-      try {
-        const data = JSON.parse(text)
-        return data.trails
-      } catch (e) {
-        throw new Error("Invalid JSON response from server")
-      }
+      return trailsWithPaths
     } catch (error) {
+      console.error("Error in getOperationTrails:", error)
       throw error
     }
   }

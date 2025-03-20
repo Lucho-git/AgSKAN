@@ -3,6 +3,8 @@
   import mapboxgl from "mapbox-gl"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
+  import { trailsApi } from "$lib/api/trailsApi"
+
   import {
     historicalTrailStore,
     otherActiveTrailStore,
@@ -113,28 +115,27 @@
 
   export async function deleteTrail(trailId: string) {
     try {
-      // Use the centralized authenticatedFetch helper
-      const response = await authenticatedFetch(
-        "/api/map-trails/delete-trail",
-        "POST",
-        { trail_id: trailId },
-      )
+      console.log(`Deleting trail: ${trailId}`)
 
-      if (!response.ok) {
-        toast.error("Failed to delete trail")
-        throw new Error("Failed to delete trail")
+      // Use the trailsApi instead of authenticatedFetch
+      const result = await trailsApi.deleteTrail(trailId)
+
+      if (result.error) {
+        console.error("API returned error:", result.message)
+        toast.error(`Failed to delete trail: ${result.message}`)
+        throw new Error(result.message || "Failed to delete trail")
       }
 
-      //   removeTrail(trailId)
+      // Remove the trail from the historical trails store
       historicalTrailStore.update((trails) =>
         trails.filter((t) => t.id !== trailId),
       )
 
-      toast.success("Trail deleted")
+      toast.success("Trail deleted successfully")
       return true
     } catch (error) {
       console.error("Error deleting trail:", error)
-      toast.error("Error deleting trail")
+      toast.error(`Error deleting trail: ${error.message || "Unknown error"}`)
       return false
     }
   }
