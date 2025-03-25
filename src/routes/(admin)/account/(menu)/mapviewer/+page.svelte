@@ -11,6 +11,7 @@
   import { session } from "$lib/stores/sessionStore"
   import { fileApi } from "$lib/api/fileApi" // Import the fileApi
 
+  import { locationApi } from "$lib/api/locationApi" // Import the locationApi
   export let data: PageData
 
   // Client-side state
@@ -102,41 +103,21 @@
     }
   }
 
-  // Fixed function to load object location - now with explicit auth token
+  // Replace the loadObjectLocation function in your page component
   async function loadObjectLocation() {
     if (!browser || !data.type || !data.id) return null
 
     try {
-      // Ensure we have a session
-      if (!$session?.access_token) {
-        console.error("No access token available")
+      // Use the new client-side API
+      const result = await locationApi.getLocation(data.type, data.id)
+
+      if (!result.success) {
+        console.error(`Error fetching ${data.type} location:`, result.error)
+        toast.error(`Failed to load ${data.type} location`)
         return null
       }
 
-      // Get token from session store
-      const token = $session.access_token
-      console.log(
-        "Using token for location API:",
-        token.substring(0, 5) + "...",
-      )
-
-      const response = await fetch(
-        `/api/location?type=${data.type}&id=${data.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      )
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("Location API error:", response.status, errorText)
-        throw new Error(`Failed to fetch location: ${response.status}`)
-      }
-
-      const locationData = await response.json()
-      objectLocation = locationData.location
+      objectLocation = result.location
       initialLocation = objectLocation
       console.log(`Fetched ${data.type} location:`, objectLocation)
       return objectLocation

@@ -10,6 +10,8 @@
   import { trailDataLoaded, vehicleDataLoaded } from "../stores/loadedStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { toast } from "svelte-sonner"
+  import { browser } from "$app/environment"
+  import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
   import MarkerManager from "./MarkerManager.svelte"
   import ButtonSection from "./ButtonSection.svelte"
@@ -33,8 +35,6 @@
 
   let dbInstance
 
-  const MAPBOX_ACCESS_TOKEN =
-    "pk.eyJ1IjoibHVjaG9kb3JlIiwiYSI6ImNsdndpd2NvNjA5OWUybG14anc1aWJpbXMifQ.7DSbOP9x-3sTZdJ5ee4UKw"
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
   const DEFAULT_OUTDOORS_STYLE = "mapbox://styles/mapbox/outdoors-v12"
 
@@ -47,6 +47,7 @@
 
   let mapControls
   let mapInitialized = false
+  let mapboxInitError = null
 
   setContext("map", {
     getMap: () => Promise.resolve(map),
@@ -60,7 +61,9 @@
   }
 
   function initializeMapLocation() {
-    if (initialLocation && Array.isArray(initialLocation)) {
+    if (!map || !initialLocation || !Array.isArray(initialLocation)) return
+
+    try {
       if (initialLocation.length === 4) {
         const bounds = [
           [initialLocation[0], initialLocation[1]],
@@ -74,41 +77,60 @@
         map.flyTo({
           center: initialLocation,
           zoom: 15,
-          duration: 4000, // Duration of animation in milliseconds
+          duration: 4000,
         })
       }
+    } catch (error) {
+      console.error("Error initializing map location:", error)
     }
   }
 
   onMount(async () => {
-    console.log("Selected operation on mount!", selectedOperation)
-
-    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
-
-    mapOptions.container = mapContainer
-
-    map = new mapboxgl.Map(mapOptions)
-    map.setMaxPitch(0)
-    map.setMinPitch(0)
-
-    mapStore.set(map)
-    mapInitialized = true
-
-    if (map.loaded()) {
-      mapLoaded = true
-      initializeMapLocation()
-    } else {
-      map.on("load", () => {
-        mapLoaded = true
-        initializeMapLocation()
-      })
-    }
+    if (!browser) return
 
     try {
-      await db.open()
-      dbInstance = db
+      // Set the access token from environment variable
+      mapboxgl.accessToken = PUBLIC_MAPBOX_ACCESS_TOKEN
+
+      // One key change: explicitly pass the token to the map constructor
+      mapOptions.container = mapContainer
+      map = new mapboxgl.Map({
+        ...mapOptions,
+        accessToken: PUBLIC_MAPBOX_ACCESS_TOKEN,
+      })
+
+      map.setMaxPitch(0)
+      map.setMinPitch(0)
+
+      mapStore.set(map)
+      mapInitialized = true
+
+      if (map.loaded()) {
+        mapLoaded = true
+        initializeMapLocation()
+      } else {
+        map.on("load", () => {
+          mapLoaded = true
+          initializeMapLocation()
+        })
+      }
+
+      // Handle map load errors
+      map.on("error", (e) => {
+        console.error("Mapbox error:", e.error)
+        toast.error(`Map error: ${e.error?.message || "Unknown map error"}`)
+      })
+
+      try {
+        await db.open()
+        dbInstance = db
+      } catch (error) {
+        console.error("Error opening IndexedDB database:", error)
+      }
     } catch (error) {
-      console.error("Error opening IndexedDB database:", error)
+      console.error("Error initializing Mapbox:", error)
+      mapboxInitError = error.message
+      toast.error(`Failed to initialize map: ${error.message}`)
     }
   })
 
@@ -136,6 +158,8 @@
   }
 
   function toggleMapStyle() {
+    if (!map) return
+
     mapLoaded = false
     if (isSatelliteStyle) {
       currentMapStyle = DEFAULT_OUTDOORS_STYLE
@@ -151,6 +175,8 @@
   }
 
   function handleLocateHome() {
+    if (!map) return
+
     if ($fieldBoundaryStore) {
       map.fitBounds($fieldBoundaryStore, {
         padding: 50,
@@ -173,7 +199,14 @@
 </script>
 
 <div class="map-container" bind:this={mapContainer}>
-  {#if mapInitialized}
+  {#if mapboxInitError}
+    <div class="error-container">
+      <h2>Map Initialization Error</h2>
+      <p>{mapboxInitError}</p>
+      <button on:click={() => window.location.reload()}>Retry</button>
+      <button on:click={handleBackToDashboard}>Back to Dashboard</button>
+    </div>
+  {:else if mapInitialized}
     <ButtonSection
       on:toggleMapStyleDispatcher={toggleMapStyle}
       on:backToDashboard={handleBackToDashboard}
@@ -209,5 +242,37 @@
     left: 0;
     width: 100%;
     height: 100%;
+  }
+
+  .error-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    max-width: 90%;
+  }
+
+  .error-container h2 {
+    color: #e53e3e;
+    margin-bottom: 10px;
+  }
+
+  .error-container button {
+    margin: 10px 5px 0;
+    padding: 8px 16px;
+    background-color: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .error-container button:hover {
+    background-color: #3182ce;
   }
 </style>
