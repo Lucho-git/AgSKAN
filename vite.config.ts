@@ -23,12 +23,11 @@ export default defineConfig({
             type: 'component'
         })
     ],
-    // Define SvelteKit variables explicitly
+    // Add this section for the WebSocket token
     define: {
-        '__WS_TOKEN__': JSON.stringify(process.env.VITE_WS_TOKEN || 'development'),
-        '__SVELTEKIT_CLIENT_ROUTING__': 'true',
-        '__SVELTEKIT_DEV__': process.env.NODE_ENV !== 'production' ? 'true' : 'false'
+        '__WS_TOKEN__': JSON.stringify(process.env.VITE_WS_TOKEN || 'development')
     },
+    // Your existing configuration...
     optimizeDeps: {
         include: [
             '@supabase/supabase-js',
