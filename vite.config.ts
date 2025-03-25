@@ -23,11 +23,21 @@ export default defineConfig({
             type: 'component'
         })
     ],
-    // Add this section for the WebSocket token
+    // Proper environment definition
     define: {
-        '__WS_TOKEN__': JSON.stringify(process.env.VITE_WS_TOKEN || 'development')
+        // Define the NODE_ENV
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+
+        // Safely define WebSocket token
+        'import.meta.env.VITE_WS_TOKEN': JSON.stringify(process.env.VITE_WS_TOKEN || 'development'),
+
+        // Define any other environment variables you need
+        ...Object.fromEntries(
+            Object.entries(process.env)
+                .filter(([key]) => key.startsWith('VITE_'))
+                .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])
+        )
     },
-    // Your existing configuration...
     optimizeDeps: {
         include: [
             '@supabase/supabase-js',
@@ -68,18 +78,19 @@ export default defineConfig({
             },
             output: {
                 manualChunks: undefined,
+                // Using your old working path structure
                 assetFileNames: (assetInfo) => {
                     const extType = assetInfo.name.split('.').at(1);
                     if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
-                        return '_app/immutable/assets/[name].[hash][extname]';
+                        return 'assets/images/[name]-[hash][extname]';
                     }
                     if (/woff|woff2|eot|ttf|otf/i.test(extType)) {
-                        return '_app/immutable/assets/[name].[hash][extname]';
+                        return 'assets/fonts/[name]-[hash][extname]';
                     }
-                    return '_app/immutable/assets/[name].[hash][extname]';
+                    return 'assets/[name]-[hash][extname]';
                 },
-                chunkFileNames: '_app/immutable/chunks/[name].[hash].js',
-                entryFileNames: '_app/immutable/entry/[name].[hash].js',
+                chunkFileNames: 'assets/js/[name]-[hash].js',
+                entryFileNames: 'assets/js/[name]-[hash].js',
             }
         }
     },
