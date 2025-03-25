@@ -1,4 +1,5 @@
 <script lang="ts">
+  // routes/login/+page.svelte
   import { onMount } from "svelte"
   import { Auth } from "@supabase/auth-ui-svelte"
   import { sharedAppearance, oauthProviders } from "./login_config"
@@ -19,6 +20,9 @@
       const urlParams = new URLSearchParams(window.location.search)
       const mapId = urlParams.get("map_id")
       if (mapId) {
+        console.log(`Map ID found in URL: ${mapId}`)
+
+        // Store using the existing helper
         setPendingMapId(mapId)
       }
 

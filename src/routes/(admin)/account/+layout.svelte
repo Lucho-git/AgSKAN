@@ -1,7 +1,13 @@
 <script lang="ts">
+  // routes/(admin)/account/+layout.svelte
   import { onMount, onDestroy } from "svelte"
   import { goto } from "$app/navigation"
-  import { session, supabase } from "$lib/stores/sessionStore"
+  import {
+    session,
+    supabase,
+    getPendingMapId,
+    clearPendingMapId,
+  } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"
   import { page } from "$app/stores"
   import { fly } from "svelte/transition"
@@ -17,6 +23,9 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
 
+  // Import map API
+  import { mapApi } from "$lib/api/mapApi"
+
   // Accept data from load function
   export let data
 
@@ -26,16 +35,77 @@
   let redirecting = false
   let authStateUnsubscribe = null
   let userDataLoaded = false
+  let pendingMapProcessed = false
 
   console.log("Account layout initializing")
   console.log("Current session status:", data.sessionStatus)
   console.log("Current session state:", $session)
+
+  async function checkForPendingMap() {
+    if (!browser || !$session?.user?.id || pendingMapProcessed) return false
+
+    try {
+      pendingMapProcessed = true
+      const pendingMapId = getPendingMapId()
+
+      if (!pendingMapId) return false
+
+      console.log(`Found pending map ID: ${pendingMapId}`)
+
+      // Connect to the map using existing API
+      const result = await mapApi.connectToMap(pendingMapId)
+
+      if (result.success) {
+        console.log("Successfully connected to map:", result.data)
+
+        // Update stores with the map data
+        connectedMapStore.set(result.data.connectedMap)
+        mapActivityStore.set(result.data.mapActivity)
+        operationStore.set(result.data.operations || [])
+
+        if (result.data.operation) {
+          selectedOperationStore.set(result.data.operation)
+        }
+
+        // Clear the pending map ID from storage
+        clearPendingMapId()
+
+        // Show success message
+        toast.success(`You've been connected to map: ${result.data.mapName}`)
+
+        // Reload page to reflect changes
+        window.location.reload()
+        return true
+      } else {
+        console.error("Failed to connect to map:", result.message)
+        toast.error(`Failed to connect to map: ${result.message}`)
+
+        // Clear the pending map ID since it didn't work
+        clearPendingMapId()
+
+        return false
+      }
+    } catch (error) {
+      console.error("Error processing pending map connection:", error)
+      clearPendingMapId()
+      return false
+    }
+  }
 
   async function loadUserData() {
     if (!$session?.user?.id) return null
 
     const userId = $session.user.id
     console.log("Loading user data for:", userId)
+
+    // Check for pending maps first - allow this to work even if user has a map already
+    if (browser && !pendingMapProcessed) {
+      const mapSwitched = await checkForPendingMap()
+      if (mapSwitched) {
+        // If we switched maps, we'll reload the page, so no need to continue
+        return { pendingMapProcessing: true }
+      }
+    }
 
     try {
       // Load profile data
@@ -285,6 +355,11 @@
 
       console.log("Loaded User Data:", userData)
 
+      // If we're processing a pending map, stop here as we'll reload
+      if (userData && userData.pendingMapProcessing) {
+        return
+      }
+
       // Check onboarding status and redirect if needed
       if (userData) {
         await checkOnboardingStatus(
@@ -357,38 +432,6 @@
       console.log("Account layout unmounting")
       if (authStateUnsubscribe) {
         authStateUnsubscribe()
-      }
-    }
-  })
-
-  // Check if pending map cookie exists (client-side only)
-  onMount(() => {
-    if (browser && $session?.user?.id) {
-      const cookies = document.cookie.split(";").reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split("=")
-        acc[key] = value
-        return acc
-      }, {})
-
-      const pendingMapId = cookies["pending_map_id"]
-      if (pendingMapId) {
-        console.log("Found pending map cookie:", pendingMapId)
-
-        // Clear the cookie
-        document.cookie =
-          "pending_map_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-
-        // Join the map
-        supabase
-          .from("profiles")
-          .update({ master_map_id: pendingMapId })
-          .eq("id", $session.user.id)
-          .then(({ error }) => {
-            if (!error) {
-              // Reload page to reflect changes
-              window.location.href = "/account"
-            }
-          })
       }
     }
   })
