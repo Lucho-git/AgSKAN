@@ -11,6 +11,8 @@
   import TestButton from "./test_button.svelte"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { toast } from "svelte-sonner"
+  import { browser } from "$app/environment"
+  import { Capacitor } from "@capacitor/core"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("settings")
@@ -18,6 +20,9 @@
   let loading = true
   let subscriptionData = null
   const APP_VERSION = PUBLIC_APP_VERSION || "unknown"
+
+  // Check if running on native platform
+  const isNativePlatform = Capacitor.isNativePlatform()
 
   // Subscription state
   let currentPlan = "FREE"
@@ -158,29 +163,67 @@
     editLink="/account/settings/change_password"
   />
 
-  <SettingsModule
-    title="Subscription"
-    editable={false}
-    fields={[
-      {
-        id: "planName",
-        label: "Current Plan",
-        initialValue: formattedPlanName,
-      },
-      {
-        id: "planStatus",
-        label: "Status",
-        initialValue: planStatus,
-      },
-      {
-        id: "quantity",
-        label: "Quantity",
-        initialValue: planQuantity,
-      },
-    ]}
-    editButtonTitle={subscriptionButtonText}
-    editLink={subscriptionButtonLink}
-  />
+  <!-- Subscription Module - Different for native and web -->
+  {#if isNativePlatform}
+    <!-- Native version - no button, app store info -->
+    <SettingsModule
+      title="Subscription"
+      editable={false}
+      fields={[
+        {
+          id: "planName",
+          label: "Current Plan",
+          initialValue: formattedPlanName,
+        },
+        {
+          id: "planStatus",
+          label: "Status",
+          initialValue: planStatus,
+        },
+        {
+          id: "quantity",
+          label: "Quantity",
+          initialValue: planQuantity,
+        },
+        {
+          id: "managedBy",
+          label: "Managed By",
+          initialValue:
+            Capacitor.getPlatform() === "ios"
+              ? "AgSkan Website"
+              : "AgSkan Website",
+        },
+      ]}
+    >
+      <!-- No buttons for native platforms -->
+      <div slot="buttons"></div>
+    </SettingsModule>
+  {:else}
+    <!-- Web version - with button -->
+    <SettingsModule
+      title="Subscription"
+      editable={false}
+      fields={[
+        {
+          id: "planName",
+          label: "Current Plan",
+          initialValue: formattedPlanName,
+        },
+        {
+          id: "planStatus",
+          label: "Status",
+          initialValue: planStatus,
+        },
+        {
+          id: "quantity",
+          label: "Quantity",
+          initialValue: planQuantity,
+        },
+      ]}
+      editButtonTitle={subscriptionButtonText}
+      editLink={subscriptionButtonLink}
+    />
+  {/if}
 
   <SettingsModule
     title="App Version"

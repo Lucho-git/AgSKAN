@@ -12,6 +12,7 @@
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { browser } from "$app/environment"
+  import { Capacitor } from "@capacitor/core" // Import Capacitor
 
   import CrispChatWidget from "../../../../components/CrispChatWidget.svelte"
 
@@ -58,6 +59,7 @@
   const selectedColor = "bg-neutral"
   const activeColor = "bg-neutral-content bg-opacity-10 text-neutral-content"
   const hoverColor = "hover:bg-neutral-content hover:text-neutral group"
+  const disabledColor = "opacity-50 cursor-not-allowed pointer-events-none"
 
   const menuItems = [
     {
@@ -97,13 +99,14 @@
       path: "pathplanner",
     },
     {
-      href: "/account/billing",
+      href: browser && Capacitor.isNativePlatform() ? "#" : "/account/billing",
       icon: "solar:wallet-money-bold-duotone",
       label: "Billing",
       labelId: "billing",
       topBarIcon: "solar:bill-list-bold-duotone",
       topBarLabel: "Billing & Invoices",
       path: "billing",
+      disabled: browser && Capacitor.isNativePlatform(),
     },
     {
       href: "/account/settings",
@@ -132,6 +135,17 @@
 
   // Function to handle navigation
   function handleNavigation(e, item) {
+    // Prevent navigation for disabled items
+    if (item.disabled) {
+      e.preventDefault()
+
+      // Show toast message for disabled items
+      if (item.tooltip) {
+        toast.info(item.tooltip)
+      }
+      return
+    }
+
     // Only set flag to true if navigating to a different section
     if (currentSection !== item.path) {
       isNavigating.set(true)
@@ -195,12 +209,18 @@
                 href={item.href}
                 on:click={(e) => handleNavigation(e, item)}
                 class="flex h-full flex-col items-center justify-center p-1
-                  {!$isNavigating && currentSection === item.path
+                    {!$isNavigating && currentSection === item.path
                   ? 'bg-neutral-content text-neutral'
-                  : ''} transition-colors duration-200 hover:bg-neutral-content hover:text-neutral"
+                  : ''} 
+                    {item.disabled
+                  ? disabledColor
+                  : 'transition-colors duration-200 hover:bg-neutral-content hover:text-neutral'}"
               >
                 <Icon icon={item.icon} width="24" height="24" />
                 <span class="mt-1 text-xs">{item.label}</span>
+                {#if item.disabled && item.tooltip}
+                  <div class="tooltip tooltip-top text-xs">{item.tooltip}</div>
+                {/if}
               </a>
             </li>
           {/each}
@@ -236,13 +256,17 @@
         </li>
 
         {#each menuItems as item}
-          <li class="my-1">
+          <li class="relative my-1">
             <a
               href={item.href}
               on:click={(e) => handleNavigation(e, item)}
               class="{!$isNavigating && currentSection === item.path
                 ? activeColor
-                : ''} {hoverColor} flex items-center rounded-lg px-5"
+                : ''} {item.disabled
+                ? disabledColor
+                : hoverColor} flex items-center rounded-lg px-5"
+              class:tooltip={item.disabled && item.tooltip}
+              data-tip={item.tooltip}
             >
               <Icon
                 icon={item.icon}

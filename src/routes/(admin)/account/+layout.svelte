@@ -12,6 +12,7 @@
   import { page } from "$app/stores"
   import { fly } from "svelte/transition"
   import { toast } from "svelte-sonner"
+  import { Capacitor } from "@capacitor/core"
 
   // Import necessary stores
   import { profileStore } from "$lib/stores/profileStore"
@@ -36,6 +37,7 @@
   let authStateUnsubscribe = null
   let userDataLoaded = false
   let pendingMapProcessed = false
+  let isNative = false
 
   console.log("Account layout initializing")
   console.log("Current session status:", data.sessionStatus)
@@ -301,6 +303,19 @@
         $page.url.pathname === path || $page.url.pathname.startsWith(path),
     )
 
+    // Skip billing routes and consider native users as already having a subscription
+    if (isNative) {
+      // If on a payment-related path, redirect to account
+      if (
+        $page.url.pathname.includes("/payment") ||
+        $page.url.pathname.includes("/select_plan") ||
+        $page.url.pathname === onboarding.payment_plans
+      ) {
+        goto("/account")
+        return
+      }
+    }
+
     if (!isOnboardingPath) {
       if (!profile.role) {
         goto(onboarding.select_role)
@@ -314,7 +329,7 @@
             return
           }
         } else if (profile.role === "manager") {
-          if (!subscription) {
+          if (!subscription && !isNative) {
             goto(onboarding.payment_plans)
             return
           }
@@ -408,6 +423,17 @@
   onMount(() => {
     console.log("Account layout mounted")
 
+    // Check if running in Capacitor native environment
+    if (browser) {
+      try {
+        isNative = Capacitor.isNativePlatform()
+        console.log("Running in native environment:", isNative)
+      } catch (error) {
+        console.error("Error checking native platform:", error)
+        isNative = false
+      }
+    }
+
     // Process session if we have a promise
     if (data.sessionPromise) {
       processSessionPromise()
@@ -435,6 +461,21 @@
       }
     }
   })
+
+  // Handle route navigation for native apps
+  $: if (browser && isNative && $page) {
+    // Check if we're on a billing route and redirect if necessary
+    const currentPath = $page.url.pathname
+    const isBillingRoute =
+      currentPath.includes("/payment") ||
+      currentPath.includes("/select_plan") ||
+      currentPath === "/account/payment_plans"
+
+    if (isBillingRoute) {
+      console.log("Skipping billing route in native app:", currentPath)
+      goto("/account")
+    }
+  }
 </script>
 
 {#if browser}

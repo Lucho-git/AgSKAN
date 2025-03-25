@@ -36,11 +36,11 @@
         initialLoader: {
           show: true,
           loader: `
-                  <div class="flex flex-col items-center space-y-4">
-                    <div class="border-t-4 border-primary animate-spin rounded-full w-12 h-12 mb-4"></div>
-                    <p class="text-lg text-primary-content">Loading form...</p>
-                  </div>
-                `,
+                    <div class="flex flex-col items-center space-y-4">
+                      <div class="border-t-4 border-primary animate-spin rounded-full w-12 h-12 mb-4"></div>
+                      <p class="text-lg text-primary-content">Loading form...</p>
+                    </div>
+                  `,
           initialContainerHeight: "600px",
           initialContainerWidth: "100%",
         },
@@ -75,8 +75,11 @@
             } else {
               console.log("Survey response stored successfully")
               dispatch("complete")
-              // Redirect to payment plans after successful storage
-              goto("/account/payment_plans")
+
+              // Use a fixed path instead of a potentially undefined one
+              goto("/account/payment_plans").catch((error) => {
+                console.error("Navigation error:", error)
+              })
             }
           } catch (error) {
             console.error("Error storing survey response:", error)
@@ -87,7 +90,9 @@
     document.head.appendChild(script)
 
     return () => {
-      document.head.removeChild(script)
+      if (script.parentNode) {
+        document.head.removeChild(script)
+      }
     }
   })
 </script>
