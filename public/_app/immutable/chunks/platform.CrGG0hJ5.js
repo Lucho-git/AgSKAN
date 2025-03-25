@@ -1,1 +1,0 @@
-const o=()=>typeof window<"u";function n(){return navigator.userAgentData?.platform??navigator.platform}const a=t=>o()&&t.test(n().toLowerCase()),s=t=>o()&&t.test(navigator.userAgent),i=()=>o()&&!!navigator.maxTouchPoints,e=()=>a(/^mac/)&&!i(),r=()=>s(/firefox\//i),c=()=>a(/mac|iphone|ipad|ipod/i),p=()=>c()&&!e();export{i as a,r as b,p as i};
