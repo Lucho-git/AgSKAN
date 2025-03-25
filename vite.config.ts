@@ -1,12 +1,13 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
-import svelteSVG from 'vite-plugin-svelte-svg';
+import svg from '@poppanator/sveltekit-svg';
 
 export default defineConfig({
     plugins: [
         sveltekit(),
-        svelteSVG({
-            svgo: {
+        svg({
+            includePaths: ['./src/lib/assets/'],
+            svgoOptions: {
                 plugins: [
                     {
                         name: 'preset-default',
@@ -19,10 +20,15 @@ export default defineConfig({
                     }
                 ]
             },
-            requireSuffix: false,
+            type: 'component'
         })
     ],
-    // Enhanced built-in handling without additional plugins
+    // Define SvelteKit variables explicitly
+    define: {
+        '__WS_TOKEN__': JSON.stringify(process.env.VITE_WS_TOKEN || 'development'),
+        '__SVELTEKIT_CLIENT_ROUTING__': 'true',
+        '__SVELTEKIT_DEV__': process.env.NODE_ENV !== 'production' ? 'true' : 'false'
+    },
     optimizeDeps: {
         include: [
             '@supabase/supabase-js',
@@ -39,23 +45,20 @@ export default defineConfig({
             define: {
                 global: 'globalThis'
             },
-            preserveSymlinks: true  // This helps with module resolution
+            preserveSymlinks: true
         }
     },
     resolve: {
         mainFields: ['browser', 'module', 'main'],
         dedupe: ['mapbox-gl', 'fast-deep-equal'],
-        // Add specific aliases for problematic modules
         alias: {
             'fast-deep-equal': 'fast-deep-equal/index.js'
         }
     },
-
-
     build: {
         commonjsOptions: {
             transformMixedEsModules: true,
-            include: [/node_modules/],  // Process all node_modules
+            include: [/node_modules/],
             defaultIsModuleExports: 'auto'
         },
         reportCompressedSize: false,
@@ -84,7 +87,4 @@ export default defineConfig({
     test: {
         include: ['src/**/*.{test,spec}.{js,ts}']
     }
-
-
-    // Rest of your config
 });
