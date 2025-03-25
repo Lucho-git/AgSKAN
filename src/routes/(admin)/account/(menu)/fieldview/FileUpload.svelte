@@ -14,14 +14,8 @@
   import Error2 from "$lib/animations/Error2.json"
   import IdleFile from "$lib/animations/IdleFile.json"
 
-  let LottiePlayer
-
-  onMount(async () => {
-    if (browser) {
-      const module = await import("@lottiefiles/svelte-lottie-player")
-      LottiePlayer = module.LottiePlayer
-    }
-  })
+  // Import dotlottie player component
+  import "@dotlottie/player-component"
 
   export let isPopoverOpen = false
 
@@ -36,6 +30,25 @@
   let processingFile = false // Added to track file processing state
 
   const dispatch = createEventDispatcher()
+
+  // Create data URLs for animations
+  let fileMovementUrl
+  let errorUrl
+  let idleFileUrl
+
+  function createJsonDataUrl(jsonData) {
+    const jsonString = JSON.stringify(jsonData)
+    const blob = new Blob([jsonString], { type: "application/json" })
+    return URL.createObjectURL(blob)
+  }
+
+  onMount(() => {
+    if (browser) {
+      fileMovementUrl = createJsonDataUrl(OneFileMovement)
+      errorUrl = createJsonDataUrl(Error2)
+      idleFileUrl = createJsonDataUrl(IdleFile)
+    }
+  })
 
   const handleFileChange = (event: Event) => {
     const target = event.target as HTMLInputElement
@@ -201,19 +214,14 @@
         >
           {#if uploading}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && LottiePlayer}
-                <svelte:component
-                  this={LottiePlayer}
-                  src={OneFileMovement}
-                  autoplay={true}
-                  loop={true}
-                  controls={false}
-                  controlsLayout={null}
-                  renderer="svg"
+              {#if browser && fileMovementUrl}
+                <dotlottie-player
+                  src={fileMovementUrl}
+                  autoplay
+                  loop
+                  style="width: 200px; height: 150px;"
                   background="transparent"
-                  height={150}
-                  width={200}
-                />
+                ></dotlottie-player>
               {/if}
               <p class="mt-2 font-semibold">Uploading file...</p>
               <div class="mt-2">
@@ -222,19 +230,14 @@
             </div>
           {:else if file && !errorMessage}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && LottiePlayer}
-                <svelte:component
-                  this={LottiePlayer}
-                  src={OneFileMovement}
-                  autoplay={true}
-                  loop={true}
-                  controls={false}
-                  controlsLayout={null}
-                  renderer="svg"
+              {#if browser && fileMovementUrl}
+                <dotlottie-player
+                  src={fileMovementUrl}
+                  autoplay
+                  loop
+                  style="width: 200px; height: 150px;"
                   background="transparent"
-                  height={150}
-                  width={200}
-                />
+                ></dotlottie-player>
               {/if}
               <p class="font-semibold">
                 {file.name}
@@ -251,38 +254,28 @@
             </div>
           {:else if errorMessage}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && LottiePlayer}
-                <svelte:component
-                  this={LottiePlayer}
-                  src={Error2}
-                  autoplay={true}
-                  loop={true}
-                  controls={false}
-                  controlsLayout={null}
-                  renderer="svg"
+              {#if browser && errorUrl}
+                <dotlottie-player
+                  src={errorUrl}
+                  autoplay
+                  loop
+                  style="width: 150px; height: 150px;"
                   background="transparent"
-                  height={150}
-                  width={150}
-                />
+                ></dotlottie-player>
               {/if}
               <p class="mt-2 text-sm text-error">{errorMessage}</p>
               <p class="mt-2 text-sm">Try uploading a different file</p>
             </div>
           {:else}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && LottiePlayer}
-                <svelte:component
-                  this={LottiePlayer}
-                  src={IdleFile}
-                  autoplay={true}
-                  loop={true}
-                  controls={false}
-                  controlsLayout={null}
-                  renderer="svg"
+              {#if browser && idleFileUrl}
+                <dotlottie-player
+                  src={idleFileUrl}
+                  autoplay
+                  loop
+                  style="width: 150px; height: 150px;"
                   background="transparent"
-                  height={150}
-                  width={150}
-                />
+                ></dotlottie-player>
               {/if}
               <p class="font-semibold">
                 <span>Click to upload</span> or drag and drop

@@ -3,7 +3,7 @@
   import { get } from "svelte/store"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import * as turf from "@turf/turf"
 
   export let map: mapboxgl.Map

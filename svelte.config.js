@@ -1,10 +1,14 @@
 import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import * as child_process from 'node:child_process';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
     kit: {
+        paths: {
+            base: '',
+            assets: ''
+        },
         adapter: adapter({
             // Static adapter options
             pages: 'public',         // Output folder for pages

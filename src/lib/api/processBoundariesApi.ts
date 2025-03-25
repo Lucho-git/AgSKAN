@@ -1,9 +1,28 @@
 // src/lib/api/processBoundariesApi.ts
 import { supabase } from '$lib/supabaseClient';
-import JSZip from 'jszip';
+// Remove direct JSZip import
+// import JSZip from 'jszip';
 import shp from 'shpjs';
-import { DOMParser } from '@xmldom/xmldom';
 import { kml } from '@tmcw/togeojson';
+
+// Define our utility functions directly in this file
+// For browser environment
+const DOMParser = typeof window !== 'undefined' ? window.DOMParser : null;
+
+// Dynamic JSZip loader
+let JSZipModule;
+async function getJSZip() {
+    if (!JSZipModule) {
+        try {
+            const jszip = await import('jszip');
+            JSZipModule = jszip.default || jszip;
+        } catch (e) {
+            console.error('Error loading JSZip:', e);
+            throw new Error('Failed to load JSZip');
+        }
+    }
+    return JSZipModule;
+}
 
 // Helper functions outside the API object to avoid "this" context issues
 async function processKML(fileData) {
@@ -180,7 +199,8 @@ async function processZIP(fileData) {
             // Continue with the JSZip approach if direct processing fails
         }
 
-        // Fall back to manual extraction
+        // Fall back to manual extraction - CHANGED: Get JSZip dynamically
+        const JSZip = await getJSZip();
         const zip = new JSZip();
         const contents = await zip.loadAsync(fileData);
         console.log("ZIP loaded, files:", Object.keys(contents.files));

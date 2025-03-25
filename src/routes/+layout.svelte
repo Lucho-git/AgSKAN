@@ -67,7 +67,6 @@
     ></div>
   {/if}
   <!-- <ModeWatcher /> -->
-
   <slot />
 
   <Toaster expand={true} position="top-center" richColors />

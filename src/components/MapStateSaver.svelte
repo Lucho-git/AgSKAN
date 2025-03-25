@@ -10,7 +10,8 @@
 
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { LngLatBounds } from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
+  const { LngLatBounds } = mapboxgl
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"

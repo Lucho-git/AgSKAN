@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
   import { trailsApi } from "$lib/api/trailsApi"

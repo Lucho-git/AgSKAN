@@ -31,7 +31,8 @@
   import searching_map from "$lib/animations/searching_map.json"
   import searching_tablet from "$lib/animations/searching_tablet.json"
 
-  import { LottiePlayer } from "@lottiefiles/svelte-lottie-player"
+  // Import dotlottie web component
+  import "@dotlottie/player-component"
 
   let copied = false
 
@@ -58,6 +59,28 @@
   function openSettingsModal() {
     menuStore.update((store) => ({ ...store, showSettingsModal: true }))
   }
+
+  // Function to create JSON data URLs for animations
+  function createJsonDataUrl(jsonData) {
+    const jsonString = JSON.stringify(jsonData)
+    const blob = new Blob([jsonString], { type: "application/json" })
+    return URL.createObjectURL(blob)
+  }
+
+  // Create URLs for each animation (we'll use these in browser context)
+  let spinningGlobeUrl
+  let idleEditGreenUrl
+  let addButtonUrl
+  let searchingMapUrl
+
+  onMount(() => {
+    if (browser) {
+      spinningGlobeUrl = createJsonDataUrl(spinning_globe)
+      idleEditGreenUrl = createJsonDataUrl(idle_edit_green)
+      addButtonUrl = createJsonDataUrl(add_button)
+      searchingMapUrl = createJsonDataUrl(searching_map)
+    }
+  })
 </script>
 
 <Card.Root
@@ -87,17 +110,14 @@
           role="button"
           class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
         >
-          {#if browser && LottiePlayer}
-            <LottiePlayer
-              src={spinning_globe}
-              autoplay={true}
-              loop={true}
-              controls={false}
-              renderer="svg"
+          {#if browser && spinningGlobeUrl}
+            <dotlottie-player
+              src={spinningGlobeUrl}
+              autoplay
+              loop
+              style="width: 100px; height: 100px;"
               background="transparent"
-              height={100}
-              width={100}
-            />
+            ></dotlottie-player>
           {:else}
             <MapIcon class="h-16 w-16" />
           {/if}
@@ -106,18 +126,15 @@
           class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
           on:click={openSettingsModal}
         >
-          {#if browser && LottiePlayer}
-            <LottiePlayer
-              src={idle_edit_green}
-              autoplay={true}
-              loop={true}
+          {#if browser && idleEditGreenUrl}
+            <dotlottie-player
+              src={idleEditGreenUrl}
+              autoplay
+              loop
               speed={0.5}
-              controls={false}
-              renderer="svg"
+              style="width: 80px; height: 80px;"
               background="transparent"
-              height={80}
-              width={80}
-            />
+            ></dotlottie-player>
           {:else}
             <MapIcon class="h-16 w-16" />
           {/if}
@@ -130,18 +147,15 @@
             class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
             on:click={createMap}
           >
-            {#if browser && LottiePlayer}
-              <LottiePlayer
-                src={add_button}
-                autoplay={true}
-                loop={true}
-                controls={false}
+            {#if browser && addButtonUrl}
+              <dotlottie-player
+                src={addButtonUrl}
+                autoplay
+                loop
                 speed={0.25}
-                renderer="svg"
+                style="width: 100px; height: 100px;"
                 background="transparent"
-                height={100}
-                width={100}
-              />
+              ></dotlottie-player>
             {:else}
               <MapIcon class="h-16 w-16" />
             {/if}
@@ -153,17 +167,14 @@
             class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
             on:click={joinMap}
           >
-            {#if browser && LottiePlayer}
-              <LottiePlayer
-                src={searching_map}
-                autoplay={true}
-                loop={true}
-                controls={false}
-                renderer="svg"
+            {#if browser && searchingMapUrl}
+              <dotlottie-player
+                src={searchingMapUrl}
+                autoplay
+                loop
+                style="width: 120px; height: 40px;"
                 background="transparent"
-                height={40}
-                width={120}
-              />
+              ></dotlottie-player>
             {:else}
               <MapIcon class="h-16 w-16" />
             {/if}

@@ -3,50 +3,88 @@ import { defineConfig } from 'vitest/config';
 import svelteSVG from 'vite-plugin-svelte-svg';
 
 export default defineConfig({
-    plugins: [sveltekit(), svelteSVG({
-        svgoConfig: {
-            // SVGO configuration to optimize SVGs
-            plugins: [
-                {
-                    name: 'preset-default',
-                    params: {
-                        overrides: {
-                            // Disable plugins that might cause issues
-                            cleanupIds: false,
-                            removeViewBox: false,
+    plugins: [
+        sveltekit(),
+        svelteSVG({
+            svgo: {
+                plugins: [
+                    {
+                        name: 'preset-default',
+                        params: {
+                            overrides: {
+                                cleanupIds: false,
+                                removeViewBox: false,
+                            }
                         }
                     }
-                }
-            ]
-        },
-        requireSuffix: false, // Set to true to only import files ending in .svg?component
-    })],
-    define: {
-        'process.env.NODE_ENV': '"production"',
+                ]
+            },
+            requireSuffix: false,
+        })
+    ],
+    // Enhanced built-in handling without additional plugins
+    optimizeDeps: {
+        include: [
+            '@supabase/supabase-js',
+            '@supabase/postgrest-js',
+            '@supabase/gotrue-js',
+            'mapbox-gl',
+            'fast-deep-equal',
+            '@turf/line-overlap',
+            '@turf/meta',
+            '@turf/helpers',
+            'jszip'
+        ],
+        esbuildOptions: {
+            define: {
+                global: 'globalThis'
+            },
+            preserveSymlinks: true  // This helps with module resolution
+        }
     },
+    resolve: {
+        mainFields: ['browser', 'module', 'main'],
+        dedupe: ['mapbox-gl', 'fast-deep-equal'],
+        // Add specific aliases for problematic modules
+        alias: {
+            'fast-deep-equal': 'fast-deep-equal/index.js'
+        }
+    },
+
+
     build: {
-        // Disable gzip compression for Capacitor compatibility
+        commonjsOptions: {
+            transformMixedEsModules: true,
+            include: [/node_modules/],  // Process all node_modules
+            defaultIsModuleExports: 'auto'
+        },
         reportCompressedSize: false,
         rollupOptions: {
+            onwarn(warning, warn) {
+                if (warning.code === 'MIXED_EXPORTS') return;
+                warn(warning);
+            },
             output: {
-                manualChunks: undefined, // This helps reduce file count
+                manualChunks: undefined,
                 assetFileNames: (assetInfo) => {
-                    // Organize generated assets by type
                     const extType = assetInfo.name.split('.').at(1);
                     if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
-                        return 'assets/images/[name]-[hash][extname]';
+                        return '_app/immutable/assets/[name].[hash][extname]';
                     }
                     if (/woff|woff2|eot|ttf|otf/i.test(extType)) {
-                        return 'assets/fonts/[name]-[hash][extname]';
+                        return '_app/immutable/assets/[name].[hash][extname]';
                     }
-                    return 'assets/[name]-[hash][extname]';
+                    return '_app/immutable/assets/[name].[hash][extname]';
                 },
-                chunkFileNames: 'assets/js/[name]-[hash].js',
-                entryFileNames: 'assets/js/[name]-[hash].js',
+                chunkFileNames: '_app/immutable/chunks/[name].[hash].js',
+                entryFileNames: '_app/immutable/entry/[name].[hash].js',
             }
         }
     },
     test: {
         include: ['src/**/*.{test,spec}.{js,ts}']
     }
+
+
+    // Rest of your config
 });

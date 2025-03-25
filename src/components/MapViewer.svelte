@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import { mapStore } from "../stores/mapStore"
   import {

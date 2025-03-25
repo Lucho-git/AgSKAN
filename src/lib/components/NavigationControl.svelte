@@ -2,7 +2,7 @@
   import { onMount } from "svelte"
   import { getContext } from "svelte"
   import { browser } from "$app/environment"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
 
   let map
   let isTrackingUser = false
