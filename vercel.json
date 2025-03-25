@@ -1,7 +1,7 @@
 {
     "rewrites": [
-      { "source": "/(.*)", "destination": "/" }
+      { "source": "/(.*)", "destination": "/index.html" }
     ],
     "cleanUrls": true,
-    "framework": "sveltekit"
+    "trailingSlash": false
   }
