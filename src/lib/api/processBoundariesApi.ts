@@ -153,6 +153,100 @@ async function processZIP(fileData) {
     try {
         console.log("Processing ZIP file...");
 
+        // Load JSZip dynamically
+        const JSZip = await getJSZip();
+        const zip = new JSZip();
+        const contents = await zip.loadAsync(fileData);
+        console.log("ZIP loaded, files:", Object.keys(contents.files));
+        const files = Object.keys(contents.files);
+
+        // Group files by their base name (without extension)
+        const fileGroups = {};
+        files.forEach(file => {
+            // Skip directories or hidden files
+            if (file.endsWith('/') || file.startsWith('__MACOSX') || file.startsWith('.')) {
+                return;
+            }
+
+            // Extract the base name (remove extension)
+            const baseName = file.substring(0, file.lastIndexOf('.'));
+            if (!fileGroups[baseName]) {
+                fileGroups[baseName] = [];
+            }
+            fileGroups[baseName].push(file);
+        });
+
+        console.log("File groups detected:", Object.keys(fileGroups));
+
+        // Check if we have multiple shapefile groups
+        const shapefileGroups = Object.keys(fileGroups).filter(group => {
+            const extensions = fileGroups[group].map(file => file.substring(file.lastIndexOf('.')));
+            return extensions.includes('.shp');
+        });
+
+        if (shapefileGroups.length > 0) {
+            console.log(`Found ${shapefileGroups.length} shapefile groups`);
+
+            // Process each shapefile group
+            const allPaddocks = [];
+            const allFeatures = [];
+
+            for (const groupName of shapefileGroups) {
+                const groupFiles = fileGroups[groupName];
+                const shpFileName = groupFiles.find(file => file.toLowerCase().endsWith('.shp'));
+                const dbfFileName = groupFiles.find(file => file.toLowerCase().endsWith('.dbf'));
+
+                if (shpFileName && dbfFileName) {
+                    console.log(`Processing shapefile group: ${groupName}`);
+                    const shpFile = await contents.file(shpFileName).async("arraybuffer");
+                    const dbfFile = await contents.file(dbfFileName).async("arraybuffer");
+
+                    const result = await processShapefile(shpFile, dbfFile);
+
+                    if (result.status === "success") {
+                        // For each paddock in this group, set or override the name based on the group name
+                        const paddocksWithGroupName = result.paddocks.map(paddock => {
+                            // Extract the last segment of the group name as the paddock name
+                            const nameParts = groupName.split(/[\/\\-]/);
+                            const suggestedName = nameParts[nameParts.length - 1].trim();
+
+                            return {
+                                ...paddock,
+                                name: suggestedName || paddock.name,
+                                properties: {
+                                    ...paddock.properties,
+                                    originalFileName: groupName
+                                }
+                            };
+                        });
+
+                        allPaddocks.push(...paddocksWithGroupName);
+                        allFeatures.push(...paddocksWithGroupName.map(paddock => ({
+                            type: "Feature",
+                            properties: {
+                                ...paddock.properties,
+                                name: paddock.name,
+                            },
+                            geometry: paddock.boundary,
+                        })));
+                    }
+                }
+            }
+
+            if (allPaddocks.length > 0) {
+                return {
+                    status: "success",
+                    message: `Found ${allPaddocks.length} valid paddocks from ${shapefileGroups.length} shapefiles.`,
+                    paddocks: allPaddocks,
+                    geojson: {
+                        type: "FeatureCollection",
+                        features: allFeatures,
+                    },
+                };
+            }
+        }
+
+        // Fall back to previous behavior if no shapefile groups are found
         // Try to use shpjs directly on the zip data first (it can handle zipped shapefiles)
         try {
             console.log("Attempting to use shpjs directly on ZIP...");
@@ -196,22 +290,15 @@ async function processZIP(fileData) {
             }
         } catch (err) {
             console.log("Direct shpjs processing failed, falling back to manual extraction:", err);
-            // Continue with the JSZip approach if direct processing fails
+            // Continue with checking for individual files
         }
 
-        // Fall back to manual extraction - CHANGED: Get JSZip dynamically
-        const JSZip = await getJSZip();
-        const zip = new JSZip();
-        const contents = await zip.loadAsync(fileData);
-        console.log("ZIP loaded, files:", Object.keys(contents.files));
-        const files = Object.keys(contents.files);
-
-        // Check for required shapefile components
+        // Check for individual shapefile components
         const shpFileName = files.find((file) => file.toLowerCase().endsWith(".shp"));
         const dbfFileName = files.find((file) => file.toLowerCase().endsWith(".dbf"));
 
         if (shpFileName) {
-            console.log("Found shapefile components");
+            console.log("Found individual shapefile components");
             const shpFile = await contents.file(shpFileName).async("arraybuffer");
             const dbfFile = dbfFileName ? await contents.file(dbfFileName).async("arraybuffer") : null;
 
