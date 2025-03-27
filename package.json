@@ -90,6 +90,7 @@
     "ionicons": "^7.4.0",
     "jszip": "^3.10.1",
     "lodash-es": "^4.17.21",
+    "lottie-web": "^5.12.2",
     "lucide-svelte": "^0.424.0",
     "luxon": "^3.5.0",
     "mapbox-gl": "^1.13.3",

@@ -1,11 +1,9 @@
 // src/lib/api/processBoundariesApi.ts
 import { supabase } from '$lib/supabaseClient';
-// Remove direct JSZip import
-// import JSZip from 'jszip';
 import shp from 'shpjs';
 import { kml } from '@tmcw/togeojson';
-
-// Define our utility functions directly in this file
+import area from '@turf/area';
+import { polygon, multiPolygon } from '@turf/helpers';
 // For browser environment
 const DOMParser = typeof window !== 'undefined' ? window.DOMParser : null;
 
@@ -24,7 +22,140 @@ async function getJSZip() {
     return JSZipModule;
 }
 
-// Helper functions outside the API object to avoid "this" context issues
+// Utility functions
+function findPaddockName(properties) {
+    const possibleNameFields = [
+        "name", "NAME", "Name", "PaddockName",
+        "PADDOCK_NAME", "paddock_name", "PADDOCKNAME", "FIELD_NAME",
+    ];
+    for (const field of possibleNameFields) {
+        if (properties[field]) {
+            return properties[field];
+        }
+    }
+    return null;
+}
+
+// Create a standard success response for all processors
+function createSuccessResponse(paddockList, messagePrefix, additionalInfo = '') {
+    const paddockCount = paddockList.length;
+    const pluralSuffix = paddockCount !== 1 ? "s" : "";
+
+    return {
+        status: "success",
+        message: `Found ${paddockCount} valid paddock${pluralSuffix} in ${messagePrefix}${additionalInfo}.`,
+        paddocks: paddockList,
+        geojson: {
+            type: "FeatureCollection",
+            features: paddockList.map((paddock) => ({
+                type: "Feature",
+                properties: {
+                    ...paddock.properties,
+                    name: paddock.name,
+                },
+                geometry: paddock.boundary,
+            })),
+        },
+    };
+}
+
+// Create a standard error response
+function createErrorResponse(message) {
+    return {
+        status: "error",
+        message: message
+    };
+}
+
+// Process GeoJSON features into paddock objects
+function processFeaturesIntoPaddocks(features) {
+    const paddockList = [];
+    const invalidFeatures = [];
+
+    features.forEach((feature, index) => {
+        // Skip features without geometry
+        if (!feature.geometry) {
+            console.warn(`Feature #${index + 1} has no geometry`);
+            invalidFeatures.push({ reason: "No geometry", index });
+            return;
+        }
+
+        // Skip features with unsupported geometry types
+        if (feature.geometry.type !== 'Polygon' && feature.geometry.type !== 'MultiPolygon') {
+            console.warn(`Feature #${index + 1} has unsupported geometry type: ${feature.geometry.type}`);
+            invalidFeatures.push({
+                reason: "Unsupported geometry type",
+                index,
+                type: feature.geometry.type
+            });
+            return;
+        }
+
+        // Check if coordinates are valid
+        if (!feature.geometry.coordinates ||
+            !Array.isArray(feature.geometry.coordinates) ||
+            feature.geometry.coordinates.length === 0) {
+            console.warn(`Feature #${index + 1} has invalid coordinates`);
+            invalidFeatures.push({
+                reason: "Invalid coordinates",
+                index
+            });
+            return;
+        }
+
+        // Calculate area using @turf/area
+        let areaValue = 0;
+        try {
+            if (feature.geometry.type === 'Polygon') {
+                areaValue = area(polygon(feature.geometry.coordinates));
+            } else if (feature.geometry.type === 'MultiPolygon') {
+                areaValue = area(multiPolygon(feature.geometry.coordinates));
+            }
+
+            // Convert to hectares
+            const areaHectares = areaValue / 10000;
+
+            // Skip features with too small area
+            if (areaHectares < 0.001) { // Less than 10 square meters (0.001 hectares)
+                console.warn(`Feature #${index + 1} has negligible area: ${areaHectares} hectares`);
+                invalidFeatures.push({
+                    reason: "Negligible area",
+                    area: areaHectares,
+                    index
+                });
+                return;
+            }
+
+            const properties = feature.properties || {};
+            const paddockName = findPaddockName(properties) || `ImportPaddock${index + 1}`;
+
+            // Add the calculated area to the paddock
+            paddockList.push({
+                name: paddockName,
+                properties: properties,
+                boundary: feature.geometry,
+                area: areaHectares // Add the area here so it's available immediately
+            });
+
+        } catch (error) {
+            console.error(`Error calculating area for feature #${index + 1}:`, error);
+            invalidFeatures.push({
+                reason: "Area calculation error",
+                index,
+                error: error.message
+            });
+        }
+    });
+
+    // Log information about invalid features
+    if (invalidFeatures.length > 0) {
+        console.warn(`Filtered out ${invalidFeatures.length} invalid features:`, invalidFeatures);
+    }
+
+    return paddockList;
+}
+
+// Helper functions for different file types
 async function processKML(fileData) {
     try {
         console.log("Processing KML file...");
@@ -34,65 +165,29 @@ async function processKML(fileData) {
         const kmlDoc = new DOMParser().parseFromString(kmlContent, "text/xml");
         const geojson = kml(kmlDoc);
 
-        const paddockList = geojson.features
-            .map((feature, index) => {
-                const properties = feature.properties;
-                const paddockName = findPaddockName(properties) || `ImportPaddock${index + 1}`;
-
-                return {
-                    name: paddockName,
-                    properties: properties,
-                    boundary: feature.geometry,
-                };
-            })
+        const paddockList = processFeaturesIntoPaddocks(geojson.features)
             .filter((paddock) => paddock.boundary !== null);
 
         if (paddockList.length === 0) {
-            return {
-                status: "error",
-                message: "No valid paddocks found with boundary data in KML file.",
-            };
+            return createErrorResponse("No valid paddocks found with boundary data in KML file.");
         }
 
-        return {
-            status: "success",
-            message: `Found ${paddockList.length} valid paddock${paddockList.length !== 1 ? "s" : ""} in KML file.`,
-            paddocks: paddockList,
-            geojson: {
-                type: "FeatureCollection",
-                features: paddockList.map((paddock) => ({
-                    type: "Feature",
-                    properties: {
-                        ...paddock.properties,
-                        name: paddock.name,
-                    },
-                    geometry: paddock.boundary,
-                })),
-            },
-        };
+        return createSuccessResponse(paddockList, "KML file");
     } catch (error) {
         console.error("KML processing error:", error);
-        return { status: "error", message: "Error processing the KML file." };
+        return createErrorResponse("Error processing the KML file.");
     }
 }
 
 async function processShapefile(shpData, dbfData) {
     try {
         console.log("Processing shapefile with shpjs...");
-        const paddockList = [];
-
-        // Use shpjs to parse the shapefile data
         let geojson;
 
         // If we have both shp and dbf data
         if (shpData && dbfData) {
             console.log("Processing with both SHP and DBF data");
-            // Create a combined object for shpjs
-            const combined = {
-                shp: shpData,
-                dbf: dbfData
-            };
-            geojson = await shp(combined);
+            geojson = await shp({ shp: shpData, dbf: dbfData });
         } else if (shpData) {
             // Fall back to just SHP if needed
             console.log("Processing with SHP data only");
@@ -101,51 +196,22 @@ async function processShapefile(shpData, dbfData) {
             throw new Error("Invalid shapefile data");
         }
 
-        console.log("Shapefile parsed to GeoJSON:", geojson);
+        console.log("Shapefile parsed to GeoJSON");
 
         // Check if we got a FeatureCollection or a single Feature
         const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
 
         // Process each feature
-        features.forEach((feature, index) => {
-            if (feature.geometry) {
-                const properties = feature.properties || {};
-                const paddockName = findPaddockName(properties) || `ImportPaddock${index + 1}`;
-
-                paddockList.push({
-                    name: paddockName,
-                    properties: properties,
-                    boundary: feature.geometry,
-                });
-            }
-        });
+        const paddockList = processFeaturesIntoPaddocks(features);
 
         if (paddockList.length === 0) {
-            return {
-                status: "error",
-                message: "No valid paddocks found with boundary data in shapefile.",
-            };
+            return createErrorResponse("No valid paddocks found with boundary data in shapefile.");
         }
 
-        return {
-            status: "success",
-            message: `Found ${paddockList.length} valid paddock${paddockList.length !== 1 ? "s" : ""} in shapefile.`,
-            paddocks: paddockList,
-            geojson: {
-                type: "FeatureCollection",
-                features: paddockList.map((paddock) => ({
-                    type: "Feature",
-                    properties: {
-                        ...paddock.properties,
-                        name: paddock.name,
-                    },
-                    geometry: paddock.boundary,
-                })),
-            },
-        };
+        return createSuccessResponse(paddockList, "shapefile");
     } catch (error) {
         console.error("Shapefile processing error:", error);
-        return { status: "error", message: `Error processing the shapefile: ${error.message}` };
+        return createErrorResponse(`Error processing the shapefile: ${error.message}`);
     }
 }
 
@@ -153,12 +219,12 @@ async function processZIP(fileData) {
     try {
         console.log("Processing ZIP file...");
 
-        // Load JSZip dynamically
+        // Load JSZip and extract contents
         const JSZip = await getJSZip();
         const zip = new JSZip();
         const contents = await zip.loadAsync(fileData);
-        console.log("ZIP loaded, files:", Object.keys(contents.files));
         const files = Object.keys(contents.files);
+        console.log("ZIP loaded, files:", files);
 
         // Group files by their base name (without extension)
         const fileGroups = {};
@@ -184,12 +250,12 @@ async function processZIP(fileData) {
             return extensions.includes('.shp');
         });
 
+        // Process multiple shapefiles if found
         if (shapefileGroups.length > 0) {
             console.log(`Found ${shapefileGroups.length} shapefile groups`);
 
             // Process each shapefile group
             const allPaddocks = [];
-            const allFeatures = [];
 
             for (const groupName of shapefileGroups) {
                 const groupFiles = fileGroups[groupName];
@@ -204,7 +270,7 @@ async function processZIP(fileData) {
                     const result = await processShapefile(shpFile, dbfFile);
 
                     if (result.status === "success") {
-                        // For each paddock in this group, set or override the name based on the group name
+                        // For each paddock in this group, update name based on the group name
                         const paddocksWithGroupName = result.paddocks.map(paddock => {
                             // Extract the last segment of the group name as the paddock name
                             const nameParts = groupName.split(/[\/\\-]/);
@@ -221,114 +287,69 @@ async function processZIP(fileData) {
                         });
 
                         allPaddocks.push(...paddocksWithGroupName);
-                        allFeatures.push(...paddocksWithGroupName.map(paddock => ({
-                            type: "Feature",
-                            properties: {
-                                ...paddock.properties,
-                                name: paddock.name,
-                            },
-                            geometry: paddock.boundary,
-                        })));
                     }
                 }
             }
 
             if (allPaddocks.length > 0) {
-                return {
-                    status: "success",
-                    message: `Found ${allPaddocks.length} valid paddocks from ${shapefileGroups.length} shapefiles.`,
-                    paddocks: allPaddocks,
-                    geojson: {
-                        type: "FeatureCollection",
-                        features: allFeatures,
-                    },
-                };
+                return createSuccessResponse(
+                    allPaddocks,
+                    `zip file`,
+                    ` containing ${shapefileGroups.length} shapefiles`
+                );
             }
         }
 
-        // Fall back to previous behavior if no shapefile groups are found
-        // Try to use shpjs directly on the zip data first (it can handle zipped shapefiles)
+        // Try different processing approaches if no shapefile groups
+
+        // 1. Try using shpjs directly on ZIP
         try {
             console.log("Attempting to use shpjs directly on ZIP...");
             const geojson = await shp(fileData);
             console.log("SHP.js successfully processed the ZIP");
 
-            // Process the GeoJSON
-            const paddockList = [];
             const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
-
-            features.forEach((feature, index) => {
-                if (feature.geometry) {
-                    const properties = feature.properties || {};
-                    const paddockName = findPaddockName(properties) || `ImportPaddock${index + 1}`;
-
-                    paddockList.push({
-                        name: paddockName,
-                        properties: properties,
-                        boundary: feature.geometry,
-                    });
-                }
-            });
+            const paddockList = processFeaturesIntoPaddocks(features);
 
             if (paddockList.length > 0) {
-                return {
-                    status: "success",
-                    message: `Found ${paddockList.length} valid paddock${paddockList.length !== 1 ? "s" : ""} in shapefile.`,
-                    paddocks: paddockList,
-                    geojson: {
-                        type: "FeatureCollection",
-                        features: paddockList.map((paddock) => ({
-                            type: "Feature",
-                            properties: {
-                                ...paddock.properties,
-                                name: paddock.name,
-                            },
-                            geometry: paddock.boundary,
-                        })),
-                    },
-                };
+                return createSuccessResponse(paddockList, "zip file (shapefile)");
             }
         } catch (err) {
-            console.log("Direct shpjs processing failed, falling back to manual extraction:", err);
-            // Continue with checking for individual files
+            console.log("Direct shpjs processing failed, trying alternatives:", err);
         }
 
-        // Check for individual shapefile components
-        const shpFileName = files.find((file) => file.toLowerCase().endsWith(".shp"));
-        const dbfFileName = files.find((file) => file.toLowerCase().endsWith(".dbf"));
+        // 2. Check for individual files inside the ZIP
 
+        // Look for shapefile
+        const shpFileName = files.find(file => file.toLowerCase().endsWith(".shp"));
+        const dbfFileName = files.find(file => file.toLowerCase().endsWith(".dbf"));
         if (shpFileName) {
             console.log("Found individual shapefile components");
             const shpFile = await contents.file(shpFileName).async("arraybuffer");
             const dbfFile = dbfFileName ? await contents.file(dbfFileName).async("arraybuffer") : null;
-
             return processShapefile(shpFile, dbfFile);
         }
 
-        // Check for KML file inside ZIP
-        const kmlFileName = files.find((file) => file.toLowerCase().endsWith(".kml"));
+        // Look for KML
+        const kmlFileName = files.find(file => file.toLowerCase().endsWith(".kml"));
         if (kmlFileName) {
             console.log("Found KML file in ZIP");
             const kmlFileContent = await contents.file(kmlFileName).async("arraybuffer");
             return processKML(kmlFileContent);
         }
 
-        // Check for XML file (assuming it's ISOXML)
-        const xmlFileName = files.find((file) => file.toLowerCase().endsWith(".xml"));
+        // Look for XML
+        const xmlFileName = files.find(file => file.toLowerCase().endsWith(".xml"));
         if (xmlFileName) {
             console.log("Found XML file in ZIP");
             const xmlContent = await contents.file(xmlFileName).async("text");
             return processISOXML(xmlContent);
         }
 
-        console.log("No valid files found in ZIP");
-        return {
-            status: "error",
-            message: "No valid data files found in the zip archive.",
-        };
+        return createErrorResponse("No valid data files found in the zip archive.");
     } catch (error) {
         console.error("ZIP processing error:", error);
-        return { status: "error", message: `Error processing the zip file: ${error.message}` };
+        return createErrorResponse(`Error processing the zip file: ${error.message}`);
     }
 }
 
@@ -341,7 +362,7 @@ function processISOXML(xmlContent) {
         // Check if it's a valid ISOXML file
         const isoxml = xmlDoc.getElementsByTagName("ISO11783_TaskData")[0];
         if (!isoxml) {
-            return { status: "error", message: "Not a valid ISOXML file." };
+            return createErrorResponse("Not a valid ISOXML file.");
         }
 
         const paddockList = [];
@@ -394,7 +415,9 @@ function processISOXML(xmlContent) {
                     }
 
                     // Close the ring
-                    ringCoordinates.push(ringCoordinates[0]);
+                    if (ringCoordinates.length > 0) {
+                        ringCoordinates.push(ringCoordinates[0]);
+                    }
 
                     if (lsgType === "1") {
                         // Main boundary
@@ -436,54 +459,18 @@ function processISOXML(xmlContent) {
         }
 
         if (paddockList.length === 0) {
-            return {
-                status: "error",
-                message: "No valid paddocks found with boundary data in ISOXML file.",
-            };
+            return createErrorResponse("No valid paddocks found with boundary data in ISOXML file.");
         }
 
-        // Create a GeoJSON FeatureCollection
-        const geojson = {
-            type: "FeatureCollection",
-            features: paddockList.map((paddock) => ({
-                type: "Feature",
-                properties: {
-                    ...paddock.properties,
-                    name: paddock.name,
-                },
-                geometry: paddock.boundary,
-            })),
-        };
+        const exclusionText = totalExclusions > 0
+            ? ` with a total of ${totalExclusions} exclusion${totalExclusions !== 1 ? "s" : ""}`
+            : '';
 
-        return {
-            status: "success",
-            message: `Found ${paddockList.length} valid paddock${paddockList.length !== 1 ? "s" : ""} in ISOXML file with a total of ${totalExclusions} exclusion${totalExclusions !== 1 ? "s" : ""}.`,
-            paddocks: paddockList,
-            geojson: geojson,
-        };
+        return createSuccessResponse(paddockList, "ISOXML file", exclusionText);
     } catch (error) {
         console.error("ISOXML processing error:", error);
-        return { status: "error", message: "Error processing the ISOXML file." };
+        return createErrorResponse("Error processing the ISOXML file.");
     }
-}
-
-function findPaddockName(properties) {
-    const possibleNameFields = [
-        "name",
-        "NAME",
-        "Name",
-        "PaddockName",
-        "PADDOCK_NAME",
-        "paddock_name",
-        "PADDOCKNAME",
-        "FIELD_NAME",
-    ];
-    for (const field of possibleNameFields) {
-        if (properties[field]) {
-            return properties[field];
-        }
-    }
-    return null;
 }
 
 // The main API object
@@ -491,22 +478,22 @@ export const processBoundariesApi = {
     async processFile(fileName: string) {
         try {
             console.log("Starting processing of file:", fileName);
+
+            // Authentication check
             const { data: session } = await supabase.auth.getSession();
             if (!session?.session?.user) {
                 throw new Error("Not authenticated");
             }
-
             const userId = session.session.user.id;
 
             if (!fileName) {
                 throw new Error("File name is required");
             }
 
+            // Construct file path and download
             const filePath = `user_${userId}/${fileName}`;
             console.log("File path:", filePath);
 
-            // Download the file using regular supabase client
-            console.log("Downloading file from Supabase...");
             const { data, error: downloadError } = await supabase.storage
                 .from("user_files_bucket")
                 .download(filePath);
@@ -525,26 +512,27 @@ export const processBoundariesApi = {
 
             // Convert Blob to ArrayBuffer
             const arrayBuffer = await data.arrayBuffer();
-            console.log("Converted to ArrayBuffer, size:", arrayBuffer.byteLength);
 
-            // Process the file based on extension
+            // Process based on file extension
             const fileExtension = fileName.split(".").pop().toLowerCase();
-            console.log("File extension:", fileExtension);
+            console.log("Processing file with extension:", fileExtension);
 
             let result;
-            if (fileExtension === "kml") {
-                result = await processKML(arrayBuffer);
-            } else if (fileExtension === "zip") {
-                result = await processZIP(arrayBuffer);
-            } else if (fileExtension === "xml") {
-                const decoder = new TextDecoder("utf-8");
-                const xmlContent = decoder.decode(new Uint8Array(arrayBuffer));
-                result = processISOXML(xmlContent);
-            } else {
-                result = {
-                    status: "error",
-                    message: "Invalid file type. Please upload a zip, KML, or XML file.",
-                };
+            switch (fileExtension) {
+                case "kml":
+                    result = await processKML(arrayBuffer);
+                    break;
+                case "zip":
+                    result = await processZIP(arrayBuffer);
+                    break;
+                case "xml":
+                    const decoder = new TextDecoder("utf-8");
+                    const xmlContent = decoder.decode(new Uint8Array(arrayBuffer));
+                    result = processISOXML(xmlContent);
+                    break;
+                default:
+                    result = createErrorResponse("Invalid file type. Please upload a zip, KML, or XML file.");
+                    break;
             }
 
             console.log("Processing result status:", result.status);

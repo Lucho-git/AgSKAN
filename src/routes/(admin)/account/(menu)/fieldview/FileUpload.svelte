@@ -8,14 +8,12 @@
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
+  import LottieAnimation from "$lib/components/LottieAnimation.svelte"
 
   // Lottie animations
   import OneFileMovement from "$lib/animations/OneFileMovement.json"
   import Error2 from "$lib/animations/Error2.json"
   import IdleFile from "$lib/animations/IdleFile.json"
-
-  // Import dotlottie player component
-  import "@dotlottie/player-component"
 
   export let isPopoverOpen = false
 
@@ -30,25 +28,6 @@
   let processingFile = false // Added to track file processing state
 
   const dispatch = createEventDispatcher()
-
-  // Create data URLs for animations
-  let fileMovementUrl
-  let errorUrl
-  let idleFileUrl
-
-  function createJsonDataUrl(jsonData) {
-    const jsonString = JSON.stringify(jsonData)
-    const blob = new Blob([jsonString], { type: "application/json" })
-    return URL.createObjectURL(blob)
-  }
-
-  onMount(() => {
-    if (browser) {
-      fileMovementUrl = createJsonDataUrl(OneFileMovement)
-      errorUrl = createJsonDataUrl(Error2)
-      idleFileUrl = createJsonDataUrl(IdleFile)
-    }
-  })
 
   const handleFileChange = (event: Event) => {
     const target = event.target as HTMLInputElement
@@ -214,14 +193,12 @@
         >
           {#if uploading}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && fileMovementUrl}
-                <dotlottie-player
-                  src={fileMovementUrl}
-                  autoplay
-                  loop
-                  style="width: 200px; height: 150px;"
-                  background="transparent"
-                ></dotlottie-player>
+              {#if browser}
+                <LottieAnimation
+                  animationData={OneFileMovement}
+                  width="200px"
+                  height="150px"
+                />
               {/if}
               <p class="mt-2 font-semibold">Uploading file...</p>
               <div class="mt-2">
@@ -230,14 +207,12 @@
             </div>
           {:else if file && !errorMessage}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && fileMovementUrl}
-                <dotlottie-player
-                  src={fileMovementUrl}
-                  autoplay
-                  loop
-                  style="width: 200px; height: 150px;"
-                  background="transparent"
-                ></dotlottie-player>
+              {#if browser}
+                <LottieAnimation
+                  animationData={OneFileMovement}
+                  width="200px"
+                  height="150px"
+                />
               {/if}
               <p class="font-semibold">
                 {file.name}
@@ -254,28 +229,24 @@
             </div>
           {:else if errorMessage}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && errorUrl}
-                <dotlottie-player
-                  src={errorUrl}
-                  autoplay
-                  loop
-                  style="width: 150px; height: 150px;"
-                  background="transparent"
-                ></dotlottie-player>
+              {#if browser}
+                <LottieAnimation
+                  animationData={Error2}
+                  width="150px"
+                  height="150px"
+                />
               {/if}
               <p class="mt-2 text-sm text-error">{errorMessage}</p>
               <p class="mt-2 text-sm">Try uploading a different file</p>
             </div>
           {:else}
             <div class="flex flex-col items-center justify-center pb-6 pt-5">
-              {#if browser && idleFileUrl}
-                <dotlottie-player
-                  src={idleFileUrl}
-                  autoplay
-                  loop
-                  style="width: 150px; height: 150px;"
-                  background="transparent"
-                ></dotlottie-player>
+              {#if browser}
+                <LottieAnimation
+                  animationData={IdleFile}
+                  width="150px"
+                  height="150px"
+                />
               {/if}
               <p class="font-semibold">
                 <span>Click to upload</span> or drag and drop
