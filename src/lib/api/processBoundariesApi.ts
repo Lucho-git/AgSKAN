@@ -392,20 +392,26 @@ function processISOXML(xmlContent) {
             const farmId = partfield.getAttribute("F");
             const farm = farmMap.get(farmId) || "Unknown Farm";
 
+            // Modified approach - create a map to organize polygons by type
+            const mainPolygons = [];
+            const obstacleMap = new Map(); // Map to track which obstacles belong to which main polygon
+
             // Process polygons for this partfield
             const polygons = partfield.getElementsByTagName("PLN");
-            let boundaryCoordinates = [];
 
+            // First pass - identify main polygons and obstacles
             for (let j = 0; j < polygons.length; j++) {
                 const polygon = polygons[j];
-                const lineStrings = polygon.getElementsByTagName("LSG");
-                let polygonCoordinates = [];
+                const polygonType = polygon.getAttribute("A");
+                const polygonName = polygon.getAttribute("B") || "";
 
-                for (let k = 0; k < lineStrings.length; k++) {
-                    const lsg = lineStrings[k];
-                    const lsgType = lsg.getAttribute("A");
+                const lineStrings = polygon.getElementsByTagName("LSG");
+                let ringCoordinates = [];
+
+                // Extract coordinates from the first LSG (assuming each PLN has at least one LSG)
+                if (lineStrings.length > 0) {
+                    const lsg = lineStrings[0];
                     const points = lsg.getElementsByTagName("PNT");
-                    const ringCoordinates = [];
 
                     for (let l = 0; l < points.length; l++) {
                         const point = points[l];
@@ -418,23 +424,57 @@ function processISOXML(xmlContent) {
                     if (ringCoordinates.length > 0) {
                         ringCoordinates.push(ringCoordinates[0]);
                     }
-
-                    if (lsgType === "1") {
-                        // Main boundary
-                        polygonCoordinates.unshift(ringCoordinates);
-                    } else if (lsgType === "2") {
-                        // Exclusion
-                        polygonCoordinates.push(ringCoordinates);
-                        totalExclusions++;
-                    }
                 }
 
-                if (polygonCoordinates.length > 0) {
-                    boundaryCoordinates.push(polygonCoordinates);
+                // Skip empty polygons
+                if (ringCoordinates.length === 0) continue;
+
+                // Determine if it's a main polygon or an obstacle based on attributes
+                // Type "1" is usually a main polygon, Type "8" often indicates obstacles/exclusions
+                // Also check if the name includes "Obstacle" or similar words
+                const isObstacle =
+                    polygonType === "8" ||
+                    polygonName.toLowerCase().includes("obstacle") ||
+                    polygonName.toLowerCase().includes("exclusion");
+
+                if (isObstacle) {
+                    // This is likely an obstacle/hole
+                    // Initially we'll put it in a list, then later assign it to the main polygon
+                    let parentPolygonIndex = 0; // Default to first polygon if we can't determine
+
+                    // For now, we'll add it to the obstacle map with the parent polygon index
+                    // We'll assign it to the correct parent polygon in the second pass
+                    if (!obstacleMap.has(parentPolygonIndex)) {
+                        obstacleMap.set(parentPolygonIndex, []);
+                    }
+                    obstacleMap.get(parentPolygonIndex).push(ringCoordinates);
+                    totalExclusions++;
+                } else {
+                    // This is a main polygon
+                    mainPolygons.push([ringCoordinates]);
                 }
             }
 
-            if (boundaryCoordinates.length > 0) {
+            // Special case handling: If we have obstacles without clear parent assignment
+            // Use geometric containment to determine which main polygon they belong to
+            if (obstacleMap.has(0) && mainPolygons.length > 1) {
+                // This is where we'd implement the containment check, but it requires turf.js
+                // For now, we'll use a simplified approach - assign obstacles to the first polygon
+                // TODO: Implement proper containment check with turf.js if available
+            }
+
+            // Assign obstacles to their respective main polygons
+            obstacleMap.forEach((obstacles, parentIndex) => {
+                if (parentIndex < mainPolygons.length) {
+                    // Add all obstacles as inner rings of the main polygon
+                    obstacles.forEach(obstacle => {
+                        mainPolygons[parentIndex].push(obstacle);
+                    });
+                }
+            });
+
+            // Create final boundary representation
+            if (mainPolygons.length > 0) {
                 // Create a paddock object
                 const paddock = {
                     name: paddockName,
@@ -446,11 +486,11 @@ function processISOXML(xmlContent) {
                         farm: farm,
                     },
                     boundary: {
-                        type: boundaryCoordinates.length > 1 ? "MultiPolygon" : "Polygon",
+                        type: mainPolygons.length > 1 ? "MultiPolygon" : "Polygon",
                         coordinates:
-                            boundaryCoordinates.length > 1
-                                ? boundaryCoordinates
-                                : boundaryCoordinates[0],
+                            mainPolygons.length > 1
+                                ? mainPolygons
+                                : mainPolygons[0],
                     },
                 };
 
