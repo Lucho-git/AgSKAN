@@ -142,11 +142,13 @@
             on:click={joinMap}
           >
             {#if browser}
-              <LottieAnimation
-                animationData={searching_map}
-                width="120px"
-                height="40px"
-              />
+              <div class="pt-3">
+                <LottieAnimation
+                  animationData={searching_map}
+                  width="110px"
+                  height="60px"
+                />
+              </div>
             {:else}
               <MapIcon class="h-16 w-16" />
             {/if}

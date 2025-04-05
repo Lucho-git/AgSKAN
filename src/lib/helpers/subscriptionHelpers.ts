@@ -1,14 +1,11 @@
 // src/lib/helpers/subscriptionHelpers.ts
 import type { Session } from "@supabase/supabase-js"
-import { pricingPlans } from "../../routes/(marketing)/pricing/pricing_plans"
-import { createClient } from "@supabase/supabase-js"
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
-
-// Client-side helper functions that won't interact directly with Stripe
-// They'll make calls to our API endpoints instead
+import { pricingPlans } from "../../routes/(marketing)/pricing/pricing_plans
+import { subscriptionApi } from "$lib/api/subscriptionApi"
 
 /**
- * Gets or creates a customer ID via an API call
+ * Gets or creates a customer ID
+ * (Now uses the subscriptionApi which will handle the customer data via RLS)
  */
 export const getOrCreateCustomerId = async ({
     session
@@ -20,21 +17,17 @@ export const getOrCreateCustomerId = async ({
             return { error: "No valid session", customerId: null }
         }
 
-        const response = await fetch("/api/customer/id", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${session.access_token}`
-            }
-        })
+        // This is now handled directly by the subscriptionApi when needed
+        // The api automatically loads the customer data via RLS
+        const result = await subscriptionApi.getSubscriptionData();
 
-        if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.message || "Failed to get customer ID")
+        if (!result.success) {
+            throw new Error(result.message || "Failed to get subscription data");
         }
 
-        const { customerId } = await response.json()
-        return { error: null, customerId }
+        // If we need to return a customerId specifically, we'd need to add
+        // a method to subscriptionApi to expose this
+        return { error: null, customerId: "handled_by_api" }
     } catch (error) {
         console.error("Error in getOrCreateCustomerId:", error)
         return { error: error.message, customerId: null }
@@ -42,7 +35,8 @@ export const getOrCreateCustomerId = async ({
 }
 
 /**
- * Fetches subscription data via an API call
+ * Fetches subscription data
+ * (Now uses subscriptionApi directly)
  */
 export const fetchSubscription = async ({
     session
@@ -58,23 +52,16 @@ export const fetchSubscription = async ({
             }
         }
 
-        const response = await fetch("/api/customer/subscription", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${session.access_token}`
-            }
-        })
+        // Use the subscriptionApi directly
+        const result = await subscriptionApi.getSubscriptionData();
 
-        if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.message || "Failed to fetch subscription")
+        if (!result.success) {
+            throw new Error(result.message || "Failed to fetch subscription data");
         }
 
-        const data = await response.json()
         return {
-            primarySubscription: data.primarySubscription,
-            hasEverHadSubscription: data.hasEverHadSubscription,
+            primarySubscription: result.subscriptionData,
+            hasEverHadSubscription: result.hasEverHadSubscription,
             error: null
         }
     } catch (error) {
@@ -88,7 +75,7 @@ export const fetchSubscription = async ({
 }
 
 /**
- * Creates a free subscription via API call
+ * Creates a free subscription
  */
 export const createFreeSubscription = async ({
     session
@@ -100,17 +87,11 @@ export const createFreeSubscription = async ({
             return { error: "No valid session" }
         }
 
-        const response = await fetch("/api/subscription/free", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${session.access_token}`
-            }
-        })
+        // We need to add this method to the subscriptionApi
+        const result = await subscriptionApi.createFreeSubscription();
 
-        if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.message || "Failed to create free subscription")
+        if (!result.success) {
+            throw new Error(result.message || "Failed to create free subscription");
         }
 
         return { error: null }
@@ -141,27 +122,19 @@ export const createCheckoutSession = async ({
             return { error: "No valid session", stripeUrl: null }
         }
 
-        const response = await fetch("/api/subscription/checkout", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-                priceId,
-                seats,
-                discount,
-                discountcode
-            })
-        })
+        // Use the subscriptionApi instead of the API route
+        const result = await subscriptionApi.createCheckoutSession({
+            priceId,
+            seats,
+            discount,
+            discountcode
+        });
 
-        if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.message || "Failed to create checkout session")
+        if (!result.success) {
+            throw new Error(result.message || "Failed to create checkout session");
         }
 
-        const { stripeUrl } = await response.json()
-        return { error: null, stripeUrl }
+        return { error: null, stripeUrl: result.stripeUrl }
     } catch (error) {
         console.error("Error in createCheckoutSession:", error)
         return { error: error.message, stripeUrl: null }

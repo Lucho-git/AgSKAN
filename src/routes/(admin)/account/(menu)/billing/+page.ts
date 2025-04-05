@@ -1,17 +1,16 @@
 // src/routes/(admin)/account/billing/+page.ts
 import { browser } from "$app/environment";
 import { goto } from "$app/navigation";
-import { session } from "$lib/stores/sessionStore";
-import { get } from "svelte/store";
+import { subscriptionApi } from "$lib/api/subscriptionApi";
 
 export const load = async ({ parent }) => {
     // Skip SSR - only run in browser
     if (!browser) return { loading: true };
 
-    // Wait for parent layout data - this ensures session is initialized
-    const layoutData = await parent();
+    // Wait for parent layout data
+    await parent();
 
-    // Default data structure
+    // Default data
     const defaultData = {
         loading: true,
         isActiveCustomer: false,
@@ -22,40 +21,29 @@ export const load = async ({ parent }) => {
     };
 
     try {
-        // Check for authentication
-        const currentSession = get(session);
-        if (!currentSession?.access_token) {
-            console.error("No valid session for billing page");
-            goto("/login");
-            return defaultData;
+        // Load subscription data
+        const result = await subscriptionApi.getSubscriptionData();
+
+        if (!result.success) {
+            throw new Error(result.message || "Failed to fetch subscription data");
         }
-
-        // Fetch subscription data from our API
-        const response = await fetch("/api/customer/subscription", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${currentSession.access_token}`
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to fetch subscription data");
-        }
-
-        const data = await response.json();
 
         return {
             loading: false,
-            isActiveCustomer: !!data.primarySubscription,
-            hasEverHadSubscription: data.hasEverHadSubscription,
-            currentPlanId: data.primarySubscription?.appSubscription?.id || "free",
-            subscriptionData: data.primarySubscription,
+            isActiveCustomer: result.isActiveCustomer,
+            hasEverHadSubscription: result.hasEverHadSubscription,
+            currentPlanId: result.currentPlanId,
+            subscriptionData: result.subscriptionData,
             error: null
         };
     } catch (error) {
         console.error("Error loading billing data:", error);
+
+        // If the error is an auth error, redirect to login
+        if (error.message?.includes("Not authenticated")) {
+            goto("/login");
+        }
+
         return {
             ...defaultData,
             loading: false,

@@ -1,130 +1,69 @@
+<!-- src/routes/(admin)/account/billing/manage/+page.svelte -->
 <script lang="ts">
-  import { enhance } from "$app/forms"
   import { onMount } from "svelte"
-  import SettingsModule from "../../settings/settings_module.svelte"
-  import ManageSeats from "./ManageSeats.svelte"
-  import ChangeBillingInterval from "./ChangeBillingInterval.svelte"
-  import CancelSubscription from "./CancelSubscription.svelte"
-  import { goto } from "$app/navigation"
+  import { subscriptionApi } from "$lib/api/subscriptionApi"
   import { toast } from "svelte-sonner"
+  import { goto } from "$app/navigation"
 
-  export let data
-  let loading = data.loading
-  let error = data.error
-  let subscriptionData = null
+  let loading = true
+  let error: string | null = null
 
-  // Handle data loading and errors in onMount instead of top-level returns
-  onMount(() => {
-    if (error) {
+  onMount(async () => {
+    try {
+      loading = true
+      const result = await subscriptionApi.createPortalSession()
+
+      if (result.success && result.url) {
+        // Redirect to Stripe portal
+        window.location.href = result.url
+      } else {
+        error = result.message || "Failed to create portal session"
+        toast.error(error)
+      }
+    } catch (err) {
+      error = err.message || "An unexpected error occurred"
       toast.error(error)
-      goto("/account/billing")
-      return
-    }
-
-    if (!loading && data.subscriptionData) {
-      subscriptionData = data.subscriptionData
+    } finally {
+      loading = false
     }
   })
 
-  $: interval = subscriptionData?.stripeSubscription?.plan?.interval || "month"
-  $: isYearly = interval === "year"
+  function goBack() {
+    goto("/account/billing")
+  }
 </script>
 
 <svelte:head>
-  <title>Manage Billing</title>
+  <title>Manage Subscription</title>
 </svelte:head>
 
-{#if loading}
-  <div class="flex h-48 items-center justify-center">
-    <div
-      class="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"
-    ></div>
-  </div>
-{:else if error}
-  <div class="mx-auto my-8 max-w-xl rounded-lg bg-red-50 p-6 text-center">
-    <h2 class="mb-4 text-xl font-bold text-red-700">
-      Error Loading Billing Information
-    </h2>
-    <p class="text-red-600">{error}</p>
-    <div class="mt-4 flex justify-center gap-4">
-      <button
-        class="rounded bg-primary px-4 py-2 text-white"
-        on:click={() => window.location.reload()}
-      >
-        Try Again
-      </button>
-      <button
-        class="rounded bg-secondary px-4 py-2 text-white"
-        on:click={() => goto("/account/billing")}
-      >
-        Return to Billing
-      </button>
+<div
+  class="container mx-auto flex h-[60vh] flex-col items-center justify-center px-4"
+>
+  {#if loading}
+    <div class="flex flex-col items-center">
+      <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+      <p class="text-lg">Preparing your billing portal...</p>
     </div>
-  </div>
-{:else if subscriptionData}
-  <h1 class="mb-6 text-2xl font-bold">Manage Billing</h1>
-  <div class="alert alert-info mb-4 mt-2 w-4/5">
-    <div>
-      <h3 class="font-bold">
-        Pricing Section is new, Contact us to handle it directly
-      </h3>
-      <div class="text-sm">
-        If their are any issues or the pricing details seems wrong, please
-        contact us at 0439405248, or send a message in the chat. We'll be happy
-        to assist you.
+  {:else if error}
+    <div class="mx-auto my-8 max-w-xl rounded-lg bg-red-50 p-6 text-center">
+      <h2 class="mb-4 text-xl font-bold text-red-700">
+        Error Creating Portal Session
+      </h2>
+      <p class="text-red-600">{error}</p>
+      <div class="mt-4">
+        <button
+          on:click={goBack}
+          class="rounded bg-primary px-4 py-2 text-white"
+        >
+          Return to Billing
+        </button>
       </div>
     </div>
-  </div>
-  <SettingsModule
-    title="Current Subscription"
-    editable={false}
-    fields={[
-      {
-        id: "planName",
-        label: "Current Plan",
-        initialValue: subscriptionData.appSubscription.name,
-      },
-      {
-        id: "planStatus",
-        label: "Status",
-        initialValue: subscriptionData.stripeSubscription.status,
-      },
-      {
-        id: "quantity",
-        label: "Quantity",
-        initialValue:
-          subscriptionData?.stripeSubscription?.quantity?.toString() ?? "1",
-      },
-      {
-        id: "interval",
-        label: "Billing Interval",
-        initialValue: isYearly ? "Yearly" : "Monthly",
-      },
-      {
-        id: "nextBilling",
-        label: "Next Billing Date",
-        initialValue: new Date(
-          subscriptionData.stripeSubscription.current_period_end * 1000,
-        ).toLocaleDateString(),
-      },
-    ]}
-    editButtonTitle="Home"
-    editLink="/account"
-  />
-
-  <ManageSeats {data} />
-  <!-- <ChangeBillingInterval {subscriptionData} /> -->
-  <CancelSubscription {subscriptionData} />
-{:else}
-  <div class="flex h-48 items-center justify-center">
-    <div class="text-center">
-      <p class="mb-4 text-lg">No subscription data available</p>
-      <button
-        class="rounded bg-primary px-4 py-2 text-white"
-        on:click={() => goto("/account/billing")}
-      >
-        Return to Billing
-      </button>
+  {:else}
+    <div class="flex flex-col items-center">
+      <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+      <p class="text-lg">Redirecting to Stripe...</p>
     </div>
-  </div>
-{/if}
+  {/if}
+</div>

@@ -5,6 +5,7 @@
   import PricingSection from "$lib/components/PricingSection.svelte"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
+  import { subscriptionApi } from "$lib/api/subscriptionApi"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("billing")
@@ -13,6 +14,7 @@
 
   let loading = data.loading
   let error = data.error
+  let portalLoading = false
 
   // Set defaults
   let currentPlanId = data.currentPlanId || "free"
@@ -23,6 +25,24 @@
   $: currentPlanName = subscriptionData?.appSubscription?.name || "Free Plan"
   $: isFreePlan =
     currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
+
+  async function openStripePortal() {
+    try {
+      portalLoading = true
+      const result = await subscriptionApi.createPortalSession()
+
+      if (result.success && result.url) {
+        // Redirect to Stripe portal
+        window.location.href = result.url
+      } else {
+        toast.error(result.message || "Failed to open billing portal")
+      }
+    } catch (err) {
+      toast.error("Error: " + (err.message || "Failed to open billing portal"))
+    } finally {
+      portalLoading = false
+    }
+  }
 </script>
 
 <svelte:head>
@@ -61,7 +81,16 @@
 
     {#if hasEverHadSubscription}
       <div class="mt-10 text-center">
-        <a href="/account/billing/manage" class="link">View past invoices</a>
+        <button
+          on:click={openStripePortal}
+          class="btn btn-outline btn-sm"
+          disabled={portalLoading}
+        >
+          {#if portalLoading}
+            <span class="loading loading-spinner loading-xs mr-2"></span>
+          {/if}
+          View Past Invoices
+        </button>
       </div>
     {/if}
   </div>
@@ -69,6 +98,7 @@
   <div class="container mx-auto px-4">
     <h1 class="mb-6 text-center text-2xl font-bold">Billing</h1>
 
+    <!-- Keep SettingsModule unchanged -->
     <SettingsModule
       title="Subscription"
       editable={false}
