@@ -1,6 +1,5 @@
 // src/lib/helpers/subscriptionHelpers.ts
 import type { Session } from "@supabase/supabase-js"
-import { pricingPlans } from "../../routes/(marketing)/pricing/pricing_plans
 import { subscriptionApi } from "$lib/api/subscriptionApi"
 
 /**
@@ -100,6 +99,7 @@ export const createFreeSubscription = async ({
         return { error: error.message }
     }
 }
+
 
 /**
  * Creates a checkout session for a paid subscription

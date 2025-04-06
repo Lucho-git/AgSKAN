@@ -36,9 +36,7 @@
 
 {#if loading}
   <div class="flex h-48 items-center justify-center">
-    <div
-      class="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"
-    ></div>
+    <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
   </div>
 {:else if error}
   <div class="mx-auto my-8 max-w-xl rounded-lg bg-red-50 p-6 text-center">

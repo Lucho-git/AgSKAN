@@ -211,9 +211,8 @@
       class="fixed left-0 top-0 flex h-full w-full items-center justify-center"
     >
       <div class="flex flex-col items-center">
-        <div
-          class="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent"
-        ></div>
+        <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+
         <p class="mt-4 text-xl font-medium">Loading map data...</p>
       </div>
     </div>

@@ -37,7 +37,8 @@
           show: true,
           loader: `
                     <div class="flex flex-col items-center space-y-4">
-                      <div class="border-t-4 border-primary animate-spin rounded-full w-12 h-12 mb-4"></div>
+                            <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+
                       <p class="text-lg text-primary-content">Loading form...</p>
                     </div>
                   `,

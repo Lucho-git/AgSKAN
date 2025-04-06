@@ -84,6 +84,7 @@ export const subscriptionApi = {
 
             // If no customer found, return default values
             if (!customers || customers.length === 0) {
+                console.log('No Customer found', customers)
                 return {
                     success: true,
                     isActiveCustomer: false,
@@ -91,11 +92,15 @@ export const subscriptionApi = {
                     currentPlanId: defaultPlanId,
                     subscriptionData: null
                 };
-            }
+            } else (
+                console.log('Customer found', customers)
+            )
 
             // Call the subscription Edge Function with the customer ID
             const customerId = customers[0].stripe_customer_id;
-            return await this.callSubscriptionFunction(session.session.access_token, customerId);
+            const subscriptionData = await this.callSubscriptionFunction(session.session.access_token, customerId);
+            console.log(subscriptionData)
+            return subscriptionData;
         } catch (error) {
             console.error("Error in getSubscriptionData:", error);
             return {
@@ -148,6 +153,69 @@ export const subscriptionApi = {
                 hasEverHadSubscription: false,
                 currentPlanId: defaultPlanId,
                 subscriptionData: null
+            };
+        }
+    },
+
+    /**
+     * Creates a checkout session for subscription purchase
+     */
+    async createCheckoutSession({
+        priceId,
+        seats = 1,
+        discount = false,
+        discountcode = null
+    }: {
+        priceId: string,
+        seats?: number,
+        discount?: boolean,
+        discountcode?: string | null
+    }) {
+        try {
+            // Check authentication
+            const { data: session } = await supabase.auth.getSession();
+
+            if (!session?.session?.user) {
+                throw new Error("Not authenticated");
+            }
+
+            // Get or create customer ID - similar pattern to createPortalSession
+            const userId = session.session.user.id;
+
+            // Call the checkout Edge Function 
+            const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/create-checkout`;
+
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${session.session.access_token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    priceId,
+                    seats,
+                    discount,
+                    discountcode
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Failed to create checkout (${response.status})`);
+            }
+
+            const data = await response.json();
+
+            return {
+                success: true,
+                stripeUrl: data.stripeUrl
+            };
+        } catch (error) {
+            console.error("Error creating checkout session:", error);
+            return {
+                success: false,
+                message: error.message,
+                stripeUrl: null
             };
         }
     },
@@ -214,6 +282,47 @@ export const subscriptionApi = {
                 success: false,
                 message: error.message,
                 url: null
+            };
+        }
+    },
+
+
+    /**
+     * Creates a free subscription for the current user
+     */
+    async createFreeSubscription() {
+        try {
+            // Check authentication
+            const { data: session } = await supabase.auth.getSession();
+
+            if (!session?.session?.user) {
+                throw new Error("Not authenticated");
+            }
+
+            // Call the Edge Function
+            const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/create-free-subscription`;
+
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${session.session.access_token}`,
+                    "Content-Type": "application/json"
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Failed to create free subscription (${response.status})`);
+            }
+
+            return {
+                success: true
+            };
+        } catch (error) {
+            console.error("Error creating free subscription:", error);
+            return {
+                success: false,
+                message: error.message
             };
         }
     },

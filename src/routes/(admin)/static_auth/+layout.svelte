@@ -241,9 +241,8 @@
     </div>
   {:else}
     <div class="flex flex-col items-center justify-center p-12">
-      <div
-        class="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"
-      ></div>
+      <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+
       <p class="mt-4 text-lg">Checking authentication...</p>
     </div>
   {/if}

@@ -224,9 +224,7 @@
   <div class="flex h-screen items-center justify-center">
     <div class="text-center">
       <h2 class="mb-4 text-xl font-semibold">Completing authentication...</h2>
-      <div
-        class="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"
-      ></div>
+      <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
 
       <!-- Debug info -->
       <div class="mt-8 rounded-lg bg-gray-50 p-4 text-left text-sm">

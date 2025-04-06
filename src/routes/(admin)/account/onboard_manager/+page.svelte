@@ -42,40 +42,6 @@
     mobile = formatted
   }
 
-  async function setupFreeSubscription() {
-    try {
-      // Create a free subscription for the user
-      const { error } = await supabase.from("user_subscriptions").upsert({
-        user_id: $profileStore.id,
-        subscription: "FREE",
-        marker_limit: 100,
-        trail_limit: 10000,
-        current_seats: 5,
-        lingering_seats: 0,
-        next_billing_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000,
-        ).toISOString(), // 1 year from now
-      })
-
-      if (error) throw error
-
-      // Update subscription store
-      subscriptionStore.set({
-        subscription: "FREE",
-        marker_limit: 100,
-        trail_limit: 10000,
-        lingering_seats: 0,
-        current_seats: 5,
-        next_billing_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      })
-    } catch (error) {
-      console.error("Failed to setup subscription:", error)
-      throw new Error("Failed to setup subscription")
-    }
-  }
-
   async function handleSubmit() {
     if (!isFormValid) {
       formError = "Please fill out all required fields"
@@ -86,9 +52,6 @@
     formError = null
 
     try {
-      // Set up free subscription first
-      await setupFreeSubscription()
-
       // Update the profile with the manager's details
       const { error: updateError } = await supabase
         .from("profiles")
