@@ -6,9 +6,6 @@ import { session } from "$lib/stores/sessionStore" // Import session store
 import { browser } from "$app/environment"
 import { redirect } from "@sveltejs/kit"
 
-export const prerender = false;
-
-
 import {
     controlStore,
     showEndTrailModal,

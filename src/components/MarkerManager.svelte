@@ -9,6 +9,7 @@
   } from "../stores/mapStore"
 
   import { controlStore } from "$lib/stores/controlStore"
+  import { profileStore } from "$lib/stores/profileStore"
 
   import { getContext, onMount, onDestroy } from "svelte"
   import * as mapboxgl from "mapbox-gl"
