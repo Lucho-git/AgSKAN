@@ -1,33 +1,96 @@
 <script lang="ts">
-  import { getContext } from "svelte"
+  import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
   import SettingsModule from "../settings/settings_module.svelte"
   import PricingSection from "$lib/components/PricingSection.svelte"
+  import { session } from "$lib/stores/sessionStore"
+  import { toast } from "svelte-sonner"
+  import { subscriptionApi } from "$lib/api/subscriptionApi"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("billing")
 
   export let data
 
-  let currentPlanId = data.currentPlanId ?? "free"
-  let currentPlanName =
-    data.subscriptionData?.appSubscription?.name ?? "Free Plan"
+  let loading = data.loading
+  let error = data.error
+  let portalLoading = false
+
+  // Set defaults
+  let currentPlanId = data.currentPlanId || "free"
+  let isActiveCustomer = data.isActiveCustomer || false
+  let hasEverHadSubscription = data.hasEverHadSubscription || false
+  let subscriptionData = data.subscriptionData
+
+  $: currentPlanName = subscriptionData?.appSubscription?.name || "Free Plan"
+  $: isFreePlan =
+    currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
+
+  async function openStripePortal() {
+    try {
+      portalLoading = true
+      const result = await subscriptionApi.createPortalSession()
+
+      if (result.success && result.url) {
+        // Redirect to Stripe portal
+        window.location.href = result.url
+      } else {
+        toast.error(result.message || "Failed to open billing portal")
+      }
+    } catch (err) {
+      toast.error("Error: " + (err.message || "Failed to open billing portal"))
+    } finally {
+      portalLoading = false
+    }
+  }
 </script>
 
 <svelte:head>
   <title>Billing</title>
 </svelte:head>
 
-{#if !data.isActiveCustomer}
+{#if loading}
+  <div class="flex h-48 items-center justify-center">
+    <div class="skeleton h-12 w-12 rounded-full"></div>
+  </div>
+{:else if error}
+  <div class="mx-auto my-8 max-w-xl rounded-lg bg-red-50 p-6 text-center">
+    <h2 class="mb-4 text-xl font-bold text-red-700">
+      Error Loading Billing Information
+    </h2>
+    <p class="text-red-600">{error}</p>
+    <div class="mt-4">
+      <a
+        href="/account/billing"
+        class="rounded bg-primary px-4 py-2 text-white"
+      >
+        Try Again
+      </a>
+    </div>
+  </div>
+{:else if !isActiveCustomer}
   <div class="container mx-auto px-4">
     <div class="py-2">
-      <h1 class="mb-4 text-center text-4xl font-bold">Select a Plan</h1>
-      <PricingSection {currentPlanId} />
+      <h1 class="mb-4 text-center text-4xl font-bold">Upgrade Your Account</h1>
+      <p class="mb-8 text-center text-lg text-base-content/80">
+        Choose a paid plan to unlock additional features and capabilities
+      </p>
+      <!-- Only show the pro plan by setting currentPlanId to "free" -->
+      <PricingSection currentPlanId="free" useFullPrice={true} />
     </div>
 
-    {#if data.hasEverHadSubscription}
-      <div class="mt-10">
-        <a href="/account/billing/manage" class="link">View past invoices</a>
+    {#if hasEverHadSubscription}
+      <div class="mt-10 text-center">
+        <button
+          on:click={openStripePortal}
+          class="btn btn-outline btn-sm"
+          disabled={portalLoading}
+        >
+          {#if portalLoading}
+            <span class="loading loading-spinner loading-xs mr-2"></span>
+          {/if}
+          View Past Invoices
+        </button>
       </div>
     {/if}
   </div>
@@ -35,6 +98,7 @@
   <div class="container mx-auto px-4">
     <h1 class="mb-6 text-center text-2xl font-bold">Billing</h1>
 
+    <!-- Keep SettingsModule unchanged -->
     <SettingsModule
       title="Subscription"
       editable={false}
@@ -47,24 +111,21 @@
         {
           id: "planStatus",
           label: "Status",
-          initialValue:
-            data.subscriptionData?.stripeSubscription?.status ?? "N/A",
+          initialValue: subscriptionData?.stripeSubscription?.status ?? "N/A",
         },
         {
           id: "quantity",
           label: "Quantity",
           initialValue:
-            data.subscriptionData?.stripeSubscription?.quantity?.toString() ??
-            "1",
+            subscriptionData?.stripeSubscription?.quantity?.toString() ?? "1",
         },
-        ...(data.subscriptionData?.stripeSubscription?.plan?.interval
+        ...(subscriptionData?.stripeSubscription?.plan?.interval
           ? [
               {
                 id: "interval",
                 label: "Billing Interval",
                 initialValue:
-                  data.subscriptionData.stripeSubscription.plan.interval ===
-                  "year"
+                  subscriptionData.stripeSubscription.plan.interval === "year"
                     ? "Annually"
                     : "Monthly",
               },
@@ -73,11 +134,9 @@
         {
           id: "nextBilling",
           label: "Next Billing Date",
-          initialValue: data.subscriptionData?.stripeSubscription
-            ?.current_period_end
+          initialValue: subscriptionData?.stripeSubscription?.current_period_end
             ? new Date(
-                data.subscriptionData.stripeSubscription.current_period_end *
-                  1000,
+                subscriptionData.stripeSubscription.current_period_end * 1000,
               ).toLocaleDateString()
             : "N/A",
         },
@@ -85,5 +144,13 @@
       editButtonTitle="Manage Subscription"
       editLink="/account/billing/manage"
     />
+
+    {#if isFreePlan}
+      <div class="mt-12">
+        <h2 class="mb-6 text-center text-xl font-bold">Upgrade Options</h2>
+        <!-- Only show the pro plan by setting currentPlanId to "free" -->
+        <PricingSection currentPlanId="free" useFullPrice={true} />
+      </div>
+    {/if}
   </div>
 {/if}

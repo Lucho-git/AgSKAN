@@ -1,17 +1,18 @@
 <!-- src/routes/(admin)/account/onboard_manager/+page.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import { enhance } from "$app/forms"
   import { User, Building2, Phone } from "lucide-svelte"
+  import { supabase } from "$lib/stores/sessionStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { subscriptionStore } from "$lib/stores/subscriptionStore"
   import { toast } from "svelte-sonner"
-
-  export let data
 
   let formError: string | null = null
   let fullName = ""
   let companyName = ""
   let mobile = ""
   let contactable = true // Set to true by default
+  let loading = false
 
   // Computed property for form validation
   $: isFormValid =
@@ -41,15 +42,48 @@
     mobile = formatted
   }
 
-  function handleEnhance() {
-    return async ({ result }) => {
-      if (result.type === "success") {
-        toast.success("Setup completed successfully!")
-        goto("/account/user_survey")
-      } else {
-        formError = result.data?.error || "Something went wrong"
-        toast.error(formError)
-      }
+  async function handleSubmit() {
+    if (!isFormValid) {
+      formError = "Please fill out all required fields"
+      return
+    }
+
+    loading = true
+    formError = null
+
+    try {
+      // Update the profile with the manager's details
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName,
+          company_name: companyName,
+          mobile: mobile,
+          contactable: contactable,
+          role: "manager",
+          onboarded: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", $profileStore.id)
+
+      if (updateError) throw updateError
+
+      // Update profile store
+      profileStore.update((profile) => ({
+        ...profile,
+        full_name: fullName,
+        company_name: companyName,
+        user_type: "manager",
+      }))
+
+      toast.success("Setup completed successfully!")
+      goto("/account/user_survey")
+    } catch (error) {
+      console.error("Error:", error)
+      formError = error.message || "Failed to update profile"
+      toast.error(formError)
+    } finally {
+      loading = false
     }
   }
 </script>
@@ -82,76 +116,72 @@
 
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
-        <form method="POST" use:enhance={handleEnhance}>
-          <div class="form-control mb-6">
-            <label class="label items-center gap-2">
-              <User size={18} class="text-base-content/70" />
-              <span class="label-text">Full Name</span>
-            </label>
+        <div class="form-control mb-6">
+          <label class="label items-center gap-2">
+            <User size={18} class="text-base-content/70" />
+            <span class="label-text">Full Name</span>
+          </label>
+          <input
+            type="text"
+            bind:value={fullName}
+            placeholder="Enter your full name"
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+
+        <div class="form-control mb-6">
+          <label class="label items-center gap-2">
+            <Building2 size={18} class="text-base-content/70" />
+            <span class="label-text">Company/Farm Name</span>
+          </label>
+          <input
+            type="text"
+            bind:value={companyName}
+            placeholder="Enter your company name"
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+
+        <div class="form-control mb-6">
+          <label class="label items-center gap-2">
+            <Phone size={18} class="text-base-content/70" />
+            <span class="label-text">Mobile Number</span>
+          </label>
+          <input
+            type="tel"
+            bind:value={mobile}
+            on:input={handlePhoneInput}
+            placeholder="04XX XXX XXX"
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+
+        <div class="form-control mb-8">
+          <label class="label cursor-pointer justify-start gap-2">
             <input
-              type="text"
-              name="name"
-              bind:value={fullName}
-              placeholder="Enter your full name"
-              class="input input-bordered w-full"
-              required
+              type="checkbox"
+              bind:checked={contactable}
+              class="checkbox checkbox-sm"
             />
-          </div>
+            <span class="label-text">
+              I agree to be contacted for setup assistance and important updates
+            </span>
+          </label>
+        </div>
 
-          <div class="form-control mb-6">
-            <label class="label items-center gap-2">
-              <Building2 size={18} class="text-base-content/70" />
-              <span class="label-text">Company/Farm Name</span>
-            </label>
-            <input
-              type="text"
-              name="company_name"
-              bind:value={companyName}
-              placeholder="Enter your company name"
-              class="input input-bordered w-full"
-              required
-            />
-          </div>
-
-          <div class="form-control mb-6">
-            <label class="label items-center gap-2">
-              <Phone size={18} class="text-base-content/70" />
-              <span class="label-text">Mobile Number</span>
-            </label>
-            <input
-              type="tel"
-              name="mobile"
-              bind:value={mobile}
-              on:input={handlePhoneInput}
-              placeholder="04XX XXX XXX"
-              class="input input-bordered w-full"
-              required
-            />
-          </div>
-
-          <div class="form-control mb-8">
-            <label class="label cursor-pointer justify-start gap-2">
-              <input
-                type="checkbox"
-                bind:checked={contactable}
-                name="contactable"
-                class="checkbox checkbox-sm"
-              />
-              <span class="label-text">
-                I agree to be contacted for setup assistance and important
-                updates
-              </span>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn-primary w-full"
-            disabled={!isFormValid}
-          >
-            Continue to Map Setup
-          </button>
-        </form>
+        <button
+          on:click={handleSubmit}
+          class="btn btn-primary w-full"
+          disabled={!isFormValid || loading}
+        >
+          {#if loading}
+            <span class="loading loading-spinner"></span>
+          {/if}
+          Continue to Map Setup
+        </button>
       </div>
     </div>
   </div>

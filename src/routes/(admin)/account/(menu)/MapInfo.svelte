@@ -1,13 +1,18 @@
+<!--src\routes\(admin)\account\(menu)\MapInfo.svelte-->
+
 <script lang="ts">
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { menuStore } from "../../../../stores/menuStore"
   import OperationModal from "./OperationModal.svelte"
   import Icon from "@iconify/svelte"
+  import LottieAnimation from "$lib/components/LottieAnimation.svelte"
 
   import * as Card from "$lib/components/ui/card"
   import { MapIcon, Copy, Check } from "lucide-svelte"
+
+  // Import Lottie animations
   import cool_line_map from "$lib/animations/cool_line_map.json"
   import CoolIdleEdit from "$lib/animations/cool_idle_edit.json"
   import idle_edit_green from "$lib/animations/idle_edit_green.json"
@@ -30,8 +35,6 @@
   import searching_magnify from "$lib/animations/searching_magnify.json"
   import searching_map from "$lib/animations/searching_map.json"
   import searching_tablet from "$lib/animations/searching_tablet.json"
-
-  import { LottiePlayer } from "@lottiefiles/svelte-lottie-player"
 
   let copied = false
 
@@ -87,16 +90,11 @@
           role="button"
           class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
         >
-          {#if browser && LottiePlayer}
-            <LottiePlayer
-              src={spinning_globe}
-              autoplay={true}
-              loop={true}
-              controls={false}
-              renderer="svg"
-              background="transparent"
-              height={100}
-              width={100}
+          {#if browser}
+            <LottieAnimation
+              animationData={spinning_globe}
+              width="100px"
+              height="100px"
             />
           {:else}
             <MapIcon class="h-16 w-16" />
@@ -106,17 +104,12 @@
           class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
           on:click={openSettingsModal}
         >
-          {#if browser && LottiePlayer}
-            <LottiePlayer
-              src={idle_edit_green}
-              autoplay={true}
-              loop={true}
+          {#if browser}
+            <LottieAnimation
+              animationData={idle_edit_green}
+              width="80px"
+              height="80px"
               speed={0.5}
-              controls={false}
-              renderer="svg"
-              background="transparent"
-              height={80}
-              width={80}
             />
           {:else}
             <MapIcon class="h-16 w-16" />
@@ -130,17 +123,12 @@
             class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
             on:click={createMap}
           >
-            {#if browser && LottiePlayer}
-              <LottiePlayer
-                src={add_button}
-                autoplay={true}
-                loop={true}
-                controls={false}
+            {#if browser}
+              <LottieAnimation
+                animationData={add_button}
+                width="100px"
+                height="100px"
                 speed={0.25}
-                renderer="svg"
-                background="transparent"
-                height={100}
-                width={100}
               />
             {:else}
               <MapIcon class="h-16 w-16" />
@@ -153,17 +141,14 @@
             class="flex h-32 w-32 items-center justify-center rounded-full bg-info/30 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-info/40 dark:bg-info/50 dark:hover:bg-info/60"
             on:click={joinMap}
           >
-            {#if browser && LottiePlayer}
-              <LottiePlayer
-                src={searching_map}
-                autoplay={true}
-                loop={true}
-                controls={false}
-                renderer="svg"
-                background="transparent"
-                height={40}
-                width={120}
-              />
+            {#if browser}
+              <div class="pt-3">
+                <LottieAnimation
+                  animationData={searching_map}
+                  width="110px"
+                  height="60px"
+                />
+              </div>
             {:else}
               <MapIcon class="h-16 w-16" />
             {/if}

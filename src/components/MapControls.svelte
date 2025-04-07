@@ -2,7 +2,7 @@
 <script>
   import { createEventDispatcher, onMount, onDestroy } from "svelte"
   import { confirmedMarkersStore } from "../stores/mapStore"
-  import { controlStore, drawingModeEnabled } from "../stores/controlStore"
+  import { controlStore, drawingModeEnabled } from "$lib/stores/controlStore"
 
   export let map
 

@@ -2,7 +2,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { Trash2 } from "lucide-svelte"
-  import { showEndTrailModal } from "../../stores/controlStore"
+  import { showEndTrailModal } from "$lib/stores/controlStore"
+  import { trailsApi } from "$lib/api/trailsApi"
+
   import {
     userVehicleTrailing,
     userVehicleStore,
@@ -15,7 +17,8 @@
   } from "$lib/stores/currentTrailStore"
 
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
-
+  import { session, initializeSession } from "$lib/stores/sessionStore"
+  import { get } from "svelte/store"
   import { toast } from "svelte-sonner"
 
   let timeDifference: number
@@ -24,7 +27,38 @@
   let syncInterval: number
   let showDeleteConfirm = false
 
-  onMount(() => {
+  // Helper function to make authenticated API calls
+  async function authenticatedFetch(url, method = "POST", body = {}) {
+    // Get the current session
+    const currentSession = get(session)
+
+    if (!currentSession?.user?.id) {
+      // If no session available, try to initialize it
+      await initializeSession()
+      const refreshedSession = get(session)
+
+      if (!refreshedSession?.user?.id) {
+        throw new Error("Authentication required")
+      }
+    }
+
+    // Re-get the session to ensure we have the most up-to-date token
+    const activeSession = get(session)
+
+    return fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+      body: method !== "GET" ? JSON.stringify(body) : undefined,
+    })
+  }
+
+  onMount(async () => {
+    // Make sure session is initialized
+    await initializeSession()
+
     if ($unsavedTrailsStore.length > 0) {
       startPeriodicSync()
     }
@@ -43,17 +77,12 @@
 
   async function deleteTrail(trail_id: string) {
     try {
-      const response = await fetch("/api/map-trails/delete-trail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trail_id }),
-      })
+      const result = await trailsApi.deleteTrail(trail_id)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (result.error) {
+        throw new Error(result.message || "Failed to delete trail")
       }
 
-      await response.json()
       toast.success("Trail deleted successfully")
 
       // Reset all states
@@ -63,7 +92,7 @@
       showDeleteConfirm = false
     } catch (error) {
       console.error("Error deleting trail:", error)
-      toast.error("Failed to delete trail")
+      toast.error(`Failed to delete trail: ${error.message}`)
     }
   }
 
@@ -91,17 +120,12 @@
 
     for (const trailData of $unsavedTrailsStore) {
       try {
-        const response = await fetch("/api/map-trails/close-trail", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(trailData),
-        })
+        const result = await trailsApi.closeTrail(trailData)
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+        if (result.error) {
+          throw new Error(result.message || "Failed to close trail")
         }
 
-        await response.json()
         unsavedTrailsStore.remove(trailData)
         unsavedCoordinatesStore.clear()
         toast.success(`Successfully synced trail ${trailData.trail_id}`)
@@ -164,7 +188,7 @@
       const message =
         pathData.length === 0 ? "empty trail" : "trail with only one coordinate"
       toast.info(`Deleting ${message}`)
-      await deleteTrail($currentTrailStore.id)
+      await trailsApi.deleteTrail($currentTrailStore.id)
       return
     }
 
@@ -178,16 +202,10 @@
     }
 
     try {
-      const response = await fetch("/api/map-trails/close-trail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(trailData),
-      })
+      const result = await trailsApi.closeTrail(trailData)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to close trail")
+      if (result.error) {
+        throw new Error(result.message || "Failed to close trail")
       }
 
       // Convert the path data to the required GeoJSON LineString format
@@ -198,7 +216,7 @@
 
       // Create the historical trail object
       const historicalTrail = {
-        ...data.trail,
+        ...result.trail,
         path: lineStringPath,
       }
 
@@ -206,7 +224,7 @@
       historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
       toast.success("Trail closed successfully")
-      console.log("Trail closed successfully:", data)
+      console.log("Trail closed successfully:", result)
 
       // Clear unsaved coordinates
       unsavedCoordinatesStore.clear()

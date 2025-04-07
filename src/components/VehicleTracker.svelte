@@ -2,7 +2,7 @@
 
 <script>
   import { onMount, onDestroy } from "svelte"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import {
     userVehicleStore,
     userVehicleTrailing,

@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte"
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
-  import { drawingModeEnabled } from "../../stores/controlStore"
+  import { drawingModeEnabled } from "$lib/stores/controlStore"
   import * as turf from "@turf/turf"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
   import { Ruler } from "lucide-svelte"

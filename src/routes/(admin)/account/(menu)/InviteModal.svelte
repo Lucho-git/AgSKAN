@@ -8,7 +8,7 @@
     Mail,
     Link,
   } from "lucide-svelte"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
 

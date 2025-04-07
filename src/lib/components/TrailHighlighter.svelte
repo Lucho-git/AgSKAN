@@ -2,7 +2,7 @@
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
   import { X, Route, ArrowLeft, ArrowRight, Trash2 } from "lucide-svelte"

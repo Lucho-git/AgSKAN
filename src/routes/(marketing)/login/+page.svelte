@@ -1,25 +1,44 @@
 <script lang="ts">
-  import { getContext } from "svelte"
+  // routes/login/+page.svelte
+  import { onMount } from "svelte"
   import { Auth } from "@supabase/auth-ui-svelte"
   import { sharedAppearance, oauthProviders } from "./login_config"
-  import { goto } from "$app/navigation"
-  import { onMount } from "svelte"
   import { page } from "$app/stores"
-
-  export let data
-  let { supabase } = data
+  import { browser } from "$app/environment"
+  import { supabase, setPendingMapId } from "$lib/stores/sessionStore"
+  import { setupAuthListener } from "$lib/helpers/authHelpers"
 
   $: activeTab =
     $page.url.searchParams.get("tab") === "sign_up" ? "sign_up" : "sign_in"
 
+  // Process URL parameters
   onMount(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event == "SIGNED_IN") {
-        setTimeout(() => {
-          goto("/account")
-        }, 1)
+    if (browser) {
+      console.log("Login page mounted")
+
+      // Handle map_id from URL if present
+      const urlParams = new URLSearchParams(window.location.search)
+      const mapId = urlParams.get("map_id")
+      if (mapId) {
+        console.log(`Map ID found in URL: ${mapId}`)
+
+        // Store using the existing helper
+        setPendingMapId(mapId)
       }
-    })
+
+      // Set up auth state change listener with consistent behavior
+      const {
+        data: { subscription },
+        checkNow,
+      } = setupAuthListener("/account")
+
+      // Force check for existing session
+      checkNow()
+
+      return () => {
+        subscription.unsubscribe()
+      }
+    }
   })
 </script>
 
@@ -42,9 +61,9 @@
   <div class="rounded-lg border border-gray-300 p-5">
     <div class="auth-wrapper">
       <Auth
-        supabaseClient={data.supabase}
+        supabaseClient={supabase}
         view={activeTab}
-        redirectTo={`${data.url}/auth/callback`}
+        redirectTo={`${$page.url.origin}/auth/callback?next=/account`}
         providers={oauthProviders}
         socialLayout="horizontal"
         showLinks={false}

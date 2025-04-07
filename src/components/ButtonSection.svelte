@@ -10,15 +10,14 @@
     controlStore,
     trailingButtonPressed,
     drawingModeEnabled,
-  } from "../stores/controlStore"
+  } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import VehicleSelectionMenu from "./VehicleSelectionMenu.svelte"
   import SVGComponents from "$lib/vehicles/index.js"
-  import Icons from "$lib/icons"
-  import { Home, PencilRuler, PenOff } from "lucide-svelte"
+  import { Home, PencilRuler, PenOff, MapPin, Navigation } from "lucide-svelte"
 
   import * as HoverCard from "$lib/components/ui/hover-card"
 
@@ -227,29 +226,6 @@
         ? 'scale-100 opacity-90'
         : 'h-50 scale-0 overflow-hidden opacity-0'}"
     >
-      <!--Sync Button-->
-      <!-- <button
-        class="menu-button {currentStyle} btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={handleSync}
-      >
-        <svg
-          class="h-8 w-8 {$syncStore.spinning ? 'animate-spin' : ''}"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button> -->
-
       <!-- Drawing Mode Toggle Button -->
       <HoverCard.Root>
         <HoverCard.Trigger>
@@ -275,6 +251,27 @@
           <span class="text-gray-900 dark:text-white">Drawing Mode</span>
         </HoverCard.Content>
       </HoverCard.Root>
+
+
+      <!-- InstantLocationMarker Button - REPLACED WITH GENERIC MARKER -->
+      <button
+        class="menu-button {currentStyle} btn {isCircular
+          ? 'btn-circle'
+          : 'btn-square'} btn-lg bg-white text-sm hover:bg-opacity-90"
+        on:click={handleLocationClick}
+      >
+        <MapPin size={24} />
+      </button>
+
+      <!-- Locate Home Button - REPLACED WITH GENERIC HOME ICON -->
+      <button
+        class="menu-button {currentStyle} btn {isCircular
+          ? 'btn-circle'
+          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+        on:click={handleLocateHome}
+      >
+        <Home size={24} />
+      </button>
 
       <!-- <button
         class="menu-button {currentStyle} btn {isCircular

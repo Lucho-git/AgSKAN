@@ -1,14 +1,18 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
-  import mapboxgl from "mapbox-gl"
+  import * as mapboxgl from "mapbox-gl"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
+  import { trailsApi } from "$lib/api/trailsApi"
+
   import {
     historicalTrailStore,
     otherActiveTrailStore,
   } from "$lib/stores/otherTrailStore"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
+  import { initializeSession } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
+  import { authenticatedFetch } from "$lib/helpers/authHelpers"
 
   export const TRAIL_CONFIG = {
     MULTIPLIER: 1,
@@ -111,33 +115,30 @@
 
   export async function deleteTrail(trailId: string) {
     try {
-      const response = await fetch("/api/map-trails/delete-trail", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ trail_id: trailId }),
-      })
+      console.log(`Deleting trail: ${trailId}`)
 
-      if (!response.ok) {
-        toast.error("Failed to delete trail")
-        throw new Error("Failed to delete trail")
+      // Use the trailsApi instead of authenticatedFetch
+      const result = await trailsApi.deleteTrail(trailId)
+
+      if (result.error) {
+        console.error("API returned error:", result.message)
+        toast.error(`Failed to delete trail: ${result.message}`)
+        throw new Error(result.message || "Failed to delete trail")
       }
 
-      //   removeTrail(trailId)
+      // Remove the trail from the historical trails store
       historicalTrailStore.update((trails) =>
         trails.filter((t) => t.id !== trailId),
       )
 
-      toast.success("Trail deleted")
+      toast.success("Trail deleted successfully")
       return true
     } catch (error) {
       console.error("Error deleting trail:", error)
-      toast.error("Error deleting trail")
+      toast.error(`Error deleting trail: ${error.message || "Unknown error"}`)
       return false
     }
   }
-
   export function addTrail(trail: Trail) {
     const { sourceId, layerId } = generateTrailIds(trail.id)
     const zoomDependentWidth = calculateZoomDependentWidth(
@@ -381,4 +382,5 @@
   }
 </script>
 
+svelte Copy
 <slot {calculateZoomDependentWidth} {generateTrailIds} {deleteTrail} />

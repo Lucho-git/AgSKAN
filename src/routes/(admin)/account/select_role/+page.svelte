@@ -1,6 +1,7 @@
 <!-- src/routes/(admin)/account/select_role/+page.svelte -->
 <script lang="ts">
-  import { enhance } from "$app/forms"
+  import { goto } from "$app/navigation"
+  import { onMount } from "svelte"
   import {
     Tractor,
     Users,
@@ -9,13 +10,14 @@
     UserPlus,
     Navigation,
   } from "lucide-svelte"
-  import type { PageData } from "./$types"
+  import { supabase } from "$lib/stores/sessionStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { toast } from "svelte-sonner"
 
   let selectedRole: "manager" | "operator" | null = null
   let formError: string | null = null
-  export let data: PageData
+  let loading = false
 
-  console.log("role data", data)
   const colorScheme = [
     {
       color: "bg-gradient-to-br from-info/10 to-info/20",
@@ -57,6 +59,45 @@
       ],
     },
   ]
+
+  async function handleSubmit() {
+    if (!selectedRole) {
+      formError = "Please select a role"
+      return
+    }
+
+    loading = true
+    formError = null
+
+    try {
+      // Update the role field in profiles table
+      const { error } = await supabase
+        .from("profiles")
+        .update({ role: selectedRole })
+        .eq("id", $profileStore.id)
+
+      if (error) throw error
+
+      // Update local profile store
+      profileStore.update((profile) => ({
+        ...profile,
+        user_type: selectedRole,
+      }))
+
+      // Navigate to next page based on role
+      if (selectedRole === "operator") {
+        goto("/account/join_map")
+      } else if (selectedRole === "manager") {
+        goto("/account/onboard_manager")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      formError = "Failed to update role"
+      toast.error(formError)
+    } finally {
+      loading = false
+    }
+  }
 </script>
 
 <div class="min-h-screen bg-base-200 px-4 py-12">
@@ -88,18 +129,7 @@
       </div>
     {/if}
 
-    <form
-      method="POST"
-      use:enhance={({ form, data, action, cancel }) => {
-        return async ({ result }) => {
-          if (result.type === "failure") {
-            formError = result.data?.error || "Something went wrong"
-          } else if (result.data?.redirect) {
-            window.location.href = result.data.redirect
-          }
-        }
-      }}
-    >
+    <div>
       <div class="grid gap-8 md:grid-cols-2">
         {#each roles as role}
           <div
@@ -125,8 +155,8 @@
             <!-- Card -->
             <div
               class="card relative cursor-pointer overflow-hidden border-2 bg-base-100 shadow-xl transition-all hover:scale-105
-                  {role.color} {role.borderColor} {role.cardStyle}
-                  {selectedRole === role.id ? 'ring-0 ring-offset-4' : ''}"
+                    {role.color} {role.borderColor} {role.cardStyle}
+                    {selectedRole === role.id ? 'ring-0 ring-offset-4' : ''}"
             >
               <div class="card-body relative z-10 items-center p-8 text-center">
                 <!-- Large Icon with Glow -->
@@ -193,12 +223,15 @@
       <!-- Submit Button and Disclaimer -->
       <div class="mt-12 text-center">
         <button
-          type="submit"
-          class="btn btn-primary btn-lg px-12 text-lg {!selectedRole
+          on:click={handleSubmit}
+          class="btn btn-primary btn-lg px-12 text-lg {!selectedRole || loading
             ? 'btn-disabled'
             : ''}"
-          disabled={!selectedRole}
+          disabled={!selectedRole || loading}
         >
+          {#if loading}
+            <span class="loading loading-spinner"></span>
+          {/if}
           Continue
         </button>
 
@@ -208,7 +241,7 @@
           selection
         </p>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 

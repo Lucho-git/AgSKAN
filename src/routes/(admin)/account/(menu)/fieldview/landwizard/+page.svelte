@@ -12,7 +12,10 @@
   import GeoJSONMap from "$lib/components/GeoJsonMap.svelte"
   import { toast } from "svelte-sonner"
 
-  import { connectedMapStore } from "../../../../../../stores/connectedMapStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { fileApi } from "$lib/api/fileApi"
+
+  import { session } from "$lib/stores/sessionStore" // Import session store
 
   export let data
 
@@ -28,11 +31,7 @@
   let paddocks: Paddock[] = []
 
   onMount(() => {
-    console.log("Component mounted")
-    console.log("Data:", data)
-    console.log("Processed data:", data.processedData)
-
-    if (data.processedData.paddocks) {
+    if (data.processedData?.paddocks) {
       paddocks = data.processedData.paddocks.map((paddock: any) => {
         const isMultiPolygon = paddock.boundary.type === "MultiPolygon"
         return {
@@ -63,18 +62,15 @@
     const input = event.target as HTMLInputElement
     paddocks[index].name = input.value
     paddocks = [...paddocks]
-    console.log(`Updated name for paddock ${index}:`, paddocks[index].name)
   }
 
   function acceptPaddock(index: number) {
-    console.log("Accepting paddock at index:", index)
     paddocks[index].status = "accepted"
     paddocks = [...paddocks]
     scrollToNext()
   }
 
   function rejectPaddock(index: number) {
-    console.log("Rejecting paddock at index:", index)
     paddocks[index].status = "rejected"
     paddocks = [...paddocks]
     scrollToNext()
@@ -87,7 +83,6 @@
   }
 
   function acceptAll() {
-    console.log("Accepting all paddocks")
     paddocks = paddocks.map((paddock) => ({
       ...paddock,
       status: "accepted",
@@ -95,22 +90,11 @@
   }
 
   async function finish() {
-    console.log("Finished processing paddocks:", paddocks)
     const map_id = $connectedMapStore.id
 
-    const promise = fetch("/api/files/upload_fields", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        map_id: map_id,
-        fields: paddocks,
-      }),
-    }).then(async (response) => {
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error)
+    const promise = fileApi.uploadFields(map_id, paddocks).then((result) => {
+      if (!result.success) {
+        throw new Error(result.message)
       }
       return result
     })
@@ -143,12 +127,12 @@
         toast.error(rejectionMessage, { duration: 7000 })
       }
     } catch (error) {
-      console.error("Error submitting fields:", error)
+      // Error is handled by toast.promise
     } finally {
       // Redirect to fieldview page after a short delay to allow toasts to be seen
       setTimeout(() => {
         goto(`/account/fieldview/`)
-      }, 500) // 2 second delay
+      }, 500)
     }
   }
 </script>

@@ -3,12 +3,14 @@
   import { onMount, onDestroy } from "svelte"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
+  import { get } from "svelte/store"
+  import { trailsApi } from "$lib/api/trailsApi"
 
   import {
     userVehicleStore,
     userVehicleTrailing,
   } from "../../stores/vehicleStore"
-  import { trailingButtonPressed } from "../../stores/controlStore"
+  import { trailingButtonPressed } from "$lib/stores/controlStore"
   import {
     currentTrailStore,
     coordinateBufferStore,
@@ -19,9 +21,10 @@
     otherActiveTrailStore,
   } from "$lib/stores/otherTrailStore"
 
-  import { mapActivityStore } from "../../stores/mapActivityStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
 
-  import { profileStore } from "../../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { session, initializeSession } from "$lib/stores/sessionStore"
 
   import EndTrailModal from "$lib/components/EndTrailModal.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
@@ -41,8 +44,40 @@
     unsavedCoordinatesUnsubscribe: null,
   }
 
+  // Helper function to make authenticated API calls
+  async function authenticatedFetch(url, method = "POST", body = {}) {
+    // Get the current session
+    const currentSession = get(session)
+
+    if (!currentSession?.user?.id) {
+      // If no session available, try to initialize it
+      await initializeSession()
+      const refreshedSession = get(session)
+
+      if (!refreshedSession?.user?.id) {
+        throw new Error("Authentication required")
+      }
+    }
+
+    // Re-get the session to ensure we have the most up-to-date token
+    const activeSession = get(session)
+
+    return fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+      body: method !== "GET" ? JSON.stringify(body) : undefined,
+    })
+  }
+
   onMount(async () => {
     console.log("🚀 TrailSynchronizer: Initializing...")
+
+    // Make sure session is initialized
+    await initializeSession()
+
     await checkOpenTrails()
     await checkOtherActiveTrails()
     await fetchOperationTrails()
@@ -394,30 +429,23 @@
     unsavedCoordinatesStore.set([])
 
     try {
-      const payload = {
-        operation_id: selectedOperation.id,
-        trail_id: $currentTrailStore.id,
-        coordinates_batch: coordinatesToSend.map((coord) => ({
-          coordinates: coord.coordinates,
-          timestamp: coord.timestamp,
-        })),
-      }
-
       console.log(
         `📤 TrailSynchronizer: Sending batch of ${coordinatesToSend.length} coordinates`,
       )
 
-      const response = await fetch("/api/map-trails/save-coordinate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const result = await trailsApi.saveCoordinates(
+        selectedOperation.id,
+        $currentTrailStore.id,
+        coordinatesToSend.map((coord) => ({
+          coordinates: coord.coordinates,
+          timestamp: coord.timestamp,
+        })),
+      )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (result.error) {
+        throw new Error(result.message || "Failed to save coordinates")
       }
 
-      await response.json()
       console.log(
         `✅ TrailSynchronizer: Successfully synced ${coordinatesToSend.length} coordinates`,
       )
@@ -440,25 +468,66 @@
 
   async function getOperationTrails(operation_id) {
     try {
-      const response = await fetch("/api/map-trails/get-operation-trails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operation_id }),
-      })
+      console.log(`Fetching trails for operation ${operation_id}`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      // Get trails without paths first
+      const { data: trails, error: trailsError } = await supabase
+        .from("trails")
+        .select(
+          `
+        id,
+        vehicle_id,
+        operation_id,
+        start_time,
+        end_time,
+        trail_color,
+        trail_width
+        `,
+        )
+        .eq("operation_id", operation_id)
+        .not("end_time", "is", null)
+        .order("start_time", { ascending: true })
+
+      if (trailsError) {
+        console.error("Error fetching trails:", trailsError)
+        throw new Error(`Failed to fetch trails: ${trailsError.message}`)
       }
 
-      const text = await response.text()
-
-      try {
-        const data = JSON.parse(text)
-        return data.trails
-      } catch (e) {
-        throw new Error("Invalid JSON response from server")
+      if (!trails || trails.length === 0) {
+        console.log("No trails found for this operation")
+        return []
       }
+
+      console.log(`Found ${trails.length} trails, fetching path data...`)
+
+      // Fetch path data for each trail using our RPC function
+      const trailsWithPaths = await Promise.all(
+        trails.map(async (trail) => {
+          try {
+            const { data: pathData, error: pathError } = await supabase.rpc(
+              "get_trail_path_as_geojson",
+              { trail_id_param: trail.id },
+            )
+
+            if (pathError) {
+              console.error(
+                `Error fetching path for trail ${trail.id}:`,
+                pathError,
+              )
+              return { ...trail, path: null }
+            }
+
+            return { ...trail, path: pathData }
+          } catch (error) {
+            console.error(`Error processing path for trail ${trail.id}:`, error)
+            return { ...trail, path: null }
+          }
+        }),
+      )
+
+      return trailsWithPaths
     } catch (error) {
+      console.error("Error in getOperationTrails:", error)
       throw error
     }
   }
@@ -498,21 +567,14 @@
 
   async function checkOpenTrails() {
     try {
-      const response = await fetch("/api/map-trails/check-open-trails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          vehicle_id: $profileStore.id,
-        }),
-      })
+      // Using our client-side API instead of authenticatedFetch
+      const result = await trailsApi.checkOpenTrails($profileStore.id)
 
-      if (!response.ok) {
-        throw new Error("Failed to check for open trails")
+      if (result.error) {
+        throw new Error(result.message || "Failed to check for open trails")
       }
 
-      const { openTrail, trailData } = await response.json()
+      const { openTrail, trailData } = result
       console.log("Opentrail", openTrail, "data", trailData)
 
       if (openTrail) {
@@ -556,25 +618,16 @@
           "and profile:",
           $profileStore.id,
         )
-        const response = await fetch(
-          "/api/map-trails/check-other-active-trails",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              operation_id: selectedOperation.id,
-              current_vehicle_id: $profileStore.id,
-            }),
-          },
+
+        // Using our client-side API instead of authenticatedFetch
+        const data = await trailsApi.checkOtherActiveTrails(
+          selectedOperation.id,
+          $profileStore.id,
         )
 
-        const data = await response.json()
-
-        if (!response.ok) {
+        if (data.error) {
           throw new Error(
-            data.error || "Failed to check for other active trails",
+            data.message || "Failed to check for other active trails",
           )
         }
 
@@ -669,34 +722,33 @@
 
   async function createNewTrail(vehicleId) {
     console.log("🆕 TrailSynchronizer: Creating new trail")
-    const createResponse = await fetch("/api/map-trails/open-new-trail", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        vehicle_id: vehicleId,
-        operation_id: selectedOperation.id,
-        vehicle_info: $userVehicleStore,
-      }),
-    })
 
-    const createData = await createResponse.json()
+    try {
+      const result = await trailsApi.openNewTrail(
+        vehicleId,
+        selectedOperation.id,
+        $userVehicleStore,
+      )
 
-    if (!createResponse.ok) {
-      throw new Error(createData.error || "Failed to create trail")
+      if (result.error) {
+        throw new Error(result.message || "Failed to create trail")
+      }
+
+      console.log("✅ TrailSynchronizer: New trail created successfully")
+      toast.success("New trail created successfully")
+      currentTrailStore.set({
+        ...result.trail,
+        start_time: result.trail.start_time,
+        trail_color: result.trail.trail_color,
+        trail_width: result.trail.trail_width,
+        path: [],
+      })
+      userVehicleTrailing.set(true)
+    } catch (error) {
+      console.error("❌ TrailSynchronizer: Error creating trail:", error)
+      toast.error(`Error creating trail: ${error.message}`)
+      throw error // Re-throw to be handled by the caller
     }
-
-    console.log("✅ TrailSynchronizer: New trail created successfully")
-    toast.success("New trail created successfully")
-    currentTrailStore.set({
-      ...createData.trail,
-      start_time: createData.trail.start_time,
-      trail_color: createData.trail.trail_color,
-      trail_width: createData.trail.trail_width,
-      path: [],
-    })
-    userVehicleTrailing.set(true)
   }
 
   function updateTrailPath(newCoordinateData) {

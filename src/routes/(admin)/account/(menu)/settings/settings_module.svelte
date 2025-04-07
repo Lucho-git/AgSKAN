@@ -1,17 +1,16 @@
 <script lang="ts">
-  import { enhance, applyAction } from "$app/forms"
-  import { page } from "$app/stores"
-  import type { SubmitFunction } from "@sveltejs/kit"
+  import { createEventDispatcher } from "svelte"
   import { toast } from "svelte-sonner"
+  import { goto } from "$app/navigation"
 
-  const fieldError = (liveForm: FormAccountUpdateResult, name: string) => {
-    let errors = liveForm?.errorFields ?? []
-    return errors.includes(name)
-  }
+  const dispatch = createEventDispatcher()
 
   // Page state
   let loading = false
   let showSuccess = false
+  let errors = []
+  let errorMessage = ""
+  let formValues = {}
 
   type Field = {
     inputType?: string // default is "text"
@@ -26,36 +25,87 @@
   export let dangerous = false
   export let title: string = ""
   export let message: string = ""
-  export let fields: Field[]
-  export let formTarget: string = ""
+  export let fields: Field[] = []
   export let successTitle = "Success"
   export let successBody = ""
   export let editButtonTitle: string = ""
   export let editLink: string = ""
   export let saveButtonTitle: string = "Save"
+  export let apiHandler = null
+  export let showBackButton: boolean = false
+  export let backUrl: string = "/account/settings"
+  export let backText: string = "Back to Settings"
 
-  const handleSubmit: SubmitFunction = () => {
-    console.log("deephandlesubmit")
+  // Initialize form values when fields change
+  $: {
+    fields.forEach((field) => {
+      if (!(field.id in formValues)) {
+        formValues[field.id] = field.initialValue
+      }
+    })
+  }
+
+  function fieldError(name: string) {
+    return errors.includes(name)
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
     loading = true
-    return async ({ update, result }) => {
-      await update({ reset: false })
-      await applyAction(result)
-      loading = false
-      if (result.type === "success") {
+    errors = []
+    errorMessage = ""
+
+    try {
+      // Call the provided API handler with form values
+      const response = await apiHandler(formValues)
+
+      if (response.success) {
         showSuccess = true
         toast.success(successTitle, {
           description: successBody || "Your changes have been saved.",
         })
-      } else if (result.type === "failure") {
-        toast.error("Error", {
-          description:
-            result.data?.message ||
-            "An error occurred while saving your changes.",
-        })
+        dispatch("success", { ...response, formData: formValues })
+      } else {
+        errors = response.errorFields || []
+        errorMessage = response.message || "An error occurred"
+        toast.error("Error", { description: errorMessage })
+        dispatch("error", { message: errorMessage, errorFields: errors })
       }
+    } catch (error) {
+      console.error("Error in form submission:", error)
+      errorMessage = error.message || "An unexpected error occurred"
+      toast.error("Error", { description: errorMessage })
+      dispatch("error", { message: errorMessage })
+    } finally {
+      loading = false
     }
   }
+
+  function handleInputChange(event, fieldId) {
+    formValues[fieldId] = event.target.value
+  }
 </script>
+
+{#if showBackButton}
+  <button
+    class="btn btn-ghost btn-sm mb-4 gap-1"
+    on:click={() => goto(backUrl)}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      class="h-4 w-4"
+    >
+      <path
+        fill-rule="evenodd"
+        d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z"
+        clip-rule="evenodd"
+      />
+    </svg>
+    {backText}
+  </button>
+{/if}
 
 <div class="card mt-8 flex max-w-xl flex-col p-6 pb-7 shadow md:flex-row">
   {#if title}
@@ -83,42 +133,36 @@
           <span>{message}</span>
         </div>
       {/if}
-      <form
-        class="form-widget flex flex-col"
-        method="POST"
-        action={formTarget}
-        use:enhance={handleSubmit}
-      >
-        {#each fields as field}
-          {#if field.label}
-            <label for={field.id}>
-              <span class="text-sm text-gray-500">{field.label}</span>
-            </label>
-          {/if}
-          {#if editable}
+
+      {#if editable && apiHandler}
+        <!-- Editable form with API handler -->
+        <form class="form-widget flex flex-col" on:submit={handleSubmit}>
+          {#each fields as field}
+            {#if field.label}
+              <label for={field.id}>
+                <span class="text-sm text-gray-500">{field.label}</span>
+              </label>
+            {/if}
             <input
               id={field.id}
               name={field.id}
               type={field.inputType ?? "text"}
-              disabled={!editable}
+              disabled={loading}
               placeholder={field.placeholder ?? field.label ?? ""}
-              class="{fieldError($page?.form, field.id)
+              class="{fieldError(field.id)
                 ? 'input-error'
-                : ''} input input-bordered input-sm mb-3 mt-1 w-full max-w-xs py-4 text-base"
-              value={$page.form ? $page.form[field.id] : field.initialValue}
+                : ''} input input-sm input-bordered mb-3 mt-1 w-full max-w-xs py-4 text-base"
+              value={formValues[field.id]}
+              on:input={(e) => handleInputChange(e, field.id)}
             />
-          {:else}
-            <div class="mb-3 text-lg">{field.initialValue}</div>
+          {/each}
+
+          {#if errorMessage}
+            <p class="mt-1 text-sm font-bold text-red-700">
+              {errorMessage}
+            </p>
           {/if}
-        {/each}
 
-        {#if $page?.form?.errorMessage}
-          <p class="mt-1 text-sm font-bold text-red-700">
-            {$page?.form?.errorMessage}
-          </p>
-        {/if}
-
-        {#if editable}
           <div>
             <button
               type="submit"
@@ -136,20 +180,34 @@
               {/if}
             </button>
           </div>
-        {:else if $$slots.buttons}
-          <slot name="buttons" />
-        {:else}
-          <a href={editLink} class="mt-1">
-            <button
-              class="btn btn-outline btn-sm {dangerous
-                ? 'btn-error'
-                : ''} min-w-[145px]"
-            >
-              {editButtonTitle}
-            </button>
-          </a>
-        {/if}
-      </form>
+        </form>
+      {:else}
+        <!-- View-only display -->
+        <div class="form-widget flex flex-col">
+          {#each fields as field}
+            {#if field.label}
+              <label for={field.id}>
+                <span class="text-sm text-gray-500">{field.label}</span>
+              </label>
+            {/if}
+            <div class="mb-3 text-lg">{field.initialValue}</div>
+          {/each}
+
+          {#if $$slots.buttons}
+            <slot name="buttons" />
+          {:else if editLink}
+            <a href={editLink} class="mt-1">
+              <button
+                class="btn btn-outline btn-sm {dangerous
+                  ? 'btn-error'
+                  : ''} min-w-[145px]"
+              >
+                {editButtonTitle}
+              </button>
+            </a>
+          {/if}
+        </div>
+      {/if}
     {:else}
       <div>
         <div class="text-l font-bold">{successTitle}</div>

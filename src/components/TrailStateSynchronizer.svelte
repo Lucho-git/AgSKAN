@@ -13,6 +13,7 @@
 
   import { userVehicleStore } from "../stores/vehicleStore"
 
+  import { trailsApi } from "$lib/api/trailsApi"
   import { trailDataLoaded } from "../stores/loadedStore"
   import { writable } from "svelte/store"
 
@@ -359,22 +360,16 @@
 
   async function loadTrailDataFromSupabase() {
     try {
-      const response = await fetch("/api/map-trails/load-map-trails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ masterMapId }),
-      })
+      // Use our new client-side API instead of fetch
+      const result = await trailsApi.loadMapTrails(masterMapId)
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch trail data")
+      if (result.error) {
+        throw new Error(result.message)
       }
 
-      const data = await response.json()
-      return data
+      return result
     } catch (error) {
-      console.error("Error loading trail data from server:", error)
+      console.error("Error loading trail data:", error)
       return { user: {}, other: {} }
     }
   }

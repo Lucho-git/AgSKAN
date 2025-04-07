@@ -9,7 +9,7 @@
     otherVehiclesDataChanges,
     userVehicleTrailing,
   } from "../stores/vehicleStore"
-  import { profileStore } from "../stores/profileStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { vehicleDataLoaded } from "../stores/loadedStore"
   import { page } from "$app/stores"
 

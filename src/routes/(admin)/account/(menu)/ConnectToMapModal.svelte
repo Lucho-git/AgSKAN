@@ -1,22 +1,34 @@
 <script lang="ts">
   import { menuStore } from "../../../../stores/menuStore"
-  import { connectedMapStore } from "../../../../stores/connectedMapStore"
-  import { profileStore } from "../../../../stores/profileStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import {
+    operationStore,
+    selectedOperationStore,
+  } from "$lib/stores/operationStore"
   import { supabase } from "$lib/supabaseClient"
-  import { enhance } from "$app/forms"
   import { toast } from "svelte-sonner"
   import { Link2, Map, Clock, X } from "lucide-svelte"
+  import { mapApi } from "$lib/api/mapApi"
 
   let enteredMapId = ""
   let isValidMapId = false
   let userMaps = []
   let recentMaps = []
+  let isLoading = false
+  let loadingMapId = null
 
   async function checkMapIdValidity() {
+    if (!enteredMapId.trim()) {
+      isValidMapId = false
+      return
+    }
+
     const { data: map, error } = await supabase
       .from("master_maps")
       .select("id")
-      .eq("id", enteredMapId)
+      .eq("id", enteredMapId.trim())
       .single()
 
     isValidMapId = !error && map !== null
@@ -32,11 +44,11 @@
         .from("master_maps")
         .select(
           `
-            id, 
-            map_name, 
-            master_user_id,
-            profiles:master_user_id(full_name)
-          `,
+                id, 
+                map_name, 
+                master_user_id,
+                profiles:master_user_id(full_name)
+              `,
         )
         .in("id", $profileStore.recent_maps)
 
@@ -67,11 +79,11 @@
         .from("master_maps")
         .select(
           `
-            id, 
-            map_name, 
-            master_user_id,
-            profiles:master_user_id(full_name)
-          `,
+                id, 
+                map_name, 
+                master_user_id,
+                profiles:master_user_id(full_name)
+              `,
         )
         .eq("master_user_id", $profileStore.id)
         .then(({ data, error }) => {
@@ -89,28 +101,52 @@
     }
   }
 
-  function handleEnhance({ formElement, formData, action, cancel }) {
-    return async ({ result, update }) => {
-      if (result.type === "success") {
-        toast.promise(
-          update().then(() => {
-            menuStore.update((store) => ({
-              ...store,
-              showConnectModal: false,
-            }))
-            return "You have successfully joined the map"
-          }),
-          {
-            loading: "Connecting to map...",
-            success: (data) => data,
-            error: (error) => `Error: ${error.message}`,
-          },
-        )
+  async function connectToMap(mapId) {
+    if (!mapId.trim()) {
+      toast.error("Please enter a valid map ID")
+      return
+    }
+
+    isLoading = true
+    loadingMapId = mapId
+
+    try {
+      const result = await mapApi.connectToMap(mapId)
+
+      if (result.success && result.data) {
+        // Directly use the data from the API response
+        const { connectedMap, mapActivity, operations, operation } = result.data
+
+        // Update stores
+        connectedMapStore.set(connectedMap)
+        mapActivityStore.set(mapActivity)
+
+        if (operations && operations.length > 0) {
+          operationStore.set(operations)
+          selectedOperationStore.set(operation || operations[0])
+        }
+
+        // Update profile store to stay in sync
+        profileStore.update((profile) => ({
+          ...profile,
+          master_map_id: mapId,
+        }))
+
+        // Close modal
+        menuStore.update((store) => ({
+          ...store,
+          showConnectModal: false,
+        }))
+
+        toast.success("Connected to map successfully")
       } else {
-        toast.error("Failed to connect to map", {
-          description: result.data?.message || "An error occurred",
-        })
+        toast.error(`Failed to connect to map: ${result.message}`)
       }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingMapId = null
     }
   }
 </script>
@@ -120,6 +156,7 @@
     <button
       class="btn btn-circle btn-sm absolute right-2 top-2"
       on:click={closeModal}
+      disabled={isLoading}
     >
       <X class="h-4 w-4" />
     </button>
@@ -128,35 +165,38 @@
       Connect to Map
     </h2>
 
-    <form method="POST" action="?/connectToMap" use:enhance={handleEnhance}>
-      <div class="form-control mb-4">
-        <label class="label" for="enteredMapId">
-          <span class="label-text text-lg font-semibold">Enter Map ID:</span>
-        </label>
-        <p class="mb-2 text-sm text-gray-600">
-          Paste the Map ID here to connect to an existing map.
-        </p>
-        <div class="flex">
-          <input
-            type="text"
-            id="enteredMapId"
-            name="mapId"
-            placeholder="Map ID"
-            class="input input-bordered flex-grow"
-            bind:value={enteredMapId}
-            on:input={checkMapIdValidity}
-          />
-          <button
-            type="submit"
-            class="btn btn-primary ml-2"
-            class:btn-success={isValidMapId}
-            disabled={!isValidMapId}
-          >
+    <div class="form-control mb-4">
+      <label class="label" for="enteredMapId">
+        <span class="label-text text-lg font-semibold">Enter Map ID:</span>
+      </label>
+      <p class="mb-2 text-sm text-gray-600">
+        Paste the Map ID here to connect to an existing map.
+      </p>
+      <div class="flex">
+        <input
+          type="text"
+          id="enteredMapId"
+          placeholder="Map ID"
+          class="input input-bordered flex-grow"
+          bind:value={enteredMapId}
+          on:input={checkMapIdValidity}
+          disabled={isLoading}
+        />
+        <button
+          type="button"
+          class="btn btn-primary ml-2"
+          class:btn-success={isValidMapId}
+          disabled={!isValidMapId || isLoading}
+          on:click={() => connectToMap(enteredMapId)}
+        >
+          {#if isLoading && loadingMapId === enteredMapId}
+            <span class="loading loading-spinner loading-sm"></span>
+          {:else}
             Connect
-          </button>
-        </div>
+          {/if}
+        </button>
       </div>
-    </form>
+    </div>
 
     {#if recentMaps.length > 0}
       <div class="divider my-6">
@@ -170,28 +210,28 @@
           <li
             class={`rounded-xl ${index % 2 === 0 ? "bg-base-200" : "bg-base-300"}`}
           >
-            <form
-              method="POST"
-              action="?/connectToMap"
-              use:enhance={handleEnhance}
+            <button
+              type="button"
+              class="flex w-full items-center justify-between p-4 transition-colors hover:bg-base-100"
+              on:click={() => connectToMap(map.id)}
+              disabled={isLoading}
             >
-              <input type="hidden" name="mapId" value={map.id} />
-              <button
-                type="submit"
-                class="flex w-full items-center justify-between p-4 transition-colors hover:bg-base-100"
-              >
-                <span class="flex flex-col items-start">
-                  <span class="flex items-center font-medium">
-                    <Map class="mr-2 h-4 w-4" />
-                    {map.map_name}
-                  </span>
-                  <span class="text-sm text-gray-500"
-                    >Owner: {map.owner_name}</span
-                  >
+              <span class="flex flex-col items-start">
+                <span class="flex items-center font-medium">
+                  <Map class="mr-2 h-4 w-4" />
+                  {map.map_name}
                 </span>
+                <span class="text-sm text-gray-500"
+                  >Owner: {map.owner_name}</span
+                >
+              </span>
+              {#if isLoading && loadingMapId === map.id}
+                <span class="loading loading-spinner loading-md text-primary"
+                ></span>
+              {:else}
                 <Link2 class="h-8 w-8 text-primary" />
-              </button>
-            </form>
+              {/if}
+            </button>
           </li>
         {/each}
       </ul>
@@ -209,34 +249,30 @@
           <li
             class={`rounded-xl ${index % 2 === 0 ? "bg-base-200" : "bg-base-300"}`}
           >
-            <form
-              method="POST"
-              action="?/connectToMap"
-              use:enhance={handleEnhance}
+            <button
+              type="button"
+              class="flex w-full items-center justify-between p-4 transition-colors hover:bg-base-100"
+              on:click={() => connectToMap(map.id)}
+              disabled={isLoading}
             >
-              <input type="hidden" name="mapId" value={map.id} />
-              <button
-                type="submit"
-                class="flex w-full items-center justify-between p-4 transition-colors hover:bg-base-100"
-              >
-                <span class="flex flex-col items-start">
-                  <span class="flex items-center font-medium">
-                    <Map class="mr-2 h-4 w-4" />
-                    {map.map_name}
-                  </span>
+              <span class="flex flex-col items-start">
+                <span class="flex items-center font-medium">
+                  <Map class="mr-2 h-4 w-4" />
+                  {map.map_name}
                 </span>
+              </span>
+              {#if isLoading && loadingMapId === map.id}
+                <span class="loading loading-spinner loading-md text-primary"
+                ></span>
+              {:else}
                 <Link2 class="h-8 w-8 text-primary" />
-              </button>
-            </form>
+              {/if}
+            </button>
           </li>
         {/each}
       </ul>
-    {:else}
-      <p class="mt-4 text-center text-gray-600">No master maps found.</p>
+    {:else if !isLoading && userMaps.length === 0}
+      <p class="mt-4 text-center text-gray-600">You don't have any maps yet.</p>
     {/if}
-
-    <div class="mt-8 flex justify-center">
-      <button class="btn btn-ghost" on:click={closeModal}> Cancel </button>
-    </div>
   </div>
 </div>

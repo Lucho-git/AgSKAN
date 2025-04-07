@@ -1,8 +1,9 @@
 <script lang="ts">
   import "../../../../app.css"
-  import { enhance, applyAction } from "$app/forms"
-  import type { SubmitFunction } from "@sveltejs/kit"
   import { goto } from "$app/navigation"
+  import { updateOrCreateProfile } from "$lib/helpers/authHelpers"
+  import { toast } from "svelte-sonner"
+  import { supabase } from "$lib/supabaseClient"
 
   export let data
   export let form: FormAccountUpdateResult
@@ -13,30 +14,92 @@
   let fullName: string = profile?.full_name ?? ""
   let companyName: string = profile?.company_name ?? ""
   let website: string = profile?.website ?? ""
+  let error = null
 
   const fieldError = (liveForm: FormAccountUpdateResult, name: string) => {
     let errors = liveForm?.errorFields ?? []
     return errors.includes(name)
   }
 
-  //Creates the profile and then creates the subscription right afterwards
-  const handleSubmit: SubmitFunction = () => {
+  // Handle form submission
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     loading = true
-    return async ({ update, result }) => {
-      console.log("Form submitted")
-      await update({ reset: false })
-      console.log("Form updated")
-      await applyAction(result)
-      console.log("Action applied")
 
-      if (result.type === "success") {
-        console.log("Form submission successful, creating user subscription")
-
-        goto("/account/user_survey")
+    try {
+      // Validate fullName
+      if (!fullName) {
+        error = "Name is required"
+        form = {
+          errorMessage: "Name is required",
+          errorFields: ["fullName"],
+        }
+        loading = false
+        return
       }
 
+      // First, update the session with the full name in user metadata
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: { full_name: fullName },
+      })
+
+      if (metadataError) {
+        console.error("Error updating user metadata:", metadataError)
+        error = metadataError.message || "Failed to update user data"
+        loading = false
+        return
+      }
+
+      // Get the updated session
+      const { data: sessionData } = await supabase.auth.getSession()
+
+      if (!sessionData.session) {
+        error = "Session not found"
+        loading = false
+        return
+      }
+
+      // Use the existing updateOrCreateProfile function with the updated session
+      const profileCreated = await updateOrCreateProfile(sessionData.session)
+
+      if (!profileCreated) {
+        error = "Failed to create profile"
+        loading = false
+        return
+      }
+
+      // Now update the additional profile fields (company, website)
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          company_name: companyName,
+          website: website,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sessionData.session.user.id)
+
+      if (updateError) {
+        console.error("Error updating additional profile fields:", updateError)
+        error = updateError.message || "Failed to update profile details"
+        loading = false
+        return
+      }
+
+      // All done successfully
+      toast.success("Profile created successfully")
+      console.log("Profile created successfully")
+
+      // Navigate to the survey page
+      goto("/account/user_survey")
+    } catch (err) {
+      console.error("Error in profile creation:", err)
+      error = "An unexpected error occurred. Please try again."
+      form = {
+        errorMessage: "An unexpected error occurred. Please try again.",
+        errorFields: [],
+      }
+    } finally {
       loading = false
-      console.log("handleSubmit completed")
     }
   }
 
@@ -57,25 +120,19 @@
   <div class="flex w-64 flex-col lg:w-80">
     <div>
       <h1 class="mb-6 text-2xl font-bold">Create Profile</h1>
-      <form
-        class="form-widget"
-        method="POST"
-        action="/account/api?/createProfile"
-        use:enhance={handleSubmit}
-      >
+      <form class="form-widget" on:submit={handleSubmit}>
         <div class="mt-4">
           <label for="fullName" class="label">
             <span class="label-text">Name</span>
           </label>
           <input
             id="fullName"
-            name="fullName"
+            bind:value={fullName}
             type="text"
             placeholder="Your full name"
             class="{fieldError(form, 'fullName')
               ? 'input-error'
               : ''} input input-bordered mt-1 w-full max-w-xs border-2 border-primary"
-            value={form?.fullName ?? fullName}
             required
           />
         </div>
@@ -86,13 +143,12 @@
           </label>
           <input
             id="companyName"
-            name="companyName"
+            bind:value={companyName}
             type="text"
             placeholder="Homewood Farms"
             class="{fieldError(form, 'companyName')
               ? 'input-error'
               : ''} input input-bordered mt-1 w-full max-w-xs"
-            value={form?.companyName ?? companyName}
           />
         </div>
 
@@ -102,29 +158,29 @@
           </label>
           <input
             id="website"
-            name="website"
+            bind:value={website}
             type="text"
             placeholder="Company.com"
             class="{fieldError(form, 'website')
               ? 'input-error'
               : ''} input input-bordered mt-1 w-full max-w-xs"
-            value={form?.website ?? website}
           />
         </div>
 
-        {#if form?.errorMessage}
+        {#if form?.errorMessage || error}
           <div class="mt-4"></div>
           <p class="mt-3 text-center text-sm font-bold text-red-700">
-            {form?.errorMessage}
+            {form?.errorMessage || error}
           </p>
         {/if}
         <div class="mt-4">
-          <input
+          <button
             type="submit"
             class="btn btn-primary btn-wide mt-3"
-            value={loading ? "..." : "Create Profile"}
             disabled={loading}
-          />
+          >
+            {loading ? "..." : "Create Profile"}
+          </button>
         </div>
       </form>
 
