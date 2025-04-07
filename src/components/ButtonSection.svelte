@@ -349,7 +349,7 @@
                   swath={$userVehicleStore.vehicle_marker.swath}
                 />
               {:else}
-                Loading...
+                <Icons.vehicle_selection width="48" height="48" fill="currentColor" />
               {/if}
             </div>
           </button>
