@@ -23,6 +23,7 @@
   let channel
   let masterMapId
   let userId
+  let deletedByCurrentUser = false
   export let map
 
   onMount(() => {
@@ -42,7 +43,7 @@
         },
         async (payload) => {
           // First check if it's current user's change
-          if (payload.new.update_user_id === userId) {
+          if ((payload.new.update_user_id === userId) || (payload.new.deleted && deletedByCurrentUser)) {
             console.log("Skipping synchronization, update made by current user")
             return
           }
@@ -365,14 +366,14 @@
       )
 
       if (serverMarker) {
-        if (
-          new Date(removedMarker.last_confirmed) >=
-          new Date(serverMarker.last_confirmed)
-        ) {
-          // If the removal last_confirmed is newer or equal to the server marker's last_confirmed,
-          // add the marker to serverMarkersToBeDeleted
+        // deleted by current user
+        if (removedMarker.deletedBy === userId) {
+          deletedByCurrentUser = true
           serverMarkersToBeDeleted.push(serverMarker)
           showLocalChangeToast("update", serverMarker.iconClass, true)
+        } else {
+          deletedByCurrentUser = false
+          localMarkersToBeDeleted.push(serverMarker)
         }
       }
     }
