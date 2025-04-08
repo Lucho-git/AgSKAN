@@ -102,7 +102,10 @@
   }
 
   async function connectToMap(mapId) {
-    if (!mapId.trim()) {
+    // Trim the mapId before using it
+    const trimmedMapId = mapId.trim()
+
+    if (!trimmedMapId) {
       toast.error("Please enter a valid map ID")
       return
     }
@@ -111,7 +114,7 @@
     loadingMapId = mapId
 
     try {
-      const result = await mapApi.connectToMap(mapId)
+      const result = await mapApi.connectToMap(trimmedMapId)
 
       if (result.success && result.data) {
         // Directly use the data from the API response
@@ -129,7 +132,7 @@
         // Update profile store to stay in sync
         profileStore.update((profile) => ({
           ...profile,
-          master_map_id: mapId,
+          master_map_id: trimmedMapId,
         }))
 
         // Close modal
