@@ -102,17 +102,37 @@
     isDragging = false
     longPressOccurred = false
     clearTimeout(longPressTimer)
+
+    // Store whether this is a touch event for reference
+    const isTouchEvent = event.originalEvent.type.startsWith("touch")
+
     longPressStartPosition = {
-      x: event.originalEvent.clientX || event.originalEvent.touches[0].clientX,
-      y: event.originalEvent.clientY || event.originalEvent.touches[0].clientY,
+      x:
+        event.originalEvent.clientX ||
+        (event.originalEvent.touches && event.originalEvent.touches[0].clientX),
+      y:
+        event.originalEvent.clientY ||
+        (event.originalEvent.touches && event.originalEvent.touches[0].clientY),
+      isTouchEvent: isTouchEvent,
     }
+
     longPressTimer = setTimeout(() => {
       handleMarkerPlacement(event)
       longPressOccurred = true
       longPressTimer = null
     }, longPressThreshold)
-  }
 
+    // For touch events, we need to listen for touchend to cancel the timer
+    if (isTouchEvent) {
+      const touchendHandler = function (e) {
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+        longPressStartPosition = null
+        document.removeEventListener("touchend", touchendHandler)
+      }
+      document.addEventListener("touchend", touchendHandler)
+    }
+  }
   function handleMapDrag(event) {
     if (!controlsEnabled) return
 
@@ -180,6 +200,8 @@
     map.on("touchstart", handleMouseDown)
     map.on("drag", handleMapDrag)
     map.on("mouseup", handleMouseUp)
+    map.on("touchend", handleMouseUp) // Add this line
+    map.on("touchcancel", handleMouseUp) // Add this line too
 
     document.addEventListener(
       "handleUpdateMarkerListeners",
@@ -196,6 +218,8 @@
     map.off("touchstart", handleMouseDown)
     map.off("drag", handleMapDrag)
     map.off("mouseup", handleMouseUp)
+    map.off("touchend", handleMouseUp) // Remove this listener too
+    map.off("touchcancel", handleMouseUp) // And this one
 
     document.removeEventListener(
       "handleUpdateMarkerListeners",
