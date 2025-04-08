@@ -19,6 +19,19 @@
   let controlsEnabled = true
   let initialized = false
 
+  // Add these variables for pinch detection
+  let touchStartCount = 0
+  let isPinching = false
+  let lastTouchTime = 0
+
+  // Add these variables for marker drag detection
+  let markerTouchStartTime = 0
+  let markerTouchStartPosition = null
+  let potentialMarkerClick = null
+  let markerClickTimer = null
+  const markerClickThreshold = 300 // ms
+  const markerMoveThreshold = 10 // pixels
+
   function handleMarkerMouseEnter(event) {
     if (!controlsEnabled) return
     const markerElement = event.target
@@ -34,37 +47,62 @@
   function handleMarkerClick(event) {
     if (!controlsEnabled) return
 
-    event.stopPropagation()
-    const markerElement = event.target.closest(".mapboxgl-marker")
+    // For mouse events, just handle the click normally
+    if (event.type === "click") {
+      event.stopPropagation()
+      const markerElement = event.target.closest(".mapboxgl-marker")
 
-    if (markerElement) {
-      const foundMarker = confirmedMarkers.find(
-        (m) => m.marker.getElement() === markerElement,
-      )
+      if (markerElement) {
+        const foundMarker = confirmedMarkers.find(
+          (m) => m.marker.getElement() === markerElement,
+        )
 
-      if (foundMarker) {
-        const { marker, id } = foundMarker
-        dispatch("markerClick", { marker, id })
+        if (foundMarker) {
+          const { marker, id } = foundMarker
+          dispatch("markerClick", { marker, id })
+        } else {
+          console.log("No matching marker found in confirmedMarkers array")
+        }
       } else {
-        console.log("No matching marker found in confirmedMarkers array")
+        console.log("No marker element found")
       }
-    } else {
-      console.log("No marker element found")
     }
   }
 
   function handleMarkerTouchStart(event) {
     if (!controlsEnabled) return
 
-    // Prevent the map's touch events from firing
-    event.stopPropagation()
+    // Get the current timestamp
+    const now = Date.now()
 
-    // Prevent default to stop unwanted behaviors
-    event.preventDefault()
+    // Check if we're currently in a pinch gesture
+    if (isPinching) {
+      return // Don't process marker clicks during pinch, but don't prevent default
+    }
 
-    // Clear any existing long press timer
-    clearTimeout(longPressTimer)
+    // Check if this is part of a multi-touch event (pinch)
+    if (event.touches && event.touches.length > 1) {
+      isPinching = true
+      return // Allow default behavior for pinch
+    }
 
+    // Check if this is happening immediately after another touch
+    if (now - lastTouchTime < 300) {
+      isPinching = true
+      return
+    }
+
+    // Update the last touch time
+    lastTouchTime = now
+    markerTouchStartTime = now
+
+    // Store touch position to check for drag later
+    markerTouchStartPosition = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    }
+
+    // Find the marker
     const markerElement = event.target.closest(".mapboxgl-marker")
     if (markerElement) {
       const foundMarker = confirmedMarkers.find(
@@ -72,10 +110,73 @@
       )
 
       if (foundMarker) {
-        const { marker, id } = foundMarker
-        dispatch("markerClick", { marker, id })
+        // Store potential click but don't dispatch yet
+        potentialMarkerClick = {
+          marker: foundMarker.marker,
+          id: foundMarker.id,
+        }
+
+        // Clear any existing timer
+        clearTimeout(markerClickTimer)
+
+        // Don't prevent default or stop propagation here
+        // This allows the map to receive the touch event for potential dragging
+
+        // Setup a document-level touch move and touch end listeners
+        document.addEventListener("touchmove", handleMarkerTouchMove, {
+          passive: true,
+        })
+        document.addEventListener("touchend", handleMarkerTouchEnd, {
+          passive: true,
+        })
       }
     }
+  }
+
+  function handleMarkerTouchMove(event) {
+    if (!markerTouchStartPosition || !potentialMarkerClick) return
+
+    const touch = event.touches[0]
+    const dx = touch.clientX - markerTouchStartPosition.x
+    const dy = touch.clientY - markerTouchStartPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    // If moved more than threshold, consider it a drag, not a click
+    if (distance > markerMoveThreshold) {
+      potentialMarkerClick = null
+      markerTouchStartPosition = null
+
+      // Clean up listeners
+      document.removeEventListener("touchmove", handleMarkerTouchMove)
+      document.removeEventListener("touchend", handleMarkerTouchEnd)
+    }
+
+    // Don't prevent default - allow the map to drag
+  }
+
+  function handleMarkerTouchEnd(event) {
+    // Clean up listeners
+    document.removeEventListener("touchmove", handleMarkerTouchMove)
+    document.removeEventListener("touchend", handleMarkerTouchEnd)
+
+    const now = Date.now()
+    const touchDuration = now - markerTouchStartTime
+
+    // Only process as a click if:
+    // 1. We have a potential marker click
+    // 2. The touch was short (less than threshold)
+    if (potentialMarkerClick && touchDuration < markerClickThreshold) {
+      // For quick taps, stop the event to prevent map click
+      if (event.cancelable) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      dispatch("markerClick", potentialMarkerClick)
+    }
+
+    // Reset state
+    potentialMarkerClick = null
+    markerTouchStartPosition = null
   }
 
   function handleMarkerPlacement(event) {
@@ -133,6 +234,7 @@
       document.addEventListener("touchend", touchendHandler)
     }
   }
+
   function handleMapDrag(event) {
     if (!controlsEnabled) return
 
@@ -175,7 +277,9 @@
     markerElement.addEventListener("mouseenter", handleMarkerMouseEnter)
     markerElement.addEventListener("mouseleave", handleMarkerMouseLeave)
     markerElement.addEventListener("click", handleMarkerClick)
-    markerElement.addEventListener("touchstart", handleMarkerTouchStart)
+    markerElement.addEventListener("touchstart", handleMarkerTouchStart, {
+      passive: true,
+    })
     markerElement.setAttribute("data-listeners-added", "true")
 
     const existingMarkerIndex = confirmedMarkers.findIndex((m) => m.id === id)
@@ -193,6 +297,22 @@
     updateMarkerListeners(marker, id)
   }
 
+  // Handle document-level touch events for pinch detection
+  function handleDocumentTouchStart(e) {
+    touchStartCount = e.touches.length
+    if (touchStartCount > 1) {
+      isPinching = true
+    }
+  }
+
+  function handleDocumentTouchEnd(e) {
+    // Reset pinch state after a delay to avoid immediate clicks
+    setTimeout(() => {
+      isPinching = false
+      touchStartCount = 0
+    }, 300)
+  }
+
   function initializeEventListeners() {
     if (!map || initialized) return
 
@@ -200,8 +320,16 @@
     map.on("touchstart", handleMouseDown)
     map.on("drag", handleMapDrag)
     map.on("mouseup", handleMouseUp)
-    map.on("touchend", handleMouseUp) // Add this line
-    map.on("touchcancel", handleMouseUp) // Add this line too
+    map.on("touchend", handleMouseUp)
+    map.on("touchcancel", handleMouseUp)
+
+    // Add document-level listeners for pinch detection
+    document.addEventListener("touchstart", handleDocumentTouchStart, {
+      passive: true,
+    })
+    document.addEventListener("touchend", handleDocumentTouchEnd, {
+      passive: true,
+    })
 
     document.addEventListener(
       "handleUpdateMarkerListeners",
@@ -218,8 +346,14 @@
     map.off("touchstart", handleMouseDown)
     map.off("drag", handleMapDrag)
     map.off("mouseup", handleMouseUp)
-    map.off("touchend", handleMouseUp) // Remove this listener too
-    map.off("touchcancel", handleMouseUp) // And this one
+    map.off("touchend", handleMouseUp)
+    map.off("touchcancel", handleMouseUp)
+
+    // Remove document-level listeners
+    document.removeEventListener("touchstart", handleDocumentTouchStart)
+    document.removeEventListener("touchend", handleDocumentTouchEnd)
+    document.removeEventListener("touchmove", handleMarkerTouchMove)
+    document.removeEventListener("touchend", handleMarkerTouchEnd)
 
     document.removeEventListener(
       "handleUpdateMarkerListeners",
