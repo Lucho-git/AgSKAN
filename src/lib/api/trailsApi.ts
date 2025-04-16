@@ -1,5 +1,6 @@
 // src/lib/api/trailsApi.ts
 import { supabase } from '$lib/supabaseClient';
+import { v4 as uuidv4 } from 'uuid';
 
 const TRAIL_DATA_RETENTION_DAYS = 300; // Same as server-side
 
@@ -769,7 +770,7 @@ export const trailsApi = {
             }
 
             // Generate UUID for the new trail
-            const trailId = crypto.randomUUID();
+            const trailId = uuidv4();
 
             // Create the new trail
             const newTrail = {
