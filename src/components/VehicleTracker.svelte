@@ -16,6 +16,7 @@
   import { page } from "$app/stores"
   import "../styles/global.css"
   import { Gauge, X } from "lucide-svelte"
+  import { Capacitor } from "@capacitor/core"
 
   export let map
   export let disableAutoZoom = false
@@ -28,6 +29,9 @@
   let otherVehicleMarkers = []
   let currentSpeed = 0
   let showSpeedometer = false
+  let isMobileApp = false
+  let isBackground = false
+  let appState = "web" // Can be "web", "mobile-foreground", or "mobile-background"
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
@@ -44,8 +48,97 @@
     showSpeedometer = !showSpeedometer
   }
 
+  // Function to detect if running as a mobile app via Capacitor
+  function detectPlatform() {
+    try {
+      // Log all the environment information to help diagnose
+      console.log({
+        capacitorExists: typeof Capacitor !== "undefined",
+        isNative: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform(),
+        webviewExists: typeof Capacitor.WebView !== "undefined",
+        pluginsExist: typeof Capacitor.Plugins !== "undefined",
+      })
+
+      const isNativePlatform = Capacitor.isNativePlatform()
+      const platform = Capacitor.getPlatform()
+
+      if (isNativePlatform) {
+        isMobileApp = true
+        appState = "mobile-foreground"
+        toast.success(`Running on ${platform} natively`, {
+          description: "Using native device capabilities",
+        })
+        console.log(`App running natively on ${platform}`)
+      } else {
+        isMobileApp = false
+        appState = "web"
+        toast.info("Running in web browser", {
+          description: "Some features may be limited",
+        })
+        console.log("App running in web browser")
+      }
+
+      return isNativePlatform
+    } catch (error) {
+      console.error("Error in Capacitor detection:", error)
+      isMobileApp = false
+      appState = "web"
+      return false
+    }
+  }
+
+  // Function to handle app state changes
+  function setupAppStateListeners() {
+    if (!isMobileApp) return
+
+    try {
+      // Using Capacitor App plugin to detect foreground/background
+      if (
+        window.Capacitor &&
+        window.Capacitor.Plugins &&
+        window.Capacitor.Plugins.App
+      ) {
+        const { App } = window.Capacitor.Plugins
+
+        // Listen for app state changes
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) {
+            // App has come to the foreground
+            isBackground = false
+            appState = "mobile-foreground"
+            toast.success("App returned to foreground", {
+              description: "Resuming normal location tracking",
+            })
+            console.log("App is now in foreground")
+          } else {
+            // App has gone to the background
+            isBackground = true
+            appState = "mobile-background"
+            toast.info("App moved to background", {
+              description: "Switching to background tracking mode",
+            })
+            console.log("App is now in background")
+          }
+        })
+
+        console.log("Successfully set up Capacitor app state listeners")
+      } else {
+        console.warn("Capacitor App plugin not available for state tracking")
+      }
+    } catch (error) {
+      console.error("Error setting up app state listeners:", error)
+    }
+  }
+
   onMount(() => {
     console.log("Mounting VehicleTracker")
+
+    // Detect platform (web vs mobile)
+    detectPlatform()
+
+    // Set up app state listeners
+    setupAppStateListeners()
 
     const session = $page.data.session
     if (session) {
@@ -85,7 +178,30 @@
 
     unsubscribeOtherVehiclesDataChanges =
       otherVehiclesDataChanges.subscribe(processChanges)
+
+    // Set up visibility change detection for web browsers
+    if (!isMobileApp && typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange)
+      console.log("Set up document visibility listener for web")
+    }
   })
+
+  // Handle visibility changes for web browsers
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") {
+      isBackground = true
+      appState = "web-background"
+      console.log("Web page is now hidden (background)")
+      // No toast here since user won't see it when tab is hidden
+    } else {
+      isBackground = false
+      appState = "web"
+      console.log("Web page is now visible (foreground)")
+      toast.info("Tab returned to foreground", {
+        description: "Resuming normal tracking",
+      })
+    }
+  }
 
   onDestroy(() => {
     console.log("Unmounting VehicleTracker")
@@ -100,6 +216,26 @@
     }
     if (unsubscribeOtherVehiclesDataChanges) {
       unsubscribeOtherVehiclesDataChanges()
+    }
+
+    // Remove web visibility listener if it was set
+    if (!isMobileApp && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+
+    // Remove Capacitor app state listeners if they were set
+    try {
+      if (
+        isMobileApp &&
+        window.Capacitor &&
+        window.Capacitor.Plugins &&
+        window.Capacitor.Plugins.App
+      ) {
+        window.Capacitor.Plugins.App.removeAllListeners()
+        console.log("Removed all Capacitor app state listeners")
+      }
+    } catch (error) {
+      console.error("Error removing Capacitor listeners:", error)
     }
   })
 
@@ -339,7 +475,10 @@
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
     // console.log("Server-side heading before adding to store:", updatedHeading);
-    // console.log("updating vehicle dataa", vehicleData)
+
+    // Log the current app state with each position update
+    console.log(`Updating position in app state: ${appState}`)
+
     updateUserVehicleData(currentTime, vehicleData, updatedHeading)
   }
 
@@ -358,7 +497,7 @@
           color: bodyColor,
           swath: swath,
         }
-        console.log("Saving location data:", locationData)
+        console.log(`Saving location data in ${appState} mode:`, locationData)
         unsavedTrailStore.update((markers) => [...markers, locationData])
 
         // Update the coordinateBufferStore with just coordinates and timestamp
@@ -395,7 +534,7 @@
           changeLog += `Heading changed by ${headingDiff.toFixed(2)}°.`
         }
 
-        console.log("Changes detected:", changeLog)
+        console.log(`Changes detected in ${appState} mode:`, changeLog)
 
         userVehicleStore.update((vehicle) => {
           return {
@@ -437,6 +576,34 @@
     <Gauge size={20} />
   {/if}
 </button>
+
+<!-- App Status Indicator -->
+<div
+  class="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 text-white backdrop-blur"
+>
+  <div
+    class="h-2.5 w-2.5 rounded-full"
+    style="background-color: {appState === 'web' ||
+    appState === 'web-background'
+      ? '#4ade80'
+      : appState === 'mobile-foreground'
+        ? '#3b82f6'
+        : '#ef4444'};"
+  ></div>
+  <span class="text-xs font-medium">
+    {#if appState === "web"}
+      Web Browser
+    {:else if appState === "web-background"}
+      Web (Background)
+    {:else if appState === "mobile-foreground"}
+      Mobile App (Active)
+    {:else if appState === "mobile-background"}
+      Mobile App (Background)
+    {:else}
+      Unknown State
+    {/if}
+  </span>
+</div>
 
 {#if showSpeedometer}
   <div
