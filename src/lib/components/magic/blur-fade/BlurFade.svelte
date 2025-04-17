@@ -2,12 +2,15 @@
   import { Motion, AnimatePresence } from "svelte-motion"
   import { inview } from "svelte-inview"
   import { cn } from "$lib/utils"
+  import { v4 as uuidv4 } from "uuid"
+
   export let duration = 0.4
   export let delay = 0
   export let yOffset = 8
   export let inViewMargin = "-20px"
   export let blur = "2px"
-  export let id = crypto.randomUUID().slice(0, 6)
+
+  export let id = uuidv4().slice(0, 6)
   export let once = true
   let defaultVariants = {
     hidden: { opacity: 0, y: yOffset, filter: `blur(${blur})` },
