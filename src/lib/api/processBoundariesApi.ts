@@ -27,6 +27,7 @@ function findPaddockName(properties) {
     const possibleNameFields = [
         "name", "NAME", "Name", "PaddockName",
         "PADDOCK_NAME", "paddock_name", "PADDOCKNAME", "FIELD_NAME",
+        "paddock_na", "property_n", "title",
     ];
     for (const field of possibleNameFields) {
         if (properties[field]) {
@@ -38,16 +39,19 @@ function findPaddockName(properties) {
 
 // Create a standard success response for all processors
 function createSuccessResponse(paddockList, messagePrefix, additionalInfo = '') {
-    const paddockCount = paddockList.length;
+    // Add duplicate name handling - resolve duplicates before creating the response
+    const uniquePaddockList = resolveDuplicatePaddockNames(paddockList);
+
+    const paddockCount = uniquePaddockList.length;
     const pluralSuffix = paddockCount !== 1 ? "s" : "";
 
     return {
         status: "success",
         message: `Found ${paddockCount} valid paddock${pluralSuffix} in ${messagePrefix}${additionalInfo}.`,
-        paddocks: paddockList,
+        paddocks: uniquePaddockList,
         geojson: {
             type: "FeatureCollection",
-            features: paddockList.map((paddock) => ({
+            features: uniquePaddockList.map((paddock) => ({
                 type: "Feature",
                 properties: {
                     ...paddock.properties,
@@ -201,14 +205,27 @@ async function processShapefile(shpData, dbfData) {
         // Check if we got a FeatureCollection or a single Feature
         const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
 
+        // Sample the first few features to see what's in them
+        console.log("First feature sample:", features.length > 0 ? {
+            properties: features[0].properties,
+            geometryType: features[0].geometry?.type
+        } : "No features");
+
         // Process each feature
         const paddockList = processFeaturesIntoPaddocks(features);
+
+        // Log the paddock list to see what names were found
+        console.log("Paddock names extracted:", paddockList.map(p => p.name).slice(0, 5));
 
         if (paddockList.length === 0) {
             return createErrorResponse("No valid paddocks found with boundary data in shapefile.");
         }
 
-        return createSuccessResponse(paddockList, "shapefile");
+        // Log the final response to verify names are included
+        const response = createSuccessResponse(paddockList, "shapefile");
+        console.log("Final paddock names in response:", response.paddocks.map(p => p.name).slice(0, 5));
+
+        return response;
     } catch (error) {
         console.error("Shapefile processing error:", error);
         return createErrorResponse(`Error processing the shapefile: ${error.message}`);
@@ -270,15 +287,18 @@ async function processZIP(fileData) {
                     const result = await processShapefile(shpFile, dbfFile);
 
                     if (result.status === "success") {
-                        // For each paddock in this group, update name based on the group name
-                        const paddocksWithGroupName = result.paddocks.map(paddock => {
-                            // Extract the last segment of the group name as the paddock name
-                            const nameParts = groupName.split(/[\/\\-]/);
-                            const suggestedName = nameParts[nameParts.length - 1].trim();
+                        // For each paddock in this group, use paddock_na as the name if available
+                        const paddocksWithCorrectNames = result.paddocks.map(paddock => {
+                            // Use paddock_na field if available, otherwise use original name or groupName as fallback
+                            const correctName =
+                                (paddock.properties && paddock.properties.paddock_na) ||
+                                (paddock.properties && paddock.properties.title) ||
+                                paddock.name ||
+                                "Unnamed Paddock";
 
                             return {
                                 ...paddock,
-                                name: suggestedName || paddock.name,
+                                name: correctName,
                                 properties: {
                                     ...paddock.properties,
                                     originalFileName: groupName
@@ -286,7 +306,7 @@ async function processZIP(fileData) {
                             };
                         });
 
-                        allPaddocks.push(...paddocksWithGroupName);
+                        allPaddocks.push(...paddocksWithCorrectNames);
                     }
                 }
             }
@@ -309,7 +329,23 @@ async function processZIP(fileData) {
             console.log("SHP.js successfully processed the ZIP");
 
             const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
-            const paddockList = processFeaturesIntoPaddocks(features);
+
+            // Update the processFeaturesIntoPaddocks function call or add logic to use correct name
+            const paddockList = features.map(feature => {
+                // Get the correct name from feature properties
+                const correctName =
+                    (feature.properties && feature.properties.paddock_na) ||
+                    (feature.properties && feature.properties.title) ||
+                    (feature.properties && feature.properties.name) ||
+                    "Unnamed Paddock";
+
+                return {
+                    name: correctName,
+                    properties: feature.properties,
+                    boundary: feature.geometry,
+                    area: calculateArea(feature.geometry)
+                };
+            });
 
             if (paddockList.length > 0) {
                 return createSuccessResponse(paddockList, "zip file (shapefile)");
@@ -327,7 +363,27 @@ async function processZIP(fileData) {
             console.log("Found individual shapefile components");
             const shpFile = await contents.file(shpFileName).async("arraybuffer");
             const dbfFile = dbfFileName ? await contents.file(dbfFileName).async("arraybuffer") : null;
-            return processShapefile(shpFile, dbfFile);
+
+            // Process the shapefile and then fix the names
+            const result = await processShapefile(shpFile, dbfFile);
+
+            // If successful, update the paddock names using paddock_na
+            if (result.status === "success" && result.paddocks) {
+                result.paddocks = result.paddocks.map(paddock => {
+                    const correctName =
+                        (paddock.properties && paddock.properties.paddock_na) ||
+                        (paddock.properties && paddock.properties.title) ||
+                        paddock.name ||
+                        "Unnamed Paddock";
+
+                    return {
+                        ...paddock,
+                        name: correctName
+                    };
+                });
+            }
+
+            return result;
         }
 
         // Look for KML
@@ -513,6 +569,49 @@ function processISOXML(xmlContent) {
     }
 }
 
+
+/**
+ * Resolves duplicate paddock names by adding a numeric suffix to ensure uniqueness
+ * @param paddocks Array of paddocks with name properties
+ * @returns Array of paddocks with unique names
+ */
+function resolveDuplicatePaddockNames(paddocks) {
+    // Use a map to keep track of which names we've seen
+    const nameCount = new Map();
+
+    return paddocks.map(paddock => {
+        const originalName = paddock.name;
+
+        // Skip if no name or null
+        if (!originalName) return paddock;
+
+        // Update count for this name
+        const count = (nameCount.get(originalName) || 0) + 1;
+        nameCount.set(originalName, count);
+
+        // If this is the first occurrence, keep the original name
+        if (count === 1) return paddock;
+
+        // Otherwise, add a suffix
+        const uniqueName = `${originalName} #${count}`;
+        console.log(`Renamed duplicate paddock from "${originalName}" to "${uniqueName}"`);
+
+        return {
+            ...paddock,
+            name: uniqueName,
+            properties: {
+                ...paddock.properties,
+                originalName // Keep the original name in properties
+            }
+        };
+    });
+}
+
+// TODO: Future improvement - implement geometric overlap detection
+// to identify true duplicates by checking if field boundaries overlap significantly
+// rather than just comparing names. This would avoid renaming fields that
+// just happen to have the same name but are in different locations.
+
 // The main API object
 export const processBoundariesApi = {
     async processFile(fileName: string) {
@@ -580,11 +679,60 @@ export const processBoundariesApi = {
                 throw new Error(result.message);
             }
 
-            return {
+            // More detailed logging before creating the response
+            console.log("Result before final return:", {
+                messageType: typeof result.message,
+                hasError: !!result.error,
+                paddockCount: result.paddocks?.length || 0,
+                paddockStructure: result.paddocks && result.paddocks.length > 0
+                    ? Object.keys(result.paddocks[0])
+                    : 'No paddocks',
+                firstFewNames: result.paddocks?.slice(0, 5).map(p => p.name),
+                geojsonFeatureCount: result.geojson?.features?.length || 0
+            });
+
+            // Inspect the first paddock in detail
+            if (result.paddocks && result.paddocks.length > 0) {
+                const firstPaddock = result.paddocks[0];
+                console.log("First paddock detailed info:", {
+                    name: firstPaddock.name,
+                    nameType: typeof firstPaddock.name,
+                    hasNameProperty: 'name' in firstPaddock,
+                    boundaryType: firstPaddock.boundary?.type,
+                    propertyKeys: Object.keys(firstPaddock),
+                    allProperties: firstPaddock.properties ? Object.keys(firstPaddock.properties) : 'No properties'
+                });
+            }
+
+            // Compare with GeoJSON if available
+            if (result.geojson?.features && result.geojson.features.length > 0) {
+                console.log("First GeoJSON feature detailed info:", {
+                    properties: result.geojson.features[0].properties,
+                    nameInProperties: result.geojson.features[0].properties?.name,
+                    geometryType: result.geojson.features[0].geometry?.type
+                });
+            }
+
+            // Final response check
+            const response = {
                 message: result.message,
                 paddocks: result.paddocks || [],
                 geojson: result.geojson,
             };
+
+            console.log("API final response structure:", {
+                messageType: typeof response.message,
+                paddockCount: response.paddocks?.length || 0,
+                paddocksHaveNames: response.paddocks ?
+                    response.paddocks.every(p => p.name && p.name !== "boundaries") : false,
+                firstPaddockKeysDetailed: response.paddocks && response.paddocks.length > 0 ?
+                    Object.entries(response.paddocks[0]).map(([key, value]) =>
+                        `${key}: ${typeof value} (${value && typeof value === 'object' ? 'object' : String(value)})`) : [],
+                geojsonFeatureCount: response.geojson?.features?.length || 0,
+                firstFewPaddockNames: response.paddocks?.slice(0, 5).map(p => p.name)
+            });
+
+            return response;
         } catch (error) {
             console.error("Error in processFile:", error);
             return {
