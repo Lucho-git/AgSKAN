@@ -15,3 +15,18 @@ vite.config.ts.timestamp-*
 # Ignore all files named private.js anywhere in the project
 **/private.js
 .qodo
+
+
+# Generated Capacitor directories
+/android/
+/ios/
+/public/
+
+# Generated files (may be unneccessary)
+*.keystore
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
