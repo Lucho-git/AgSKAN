@@ -93,39 +93,28 @@
     if (!isMobileApp) return
 
     try {
-      // Using Capacitor App plugin to detect foreground/background
-      if (
-        window.Capacitor &&
-        window.Capacitor.Plugins &&
-        window.Capacitor.Plugins.App
-      ) {
-        const { App } = window.Capacitor.Plugins
+      // Import and use the App plugin directly
+      const { App } = Capacitor.Plugins
 
-        // Listen for app state changes
-        App.addListener("appStateChange", ({ isActive }) => {
-          if (isActive) {
-            // App has come to the foreground
-            isBackground = false
-            appState = "mobile-foreground"
-            toast.success("App returned to foreground", {
-              description: "Resuming normal location tracking",
-            })
-            console.log("App is now in foreground")
-          } else {
-            // App has gone to the background
-            isBackground = true
-            appState = "mobile-background"
-            toast.info("App moved to background", {
-              description: "Switching to background tracking mode",
-            })
-            console.log("App is now in background")
-          }
-        })
+      App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) {
+          isBackground = false
+          appState = "mobile-foreground"
+          toast.success("App returned to foreground", {
+            description: "Resuming normal location tracking",
+          })
+          console.log("App is now in foreground")
+        } else {
+          isBackground = true
+          appState = "mobile-background"
+          toast.info("App moved to background", {
+            description: "Switching to background tracking mode",
+          })
+          console.log("App is now in background")
+        }
+      })
 
-        console.log("Successfully set up Capacitor app state listeners")
-      } else {
-        console.warn("Capacitor App plugin not available for state tracking")
-      }
+      console.log("Successfully set up Capacitor app state listeners")
     } catch (error) {
       console.error("Error setting up app state listeners:", error)
     }
