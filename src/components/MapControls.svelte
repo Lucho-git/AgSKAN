@@ -12,7 +12,7 @@
   let longPressTimer = null
   let longPressOccurred = false
   let longPressStartPosition = null
-  const longPressThreshold = 500
+  const longPressThreshold = 850
   const longPressMoveThreshold = 5
   let confirmedMarkers = []
   let confirmedMarkersUnsubscribe
