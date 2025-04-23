@@ -20,6 +20,11 @@ const config: CapacitorConfig = {
             style: "DARK",
             backgroundColor: "#f9e58a"
         }
+    },
+    android: {
+        versionName: "1.0.1", // Update this for each release
+        versionCode: 2,       // Increment this for each release
+        // other Android-specific options
     }
 };
 
