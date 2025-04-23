@@ -9,6 +9,7 @@
     otherVehiclesDataChanges,
     userVehicleTrailing,
   } from "../stores/vehicleStore"
+  import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { vehicleDataLoaded } from "../stores/loadedStore"
   import { page } from "$app/stores"
@@ -35,28 +36,31 @@
   }
 
   async function fetchInitialVehicleData(masterMapId, userId) {
-    const { data: vehicles, error: vehiclesError } = await supabase
-      .from("vehicle_state")
-      .select(
-        `
-          *,
-          profiles:vehicle_id (full_name)
-        `,
-      )
-      .eq("master_map_id", masterMapId)
+    console.log("______", $mapActivityStore)
 
-    console.log("Vehicles:", vehicles)
-    if (vehiclesError) {
-      console.error("Error retrieving initial vehicle data:", vehiclesError)
-      return []
-    }
+    // Use vehicle_states from mapActivityStore instead of querying the database
+    const vehicles = $mapActivityStore.vehicle_states || []
 
-    return vehicles
-      .filter((vehicle) => vehicle.vehicle_id !== userId)
-      .map((vehicle) => ({
-        ...vehicle,
-        full_name: vehicle.profiles.full_name,
-      }))
+    // Get profile information for each vehicle
+    const vehiclesWithProfiles = await Promise.all(
+      vehicles.map(async (vehicle) => {
+        // If you need the full_name for each vehicle, you could:
+        // 1. Either find it in the connected_profiles array
+        const profile = $mapActivityStore.connected_profiles.find(
+          (p) => p.id === vehicle.vehicle_id,
+        )
+
+        return {
+          ...vehicle,
+          full_name: profile?.full_name || "Unknown User",
+        }
+      }),
+    )
+
+    // Filter out the current user and return
+    return vehiclesWithProfiles.filter(
+      (vehicle) => vehicle.vehicle_id !== userId,
+    )
   }
 
   function compareData(serverData, clientData) {
