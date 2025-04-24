@@ -1,5 +1,4 @@
 <!-- VehicleTracker.svelte -->
-
 <script>
   import { onMount, onDestroy } from "svelte"
   import * as mapboxgl from "mapbox-gl"
@@ -17,6 +16,7 @@
   import "../styles/global.css"
   import { Gauge, X } from "lucide-svelte"
   import { Capacitor } from "@capacitor/core"
+  import backgroundService from "$lib/services/backgroundService"
 
   export let map
   export let disableAutoZoom = false
@@ -32,6 +32,7 @@
   let isMobileApp = false
   let isBackground = false
   let appState = "web" // Can be "web", "mobile-foreground", or "mobile-background"
+  let removeBackgroundListener = null
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
@@ -88,35 +89,88 @@
     }
   }
 
-  // Function to handle app state changes
-  function setupAppStateListeners() {
+  // Setup background service handlers
+  function setupBackgroundService() {
     if (!isMobileApp) return
 
-    try {
-      // Import and use the App plugin directly
-      const { App } = Capacitor.Plugins
+    // Initialize the background service
+    backgroundService.init()
 
-      App.addListener("appStateChange", ({ isActive }) => {
-        if (isActive) {
-          isBackground = false
-          appState = "mobile-foreground"
-          toast.success("App returned to foreground", {
-            description: "Resuming normal location tracking",
+    // Add a listener for background events
+    removeBackgroundListener = backgroundService.addListener((event, data) => {
+      console.log("Background event:", event, data)
+
+      if (event === "background") {
+        isBackground = true
+        appState = "mobile-background"
+        toast.info("App moved to background", {
+          description: "Switching to background tracking mode",
+        })
+      } else if (event === "foreground") {
+        isBackground = false
+        appState = "mobile-foreground"
+
+        // Show toast with background duration
+        if (data.duration) {
+          toast.info("App returned from background", {
+            description: `Background duration: ${data.duration.formatted}`,
+            duration: 5000,
           })
-          console.log("App is now in foreground")
-        } else {
-          isBackground = true
-          appState = "mobile-background"
-          toast.info("App moved to background", {
-            description: "Switching to background tracking mode",
-          })
-          console.log("App is now in background")
         }
-      })
+      } else if (event === "restart" && data.duration) {
+        // App was restarted after being in background
+        toast.info("App restarted after background", {
+          description: `Background duration before restart: ${data.duration.formatted}`,
+          duration: 5000,
+        })
+      }
+    })
+  }
 
-      console.log("Successfully set up Capacitor app state listeners")
-    } catch (error) {
-      console.error("Error setting up app state listeners:", error)
+  // Handle visibility changes for web browsers
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") {
+      isBackground = true
+      appState = "web-background"
+      console.log("Web page is now hidden (background)")
+
+      // For web, we can still use the old method since JS doesn't fully suspend
+      const now = Date.now()
+      localStorage.setItem("webBackgroundStartTime", now.toString())
+
+      // No toast here since user won't see it when tab is hidden
+    } else {
+      isBackground = false
+      appState = "web"
+      console.log("Web page is now visible (foreground)")
+
+      // Calculate duration for web
+      const startTimeStr = localStorage.getItem("webBackgroundStartTime")
+      if (startTimeStr) {
+        const startTime = parseInt(startTimeStr, 10)
+        const duration = Date.now() - startTime
+
+        // Format duration
+        const seconds = Math.floor(duration / 1000)
+        const minutes = Math.floor(seconds / 60)
+        const hours = Math.floor(minutes / 60)
+
+        let durationText = ""
+        if (hours > 0) {
+          durationText = `${hours}h ${minutes % 60}m ${seconds % 60}s`
+        } else if (minutes > 0) {
+          durationText = `${minutes}m ${seconds % 60}s`
+        } else {
+          durationText = `${seconds}s`
+        }
+
+        // Clean up storage
+        localStorage.removeItem("webBackgroundStartTime")
+
+        toast.info("Tab returned to foreground", {
+          description: `Background duration: ${durationText}`,
+        })
+      }
     }
   }
 
@@ -126,8 +180,10 @@
     // Detect platform (web vs mobile)
     detectPlatform()
 
-    // Set up app state listeners
-    setupAppStateListeners()
+    // Set up the background service for native apps
+    if (isMobileApp) {
+      setupBackgroundService()
+    }
 
     const session = $page.data.session
     if (session) {
@@ -175,23 +231,6 @@
     }
   })
 
-  // Handle visibility changes for web browsers
-  function handleVisibilityChange() {
-    if (document.visibilityState === "hidden") {
-      isBackground = true
-      appState = "web-background"
-      console.log("Web page is now hidden (background)")
-      // No toast here since user won't see it when tab is hidden
-    } else {
-      isBackground = false
-      appState = "web"
-      console.log("Web page is now visible (foreground)")
-      toast.info("Tab returned to foreground", {
-        description: "Resuming normal tracking",
-      })
-    }
-  }
-
   onDestroy(() => {
     console.log("Unmounting VehicleTracker")
     if (userMarker) {
@@ -212,19 +251,13 @@
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
 
-    // Remove Capacitor app state listeners if they were set
-    try {
-      if (
-        isMobileApp &&
-        window.Capacitor &&
-        window.Capacitor.Plugins &&
-        window.Capacitor.Plugins.App
-      ) {
-        window.Capacitor.Plugins.App.removeAllListeners()
-        console.log("Removed all Capacitor app state listeners")
-      }
-    } catch (error) {
-      console.error("Error removing Capacitor listeners:", error)
+    // Clean up background service
+    if (removeBackgroundListener) {
+      removeBackgroundListener()
+    }
+
+    if (isMobileApp) {
+      backgroundService.cleanup()
     }
   })
 
