@@ -7,7 +7,7 @@
     markerActionsStore,
     syncStore,
   } from "../stores/mapStore"
-
+  import { userSettingsStore } from "$lib/stores/userSettingsStore" // Import the new store
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import * as mapboxgl from "mapbox-gl"
@@ -24,12 +24,18 @@
   let masterMapId
   let userId
   let deletedByCurrentUser = false
+  let userSettings
   export let map
 
   onMount(() => {
     masterMapId = $profileStore.master_map_id
     userId = $profileStore.id
     debouncedSynchronizeMarkers = debounce(synchronizeMarkers, 500)
+
+    // Subscribe to the user settings store
+    const userSettingsUnsubscribe = userSettingsStore.subscribe((settings) => {
+      userSettings = settings
+    })
 
     channel = supabase
       .channel("map_markers_changes")
@@ -43,7 +49,10 @@
         },
         async (payload) => {
           // First check if it's current user's change
-          if ((payload.new.update_user_id === userId) || (payload.new.deleted && deletedByCurrentUser)) {
+          if (
+            payload.new.update_user_id === userId ||
+            (payload.new.deleted && deletedByCurrentUser)
+          ) {
             console.log("Skipping synchronization, update made by current user")
             return
           }
@@ -500,10 +509,20 @@
       throw new Error("No master map assigned")
     }
 
-    const { data: latestMarkers, error: markersError } = await supabase
+    let query = supabase
       .from("map_markers")
       .select("id, marker_data, last_confirmed, deleted, deleted_at")
       .eq("master_map_id", masterMapId)
+
+    // Apply date filtering if the limit is turned on
+    if (userSettings.limitMarkersOn && userSettings.limitMarkersDate) {
+      query = query.gte("last_confirmed", userSettings.limitMarkersDate)
+      console.log(
+        `Limiting markers to those after ${userSettings.limitMarkersDate}`,
+      )
+    }
+
+    const { data: latestMarkers, error: markersError } = await query
 
     if (markersError) {
       throw new Error("Failed to retrieve latest markers from server")
