@@ -1,4 +1,4 @@
-<!-- settings/+page.svelte -->
+<!-- settings/+page.svelte (with separate marker filter component) -->
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
@@ -13,6 +13,9 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
+
+  // Import MarkerFilterSettings component
+  import MarkerFilterSettings from "./MarkerFilterSettings.svelte"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("settings")
@@ -69,7 +72,6 @@
   }
 
   onMount(async () => {
-    // Check if user is authenticated
     if (!$session) {
       goto("/login")
       return
@@ -162,6 +164,9 @@
     editButtonTitle="Change Password"
     editLink="/account/settings/change_password"
   />
+
+  <!-- Marker Filter Settings Component -->
+  <MarkerFilterSettings />
 
   <!-- Subscription Module - Different for native and web -->
   {#if isNativePlatform}

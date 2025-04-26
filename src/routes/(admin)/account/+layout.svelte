@@ -23,6 +23,7 @@
     operationStore,
     selectedOperationStore,
   } from "$lib/stores/operationStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   // Import map API
   import { mapApi } from "$lib/api/mapApi"
@@ -111,17 +112,24 @@
 
     try {
       // Load profile data
-      const [profileResult, subscriptionResult] = await Promise.all([
-        supabase.from("profiles").select(`*`).eq("id", userId).single(),
-        supabase
-          .from("user_subscriptions")
-          .select("*")
-          .eq("user_id", userId)
-          .single(),
-      ])
+      const [profileResult, subscriptionResult, user_settingsResult] =
+        await Promise.all([
+          supabase.from("profiles").select(`*`).eq("id", userId).single(),
+          supabase
+            .from("user_subscriptions")
+            .select("*")
+            .eq("user_id", userId)
+            .single(),
+          supabase
+            .from("user_settings")
+            .select("*")
+            .eq("user_id", userId)
+            .single(),
+        ])
 
       const profile = profileResult.data
       const subscription = subscriptionResult.data
+      const user_settings = user_settingsResult.data
 
       console.log("Profile loaded:", profile?.id)
 
@@ -152,9 +160,22 @@
         })
       }
 
+      // Update user settings store
+      if (user_settings) {
+        const currentDate = new Date()
+        currentDate.setDate(
+          currentDate.getDate() - user_settings.limit_markers_days,
+        )
+
+        userSettingsStore.set({
+          limitMarkersOn: user_settings.limit_markers,
+          limitMarkersDays: user_settings.limit_markers_days,
+          limitMarkersDate: currentDate.toISOString(),
+        })
+      }
       // If user has no map connected, we're done
       if (!profile?.master_map_id) {
-        return { profile, subscription, connected_map: null }
+        return { profile, subscription, connected_map: null, user_settings }
       }
 
       // Load map data if user has a connected map
@@ -192,7 +213,7 @@
       console.log("Map data loaded:", masterMap?.id)
 
       if (!masterMap) {
-        return { profile, subscription, connected_map: null }
+        return { profile, subscription, connected_map: null, user_settings }
       }
 
       // Load additional map-related data
@@ -278,6 +299,7 @@
         map_activity,
         master_subscription,
         operations,
+        user_settings,
       }
     } catch (e) {
       console.error("Error loading user data:", e)

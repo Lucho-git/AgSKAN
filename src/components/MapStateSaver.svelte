@@ -509,29 +509,57 @@
       throw new Error("No master map assigned")
     }
 
-    let query = supabase
-      .from("map_markers")
-      .select("id, marker_data, last_confirmed, deleted, deleted_at")
-      .eq("master_map_id", masterMapId)
+    try {
+      // Build base query
+      let query = supabase
+        .from("map_markers")
+        .select(
+          "id, marker_data, last_confirmed, deleted, deleted_at, created_at",
+        )
+        .eq("master_map_id", masterMapId)
 
-    // Apply date filtering if the limit is turned on
-    if (userSettings.limitMarkersOn && userSettings.limitMarkersDate) {
-      query = query.gte("last_confirmed", userSettings.limitMarkersDate)
+      // Apply date filtering if the limit is turned on
+      if (
+        userSettings &&
+        userSettings.limitMarkersOn &&
+        userSettings.limitMarkersDays
+      ) {
+        // Calculate cutoff date directly from limitMarkersDays for reliability
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - userSettings.limitMarkersDays)
+        const isoDateString = cutoffDate.toISOString()
+
+        // Apply the filter to the query
+        query = query.gte("created_at", isoDateString)
+
+        console.log(
+          `Filtering markers: Only showing markers created after ${isoDateString} (${userSettings.limitMarkersDays} days ago)`,
+        )
+      }
+
+      // Execute the query
+      const { data: latestMarkers, error: markersError } = await query
+
+      if (markersError) {
+        console.error("Error retrieving markers:", markersError)
+        throw new Error("Failed to retrieve latest markers from server")
+      }
+
       console.log(
-        `Limiting markers to those after ${userSettings.limitMarkersDate}`,
+        `Retrieved ${latestMarkers?.length || 0} markers that match the filter criteria`,
+      )
+
+      // Process and return the markers
+      return (latestMarkers || []).map((marker) => ({
+        ...marker,
+        iconClass: marker.marker_data.properties.icon,
+      }))
+    } catch (err) {
+      console.error("Unexpected error retrieving markers:", err)
+      throw new Error(
+        "Failed to retrieve markers: " + (err.message || "Unknown error"),
       )
     }
-
-    const { data: latestMarkers, error: markersError } = await query
-
-    if (markersError) {
-      throw new Error("Failed to retrieve latest markers from server")
-    }
-
-    return latestMarkers.map((marker) => ({
-      ...marker,
-      iconClass: marker.marker_data.properties.icon,
-    }))
   }
 
   function calculateAndStoreBoundingBox() {

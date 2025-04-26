@@ -122,6 +122,9 @@ export async function updateOrCreateProfile(sessionData: Session) {
         // Also create a free subscription
         await createSubscriptionIfNeeded(userId);
 
+        // Create user settings with default values
+        await createUserSettingsIfNeeded(userId);
+
         return true;
     }
 
@@ -190,12 +193,72 @@ export async function updateOrCreateProfile(sessionData: Session) {
         // Check subscription
         await createSubscriptionIfNeeded(userId);
 
+        // Ensure user settings exist
+        await createUserSettingsIfNeeded(userId);
+
         return true;
     }
 
     // If we got here, something unexpected happened
     console.error("[Auth Helper] Unexpected state in profile check");
     return false;
+}
+
+// New function to create user settings if needed
+export async function createUserSettingsIfNeeded(userId: string) {
+    try {
+        console.log("[Auth Helper] Checking for existing user settings for user:", userId);
+
+        // Check if user settings already exist
+        const { data: existingSettings, error: settingsCheckError } = await supabase
+            .from("user_settings")
+            .select("user_id")
+            .eq("user_id", userId);
+
+        // If there was an error fetching settings
+        if (settingsCheckError) {
+            console.log(
+                "[Auth Helper] Error checking user settings (will try to create):",
+                settingsCheckError.code
+            );
+            // Continue to creation attempt
+        }
+        // If we successfully found settings
+        else if (existingSettings && existingSettings.length > 0) {
+            console.log("[Auth Helper] User settings already exist");
+            return true;
+        }
+
+        // No valid settings found or error occurred, create default settings
+        console.log("[Auth Helper] No user settings found, creating default settings");
+
+        // Create default user settings
+        const { error: settingsError } = await supabase
+            .from("user_settings")
+            .insert({
+                user_id: userId,
+                limit_markers: false,
+                limit_markers_days: 7
+            });
+
+        // Handle creation result
+        if (settingsError) {
+            // If duplicate key error, settings already exist
+            if (settingsError.code === "23505") {
+                console.log("[Auth Helper] User settings already exist (unique constraint)");
+                return true;
+            } else {
+                console.log("[Auth Helper] Error creating user settings:", settingsError);
+                return false;
+            }
+        }
+
+        console.log("[Auth Helper] Default user settings created successfully");
+        return true;
+    } catch (error) {
+        console.log("[Auth Helper] Unexpected error in user settings creation:", error);
+        return false;
+    }
 }
 
 // Separate function to create subscription if needed

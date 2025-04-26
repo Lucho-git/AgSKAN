@@ -8,6 +8,8 @@
     locationMarkerStore,
   } from "../stores/mapStore"
 
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+
   import { controlStore } from "$lib/stores/controlStore"
   import { profileStore } from "$lib/stores/profileStore"
 
@@ -20,6 +22,7 @@
   const { getMap } = getContext("map")
   let markerActionsUnsubscribe
   let locationMarkerUnsubscribe
+  let userSettings
 
   const markerIcons = [
     // { id: "barn", class: "custom-svg" },
