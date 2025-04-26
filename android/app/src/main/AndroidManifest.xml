@@ -9,6 +9,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+<!-- capacitor-background-geolocation licence -->
+        <meta-data android:name="com.transistorsoft.locationmanager.license" android:value="d37993b138e0f56ab88c43aa935ea247c289a8e2c0aa5eb6b9084ea7a93c0651" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"

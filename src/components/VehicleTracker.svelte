@@ -110,19 +110,16 @@
         isBackground = false
         appState = "mobile-foreground"
 
-        // Show toast with background duration
+        // Show toast with background duration and location update count
         if (data.duration) {
-          toast.info("App returned from background", {
-            description: `Background duration: ${data.duration.formatted}`,
+          toast.info(`App returned from background`, {
+            description: `Background duration: ${data.duration.formatted}. Recorded ${data.locationUpdateCount} location updates.`,
             duration: 5000,
           })
         }
-      } else if (event === "restart" && data.duration) {
-        // App was restarted after being in background
-        toast.info("App restarted after background", {
-          description: `Background duration before restart: ${data.duration.formatted}`,
-          duration: 5000,
-        })
+      } else if (event === "location" && isBackground) {
+        // Process background location updates
+        streamMarkerPosition(data.coords)
       }
     })
   }

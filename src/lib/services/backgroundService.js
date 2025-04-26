@@ -1,96 +1,200 @@
-// src/lib/services/backgroundService.js
-import { Capacitor } from '@capacitor/core';
+// $lib/services/backgroundService.js
+import { Capacitor } from "@capacitor/core";
+import BackgroundGeolocation from '@transistorsoft/capacitor-background-geolocation'; // Changed from { BackgroundGeolocation }
 import { App } from '@capacitor/app';
-import { Preferences } from '@capacitor/preferences';
+import { toast } from "svelte-sonner";
 
 class BackgroundService {
   constructor() {
+    this.isInitialized = false;
+    this.isTracking = false;
     this.listeners = [];
-    this.initialized = false;
+    this.backgroundStartTime = null;
+    this.locationUpdatesInBackground = 0;
+    this.lastForegroundTime = Date.now();
   }
 
-  async init() {
-    if (this.initialized || !Capacitor.isNativePlatform()) return;
-    
+  init() {
+    if (this.isInitialized || !Capacitor.isNativePlatform()) return;
+
+    console.log("Initializing background service");
+
+    // Configure background geolocation
+    this.configureBackgroundGeolocation();
+
+    // Listen for app state changes
+    this.setupAppStateListeners();
+
+    this.isInitialized = true;
+  }
+
+  async configureBackgroundGeolocation() {
     try {
-      // Set up app state listener
-      App.addListener('appStateChange', this.handleAppStateChange.bind(this));
+      const config = {
+        // Debug settings
+        debug: false, // Set to true for testing
+        logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
+
+        // Geolocation settings
+        desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
+        distanceFilter: 10, // meters
+        stopTimeout: 5, // minutes to detect stop
+
+        // Application settings
+        stopOnTerminate: false,
+        startOnBoot: true, 
+        enableHeadless: true,
+
+        // Notification settings for Android
+        notification: {
+          title: "AgSKAN Tracking",
+          text: "Tracking your location in background"
+        }
+      };
+
+      const state = await BackgroundGeolocation.ready(config);
+      console.log("BackgroundGeolocation configured:", state);
+
+      // Add location listener for background updates
+      BackgroundGeolocation.onLocation(this.handleBackgroundLocation.bind(this));
       
-      // Check if we have a stored background time on startup
-      await this.checkStoredBackgroundTime();
+      // Handle location errors
+      BackgroundGeolocation.onError(error => {
+        console.error("[Background] Location error:", error);
+      });
       
-      this.initialized = true;
-      console.log('Background service initialized');
+      // Listen for app going to foreground/background via the plugin
+      BackgroundGeolocation.onProviderChange(event => {
+        console.log("[Background] Provider changed:", event);
+      });
+
     } catch (error) {
-      console.error('Error initializing background service:', error);
+      console.error("Error configuring background geolocation:", error);
     }
   }
 
-  async handleAppStateChange({ isActive }) {
-    try {
+  setupAppStateListeners() {
+    // Listen for app state changes
+    App.addListener('appStateChange', ({ isActive }) => {
+      console.log("App state changed. isActive:", isActive);
+      
       if (isActive) {
         // App came to foreground
-        const duration = await this.calculateBackgroundDuration();
-        if (duration) {
-          // Notify all listeners about the background duration
-          this.notifyListeners('foreground', { duration });
-        }
+        this.onForeground();
       } else {
-        // App went to background - store the current time
-        await this.storeBackgroundStartTime();
-        this.notifyListeners('background', {});
+        // App went to background
+        this.onBackground();
       }
-    } catch (error) {
-      console.error('Error in app state change handler:', error);
-    }
+    });
   }
 
-  async storeBackgroundStartTime() {
-    try {
-      const now = Date.now();
-      await Preferences.set({
-        key: 'backgroundStartTime',
-        value: now.toString()
-      });
-      console.log('Stored background start time:', new Date(now).toISOString());
-    } catch (error) {
-      console.error('Error storing background start time:', error);
-    }
+  onBackground() {
+    this.backgroundStartTime = Date.now();
+    this.locationUpdatesInBackground = 0;
+    
+    // Start background tracking if not already tracking
+    this.startBackgroundTracking();
+    
+    // Notify listeners
+    this.notifyListeners('background', {});
   }
 
-  async calculateBackgroundDuration() {
-    try {
-      const result = await Preferences.get({ key: 'backgroundStartTime' });
-      if (!result.value) return null;
-
-      const startTime = parseInt(result.value, 10);
-      const now = Date.now();
-      const duration = now - startTime;
-      
-      // Clear the stored time
-      await Preferences.remove({ key: 'backgroundStartTime' });
-      
-      console.log(`App was in background for ${this.formatDuration(duration)}`);
-      return {
-        milliseconds: duration,
-        formatted: this.formatDuration(duration)
+  onForeground() {
+    // Calculate duration in background
+    let duration = null;
+    if (this.backgroundStartTime) {
+      const milliseconds = Date.now() - this.backgroundStartTime;
+      duration = {
+        milliseconds,
+        formatted: this.formatDuration(milliseconds)
       };
+    }
+    
+    // Switch to foreground tracking
+    this.stopBackgroundTracking();
+    
+    // Notify listeners with duration and location update count
+    this.notifyListeners('foreground', {
+      duration,
+      locationUpdateCount: this.locationUpdatesInBackground
+    });
+    
+    // Show toast with background update count
+    if (this.locationUpdatesInBackground > 0) {
+      toast.info(`Location tracking stats`, {
+        description: `Recorded ${this.locationUpdatesInBackground} location updates while in background.`,
+        duration: 5000
+      });
+    }
+    
+    // Reset values
+    this.backgroundStartTime = null;
+    this.locationUpdatesInBackground = 0;
+  }
+
+  async startBackgroundTracking() {
+    try {
+      if (!this.isTracking) {
+        await BackgroundGeolocation.start();
+        this.isTracking = true;
+        console.log("Background tracking started");
+      }
     } catch (error) {
-      console.error('Error calculating background duration:', error);
-      return null;
+      console.error("Failed to start background tracking:", error);
     }
   }
 
-  async checkStoredBackgroundTime() {
+  async stopBackgroundTracking() {
     try {
-      const duration = await this.calculateBackgroundDuration();
-      if (duration) {
-        // If we have a duration, it means the app was closed while in background
-        this.notifyListeners('restart', { duration });
+      if (this.isTracking) {
+        await BackgroundGeolocation.stop();
+        this.isTracking = false;
+        console.log("Background tracking stopped");
       }
     } catch (error) {
-      console.error('Error checking stored background time:', error);
+      console.error("Failed to stop background tracking:", error);
     }
+  }
+
+  handleBackgroundLocation(location) {
+    console.log("[Background] Location update:", location);
+    
+    // Increment the counter of background location updates
+    this.locationUpdatesInBackground++;
+    
+    // Extract the location data
+    const { coords, timestamp } = location;
+    const { latitude, longitude, heading, speed } = coords;
+    
+    // Forward this data to your existing streamMarkerPosition logic
+    // We're not calling it directly to avoid circular dependencies
+    // Instead, we'll notify listeners which VehicleTracker will handle
+    this.notifyListeners('location', {
+      coords: {
+        latitude,
+        longitude,
+        heading: heading || 0,
+        speed: speed || 0
+      },
+      timestamp
+    });
+  }
+
+  addListener(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(cb => cb !== callback);
+    };
+  }
+
+  notifyListeners(event, data) {
+    this.listeners.forEach(listener => {
+      try {
+        listener(event, data);
+      } catch (error) {
+        console.error("Error in background service listener:", error);
+      }
+    });
   }
 
   formatDuration(milliseconds) {
@@ -107,32 +211,20 @@ class BackgroundService {
     }
   }
 
-  addListener(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(listener => listener !== callback);
-    };
-  }
-
-  notifyListeners(event, data) {
-    this.listeners.forEach(listener => {
-      try {
-        listener(event, data);
-      } catch (error) {
-        console.error('Error in background service listener:', error);
-      }
-    });
-  }
-
   cleanup() {
+    if (this.isTracking) {
+      this.stopBackgroundTracking();
+    }
+    
     if (Capacitor.isNativePlatform()) {
       App.removeAllListeners();
+      BackgroundGeolocation.removeAllListeners();
     }
+    
     this.listeners = [];
-    this.initialized = false;
+    this.isInitialized = false;
   }
 }
 
 // Export a singleton instance
-const backgroundService = new BackgroundService();
-export default backgroundService;
+export default new BackgroundService();
