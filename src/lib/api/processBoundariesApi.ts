@@ -169,6 +169,46 @@ async function processKML(fileData) {
         const kmlDoc = new DOMParser().parseFromString(kmlContent, "text/xml");
         const geojson = kml(kmlDoc);
 
+        // Remove Z dimension from all geometries
+        if (geojson.features && geojson.features.length > 0) {
+            console.log("Checking for and removing Z dimensions in KML coordinates");
+
+            geojson.features.forEach(feature => {
+                if (!feature.geometry) return;
+
+                // Handle Polygon
+                if (feature.geometry.type === 'Polygon') {
+                    feature.geometry.coordinates = feature.geometry.coordinates.map(ring =>
+                        ring.map(coord => [coord[0], coord[1]])); // Keep only X and Y
+                }
+                // Handle MultiPolygon
+                else if (feature.geometry.type === 'MultiPolygon') {
+                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                        polygon.map(ring =>
+                            ring.map(coord => [coord[0], coord[1]]))); // Keep only X and Y
+                }
+                // Handle other geometry types if needed
+                else if (feature.geometry.type === 'LineString') {
+                    feature.geometry.coordinates = feature.geometry.coordinates.map(coord =>
+                        [coord[0], coord[1]]); // Keep only X and Y
+                }
+                else if (feature.geometry.type === 'MultiLineString') {
+                    feature.geometry.coordinates = feature.geometry.coordinates.map(line =>
+                        line.map(coord => [coord[0], coord[1]])); // Keep only X and Y
+                }
+                else if (feature.geometry.type === 'Point') {
+                    feature.geometry.coordinates = [
+                        feature.geometry.coordinates[0],
+                        feature.geometry.coordinates[1]
+                    ]; // Keep only X and Y
+                }
+                else if (feature.geometry.type === 'MultiPoint') {
+                    feature.geometry.coordinates = feature.geometry.coordinates.map(coord =>
+                        [coord[0], coord[1]]); // Keep only X and Y
+                }
+            });
+        }
+
         const paddockList = processFeaturesIntoPaddocks(geojson.features)
             .filter((paddock) => paddock.boundary !== null);
 
