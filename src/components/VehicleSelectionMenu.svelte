@@ -314,7 +314,7 @@
                           value={swathValue}
                           onValueChange={updateSwath}
                           min={2}
-                          max={50}
+                          max={60}
                           step={1}
                           class="flex-grow [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:bg-gray-100 [&_[role=slider]]:shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.1)] [&_[role=track]]:h-2 [&_[role=track]]:bg-gray-200 [&_[role=track]]:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]"
                         />
