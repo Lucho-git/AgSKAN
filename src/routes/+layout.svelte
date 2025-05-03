@@ -21,6 +21,9 @@
   import { initializeSession } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"
 
+  // Import safe area utilities
+  import { initializeSafeAreas } from "$lib/capacitor/safeArea"
+
   // Handle app updates
   $: if ($updated) {
     toast.info("An update is available. Refresh to see the latest version.", {
@@ -38,6 +41,9 @@
   onMount(() => {
     if (browser) {
       console.log("Root layout mounted, initializing session")
+
+      // Initialize safe areas for status bar handling
+      initializeSafeAreas()
 
       // Initialize the session as early as possible
       initializeSession()
@@ -62,7 +68,7 @@
 <main data-sveltekit-reload={$updated ? "" : "off"}>
   {#if $navigating}
     <div
-      class="fixed left-0 right-0 top-0 z-50 h-1 w-full bg-primary"
+      class="safe-area-top fixed left-0 right-0 top-0 z-50 h-1 w-full bg-primary"
       in:slide={{ delay: 100, duration: 12000, axis: "x", easing: expoOut }}
     ></div>
   {/if}

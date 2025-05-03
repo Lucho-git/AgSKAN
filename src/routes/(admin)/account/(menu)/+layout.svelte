@@ -164,7 +164,7 @@
     {#if $shouldShowDrawer}
       <!-- Mobile Top Bar -->
       <div
-        class="fixed left-0 right-0 top-0 z-50 flex items-center justify-between bg-neutral p-1 text-neutral-content lg:hidden"
+        class="fixed-top fixed left-0 right-0 top-0 z-50 flex items-center justify-between bg-neutral p-1 text-neutral-content lg:hidden"
       >
         <div class="flex items-center">
           <Icon

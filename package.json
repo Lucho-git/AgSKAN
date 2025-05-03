@@ -61,7 +61,7 @@
     "@capacitor/preferences": "^7.0.1",
     "@capacitor/share": "^7.0.0",
     "@capacitor/splash-screen": "^7.0.0",
-    "@capacitor/status-bar": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.1",
     "@dotlottie/player-component": "^2.7.12",
     "@fontsource/archivo": "^5.0.17",
     "@fontsource/roboto": "^5.0.13",
