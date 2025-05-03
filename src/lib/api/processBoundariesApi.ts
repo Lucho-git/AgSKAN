@@ -72,16 +72,44 @@ function createErrorResponse(message) {
 }
 
 // Process GeoJSON features into paddock objects
+// Process GeoJSON features into paddock objects
 function processFeaturesIntoPaddocks(features) {
+    console.log(`Beginning to process ${features.length} features into paddocks`);
+
     const paddockList = [];
     const invalidFeatures = [];
 
     features.forEach((feature, index) => {
+        console.log(`Processing feature #${index + 1}, type: ${feature.geometry?.type}, name: ${feature.properties?.name || 'unnamed'}`);
+
         // Skip features without geometry
         if (!feature.geometry) {
             console.warn(`Feature #${index + 1} has no geometry`);
             invalidFeatures.push({ reason: "No geometry", index });
             return;
+        }
+
+        // Handle GeometryCollection specially
+        if (feature.geometry.type === 'GeometryCollection') {
+            console.log(`Processing GeometryCollection with ${feature.geometry.geometries?.length || 0} geometries`);
+
+            // Find first valid polygon/multipolygon in the collection
+            const validGeometry = feature.geometry.geometries?.find(geom =>
+                geom.type === 'Polygon' || geom.type === 'MultiPolygon');
+
+            if (!validGeometry) {
+                console.warn(`Feature #${index + 1} GeometryCollection has no valid Polygon/MultiPolygon geometries`);
+                invalidFeatures.push({
+                    reason: "No valid polygons in GeometryCollection",
+                    index,
+                    name: feature.properties?.name || 'unnamed'
+                });
+                return;
+            }
+
+            // Replace the GeometryCollection with the found polygon geometry
+            feature.geometry = validGeometry;
+            console.log(`Using ${feature.geometry.type} from GeometryCollection`);
         }
 
         // Skip features with unsupported geometry types
@@ -90,10 +118,13 @@ function processFeaturesIntoPaddocks(features) {
             invalidFeatures.push({
                 reason: "Unsupported geometry type",
                 index,
-                type: feature.geometry.type
+                type: feature.geometry.type,
+                name: feature.properties?.name || 'unnamed'
             });
             return;
         }
+
+        // Rest of the function remains the same...
 
         // Check if coordinates are valid
         if (!feature.geometry.coordinates ||
@@ -156,6 +187,8 @@ function processFeaturesIntoPaddocks(features) {
         console.warn(`Filtered out ${invalidFeatures.length} invalid features:`, invalidFeatures);
     }
 
+    console.log(`Successfully processed ${paddockList.length} valid paddocks`);
+
     return paddockList;
 }
 
@@ -166,11 +199,63 @@ async function processKML(fileData) {
         const decoder = new TextDecoder("utf-8");
         const kmlContent = decoder.decode(new Uint8Array(fileData));
 
+        // Log the raw KML content length to verify we have data
+        console.log(`KML content length: ${kmlContent.length} characters`);
+
         const kmlDoc = new DOMParser().parseFromString(kmlContent, "text/xml");
+
+        // Log DOM parsing result
+        console.log(`KML DOM parsed, root element: ${kmlDoc.documentElement.nodeName}`);
+
+        // Log KML structure before conversion
+        const placemarks = kmlDoc.getElementsByTagName("Placemark");
+        console.log(`Found ${placemarks.length} Placemarks in KML file`);
+
+        // Log a sample of the first few placemarks
+        for (let i = 0; i < Math.min(3, placemarks.length); i++) {
+            const placemark = placemarks[i];
+            const name = placemark.getElementsByTagName("name")[0]?.textContent || "unnamed";
+            const hasPolygon = placemark.getElementsByTagName("Polygon").length > 0;
+            const hasMultiGeometry = placemark.getElementsByTagName("MultiGeometry").length > 0;
+            console.log(`Placemark #${i + 1}: Name="${name}", HasPolygon=${hasPolygon}, HasMultiGeometry=${hasMultiGeometry}`);
+        }
+
+        // Convert to GeoJSON
         const geojson = kml(kmlDoc);
 
-        // Remove Z dimension from all geometries
+        // Log the GeoJSON structure after conversion
+        console.log(`Converted to GeoJSON: type=${geojson.type}, features=${geojson.features?.length || 0}`);
+
+        // Log detailed feature breakdown
         if (geojson.features && geojson.features.length > 0) {
+            console.log("GeoJSON feature types:", geojson.features.map(f => f.geometry?.type).reduce((acc, type) => {
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {}));
+
+            // Log the first few features in detail
+            geojson.features.slice(0, 3).forEach((feature, idx) => {
+                console.log(`Feature #${idx + 1} details:`, {
+                    type: feature.geometry?.type,
+                    coordinates: feature.geometry?.coordinates ?
+                        `${feature.geometry.type === 'Point' ? 1 : feature.geometry.coordinates.length} coordinate sets` : 'none',
+                    propertiesKeys: Object.keys(feature.properties || {}),
+                    name: feature.properties?.name || 'unnamed'
+                });
+            });
+
+            // Check for and log features that might be filtered out later
+            const nonPolygonFeatures = geojson.features.filter(f =>
+                f.geometry && f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon');
+
+            if (nonPolygonFeatures.length > 0) {
+                console.log(`Warning: ${nonPolygonFeatures.length} features are not Polygon/MultiPolygon:`,
+                    nonPolygonFeatures.map(f => ({
+                        type: f.geometry?.type,
+                        name: f.properties?.name || 'unnamed'
+                    })));
+            }
+
             console.log("Checking for and removing Z dimensions in KML coordinates");
 
             geojson.features.forEach(feature => {
@@ -209,8 +294,18 @@ async function processKML(fileData) {
             });
         }
 
+        // Log before and after features are processed into paddocks
+        console.log(`Processing ${geojson.features?.length || 0} GeoJSON features into paddocks...`);
+
         const paddockList = processFeaturesIntoPaddocks(geojson.features)
             .filter((paddock) => paddock.boundary !== null);
+
+        console.log(`After processing: Found ${paddockList.length} valid paddocks from ${geojson.features?.length || 0} features`);
+
+        // Log what may have been filtered out
+        if (geojson.features && paddockList.length < geojson.features.length) {
+            console.log(`Warning: ${geojson.features.length - paddockList.length} features were filtered out during processing`);
+        }
 
         if (paddockList.length === 0) {
             return createErrorResponse("No valid paddocks found with boundary data in KML file.");
