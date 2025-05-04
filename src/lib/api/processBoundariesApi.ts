@@ -72,7 +72,6 @@ function createErrorResponse(message) {
 }
 
 // Process GeoJSON features into paddock objects
-// Process GeoJSON features into paddock objects
 function processFeaturesIntoPaddocks(features) {
     console.log(`Beginning to process ${features.length} features into paddocks`);
 
