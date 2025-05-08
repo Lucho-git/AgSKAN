@@ -21,6 +21,7 @@ vite.config.ts.timestamp-*
 /android/
 /ios/
 /public/
+/build/
 
 # Generated files (may be unneccessary)
 *.keystore

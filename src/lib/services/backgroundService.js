@@ -1,6 +1,6 @@
 // $lib/services/backgroundService.js
 import { Capacitor } from "@capacitor/core";
-import BackgroundGeolocation from '@transistorsoft/capacitor-background-geolocation'; // Changed from { BackgroundGeolocation }
+import BackgroundGeolocation from '@transistorsoft/capacitor-background-geolocation';
 import { App } from '@capacitor/app';
 import { toast } from "svelte-sonner";
 
@@ -12,6 +12,7 @@ class BackgroundService {
     this.backgroundStartTime = null;
     this.locationUpdatesInBackground = 0;
     this.lastForegroundTime = Date.now();
+    this.appStateListener = null; // Store the listener reference
   }
 
   init() {
@@ -74,8 +75,8 @@ class BackgroundService {
   }
 
   setupAppStateListeners() {
-    // Listen for app state changes
-    App.addListener('appStateChange', ({ isActive }) => {
+    // Listen for app state changes and store the listener reference
+    this.appStateListener = App.addListener('appStateChange', ({ isActive }) => {
       console.log("App state changed. isActive:", isActive);
       
       if (isActive) {
@@ -217,8 +218,18 @@ class BackgroundService {
     }
     
     if (Capacitor.isNativePlatform()) {
-      App.removeAllListeners();
-      BackgroundGeolocation.removeAllListeners();
+      // Remove the appStateListener properly
+      if (this.appStateListener) {
+        try {
+          this.appStateListener.remove();
+        } catch (error) {
+          console.error("Error removing app state listener:", error);
+        }
+      }
+      
+      // BackgroundGeolocation listeners are typically handled by the plugin
+      // itself when the app is destroyed, but we can add specific cleanup
+      // if needed in the future
     }
     
     this.listeners = [];
