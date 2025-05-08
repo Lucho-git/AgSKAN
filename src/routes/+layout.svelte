@@ -23,9 +23,69 @@
 
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
-  import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
+  import { StatusBar } from "@capacitor/status-bar" // For StatusBar.show()
+  import { EdgeToEdge } from "@capawesome/capacitor-android-edge-to-edge-support"
 
-  // Handle app updates
+  // --- Theme Colors for System Bars ---
+  // This color is used for system bar BACKGROUNDS when the SYSTEM is in LIGHT mode.
+  const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
+
+  // This color is used for system bar BACKGROUNDS when the SYSTEM is in DARK mode.
+  const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
+
+  // --- Function to Apply Native Theme Styles ---
+  async function applyNativeThemeStyles(isSystemDarkMode: boolean) {
+    if (!Capacitor.isNativePlatform()) {
+      console.log("Not a native platform. Skipping native theme styles.")
+      return
+    }
+
+    try {
+      // Determine the BACKGROUND color for both system bars.
+      // EdgeToEdge.setBackgroundColor applies this to both top status bar and bottom navigation bar.
+      const systemBarsBackgroundColorToSet = isSystemDarkMode
+        ? appSystemDarkMode_Bars_BackgroundColor // System DARK => App's "Dark Mode" => YELLOW background
+        : appSystemLightMode_Bars_BackgroundColor // System LIGHT => App's "Light Mode" => DARK GRAY background
+
+      // Determine the ICON/TEXT style for both system bars.
+      // This logic directly implements your request:
+      // - Dark Mode (yellow BG) => DARK (black) text/icons
+      // - Light Mode (dark gray BG) => LIGHT (white) text/icons
+      const newSystemBarIconStyle: "DARK" | "LIGHT" = isSystemDarkMode
+        ? "DARK" // For YELLOW background (app's dark mode), use DARK text/icons.
+        : "LIGHT" // For DARK GRAY background (app's light mode), use LIGHT text/icons.
+
+      console.log(`System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode.`)
+      console.log(
+        `  Setting system bars background color (top & bottom) to: ${systemBarsBackgroundColorToSet}`,
+      )
+      console.log(
+        `  Setting system bars icon/text style (top & bottom) to: ${newSystemBarIconStyle}`,
+      )
+
+      // Apply the unified background color to both bars.
+      await EdgeToEdge.setBackgroundColor({
+        color: systemBarsBackgroundColorToSet,
+      })
+      console.log("  EdgeToEdge.setBackgroundColor called.")
+
+      // Apply the determined icon/text style to the TOP status bar.
+      await EdgeToEdge.setStatusBarStyle({ style: newSystemBarIconStyle })
+      console.log("  EdgeToEdge.setStatusBarStyle called.")
+
+      // Apply the SAME determined icon/text style to the BOTTOM navigation bar.
+      await EdgeToEdge.setNavigationBarStyle({ style: newSystemBarIconStyle })
+      console.log("  EdgeToEdge.setNavigationBarStyle called.")
+
+      // Ensure status bar remains visible (primarily for the top status bar).
+      await StatusBar.show()
+      console.log("  StatusBar.show() called to ensure visibility.")
+    } catch (error) {
+      console.error("Error applying native theme styles:", error)
+    }
+  }
+
+  // --- App Update Handling ---
   $: if ($updated) {
     toast.info("An update is available. Refresh to see the latest version.", {
       action: {
@@ -36,14 +96,25 @@
     })
   }
 
-  // Initialize session management
+  // --- Component Lifecycle & Native Setup ---
   let unsubscribeSession: (() => void) | undefined
+  let darkModeMediaQuery: MediaQueryList | undefined
+
+  const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+    console.log(
+      "System theme changed event. New state - is dark mode:",
+      event.matches,
+    )
+    applyNativeThemeStyles(event.matches)
+  }
 
   onMount(async () => {
-    console.log("+++++ ROOT LAYOUT ONMOUNT FIRING +++++")
+    console.log(
+      "+++++ ROOT LAYOUT ONMOUNT (using @capawesome/capacitor-android-edge-to-edge-support) +++++",
+    )
 
     if (browser) {
-      console.log("Root layout mounted, initializing session")
+      console.log("Root layout mounted in browser, initializing session.")
       initializeSession()
         .then((cleanup) => {
           if (cleanup) unsubscribeSession = cleanup
@@ -53,44 +124,59 @@
         })
     }
 
-    // --- CAPACITOR NATIVE CONFIGURATION (SAFE AREA & SYSTEM BARS) ---
     if (Capacitor.isNativePlatform()) {
       console.log(
-        "+++++ NATIVE PLATFORM: ATTEMPTING DIRECT STATUS BAR CONFIG +++++",
+        "+++++ NATIVE PLATFORM DETECTED. CONFIGURING EDGE-TO-EDGE AND SYSTEM BARS +++++",
       )
       try {
-        await StatusBar.show()
-        console.log("StatusBar.show() called.")
+        console.log("Attempting to enable EdgeToEdge plugin...")
+        await EdgeToEdge.enable()
+        console.log("EdgeToEdge.enable() successful.")
 
-        await StatusBar.setOverlaysWebView({ overlay: false })
-        console.log(
-          "StatusBar.setOverlaysWebView({ overlay: false }) CALLED. Result should be no overlay.",
-        )
+        if (window.matchMedia) {
+          darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+          console.log(
+            "Initial system dark mode preference. Is dark mode:",
+            darkModeMediaQuery.matches,
+          )
+          await applyNativeThemeStyles(darkModeMediaQuery.matches) // Apply styles based on initial system theme
 
-        // Now StatusBarStyle is defined
-        await StatusBar.setStyle({ style: StatusBarStyle.Dark })
-        console.log(
-          "StatusBar.setStyle({ style: StatusBarStyle.Dark }) called.",
-        )
+          darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
+          console.log("Added listener for system theme changes.")
+        } else {
+          console.warn(
+            "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
+          )
+          await applyNativeThemeStyles(false) // Default to styles for system light mode
+        }
 
-        await StatusBar.setBackgroundColor({ color: "#f9e58a" })
+        const insets = await EdgeToEdge.getInsets()
         console.log(
-          "StatusBar.setBackgroundColor({ color: '#f9e58a' }) called.",
+          "EdgeToEdge Insets (statusBar, navigationBar, etc.):",
+          JSON.stringify(insets),
         )
-
-        console.log(
-          "Simplified StatusBar config applied. Overlay should be FALSE.",
-        )
+        // document.documentElement.style.setProperty('--status-bar-height', `${insets.statusBar}px`);
       } catch (e) {
-        console.error("Error in simplified StatusBar config:", e) // Check if any errors are logged here
+        console.error(
+          "Error during native platform setup (EdgeToEdge/SystemBars):",
+          e,
+        )
       }
+    } else {
+      console.log("Not a native platform. Skipping native configuration.")
     }
-    // --- END CAPACITOR NATIVE CONFIGURATION ---
 
     return () => {
       if (unsubscribeSession) {
-        console.log("Cleaning up session subscription in root layout")
+        console.log("Cleaning up session subscription in root layout.")
         unsubscribeSession()
+      }
+      if (Capacitor.isNativePlatform() && darkModeMediaQuery) {
+        darkModeMediaQuery.removeEventListener(
+          "change",
+          handleSystemThemeChange,
+        )
+        console.log("Removed system theme change listener.")
       }
     }
   })
@@ -100,6 +186,7 @@
   {#if $navigating}
     <div
       class="fixed left-0 right-0 top-0 z-50 h-1 w-full bg-primary"
+      style="z-index: 9999; top: var(--status-bar-height, env(safe-area-inset-top, 0px));"
       transition:slide={{
         delay: 100,
         duration: 12000,
@@ -111,12 +198,3 @@
   <slot />
   <Toaster expand={true} position="top-center" richColors />
 </main>
-
-<!--
-    CSS custom properties like --ion-safe-area-top, --ion-safe-area-bottom, etc.,
-    will be set on the documentElement (<html> tag) by the SafeArea plugin logic above.
-    Your individual components and other layouts (like the account layout's top bar,
-    bottom navigation, or sidebars) will need to use these CSS variables
-    (e.g., padding-top: var(--ion-safe-area-top);) to adjust their spacing
-    and avoid being obscured by the system bars.
-  -->

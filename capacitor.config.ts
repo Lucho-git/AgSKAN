@@ -16,11 +16,12 @@ const config: CapacitorConfig = {
             backgroundColor: "#f9e58a",
             androidSplashResourceName: "splash",
             androidScaleType: "CENTER_CROP"
-        }
+        },
+        EdgeToEdge: {
+            backgroundColor: "#f9e58a"
+        },
     },
-    EdgeToEdge: {
-        backgroundColor: "#F7DB5C"
-    }
+
     android: {
         versionName: "1.0.1",
         versionCode: 2,
