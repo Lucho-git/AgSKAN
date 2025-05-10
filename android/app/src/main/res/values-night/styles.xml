@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Main application theme for your Capacitor activity (DARK system mode).
+    -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- windowActionBar, windowNoTitle, android:background are inherited or handled by DayNight -->
+
+        <!-- Status Bar Icon Styling for SYSTEM DARK MODE -->
+        <!-- In system dark mode, your app uses a YELLOW (#f9e58a) bar background. -->
+        <!-- This requires DARK status bar icons. -->
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Navigation Bar Icon Styling for SYSTEM DARK MODE (Android 8.0+) -->
+        <!-- For a YELLOW (#f9e58a) nav bar background, you want DARK icons. -->
+        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Ensure nav bar is transparent to let EdgeToEdge plugin control its color -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!--
+        Launch screen theme for DARK system mode.
+    -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen"> <!-- Or your plugin's recommended base -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+
+        <!-- Background color of the system splash screen window in DARK MODE.
+             The Capacitor plugin's `backgroundColor` might override this visually.
+             Set a fallback that matches your splash's general tone for dark mode.
+             If your splash drawable is light/yellow for dark mode: -->
+        <item name="windowSplashScreenBackground">#f9e58a</item> <!-- Example: Your Yellow -->
+        <!-- If your splash drawable remains dark even in dark mode: -->
+        <!-- <item name="windowSplashScreenBackground">#102030</item> --> <!-- Example: Dark Gray -->
+
+
+        <!-- Icon for the system splash screen (if different for dark mode, optional) -->
+        <!-- <item name="windowSplashScreenAnimatedIcon">@drawable/your_app_icon_for_splash_dark</item> -->
+
+        <!-- Status bar icon color DURING THE SYSTEM SPLASH in SYSTEM DARK MODE -->
+        <!-- This depends on the `windowSplashScreenBackground` for dark mode. -->
+        <!-- If windowSplashScreenBackground is LIGHT/YELLOW, you need DARK icons. -->
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- If windowSplashScreenBackground is DARK, you need LIGHT icons. -->
+        <!-- <item name="android:windowLightStatusBar">false</item> -->
+    </style>
+</resources>
