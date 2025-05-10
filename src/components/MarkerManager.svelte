@@ -169,6 +169,13 @@
   export let markerPlacementEvent = null
   export let markerClickEvent = null
 
+  let isDragging = false;
+  let pressTimer;
+  const MOVE_THRESHOLD = 5; // Adjust for sensitivity
+  let startX, startY;
+
+  const LONG_PRESS_DURATION = 500; // 0.3 second
+
   $: if (markerPlacementEvent) {
     handleMarkerPlacement(markerPlacementEvent)
   }
@@ -191,9 +198,46 @@
         placeMarkerAtCurrentLocation()
       }
     })
+
+    // Handle marker placement with long press
+    map.on("mousedown", (event) => startPressTimer(event, map));
+    map.on("mousemove", checkForDrag);
+    map.on("mouseup", cancelPressTimer);
+
+    map.on("touchstart", (event) => startPressTimer(event, map));
+    map.on("touchmove", checkForDrag);
+    map.on("touchend", cancelPressTimer);
   })
 
-  onDestroy(() => {
+  function startPressTimer(event, map) {
+    if (event.lngLat) {
+      isDragging = false;
+      startX = event.point.x;
+      startY = event.point.y;
+
+      pressTimer = setTimeout(() => {
+        if (!isDragging) {
+          placeMarker(event.lngLat, map);
+        }
+      }, LONG_PRESS_DURATION);
+    }
+  }
+
+  function cancelPressTimer() {
+    clearTimeout(pressTimer);
+  }
+
+  function checkForDrag(event) {
+    const deltaX = Math.abs(event.point.x - startX);
+    const deltaY = Math.abs(event.point.y - startY);
+
+    if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
+      isDragging = true;
+      clearTimeout(pressTimer);
+    }
+  }
+
+  onDestroy(async() => {
     console.log("Destroying MarkerManager")
 
     // Unsubscribe from the markerActionsStore subscription
@@ -211,6 +255,15 @@
 
     // Clear the markerActionsStore
     markerActionsStore.set([])
+
+    const map = await getMap()
+    map.off("mousedown", startPressTimer);
+    map.off("mousemove", checkForDrag);
+    map.off("mouseup", cancelPressTimer);
+
+    map.off("touchstart", startPressTimer);
+    map.off("touchmove", checkForDrag);
+    map.off("touchend", cancelPressTimer);
   })
 
   // Instant Marker placement
@@ -318,7 +371,32 @@
     document.dispatchEvent(handleUpdateMarkerListeners)
   }
 
+  async function placeMarker(lngLat, map) {
+    // Place the new marker on the map
+    const id = uuidv4() // Generate a unique UUID for the marker
+    const newMarker = createCustomMarker(lngLat, "default", id)
+
+    newMarker.setLngLat(lngLat).addTo(map)
+
+    selectedMarkerStore.set({ marker: newMarker, id: id })
+
+    // Center the screen on the placed marker
+    map.flyTo({
+      center: lngLat,
+      // zoom: 15, // Adjust the zoom level as needed
+      duration: 1300, // Adjust the duration of the animation as needed
+    })
+    controlStore.update((controls) => ({
+      ...controls,
+      showMarkerMenu: true,
+    }))
+    // Open the confirmation/customization menu
+    // Implement your menu functionality here
+    console.log("Marker ID Placed:", id, $selectedMarkerStore)
+  }
+
   async function handleMarkerPlacement(event) {
+    console.log(`event: ${JSON.stringify(event)}`)
     const map = await getMap()
     const { lngLat } = event
 
@@ -329,27 +407,18 @@
         marker.remove()
       }
 
-      // Place the new marker on the map
-      const id = uuidv4() // Generate a unique UUID for the marker
-      const newMarker = createCustomMarker(lngLat, "default", id)
+      // Handle mobile (touch) and web (mouse) events
+    if (event.type === 'touchstart' || event.type === 'mousedown') {
+      // Start the timer when touch or mouse press starts
+      pressTimer = setTimeout(() => {
+        placeMarker(lngLat, map);
+      }, LONG_PRESS_DURATION);
+    }
 
-      newMarker.setLngLat(lngLat).addTo(map)
-
-      selectedMarkerStore.set({ marker: newMarker, id: id })
-
-      // Center the screen on the placed marker
-      map.flyTo({
-        center: lngLat,
-        // zoom: 15, // Adjust the zoom level as needed
-        duration: 1000, // Adjust the duration of the animation as needed
-      })
-      controlStore.update((controls) => ({
-        ...controls,
-        showMarkerMenu: true,
-      }))
-      // Open the confirmation/customization menu
-      // Implement your menu functionality here
-      console.log("Marker ID Placed:", id, $selectedMarkerStore)
+    if (event.type === 'touchend' || event.type === 'mouseup') {
+      // Cancel the marker placement if the touch or mouse ends before long press
+      clearTimeout(pressTimer);
+    }
     } else {
       console.error("Invalid event format. Missing lngLat property.")
     }
