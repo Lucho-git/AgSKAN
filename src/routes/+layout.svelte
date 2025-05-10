@@ -23,17 +23,14 @@
 
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
-  import { StatusBar } from "@capacitor/status-bar" // For StatusBar.show()
+  import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
   import { EdgeToEdge } from "@capawesome/capacitor-android-edge-to-edge-support"
 
   // --- Theme Colors for System Bars ---
-  // This color is used for system bar BACKGROUNDS when the SYSTEM is in LIGHT mode.
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
-
-  // This color is used for system bar BACKGROUNDS when the SYSTEM is in DARK mode.
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
 
-  // --- Function to Apply Native Theme Styles ---
+  // --- Function to Apply Native Theme Styles (Corrected and Simplified) ---
   async function applyNativeThemeStyles(isSystemDarkMode: boolean) {
     if (!Capacitor.isNativePlatform()) {
       console.log("Not a native platform. Skipping native theme styles.")
@@ -41,43 +38,56 @@
     }
 
     try {
-      // Determine the BACKGROUND color for both system bars.
-      // EdgeToEdge.setBackgroundColor applies this to both top status bar and bottom navigation bar.
       const systemBarsBackgroundColorToSet = isSystemDarkMode
-        ? appSystemDarkMode_Bars_BackgroundColor // System DARK => App's "Dark Mode" => YELLOW background
-        : appSystemLightMode_Bars_BackgroundColor // System LIGHT => App's "Light Mode" => DARK GRAY background
-
-      // Determine the ICON/TEXT style for both system bars.
-      // This logic directly implements your request:
-      // - Dark Mode (yellow BG) => DARK (black) text/icons
-      // - Light Mode (dark gray BG) => LIGHT (white) text/icons
-      const newSystemBarIconStyle: "DARK" | "LIGHT" = isSystemDarkMode
-        ? "DARK" // For YELLOW background (app's dark mode), use DARK text/icons.
-        : "LIGHT" // For DARK GRAY background (app's light mode), use LIGHT text/icons.
+        ? appSystemDarkMode_Bars_BackgroundColor // System DARK => YELLOW background
+        : appSystemLightMode_Bars_BackgroundColor // System LIGHT => DARK GRAY background
 
       console.log(`System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode.`)
       console.log(
-        `  Setting system bars background color (top & bottom) to: ${systemBarsBackgroundColorToSet}`,
-      )
-      console.log(
-        `  Setting system bars icon/text style (top & bottom) to: ${newSystemBarIconStyle}`,
+        `  Setting system bars background color (top & bottom) via EdgeToEdge to: ${systemBarsBackgroundColorToSet}`,
       )
 
-      // Apply the unified background color to both bars.
+      // 1. Set background using EdgeToEdge plugin (for both bars)
       await EdgeToEdge.setBackgroundColor({
         color: systemBarsBackgroundColorToSet,
       })
       console.log("  EdgeToEdge.setBackgroundColor called.")
 
-      // Apply the determined icon/text style to the TOP status bar.
-      await EdgeToEdge.setStatusBarStyle({ style: newSystemBarIconStyle })
-      console.log("  EdgeToEdge.setStatusBarStyle called.")
+      // 2. Determine and apply desired icon/text styles FOR THE STATUS BAR ONLY
+      let newCapacitorStatusBarStyle: StatusBarStyle
 
-      // Apply the SAME determined icon/text style to the BOTTOM navigation bar.
-      await EdgeToEdge.setNavigationBarStyle({ style: newSystemBarIconStyle })
-      console.log("  EdgeToEdge.setNavigationBarStyle called.")
+      if (isSystemDarkMode) {
+        // SYSTEM is DARK MODE (App uses YELLOW background #f9e58a)
+        // We want DARK text/icons for the status bar.
+        newCapacitorStatusBarStyle = StatusBarStyle.Light // Style.Dark SETS STATUS BAR ICONS TO DARK
+        console.log("  Applying DARK text/icons theme to STATUS BAR.")
+        console.log(
+          "    Status Bar Style (Capacitor): Style.Dark (sets status bar icons to dark)",
+        )
+      } else {
+        // SYSTEM is LIGHT MODE (App uses DARK GRAY background #102030)
+        // We want LIGHT text/icons for the status bar.
+        newCapacitorStatusBarStyle = StatusBarStyle.Dark // Style.Light SETS STATUS BAR ICONS TO LIGHT
+        console.log("  Applying LIGHT text/icons theme to STATUS BAR.")
+        console.log(
+          "    Status Bar Style (Capacitor): Style.Light (sets status bar icons to light)",
+        )
+      }
 
-      // Ensure status bar remains visible (primarily for the top status bar).
+      // 3. Apply style to the TOP status bar using @capacitor/status-bar
+      await StatusBar.setStyle({ style: newCapacitorStatusBarStyle })
+      console.log(
+        `  Capacitor StatusBar.setStyle called with: ${newCapacitorStatusBarStyle === StatusBarStyle.Light ? "Style.Light" : "Style.Dark"}`,
+      )
+
+      // NOTE: There is NO JS function from EITHER plugin to directly set navigation bar ICON style.
+      // We rely on the Android system's default behavior or theme settings for navigation bar icon color
+      // based on the background color set by EdgeToEdge.setBackgroundColor().
+      console.log(
+        "  Navigation bar icon style relies on system behavior / Android theme based on background color.",
+      )
+
+      // 4. Ensure status bar remains visible
       await StatusBar.show()
       console.log("  StatusBar.show() called to ensure visibility.")
     } catch (error) {
@@ -110,7 +120,7 @@
 
   onMount(async () => {
     console.log(
-      "+++++ ROOT LAYOUT ONMOUNT (using @capawesome/capacitor-android-edge-to-edge-support) +++++",
+      "+++++ ROOT LAYOUT ONMOUNT (Corrected - EdgeToEdge BG + Capacitor StatusBar Style ONLY) +++++",
     )
 
     if (browser) {
@@ -139,7 +149,7 @@
             "Initial system dark mode preference. Is dark mode:",
             darkModeMediaQuery.matches,
           )
-          await applyNativeThemeStyles(darkModeMediaQuery.matches) // Apply styles based on initial system theme
+          await applyNativeThemeStyles(darkModeMediaQuery.matches)
 
           darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
           console.log("Added listener for system theme changes.")
@@ -147,7 +157,7 @@
           console.warn(
             "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
           )
-          await applyNativeThemeStyles(false) // Default to styles for system light mode
+          await applyNativeThemeStyles(false)
         }
 
         const insets = await EdgeToEdge.getInsets()
@@ -155,7 +165,6 @@
           "EdgeToEdge Insets (statusBar, navigationBar, etc.):",
           JSON.stringify(insets),
         )
-        // document.documentElement.style.setProperty('--status-bar-height', `${insets.statusBar}px`);
       } catch (e) {
         console.error(
           "Error during native platform setup (EdgeToEdge/SystemBars):",
