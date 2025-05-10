@@ -1,22 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <!-- Base application theme. -->
+    <!--
+        Your existing AppTheme. It references colors like @color/colorPrimary.
+        These will continue to be resolved from their current source (likely AppCompat).
+    -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!--
+        Main application theme for your Capacitor activity.
+        This is applied AFTER the splash screen.
+        Parent is Theme.AppCompat.DayNight.NoActionBar, so it's Day/Night aware.
+    -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+        <!-- android:background is often set to @null for Capacitor apps to prevent overdraw -->
         <item name="android:background">@null</item>
+
+        <!-- Status Bar Icon Styling for SYSTEM LIGHT MODE -->
+        <!-- In system light mode, your app uses a DARK GRAY (#102030) bar background. -->
+        <!-- This requires LIGHT status bar icons. -->
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Navigation Bar Icon Styling for SYSTEM LIGHT MODE (Android 8.0+) -->
+        <!-- For a DARK GRAY (#102030) nav bar background, you want LIGHT icons. -->
+        <item name="android:windowLightNavigationBar">false</item>
+        <!-- Ensure nav bar is transparent to let EdgeToEdge plugin control its color -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <!--
+        Launch screen theme. This is the VERY FIRST theme applied to your MainActivity window.
+        It's important for the system splash screen (Android 12+) and for setting
+        the theme that will be used once the splash screen is dismissed.
+        The @capacitor/splash-screen plugin will then take over to display its configured splash.
+    -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen"> <!-- Or your plugin's recommended base if different -->
+        <!-- Theme to apply after the splash screen (system and plugin) is done -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
 
-    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <!--
+            The following items configure the Android 12+ system splash screen.
+            The @capacitor/splash-screen plugin might override or supplement these
+            with its own drawables/colors.
+        -->
+
+        <!-- Background color of the system splash screen window.
+             The Capacitor plugin's `backgroundColor` might override this visually.
+             Set a fallback that matches your splash's general tone.
+             If your splash drawable (`androidSplashResourceName`) is dark: -->
+        <item name="windowSplashScreenBackground">#102030</item> <!-- Example: Dark Gray -->
+        <!-- If your splash drawable is light: -->
+        <!-- <item name="windowSplashScreenBackground">#FFFFFF</item> --> <!-- Example: White -->
+
+        <!-- Icon for the system splash screen (optional, often your app icon) -->
+        <!-- <item name="windowSplashScreenAnimatedIcon">@drawable/your_app_icon_for_splash</item> -->
+
+        <!-- Status bar icon color DURING THE SYSTEM SPLASH in SYSTEM LIGHT MODE -->
+        <!-- This depends on the `windowSplashScreenBackground` or your splash drawable's appearance. -->
+        <!-- If windowSplashScreenBackground is DARK (like #102030), you need LIGHT icons. -->
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- If windowSplashScreenBackground is LIGHT (like #FFFFFF), you need DARK icons. -->
+        <!-- <item name="android:windowLightStatusBar">true</item> -->
     </style>
 </resources>
