@@ -1,19 +1,26 @@
 // src/lib/api/processBoundariesApi.ts
 import { supabase } from '$lib/supabaseClient';
-import shp from 'shpjs';
+import shp from 'shpjs'; // Assuming shpjs default export is the function
 import { kml } from '@tmcw/togeojson';
 import area from '@turf/area';
 import { polygon, multiPolygon } from '@turf/helpers';
+
 // For browser environment
-const DOMParser = typeof window !== 'undefined' ? window.DOMParser : null;
+const BrowserDOMParser = typeof window !== 'undefined' ? window.DOMParser : null;
+
+if (!BrowserDOMParser) {
+    console.error("DOMParser not found. This script is intended for browser environments.");
+    // You might throw an error here or have a fallback if truly needed,
+    // but for client-side only, it should always be available.
+}
 
 // Dynamic JSZip loader
-let JSZipModule;
+let JSZipModule: any; // Using 'any' for simplicity, replace with actual type if known
 async function getJSZip() {
     if (!JSZipModule) {
         try {
             const jszip = await import('jszip');
-            JSZipModule = jszip.default || jszip;
+            JSZipModule = jszip.default || jszip; // Handle both default and non-default exports
         } catch (e) {
             console.error('Error loading JSZip:', e);
             throw new Error('Failed to load JSZip');
@@ -23,25 +30,23 @@ async function getJSZip() {
 }
 
 // Utility functions
-function findPaddockName(properties) {
+function findPaddockName(properties: any): string | null {
     const possibleNameFields = [
         "name", "NAME", "Name", "PaddockName",
         "PADDOCK_NAME", "paddock_name", "PADDOCKNAME", "FIELD_NAME",
-        "paddock_na", "property_n", "title",
+        "paddock_na", "property_n", "title", "FIELDNAME"
     ];
     for (const field of possibleNameFields) {
-        if (properties[field]) {
-            return properties[field];
+        if (properties && properties[field]) {
+            return String(properties[field]);
         }
     }
     return null;
 }
 
 // Create a standard success response for all processors
-function createSuccessResponse(paddockList, messagePrefix, additionalInfo = '') {
-    // Add duplicate name handling - resolve duplicates before creating the response
+function createSuccessResponse(paddockList: any[], messagePrefix: string, additionalInfo: string = '') {
     const uniquePaddockList = resolveDuplicatePaddockNames(paddockList);
-
     const paddockCount = uniquePaddockList.length;
     const pluralSuffix = paddockCount !== 1 ? "s" : "";
 
@@ -64,7 +69,7 @@ function createSuccessResponse(paddockList, messagePrefix, additionalInfo = '') 
 }
 
 // Create a standard error response
-function createErrorResponse(message) {
+function createErrorResponse(message: string) {
     return {
         status: "error",
         message: message
@@ -72,806 +77,555 @@ function createErrorResponse(message) {
 }
 
 // Process GeoJSON features into paddock objects
-function processFeaturesIntoPaddocks(features) {
-    console.log(`Beginning to process ${features.length} features into paddocks`);
-
+function processFeaturesIntoPaddocks(features: any[], sourceFileInfo: { type: string, name?: string } = { type: 'unknown' }): any[] {
+    // console.log(`Beginning to process ${features.length} features into paddocks from ${sourceFileInfo.type} (${sourceFileInfo.name || ''})`);
     const paddockList = [];
     const invalidFeatures = [];
 
     features.forEach((feature, index) => {
-        console.log(`Processing feature #${index + 1}, type: ${feature.geometry?.type}, name: ${feature.properties?.name || 'unnamed'}`);
+        const featureIdentifier = findPaddockName(feature.properties) || `Unnamed Feature ${index + 1} from ${sourceFileInfo.name || sourceFileInfo.type}`;
 
-        // Skip features without geometry
         if (!feature.geometry) {
-            console.warn(`Feature #${index + 1} has no geometry`);
-            invalidFeatures.push({ reason: "No geometry", index });
+            invalidFeatures.push({ reason: "No geometry", index, name: featureIdentifier });
             return;
         }
 
-        // Handle GeometryCollection specially
         if (feature.geometry.type === 'GeometryCollection') {
-            console.log(`Processing GeometryCollection with ${feature.geometry.geometries?.length || 0} geometries`);
-
-            // Find first valid polygon/multipolygon in the collection
             const validGeometry = feature.geometry.geometries?.find(geom =>
                 geom.type === 'Polygon' || geom.type === 'MultiPolygon');
 
             if (!validGeometry) {
-                console.warn(`Feature #${index + 1} GeometryCollection has no valid Polygon/MultiPolygon geometries`);
                 invalidFeatures.push({
                     reason: "No valid polygons in GeometryCollection",
                     index,
-                    name: feature.properties?.name || 'unnamed'
+                    name: featureIdentifier
                 });
                 return;
             }
-
-            // Replace the GeometryCollection with the found polygon geometry
             feature.geometry = validGeometry;
-            console.log(`Using ${feature.geometry.type} from GeometryCollection`);
         }
 
-        // Skip features with unsupported geometry types
         if (feature.geometry.type !== 'Polygon' && feature.geometry.type !== 'MultiPolygon') {
-            console.warn(`Feature #${index + 1} has unsupported geometry type: ${feature.geometry.type}`);
             invalidFeatures.push({
                 reason: "Unsupported geometry type",
                 index,
                 type: feature.geometry.type,
-                name: feature.properties?.name || 'unnamed'
+                name: featureIdentifier
             });
             return;
         }
 
-        // Rest of the function remains the same...
-
-        // Check if coordinates are valid
         if (!feature.geometry.coordinates ||
             !Array.isArray(feature.geometry.coordinates) ||
             feature.geometry.coordinates.length === 0) {
-            console.warn(`Feature #${index + 1} has invalid coordinates`);
-            invalidFeatures.push({
-                reason: "Invalid coordinates",
-                index
-            });
+            invalidFeatures.push({ reason: "Invalid coordinates", index, name: featureIdentifier });
             return;
         }
 
-        // Calculate area using @turf/area
         let areaValue = 0;
         try {
-            if (feature.geometry.type === 'Polygon') {
-                areaValue = area(polygon(feature.geometry.coordinates));
-            } else if (feature.geometry.type === 'MultiPolygon') {
-                areaValue = area(multiPolygon(feature.geometry.coordinates));
-            }
+            const turfGeometry = feature.geometry.type === 'Polygon' ?
+                polygon(feature.geometry.coordinates) :
+                multiPolygon(feature.geometry.coordinates);
+            areaValue = area(turfGeometry);
 
-            // Convert to hectares
             const areaHectares = areaValue / 10000;
 
-            // Skip features with too small area
-            if (areaHectares < 0.001) { // Less than 10 square meters (0.001 hectares)
-                console.warn(`Feature #${index + 1} has negligible area: ${areaHectares} hectares`);
+            if (areaHectares < 0.001) { // Less than 10 square meters
                 invalidFeatures.push({
                     reason: "Negligible area",
                     area: areaHectares,
-                    index
+                    index,
+                    name: featureIdentifier
                 });
                 return;
             }
 
             const properties = feature.properties || {};
-            const paddockName = findPaddockName(properties) || `ImportPaddock${index + 1}`;
+            const paddockName = findPaddockName(properties) || `ImportPaddock_${sourceFileInfo.type}_${paddockList.length + 1}`;
 
-            // Add the calculated area to the paddock
             paddockList.push({
                 name: paddockName,
                 properties: properties,
                 boundary: feature.geometry,
-                area: areaHectares // Add the area here so it's available immediately
+                area: areaHectares
             });
 
-        } catch (error) {
-            console.error(`Error calculating area for feature #${index + 1}:`, error);
+        } catch (error: any) {
+            console.error(`Error calculating area for feature (Name: ${featureIdentifier}):`, error);
             invalidFeatures.push({
                 reason: "Area calculation error",
                 index,
+                name: featureIdentifier,
                 error: error.message
             });
         }
     });
 
-    // Log information about invalid features
     if (invalidFeatures.length > 0) {
-        console.warn(`Filtered out ${invalidFeatures.length} invalid features:`, invalidFeatures);
+        console.warn(`Filtered out ${invalidFeatures.length} invalid features from ${sourceFileInfo.type} (${sourceFileInfo.name || ''}):`, invalidFeatures.map(f => ({ name: f.name, reason: f.reason, type: f.type, area: f.area })));
     }
-
-    console.log(`Successfully processed ${paddockList.length} valid paddocks`);
-
+    // console.log(`Successfully processed ${paddockList.length} valid paddocks from ${sourceFileInfo.type} (${sourceFileInfo.name || ''})`);
     return paddockList;
 }
 
-// Helper functions for different file types
-async function processKML(fileData) {
+
+async function processKML(fileData: ArrayBuffer, kmlFileNameForContext: string = "KML"): Promise<any> {
     try {
-        console.log("Processing KML file...");
+        if (!BrowserDOMParser) {
+            return createErrorResponse("DOMParser is not available in this environment. Cannot process KML.");
+        }
+        // console.log(`Processing KML file: ${kmlFileNameForContext}`);
         const decoder = new TextDecoder("utf-8");
         const kmlContent = decoder.decode(new Uint8Array(fileData));
 
-        // Log the raw KML content length to verify we have data
-        console.log(`KML content length: ${kmlContent.length} characters`);
+        const parser = new BrowserDOMParser();
+        const kmlDoc = parser.parseFromString(kmlContent, "text/xml");
 
-        const kmlDoc = new DOMParser().parseFromString(kmlContent, "text/xml");
-
-        // Log DOM parsing result
-        console.log(`KML DOM parsed, root element: ${kmlDoc.documentElement.nodeName}`);
-
-        // Log KML structure before conversion
-        const placemarks = kmlDoc.getElementsByTagName("Placemark");
-        console.log(`Found ${placemarks.length} Placemarks in KML file`);
-
-        // Log a sample of the first few placemarks
-        for (let i = 0; i < Math.min(3, placemarks.length); i++) {
-            const placemark = placemarks[i];
-            const name = placemark.getElementsByTagName("name")[0]?.textContent || "unnamed";
-            const hasPolygon = placemark.getElementsByTagName("Polygon").length > 0;
-            const hasMultiGeometry = placemark.getElementsByTagName("MultiGeometry").length > 0;
-            console.log(`Placemark #${i + 1}: Name="${name}", HasPolygon=${hasPolygon}, HasMultiGeometry=${hasMultiGeometry}`);
+        const errorNode = kmlDoc.getElementsByTagName("parsererror")[0];
+        if (errorNode) {
+            console.error("KML parsing error:", errorNode.textContent);
+            return createErrorResponse(`Error parsing KML file (${kmlFileNameForContext}): Invalid XML structure.`);
         }
 
-        // Convert to GeoJSON
-        const geojson = kml(kmlDoc);
+        const geojson = kml(kmlDoc); // @tmcw/togeojson
 
-        // Log the GeoJSON structure after conversion
-        console.log(`Converted to GeoJSON: type=${geojson.type}, features=${geojson.features?.length || 0}`);
-
-        // Log detailed feature breakdown
-        if (geojson.features && geojson.features.length > 0) {
-            console.log("GeoJSON feature types:", geojson.features.map(f => f.geometry?.type).reduce((acc, type) => {
-                acc[type] = (acc[type] || 0) + 1;
-                return acc;
-            }, {}));
-
-            // Log the first few features in detail
-            geojson.features.slice(0, 3).forEach((feature, idx) => {
-                console.log(`Feature #${idx + 1} details:`, {
-                    type: feature.geometry?.type,
-                    coordinates: feature.geometry?.coordinates ?
-                        `${feature.geometry.type === 'Point' ? 1 : feature.geometry.coordinates.length} coordinate sets` : 'none',
-                    propertiesKeys: Object.keys(feature.properties || {}),
-                    name: feature.properties?.name || 'unnamed'
-                });
-            });
-
-            // Check for and log features that might be filtered out later
-            const nonPolygonFeatures = geojson.features.filter(f =>
-                f.geometry && f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon');
-
-            if (nonPolygonFeatures.length > 0) {
-                console.log(`Warning: ${nonPolygonFeatures.length} features are not Polygon/MultiPolygon:`,
-                    nonPolygonFeatures.map(f => ({
-                        type: f.geometry?.type,
-                        name: f.properties?.name || 'unnamed'
-                    })));
-            }
-
-            console.log("Checking for and removing Z dimensions in KML coordinates");
-
-            geojson.features.forEach(feature => {
+        if (geojson.features) {
+            geojson.features.forEach((feature: any) => {
                 if (!feature.geometry) return;
+                const geomType = feature.geometry.type;
+                let coords = feature.geometry.coordinates;
 
-                // Handle Polygon
-                if (feature.geometry.type === 'Polygon') {
-                    feature.geometry.coordinates = feature.geometry.coordinates.map(ring =>
-                        ring.map(coord => [coord[0], coord[1]])); // Keep only X and Y
-                }
-                // Handle MultiPolygon
-                else if (feature.geometry.type === 'MultiPolygon') {
-                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                        polygon.map(ring =>
-                            ring.map(coord => [coord[0], coord[1]]))); // Keep only X and Y
-                }
-                // Handle other geometry types if needed
-                else if (feature.geometry.type === 'LineString') {
-                    feature.geometry.coordinates = feature.geometry.coordinates.map(coord =>
-                        [coord[0], coord[1]]); // Keep only X and Y
-                }
-                else if (feature.geometry.type === 'MultiLineString') {
-                    feature.geometry.coordinates = feature.geometry.coordinates.map(line =>
-                        line.map(coord => [coord[0], coord[1]])); // Keep only X and Y
-                }
-                else if (feature.geometry.type === 'Point') {
-                    feature.geometry.coordinates = [
-                        feature.geometry.coordinates[0],
-                        feature.geometry.coordinates[1]
-                    ]; // Keep only X and Y
-                }
-                else if (feature.geometry.type === 'MultiPoint') {
-                    feature.geometry.coordinates = feature.geometry.coordinates.map(coord =>
-                        [coord[0], coord[1]]); // Keep only X and Y
+                try {
+                    if (geomType === 'Polygon') {
+                        feature.geometry.coordinates = coords.map((ring: any[]) =>
+                            ring.map((coord: any[]) => [coord[0], coord[1]]));
+                    } else if (geomType === 'MultiPolygon') {
+                        feature.geometry.coordinates = coords.map((polygon: any[][]) =>
+                            polygon.map((ring: any[]) =>
+                                ring.map((coord: any[]) => [coord[0], coord[1]])));
+                    } else if (geomType === 'LineString' || geomType === 'MultiPoint') {
+                        feature.geometry.coordinates = coords.map((coord: any[]) => [coord[0], coord[1]]);
+                    } else if (geomType === 'MultiLineString') {
+                        feature.geometry.coordinates = coords.map((line: any[][]) =>
+                            line.map((coord: any[]) => [coord[0], coord[1]]));
+                    } else if (geomType === 'Point') {
+                        feature.geometry.coordinates = [coords[0], coords[1]];
+                    }
+                } catch (e) {
+                    // console.warn(`Could not strip Z from coordinates for ${geomType} in ${kmlFileNameForContext}`, e);
                 }
             });
         }
 
-        // Log before and after features are processed into paddocks
-        console.log(`Processing ${geojson.features?.length || 0} GeoJSON features into paddocks...`);
-
-        const paddockList = processFeaturesIntoPaddocks(geojson.features)
+        const featuresToProcess = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+        const paddockList = processFeaturesIntoPaddocks(featuresToProcess, { type: 'KML', name: kmlFileNameForContext })
             .filter((paddock) => paddock.boundary !== null);
 
-        console.log(`After processing: Found ${paddockList.length} valid paddocks from ${geojson.features?.length || 0} features`);
-
-        // Log what may have been filtered out
-        if (geojson.features && paddockList.length < geojson.features.length) {
-            console.log(`Warning: ${geojson.features.length - paddockList.length} features were filtered out during processing`);
-        }
-
         if (paddockList.length === 0) {
-            return createErrorResponse("No valid paddocks found with boundary data in KML file.");
+            return createErrorResponse(`No valid paddocks found with boundary data in KML file (${kmlFileNameForContext}).`);
         }
-
-        return createSuccessResponse(paddockList, "KML file");
-    } catch (error) {
-        console.error("KML processing error:", error);
-        return createErrorResponse("Error processing the KML file.");
+        return createSuccessResponse(paddockList, `KML file (${kmlFileNameForContext})`);
+    } catch (error: any) {
+        console.error(`KML processing error for ${kmlFileNameForContext}:`, error);
+        return createErrorResponse(`Error processing KML file (${kmlFileNameForContext}): ${error.message}`);
     }
 }
 
-async function processShapefile(shpData, dbfData) {
+async function processShapefile(shpData: ArrayBuffer, dbfData: ArrayBuffer | null, shpFileNameForContext: string = "Shapefile"): Promise<any> {
     try {
-        console.log("Processing shapefile with shpjs...");
-        let geojson;
-
-        // If we have both shp and dbf data
-        if (shpData && dbfData) {
-            console.log("Processing with both SHP and DBF data");
-            geojson = await shp({ shp: shpData, dbf: dbfData });
-        } else if (shpData) {
-            // Fall back to just SHP if needed
-            console.log("Processing with SHP data only");
-            geojson = await shp(shpData);
-        } else {
-            throw new Error("Invalid shapefile data");
+        // console.log(`Processing shapefile: ${shpFileNameForContext}`);
+        let geojson: any;
+        const shpOptions: any = { shp: shpData };
+        if (dbfData) {
+            shpOptions.dbf = dbfData;
         }
+        geojson = await shp(shpOptions);
 
-        console.log("Shapefile parsed to GeoJSON");
-
-        // Check if we got a FeatureCollection or a single Feature
         const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
-
-        // Sample the first few features to see what's in them
-        console.log("First feature sample:", features.length > 0 ? {
-            properties: features[0].properties,
-            geometryType: features[0].geometry?.type
-        } : "No features");
-
-        // Process each feature
-        const paddockList = processFeaturesIntoPaddocks(features);
-
-        // Log the paddock list to see what names were found
-        console.log("Paddock names extracted:", paddockList.map(p => p.name).slice(0, 5));
+        const paddockList = processFeaturesIntoPaddocks(features, { type: 'Shapefile', name: shpFileNameForContext });
 
         if (paddockList.length === 0) {
-            return createErrorResponse("No valid paddocks found with boundary data in shapefile.");
+            return createErrorResponse(`No valid paddocks found with boundary data in shapefile (${shpFileNameForContext}).`);
         }
-
-        // Log the final response to verify names are included
-        const response = createSuccessResponse(paddockList, "shapefile");
-        console.log("Final paddock names in response:", response.paddocks.map(p => p.name).slice(0, 5));
-
-        return response;
-    } catch (error) {
-        console.error("Shapefile processing error:", error);
-        return createErrorResponse(`Error processing the shapefile: ${error.message}`);
+        return createSuccessResponse(paddockList, `shapefile (${shpFileNameForContext})`);
+    } catch (error: any) {
+        console.error(`Shapefile processing error for ${shpFileNameForContext}:`, error);
+        return createErrorResponse(`Error processing the shapefile (${shpFileNameForContext}): ${error.message}`);
     }
 }
 
-async function processZIP(fileData) {
+async function processZIP(fileData: ArrayBuffer): Promise<any> {
     try {
         console.log("Processing ZIP file...");
-
-        // Load JSZip and extract contents
         const JSZip = await getJSZip();
         const zip = new JSZip();
         const contents = await zip.loadAsync(fileData);
-        const files = Object.keys(contents.files);
-        console.log("ZIP loaded, files:", files);
 
-        // Group files by their base name (without extension)
-        const fileGroups = {};
-        files.forEach(file => {
-            // Skip directories or hidden files
-            if (file.endsWith('/') || file.startsWith('__MACOSX') || file.startsWith('.')) {
-                return;
-            }
+        const filesInZip = Object.keys(contents.files).filter(
+            fileName => !contents.files[fileName].dir &&
+                !fileName.startsWith('__MACOSX') &&
+                !fileName.startsWith('.') &&
+                !fileName.includes('/.')
+        );
+        console.log("ZIP loaded, valid files:", filesInZip);
 
-            // Extract the base name (remove extension)
-            const baseName = file.substring(0, file.lastIndexOf('.'));
-            if (!fileGroups[baseName]) {
-                fileGroups[baseName] = [];
-            }
-            fileGroups[baseName].push(file);
-        });
+        // --- Multiple KML Processing Logic ---
+        const kmlFileNames = filesInZip.filter(file => file.toLowerCase().endsWith(".kml"));
+        if (kmlFileNames.length > 0) {
+            console.log(`Found ${kmlFileNames.length} KML file(s) in ZIP. Processing them individually.`);
+            const allKmlPaddocks: any[] = [];
+            let kmlFilesProcessedSuccessfully = 0;
 
-        console.log("File groups detected:", Object.keys(fileGroups));
+            for (const kmlFileName of kmlFileNames) {
+                try {
+                    const kmlFileContent = await contents.file(kmlFileName)!.async("arraybuffer");
+                    const kmlResult = await processKML(kmlFileContent, kmlFileName); // Pass kmlFileName for context
 
-        // Check if we have multiple shapefile groups
-        const shapefileGroups = Object.keys(fileGroups).filter(group => {
-            const extensions = fileGroups[group].map(file => file.substring(file.lastIndexOf('.')));
-            return extensions.includes('.shp');
-        });
-
-        // Process multiple shapefiles if found
-        if (shapefileGroups.length > 0) {
-            console.log(`Found ${shapefileGroups.length} shapefile groups`);
-
-            // Process each shapefile group
-            const allPaddocks = [];
-
-            for (const groupName of shapefileGroups) {
-                const groupFiles = fileGroups[groupName];
-                const shpFileName = groupFiles.find(file => file.toLowerCase().endsWith('.shp'));
-                const dbfFileName = groupFiles.find(file => file.toLowerCase().endsWith('.dbf'));
-
-                if (shpFileName && dbfFileName) {
-                    console.log(`Processing shapefile group: ${groupName}`);
-                    const shpFile = await contents.file(shpFileName).async("arraybuffer");
-                    const dbfFile = await contents.file(dbfFileName).async("arraybuffer");
-
-                    const result = await processShapefile(shpFile, dbfFile);
-
-                    if (result.status === "success") {
-                        // For each paddock in this group, use paddock_na as the name if available
-                        const paddocksWithCorrectNames = result.paddocks.map(paddock => {
-                            // Use paddock_na field if available, otherwise use original name or groupName as fallback
-                            const correctName =
-                                (paddock.properties && paddock.properties.paddock_na) ||
-                                (paddock.properties && paddock.properties.title) ||
-                                paddock.name ||
-                                "Unnamed Paddock";
-
-                            return {
-                                ...paddock,
-                                name: correctName,
-                                properties: {
-                                    ...paddock.properties,
-                                    originalFileName: groupName
-                                }
+                    if (kmlResult.status === "success" && kmlResult.paddocks && kmlResult.paddocks.length > 0) {
+                        const kmlBaseName = kmlFileName.substring(0, kmlFileName.lastIndexOf('.'));
+                        kmlResult.paddocks.forEach((paddock: any) => {
+                            paddock.properties = {
+                                ...paddock.properties,
+                                originalFileName: paddock.properties?.originalFileName || kmlBaseName,
+                                sourceType: 'KML_from_ZIP'
                             };
                         });
-
-                        allPaddocks.push(...paddocksWithCorrectNames);
+                        allKmlPaddocks.push(...kmlResult.paddocks);
+                        kmlFilesProcessedSuccessfully++;
+                    } else if (kmlResult.status === "error") {
+                        console.warn(`KML file ${kmlFileName} in ZIP processed with error: ${kmlResult.message}`);
                     }
+                } catch (kmlError: any) {
+                    console.error(`Error processing KML file ${kmlFileName} from ZIP:`, kmlError.message);
                 }
             }
 
-            if (allPaddocks.length > 0) {
+            if (allKmlPaddocks.length > 0) {
                 return createSuccessResponse(
-                    allPaddocks,
+                    allKmlPaddocks,
                     `zip file`,
-                    ` containing ${shapefileGroups.length} shapefiles`
+                    ` containing data from ${kmlFilesProcessedSuccessfully} KML file(s)`
+                );
+            } else if (kmlFileNames.length > 0 && allKmlPaddocks.length === 0) {
+                return createErrorResponse("ZIP contained KML file(s), but no valid paddock data could be extracted from them.");
+            }
+        }
+
+        console.log("No KML files found or they yielded no data in ZIP, checking for other formats...");
+
+        // Shapefile group processing
+        const fileGroups: { [key: string]: string[] } = {};
+        filesInZip.forEach(file => {
+            const baseName = file.substring(0, file.lastIndexOf('.'));
+            if (!fileGroups[baseName]) fileGroups[baseName] = [];
+            fileGroups[baseName].push(file);
+        });
+
+        const shapefileGroups = Object.keys(fileGroups).filter(group =>
+            fileGroups[group].some(file => file.toLowerCase().endsWith('.shp'))
+        );
+
+        if (shapefileGroups.length > 0) {
+            console.log(`Found ${shapefileGroups.length} shapefile group(s) in ZIP.`);
+            const allShapefilePaddocks: any[] = [];
+            let shapefileGroupsProcessedSuccessfully = 0;
+
+            for (const groupName of shapefileGroups) {
+                const groupFiles = fileGroups[groupName];
+                const shpFileName = groupFiles.find(f => f.toLowerCase().endsWith('.shp'));
+                const dbfFileName = groupFiles.find(f => f.toLowerCase().endsWith('.dbf'));
+
+                if (shpFileName) {
+                    try {
+                        const shpFileBuffer = await contents.file(shpFileName)!.async("arraybuffer");
+                        const dbfFileBuffer = dbfFileName ? await contents.file(dbfFileName)!.async("arraybuffer") : null;
+                        const result = await processShapefile(shpFileBuffer, dbfFileBuffer, groupName); // Pass groupName for context
+
+                        if (result.status === "success" && result.paddocks && result.paddocks.length > 0) {
+                            result.paddocks.forEach((paddock: any) => {
+                                paddock.properties = {
+                                    ...paddock.properties,
+                                    originalFileName: paddock.properties?.originalFileName || groupName,
+                                    sourceType: 'ShapefileGroup_from_ZIP'
+                                };
+                            });
+                            allShapefilePaddocks.push(...result.paddocks);
+                            shapefileGroupsProcessedSuccessfully++;
+                        } else if (result.status === "error") {
+                            console.warn(`Shapefile group ${groupName} in ZIP processed with error: ${result.message}`);
+                        }
+                    } catch (shpGroupError: any) {
+                        console.error(`Error processing shapefile group ${groupName} from ZIP:`, shpGroupError.message);
+                    }
+                }
+            }
+            if (allShapefilePaddocks.length > 0) {
+                return createSuccessResponse(
+                    allShapefilePaddocks,
+                    `zip file`,
+                    ` containing data from ${shapefileGroupsProcessedSuccessfully} shapefile group(s)`
                 );
             }
+            if (shapefileGroups.length > 0 && allShapefilePaddocks.length === 0) {
+                console.log("Shapefile groups were found in ZIP but yielded no paddocks. Continuing search...");
+            }
         }
 
-        // Try different processing approaches if no shapefile groups
-
-        // 1. Try using shpjs directly on ZIP
+        // Try shpjs directly on the entire ZIP
         try {
-            console.log("Attempting to use shpjs directly on ZIP...");
+            console.log("Attempting to use shpjs directly on the entire ZIP (for shapefile ZIP)...");
             const geojson = await shp(fileData);
-            console.log("SHP.js successfully processed the ZIP");
-
             const features = geojson.type === "FeatureCollection" ? geojson.features : [geojson];
-
-            // Update the processFeaturesIntoPaddocks function call or add logic to use correct name
-            const paddockList = features.map(feature => {
-                // Get the correct name from feature properties
-                const correctName =
-                    (feature.properties && feature.properties.paddock_na) ||
-                    (feature.properties && feature.properties.title) ||
-                    (feature.properties && feature.properties.name) ||
-                    "Unnamed Paddock";
-
-                return {
-                    name: correctName,
-                    properties: feature.properties,
-                    boundary: feature.geometry,
-                    area: calculateArea(feature.geometry)
-                };
-            });
+            const paddockList = processFeaturesIntoPaddocks(features, { type: 'Shapefile_from_ZIP_direct' });
 
             if (paddockList.length > 0) {
-                return createSuccessResponse(paddockList, "zip file (shapefile)");
-            }
-        } catch (err) {
-            console.log("Direct shpjs processing failed, trying alternatives:", err);
-        }
-
-        // 2. Check for individual files inside the ZIP
-
-        // Look for shapefile
-        const shpFileName = files.find(file => file.toLowerCase().endsWith(".shp"));
-        const dbfFileName = files.find(file => file.toLowerCase().endsWith(".dbf"));
-        if (shpFileName) {
-            console.log("Found individual shapefile components");
-            const shpFile = await contents.file(shpFileName).async("arraybuffer");
-            const dbfFile = dbfFileName ? await contents.file(dbfFileName).async("arraybuffer") : null;
-
-            // Process the shapefile and then fix the names
-            const result = await processShapefile(shpFile, dbfFile);
-
-            // If successful, update the paddock names using paddock_na
-            if (result.status === "success" && result.paddocks) {
-                result.paddocks = result.paddocks.map(paddock => {
-                    const correctName =
-                        (paddock.properties && paddock.properties.paddock_na) ||
-                        (paddock.properties && paddock.properties.title) ||
-                        paddock.name ||
-                        "Unnamed Paddock";
-
-                    return {
-                        ...paddock,
-                        name: correctName
-                    };
+                paddockList.forEach((paddock: any) => {
+                    paddock.properties = { ...paddock.properties, sourceType: 'Shapefile_from_ZIP_direct' };
                 });
+                return createSuccessResponse(paddockList, "zip file (processed as shapefile archive)");
             }
-
-            return result;
+        } catch (err: any) {
+            console.log("Direct shpjs processing of ZIP failed (likely not a shapefile ZIP), trying alternatives: ", err.message);
         }
 
-        // Look for KML
-        const kmlFileName = files.find(file => file.toLowerCase().endsWith(".kml"));
-        if (kmlFileName) {
-            console.log("Found KML file in ZIP");
-            const kmlFileContent = await contents.file(kmlFileName).async("arraybuffer");
-            return processKML(kmlFileContent);
-        }
-
-        // Look for XML
-        const xmlFileName = files.find(file => file.toLowerCase().endsWith(".xml"));
+        // Check for individual ISOXML file
+        const xmlFileName = filesInZip.find(file => file.toLowerCase().endsWith(".xml"));
         if (xmlFileName) {
-            console.log("Found XML file in ZIP");
-            const xmlContent = await contents.file(xmlFileName).async("text");
-            return processISOXML(xmlContent);
+            try {
+                console.log("Found XML file in ZIP, attempting to process as ISOXML:", xmlFileName);
+                const xmlFileContent = await contents.file(xmlFileName)!.async("text");
+                const xmlResult = await processISOXML(xmlFileContent, xmlFileName); // Pass xmlFileName for context
+
+                if (xmlResult.status === "success" && xmlResult.paddocks && xmlResult.paddocks.length > 0) {
+                    const xmlBaseName = xmlFileName.substring(0, xmlFileName.lastIndexOf('.'));
+                    xmlResult.paddocks.forEach((paddock: any) => {
+                        paddock.properties = {
+                            ...paddock.properties,
+                            originalFileName: paddock.properties?.originalFileName || xmlBaseName,
+                            sourceType: 'ISOXML_from_ZIP'
+                        };
+                    });
+                    return xmlResult;
+                }
+            } catch (xmlError: any) {
+                console.error(`Error processing XML file ${xmlFileName} from ZIP:`, xmlError.message);
+            }
         }
 
-        return createErrorResponse("No valid data files found in the zip archive.");
-    } catch (error) {
-        console.error("ZIP processing error:", error);
+        return createErrorResponse("No valid KML, Shapefile, or ISOXML data found in the zip archive that could be processed.");
+
+    } catch (error: any) {
+        console.error("Outer ZIP processing error:", error);
         return createErrorResponse(`Error processing the zip file: ${error.message}`);
     }
 }
 
-function processISOXML(xmlContent) {
+async function processISOXML(xmlContent: string, xmlFileNameForContext: string = "ISOXML"): Promise<any> {
     try {
-        console.log("Processing ISOXML file...");
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+        if (!BrowserDOMParser) {
+            return createErrorResponse("DOMParser is not available in this environment. Cannot process ISOXML.");
+        }
+        // console.log(`Processing ISOXML file: ${xmlFileNameForContext}`);
+        const parser = new BrowserDOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
 
-        // Check if it's a valid ISOXML file
-        const isoxml = xmlDoc.getElementsByTagName("ISO11783_TaskData")[0];
-        if (!isoxml) {
-            return createErrorResponse("Not a valid ISOXML file.");
+        const errorNode = xmlDoc.getElementsByTagName("parsererror")[0];
+        if (errorNode) {
+            console.error("ISOXML parsing error:", errorNode.textContent);
+            return createErrorResponse(`Error parsing ISOXML file (${xmlFileNameForContext}): Invalid XML structure.`);
         }
 
-        const paddockList = [];
+        const isoxml = xmlDoc.getElementsByTagName("ISO11783_TaskData")[0];
+        if (!isoxml) {
+            return createErrorResponse(`Not a valid ISOXML file (${xmlFileNameForContext}): Missing ISO11783_TaskData root element.`);
+        }
+
+        const paddockList: any[] = [];
         let totalExclusions = 0;
 
-        // Process client (CTR element)
         const ctr = xmlDoc.getElementsByTagName("CTR")[0];
         const client = ctr ? ctr.getAttribute("B") : "Unknown Client";
 
-        // Process farms (FRM elements)
         const farms = xmlDoc.getElementsByTagName("FRM");
         const farmMap = new Map();
         for (let i = 0; i < farms.length; i++) {
-            const farm = farms[i];
-            const farmId = farm.getAttribute("A");
-            const farmName = farm.getAttribute("B");
-            farmMap.set(farmId, farmName);
+            farmMap.set(farms[i].getAttribute("A"), farms[i].getAttribute("B"));
         }
 
-        // Process partfields (paddocks)
         const partfields = xmlDoc.getElementsByTagName("PFD");
         for (let i = 0; i < partfields.length; i++) {
             const partfield = partfields[i];
             const paddockId = partfield.getAttribute("A");
-            const paddockName = partfield.getAttribute("C") || `ImportPaddock${i + 1}`;
+            const paddockName = partfield.getAttribute("C") || `ImportPaddock_ISOXML_${i + 1}`;
             const areaValue = partfield.getAttribute("D");
             const farmId = partfield.getAttribute("F");
             const farm = farmMap.get(farmId) || "Unknown Farm";
 
-            // Modified approach - create a map to organize polygons by type
-            const mainPolygons = [];
-            const obstacleMap = new Map(); // Map to track which obstacles belong to which main polygon
+            const pfdPolygons = partfield.getElementsByTagName("PLN");
+            const geometricPolygons: any[][][] = [];
 
-            // Process polygons for this partfield
-            const polygons = partfield.getElementsByTagName("PLN");
+            for (let j = 0; j < pfdPolygons.length; j++) {
+                const pln = pfdPolygons[j];
+                const polygonType = pln.getAttribute("A");
+                const lineStrings = pln.getElementsByTagName("LSG");
+                if (lineStrings.length === 0) continue;
 
-            // First pass - identify main polygons and obstacles
-            for (let j = 0; j < polygons.length; j++) {
-                const polygon = polygons[j];
-                const polygonType = polygon.getAttribute("A");
-                const polygonName = polygon.getAttribute("B") || "";
-
-                const lineStrings = polygon.getElementsByTagName("LSG");
-                let ringCoordinates = [];
-
-                // Extract coordinates from the first LSG (assuming each PLN has at least one LSG)
-                if (lineStrings.length > 0) {
-                    const lsg = lineStrings[0];
-                    const points = lsg.getElementsByTagName("PNT");
-
-                    for (let l = 0; l < points.length; l++) {
-                        const point = points[l];
-                        const lat = parseFloat(point.getAttribute("C"));
-                        const lon = parseFloat(point.getAttribute("D"));
-                        ringCoordinates.push([lon, lat]);
-                    }
-
-                    // Close the ring
-                    if (ringCoordinates.length > 0) {
-                        ringCoordinates.push(ringCoordinates[0]);
-                    }
+                const ringCoordinates: any[] = [];
+                const points = lineStrings[0].getElementsByTagName("PNT");
+                for (let l = 0; l < points.length; l++) {
+                    const lat = parseFloat(points[l].getAttribute("C")!);
+                    const lon = parseFloat(points[l].getAttribute("D")!);
+                    ringCoordinates.push([lon, lat]);
                 }
 
-                // Skip empty polygons
-                if (ringCoordinates.length === 0) continue;
+                if (ringCoordinates.length > 3 &&
+                    (ringCoordinates[0][0] !== ringCoordinates[ringCoordinates.length - 1][0] ||
+                        ringCoordinates[0][1] !== ringCoordinates[ringCoordinates.length - 1][1])) {
+                    ringCoordinates.push([...ringCoordinates[0]]);
+                }
 
-                // Determine if it's a main polygon or an obstacle based on attributes
-                // Type "1" is usually a main polygon, Type "8" often indicates obstacles/exclusions
-                // Also check if the name includes "Obstacle" or similar words
-                const isObstacle =
-                    polygonType === "8" ||
-                    polygonName.toLowerCase().includes("obstacle") ||
-                    polygonName.toLowerCase().includes("exclusion");
+                if (ringCoordinates.length < 4) continue;
 
-                if (isObstacle) {
-                    // This is likely an obstacle/hole
-                    // Initially we'll put it in a list, then later assign it to the main polygon
-                    let parentPolygonIndex = 0; // Default to first polygon if we can't determine
-
-                    // For now, we'll add it to the obstacle map with the parent polygon index
-                    // We'll assign it to the correct parent polygon in the second pass
-                    if (!obstacleMap.has(parentPolygonIndex)) {
-                        obstacleMap.set(parentPolygonIndex, []);
-                    }
-                    obstacleMap.get(parentPolygonIndex).push(ringCoordinates);
+                if (polygonType === "1") {
+                    geometricPolygons.unshift([ringCoordinates]);
+                } else if (polygonType === "8") {
+                    if (geometricPolygons.length === 0) geometricPolygons.push([]);
+                    geometricPolygons[0].push(ringCoordinates);
                     totalExclusions++;
-                } else {
-                    // This is a main polygon
-                    mainPolygons.push([ringCoordinates]);
                 }
             }
 
-            // Special case handling: If we have obstacles without clear parent assignment
-            // Use geometric containment to determine which main polygon they belong to
-            if (obstacleMap.has(0) && mainPolygons.length > 1) {
-                // This is where we'd implement the containment check, but it requires turf.js
-                // For now, we'll use a simplified approach - assign obstacles to the first polygon
-                // TODO: Implement proper containment check with turf.js if available
-            }
-
-            // Assign obstacles to their respective main polygons
-            obstacleMap.forEach((obstacles, parentIndex) => {
-                if (parentIndex < mainPolygons.length) {
-                    // Add all obstacles as inner rings of the main polygon
-                    obstacles.forEach(obstacle => {
-                        mainPolygons[parentIndex].push(obstacle);
-                    });
-                }
-            });
-
-            // Create final boundary representation
-            if (mainPolygons.length > 0) {
-                // Create a paddock object
-                const paddock = {
-                    name: paddockName,
-                    properties: {
-                        id: paddockId,
-                        area: areaValue,
-                        farmId: farmId,
-                        client: client,
-                        farm: farm,
-                    },
-                    boundary: {
-                        type: mainPolygons.length > 1 ? "MultiPolygon" : "Polygon",
-                        coordinates:
-                            mainPolygons.length > 1
-                                ? mainPolygons
-                                : mainPolygons[0],
-                    },
+            if (geometricPolygons.length > 0 && geometricPolygons[0].length > 0) {
+                const boundaryGeoJSON = {
+                    type: "Polygon",
+                    coordinates: geometricPolygons[0]
                 };
 
-                paddockList.push(paddock);
+                let areaHectares = 0;
+                if (areaValue) {
+                    areaHectares = parseFloat(areaValue) / 10000;
+                } else {
+                    try { areaHectares = area(polygon(boundaryGeoJSON.coordinates as any)) / 10000; } catch (e) {/* ignore */ }
+                }
+
+                if (areaHectares < 0.001 && areaValue) { /* respect tiny area from XML */ }
+                else if (areaHectares < 0.001) continue;
+
+                paddockList.push({
+                    name: paddockName,
+                    properties: { id: paddockId, farmId: farmId, client: client, farm: farm, originalAreaSQM: areaValue, sourceType: 'ISOXML', originalFileName: xmlFileNameForContext },
+                    boundary: boundaryGeoJSON,
+                    area: areaHectares
+                });
             }
         }
 
         if (paddockList.length === 0) {
-            return createErrorResponse("No valid paddocks found with boundary data in ISOXML file.");
+            return createErrorResponse(`No valid paddocks found with boundary data in ISOXML file (${xmlFileNameForContext}).`);
         }
-
-        const exclusionText = totalExclusions > 0
-            ? ` with a total of ${totalExclusions} exclusion${totalExclusions !== 1 ? "s" : ""}`
-            : '';
-
-        return createSuccessResponse(paddockList, "ISOXML file", exclusionText);
-    } catch (error) {
-        console.error("ISOXML processing error:", error);
-        return createErrorResponse("Error processing the ISOXML file.");
+        const exclusionText = totalExclusions > 0 ? ` with ${totalExclusions} exclusion(s)` : '';
+        return createSuccessResponse(paddockList, `ISOXML file (${xmlFileNameForContext})`, exclusionText);
+    } catch (error: any) {
+        console.error(`ISOXML processing error for ${xmlFileNameForContext}:`, error);
+        return createErrorResponse(`Error processing the ISOXML file (${xmlFileNameForContext}): ${error.message}`);
     }
 }
 
 
-/**
- * Resolves duplicate paddock names by adding a numeric suffix to ensure uniqueness
- * @param paddocks Array of paddocks with name properties
- * @returns Array of paddocks with unique names
- */
-function resolveDuplicatePaddockNames(paddocks) {
-    // Use a map to keep track of which names we've seen
+function resolveDuplicatePaddockNames(paddocks: any[]): any[] {
     const nameCount = new Map();
-
     return paddocks.map(paddock => {
-        const originalName = paddock.name;
+        let currentName = paddock.name || "Unnamed Paddock";
+        const originalNameForLookup = currentName;
+        let count = (nameCount.get(originalNameForLookup) || 0) + 1;
+        nameCount.set(originalNameForLookup, count);
 
-        // Skip if no name or null
-        if (!originalName) return paddock;
-
-        // Update count for this name
-        const count = (nameCount.get(originalName) || 0) + 1;
-        nameCount.set(originalName, count);
-
-        // If this is the first occurrence, keep the original name
-        if (count === 1) return paddock;
-
-        // Otherwise, add a suffix
-        const uniqueName = `${originalName} #${count}`;
-        console.log(`Renamed duplicate paddock from "${originalName}" to "${uniqueName}"`);
+        if (count > 1) {
+            currentName = `${originalNameForLookup} (${count})`;
+        }
 
         return {
             ...paddock,
-            name: uniqueName,
+            name: currentName,
             properties: {
                 ...paddock.properties,
-                originalName // Keep the original name in properties
+                originalName: (count > 1 && !paddock.properties?.originalName) ? originalNameForLookup : paddock.properties?.originalName,
             }
         };
     });
 }
 
-// TODO: Future improvement - implement geometric overlap detection
-// to identify true duplicates by checking if field boundaries overlap significantly
-// rather than just comparing names. This would avoid renaming fields that
-// just happen to have the same name but are in different locations.
-
-// The main API object
 export const processBoundariesApi = {
-    async processFile(fileName: string) {
+    async processFile(fileName: string): Promise<any> {
         try {
-            console.log("Starting processing of file:", fileName);
+            console.log("Starting client-side processing of file:", fileName);
 
-            // Authentication check
-            const { data: session } = await supabase.auth.getSession();
-            if (!session?.session?.user) {
-                throw new Error("Not authenticated");
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                return createErrorResponse("Not authenticated. Please log in.");
             }
-            const userId = session.session.user.id;
+            const userId = sessionData.session.user.id;
 
             if (!fileName) {
-                throw new Error("File name is required");
+                return createErrorResponse("File name is required.");
             }
 
-            // Construct file path and download
             const filePath = `user_${userId}/${fileName}`;
-            console.log("File path:", filePath);
+            console.log("Attempting to download file from Supabase Storage:", filePath);
 
-            const { data, error: downloadError } = await supabase.storage
+            const { data: blobData, error: downloadError } = await supabase.storage
                 .from("user_files_bucket")
                 .download(filePath);
 
             if (downloadError) {
-                console.error("Download error:", downloadError);
-                throw new Error(`Download error: ${downloadError.message}`);
+                console.error("Supabase download error:", downloadError);
+                throw new Error(`Download error from cloud storage: ${downloadError.message}`);
+            }
+            if (!blobData) {
+                throw new Error("File not found or empty in cloud storage.");
             }
 
-            if (!data) {
-                console.error("No data received from download");
-                throw new Error("File not found");
-            }
-
-            console.log("File downloaded successfully, size:", data.size);
-
-            // Convert Blob to ArrayBuffer
-            const arrayBuffer = await data.arrayBuffer();
-
-            // Process based on file extension
-            const fileExtension = fileName.split(".").pop().toLowerCase();
+            console.log("File downloaded successfully from Supabase, size:", blobData.size);
+            const arrayBuffer = await blobData.arrayBuffer();
+            const fileExtension = fileName.split(".").pop()?.toLowerCase();
             console.log("Processing file with extension:", fileExtension);
 
             let result;
             switch (fileExtension) {
                 case "kml":
-                    result = await processKML(arrayBuffer);
+                    result = await processKML(arrayBuffer, fileName); // Pass fileName for context
                     break;
                 case "zip":
-                    result = await processZIP(arrayBuffer);
+                    result = await processZIP(arrayBuffer); // processZIP handles internal file names
                     break;
                 case "xml":
                     const decoder = new TextDecoder("utf-8");
                     const xmlContent = decoder.decode(new Uint8Array(arrayBuffer));
-                    result = processISOXML(xmlContent);
+                    result = await processISOXML(xmlContent, fileName); // Pass fileName for context
                     break;
                 default:
-                    result = createErrorResponse("Invalid file type. Please upload a zip, KML, or XML file.");
+                    result = createErrorResponse(`Invalid file type: .${fileExtension}. Please upload a KML, ZIP, or XML (ISOXML) file.`);
                     break;
             }
 
-            console.log("Processing result status:", result.status);
             if (result.status === "error") {
-                throw new Error(result.message);
+                return result; // Already a structured error
             }
 
-            // More detailed logging before creating the response
-            console.log("Result before final return:", {
-                messageType: typeof result.message,
-                hasError: !!result.error,
-                paddockCount: result.paddocks?.length || 0,
-                paddockStructure: result.paddocks && result.paddocks.length > 0
-                    ? Object.keys(result.paddocks[0])
-                    : 'No paddocks',
-                firstFewNames: result.paddocks?.slice(0, 5).map(p => p.name),
-                geojsonFeatureCount: result.geojson?.features?.length || 0
-            });
-
-            // Inspect the first paddock in detail
-            if (result.paddocks && result.paddocks.length > 0) {
-                const firstPaddock = result.paddocks[0];
-                console.log("First paddock detailed info:", {
-                    name: firstPaddock.name,
-                    nameType: typeof firstPaddock.name,
-                    hasNameProperty: 'name' in firstPaddock,
-                    boundaryType: firstPaddock.boundary?.type,
-                    propertyKeys: Object.keys(firstPaddock),
-                    allProperties: firstPaddock.properties ? Object.keys(firstPaddock.properties) : 'No properties'
-                });
-            }
-
-            // Compare with GeoJSON if available
-            if (result.geojson?.features && result.geojson.features.length > 0) {
-                console.log("First GeoJSON feature detailed info:", {
-                    properties: result.geojson.features[0].properties,
-                    nameInProperties: result.geojson.features[0].properties?.name,
-                    geometryType: result.geojson.features[0].geometry?.type
-                });
-            }
-
-            // Final response check
-            const response = {
+            return {
                 message: result.message,
                 paddocks: result.paddocks || [],
                 geojson: result.geojson,
+                status: "success"
             };
 
-            console.log("API final response structure:", {
-                messageType: typeof response.message,
-                paddockCount: response.paddocks?.length || 0,
-                paddocksHaveNames: response.paddocks ?
-                    response.paddocks.every(p => p.name && p.name !== "boundaries") : false,
-                firstPaddockKeysDetailed: response.paddocks && response.paddocks.length > 0 ?
-                    Object.entries(response.paddocks[0]).map(([key, value]) =>
-                        `${key}: ${typeof value} (${value && typeof value === 'object' ? 'object' : String(value)})`) : [],
-                geojsonFeatureCount: response.geojson?.features?.length || 0,
-                firstFewPaddockNames: response.paddocks?.slice(0, 5).map(p => p.name)
-            });
-
-            return response;
-        } catch (error) {
-            console.error("Error in processFile:", error);
+        } catch (error: any) {
+            console.error("Critical error in processFile:", error);
             return {
-                error: true,
-                message: error.message || "An error occurred while processing the file"
+                status: "error",
+                message: error.message || "An unexpected error occurred while processing the file.",
+                error: true // Keep for compatibility if frontend expects this
             };
         }
     }
