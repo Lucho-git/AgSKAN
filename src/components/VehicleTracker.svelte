@@ -1,6 +1,8 @@
 <!-- VehicleTracker.svelte -->
 <script>
   import { onMount, onDestroy } from "svelte"
+  import { goto } from "$app/navigation"
+
   import * as mapboxgl from "mapbox-gl"
   import {
     userVehicleStore,
@@ -52,7 +54,7 @@
   // Function to detect if running as a mobile app via Capacitor
   function detectPlatform() {
     try {
-      // Log all the environment information to help diagnose
+      // Log environment information silently (no toast)
       console.log({
         capacitorExists: typeof Capacitor !== "undefined",
         isNative: Capacitor.isNativePlatform(),
@@ -67,13 +69,12 @@
       if (isNativePlatform) {
         isMobileApp = true
         appState = "mobile-foreground"
-        toast.success(`Running on ${platform} natively`, {
-          description: "Using native device capabilities",
-        })
+        // Removed toast notification about platform
         console.log(`App running natively on ${platform}`)
       } else {
         isMobileApp = false
         appState = "web"
+        // Keep toast for web users as it's useful information
         toast.info("Running in web browser", {
           description: "Some features may be limited",
         })
@@ -90,38 +91,78 @@
   }
 
   // Setup background service handlers
-  function setupBackgroundService() {
+  async function setupBackgroundService() {
     if (!isMobileApp) return
 
-    // Initialize the background service
-    backgroundService.init()
+    try {
+      console.log("Setting up background service...")
 
-    // Add a listener for background events
-    removeBackgroundListener = backgroundService.addListener((event, data) => {
-      console.log("Background event:", event, data)
+      // Initialize the background service and get the permission status
+      const backgroundPermissionGranted = await backgroundService.init()
+      console.log("Background permission status:", backgroundPermissionGranted)
 
-      if (event === "background") {
-        isBackground = true
-        appState = "mobile-background"
-        toast.info("App moved to background", {
-          description: "Switching to background tracking mode",
+      // Show appropriate toast based on background permission status
+      if (backgroundPermissionGranted) {
+        toast.success("Background location is enabled", {
+          description:
+            "Your location will continue to be tracked when the app is in the background",
+          duration: 5000,
         })
-      } else if (event === "foreground") {
-        isBackground = false
-        appState = "mobile-foreground"
-
-        // Show toast with background duration and location update count
-        if (data.duration) {
-          toast.info(`App returned from background`, {
-            description: `Background duration: ${data.duration.formatted}. Recorded ${data.locationUpdateCount} location updates.`,
-            duration: 5000,
-          })
-        }
-      } else if (event === "location" && isBackground) {
-        // Process background location updates
-        streamMarkerPosition(data.coords)
+      } else {
+        // No toast for missing background permission
+        console.log("Background location is not enabled")
       }
-    })
+
+      // Add a listener for background events
+      removeBackgroundListener = backgroundService.addListener(
+        (event, data) => {
+          console.log("Background event:", event, data)
+
+          if (event === "background") {
+            isBackground = true
+            appState = "mobile-background"
+
+            // No toast when going to background
+            console.log("App moved to background")
+          } else if (event === "foreground") {
+            isBackground = false
+            appState = "mobile-foreground"
+
+            // Show toast ONLY if we recorded 2+ updates in background
+            if (data.duration && data.locationUpdateCount >= 2) {
+              toast.info(`App returned to foreground`, {
+                description: `Recorded ${data.locationUpdateCount} location updates in ${data.duration.formatted}`,
+                duration: 5000,
+              })
+            } else {
+              // Log without toast for 0-1 updates
+              console.log(
+                `App returned to foreground after ${data.duration?.formatted || "unknown time"} with ${data.locationUpdateCount || 0} location updates`,
+              )
+            }
+          } else if (event === "location" && isBackground) {
+            // Process background location updates
+            streamMarkerPosition(data.coords)
+          } else if (event === "permissionChange") {
+            // Handle permission status changes
+            if (data.backgroundPermissionGranted) {
+              toast.success("Background location enabled", {
+                description:
+                  "Your location will now be tracked when the app is in the background",
+              })
+            } else {
+              // No toast for permission being disabled
+              console.log("Background location permission was disabled")
+            }
+          }
+        },
+      )
+    } catch (error) {
+      console.error("Error in setupBackgroundService:", error)
+      toast.error("Error setting up background tracking", {
+        description: error.message || "Please check app permissions",
+      })
+    }
   }
 
   // Handle visibility changes for web browsers
@@ -595,34 +636,6 @@
     <Gauge size={20} />
   {/if}
 </button>
-
-<!-- App Status Indicator -->
-<div
-  class="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 text-white backdrop-blur"
->
-  <div
-    class="h-2.5 w-2.5 rounded-full"
-    style="background-color: {appState === 'web' ||
-    appState === 'web-background'
-      ? '#4ade80'
-      : appState === 'mobile-foreground'
-        ? '#3b82f6'
-        : '#ef4444'};"
-  ></div>
-  <span class="text-xs font-medium">
-    {#if appState === "web"}
-      Web Browser
-    {:else if appState === "web-background"}
-      Web (Background)
-    {:else if appState === "mobile-foreground"}
-      Mobile App (Active)
-    {:else if appState === "mobile-background"}
-      Mobile App (Background)
-    {:else}
-      Unknown State
-    {/if}
-  </span>
-</div>
 
 {#if showSpeedometer}
   <div

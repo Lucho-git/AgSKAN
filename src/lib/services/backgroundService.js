@@ -11,72 +11,150 @@ class BackgroundService {
     this.listeners = [];
     this.backgroundStartTime = null;
     this.locationUpdatesInBackground = 0;
-    this.lastForegroundTime = Date.now();
-    this.appStateListener = null; // Store the listener reference
+    this.appStateListener = null;
+    this.backgroundPermissionGranted = false;
+    this.platform = Capacitor.getPlatform();
   }
 
-  init() {
-    if (this.isInitialized || !Capacitor.isNativePlatform()) return;
+  async init() {
+    if (this.isInitialized || !Capacitor.isNativePlatform()) return false;
 
-    console.log("Initializing background service");
+    console.log(`Initializing background service on ${this.platform}`);
 
-    // Configure background geolocation
-    this.configureBackgroundGeolocation();
+    try {
+      // Check permission first - this works correctly
+      await this.checkBackgroundPermission();
+      
+      // Store the permission state before configuration
+      const permissionState = this.backgroundPermissionGranted;
+      
+      // Configure the plugin with error handling
+      try {
+        await this.configureBackgroundGeolocation();
+      } catch (configError) {
+        console.error("Error during background geolocation configuration:", configError);
+        // Continue with initialization despite config errors
+        // We've already checked permissions which is the important part
+      }
+      
+      // Set up app state listeners
+      this.setupAppStateListeners();
+      
+      this.isInitialized = true;
+      
+      // Return the permission state we determined before configuration
+      return permissionState;
+    } catch (error) {
+      console.error("Error initializing background service:", error);
+      return false;
+    }
+  }
 
-    // Listen for app state changes
-    this.setupAppStateListeners();
-
-    this.isInitialized = true;
+  async checkBackgroundPermission() {
+    try {
+      // Get the provider state to check permission status
+      const providerState = await BackgroundGeolocation.getProviderState();
+      console.log("Provider State:", JSON.stringify(providerState, null, 2));
+      
+      // Status code 3 = AUTHORIZATION_STATUS_ALWAYS (required for background)
+      this.backgroundPermissionGranted = providerState.status === 3;
+      
+      console.log(`Background permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status})`);
+      return this.backgroundPermissionGranted;
+    } catch (error) {
+      console.error("Error checking background permission:", error);
+      this.backgroundPermissionGranted = false;
+      return false;
+    }
   }
 
   async configureBackgroundGeolocation() {
     try {
       const config = {
-        // Debug settings
-        debug: false, // Set to true for testing
+        // Basic configuration
+        debug: false,
         logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
-
-        // Geolocation settings
         desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
-        distanceFilter: 10, // meters
-        stopTimeout: 5, // minutes to detect stop
-
-        // Application settings
+        distanceFilter: 10,
+        locationAuthorizationRequest: 'Always',
+        
+        // Background behavior
         stopOnTerminate: false,
-        startOnBoot: true, 
+        startOnBoot: true,
         enableHeadless: true,
-
-        // Notification settings for Android
+        
+        // Android notification
         notification: {
           title: "AgSKAN Tracking",
           text: "Tracking your location in background"
         }
       };
 
+      console.log("Configuring BackgroundGeolocation");
       const state = await BackgroundGeolocation.ready(config);
-      console.log("BackgroundGeolocation configured:", state);
-
-      // Add location listener for background updates
-      BackgroundGeolocation.onLocation(this.handleBackgroundLocation.bind(this));
+      console.log("BackgroundGeolocation configured successfully");
       
-      // Handle location errors
-      BackgroundGeolocation.onError(error => {
-        console.error("[Background] Location error:", error);
-      });
+      // Add location listener - this was working correctly
+      try {
+        BackgroundGeolocation.addListener('location', this.handleBackgroundLocation.bind(this));
+        console.log("Location listener added successfully");
+      } catch (listenerError) {
+        console.error("Error adding location listener:", listenerError);
+      }
       
-      // Listen for app going to foreground/background via the plugin
-      BackgroundGeolocation.onProviderChange(event => {
-        console.log("[Background] Provider changed:", event);
-      });
+      // Try to add error listener using addListener instead of onError
+      try {
+        BackgroundGeolocation.addListener('error', (error) => {
+          console.error("[Background] Location error:", error);
+        });
+        console.log("Error listener added successfully");
+      } catch (errorListenerError) {
+        console.error("Error adding error listener:", errorListenerError);
+        // Continue even if we can't add the error listener
+      }
+      
+      // Try to add provider change listener using addListener instead of onProviderChange
+      try {
+        BackgroundGeolocation.addListener('providerchange', (event) => {
+          console.log("[Background] Provider changed:", JSON.stringify(event));
+          
+          // Update permission status when provider changes
+          if (typeof event.status !== 'undefined') {
+            const wasGranted = this.backgroundPermissionGranted;
+            this.backgroundPermissionGranted = event.status === 3;
+            
+            // Notify if permission status changed
+            if (wasGranted !== this.backgroundPermissionGranted) {
+              this.notifyListeners('permissionChange', {
+                backgroundPermissionGranted: this.backgroundPermissionGranted
+              });
+            }
+          }
+        });
+        console.log("Provider change listener added successfully");
+      } catch (providerListenerError) {
+        console.error("Error adding provider change listener:", providerListenerError);
+        // Continue even if we can't add the provider change listener
+      }
 
+      return state;
     } catch (error) {
       console.error("Error configuring background geolocation:", error);
+      throw error;
     }
   }
 
   setupAppStateListeners() {
-    // Listen for app state changes and store the listener reference
-    this.appStateListener = App.addListener('appStateChange', ({ isActive }) => {
+    // Clean up existing listener if any
+    if (this.appStateListener) {
+      try {
+        this.appStateListener.remove();
+      } catch (e) {
+        console.error("Error removing existing listener:", e);
+      }
+    }
+    
+    this.appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
       console.log("App state changed. isActive:", isActive);
       
       if (isActive) {
@@ -89,19 +167,32 @@ class BackgroundService {
     });
   }
 
-  onBackground() {
+  async onBackground() {
+    // Reset counters
     this.backgroundStartTime = Date.now();
     this.locationUpdatesInBackground = 0;
     
-    // Start background tracking if not already tracking
-    this.startBackgroundTracking();
+    // Check permission status before starting background tracking
+    await this.checkBackgroundPermission();
     
-    // Notify listeners
-    this.notifyListeners('background', {});
+    if (this.backgroundPermissionGranted) {
+      // Start tracking only if permission is granted
+      await this.startBackgroundTracking();
+      
+      this.notifyListeners('background', {
+        backgroundPermissionGranted: true
+      });
+    } else {
+      console.log("Background tracking not started - permission not granted");
+      
+      this.notifyListeners('background', {
+        backgroundPermissionGranted: false
+      });
+    }
   }
 
   onForeground() {
-    // Calculate duration in background
+    // Calculate time in background
     let duration = null;
     if (this.backgroundStartTime) {
       const milliseconds = Date.now() - this.backgroundStartTime;
@@ -111,30 +202,28 @@ class BackgroundService {
       };
     }
     
-    // Switch to foreground tracking
+    // Stop background tracking
     this.stopBackgroundTracking();
     
-    // Notify listeners with duration and location update count
+    // Notify listeners
     this.notifyListeners('foreground', {
       duration,
-      locationUpdateCount: this.locationUpdatesInBackground
+      locationUpdateCount: this.locationUpdatesInBackground,
+      backgroundPermissionGranted: this.backgroundPermissionGranted
     });
     
-    // Show toast with background update count
-    if (this.locationUpdatesInBackground > 0) {
-      toast.info(`Location tracking stats`, {
-        description: `Recorded ${this.locationUpdatesInBackground} location updates while in background.`,
-        duration: 5000
-      });
-    }
-    
-    // Reset values
+    // Reset counters
     this.backgroundStartTime = null;
     this.locationUpdatesInBackground = 0;
   }
 
   async startBackgroundTracking() {
     try {
+      if (!this.backgroundPermissionGranted) {
+        console.log("Cannot start background tracking - permission not granted");
+        return;
+      }
+      
       if (!this.isTracking) {
         await BackgroundGeolocation.start();
         this.isTracking = true;
@@ -158,18 +247,16 @@ class BackgroundService {
   }
 
   handleBackgroundLocation(location) {
-    console.log("[Background] Location update:", location);
+    console.log("[Background] Location update received");
     
-    // Increment the counter of background location updates
+    // Increment counter
     this.locationUpdatesInBackground++;
     
-    // Extract the location data
+    // Extract location data
     const { coords, timestamp } = location;
     const { latitude, longitude, heading, speed } = coords;
     
-    // Forward this data to your existing streamMarkerPosition logic
-    // We're not calling it directly to avoid circular dependencies
-    // Instead, we'll notify listeners which VehicleTracker will handle
+    // Pass to listeners
     this.notifyListeners('location', {
       coords: {
         latitude,
@@ -212,28 +299,33 @@ class BackgroundService {
     }
   }
 
-  cleanup() {
+  async cleanup() {
     if (this.isTracking) {
-      this.stopBackgroundTracking();
+      await this.stopBackgroundTracking();
     }
     
-    if (Capacitor.isNativePlatform()) {
-      // Remove the appStateListener properly
-      if (this.appStateListener) {
-        try {
-          this.appStateListener.remove();
-        } catch (error) {
-          console.error("Error removing app state listener:", error);
-        }
+    if (this.appStateListener && Capacitor.isNativePlatform()) {
+      try {
+        this.appStateListener.remove();
+      } catch (error) {
+        console.error("Error removing app state listener:", error);
       }
-      
-      // BackgroundGeolocation listeners are typically handled by the plugin
-      // itself when the app is destroyed, but we can add specific cleanup
-      // if needed in the future
     }
     
     this.listeners = [];
     this.isInitialized = false;
+  }
+  
+  // Simple method to request background permission
+  async requestBackgroundPermission() {
+    try {
+      await BackgroundGeolocation.requestPermission();
+      // Update our status after requesting
+      return await this.checkBackgroundPermission();
+    } catch (error) {
+      console.error("Error requesting background permission:", error);
+      return false;
+    }
   }
 }
 
