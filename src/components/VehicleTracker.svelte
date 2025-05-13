@@ -74,10 +74,6 @@
       } else {
         isMobileApp = false
         appState = "web"
-        // Keep toast for web users as it's useful information
-        toast.info("Running in web browser", {
-          description: "Some features may be limited",
-        })
         console.log("App running in web browser")
       }
 
