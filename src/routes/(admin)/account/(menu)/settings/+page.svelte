@@ -13,9 +13,9 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
-
-  // Import MarkerFilterSettings component
-  import MarkerFilterSettings from "./MarkerFilterSettings.svelte"
+  import { Geolocation } from "@capacitor/geolocation"
+  // Import the Transistorsoft background geolocation plugin
+  import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("settings")
@@ -32,6 +32,10 @@
   let planStatus = "Active"
   let planQuantity = "1"
   let isPaidPlan = false
+
+  // Location permission states
+  let locationPermissionStatus = "Unknown"
+  let backgroundLocationStatus = "Unknown"
 
   async function loadUserSubscription() {
     try {
@@ -71,6 +75,124 @@
     }
   }
 
+  // Updated checkLocationPermissions function to use status code
+  async function checkLocationPermissions() {
+    if (!isNativePlatform) {
+      locationPermissionStatus = "Not applicable (web)"
+      backgroundLocationStatus = "Not applicable (web)"
+      return
+    }
+
+    try {
+      // Check foreground location permission
+      const permStatus = await Geolocation.checkPermissions()
+      locationPermissionStatus = permStatus.location
+
+      // Check background location status using the status code
+      try {
+        const providerState = await BackgroundGeolocation.getProviderState()
+        // Status code 3 = AUTHORIZATION_STATUS_ALWAYS
+        backgroundLocationStatus =
+          providerState.status === 3 ? "granted" : "denied"
+        console.log(
+          `Background location permission (status=${providerState.status}): ${backgroundLocationStatus}`,
+        )
+      } catch (err) {
+        console.error("Error checking background permissions:", err)
+        backgroundLocationStatus = "Error checking"
+      }
+    } catch (err) {
+      console.error("Error checking location permissions:", err)
+      locationPermissionStatus = "Error checking"
+    }
+  }
+
+  // Request location permission
+  async function requestLocationPermission() {
+    if (!isNativePlatform) return
+
+    try {
+      const permStatus = await Geolocation.requestPermissions()
+      toast.success("Location permission updated")
+      locationPermissionStatus = permStatus.location
+      await checkLocationPermissions()
+    } catch (err) {
+      console.error("Error requesting location permission:", err)
+      toast.error("Failed to update location permission")
+    }
+  }
+
+  // Request background location permission using Transistorsoft plugin
+  async function requestBackgroundLocationPermission() {
+    if (!isNativePlatform) return
+
+    if (locationPermissionStatus !== "granted") {
+      toast.error("Please enable location permission first")
+      return
+    }
+
+    try {
+      // First, check current permission state and show it
+      const beforeState = await BackgroundGeolocation.getProviderState()
+      console.log(
+        "Before requesting permission:",
+        JSON.stringify(beforeState, null, 2),
+      )
+
+      // Show a toast with the current state
+      toast.info("Current permission status", {
+        description:
+          `Enabled: ${beforeState.enabled}\n` +
+          `Authorization: ${beforeState.authorization}\n` +
+          `Background Permitted: ${beforeState.backgroundPermitted || "N/A"}`,
+        duration: 5000,
+      })
+
+      // Show explanation
+      toast.info(
+        "Background location is needed to track field operations while the app is in the background",
+        { duration: 5000 },
+      )
+
+      // Request the permission
+      setTimeout(async () => {
+        try {
+          // Request background permissions
+          await BackgroundGeolocation.requestPermission()
+
+          // Check the state after the request
+          const afterState = await BackgroundGeolocation.getProviderState()
+          console.log(
+            "After requesting permission:",
+            JSON.stringify(afterState, null, 2),
+          )
+
+          // Show a toast with the new state
+          toast.success("Permission request completed", {
+            description:
+              `Enabled: ${afterState.enabled}\n` +
+              `Authorization: ${afterState.authorization}\n` +
+              `Background Permitted: ${afterState.backgroundPermitted || "N/A"}`,
+            duration: 5000,
+          })
+
+          // Update our UI state
+          await checkLocationPermissions()
+        } catch (err) {
+          console.error("Error requesting background location:", err)
+          toast.error("Failed to update background location permission", {
+            description: err.message || "Unknown error",
+          })
+        }
+      }, 2500)
+    } catch (err) {
+      console.error("Error in background location flow:", err)
+      toast.error("An error occurred", {
+        description: err.message || "Unknown error",
+      })
+    }
+  }
+
   onMount(async () => {
     if (!$session) {
       goto("/login")
@@ -84,6 +206,11 @@
 
     // Load subscription data
     await loadUserSubscription()
+
+    // Check location permissions if on native platform
+    if (isNativePlatform) {
+      await checkLocationPermissions()
+    }
 
     // Set loading to false once data is available
     loading = false
@@ -165,8 +292,152 @@
     editLink="/account/settings/change_password"
   />
 
-  <!-- Marker Filter Settings Component -->
-  <MarkerFilterSettings />
+  <!-- Location Permissions Module (Only on native platforms) -->
+  {#if isNativePlatform}
+    <SettingsModule
+      title="Location Permissions"
+      editable={false}
+      fields={[
+        {
+          id: "locationPermission",
+          label: "Location Access",
+          initialValue: locationPermissionStatus,
+        },
+        {
+          id: "backgroundLocation",
+          label: "Background Location",
+          initialValue: backgroundLocationStatus,
+        },
+      ]}
+    >
+      <div class="flex flex-col gap-2" slot="buttons">
+        <button
+          class="btn btn-outline btn-sm min-w-[180px]"
+          on:click={requestLocationPermission}
+        >
+          Enable Location
+        </button>
+        <button
+          class="btn btn-outline btn-sm min-w-[180px]"
+          on:click={async () => {
+            try {
+              if (locationPermissionStatus !== "granted") {
+                toast.error("Please enable location permission first")
+                return
+              }
+
+              // First check the current status
+              const currentStatus =
+                await BackgroundGeolocation.getProviderState()
+              const hasBackgroundPermission = currentStatus.status === 3 // AUTHORIZATION_STATUS_ALWAYS
+
+              if (hasBackgroundPermission) {
+                toast.info("Background location is already enabled", {
+                  description:
+                    "Your location will be tracked even when the app is in the background",
+                  duration: 5000,
+                })
+                return
+              }
+
+              // Show explanation
+              toast.info(
+                "Background location is needed to track field operations while the app is in the background",
+                { duration: 5000 },
+              )
+
+              // Request the permission
+              setTimeout(async () => {
+                try {
+                  // Request background permissions
+                  await BackgroundGeolocation.requestPermission()
+
+                  // Check if the permission was granted
+                  const newStatus =
+                    await BackgroundGeolocation.getProviderState()
+                  const wasGranted = newStatus.status === 3 // AUTHORIZATION_STATUS_ALWAYS
+
+                  if (wasGranted) {
+                    toast.success("Background location enabled", {
+                      description:
+                        "Your location will now be tracked even when the app is in the background",
+                      duration: 5000,
+                    })
+                  } else {
+                    toast.warning("Background location not enabled", {
+                      description:
+                        "Your location will only be tracked when the app is open",
+                      duration: 5000,
+                    })
+                  }
+
+                  // Update UI to reflect new status
+                  backgroundLocationStatus = wasGranted ? "granted" : "denied"
+                } catch (err) {
+                  console.error("Error requesting background location:", err)
+                  toast.error("Could not enable background location", {
+                    description:
+                      err.message ||
+                      "Please try again or check your device settings",
+                    duration: 5000,
+                  })
+                }
+              }, 2500)
+            } catch (err) {
+              console.error("Error in background location flow:", err)
+              toast.error("An error occurred", {
+                description: err.message || "Unknown error",
+              })
+            }
+          }}
+          disabled={locationPermissionStatus !== "granted"}
+        >
+          Enable Background Location
+        </button>
+
+        <!-- Improved debug button to check permission in detail -->
+        <button
+          class="btn btn-outline btn-sm min-w-[180px]"
+          on:click={async () => {
+            try {
+              const providerState =
+                await BackgroundGeolocation.getProviderState()
+              console.log(
+                "Provider State:",
+                JSON.stringify(providerState, null, 2),
+              )
+
+              // Check background permission (status code 3 = ALWAYS)
+              const hasBackgroundPermission = providerState.status === 3
+
+              // Update UI to match the actual status
+              backgroundLocationStatus = hasBackgroundPermission
+                ? "granted"
+                : "denied"
+
+              // Show detailed status information
+              toast.success("Permission Status", {
+                description:
+                  `Location: ${locationPermissionStatus}\n` +
+                  `Background: ${backgroundLocationStatus}\n` +
+                  `Status Code: ${providerState.status} (${hasBackgroundPermission ? "ALWAYS" : "NOT ALWAYS"})\n` +
+                  `GPS: ${providerState.gps ? "Enabled" : "Disabled"}\n` +
+                  `Network: ${providerState.network ? "Enabled" : "Disabled"}`,
+                duration: 8000,
+              })
+            } catch (err) {
+              console.error("Error checking permissions:", err)
+              toast.error("Could not check permission status", {
+                description: err.message || "Unknown error",
+              })
+            }
+          }}
+        >
+          Check Permission Status
+        </button>
+      </div>
+    </SettingsModule>
+  {/if}
 
   <!-- Subscription Module - Different for native and web -->
   {#if isNativePlatform}

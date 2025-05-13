@@ -1,7 +1,8 @@
 <!-- VehicleTracker.svelte -->
-
 <script>
   import { onMount, onDestroy } from "svelte"
+  import { goto } from "$app/navigation"
+
   import * as mapboxgl from "mapbox-gl"
   import {
     userVehicleStore,
@@ -16,6 +17,8 @@
   import { page } from "$app/stores"
   import "../styles/global.css"
   import { Gauge, X } from "lucide-svelte"
+  import { Capacitor } from "@capacitor/core"
+  import backgroundService from "$lib/services/backgroundService"
 
   export let map
   export let disableAutoZoom = false
@@ -28,6 +31,10 @@
   let otherVehicleMarkers = []
   let currentSpeed = 0
   let showSpeedometer = false
+  let isMobileApp = false
+  let isBackground = false
+  let appState = "web" // Can be "web", "mobile-foreground", or "mobile-background"
+  let removeBackgroundListener = null
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
@@ -44,8 +51,173 @@
     showSpeedometer = !showSpeedometer
   }
 
+  // Function to detect if running as a mobile app via Capacitor
+  function detectPlatform() {
+    try {
+      // Log environment information silently (no toast)
+      console.log({
+        capacitorExists: typeof Capacitor !== "undefined",
+        isNative: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform(),
+        webviewExists: typeof Capacitor.WebView !== "undefined",
+        pluginsExist: typeof Capacitor.Plugins !== "undefined",
+      })
+
+      const isNativePlatform = Capacitor.isNativePlatform()
+      const platform = Capacitor.getPlatform()
+
+      if (isNativePlatform) {
+        isMobileApp = true
+        appState = "mobile-foreground"
+        // Removed toast notification about platform
+        console.log(`App running natively on ${platform}`)
+      } else {
+        isMobileApp = false
+        appState = "web"
+        console.log("App running in web browser")
+      }
+
+      return isNativePlatform
+    } catch (error) {
+      console.error("Error in Capacitor detection:", error)
+      isMobileApp = false
+      appState = "web"
+      return false
+    }
+  }
+
+  // Setup background service handlers
+  async function setupBackgroundService() {
+    if (!isMobileApp) return
+
+    try {
+      console.log("Setting up background service...")
+
+      // Initialize the background service and get the permission status
+      const backgroundPermissionGranted = await backgroundService.init()
+      console.log("Background permission status:", backgroundPermissionGranted)
+
+      // Show appropriate toast based on background permission status
+      if (backgroundPermissionGranted) {
+        toast.success("Background location is enabled", {
+          description:
+            "Your location will continue to be tracked when the app is in the background",
+          duration: 5000,
+        })
+      } else {
+        // No toast for missing background permission
+        console.log("Background location is not enabled")
+      }
+
+      // Add a listener for background events
+      removeBackgroundListener = backgroundService.addListener(
+        (event, data) => {
+          console.log("Background event:", event, data)
+
+          if (event === "background") {
+            isBackground = true
+            appState = "mobile-background"
+
+            // No toast when going to background
+            console.log("App moved to background")
+          } else if (event === "foreground") {
+            isBackground = false
+            appState = "mobile-foreground"
+
+            // Show toast ONLY if we recorded 2+ updates in background
+            if (data.duration && data.locationUpdateCount >= 2) {
+              toast.info(`App returned to foreground`, {
+                description: `Recorded ${data.locationUpdateCount} location updates in ${data.duration.formatted}`,
+                duration: 5000,
+              })
+            } else {
+              // Log without toast for 0-1 updates
+              console.log(
+                `App returned to foreground after ${data.duration?.formatted || "unknown time"} with ${data.locationUpdateCount || 0} location updates`,
+              )
+            }
+          } else if (event === "location" && isBackground) {
+            // Process background location updates
+            streamMarkerPosition(data.coords)
+          } else if (event === "permissionChange") {
+            // Handle permission status changes
+            if (data.backgroundPermissionGranted) {
+              toast.success("Background location enabled", {
+                description:
+                  "Your location will now be tracked when the app is in the background",
+              })
+            } else {
+              // No toast for permission being disabled
+              console.log("Background location permission was disabled")
+            }
+          }
+        },
+      )
+    } catch (error) {
+      console.error("Error in setupBackgroundService:", error)
+      toast.error("Error setting up background tracking", {
+        description: error.message || "Please check app permissions",
+      })
+    }
+  }
+
+  // Handle visibility changes for web browsers
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") {
+      isBackground = true
+      appState = "web-background"
+      console.log("Web page is now hidden (background)")
+
+      // For web, we can still use the old method since JS doesn't fully suspend
+      const now = Date.now()
+      localStorage.setItem("webBackgroundStartTime", now.toString())
+
+      // No toast here since user won't see it when tab is hidden
+    } else {
+      isBackground = false
+      appState = "web"
+      console.log("Web page is now visible (foreground)")
+
+      // Calculate duration for web
+      const startTimeStr = localStorage.getItem("webBackgroundStartTime")
+      if (startTimeStr) {
+        const startTime = parseInt(startTimeStr, 10)
+        const duration = Date.now() - startTime
+
+        // Format duration
+        const seconds = Math.floor(duration / 1000)
+        const minutes = Math.floor(seconds / 60)
+        const hours = Math.floor(minutes / 60)
+
+        let durationText = ""
+        if (hours > 0) {
+          durationText = `${hours}h ${minutes % 60}m ${seconds % 60}s`
+        } else if (minutes > 0) {
+          durationText = `${minutes}m ${seconds % 60}s`
+        } else {
+          durationText = `${seconds}s`
+        }
+
+        // Clean up storage
+        localStorage.removeItem("webBackgroundStartTime")
+
+        toast.info("Tab returned to foreground", {
+          description: `Background duration: ${durationText}`,
+        })
+      }
+    }
+  }
+
   onMount(() => {
     console.log("Mounting VehicleTracker")
+
+    // Detect platform (web vs mobile)
+    detectPlatform()
+
+    // Set up the background service for native apps
+    if (isMobileApp) {
+      setupBackgroundService()
+    }
 
     const session = $page.data.session
     if (session) {
@@ -85,6 +257,12 @@
 
     unsubscribeOtherVehiclesDataChanges =
       otherVehiclesDataChanges.subscribe(processChanges)
+
+    // Set up visibility change detection for web browsers
+    if (!isMobileApp && typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange)
+      console.log("Set up document visibility listener for web")
+    }
   })
 
   onDestroy(() => {
@@ -100,6 +278,20 @@
     }
     if (unsubscribeOtherVehiclesDataChanges) {
       unsubscribeOtherVehiclesDataChanges()
+    }
+
+    // Remove web visibility listener if it was set
+    if (!isMobileApp && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+
+    // Clean up background service
+    if (removeBackgroundListener) {
+      removeBackgroundListener()
+    }
+
+    if (isMobileApp) {
+      backgroundService.cleanup()
     }
   })
 
@@ -339,7 +531,10 @@
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
     // console.log("Server-side heading before adding to store:", updatedHeading);
-    // console.log("updating vehicle dataa", vehicleData)
+
+    // Log the current app state with each position update
+    console.log(`Updating position in app state: ${appState}`)
+
     updateUserVehicleData(currentTime, vehicleData, updatedHeading)
   }
 
@@ -358,7 +553,7 @@
           color: bodyColor,
           swath: swath,
         }
-        console.log("Saving location data:", locationData)
+        console.log(`Saving location data in ${appState} mode:`, locationData)
         unsavedTrailStore.update((markers) => [...markers, locationData])
 
         // Update the coordinateBufferStore with just coordinates and timestamp
@@ -395,7 +590,7 @@
           changeLog += `Heading changed by ${headingDiff.toFixed(2)}°.`
         }
 
-        console.log("Changes detected:", changeLog)
+        console.log(`Changes detected in ${appState} mode:`, changeLog)
 
         userVehicleStore.update((vehicle) => {
           return {

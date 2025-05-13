@@ -1,13 +1,14 @@
+// capacitor.config.ts
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
     appId: 'com.skanfarming',
     appName: 'AgSKAN',
-    webDir: 'public',
+    webDir: 'build', // Corrected based on previous discussion
     bundledWebRuntime: false,
     server: {
         androidScheme: 'https',
-        cleartext: true  // Allow cleartext traffic for development
+        cleartext: true
     },
     plugins: {
         SplashScreen: {
@@ -16,10 +17,15 @@ const config: CapacitorConfig = {
             androidSplashResourceName: "splash",
             androidScaleType: "CENTER_CROP"
         },
-        StatusBar: {
-            style: "DARK",
+        EdgeToEdge: {
             backgroundColor: "#f9e58a"
-        }
+        },
+    },
+
+    android: {
+        versionName: "1.0.1",
+        versionCode: 2,
+        // adjustMarginsForEdgeToEdge: 'force',
     }
 };
 

@@ -40,5 +40,5 @@
   <PaddockPath />
   <Partners />
   <QandA />
-  <SignupSection />
+  <!-- <SignupSection /> -->
 </main>

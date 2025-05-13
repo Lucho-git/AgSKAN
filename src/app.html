@@ -124,31 +124,63 @@
         .addListener(updateThemeColor)
     </script>
 
-    <!-- ADDED: Handle Capacitor-specific init for both PWA and native apps -->
-    <script>
+    <!-- SIMPLIFIED: StatusBar fix without scrollbar changes -->
+    <!-- <script>
       // Wait for the DOM to be ready
       document.addEventListener('DOMContentLoaded', function() {
         // Check if running in Capacitor
         const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform();
         
         if (isCapacitor) {
-          // Initialize Capacitor plugins
-          const { SplashScreen, StatusBar } = Capacitor.Plugins;
+          console.log('Initializing Capacitor environment');
           
-          // Set status bar styling based on theme
-          if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            StatusBar.setStyle({ style: 'DARK' });
-          } else {
-            StatusBar.setStyle({ style: 'LIGHT' });
+          try {
+            // Access plugins through Capacitor.Plugins
+            const { StatusBar, SplashScreen } = Capacitor.Plugins;
+            
+            // Minimal status bar fix - the essential sequence to fix the overlay issue
+            if (Capacitor.isPluginAvailable('StatusBar')) {
+              // Hide first to reset state
+              StatusBar.hide()
+                .then(() => {
+                  // Set overlay to false - this is the critical part
+                  return StatusBar.setOverlaysWebView({ overlay: false });
+                })
+                .then(() => {
+                  // Show again with correct styling
+                  return StatusBar.show();
+                })
+                .then(() => {
+                  // Set style based on theme
+                  const isDark = window.matchMedia && 
+                                window.matchMedia("(prefers-color-scheme: dark)").matches;
+                  return StatusBar.setStyle({ 
+                    style: isDark ? 'DARK' : 'LIGHT' 
+                  });
+                })
+                .then(() => {
+                  console.log('StatusBar configured successfully');
+                })
+                .catch(err => {
+                  console.error('Error configuring StatusBar:', err);
+                });
+            }
+            
+            // Hide splash screen
+            if (Capacitor.isPluginAvailable('SplashScreen')) {
+              // Hide splash with a slight delay to ensure UI is ready
+              setTimeout(() => {
+                SplashScreen.hide().catch(err => {
+                  console.error('Error hiding splash screen:', err);
+                });
+              }, 500);
+            }
+          } catch (err) {
+            console.error('Error during Capacitor initialization:', err);
           }
-          
-          // Hide splash screen with a delay
-          setTimeout(() => {
-            SplashScreen.hide();
-          }, 500);
         }
       });
-    </script>
+    </script> -->
 
     <!-- 100% privacy-first analytics, simpleanalytics.com -->
     <script
