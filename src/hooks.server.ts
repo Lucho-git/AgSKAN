@@ -59,6 +59,20 @@ async function logErrorToDatabase(
     }
 }
 
+// Check if a URL is for browser DevTools or similar requests we want to ignore
+function shouldIgnoreRequest(url: URL): boolean {
+    const pathsToIgnore = [
+        '/.well-known/appspecific/com.chrome.devtools.json',
+        '/.well-known/appspecific/', // Catch all DevTools paths
+        '/chrome-extension',
+        '/favicon.ico', // Often causes 404s and not important to log
+        '/apple-touch-icon', // iOS device requests even if not present
+        '/apple-touch-icon-precomposed',
+    ]
+
+    return pathsToIgnore.some(path => url.pathname.includes(path))
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
     event.locals.supabase = createSupabaseServerClient({
         supabaseUrl: PUBLIC_SUPABASE_URL,
@@ -92,7 +106,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                 ),
         })
 
-        if (response.status === 404) {
+        if (response.status === 404 && !shouldIgnoreRequest(event.url)) {
             const session = await event.locals.getSession()
             const errorId = uuidv4()
             const userId = session?.user?.id
@@ -130,6 +144,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 }
 
 export const handleError: HandleServerError = async ({ error, event }) => {
+    // Don't log errors for certain browser-specific requests
+    if (shouldIgnoreRequest(event.url)) {
+        return {
+            message: "Not found",
+            status: 404,
+        }
+    }
+
     const errorId = uuidv4()
     const session = await event.locals.getSession()
     const userId = session?.user?.id
