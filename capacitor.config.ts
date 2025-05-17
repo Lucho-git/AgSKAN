@@ -12,10 +12,20 @@ const config: CapacitorConfig = {
     },
     plugins: {
         SplashScreen: {
-            launchShowDuration: 2000,
-            backgroundColor: "#f9e58a",
+            launchShowDuration: 3000,
+            launchAutoHide: true,
+            launchFadeOutDuration: 500,
+            backgroundColor: "#ffffffff",
             androidSplashResourceName: "splash",
-            androidScaleType: "CENTER_CROP"
+            androidScaleType: "CENTER_CROP",
+            showSpinner: true,
+            androidSpinnerStyle: "large",
+            iosSpinnerStyle: "small",
+            spinnerColor: "#999999",
+            splashFullScreen: true,
+            splashImmersive: true,
+            layoutName: "launch_screen",
+            useDialog: true,
         },
         EdgeToEdge: {
             backgroundColor: "#f9e58a"
@@ -23,8 +33,8 @@ const config: CapacitorConfig = {
     },
 
     android: {
-        versionName: "1.0.2",
-        versionCode: 3,
+        versionName: "1.0.3",
+        versionCode: 4,
         // adjustMarginsForEdgeToEdge: 'force',
     }
 };

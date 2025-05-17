@@ -12,12 +12,13 @@
             android:name="com.transistorsoft.locationmanager.license"
             android:value="d37993b138e0f56ab88c43aa935ea247c289a8e2c0aa5eb6b9084ea7a93c0651"
         />
+        <!-- action bar line controls splash mode and color settings -->
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
-            android:theme="@style/AppTheme.NoActionBar"
+android:theme="@style/AppTheme.NoActionBar" 
             android:launchMode="singleTask"
             android:exported="true">
             <intent-filter>

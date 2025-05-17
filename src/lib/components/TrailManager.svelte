@@ -10,9 +10,11 @@
     otherActiveTrailStore,
   } from "$lib/stores/otherTrailStore"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
-  import { initializeSession } from "$lib/stores/sessionStore"
+  // initializeSession is imported but not used, can be removed if not needed elsewhere
+  // import { initializeSession } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
-  import { authenticatedFetch } from "$lib/helpers/authHelpers"
+  // authenticatedFetch is imported but not used, can be removed if not needed elsewhere
+  // import { authenticatedFetch } from "$lib/helpers/authHelpers"
 
   export const TRAIL_CONFIG = {
     MULTIPLIER: 1,
@@ -47,6 +49,10 @@
   export let map: Map
 
   let lastCoordinateCount = 0
+
+  // Reference to the layerId of the *first* active trail (current or other) that is added.
+  // Historical trails will be added *before* this layer.
+  let firstActiveTrailLayerId: string | null = null
 
   export function generateTrailIds(trailId: string): TrailIdentifiers {
     return {
@@ -97,6 +103,13 @@
     const { sourceId, layerId, highlightLayerId, highlightBackgroundLayerId } =
       generateTrailIds(trailId)
 
+    if (firstActiveTrailLayerId === layerId) {
+      firstActiveTrailLayerId = null
+      console.log(
+        `Cleared firstActiveTrailLayerId because ${layerId} was removed.`,
+      )
+    }
+
     const layersToRemove = [
       highlightLayerId,
       highlightBackgroundLayerId,
@@ -111,13 +124,12 @@
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId)
     }
+    // console.log(`Removed trail ${trailId}`);
   }
 
   export async function deleteTrail(trailId: string) {
     try {
       console.log(`Deleting trail: ${trailId}`)
-
-      // Use the trailsApi instead of authenticatedFetch
       const result = await trailsApi.deleteTrail(trailId)
 
       if (result.error) {
@@ -126,7 +138,6 @@
         throw new Error(result.message || "Failed to delete trail")
       }
 
-      // Remove the trail from the historical trails store
       historicalTrailStore.update((trails) =>
         trails.filter((t) => t.id !== trailId),
       )
@@ -134,41 +145,62 @@
       toast.success("Trail deleted successfully")
       return true
     } catch (error) {
+      // Corrected: console.error is now inside the catch block
       console.error("Error deleting trail:", error)
       toast.error(`Error deleting trail: ${error.message || "Unknown error"}`)
       return false
     }
   }
-  export function addTrail(trail: Trail) {
+
+  // Modified addTrail to accept an optional beforeId and return the layerId
+  export function addTrail(trail: Trail, beforeId?: string | null): string {
     const { sourceId, layerId } = generateTrailIds(trail.id)
     const zoomDependentWidth = calculateZoomDependentWidth(
       trail.trail_width || 3,
       1,
     )
 
+    if (map.getLayer(layerId)) {
+      console.warn(
+        `Layer ${layerId} already exists for trail ${trail.id}. Removing before re-adding.`,
+      )
+      map.removeLayer(layerId)
+    }
+    if (map.getSource(sourceId)) {
+      console.warn(
+        `Source ${sourceId} already exists for trail ${trail.id}. Removing before re-adding.`,
+      )
+      map.removeSource(sourceId)
+    }
+
     map.addSource(sourceId, {
       type: "geojson",
       data: createTrailGeoJSON(trail.path),
     })
 
-    map.addLayer({
-      id: layerId,
-      type: "line",
-      source: sourceId,
-      layout: {
-        "line-join": "round",
-        "line-cap": "round",
+    map.addLayer(
+      {
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+        },
+        paint: {
+          "line-color": trail.trail_color || "#FF0000",
+          "line-width": zoomDependentWidth,
+          "line-opacity": TRAIL_CONFIG.DEFAULT_OPACITY,
+        },
       },
-      paint: {
-        "line-color": trail.trail_color || "#FF0000",
-        "line-width": zoomDependentWidth,
-        "line-opacity": TRAIL_CONFIG.DEFAULT_OPACITY,
-      },
-    })
+      beforeId || undefined,
+    )
+
+    // console.log(`Added trail ${trail.id} (layer: ${layerId}) ${beforeId ? 'before ' + beforeId : 'on top'}`);
+    return layerId
   }
 
   function convertToLineString(coordinates: TrailCoordinate[]): LineString {
-    // Sort coordinates by timestamp
     const sortedCoords = [...coordinates].sort(
       (a, b) => a.timestamp - b.timestamp,
     )
@@ -183,22 +215,14 @@
   }
 
   export function updateCurrentTrail(trail: Trail) {
-    // Add debugging logs
-    // console.log("Updating current trail:", trail.id)
-    // console.log("Current trail store:", $currentTrailStore)
-    // console.log("Existing sources:", map.style.sourceCaches)
+    const { sourceId } = generateTrailIds(trail.id)
 
-    const { sourceId, layerId } = generateTrailIds(trail.id)
-
-    // If we have a different trail ID than before, clean up the old one
     if ($currentTrailStore && $currentTrailStore.id !== trail.id) {
-      console.log("Cleaning up old trail:", $currentTrailStore.id)
+      console.log("Cleaning up old current trail:", $currentTrailStore.id)
       removeTrail($currentTrailStore.id)
     }
 
-    // Check if this specific trail's source exists
     if (map.getSource(sourceId)) {
-      //   console.log("Found existing source for trail:", sourceId)
       const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource
       const lineString = convertToLineString(trail.path as TrailCoordinate[])
       const newCoordinateCount = lineString.coordinates.length
@@ -213,27 +237,25 @@
         lastCoordinateCount = newCoordinateCount
       }
     } else {
-      console.log("Creating new trail source:", sourceId)
+      // console.log("Creating new current trail source:", sourceId)
       const trailWithLineString = {
         ...trail,
         path: convertToLineString(trail.path as TrailCoordinate[]),
       }
-      addTrail(trailWithLineString)
+      const newLayerId = addTrail(trailWithLineString, null)
+      if (!firstActiveTrailLayerId) {
+        firstActiveTrailLayerId = newLayerId
+        // console.log(`Set firstActiveTrailLayerId to current user's trail: ${newLayerId}`);
+      }
     }
   }
 
-  // Add new function similar to updateCurrentTrail
   export function updateOtherActiveTrail(trail: Trail) {
-    // console.log("Updating other active trail:", trail.id)
+    const { sourceId } = generateTrailIds(trail.id)
 
-    const { sourceId, layerId } = generateTrailIds(trail.id)
-
-    // Check if this specific trail's source exists
     if (map.getSource(sourceId)) {
-      //   console.log("Found existing source for trail:", sourceId)
       const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource
       const lineString = convertToLineString(trail.path as TrailCoordinate[])
-
       const newGeoJSON = {
         type: "Feature",
         properties: {},
@@ -241,58 +263,35 @@
       }
       source.setData(newGeoJSON)
     } else {
-      console.log("Creating new trail source:", sourceId)
+      // console.log("Creating new other active trail source:", sourceId);
       const trailWithLineString = {
         ...trail,
         path: convertToLineString(trail.path as TrailCoordinate[]),
       }
-      addTrail(trailWithLineString)
+      const newLayerId = addTrail(trailWithLineString, null)
+      if (!firstActiveTrailLayerId) {
+        firstActiveTrailLayerId = newLayerId
+        // console.log(`Set firstActiveTrailLayerId to other user's trail: ${newLayerId}`);
+      }
     }
   }
 
   async function loadHistoricalTrails() {
     console.log("Starting to load historical trails", {
       totalTrails: $historicalTrailStore.length,
-      trails: $historicalTrailStore,
     })
 
     for (let i = 0; i < $historicalTrailStore.length; i++) {
       const trail = $historicalTrailStore[i]
       try {
-        // console.log(
-        //   `Attempting to load trail [${i + 1}/${$historicalTrailStore.length}]:`,
-        //   {
-        //     trailId: trail.id || "unknown",
-        //     trailData: trail,
-        //   },
-        // )
-
-        await addTrail(trail)
-        // console.log(
-        //   `Successfully loaded trail [${i + 1}/${$historicalTrailStore.length}]: ${trail.id || "unknown"}`,
-        // )
+        // console.log(`Attempting to load historical trail ${trail.id}, before: ${firstActiveTrailLayerId}`);
+        await addTrail(trail, firstActiveTrailLayerId)
 
         await new Promise((resolve) =>
           setTimeout(resolve, TRAIL_CONFIG.LOAD_DELAY),
         )
       } catch (error) {
-        console.log(
-          `Failed to load trail [${i + 1}/${$historicalTrailStore.length}]:`,
-          {
-            trailId: trail.id || "unknown",
-            error: error,
-            trailData: trail,
-          },
-        )
-        console.error(
-          `Failed to load trail [${i + 1}/${$historicalTrailStore.length}]:`,
-          {
-            trailId: trail.id || "unknown",
-            error: error,
-            trailData: trail,
-          },
-        )
-
+        console.error(`Failed to load historical trail ${trail.id}:`, error)
         toast.error(
           `Failed to load corrupt trail data. Please try refreshing.`,
           {
@@ -301,13 +300,13 @@
         )
       }
     }
-
     console.log("Finished loading historical trails")
   }
+
   let cleanup = {
-    currentTrailUnsubscribe: null,
-    otherActiveTrailsUnsubscribe: null,
-    historicalTrailsUnsubscribe: null, // Add this
+    currentTrailUnsubscribe: null as (() => void) | null,
+    otherActiveTrailsUnsubscribe: null as (() => void) | null,
+    historicalTrailsUnsubscribe: null as (() => void) | null,
   }
 
   onMount(() => {
@@ -315,44 +314,50 @@
 
     cleanup.currentTrailUnsubscribe = currentTrailStore.subscribe(
       (currentTrail) => {
-        if (currentTrail && currentTrail.path) {
-          updateCurrentTrail(currentTrail)
+        if (map && map.isStyleLoaded()) {
+          if (currentTrail && currentTrail.path) {
+            updateCurrentTrail(currentTrail)
+          }
+        } else if (currentTrail && currentTrail.path) {
+          console.warn(
+            "Map not ready for currentTrail update, will retry or queue if implemented.",
+          )
         }
       },
     )
 
-    // Add subscription for other active trails
     cleanup.otherActiveTrailsUnsubscribe = otherActiveTrailStore.subscribe(
       (activeTrails) => {
-        if (activeTrails) {
-          activeTrails.forEach((trail) => {
-            // console.log("Updating other active trail:", trail.id, activeTrails)
-            if (trail && trail.path) {
-              updateOtherActiveTrail(trail)
-            }
-          })
+        if (map && map.isStyleLoaded()) {
+          if (activeTrails) {
+            activeTrails.forEach((trail) => {
+              if (trail && trail.path) {
+                updateOtherActiveTrail(trail)
+              }
+            })
+          }
+        } else if (activeTrails && activeTrails.length > 0) {
+          console.warn(
+            "Map not ready for otherActiveTrailStore update, will retry or queue if implemented.",
+          )
         }
       },
     )
 
-    // Add subscription for historical trails to detect deletions
     let previousTrails = $historicalTrailStore
     cleanup.historicalTrailsUnsubscribe = historicalTrailStore.subscribe(
       (currentTrails) => {
         if (previousTrails && currentTrails) {
-          // Find trails that were in previous but not in current (deleted trails)
           const deletedTrails = previousTrails.filter(
             (prevTrail) =>
               !currentTrails.some((currTrail) => currTrail.id === prevTrail.id),
           )
-
-          // Remove each deleted trail from the map
           deletedTrails.forEach((trail) => {
-            console.log("Deleting historical trail:", trail.id)
+            // console.log("Deleting historical trail from map due to store change:", trail.id);
             removeTrail(trail.id)
           })
         }
-        previousTrails = currentTrails
+        previousTrails = [...currentTrails]
       },
     )
   })
@@ -382,5 +387,4 @@
   }
 </script>
 
-svelte Copy
 <slot {calculateZoomDependentWidth} {generateTrailIds} {deleteTrail} />

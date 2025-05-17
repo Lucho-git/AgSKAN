@@ -395,7 +395,7 @@
           Enable Background Location
         </button>
 
-        <!-- Improved debug button to check permission in detail -->
+        <!-- Improved debug button to check permission in detail
         <button
           class="btn btn-outline btn-sm min-w-[180px]"
           on:click={async () => {
@@ -434,7 +434,7 @@
           }}
         >
           Check Permission Status
-        </button>
+        </button> -->
       </div>
     </SettingsModule>
   {/if}
@@ -510,7 +510,7 @@
     editLink="/account/settings/delete_account"
   />
 
-  <FloatingChat />
+  <!-- <FloatingChat /> -->
   <TestButton
     data={{ session: $session, profile: $profileStore, subscriptionData }}
   />

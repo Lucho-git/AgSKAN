@@ -54,7 +54,7 @@
              The Capacitor plugin's `backgroundColor` might override this visually.
              Set a fallback that matches your splash's general tone.
              If your splash drawable (`androidSplashResourceName`) is dark: -->
-        <item name="windowSplashScreenBackground">#102030</item> <!-- Example: Dark Gray -->
+        <item name="windowSplashScreenBackground">#f9e58a</item> <!-- Example: Dark Gray -->
         <!-- If your splash drawable is light: -->
         <!-- <item name="windowSplashScreenBackground">#FFFFFF</item> --> <!-- Example: White -->
 
