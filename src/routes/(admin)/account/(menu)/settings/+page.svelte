@@ -3,6 +3,7 @@
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
   import SettingsModule from "./settings_module.svelte"
+  import MarkerFilterSettings from "./MarkerFilterSettings.svelte"
   import { PUBLIC_APP_VERSION } from "$env/static/public"
   import { session, supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -14,6 +15,7 @@
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
   import { Geolocation } from "@capacitor/geolocation"
+
   // Import the Transistorsoft background geolocation plugin
   import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
 
@@ -291,6 +293,9 @@
     editButtonTitle="Change Password"
     editLink="/account/settings/change_password"
   />
+
+  <!-- Marker Filter Settings Component -->
+  <MarkerFilterSettings />
 
   <!-- Location Permissions Module (Only on native platforms) -->
   {#if isNativePlatform}

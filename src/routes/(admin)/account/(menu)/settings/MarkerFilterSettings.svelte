@@ -2,31 +2,57 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
-  import { Slider } from "$lib/components/ui/slider"
-  import { Button } from "$lib/components/ui/button"
   import { supabase } from "$lib/stores/sessionStore"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
 
-  // Marker filter settings
-  const minDays = 1
-  const maxDays = 365 // Updated to 365 days (1 year)
+  // Preset options for days
+  const dayOptions = [
+    {
+      value: 0,
+      label: "Show all markers",
+      description: "All markers visible",
+    },
+    {
+      value: 1,
+      label: "Last 1 day",
+      description: "Today's markers only",
+    },
+    {
+      value: 4,
+      label: "Last 4 days",
+      description: "Past 4 days",
+    },
+    {
+      value: 7,
+      label: "Last 7 days",
+      description: "Past week",
+    },
+    {
+      value: 30,
+      label: "Last 30 days",
+      description: "Past month",
+    },
+    {
+      value: 90,
+      label: "Last 90 days",
+      description: "Past 3 months",
+    },
+    {
+      value: 180,
+      label: "Last 180 days",
+      description: "Past 6 months",
+    },
+    {
+      value: 365,
+      label: "Last 365 days",
+      description: "Past year",
+    },
+  ]
 
-  // Local days value for the slider
-  let sliderValue = 7
-  let limitMarkersOn = false
+  let selectedDays = 0 // 0 means no limit (show all)
   let hasChanges = false
   let saving = false
-
-  // Define preset markers for the slider
-  const presetMarkers = [
-    { days: 1, label: "1 day" },
-    { days: 7, label: "1 week" },
-    { days: 30, label: "1 month" },
-    { days: 90, label: "3 months" },
-    { days: 180, label: "6 months" },
-    { days: 365, label: "1 year" },
-  ]
 
   // Format date for display
   function formatDate(dateString) {
@@ -38,38 +64,17 @@
     })
   }
 
-  // Calculate date based on slider value
-  function calculateDateFromSlider(days) {
+  // Calculate date based on selected days
+  function calculateDateFromDays(days) {
+    if (days === 0) return null // No limit
     const date = new Date()
     date.setDate(date.getDate() - days)
     return date.toISOString()
   }
 
-  // Track slider changes but don't update store yet
-  function handleSliderChange(value) {
-    const days = value[0]
-    sliderValue = days
-    hasChanges = true
-  }
-
-  // Increment and decrement functions - optimized
-  function incrementDays() {
-    if (sliderValue < maxDays) {
-      sliderValue = Math.min(maxDays, sliderValue + 1)
-      hasChanges = true
-    }
-  }
-
-  function decrementDays() {
-    if (sliderValue > minDays) {
-      sliderValue = Math.max(minDays, sliderValue - 1)
-      hasChanges = true
-    }
-  }
-
-  // Toggle the marker filter on/off - only local state
-  function toggleLimitMarkers() {
-    limitMarkersOn = !limitMarkersOn
+  // Handle selection change
+  function handleSelectionChange(event) {
+    selectedDays = parseInt(event.target.value)
     hasChanges = true
   }
 
@@ -85,12 +90,14 @@
     }
 
     try {
+      const limitMarkersOn = selectedDays > 0
+
       // Update the database
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: userId,
           limit_markers: limitMarkersOn,
-          limit_markers_days: sliderValue,
+          limit_markers_days: selectedDays,
         },
         { onConflict: "user_id" },
       )
@@ -103,11 +110,11 @@
       }
 
       // Update the store with calculated date
-      const newDate = calculateDateFromSlider(sliderValue)
+      const newDate = calculateDateFromDays(selectedDays)
       userSettingsStore.update((settings) => ({
         ...settings,
         limitMarkersOn: limitMarkersOn,
-        limitMarkersDays: sliderValue,
+        limitMarkersDays: selectedDays,
         limitMarkersDate: newDate,
       }))
 
@@ -121,134 +128,117 @@
     }
   }
 
-  // Computed date based on current sliderValue - this avoids unnecessary calculations
-  $: displayDate = formatDate(calculateDateFromSlider(sliderValue))
+  // Get display info for selected option
+  $: selectedOption = dayOptions.find((option) => option.value === selectedDays)
+  $: showDateRange = selectedDays > 0
+  $: displayDate = showDateRange
+    ? formatDate(calculateDateFromDays(selectedDays))
+    : null
 
-  // Initialize local values from store
+  // Initialize from store
   $: if ($userSettingsStore && !hasChanges) {
-    // Only update from store if user hasn't made changes
-    sliderValue = $userSettingsStore.limitMarkersDays || 7
-    limitMarkersOn = $userSettingsStore.limitMarkersOn || false
+    if ($userSettingsStore.limitMarkersOn) {
+      selectedDays = $userSettingsStore.limitMarkersDays || 7
+    } else {
+      selectedDays = 0 // Show all
+    }
   }
 
   onMount(() => {
-    // Initialize slider value from store
     if ($userSettingsStore) {
-      sliderValue = $userSettingsStore.limitMarkersDays || 7
-      limitMarkersOn = $userSettingsStore.limitMarkersOn || false
+      if ($userSettingsStore.limitMarkersOn) {
+        selectedDays = $userSettingsStore.limitMarkersDays || 7
+      } else {
+        selectedDays = 0
+      }
     }
   })
 </script>
 
-<!-- Updated with consistent styling to match SettingsModule -->
 <div class="card mt-8 flex max-w-xl flex-col p-6 pb-7 shadow md:flex-row">
-  <div class="mb-3 w-48 flex-none text-xl font-bold">Map Markers</div>
+  <div class="mb-3 w-48 flex-none text-xl font-bold">Map Performance</div>
 
   <div class="w-full min-w-48">
     <div class="form-widget flex flex-col">
-      <!-- Toggle for marker filter -->
-      <div class="mb-4 flex items-center">
-        <input
-          type="checkbox"
-          id="limitMarkersToggle"
-          class="checkbox-primary checkbox"
-          checked={limitMarkersOn}
-          on:change={toggleLimitMarkers}
-        />
-        <label for="limitMarkersToggle" class="ml-2 text-base">
-          Only show markers from the last {sliderValue}
-          day{sliderValue !== 1 ? "s" : ""}
-        </label>
+      <!-- Performance explanation with better styling -->
+      <div class="mb-4 rounded-lg border border-info/20 bg-info/5 p-3">
+        <div class="flex items-start gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="mt-0.5 h-5 w-5 flex-shrink-0 text-info"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <div>
+            <div class="mb-1 text-sm font-medium text-info">
+              Improve map performance
+            </div>
+            <div class="text-xs text-base-content/70">
+              Limit markers by date to <span class="font-medium"
+                >speed up loading</span
+              >
+              and
+              <span class="font-medium">reduce lag</span> when viewing the map.
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class={limitMarkersOn ? "" : "pointer-events-none opacity-50"}>
-        <!-- Slider with preset labels -->
-        <div class="mb-1 flex justify-between text-xs text-gray-500">
-          {#each presetMarkers as marker}
-            <span>{marker.label}</span>
+      <div class="mb-4">
+        <label for="markerLimit" class="mb-2 block text-sm font-medium">
+          Show markers from:
+        </label>
+        <select
+          id="markerLimit"
+          class="select select-bordered w-full"
+          value={selectedDays}
+          on:change={handleSelectionChange}
+        >
+          {#each dayOptions as option}
+            <option value={option.value}>
+              {option.label}
+            </option>
           {/each}
+        </select>
+      </div>
+
+      <!-- Description and date range display -->
+      <div class="mb-4 rounded-lg bg-base-200 p-3">
+        <div class="text-sm font-medium text-base-content">
+          {selectedOption?.description}
         </div>
-
-        <Slider
-          value={[sliderValue]}
-          onValueChange={handleSliderChange}
-          min={minDays}
-          max={maxDays}
-          step={1}
-          class="w-full"
-        />
-
-        <!-- Increment/Decrement Buttons - Simplified and optimized -->
-        <div class="mt-2 flex justify-center gap-3">
-          <button
-            type="button"
-            class="btn btn-circle btn-outline btn-sm"
-            disabled={sliderValue <= minDays || saving}
-            on:click|preventDefault={decrementDays}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-
-          <div class="flex items-center font-medium">
-            {sliderValue} day{sliderValue !== 1 ? "s" : ""}
+        {#if showDateRange && displayDate}
+          <div class="mt-2 text-xs text-base-content/70">
+            Showing markers from <span class="font-semibold text-primary">
+              {displayDate}
+            </span> to today
           </div>
+        {/if}
+      </div>
 
-          <button
-            type="button"
-            class="btn btn-circle btn-outline btn-sm"
-            disabled={sliderValue >= maxDays || saving}
-            on:click|preventDefault={incrementDays}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div class="mt-3 text-center text-sm">
-          Showing markers from <span class="font-semibold text-primary"
-            >{displayDate}</span
-          > to today
-        </div>
-
-        <!-- Save button - now with ghost style and more spacing -->
-        <div class="mt-5">
-          <button
-            type="button"
-            class="btn btn-outline btn-sm min-w-[145px] {hasChanges
-              ? ''
-              : 'opacity-50'}"
-            disabled={!hasChanges || saving}
-            on:click={saveChanges}
-          >
-            {#if saving}
-              <span class="loading loading-spinner loading-md mx-3 align-middle"
-              ></span>
-            {:else}
-              Save Changes
-            {/if}
-          </button>
-        </div>
+      <!-- Save button with ghost styling -->
+      <div class="flex justify-start">
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm min-w-[120px] {hasChanges
+            ? 'btn-outline'
+            : 'opacity-50'}"
+          disabled={!hasChanges || saving}
+          on:click={saveChanges}
+        >
+          {#if saving}
+            <span class="loading loading-spinner loading-sm"></span>
+            Saving...
+          {:else}
+            Save Changes
+          {/if}
+        </button>
       </div>
     </div>
   </div>
