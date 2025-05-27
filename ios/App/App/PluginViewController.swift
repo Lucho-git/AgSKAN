@@ -7,6 +7,16 @@ class PluginViewController: CAPBridgeViewController {
     override open func viewDidLoad() {
         super.viewDidLoad()
         
+        // Clear URL cache on app launch to prevent network issues
+        URLCache.shared.removeAllCachedResponses()
+        
+        // Also clear cookies if needed
+        if let cookies = HTTPCookieStorage.shared.cookies {
+            for cookie in cookies {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+        
         DispatchQueue.main.async {
             self.setupWebViewPadding()
             self.updateAppearance()
@@ -101,3 +111,4 @@ class PluginViewController: CAPBridgeViewController {
         webView.isOpaque = true
     }
 }
+
