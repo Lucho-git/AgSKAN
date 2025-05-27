@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -152,10 +153,10 @@
                 })
                 .then(() => {
                   // Set style based on theme
-                  const isDark = window.matchMedia && 
+                  const isDark = window.matchMedia &&
                                 window.matchMedia("(prefers-color-scheme: dark)").matches;
-                  return StatusBar.setStyle({ 
-                    style: isDark ? 'DARK' : 'LIGHT' 
+                  return StatusBar.setStyle({
+                    style: isDark ? 'DARK' : 'LIGHT'
                   });
                 })
                 .then(() => {
@@ -182,17 +183,19 @@
       });
     </script> -->
 
-    <!-- 100% privacy-first analytics, simpleanalytics.com -->
+    <!-- 100% privacy-first analytics - Fixed with hostname for localhost -->
     <script
       async
       defer
+      data-hostname="skanfarming.com.au"
       src="https://scripts.simpleanalyticscdn.com/latest.js"
     ></script>
-    <noscript
-      ><img
-        src="https://queue.simpleanalyticscdn.com/noscript.gif"
+    <noscript>
+      <img
+        src="https://queue.simpleanalyticscdn.com/noscript.gif?hostname=skanfarming.com.au"
         alt=""
         referrerpolicy="no-referrer-when-downgrade"
-    /></noscript>
+      />
+    </noscript>
   </body>
 </html>

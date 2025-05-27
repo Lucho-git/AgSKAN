@@ -24,72 +24,74 @@
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
   import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
-  import { EdgeToEdge } from "@capawesome/capacitor-android-edge-to-edge-support"
+  import { SplashScreen } from '@capacitor/splash-screen'
 
   // --- Theme Colors for System Bars ---
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
 
-  // --- Function to Apply Native Theme Styles (Corrected and Simplified) ---
+  // --- Function to Apply Native Theme Styles (iOS handled natively, Android via JS) ---
   async function applyNativeThemeStyles(isSystemDarkMode: boolean) {
     if (!Capacitor.isNativePlatform()) {
       console.log("Not a native platform. Skipping native theme styles.")
       return
     }
 
+    const platform = Capacitor.getPlatform()
+    console.log(`System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode on ${platform}.`)
+
     try {
-      const systemBarsBackgroundColorToSet = isSystemDarkMode
-        ? appSystemDarkMode_Bars_BackgroundColor // System DARK => YELLOW background
-        : appSystemLightMode_Bars_BackgroundColor // System LIGHT => DARK GRAY background
+      // Only handle Android with JavaScript
+      if (platform === 'android') {
+        const systemBarsBackgroundColorToSet = isSystemDarkMode
+          ? appSystemDarkMode_Bars_BackgroundColor // System DARK => YELLOW background
+          : appSystemLightMode_Bars_BackgroundColor // System LIGHT => DARK GRAY background
 
-      console.log(`System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode.`)
-      console.log(
-        `  Setting system bars background color (top & bottom) via EdgeToEdge to: ${systemBarsBackgroundColorToSet}`,
-      )
-
-      // 1. Set background using EdgeToEdge plugin (for both bars)
-      await EdgeToEdge.setBackgroundColor({
-        color: systemBarsBackgroundColorToSet,
-      })
-      console.log("  EdgeToEdge.setBackgroundColor called.")
-
-      // 2. Determine and apply desired icon/text styles FOR THE STATUS BAR ONLY
-      let newCapacitorStatusBarStyle: StatusBarStyle
-
-      if (isSystemDarkMode) {
-        // SYSTEM is DARK MODE (App uses YELLOW background #f9e58a)
-        // We want DARK text/icons for the status bar.
-        newCapacitorStatusBarStyle = StatusBarStyle.Light // Style.Dark SETS STATUS BAR ICONS TO DARK
-        console.log("  Applying DARK text/icons theme to STATUS BAR.")
         console.log(
-          "    Status Bar Style (Capacitor): Style.Dark (sets status bar icons to dark)",
+          `  Setting Android system bars background color (top & bottom) via EdgeToEdge to: ${systemBarsBackgroundColorToSet}`,
         )
-      } else {
-        // SYSTEM is LIGHT MODE (App uses DARK GRAY background #102030)
-        // We want LIGHT text/icons for the status bar.
-        newCapacitorStatusBarStyle = StatusBarStyle.Dark // Style.Light SETS STATUS BAR ICONS TO LIGHT
-        console.log("  Applying LIGHT text/icons theme to STATUS BAR.")
+
+        try {
+          // Dynamically import the EdgeToEdge plugin - only used on Android
+          const { EdgeToEdge } = await import("@capawesome/capacitor-android-edge-to-edge-support")
+          // Set background using EdgeToEdge plugin (for both bars)
+          await EdgeToEdge.setBackgroundColor({
+            color: systemBarsBackgroundColorToSet,
+          })
+          console.log("  EdgeToEdge.setBackgroundColor called for Android.")
+        } catch (edgeError) {
+          console.error("EdgeToEdge error (Android only):", edgeError)
+        }
+
+        // Determine and apply desired icon/text styles for Android STATUS BAR
+        let newCapacitorStatusBarStyle: StatusBarStyle
+
+        if (isSystemDarkMode) {
+          // SYSTEM is DARK MODE (App uses YELLOW background #f9e58a)
+          // We want DARK text/icons for the status bar.
+          newCapacitorStatusBarStyle = StatusBarStyle.Dark // Dark = black text/icons
+          console.log("  Applying DARK text/icons theme to Android STATUS BAR.")
+        } else {
+          // SYSTEM is LIGHT MODE (App uses DARK GRAY background #102030)
+          // We want LIGHT text/icons for the status bar.
+          newCapacitorStatusBarStyle = StatusBarStyle.Light // Light = white text/icons
+          console.log("  Applying LIGHT text/icons theme to Android STATUS BAR.")
+        }
+
+        // Apply style to the Android status bar
+        await StatusBar.setStyle({ style: newCapacitorStatusBarStyle })
         console.log(
-          "    Status Bar Style (Capacitor): Style.Light (sets status bar icons to light)",
+          `  Android StatusBar.setStyle called with: ${newCapacitorStatusBarStyle === StatusBarStyle.Light ? "Style.Light" : "Style.Dark"}`,
         )
+
+        // Ensure status bar remains visible on Android
+        await StatusBar.show()
+        console.log("  Android StatusBar.show() called to ensure visibility.")
+      } else if (platform === 'ios') {
+        // iOS is handled entirely by the native PluginViewController
+        console.log("  iOS detected - status bar styling handled by native PluginViewController.")
+        console.log("  Skipping JavaScript StatusBar calls for iOS.")
       }
-
-      // 3. Apply style to the TOP status bar using @capacitor/status-bar
-      await StatusBar.setStyle({ style: newCapacitorStatusBarStyle })
-      console.log(
-        `  Capacitor StatusBar.setStyle called with: ${newCapacitorStatusBarStyle === StatusBarStyle.Light ? "Style.Light" : "Style.Dark"}`,
-      )
-
-      // NOTE: There is NO JS function from EITHER plugin to directly set navigation bar ICON style.
-      // We rely on the Android system's default behavior or theme settings for navigation bar icon color
-      // based on the background color set by EdgeToEdge.setBackgroundColor().
-      console.log(
-        "  Navigation bar icon style relies on system behavior / Android theme based on background color.",
-      )
-
-      // 4. Ensure status bar remains visible
-      await StatusBar.show()
-      console.log("  StatusBar.show() called to ensure visibility.")
     } catch (error) {
       console.error("Error applying native theme styles:", error)
     }
@@ -118,10 +120,60 @@
     applyNativeThemeStyles(event.matches)
   }
 
+  // Function to conditionally initialize EdgeToEdge only on Android
+  async function initializeEdgeToEdge() {
+    if (Capacitor.getPlatform() === 'android') {
+      try {
+        const { EdgeToEdge } = await import("@capawesome/capacitor-android-edge-to-edge-support")
+        console.log("Attempting to enable EdgeToEdge plugin for Android...")
+        await EdgeToEdge.enable()
+        console.log("EdgeToEdge.enable() successful.")
+        
+        const insets = await EdgeToEdge.getInsets()
+        console.log(
+          "EdgeToEdge Insets (statusBar, navigationBar, etc.):",
+          JSON.stringify(insets),
+        )
+        return true
+      } catch (error) {
+        console.error("Error initializing EdgeToEdge (Android only):", error)
+        return false
+      }
+    } else {
+      console.log("Skipping EdgeToEdge initialization for non-Android platform:", Capacitor.getPlatform())
+      return false
+    }
+  }
+
+  // Simple network test function (simplified version)
+  async function testNetworkConnectivity() {
+    console.log("Testing network connectivity...");
+    
+    try {
+      // Test with a known working endpoint instead of Google
+      const response = await fetch('https://jsonplaceholder.typicode.com/todos/1');
+      console.log("Network connectivity: OK", response.status);
+      return true;
+    } catch (e) {
+      console.error("Network connectivity error:", e);
+      return false;
+    }
+  }
+
   onMount(async () => {
     console.log(
-      "+++++ ROOT LAYOUT ONMOUNT (Corrected - EdgeToEdge BG + Capacitor StatusBar Style ONLY) +++++",
+      "+++++ ROOT LAYOUT ONMOUNT (iOS Native + Android JS Theme Handling) +++++",
     )
+
+    // Hide splash screen immediately for native platforms
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await SplashScreen.hide();
+        console.log("Splash screen hidden successfully");
+      } catch (error) {
+        console.error("Error hiding splash screen:", error);
+      }
+    }
 
     if (browser) {
       console.log("Root layout mounted in browser, initializing session.")
@@ -136,40 +188,32 @@
 
     if (Capacitor.isNativePlatform()) {
       console.log(
-        "+++++ NATIVE PLATFORM DETECTED. CONFIGURING EDGE-TO-EDGE AND SYSTEM BARS +++++",
+        "+++++ NATIVE PLATFORM DETECTED. CONFIGURING PLATFORM-SPECIFIC SYSTEM BARS +++++",
       )
-      try {
-        console.log("Attempting to enable EdgeToEdge plugin...")
-        await EdgeToEdge.enable()
-        console.log("EdgeToEdge.enable() successful.")
+      
+      // Simple network test
+      const networkOk = await testNetworkConnectivity();
+      if (!networkOk) {
+        console.warn("Network connectivity check failed, but continuing app initialization");
+      }
+      
+      // Initialize EdgeToEdge only on Android
+      await initializeEdgeToEdge();
 
-        if (window.matchMedia) {
-          darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-          console.log(
-            "Initial system dark mode preference. Is dark mode:",
-            darkModeMediaQuery.matches,
-          )
-          await applyNativeThemeStyles(darkModeMediaQuery.matches)
-
-          darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
-          console.log("Added listener for system theme changes.")
-        } else {
-          console.warn(
-            "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
-          )
-          await applyNativeThemeStyles(false)
-        }
-
-        const insets = await EdgeToEdge.getInsets()
+      if (window.matchMedia) {
+        darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
         console.log(
-          "EdgeToEdge Insets (statusBar, navigationBar, etc.):",
-          JSON.stringify(insets),
+          "Initial system dark mode preference. Is dark mode:",
+          darkModeMediaQuery.matches,
         )
-      } catch (e) {
-        console.error(
-          "Error during native platform setup (EdgeToEdge/SystemBars):",
-          e,
+        await applyNativeThemeStyles(darkModeMediaQuery.matches)
+        darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
+        console.log("Added listener for system theme changes.")
+      } else {
+        console.warn(
+          "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
         )
+        await applyNativeThemeStyles(false)
       }
     } else {
       console.log("Not a native platform. Skipping native configuration.")

@@ -1,19 +1,22 @@
-// capacitor.config.ts
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
     appId: 'com.skanfarming',
     appName: 'AgSKAN',
-    webDir: 'build', // Corrected based on previous discussion
+    webDir: 'build',
     bundledWebRuntime: false,
     server: {
         androidScheme: 'https',
-        cleartext: true
+        cleartext: true,
+        allowNavigation: ['*'],
+        // For iOS, you might need to specify hostname
+        hostname: 'localhost',
+        iosScheme: 'capacitor'
     },
     plugins: {
         SplashScreen: {
             launchShowDuration: 3000,
-            launchAutoHide: true,
+            launchAutoHide: false, // Set to false and manually hide
             launchFadeOutDuration: 500,
             backgroundColor: "#ffffffff",
             androidSplashResourceName: "splash",
@@ -30,12 +33,16 @@ const config: CapacitorConfig = {
         EdgeToEdge: {
             backgroundColor: "#f9e58a"
         },
+        CapacitorHttp: {
+            enabled: true
+        }
     },
-
     android: {
         versionName: "1.0.3",
         versionCode: 4,
-        // adjustMarginsForEdgeToEdge: 'force',
+    },
+    ios: {
+        limitsNavigationsToAppBoundDomains: false,
     }
 };
 
