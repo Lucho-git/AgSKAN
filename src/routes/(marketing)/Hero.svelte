@@ -66,8 +66,8 @@
   }
 </script>
 
-<div class="relative bg-base-200">
-  <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 sm:py-16 lg:px-8">
+<section class="relative bg-base-100">
+  <div class="section-container py-20 sm:py-16">
     <div class="grid items-center gap-12 md:grid-cols-2">
       <div class="space-y-8">
         <BoxReveal boxColor="#63A375" duration={0.5}>
@@ -174,4 +174,4 @@
       </BoxReveal>
     </div>
   </div>
-</div>
+</section>

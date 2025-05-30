@@ -60,28 +60,32 @@
   ]
 </script>
 
-<div
-  class="relative flex h-32 w-full flex-col items-center justify-center overflow-hidden rounded-lg
-      border border-base-300 bg-base-300 md:shadow-xl"
->
-  <Marquee reverse pauseOnHover class="[--duration:30s]">
-    {#each partners as partner}
-      <div class="mx-8 flex items-center justify-center">
-        <img
-          src={partner.logo}
-          alt={partner.alt}
-          class="h-16 w-auto max-w-[200px] object-contain transition-all duration-200"
-          loading="lazy"
-        />
-      </div>
-    {/each}
-  </Marquee>
-  <div
-    class="pointer-events-none absolute inset-y-0 left-0 w-1/3
-        bg-gradient-to-r from-base-200"
-  ></div>
-  <div
-    class="pointer-events-none absolute inset-y-0 right-0 w-1/3
-        bg-gradient-to-l from-base-200"
-  ></div>
-</div>
+<section class="bg-base-100">
+  <div class="section-container py-8">
+    <div
+      class="relative flex h-32 w-full flex-col items-center justify-center overflow-hidden rounded-lg
+          border border-base-300 bg-base-300 md:shadow-xl"
+    >
+      <Marquee reverse pauseOnHover class="[--duration:30s]">
+        {#each partners as partner}
+          <div class="mx-8 flex items-center justify-center">
+            <img
+              src={partner.logo}
+              alt={partner.alt}
+              class="h-16 w-auto max-w-[200px] object-contain transition-all duration-200"
+              loading="lazy"
+            />
+          </div>
+        {/each}
+      </Marquee>
+      <div
+        class="pointer-events-none absolute inset-y-0 left-0 w-1/3
+            bg-gradient-to-r from-base-200"
+      ></div>
+      <div
+        class="pointer-events-none absolute inset-y-0 right-0 w-1/3
+            bg-gradient-to-l from-base-200"
+      ></div>
+    </div>
+  </div>
+</section>

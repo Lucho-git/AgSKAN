@@ -1,4 +1,3 @@
-<!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import "../../app.css"
   import Navbar from "./Navbar.svelte"
@@ -9,8 +8,6 @@
 
 <div class="min-h-screen bg-background">
   <Navbar />
-  <div>
-    <slot />
-  </div>
+  <slot />
   <Footer />
 </div>

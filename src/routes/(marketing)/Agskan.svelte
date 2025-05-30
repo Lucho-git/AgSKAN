@@ -49,7 +49,7 @@
 </script>
 
 <section class="bg-base-100">
-  <div class="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 sm:py-32 lg:px-8">
+  <div class="section-container py-20 sm:py-32">
     <div class="grid gap-12 lg:grid-cols-2">
       <div class="space-y-8">
         <BlurFade delay={BLUR_FADE_DELAY}>

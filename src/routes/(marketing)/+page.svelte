@@ -36,9 +36,10 @@
 
 <main class="w-full">
   <Hero />
+  <Partners />
+
   <Agskan />
   <PaddockPath />
-  <Partners />
   <QandA />
   <!-- <SignupSection /> -->
 </main>

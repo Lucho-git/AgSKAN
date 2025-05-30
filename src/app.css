@@ -5,6 +5,17 @@
 @tailwind components;
 @tailwind utilities;
 
+
+@layer utilities {
+  .section-container {
+    width: 100%;
+    max-width: 90rem; /* or whatever max width you want */
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: max(5vw, 1rem); /* Responsive padding that hits edges when zoomed */
+    padding-right: max(5vw, 1rem);
+  }
+}
 /* Remove the @font-face declaration */
 
 a {

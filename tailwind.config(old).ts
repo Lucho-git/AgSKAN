@@ -47,11 +47,6 @@ const config: Config = {
                     DEFAULT: "var(--base-200)",
                     foreground: "var(--base-content)",
                 },
-                // Custom brand color
-                "brand": "oklch(var(--brand) / <alpha-value>)",
-                "brand-content": "oklch(var(--brand-content) / <alpha-value>)",
-                // High contrast black/white text
-                "contrast": "oklch(var(--contrast) / <alpha-value>)",
             },
             borderRadius: {
                 lg: "var(--radius)",
@@ -138,6 +133,7 @@ const config: Config = {
                         "background-position": "0% 0%",
                     },
                 },
+
                 "spin-around": {
                     "0%": {
                         transform: "translateZ(0) rotate(0)",
@@ -174,69 +170,63 @@ const config: Config = {
         themes: [
             {
                 skantheme: {
-                    "primary": "#63A375",           // #63A375
-                    "primary-content": "#fefbf6",   // #fefbf6
-                    "secondary": "#F7DB5C",         // #F7DB5C
-                    "secondary-content": "#232322", // #232322
-                    "accent": "#fde68a",            // #fde68a
-                    "accent-content": "#fefbf6",    // #fefbf6
-                    "neutral": "#102030",           // #102030
-                    "neutral-content": "#fefbf6",   // #fefbf6
-                    "base-100": "#ffffff",          // #ffffff
-                    "base-200": "#f1f5f9",          // #f1f5f9
-                    "base-300": "#cbd5e1",          // #cbd5e1
-                    "base-content": "#232322",      // #232322
-                    "info": "#3b82f6",              // #3b82f6
-                    "success": "#22c55e",           // #22c55e
-                    "warning": "#f59e0b",           // #f59e0b
-                    "error": "#ef4444",             // #ef4444
-                    "--gradient-start": "var(--base-200)",
-                    "--gradient-end": "var(--base-100)",
-                    "focus": "#FF00FF",             // #FF00FF
-                    "focus-content": "#FFFFFF",     // #FFFFFF
+                    "primary": "#63A375",
+                    "primary-content": "#fefbf6",
+                    "secondary": "#F7DB5C",
+                    "secondary-content": "#232322",
+                    "accent": "#fde68a",
+                    "accent-content": "#fefbf6",
+                    "neutral": "#102030",
+                    "neutral-content": "#fefbf6",
+
+                    "base-100": "#ffffff",
+                    "base-200": "#f1f5f9", // Light blue-gray
+                    "base-300": "#cbd5e1", // Medium blue-gray
+                    "base-content": "#232322",
+
+                    "info": "#3b82f6",
+                    "success": "#22c55e",
+                    "warning": "#f59e0b",
+                    "error": "#ef4444",
+                    // Add gradient colors
+                    "--gradient-start": "var(--base-200)", // Uses your existing base-200 color
+                    "--gradient-end": "var(--base-100)",   // Uses your existing base-100 color
+
+                    "focus": "#FF00FF",
+                    "focus-content": "#FFFFFF",
                     "--radius": "0.5rem",
                     "--border": "var(--base-200)",
                     "--input": "var(--base-200)",
                     "--ring": "var(--primary)",
-                    // Brand color: yellow in light mode
-                    "--brand": "91% 0.15 85",        // #F7DB5C
-                    "--brand-content": "14% 0.01 85", // #232322
-                    // High contrast text: black in light mode
-                    "--contrast": "7% 0.01 85",      // #000000
                 },
             },
             {
                 skanthemedark: {
-                    "primary": "#63A375",           // #63A375
-                    "primary-content": "#fefbf6",   // #fefbf6
-                    "secondary": "#F7DB5C",         // #F7DB5C
-                    "secondary-content": "#232322", // #232322
-                    "accent": "#D95D39",            // #D95D39
-                    "accent-content": "#fefbf6",    // #fefbf6
-                    "neutral": "#f9e58a",           // #f9e58a
-                    "neutral-content": "#232322",   // #232322
-                    "base-100": "#121212",          // #121212
-                    "base-200": "#1E1E1E",          // #1E1E1E
-                    "base-300": "#374151",          // #374151
-                    "base-content": "#F7DB5C",      // #F7DB5C
-                    "info": "#93c5fd",              // #93c5fd
-                    "success": "#a7f3d0",           // #a7f3d0
-                    "warning": "#fde68a",           // #fde68a
-                    "error": "#fca5a5",             // #fca5a5
-                    "error-content": "#ffffff",     // #ffffff
+                    "primary": "#63A375",
+                    "primary-content": "#fefbf6",
+                    "secondary": "#F7DB5C",
+                    "secondary-content": "#232322",
+                    "accent": "#D95D39",
+                    "accent-content": "#fefbf6",
+                    "neutral": "#f9e58a",
+                    "neutral-content": "#232322",
+                    "base-100": "#1f2937",
+                    "base-200": "#111827", // Darker background for better contrast
+                    "base-300": "#374151",
+                    "base-content": "#F7DB5C",
+                    "info": "#93c5fd",
+                    "success": "#a7f3d0",
+                    "warning": "#fde68a",
+                    "error": "#fca5a5",
+                    "error-content": "#ffffff",
                     "--gradient-start": "var(--base-200)",
                     "--gradient-end": "var(--base-100)",
-                    "focus": "#FF00FF",             // #FF00FF
-                    "focus-content": "#FFFFFF",     // #FFFFFF
+                    "focus": "#FF00FF",
+                    "focus-content": "#FFFFFF",
                     "--radius": "0.5rem",
                     "--border": "var(--base-200)",
                     "--input": "var(--base-200)",
                     "--ring": "var(--primary)",
-                    // Brand color: white in dark mode
-                    "--brand": "99% 0.01 85",        // #fefbf6
-                    "--brand-content": "14% 0.01 85", // #232322
-                    // High contrast text: white in dark mode
-                    "--contrast": "100% 0 0",        // #ffffff
                 },
             },
             "autumn",
@@ -269,7 +259,7 @@ const config: Config = {
             "winter",
         ],
         darkTheme: "skanthemedark",
-    }
+    },
 };
 
 export default config;
