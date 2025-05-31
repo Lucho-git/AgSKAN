@@ -129,18 +129,17 @@
         <nav class="footer-center grid grid-flow-col gap-4">
           <a
             class="link-hover link text-base-content/70 hover:text-base-content"
-            href="/docs/terms_of_service.pdf"
-            target="_blank">Terms of Service</a
+            href="/terms-of-service">Terms of Service</a
           >
           <a
             class="link-hover link text-base-content/70 hover:text-base-content"
-            href="/docs/SKAN-Privacy-Policy.pdf"
-            target="_blank">Privacy Policy</a
+            href="/privacy-policy">Privacy Policy</a
           >
           <a
             class="link-hover link text-base-content/70 hover:text-base-content"
             href="/">Data Security</a
           >
+          <!-- Assuming Data Security links to homepage or a specific page, adjust href as needed -->
         </nav>
       </div>
     </aside>

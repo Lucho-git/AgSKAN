@@ -565,17 +565,6 @@
 </div>
 
 <style>
-  :global(body) {
-    /* Apply to body for overall page background */
-    background-color: #f4f7f6; /* A light, neutral background for the page */
-    margin: 0;
-    padding: 0;
-    font-family:
-      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-      sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-    color: #333; /* Default text color for the body */
-  }
-
   .page-container {
     max-width: 900px; /* Max width for content readability */
     margin: 3rem auto; /* Center the container with top/bottom margin */
