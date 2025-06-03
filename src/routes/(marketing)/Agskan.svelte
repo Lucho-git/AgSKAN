@@ -1,133 +1,178 @@
 <script lang="ts">
-  import { Map, Clock, Upload, PinIcon } from "lucide-svelte"
-  import * as Dialog from "$lib/components/ui/dialog"
-  import BlurFade from "$lib/components/magic/blur-fade/BlurFade.svelte"
+  import {
+    ChevronDown,
+    ChevronUp,
+    Compass,
+    Map,
+    MapPin,
+    Sprout,
+  } from "lucide-svelte"
+  import { onMount } from "svelte"
 
-  let dialogOpen = false
-  let selectedFeature: (typeof agskanFeatures)[0] | null = null
-  let BLUR_FADE_DELAY = 0.04
+  let mounted = false
 
-  const agskanFeatures = [
+  onMount(() => {
+    mounted = true
+  })
+
+  const features = [
     {
       icon: Map,
-      title: "Real Time Tracking",
-      desc: "Monitor your operators in real time using just a phone or tablet.",
-      bgColor: "bg-blue-200",
-      longDesc:
-        "Track your operators in real-time with our intuitive mobile interface. Get instant updates on position, speed, and activity status. Perfect for coordinating multiple vehicles and ensuring efficient paddock coverage.",
+      title: "Real-Time Tracking",
+      subtitle: "Know Where Everyone Is -- Without the Phone Calls",
+      description:
+        "See your operators and gear live in the paddock. No more guessing, no more radio chatter -- just clear visibility from any phone or tablet.",
+      imageUrl:
+        "https://images.unsplash.com/photo-1548266652-99cf27701ced?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
-      icon: Clock,
+      icon: Sprout,
       title: "Seeding Assist",
-      desc: "Paint live trails where the sprayer has been for the planter to follow this seeding.",
-      bgColor: "bg-green-200",
-      longDesc:
-        "Our seeding assist feature creates visual trails of sprayer paths, allowing planters to follow with precision. This ensures perfect alignment and eliminates guesswork in follow-up operations.",
+      subtitle: "Stop Overlap. Hit Every Strip.",
+      description:
+        "Live trails show exactly where the sprayer's been, so your planter doesn't miss a beat. Fewer skips. Tighter passes. Better coverage.",
+      imageUrl:
+        "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
-      icon: Upload,
+      icon: Compass,
       title: "Paddock Upload",
-      desc: "Upload your paddock boundaries to display on a live shared map.",
-      bgColor: "bg-yellow-200",
-      longDesc:
-        "Easily upload and manage your paddock boundaries. Our system supports various file formats and automatically optimizes the display for all connected devices, ensuring everyone works with the same accurate information.",
+      subtitle: "Put Every Operator on the Same Page",
+      description:
+        "Upload or draw your paddocks in seconds. Every team member sees the same live boundary -- no confusion, no crossed wires.",
+      imageUrl:
+        "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
-      icon: PinIcon,
+      icon: MapPin,
       title: "Pin Drops",
-      desc: "Mark rocks and stumps in real time with a single click.",
-      bgColor: "bg-red-200",
-      longDesc:
-        "Instantly mark and share obstacle locations with your entire team. Each pin can include custom notes and photos, creating a comprehensive hazard map that helps prevent equipment damage and ensures operator safety.",
+      subtitle: "Tag Hazards Before They Waste Time",
+      description:
+        "Drop pins for rocks, stumps, or wet patches with one tap. Everyone sees it, instantly -- no more gear damage or delays.",
+      imageUrl:
+        "https://images.unsplash.com/photo-1609252509102-aa73ff8eab1a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
   ]
 
-  function openDialog(feature: typeof selectedFeature) {
-    selectedFeature = feature
-    dialogOpen = true
+  let expandedCards = new Array(features.length).fill(false)
+
+  function toggleCard(index: number) {
+    expandedCards[index] = !expandedCards[index]
+  }
+
+  // Animation delay placeholder
+  function animationDelay(node: HTMLElement, delay: number) {
+    return {
+      delay,
+      duration: 600,
+      css: (t: number) => `
+        opacity: ${t};
+        transform: translateY(${(1 - t) * 20}px);
+      `,
+    }
   }
 </script>
 
-<section class="bg-base-100">
-  <div class="section-container py-20 sm:py-32">
-    <div class="grid gap-12 lg:grid-cols-2">
-      <div class="space-y-8">
-        <BlurFade delay={BLUR_FADE_DELAY}>
-          <h3 class="text-2xl font-bold text-base-content">AgSKAN Features</h3>
-        </BlurFade>
+<section class="bg-base-200" id="features">
+  <div class="section-container py-20">
+    {#if mounted}
+      <h2
+        class="mb-16 text-center font-archivo text-3xl font-bold text-contrast-content md:text-4xl"
+        in:animationDelay={0}
+      >
+        Built to <span class="text-base-content">Solve Real Problems</span> in the
+        Field
+      </h2>
 
-        <div class="grid gap-6 sm:grid-cols-2">
-          {#each agskanFeatures as feature, i}
-            <BlurFade delay={BLUR_FADE_DELAY * 1.2 + i * 0.05}>
-              <div
-                class="group h-[130px] cursor-pointer rounded-lg bg-base-200 p-6 transition-all hover:bg-primary hover:text-primary-content"
-                on:click={() => openDialog(feature)}
-                on:keydown={(e) => e.key === "Enter" && openDialog(feature)}
-                role="button"
-                tabindex="0"
-              >
-                <div class="flex h-full items-start space-x-4">
+      <div
+        class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 md:gap-12"
+      >
+        {#each features as feature, index}
+          <div
+            class={`flex h-full flex-col overflow-hidden rounded-xl bg-base-100 shadow-md transition-all duration-300 ${
+              expandedCards[index]
+                ? "border-2 border-primary shadow-lg"
+                : "border border-base-300 hover:border-primary/40 hover:shadow-lg"
+            }`}
+            in:animationDelay={100 + index * 100}
+          >
+            <!-- Card Header - Always Visible -->
+            <div class="flex items-start p-6">
+              <div class="flex-1">
+                <div
+                  class={`mb-4 flex h-16 w-16 items-center justify-center rounded-full shadow-sm backdrop-blur-sm ${
+                    expandedCards[index] ? "bg-primary" : "bg-primary/10"
+                  }`}
+                >
                   <svelte:component
                     this={feature.icon}
-                    class="h-6 w-6 flex-shrink-0 transition-colors group-hover:text-primary-content"
+                    size={32}
+                    class={expandedCards[index]
+                      ? "text-primary-content"
+                      : "text-primary"}
                   />
-                  <div class="flex flex-col">
-                    <h4 class="font-semibold">{feature.title}</h4>
-                    <p class="mt-1 text-sm opacity-90">{feature.desc}</p>
-                  </div>
                 </div>
+                <h3
+                  class="mb-3 font-archivo text-xl font-bold text-contrast-content"
+                >
+                  {feature.title}
+                </h3>
+                <p class="font-medium text-base-content">{feature.subtitle}</p>
               </div>
-            </BlurFade>
-          {/each}
-        </div>
-      </div>
 
-      <BlurFade delay={BLUR_FADE_DELAY * 1.4}>
-        <div class="relative flex items-center justify-center">
-          <div class="w-[90%] max-w-md">
-            <div class="aspect-[4/3] w-full overflow-hidden rounded-lg">
-              <img
-                src="/images/landing-pics/WEB01.png"
-                alt="Farm Management Hero 1"
-                class="h-full w-full object-cover"
-              />
+              <!-- Only show collapse button when expanded -->
+              {#if expandedCards[index]}
+                <button
+                  on:click={() => toggleCard(index)}
+                  class="ml-4 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-sm transition-all hover:bg-primary/20"
+                  aria-label="Show less"
+                >
+                  <ChevronUp size={20} />
+                </button>
+              {/if}
             </div>
+
+            <!-- Expandable Content -->
+            <div
+              class={`overflow-hidden transition-all duration-300 ${
+                expandedCards[index]
+                  ? "max-h-[500px] opacity-100"
+                  : "max-h-0 opacity-0"
+              }`}
+            >
+              <div class="px-6 pb-6">
+                <div class="mb-5 overflow-hidden rounded-lg">
+                  <img
+                    src={feature.imageUrl}
+                    alt={`Demonstrating ${feature.title}`}
+                    class="h-auto max-h-[200px] w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <p class="leading-relaxed text-contrast-content/80">
+                  {feature.description}
+                </p>
+              </div>
+            </div>
+
+            <!-- Learn More Button - Only when not expanded -->
+            {#if !expandedCards[index]}
+              <div class="mt-3 px-6 pb-6">
+                <button
+                  on:click={() => toggleCard(index)}
+                  class="group flex w-full items-center justify-center rounded-lg border border-base-300 bg-base-200/80 px-4 py-2 font-medium text-contrast-content/80 shadow-sm transition-all hover:bg-base-300/90 hover:text-contrast-content hover:shadow"
+                >
+                  Learn more
+                  <ChevronDown
+                    size={16}
+                    class="ml-2 transition-transform group-hover:translate-y-1"
+                  />
+                </button>
+              </div>
+            {/if}
           </div>
-        </div>
-      </BlurFade>
-    </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </section>
-
-<Dialog.Root bind:open={dialogOpen}>
-  <Dialog.Portal>
-    <Dialog.Overlay class="bg-black/80" />
-    <Dialog.Content
-      class="fixed left-1/2 top-1/2 max-h-[90vh] w-[calc(100%-2rem)] max-w-[600px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-base-100 p-6 sm:w-full"
-    >
-      {#if selectedFeature}
-        <Dialog.Header>
-          <Dialog.Title class="flex items-center gap-2">
-            <svelte:component this={selectedFeature.icon} class="h-6 w-6" />
-            {selectedFeature.title}
-          </Dialog.Title>
-          <Dialog.Description class="mt-2">
-            {selectedFeature.longDesc}
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <div class="relative mt-6 aspect-video overflow-hidden rounded-lg">
-          <div
-            class={`h-full w-full ${selectedFeature.bgColor} flex items-center justify-center`}
-          >
-            <span class="text-lg font-medium">Animation Coming Soon</span>
-          </div>
-        </div>
-
-        <Dialog.Footer class="mt-6">
-          <Dialog.Close class="btn">Close</Dialog.Close>
-        </Dialog.Footer>
-      {/if}
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>

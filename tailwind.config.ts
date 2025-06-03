@@ -52,6 +52,7 @@ const config: Config = {
                 "brand-content": "oklch(var(--brand-content) / <alpha-value>)",
                 // High contrast black/white text
                 "contrast": "oklch(var(--contrast) / <alpha-value>)",
+                "contrast-content": "oklch(var(--contrast-content) / <alpha-value>)",
             },
             borderRadius: {
                 lg: "var(--radius)",
@@ -185,7 +186,7 @@ const config: Config = {
                     "base-100": "#ffffff",          // #ffffff
                     "base-200": "#f1f5f9",          // #f1f5f9
                     "base-300": "#cbd5e1",          // #cbd5e1
-                    "base-content": "#232322",      // #232322
+                    "base-content": "#232322",      // #232322 (dark for light mode)
                     "info": "#3b82f6",              // #3b82f6
                     "success": "#22c55e",           // #22c55e
                     "warning": "#f59e0b",           // #f59e0b
@@ -201,8 +202,9 @@ const config: Config = {
                     // Brand color: yellow in light mode
                     "--brand": "91% 0.15 85",        // #F7DB5C
                     "--brand-content": "14% 0.01 85", // #232322
-                    // High contrast text: black in light mode
-                    "--contrast": "7% 0.01 85",      // #000000
+                    // High contrast: white with dark content in light mode
+                    "--contrast": "100% 0 0",        // #ffffff (white)
+                    "--contrast-content": "14% 0.01 85", // #232322 (dark)
                 },
             },
             {
@@ -218,7 +220,7 @@ const config: Config = {
                     "base-100": "#121212",          // #121212
                     "base-200": "#1E1E1E",          // #1E1E1E
                     "base-300": "#374151",          // #374151
-                    "base-content": "#F7DB5C",      // #F7DB5C
+                    "base-content": "#F7DB5C",      // #F7DB5C (yellow for dark mode)
                     "info": "#93c5fd",              // #93c5fd
                     "success": "#a7f3d0",           // #a7f3d0
                     "warning": "#fde68a",           // #fde68a
@@ -234,9 +236,10 @@ const config: Config = {
                     "--ring": "var(--primary)",
                     // Brand color: white in dark mode
                     "--brand": "99% 0.01 85",        // #fefbf6
-                    "--brand-content": "14% 0.01 85", // #232322
-                    // High contrast text: white in dark mode
-                    "--contrast": "100% 0 0",        // #ffffff
+                    "--brand-content": "91% 0.15 85", // #F7DB5C
+                    // High contrast: dark with white content in dark mode  
+                    "--contrast": "14% 0.01 85",     // #232322 (dark)
+                    "--contrast-content": "100% 0 0", // #ffffff (white)
                 },
             },
             "autumn",

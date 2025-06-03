@@ -36,7 +36,9 @@
   }
 </script>
 
-<nav class="sticky top-0 z-50 w-full bg-base-100 shadow-sm">
+<nav
+  class="sticky top-0 z-50 w-full bg-base-100 text-contrast-content shadow-sm"
+>
   <div class="section-container">
     <div class="flex h-16 items-center justify-between">
       <!-- Logo - Left -->
@@ -51,8 +53,7 @@
           </div>
         </div>
         <div class="flex flex-col justify-center">
-          <span
-            class="font-archivo text-3xl font-black leading-none text-contrast"
+          <span class="font-archivo text-3xl font-black leading-none"
             >AgSKAN</span
           >
         </div>
@@ -62,19 +63,16 @@
       <nav class="hidden items-center gap-6 lg:flex">
         <TextAnimatedDecoration
           href="/support"
-          className="text-lg font-semibold text-contrast"
+          className="text-lg font-semibold "
         >
           Support
         </TextAnimatedDecoration>
-        <TextAnimatedDecoration
-          href="/team"
-          className="text-lg font-semibold text-contrast"
-        >
+        <TextAnimatedDecoration href="/team" className="text-lg font-semibold ">
           Team
         </TextAnimatedDecoration>
         <TextAnimatedDecoration
           href="/pricing"
-          className="text-lg font-semibold text-contrast"
+          className="text-lg font-semibold "
         >
           Pricing
         </TextAnimatedDecoration>
@@ -117,6 +115,7 @@
         </label>
 
         <!-- Login Button (DaisyUI Ghost) -->
+
         <a href="/login" class="btn btn-outline">Login</a>
 
         <!-- Sign Up Button (DaisyUI Filled with Arrow) -->
@@ -130,7 +129,7 @@
       <Button
         variant="ghost"
         size="icon"
-        class="h-8 w-8 text-contrast lg:hidden"
+        class="h-8 w-8  lg:hidden"
         on:click={() => (isMenuOpen = !isMenuOpen)}
       >
         {#if isMenuOpen}
@@ -161,21 +160,21 @@
           <nav class="flex flex-col gap-6">
             <TextAnimatedDecoration
               href="/support"
-              className="p-3 text-2xl font-semibold text-contrast"
+              className="p-3 text-2xl font-semibold "
               on:click={() => (isMenuOpen = false)}
             >
               Support
             </TextAnimatedDecoration>
             <TextAnimatedDecoration
               href="/team"
-              className="p-3 text-2xl font-semibold text-contrast"
+              className="p-3 text-2xl font-semibold "
               on:click={() => (isMenuOpen = false)}
             >
               Team
             </TextAnimatedDecoration>
             <TextAnimatedDecoration
               href="/pricing"
-              className="p-3 text-2xl font-semibold text-contrast"
+              className="p-3 text-2xl font-semibold "
               on:click={() => (isMenuOpen = false)}
             >
               Pricing
