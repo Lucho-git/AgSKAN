@@ -2,6 +2,11 @@
   import Marquee from "$lib/components/magic/marquee/Marquee.svelte"
 
   const partners = [
+    // {
+    //   name: "ABC Rural",
+    //   logo: "/images/partnerLogos/ABCRural.png",
+    //   alt: "ABC Rural logo",
+    // },
     {
       name: "Agribusiness Connect",
       logo: "/images/partnerLogos/AgribusinessConnect.png",
@@ -55,42 +60,31 @@
   ]
 </script>
 
-<section class="bg-gradient-to-b from-primary/5 to-base-100 py-10">
-  <div class="section-container">
-    <div class="mb-6 text-center">
-      <p
-        class="inline-block rounded-full bg-primary/10 px-6 py-2 text-sm font-medium uppercase tracking-wider text-contrast-content shadow-sm"
-      >
-        Trusted Partners
-      </p>
-    </div>
-
+<section class="bg-base-100">
+  <div class="section-container py-8">
     <div
-      class="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-lg"
+      class="relative flex h-32 w-full flex-col items-center justify-center overflow-hidden rounded-lg
+          border border-base-300 bg-base-300 md:shadow-xl"
     >
-      <Marquee pauseOnHover class="[--duration:30s]">
+      <Marquee reverse pauseOnHover class="[--duration:30s]">
         {#each partners as partner}
-          <div class="mx-6 flex min-w-[180px] items-center justify-center">
-            <div
-              class="group relative flex h-16 w-44 transform items-center justify-center rounded-lg border border-base-100 bg-base-300 p-3 shadow-md transition-all duration-300 hover:z-10 hover:-translate-y-1 hover:scale-110 hover:border-0 hover:border-secondary hover:shadow-xl"
-            >
-              <img
-                src={partner.logo}
-                alt={partner.alt}
-                class="h-12 w-auto max-w-[140px] object-contain transition-all duration-200"
-                loading="lazy"
-              />
-            </div>
+          <div class="mx-8 flex items-center justify-center">
+            <img
+              src={partner.logo}
+              alt={partner.alt}
+              class="h-16 w-auto max-w-[200px] object-contain transition-all duration-200"
+              loading="lazy"
+            />
           </div>
         {/each}
       </Marquee>
-
-      <!-- Gradient overlays -->
       <div
-        class="pointer-events-none absolute inset-y-0 left-0 z-20 w-12 bg-gradient-to-r from-base-100 to-transparent"
+        class="pointer-events-none absolute inset-y-0 left-0 w-1/3
+            bg-gradient-to-r from-base-200"
       ></div>
       <div
-        class="pointer-events-none absolute inset-y-0 right-0 z-20 w-12 bg-gradient-to-l from-base-100 to-transparent"
+        class="pointer-events-none absolute inset-y-0 right-0 w-1/3
+            bg-gradient-to-l from-base-200"
       ></div>
     </div>
   </div>

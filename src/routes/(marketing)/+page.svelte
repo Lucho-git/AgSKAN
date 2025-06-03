@@ -5,7 +5,11 @@
   import PaddockPath from "./PaddockPath.svelte"
   import Partners from "./PartnerSection.svelte"
   import QandA from "./QandA.svelte"
+  import ProblemSolution from "./ProblemSolution.svelte"
   import SignupSection from "./SignupSection.svelte"
+  import Setup from "./Setup.svelte"
+  import Testimonials from "./Testimonials.svelte"
+  import Pricing from "./Pricing.svelte"
   import { onMount } from "svelte"
   import { afterNavigate } from "$app/navigation"
   import { browser } from "$app/environment"
@@ -39,7 +43,10 @@
   <Partners />
 
   <Agskan />
-  <PaddockPath />
+  <ProblemSolution />
+  <Setup />
+  <Testimonials />
+  <Pricing />
   <QandA />
   <!-- <SignupSection /> -->
 </main>

@@ -5,9 +5,13 @@
     AccordionItem,
     AccordionTrigger,
   } from "$lib/components/ui/accordion"
-  import BlurFade from "$lib/components/magic/blur-fade/BlurFade.svelte"
+  import { onMount } from "svelte"
 
-  let BLUR_FADE_DELAY = 0.04
+  let mounted = false
+
+  onMount(() => {
+    mounted = true
+  })
 
   const faqs = [
     {
@@ -18,11 +22,11 @@
     {
       question: "How much does AgSKAN cost?",
       answer: `
-          <p class="mb-4">AgSKAN costs $1 per day, per user.</p>
-          <p>In the billing section, a 'seat' represents each person who will be using the app on your farm, including you as the owner/manager. As the account owner, you'll pay for all seats, which gives your account the authority to host other users on your live map.</p>
+          <p class="mb-4">AgSKAN costs $46 per month, per machine.</p>
+          <p>In the billing section, a 'machine' represents each vehicle that will be tracked on your farm. As the account owner, you'll pay for all machines, which gives your account the authority to host other users on your live map.</p>
           <p class="mt-4 p-4 bg-base-300 rounded-lg">
-            <strong>Example:</strong> You (map owner) + 2 full-time operators = 3 seats<br>
-            Total cost: $3 per day for complete farm operation visibility
+            <strong>Example:</strong> You (map owner) + 2 full-time operators = 3 machines<br>
+            Total cost: $138 per month for complete farm operation visibility
           </p>`,
     },
     {
@@ -38,7 +42,7 @@
               <li>Access the map on any mobile device</li>
             </ul>
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $2 per day, using only phones or tablets
+              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $92 per month, using only phones or tablets
             </p>
           </div>`,
     },
@@ -55,7 +59,7 @@
               <li>Access from any mobile device</li>
             </ul>
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $4 per day
+              <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $184 per month
             </p>
           </div>`,
     },
@@ -118,34 +122,85 @@
           </div>`,
     },
   ]
+
+  // Animation delay placeholder
+  function animationDelay(node: HTMLElement, delay: number) {
+    return {
+      delay,
+      duration: 600,
+      css: (t: number) => `
+        opacity: ${t};
+        transform: translateY(${(1 - t) * 20}px);
+      `,
+    }
+  }
 </script>
 
 <section class="bg-base-200">
-  <div class="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 sm:py-32 lg:px-8">
-    <div class="mx-auto max-w-3xl">
-      <BlurFade delay={BLUR_FADE_DELAY}>
-        <h2 class="mb-12 text-center text-3xl font-bold text-base-content">
-          Frequently Asked Questions
-        </h2>
-      </BlurFade>
+  <div class="section-container py-20">
+    {#if mounted}
+      <div
+        class="mx-auto max-w-3xl overflow-hidden rounded-xl border border-base-300 shadow-lg"
+        in:animationDelay={0}
+      >
+        <!-- Yellow header with black text -->
+        <div class="bg-base-content p-8 text-contrast">
+          <h2 class="mb-4 text-center font-archivo text-3xl font-bold">
+            Frequently Asked Questions
+          </h2>
+          <p class="mx-auto max-w-2xl text-center text-contrast/80">
+            Get quick answers to common questions about AgSKAN.
+          </p>
+        </div>
 
-      <Accordion type="single" collapsible class="w-full space-y-4">
-        {#each faqs as faq, i}
-          <BlurFade delay={BLUR_FADE_DELAY * 1.2 + i * 0.05}>
-            <AccordionItem value="item-{i}" class="border-b-0">
-              <AccordionTrigger
-                class="rounded-lg bg-base-200 px-6 py-4 text-left hover:bg-base-300 [&[data-state=open]]:bg-base-300"
+        <!-- FAQ Content with original accordion styling -->
+        <div class="bg-base-100 p-6">
+          <Accordion type="single" collapsible class="w-full space-y-4">
+            {#each faqs as faq, i}
+              <div in:animationDelay={100 + i * 50}>
+                <AccordionItem value="item-{i}" class="border-b-0">
+                  <AccordionTrigger
+                    class="rounded-lg bg-base-200 px-6 py-4 text-left font-medium hover:bg-base-300 [&[data-state=open]]:bg-base-300"
+                  >
+                    {faq.question}
+                  </AccordionTrigger>
+                  <AccordionContent class="px-6 py-4 text-contrast-content/80">
+                    {@html faq.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              </div>
+            {/each}
+          </Accordion>
+
+          <!-- Contact support section -->
+          <div
+            class="mt-8 rounded-lg border border-base-300 bg-base-200 p-6 text-center"
+          >
+            <p class="mb-4 text-contrast-content/70">
+              Can't find what you're looking for? Our support team is available
+              Monday through Friday, 8am-6pm AEST.
+            </p>
+            <a href="mailto:support@skanfarming.com.au" class="btn btn-outline">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                {faq.question}
-              </AccordionTrigger>
-              <AccordionContent class="px-6 py-4">
-                {@html faq.answer}
-              </AccordionContent>
-            </AccordionItem>
-          </BlurFade>
-        {/each}
-      </Accordion>
-    </div>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </div>
+    {/if}
   </div>
 </section>
 
