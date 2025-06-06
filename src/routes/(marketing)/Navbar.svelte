@@ -43,20 +43,19 @@
     <div class="flex h-16 items-center justify-between">
       <!-- Logo - Left -->
       <a href="/" class="flex items-center gap-2">
-        <div class="flex items-center rounded-2xl bg-secondary px-2 py-1">
-          <div class="flex h-8 w-8 items-center justify-center">
-            <img
-              src="/images/gear_2.svg"
-              alt="AgSKAN Gear Logo"
-              class="h-full w-full"
-            />
-          </div>
+        <div
+          class="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary"
+        >
+          <img
+            src="/images/logo.svg"
+            alt="AgSKAN Gear Logo"
+            class="h-11 w-11"
+          />
         </div>
-        <div class="flex flex-col justify-center">
-          <span class="font-archivo text-3xl font-black leading-none"
-            >AgSKAN</span
-          >
-        </div>
+        <span
+          class="font-archivo text-3xl font-black leading-none text-base-content"
+          >AgSKAN</span
+        >
       </a>
 
       <!-- Center Navigation Links - Desktop -->

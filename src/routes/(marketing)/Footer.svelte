@@ -46,15 +46,19 @@
       >
         <!-- Company info -->
         <div class="md:col-span-5">
-          <div class="mb-4 flex items-center">
-            <span
-              class="mr-2 bg-gradient-to-r from-primary to-secondary bg-clip-text font-archivo text-2xl font-bold text-transparent"
-              >AgSKAN</span
-            >
-            <div class="mx-2 h-5 w-px bg-contrast-content/30"></div>
-            <span class="text-sm text-contrast-content/70"
-              >Farming Logistics</span
-            >
+          <div class="mb-6">
+            <div class="mb-2 flex items-center justify-start gap-3">
+              <div
+                class="h-12 w-12 bg-base-content"
+                style="mask: url('/images/logo.svg') no-repeat center; mask-size: contain; -webkit-mask: url('/images/logo.svg') no-repeat center; -webkit-mask-size: contain;"
+              ></div>
+              <span class="font-archivo text-3xl font-bold text-base-content"
+                >AgSKAN</span
+              >
+            </div>
+            <div
+              class="h-px w-32 bg-gradient-to-r from-contrast-content/30 to-transparent"
+            ></div>
           </div>
 
           <p
