@@ -10,6 +10,7 @@
   import Setup from "./Setup.svelte"
   import Testimonials from "./Testimonials.svelte"
   import Pricing from "./Pricing.svelte"
+  import Founders from "./Founders.svelte"
   import { onMount } from "svelte"
   import { afterNavigate } from "$app/navigation"
   import { browser } from "$app/environment"
@@ -48,5 +49,7 @@
   <Testimonials />
   <Pricing />
   <QandA />
+  <Founders />
+
   <!-- <SignupSection /> -->
 </main>
