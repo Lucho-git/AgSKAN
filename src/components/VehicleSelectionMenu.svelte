@@ -101,7 +101,6 @@
   let isMobile = false
 
   const colors = [
-    // Original colors
     "Red",
     "Blue",
     "Green",
@@ -111,28 +110,6 @@
     "SkyBlue",
     "LightGreen",
     "HotPink",
-
-    // // Additional distinctive colors
-    // "Crimson", // Deeper red
-    // "RoyalBlue", // Richer blue
-    // "ForestGreen", // Darker green
-    // "Gold", // Richer yellow
-    // "Coral", // Distinctive orange-pink
-    // "Indigo", // Deep purple-blue
-    // "DodgerBlue", // Vibrant medium blue
-    // "MediumSeaGreen", // Balanced green
-    // "HotPink", // Vibrant pink
-    // "Chocolate", // Brown-orange
-    // "Teal", // Blue-green
-    // "DarkViolet", // Rich purple
-    // "Tomato", // Red-orange
-    // "SteelBlue", // Gray-blue
-    // "MediumOrchid", // Medium purple
-    // "OliveDrab", // Olive green
-    // "SlateBlue", // Blue-purple
-    // "DarkCyan", // Dark blue-green
-    // "Firebrick", // Dark red
-    // "MediumTurquoise", // Bright blue-green
   ]
 
   onMount(() => {
@@ -201,13 +178,21 @@
   }
 </script>
 
+<!-- Backdrop for mobile -->
+{#if showMenu && isMobile}
+  <div
+    class="fixed inset-0 z-10 bg-black bg-opacity-50 transition-opacity"
+    on:click={cancelSelection}
+  ></div>
+{/if}
+
 <div
-  class="fixed bottom-0 left-0 right-0 z-20 flex transform flex-col rounded-t-lg bg-white p-6 shadow-lg transition-transform duration-300 sm:p-8"
+  class="fixed bottom-0 left-0 right-0 z-20 flex transform flex-col rounded-t-lg bg-white shadow-lg transition-transform duration-300"
   class:translate-y-full={!showMenu}
   class:translate-y-0={showMenu}
   style="height: {isMobile ? '100vh' : '60vh'}; max-height: {isMobile
     ? '100vh'
-    : '60vh'};"
+    : '60vh'}; padding: {isMobile ? '1rem' : '2rem'};"
 >
   <div class="flex flex-grow flex-col overflow-hidden text-black sm:flex-row">
     <div
@@ -241,17 +226,15 @@
           </Tabs.List>
           <div class="flex-grow overflow-hidden">
             <Tabs.Content value="vehicles" class="h-full">
-              <div
-                class="overflow-y-auto p-4"
-                style="height: {isMobile
-                  ? 'calc(100vh - 350px)'
-                  : 'calc(60vh - 250px)'};"
-              >
+              <div class="h-full overflow-y-auto p-4 pb-8">
                 <div class="grid-container">
                   {#each vehicles as vehicle}
                     <Button
                       variant="outline"
-                      class="h-24 w-24 border-2 p-2"
+                      class="h-24 w-24 border-2 p-2 {selectedVehicle.type ===
+                      vehicle.type
+                        ? 'border-blue-500 bg-blue-50'
+                        : ''}"
                       on:click={() => selectVehicle(vehicle)}
                     >
                       <svelte:component
@@ -265,40 +248,43 @@
               </div>
             </Tabs.Content>
             <Tabs.Content value="colors" class="h-full">
-              <div
-                class="overflow-y-auto p-4"
-                style="height: {isMobile
-                  ? 'calc(100vh - 350px)'
-                  : 'calc(60vh - 250px)'};"
-              >
-                <div class="grid-container">
-                  {#each colors as bodyColor}
-                    <Button
-                      variant="outline"
-                      class="h-24 w-24 border-2 p-2"
-                      style="background-color: {bodyColor};"
-                      on:click={() => selectColor(bodyColor)}
-                    ></Button>
+              <div class="h-full overflow-y-auto p-4 pb-8">
+                <div
+                  class="grid gap-3"
+                  style="grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));"
+                >
+                  {#each colors as color}
+                    <button
+                      class="relative flex h-16 w-full items-center justify-center rounded-lg border-2 transition-all hover:scale-105 {selectedVehicle.bodyColor ===
+                      color
+                        ? 'border-gray-800 ring-2 ring-blue-300'
+                        : 'border-gray-200'}"
+                      style="background-color: {color};"
+                      on:click={() => selectColor(color)}
+                    >
+                      <div class="absolute bottom-1 left-1 right-1">
+                        <span
+                          class="inline-block rounded bg-white bg-opacity-90 px-1.5 py-0.5 text-xs font-medium text-gray-900"
+                        >
+                          {color}
+                        </span>
+                      </div>
+                    </button>
                   {/each}
                 </div>
               </div>
             </Tabs.Content>
             <Tabs.Content value="swath" class="h-full">
-              <div
-                class="overflow-y-auto p-4"
-                style="height: {isMobile
-                  ? 'calc(100vh - 350px)'
-                  : 'calc(60vh - 250px)'};"
-              >
-                <div class="space-y-4">
-                  <Card.Root>
-                    <Card.Header class="flex items-center">
-                      <Card.Title class="flex items-center">
+              <div class="h-full overflow-hidden p-4">
+                <div class="h-full space-y-4">
+                  <Card.Root class="h-full">
+                    <Card.Header class="flex items-center pb-3">
+                      <Card.Title class="flex items-center text-base">
                         Swath Width
                         <Button
                           variant="ghost"
                           size="icon"
-                          class="ml-2"
+                          class="ml-2 h-6 w-6"
                           on:click={() => {
                             toast.info("About Swath Width", {
                               description:
@@ -307,15 +293,15 @@
                             })
                           }}
                         >
-                          <Info class="h-4 w-4" />
+                          <Info class="h-3 w-3" />
                         </Button>
                       </Card.Title>
                     </Card.Header>
-                    <Card.Content>
-                      <div class="mb-4 grid grid-cols-3 gap-2">
+                    <Card.Content class="space-y-4">
+                      <div class="grid grid-cols-3 gap-2">
                         {#each [4, 8, 10, 12, 24, 36] as preset}
                           <button
-                            class="rounded-full px-3 py-1 text-sm {selectedVehicle.swath ===
+                            class="rounded-full px-2 py-1 text-xs {selectedVehicle.swath ===
                             preset
                               ? 'bg-primary text-white'
                               : 'bg-gray-200'}"
@@ -326,16 +312,18 @@
                         {/each}
                       </div>
                       <div class="flex items-center space-x-2">
-                        <Minimize class="h-5 w-5" />
+                        <Minimize class="h-4 w-4" />
                         <Slider
                           value={swathValue}
                           onValueChange={updateSwath}
                           min={2}
                           max={60}
                           step={1}
-                          class="flex-grow [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:bg-gray-100 [&_[role=slider]]:shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.1)] [&_[role=track]]:h-2 [&_[role=track]]:bg-gray-200 [&_[role=track]]:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]"
+                          class="flex-grow [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:bg-gray-100 [&_[role=slider]]:shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.1)] [&_[role=track]]:h-1.5 [&_[role=track]]:bg-gray-200 [&_[role=track]]:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]"
                         />
-                        <span class="font-semibold">{swathValue[0]}m</span>
+                        <span class="text-sm font-semibold"
+                          >{swathValue[0]}m</span
+                        >
                       </div>
                     </Card.Content>
                   </Card.Root>
