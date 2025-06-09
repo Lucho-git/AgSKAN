@@ -32,10 +32,10 @@
 </script>
 
 <div class="flex-grow"></div>
-<footer class="relative overflow-hidden bg-base-200">
+<footer class="relative overflow-hidden bg-neutral text-neutral-content">
   <!-- Top divider -->
   <div
-    class="h-px bg-gradient-to-r from-transparent via-contrast-content/20 to-transparent"
+    class="h-px bg-gradient-to-r from-transparent via-neutral-content/20 to-transparent"
   ></div>
 
   <div class="section-container relative z-10 pb-8 pt-12">
@@ -49,29 +49,29 @@
           <div class="mb-6">
             <div class="mb-2 flex items-center justify-start gap-3">
               <div
-                class="h-12 w-12 bg-base-content"
+                class="h-12 w-12 bg-neutral-content"
                 style="mask: url('/images/logo.svg') no-repeat center; mask-size: contain; -webkit-mask: url('/images/logo.svg') no-repeat center; -webkit-mask-size: contain;"
               ></div>
-              <span class="font-archivo text-3xl font-bold text-base-content"
+              <span class="font-archivo text-3xl font-bold text-neutral-content"
                 >AgSKAN</span
               >
             </div>
             <div
-              class="h-px w-32 bg-gradient-to-r from-contrast-content/30 to-transparent"
+              class="h-px w-32 bg-gradient-to-r from-neutral-content/30 to-transparent"
             ></div>
           </div>
 
           <p
-            class="mb-6 max-w-md text-sm leading-relaxed text-contrast-content/80"
+            class="mb-6 max-w-md text-sm leading-relaxed text-neutral-content/80"
           >
             Simple farm tracking that brings real-time visibility to your
             operation, without the complexity of traditional farm tech.
           </p>
 
           <div
-            class="mb-6 flex items-start gap-3 text-sm text-contrast-content/70"
+            class="mb-6 flex items-start gap-3 text-sm text-neutral-content/70"
           >
-            <MapPin size={16} class="mt-1 flex-shrink-0 text-primary" />
+            <MapPin size={16} class="mt-1 flex-shrink-0 text-neutral-content" />
             <div>
               SKAN Farming Logistics Pty Ltd<br />
               ABN: 26 675 693 464
@@ -85,7 +85,7 @@
             <!-- Links -->
             <div>
               <h4
-                class="mb-4 text-lg font-bold uppercase tracking-wide text-primary"
+                class="mb-4 text-lg font-bold uppercase tracking-wide text-neutral-content"
               >
                 Links
               </h4>
@@ -93,7 +93,7 @@
                 <li>
                   <FooterLink
                     href="/contact"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Contact Us
                   </FooterLink>
@@ -101,7 +101,7 @@
                 <li>
                   <FooterLink
                     href="/about"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     About Us
                   </FooterLink>
@@ -109,7 +109,7 @@
                 <li>
                   <FooterLink
                     href="/knowledge-base"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Knowledge Base
                   </FooterLink>
@@ -117,7 +117,7 @@
                 <li>
                   <FooterLink
                     href="/wall-of-love"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Wall of Love
                   </FooterLink>
@@ -125,7 +125,7 @@
                 <li>
                   <FooterLink
                     href="#pricing"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Pricing
                   </FooterLink>
@@ -136,7 +136,7 @@
             <!-- Legal -->
             <div>
               <h4
-                class="mb-4 text-lg font-bold uppercase tracking-wide text-primary"
+                class="mb-4 text-lg font-bold uppercase tracking-wide text-neutral-content"
               >
                 Legal
               </h4>
@@ -145,7 +145,7 @@
                   <FooterLink
                     href="/docs/terms_of_service.pdf"
                     target="_blank"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Terms of Service
                   </FooterLink>
@@ -154,7 +154,7 @@
                   <FooterLink
                     href="/docs/SKAN-Privacy-Policy.pdf"
                     target="_blank"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Privacy Policy
                   </FooterLink>
@@ -162,7 +162,7 @@
                 <li>
                   <FooterLink
                     href="/"
-                    className="text-contrast-content/80 transition-colors py-1 inline-block"
+                    className="transition-colors py-1 inline-block"
                   >
                     Data Security
                   </FooterLink>
@@ -173,7 +173,7 @@
             <!-- Contact -->
             <div>
               <h4
-                class="mb-4 text-lg font-bold uppercase tracking-wide text-primary"
+                class="mb-4 text-lg font-bold uppercase tracking-wide text-neutral-content"
               >
                 Contact
               </h4>
@@ -182,31 +182,31 @@
                   href="https://twitter.com/SKANfarming"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-contrast-content/10 text-contrast-content/70 transition-all duration-300 hover:scale-110 hover:bg-primary hover:text-base-100 hover:shadow-md hover:shadow-primary/20"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-110 hover:bg-neutral-content hover:text-neutral hover:shadow-md hover:shadow-neutral-content/20"
                 >
                   <Twitter size={18} />
                 </a>
                 <a
                   href="#"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-contrast-content/10 text-contrast-content/70 transition-all duration-300 hover:scale-105 hover:bg-primary hover:text-base-100"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Instagram size={18} />
                 </a>
                 <a
                   href="mailto:support@skanfarming.com.au"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-contrast-content/10 text-contrast-content/70 transition-all duration-300 hover:scale-105 hover:bg-primary hover:text-base-100"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Mail size={18} />
                 </a>
                 <a
                   href="tel:+61439405248"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-contrast-content/10 text-contrast-content/70 transition-all duration-300 hover:scale-105 hover:bg-primary hover:text-base-100"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Phone size={18} />
                 </a>
                 <a
                   href="#"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-contrast-content/10 text-contrast-content/70 transition-all duration-300 hover:scale-105 hover:bg-primary hover:text-base-100"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Facebook size={18} />
                 </a>
@@ -218,11 +218,11 @@
 
       <!-- Bottom section -->
       <div
-        class="mb-6 h-px bg-gradient-to-r from-transparent via-contrast-content/20 to-transparent"
+        class="mb-6 h-px bg-gradient-to-r from-transparent via-neutral-content/20 to-transparent"
       ></div>
 
       <div
-        class="flex flex-col items-center justify-between gap-3 text-sm text-contrast-content/70 md:flex-row"
+        class="flex flex-col items-center justify-between gap-3 text-sm text-neutral-content/70 md:flex-row"
         in:animationDelay={200}
       >
         <div class="font-medium">

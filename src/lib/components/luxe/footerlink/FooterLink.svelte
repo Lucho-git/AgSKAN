@@ -7,8 +7,11 @@
 <a
   {href}
   {target}
-  class="relative transition-colors duration-300 after:absolute after:bottom-0 after:left-0 after:h-[0.5px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-base-content after:transition-transform after:duration-300 after:ease-in-out hover:text-base-content hover:after:origin-bottom-left hover:after:scale-x-100 {className}"
+  class="group relative text-neutral-content/80 transition-colors duration-300 hover:text-hover {className}"
   on:click
 >
   <slot />
+  <span
+    class="absolute bottom-0 left-0 h-[0.5px] w-full origin-bottom-right scale-x-0 bg-hover transition-transform duration-300 ease-in-out group-hover:origin-bottom-left group-hover:scale-x-100"
+  ></span>
 </a>

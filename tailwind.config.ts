@@ -53,6 +53,9 @@ const config: Config = {
                 // High contrast black/white text
                 "contrast": "oklch(var(--contrast) / <alpha-value>)",
                 "contrast-content": "oklch(var(--contrast-content) / <alpha-value>)",
+                // Custom hover color: yellow in light, black in dark
+                "hover": "oklch(var(--hover) / <alpha-value>)",
+                "hover-content": "oklch(var(--hover-content) / <alpha-value>)",
             },
             borderRadius: {
                 lg: "var(--radius)",
@@ -205,6 +208,9 @@ const config: Config = {
                     // High contrast: white with dark content in light mode
                     "--contrast": "100% 0 0",        // #ffffff (white)
                     "--contrast-content": "14% 0.01 85", // #232322 (dark)
+                    // Hover color: yellow in light mode
+                    "--hover": "91% 0.15 85",        // #F7DB5C (yellow)
+                    "--hover-content": "14% 0.01 85", // #232322 (dark)
                 },
             },
             {
@@ -240,6 +246,9 @@ const config: Config = {
                     // High contrast: dark with white content in dark mode  
                     "--contrast": "14% 0.01 85",     // #232322 (dark)
                     "--contrast-content": "100% 0 0", // #ffffff (white)
+                    // Hover color: black in dark mode
+                    "--hover": "14% 0.01 85",        // #232322 (dark/black)
+                    "--hover-content": "100% 0 0",   // #ffffff (white)
                 },
             },
             "autumn",
