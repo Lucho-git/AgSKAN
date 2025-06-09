@@ -45,10 +45,10 @@
 
   <Agskan />
   <ProblemSolution />
-  <Setup />
+  <Setup id="setup" />
   <Testimonials />
-  <Pricing />
-  <QandA />
+  <Pricing id="pricing" />
+  <QandA id="qanda" />
   <Founders />
 
   <!-- <SignupSection /> -->

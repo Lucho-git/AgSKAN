@@ -45,7 +45,7 @@
   }
 </script>
 
-<section class="bg-base-200" id="how-it-works">
+<section class="bg-base-200" id="setup">
   <div class="section-container py-20">
     {#if mounted}
       <div in:animationDelay={0}>

@@ -136,7 +136,7 @@
   }
 </script>
 
-<section class="bg-base-200">
+<section class="bg-base-200" id="qanda">
   <div class="section-container py-20">
     {#if mounted}
       <div
@@ -144,7 +144,7 @@
         in:animationDelay={0}
       >
         <!-- Yellow header with black text -->
-        <div class="bg-base-content p-8 text-contrast">
+        <div class="bg-neutral p-8 text-contrast">
           <h2 class="mb-4 text-center font-archivo text-3xl font-bold">
             Frequently Asked Questions
           </h2>
