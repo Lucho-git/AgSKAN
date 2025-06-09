@@ -205,7 +205,9 @@
   class="fixed bottom-0 left-0 right-0 z-20 flex transform flex-col rounded-t-lg bg-white p-6 shadow-lg transition-transform duration-300 sm:p-8"
   class:translate-y-full={!showMenu}
   class:translate-y-0={showMenu}
-  style={isMobile ? "height: 100%;" : "height: 60vh;"}
+  style="height: {isMobile ? '100vh' : '60vh'}; max-height: {isMobile
+    ? '100vh'
+    : '60vh'};"
 >
   <div class="flex flex-grow flex-col overflow-hidden text-black sm:flex-row">
     <div
@@ -215,9 +217,9 @@
         <Tabs.Root
           value={activeTab}
           onValueChange={(value) => (activeTab = value)}
-          class="rounded-lg bg-gray-100 p-1 shadow-inner"
+          class="flex h-full flex-col rounded-lg bg-gray-100 p-1 shadow-inner"
         >
-          <Tabs.List class="grid w-full grid-cols-3 gap-1">
+          <Tabs.List class="grid w-full flex-shrink-0 grid-cols-3 gap-1">
             <Tabs.Trigger
               value="vehicles"
               class="rounded-md px-4 py-2 text-gray-700 transition-all duration-200 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-md"
@@ -239,8 +241,13 @@
           </Tabs.List>
           <div class="flex-grow overflow-hidden">
             <Tabs.Content value="vehicles" class="h-full">
-              <ScrollArea class="h-full" type="auto">
-                <div class="grid-container p-4">
+              <div
+                class="overflow-y-auto p-4"
+                style="height: {isMobile
+                  ? 'calc(100vh - 350px)'
+                  : 'calc(60vh - 250px)'};"
+              >
+                <div class="grid-container">
                   {#each vehicles as vehicle}
                     <Button
                       variant="outline"
@@ -255,11 +262,16 @@
                     </Button>
                   {/each}
                 </div>
-              </ScrollArea>
+              </div>
             </Tabs.Content>
             <Tabs.Content value="colors" class="h-full">
-              <ScrollArea class="h-full" type="auto">
-                <div class="grid-container p-4">
+              <div
+                class="overflow-y-auto p-4"
+                style="height: {isMobile
+                  ? 'calc(100vh - 350px)'
+                  : 'calc(60vh - 250px)'};"
+              >
+                <div class="grid-container">
                   {#each colors as bodyColor}
                     <Button
                       variant="outline"
@@ -269,11 +281,16 @@
                     ></Button>
                   {/each}
                 </div>
-              </ScrollArea>
+              </div>
             </Tabs.Content>
             <Tabs.Content value="swath" class="h-full">
-              <ScrollArea class="h-full" type="auto">
-                <div class="space-y-4 p-4">
+              <div
+                class="overflow-y-auto p-4"
+                style="height: {isMobile
+                  ? 'calc(100vh - 350px)'
+                  : 'calc(60vh - 250px)'};"
+              >
+                <div class="space-y-4">
                   <Card.Root>
                     <Card.Header class="flex items-center">
                       <Card.Title class="flex items-center">
@@ -323,7 +340,7 @@
                     </Card.Content>
                   </Card.Root>
                 </div>
-              </ScrollArea>
+              </div>
             </Tabs.Content>
           </div>
         </Tabs.Root>
@@ -377,7 +394,7 @@
   </div>
 
   <!-- Underneath section: Cancel and Confirm buttons -->
-  <div class="mt-6 flex">
+  <div class="mt-6 flex flex-shrink-0">
     <button class="btn mr-2 flex-1" on:click={cancelSelection}>Cancel</button>
     <button
       class="btn btn-primary ml-2 flex-1"
