@@ -112,6 +112,44 @@
     "HotPink",
   ]
 
+  // Function to create shortened vehicle names
+  function getShortName(vehicleType) {
+    const shortNames = {
+      FourWheelDriveTractor: "FWDTractor",
+      TowBetweenSeeder: "TBSeeder",
+      TowBehindSeeder: "TBSeeder",
+      TowBehindSeederTracks: "TBSeederT",
+      TowBehindBoomspray: "TBBoom",
+      SelfPropelledBoomspray: "SPBoom",
+      ThreePointBoomspray: "3PBoom",
+      FarmUte: "FarmUte",
+      FrontWheelChaserBin: "FWChaser",
+      FourWheelDriveChaserBin: "FWDChaser",
+      HeaderDuals: "HeaderD",
+      HeaderSingles: "HeaderS",
+      HeaderTracks: "HeaderT",
+      SelfPropelledSwather: "SPSwather",
+      Spreader: "Spreader",
+      Truck: "Truck",
+      CabOverTruck: "COTruck",
+      CabOverRoadTrain: "CORoad",
+      Baler: "Baler",
+      Mower: "Mower",
+      SelfPropelledMower: "SPMower",
+      Telehandler: "Telehand",
+      Loader: "Loader",
+      SimpleTractor: "STractor",
+      Pointer: "Pointer",
+      CombineHarvester: "Combine",
+      Excavator: "Excavator",
+      Tractor: "Tractor",
+      WheelLoader: "WLoader",
+      WorkCar: "WorkCar",
+      Airplane: "Airplane",
+    }
+    return shortNames[vehicleType] || vehicleType
+  }
+
   onMount(() => {
     const checkMobile = () => {
       isMobile = window.innerWidth < 640
@@ -229,20 +267,27 @@
               <div class="h-full overflow-y-auto p-4 pb-8">
                 <div class="grid-container">
                   {#each vehicles as vehicle}
-                    <Button
-                      variant="outline"
-                      class="h-24 w-24 border-2 p-2 {selectedVehicle.type ===
-                      vehicle.type
-                        ? 'border-blue-500 bg-blue-50'
-                        : ''}"
-                      on:click={() => selectVehicle(vehicle)}
-                    >
-                      <svelte:component
-                        this={SVGComponents[vehicle.type]}
-                        bodyColor={vehicle.bodyColor}
-                        size="100%"
-                      />
-                    </Button>
+                    <div class="flex flex-col items-center space-y-1">
+                      <Button
+                        variant="outline"
+                        class="h-24 w-24 border-2 p-2 {selectedVehicle.type ===
+                        vehicle.type
+                          ? 'border-blue-500 bg-blue-50'
+                          : ''}"
+                        on:click={() => selectVehicle(vehicle)}
+                      >
+                        <svelte:component
+                          this={SVGComponents[vehicle.type]}
+                          bodyColor={vehicle.bodyColor}
+                          size="100%"
+                        />
+                      </Button>
+                      <span
+                        class="max-w-full text-center text-xs font-medium leading-tight text-gray-700"
+                      >
+                        {getShortName(vehicle.type)}
+                      </span>
+                    </div>
                   {/each}
                 </div>
               </div>
@@ -345,7 +390,7 @@
         </Card.Header>
         <Card.Content class="space-y-4">
           <Button
-            variant="outline"
+            variant={activeTab === "vehicles" ? "default" : "outline"}
             class="relative flex h-40 w-full items-center justify-center"
             on:click={() => (activeTab = "vehicles")}
           >
@@ -358,7 +403,7 @@
           </Button>
           <div class="grid grid-cols-2 gap-4">
             <Button
-              variant="outline"
+              variant={activeTab === "colors" ? "default" : "outline"}
               class="relative flex h-20 flex-col items-center justify-center"
               on:click={() => (activeTab = "colors")}
             >
@@ -367,7 +412,7 @@
               <span>{selectedVehicle.bodyColor}</span>
             </Button>
             <Button
-              variant="outline"
+              variant={activeTab === "swath" ? "default" : "outline"}
               class="relative flex h-20 flex-col items-center justify-center"
               on:click={() => (activeTab = "swath")}
             >
