@@ -391,7 +391,10 @@
         <Card.Content class="space-y-4">
           <Button
             variant={activeTab === "vehicles" ? "default" : "outline"}
-            class="relative flex h-40 w-full items-center justify-center"
+            class="relative flex h-40 w-full items-center justify-center border-2 {activeTab ===
+            'vehicles'
+              ? 'border-blue-500'
+              : 'border-gray-200'}"
             on:click={() => (activeTab = "vehicles")}
           >
             <Edit class="absolute right-2 top-2 h-4 w-4 text-gray-400" />
@@ -404,7 +407,10 @@
           <div class="grid grid-cols-2 gap-4">
             <Button
               variant={activeTab === "colors" ? "default" : "outline"}
-              class="relative flex h-20 flex-col items-center justify-center"
+              class="relative flex h-20 flex-col items-center justify-center border-2 {activeTab ===
+              'colors'
+                ? 'border-blue-500'
+                : 'border-gray-200'}"
               on:click={() => (activeTab = "colors")}
             >
               <Edit class="absolute right-2 top-2 h-4 w-4 text-gray-400" />
@@ -413,7 +419,10 @@
             </Button>
             <Button
               variant={activeTab === "swath" ? "default" : "outline"}
-              class="relative flex h-20 flex-col items-center justify-center"
+              class="relative flex h-20 flex-col items-center justify-center border-2 {activeTab ===
+              'swath'
+                ? 'border-blue-500'
+                : 'border-gray-200'}"
               on:click={() => (activeTab = "swath")}
             >
               <Edit class="absolute right-2 top-2 h-4 w-4 text-gray-400" />
