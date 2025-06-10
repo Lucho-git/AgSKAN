@@ -63,8 +63,8 @@ const config: Config = {
                 sm: "calc(var(--radius) - 4px)",
             },
             fontFamily: {
-                sans: ["Inter", ...fontFamily.sans],
-                archivo: ['Roboto', 'Archivo', 'sans'],
+                sans: ["Montserrat", "Inter", ...fontFamily.sans],
+                archivo: ['Montserrat', 'Inter', 'sans'],
             },
             animation: {
                 'accordion-down': 'accordion-down 0.2s ease-out',
@@ -215,7 +215,7 @@ const config: Config = {
             },
             {
                 skanthemedark: {
-                    "primary": "#63A375",           // #63A375
+                    "primary": "#16a34a",           // #63A375
                     "primary-content": "#fefbf6",   // #fefbf6
                     "secondary": "#F7DB5C",         // #F7DB5C
                     "secondary-content": "#232322", // #232322

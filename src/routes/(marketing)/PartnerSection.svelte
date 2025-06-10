@@ -55,11 +55,11 @@
   ]
 </script>
 
-<section class="bg-gradient-to-b from-primary/5 to-base-100 py-10">
+<section class="bg-base-100 py-10">
   <div class="section-container">
     <div class="mb-6 text-center">
       <p
-        class="inline-block rounded-full bg-primary/10 px-6 py-2 text-sm font-medium uppercase tracking-wider text-contrast-content shadow-sm"
+        class="inline-block rounded-full bg-base-200 px-6 py-2 text-sm font-medium uppercase tracking-wider text-base-content shadow-sm"
       >
         Trusted Partners
       </p>
@@ -72,7 +72,7 @@
         {#each partners as partner}
           <div class="mx-6 flex min-w-[180px] items-center justify-center">
             <div
-              class="group relative flex h-16 w-44 transform items-center justify-center rounded-lg border border-base-100 bg-base-300 p-3 shadow-md transition-all duration-300 hover:z-10 hover:-translate-y-1 hover:scale-110 hover:border-0 hover:border-secondary hover:shadow-xl"
+              class="group relative flex h-16 w-44 transform items-center justify-center rounded-lg border border-base-200 bg-base-300 p-3 shadow-md transition-all duration-300 hover:z-10 hover:-translate-y-1 hover:scale-110 hover:border-secondary hover:shadow-xl hover:shadow-secondary/20"
             >
               <img
                 src={partner.logo}

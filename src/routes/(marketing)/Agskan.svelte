@@ -54,10 +54,14 @@
     },
   ]
 
-  let expandedCards = new Array(features.length).fill(false)
+  let hoveredCards = new Array(features.length).fill(false)
 
-  function toggleCard(index: number) {
-    expandedCards[index] = !expandedCards[index]
+  function handleCardMouseEnter(index: number) {
+    hoveredCards[index] = true
+  }
+
+  function handleCardMouseLeave(index: number) {
+    hoveredCards[index] = false
   }
 
   // Animation delay placeholder
@@ -77,7 +81,7 @@
   <div class="section-container py-20">
     {#if mounted}
       <h2
-        class="mb-16 text-center font-archivo text-3xl font-bold text-contrast-content md:text-4xl"
+        class="mb-16 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         in:animationDelay={0}
       >
         Built to <span class="text-base-content">Solve Real Problems</span> in the
@@ -89,53 +93,51 @@
       >
         {#each features as feature, index}
           <div
-            class={`flex h-full flex-col overflow-hidden rounded-xl bg-base-100 shadow-md transition-all duration-300 ${
-              expandedCards[index]
-                ? "border-2 border-primary shadow-lg"
-                : "border border-base-300 hover:border-primary/40 hover:shadow-lg"
+            class={`flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-base-100 shadow-md transition-all duration-500 ${
+              hoveredCards[index]
+                ? "transform border-2 border-base-content shadow-lg hover:scale-[1.02]"
+                : "border border-base-content/20 hover:border-primary/40 hover:shadow-lg"
             }`}
             in:animationDelay={100 + index * 100}
+            on:mouseenter={() => handleCardMouseEnter(index)}
+            on:mouseleave={() => handleCardMouseLeave(index)}
+            role="button"
+            tabindex="0"
+            aria-expanded={hoveredCards[index]}
           >
             <!-- Card Header - Always Visible -->
             <div class="flex items-start p-6">
               <div class="flex-1">
-                <div
-                  class={`mb-4 flex h-16 w-16 items-center justify-center rounded-full shadow-sm backdrop-blur-sm ${
-                    expandedCards[index] ? "bg-primary" : "bg-primary/10"
-                  }`}
-                >
-                  <svelte:component
-                    this={feature.icon}
-                    size={32}
-                    class={expandedCards[index]
-                      ? "text-primary-content"
-                      : "text-primary"}
-                  />
-                </div>
                 <h3
-                  class="mb-3 font-archivo text-xl font-bold text-contrast-content"
+                  class="mb-3 font-sans text-xl font-bold text-contrast-content"
                 >
                   {feature.title}
                 </h3>
                 <p class="font-medium text-base-content">{feature.subtitle}</p>
               </div>
 
-              <!-- Only show collapse button when expanded -->
-              {#if expandedCards[index]}
-                <button
-                  on:click={() => toggleCard(index)}
-                  class="ml-4 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-sm transition-all hover:bg-primary/20"
-                  aria-label="Show less"
-                >
-                  <ChevronUp size={20} />
-                </button>
-              {/if}
+              <!-- Feature icon in top right -->
+              <div
+                class={`ml-4 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full shadow-lg transition-all duration-500 ${
+                  hoveredCards[index]
+                    ? "scale-110 bg-gradient-to-br from-secondary to-secondary/80 shadow-secondary/20"
+                    : "bg-gradient-to-br from-secondary/20 to-secondary/10"
+                }`}
+              >
+                <svelte:component
+                  this={feature.icon}
+                  size={20}
+                  class={hoveredCards[index]
+                    ? "text-secondary-content"
+                    : "text-secondary"}
+                />
+              </div>
             </div>
 
-            <!-- Expandable Content -->
+            <!-- Expandable Content - Shows on hover -->
             <div
-              class={`overflow-hidden transition-all duration-300 ${
-                expandedCards[index]
+              class={`overflow-hidden transition-all duration-500 ease-in-out ${
+                hoveredCards[index]
                   ? "max-h-[500px] opacity-100"
                   : "max-h-0 opacity-0"
               }`}
@@ -145,7 +147,7 @@
                   <img
                     src={feature.imageUrl}
                     alt={`Demonstrating ${feature.title}`}
-                    class="h-auto max-h-[200px] w-full object-cover"
+                    class="h-auto max-h-[200px] w-full object-cover transition-transform duration-500"
                     loading="lazy"
                   />
                 </div>
@@ -155,21 +157,29 @@
               </div>
             </div>
 
-            <!-- Learn More Button - Only when not expanded -->
-            {#if !expandedCards[index]}
-              <div class="mt-3 px-6 pb-6">
-                <button
-                  on:click={() => toggleCard(index)}
-                  class="group flex w-full items-center justify-center rounded-lg border border-base-300 bg-base-200/80 px-4 py-2 font-medium text-contrast-content/80 shadow-sm transition-all hover:bg-base-300/90 hover:text-contrast-content hover:shadow"
-                >
-                  Learn more
+            <!-- Always visible action button -->
+            <div class="mt-3 px-6 pb-6">
+              <div
+                class={`flex w-full items-center justify-center rounded-lg border border-base-content/20 px-4 py-2 font-medium shadow-sm transition-all duration-300 ${
+                  hoveredCards[index]
+                    ? "bg-base-300/90 text-contrast-content shadow"
+                    : "bg-base-200/80 text-contrast-content/80"
+                }`}
+              >
+                {hoveredCards[index] ? "Show Less" : "Learn More"}
+                {#if hoveredCards[index]}
+                  <ChevronUp
+                    size={16}
+                    class="ml-2 -translate-y-1 transition-transform duration-300"
+                  />
+                {:else}
                   <ChevronDown
                     size={16}
-                    class="ml-2 transition-transform group-hover:translate-y-1"
+                    class="ml-2 transition-transform duration-300"
                   />
-                </button>
+                {/if}
               </div>
-            {/if}
+            </div>
           </div>
         {/each}
       </div>

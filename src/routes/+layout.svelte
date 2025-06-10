@@ -6,14 +6,6 @@
   import { expoOut } from "svelte/easing"
   import { slide } from "svelte/transition"
 
-  // Font imports
-  import "@fontsource/archivo/400.css"
-  import "@fontsource/archivo/700.css"
-  import "@fontsource/archivo/800.css"
-  import "@fontsource/archivo/900.css"
-  import "@fontsource/roboto/400.css"
-  import "@fontsource/roboto/700.css"
-
   import { Toaster, toast } from "svelte-sonner"
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
@@ -24,7 +16,7 @@
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
   import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
-  import { SplashScreen } from '@capacitor/splash-screen'
+  import { SplashScreen } from "@capacitor/splash-screen"
 
   // --- Theme Colors for System Bars ---
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
@@ -38,11 +30,13 @@
     }
 
     const platform = Capacitor.getPlatform()
-    console.log(`System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode on ${platform}.`)
+    console.log(
+      `System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode on ${platform}.`,
+    )
 
     try {
       // Only handle Android with JavaScript
-      if (platform === 'android') {
+      if (platform === "android") {
         const systemBarsBackgroundColorToSet = isSystemDarkMode
           ? appSystemDarkMode_Bars_BackgroundColor // System DARK => YELLOW background
           : appSystemLightMode_Bars_BackgroundColor // System LIGHT => DARK GRAY background
@@ -53,7 +47,9 @@
 
         try {
           // Dynamically import the EdgeToEdge plugin - only used on Android
-          const { EdgeToEdge } = await import("@capawesome/capacitor-android-edge-to-edge-support")
+          const { EdgeToEdge } = await import(
+            "@capawesome/capacitor-android-edge-to-edge-support"
+          )
           // Set background using EdgeToEdge plugin (for both bars)
           await EdgeToEdge.setBackgroundColor({
             color: systemBarsBackgroundColorToSet,
@@ -75,7 +71,9 @@
           // SYSTEM is LIGHT MODE (App uses DARK GRAY background #102030)
           // We want LIGHT text/icons for the status bar.
           newCapacitorStatusBarStyle = StatusBarStyle.Light // Light = white text/icons
-          console.log("  Applying LIGHT text/icons theme to Android STATUS BAR.")
+          console.log(
+            "  Applying LIGHT text/icons theme to Android STATUS BAR.",
+          )
         }
 
         // Apply style to the Android status bar
@@ -87,9 +85,11 @@
         // Ensure status bar remains visible on Android
         await StatusBar.show()
         console.log("  Android StatusBar.show() called to ensure visibility.")
-      } else if (platform === 'ios') {
+      } else if (platform === "ios") {
         // iOS is handled entirely by the native PluginViewController
-        console.log("  iOS detected - status bar styling handled by native PluginViewController.")
+        console.log(
+          "  iOS detected - status bar styling handled by native PluginViewController.",
+        )
         console.log("  Skipping JavaScript StatusBar calls for iOS.")
       }
     } catch (error) {
@@ -122,13 +122,15 @@
 
   // Function to conditionally initialize EdgeToEdge only on Android
   async function initializeEdgeToEdge() {
-    if (Capacitor.getPlatform() === 'android') {
+    if (Capacitor.getPlatform() === "android") {
       try {
-        const { EdgeToEdge } = await import("@capawesome/capacitor-android-edge-to-edge-support")
+        const { EdgeToEdge } = await import(
+          "@capawesome/capacitor-android-edge-to-edge-support"
+        )
         console.log("Attempting to enable EdgeToEdge plugin for Android...")
         await EdgeToEdge.enable()
         console.log("EdgeToEdge.enable() successful.")
-        
+
         const insets = await EdgeToEdge.getInsets()
         console.log(
           "EdgeToEdge Insets (statusBar, navigationBar, etc.):",
@@ -140,23 +142,28 @@
         return false
       }
     } else {
-      console.log("Skipping EdgeToEdge initialization for non-Android platform:", Capacitor.getPlatform())
+      console.log(
+        "Skipping EdgeToEdge initialization for non-Android platform:",
+        Capacitor.getPlatform(),
+      )
       return false
     }
   }
 
   // Simple network test function (simplified version)
   async function testNetworkConnectivity() {
-    console.log("Testing network connectivity...");
-    
+    console.log("Testing network connectivity...")
+
     try {
       // Test with a known working endpoint instead of Google
-      const response = await fetch('https://jsonplaceholder.typicode.com/todos/1');
-      console.log("Network connectivity: OK", response.status);
-      return true;
+      const response = await fetch(
+        "https://jsonplaceholder.typicode.com/todos/1",
+      )
+      console.log("Network connectivity: OK", response.status)
+      return true
     } catch (e) {
-      console.error("Network connectivity error:", e);
-      return false;
+      console.error("Network connectivity error:", e)
+      return false
     }
   }
 
@@ -168,10 +175,10 @@
     // Hide splash screen immediately for native platforms
     if (Capacitor.isNativePlatform()) {
       try {
-        await SplashScreen.hide();
-        console.log("Splash screen hidden successfully");
+        await SplashScreen.hide()
+        console.log("Splash screen hidden successfully")
       } catch (error) {
-        console.error("Error hiding splash screen:", error);
+        console.error("Error hiding splash screen:", error)
       }
     }
 
@@ -190,15 +197,17 @@
       console.log(
         "+++++ NATIVE PLATFORM DETECTED. CONFIGURING PLATFORM-SPECIFIC SYSTEM BARS +++++",
       )
-      
+
       // Simple network test
-      const networkOk = await testNetworkConnectivity();
+      const networkOk = await testNetworkConnectivity()
       if (!networkOk) {
-        console.warn("Network connectivity check failed, but continuing app initialization");
+        console.warn(
+          "Network connectivity check failed, but continuing app initialization",
+        )
       }
-      
+
       // Initialize EdgeToEdge only on Android
-      await initializeEdgeToEdge();
+      await initializeEdgeToEdge()
 
       if (window.matchMedia) {
         darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
@@ -234,6 +243,15 @@
     }
   })
 </script>
+
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+</svelte:head>
 
 <main data-sveltekit-reload={$updated ? "" : "off"}>
   {#if $navigating}

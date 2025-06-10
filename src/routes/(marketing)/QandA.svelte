@@ -145,7 +145,7 @@
       >
         <!-- Yellow header with black text -->
         <div class="bg-neutral p-8 text-contrast">
-          <h2 class="mb-4 text-center font-archivo text-3xl font-bold">
+          <h2 class="mb-4 text-center font-sans text-3xl font-bold">
             Frequently Asked Questions
           </h2>
           <p class="mx-auto max-w-2xl text-center text-contrast/80">
@@ -160,11 +160,11 @@
               <div in:animationDelay={100 + i * 50}>
                 <AccordionItem value="item-{i}" class="border-b-0">
                   <AccordionTrigger
-                    class="rounded-lg bg-base-200 px-6 py-4 text-left font-medium hover:bg-base-300 [&[data-state=open]]:bg-base-300"
+                    class="rounded-lg bg-base-200 px-6 py-4 text-left font-medium text-contrast-content hover:bg-base-300 [&[data-state=open]]:bg-base-300"
                   >
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent class="px-6 py-4 text-contrast-content/80">
+                  <AccordionContent class="px-6 py-4 text-contrast-content">
                     {@html faq.answer}
                   </AccordionContent>
                 </AccordionItem>

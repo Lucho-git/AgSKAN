@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowRight, Check, ChevronDown, X } from "lucide-svelte"
+  import { ArrowRight, Check, ChevronDown, X, Zap } from "lucide-svelte"
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
   import { page } from "$app/stores"
@@ -89,6 +89,12 @@
     isDropdownOpen = false
   }
 
+  function activateYearlySavings() {
+    if (interval === "monthly") {
+      interval = "yearly"
+    }
+  }
+
   // Animation delay placeholder
   function animationDelay(node: HTMLElement, delay: number) {
     return {
@@ -107,10 +113,9 @@
     {#if mounted}
       <div in:animationDelay={0}>
         <h2
-          class="mb-6 text-center font-archivo text-3xl font-bold text-contrast-content md:text-4xl"
+          class="mb-6 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
-          <span class="text-base-content">Start Free.</span> Upgrade When You're
-          Ready.
+          <span class="text-secondary">Start Free.</span> Upgrade When You're Ready.
         </h2>
 
         <p class="mx-auto mb-10 max-w-2xl text-center text-contrast-content/70">
@@ -128,7 +133,7 @@
               <button
                 class={`rounded-full px-6 py-2 text-sm font-medium transition-colors ${
                   interval === "monthly"
-                    ? "bg-primary text-primary-content"
+                    ? "bg-base-content text-base-100"
                     : "text-base-content/70 hover:text-base-content"
                 }`}
                 on:click={() => (interval = "monthly")}
@@ -138,7 +143,7 @@
               <button
                 class={`rounded-full px-6 py-2 text-sm font-medium transition-colors ${
                   interval === "yearly"
-                    ? "bg-primary text-primary-content"
+                    ? "bg-base-content text-base-100"
                     : "text-base-content/70 hover:text-base-content"
                 }`}
                 on:click={() => (interval = "yearly")}
@@ -149,7 +154,7 @@
               <!-- Annual savings badge always visible when there are savings -->
               {#if annualSavings > 0}
                 <div
-                  class="absolute -right-2 -top-2 rounded-full bg-success px-2 py-1 text-xs font-bold text-success-content shadow-md"
+                  class="absolute -right-8 -top-4 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-content shadow-md"
                 >
                   Save {CURRENCY_SYMBOL}{Math.round(annualSavings)}
                 </div>
@@ -162,7 +167,7 @@
               class="relative flex w-full items-center gap-3 rounded-lg bg-base-100 p-1.5 shadow-md md:w-auto md:p-2"
             >
               <label
-                class="whitespace-nowrap pl-2 text-sm font-medium text-base-content"
+                class="whitespace-nowrap pl-2 text-sm font-medium text-contrast-content"
               >
                 Machines to track:
               </label>
@@ -208,9 +213,7 @@
             class="order-2 rounded-xl bg-base-100 p-6 shadow-md md:order-1 md:p-8"
             in:animationDelay={100}
           >
-            <h3
-              class="mb-2 font-archivo text-2xl font-bold text-contrast-content"
-            >
+            <h3 class="mb-2 font-sans text-2xl font-bold text-contrast-content">
               AgSKAN Free
             </h3>
 
@@ -255,13 +258,11 @@
             <ul class="mb-8 space-y-3">
               {#each freeFeatures as feature}
                 <li class="flex items-start gap-3">
-                  <div
-                    class={`mt-0.5 ${feature.included ? "text-success" : "text-error"}`}
-                  >
+                  <div class="mt-0.5">
                     {#if feature.included}
-                      <Check size={18} />
+                      <Check size={18} style="color: #22c55e;" />
                     {:else}
-                      <X size={18} />
+                      <X size={18} style="color: #dc2626;" />
                     {/if}
                   </div>
                   <span
@@ -276,21 +277,25 @@
             </ul>
 
             <button
-              class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-200 px-4 py-3 font-medium text-base-content transition-colors hover:bg-base-300"
+              class="group btn btn-outline w-full border-base-content text-base-content hover:bg-base-content hover:text-base-100"
               on:click={() => goto("/signup")}
             >
               Get Started Free
-              <ArrowRight size={16} />
+              <ArrowRight
+                size={16}
+                class="ml-2 transition-transform group-hover:translate-x-1"
+              />
             </button>
           </div>
 
           <!-- Pro Plan -->
           <div
-            class="relative order-1 rounded-xl border-2 border-primary bg-base-100 p-6 shadow-xl md:order-2 md:p-8"
+            class="relative order-1 rounded-xl border-2 border-base-content bg-base-100 p-6 shadow-xl md:order-2 md:p-8"
             in:animationDelay={200}
           >
+            <!-- Popular Badge -->
             <div
-              class="absolute -top-4 left-0 right-0 mx-auto w-fit rounded-full bg-primary px-3 py-1 text-xs font-bold uppercase text-primary-content"
+              class="absolute -top-4 left-4 rounded-full bg-base-content px-3 py-1 text-xs font-bold uppercase text-base-100"
             >
               Popular
               {#if isTestDiscount}
@@ -298,8 +303,56 @@
               {/if}
             </div>
 
+            <!-- Savings Card - Top Right (lowered position) -->
+            {#if annualSavings > 0}
+              {#if interval === "monthly"}
+                <!-- Clickable version when in monthly mode -->
+                <button
+                  class="group absolute right-4 top-2 flex cursor-pointer items-center gap-2 rounded-lg border border-primary/30 bg-primary/20 px-3 py-2 transition-all duration-200 hover:bg-primary/30"
+                  on:click={activateYearlySavings}
+                  title="Click to switch to yearly billing and save!"
+                >
+                  <div
+                    class="flex h-5 w-5 items-center justify-center rounded-full border-2 border-primary bg-base-100 transition-all duration-200 group-hover:border-primary group-hover:bg-primary"
+                  >
+                    <Check
+                      size={12}
+                      class="text-primary opacity-0 transition-all duration-200 group-hover:text-primary-content group-hover:opacity-100"
+                    />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-xs font-bold leading-tight text-primary">
+                      Save {CURRENCY_SYMBOL}{Math.round(annualSavings)}
+                    </div>
+                    <div class="text-xs leading-tight text-primary/80">
+                      Click to activate
+                    </div>
+                  </div>
+                </button>
+              {:else}
+                <!-- Static version when in yearly mode -->
+                <div
+                  class="absolute right-4 top-2 flex items-center gap-2 rounded-lg border border-success/30 bg-success/20 px-3 py-2"
+                >
+                  <div
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-success text-success-content"
+                  >
+                    <Check size={12} />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-xs font-bold leading-tight text-success">
+                      Saving {CURRENCY_SYMBOL}{Math.round(annualSavings)}
+                    </div>
+                    <div class="text-xs leading-tight text-success/80">
+                      {discountPercentage}% off
+                    </div>
+                  </div>
+                </div>
+              {/if}
+            {/if}
+
             <h3
-              class="mb-2 font-archivo text-2xl font-bold text-contrast-content"
+              class="mb-2 mt-6 font-sans text-2xl font-bold text-contrast-content"
             >
               AgSKAN Pro
             </h3>
@@ -318,10 +371,10 @@
                   <span class="ml-1 text-contrast-content/60">/month</span>
                   <div class="ml-3">
                     <div
-                      class="inline-block rounded-md bg-success/20 px-2 py-0.5"
+                      class="inline-block rounded-md border border-base-300 bg-base-200 px-2 py-0.5"
                     >
                       <span
-                        class="flex items-center text-sm font-semibold text-success"
+                        class="flex items-center text-sm font-semibold text-contrast-content"
                       >
                         Billed {CURRENCY_SYMBOL}{annualMonthlyPayment}/year
                       </span>
@@ -334,9 +387,9 @@
                 class="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-2.5"
               >
                 <div
-                  class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-success text-success-content"
+                  class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-success/20 text-success"
                 >
-                  <Check size={14} />
+                  <Zap size={14} />
                 </div>
                 <p class="text-sm font-medium text-success">
                   Unlock powerful features for an efficient, fully connected
@@ -348,13 +401,11 @@
             <ul class="mb-8 space-y-3">
               {#each proFeatures as feature}
                 <li class="flex items-start gap-3">
-                  <div
-                    class={`mt-0.5 ${feature.included ? "text-success" : "text-error"}`}
-                  >
+                  <div class="mt-0.5">
                     {#if feature.included}
-                      <Check size={18} />
+                      <Check size={18} style="color: #22c55e;" />
                     {:else}
-                      <X size={18} />
+                      <X size={18} style="color: #dc2626;" />
                     {/if}
                   </div>
                   <span
@@ -369,30 +420,15 @@
             </ul>
 
             <button
-              class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-primary-content transition-colors hover:bg-primary/90"
+              class="group flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-3 font-medium text-base-100 shadow-lg shadow-base-content/30 transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/40"
               on:click={() => goto("/upgrade")}
             >
               Upgrade to Pro
-              <ArrowRight size={16} />
+              <ArrowRight
+                size={16}
+                class="transition-transform group-hover:translate-x-1"
+              />
             </button>
-
-            <div
-              class="mt-4 flex items-center justify-center gap-2 text-contrast-content/60"
-            >
-              <div class="flex items-center">
-                {#each Array(5) as _}
-                  <svg
-                    class="h-5 w-5 fill-current text-yellow-400"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                    />
-                  </svg>
-                {/each}
-              </div>
-              <span>Used by 400+ farms worldwide</span>
-            </div>
           </div>
         </div>
       </div>
