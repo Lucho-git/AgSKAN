@@ -349,7 +349,7 @@
                 Try using different keywords or browse our categories below.
               </p>
               <button class="btn btn-secondary" on:click={clearSearch}>
-                Browse Categories
+                Browse Categoriess
               </button>
             </div>
           {/if}
