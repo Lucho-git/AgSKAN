@@ -99,6 +99,7 @@
     { id: "setup", label: "How It Works" },
     { id: "pricing", label: "Pricing" },
     { id: "qanda", label: "FAQ" },
+    { href: "/contact-us", label: "Contact Us" },
   ]
 </script>
 
@@ -132,13 +133,22 @@
       <!-- Center Navigation - Desktop Only -->
       <div class="hidden items-center space-x-6 lg:flex">
         {#each navItems as item}
-          <OgTextAnimatedDecoration
-            href="javascript:void(0)"
-            className="text-lg font-semibold cursor-pointer"
-            on:click={() => scrollToSection(item.id)}
-          >
-            {item.label}
-          </OgTextAnimatedDecoration>
+          {#if item.href}
+            <OgTextAnimatedDecoration
+              href={item.href}
+              className="text-lg font-semibold"
+            >
+              {item.label}
+            </OgTextAnimatedDecoration>
+          {:else}
+            <OgTextAnimatedDecoration
+              href="javascript:void(0)"
+              className="text-lg font-semibold cursor-pointer"
+              on:click={() => scrollToSection(item.id)}
+            >
+              {item.label}
+            </OgTextAnimatedDecoration>
+          {/if}
         {/each}
       </div>
 
@@ -251,13 +261,23 @@
       >
         <div class="space-y-1 pb-4 pt-4">
           {#each navItems as item}
-            <OgTextAnimatedDecoration
-              href="javascript:void(0)"
-              className="p-3 text-lg font-semibold block"
-              on:click={() => scrollToSection(item.id)}
-            >
-              {item.label}
-            </OgTextAnimatedDecoration>
+            {#if item.href}
+              <a
+                href={item.href}
+                on:click={closeMenu}
+                class="block rounded-lg p-3 text-lg font-semibold text-contrast-content hover:bg-base-200"
+              >
+                {item.label}
+              </a>
+            {:else}
+              <OgTextAnimatedDecoration
+                href="javascript:void(0)"
+                className="p-3 text-lg font-semibold block"
+                on:click={() => scrollToSection(item.id)}
+              >
+                {item.label}
+              </OgTextAnimatedDecoration>
+            {/if}
           {/each}
 
           <div class="mt-4 space-y-2 border-t border-base-content/10 pt-4">
