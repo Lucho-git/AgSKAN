@@ -52,34 +52,36 @@
         <div class="space-y-8" in:animationDelay={100}>
           <div>
             <h1
-              class="font-sans text-5xl font-bold leading-tight text-contrast-content md:text-6xl"
+              class="font-sans text-4xl font-bold leading-tight text-contrast-content md:text-5xl"
             >
-              Like Google Maps — But Built for Your Farm
+              Like Google Maps -- But Built for Your Farm
             </h1>
 
-            <p class="mt-6 text-xl leading-relaxed text-contrast-content/80">
+            <p
+              class="font-inter mt-6 text-xl leading-relaxed text-contrast-content/80"
+            >
               See where every operator and machine is, live. Drop pins, avoid
-              overlap, and get the job done quicker — without radio chaos.
+              overlap, and get the job done quicker -- without radio chaos.
             </p>
           </div>
 
           <ul class="flex flex-col gap-4">
             <li class="group flex items-center gap-4">
               <div
-                class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/80 shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-secondary/20"
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-base-content shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-base-content/20"
               >
-                <MapPin size={20} class="text-secondary-content" />
+                <MapPin size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
-                >No hardware needed — works on any smartphone or tablet</span
+                >No hardware needed -- works on any smartphone or tablet</span
               >
             </li>
 
             <li class="group flex items-center gap-4">
               <div
-                class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/80 shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-secondary/20"
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-base-content shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-base-content/20"
               >
-                <Smartphone size={20} class="text-secondary-content" />
+                <Smartphone size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
                 >Works offline in areas with poor reception</span
@@ -88,9 +90,9 @@
 
             <li class="group flex items-center gap-4">
               <div
-                class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/80 shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-secondary/20"
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-base-content shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-base-content/20"
               >
-                <Check size={20} class="text-secondary-content" />
+                <Check size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
                 >Trusted by 400+ farms across Australia</span
@@ -99,11 +101,8 @@
           </ul>
 
           <div class="flex flex-col gap-4 sm:flex-row">
-            <a href="#how-it-works" class="group btn btn-outline">
-              See How It Works
-            </a>
             <button
-              class="group btn btn-secondary shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
+              class="group btn btn-secondary px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
               on:click={() => goto("/signup")}
             >
               Get Started For Free
@@ -112,6 +111,13 @@
                 class="ml-2 transition-transform group-hover:translate-x-1"
               />
             </button>
+
+            <a
+              href="#how-it-works"
+              class="group btn btn-outline px-6 text-base"
+            >
+              See How It Works
+            </a>
           </div>
         </div>
       {/if}
