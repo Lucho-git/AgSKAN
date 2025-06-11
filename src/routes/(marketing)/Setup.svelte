@@ -50,7 +50,7 @@
     {#if mounted}
       <div in:animationDelay={0}>
         <h2
-          class="mb-16 text-center font-archivo text-3xl font-bold text-contrast-content md:text-4xl"
+          class="mb-16 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
           Set Up in <span class="text-base-content">Minutes.</span> Track
           <span class="text-base-content">Everything</span> All Season.
@@ -65,7 +65,7 @@
               >
                 <!-- Step Content -->
                 <div
-                  class="h-full w-full rounded-xl border border-transparent bg-base-100 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-md"
+                  class="h-full w-full rounded-xl border border-transparent bg-base-100 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-base-content/30 hover:shadow-md"
                 >
                   <div
                     class="mx-auto mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-base-content text-sm font-bold text-base-100"
@@ -73,7 +73,7 @@
                     {index + 1}
                   </div>
                   <h3
-                    class="mb-3 font-archivo text-xl font-bold text-contrast-content"
+                    class="mb-3 font-sans text-xl font-bold text-contrast-content"
                   >
                     {step.title}
                   </h3>
@@ -86,7 +86,7 @@
 
         <div class="mx-auto mt-16 max-w-3xl" in:animationDelay={400}>
           <div
-            class="overflow-hidden rounded-xl border border-transparent bg-base-100 shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
+            class="overflow-hidden rounded-xl border border-transparent bg-base-100 shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-base-content/30 hover:shadow-lg"
           >
             <div
               class="relative flex aspect-video items-center justify-center bg-base-300"
@@ -108,9 +108,9 @@
             </div>
           </div>
 
-          <div class="mt-8 text-center">
+          <div class="mt-6">
             <button
-              class="group btn btn-secondary"
+              class="btn-base-content group btn w-full text-lg shadow-lg shadow-base-content/30 transition-all duration-300 hover:shadow-xl hover:shadow-base-content/40"
               on:click={() => goto("/signup")}
             >
               Set Up My Farm

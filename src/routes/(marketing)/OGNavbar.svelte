@@ -146,7 +146,7 @@
       <div class="hidden items-center space-x-3 lg:flex">
         <!-- Theme Toggle -->
         <label
-          class="swap swap-rotate cursor-pointer transition-transform duration-200 hover:scale-110 active:scale-95"
+          class="swap swap-rotate mr-2 cursor-pointer transition-transform duration-200 hover:scale-110 active:scale-95"
         >
           <input
             type="checkbox"
@@ -179,10 +179,10 @@
         </label>
 
         <!-- Auth Buttons -->
-        <a href="/login" class="btn btn-outline px-7 text-base">Login</a>
+        <a href="/login" class="btn btn-outline px-6 text-base">Login</a>
         <a
           href="/signup"
-          class="group btn btn-secondary px-7 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
+          class="group btn btn-secondary px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
         >
           Sign Up For Free
           <ArrowRight
