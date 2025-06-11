@@ -10,8 +10,6 @@
   import { onMount } from "svelte"
   import { getArticlesByCategory, type Article } from "$lib/data/articleData"
 
-  export const prerender = false
-
   let mounted = false
   let searchTerm = ""
   let expandedArticles: Set<string> = new Set()

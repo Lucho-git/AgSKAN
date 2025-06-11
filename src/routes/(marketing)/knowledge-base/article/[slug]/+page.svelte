@@ -16,8 +16,6 @@
   } from "$lib/data/articleData"
   import { goto } from "$app/navigation"
 
-  export const prerender = false
-
   let mounted = false
   let article: Article | undefined
   let relatedArticles: Article[] = []
