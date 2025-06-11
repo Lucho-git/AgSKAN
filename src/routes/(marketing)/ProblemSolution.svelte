@@ -29,7 +29,7 @@
         <h2
           class="mb-12 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
-          From Radio Chatter to <span class="text-secondary"
+          From Radio Chatter to <span class="text-base-content"
             >Real-Time Clarity</span
           >
         </h2>

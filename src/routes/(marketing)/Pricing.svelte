@@ -115,7 +115,8 @@
         <h2
           class="mb-6 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
-          <span class="text-secondary">Start Free.</span> Upgrade When You're Ready.
+          <span class="text-base-content">Start Free.</span> Upgrade When You're
+          Ready.
         </h2>
 
         <p class="mx-auto mb-10 max-w-2xl text-center text-contrast-content/70">
@@ -213,7 +214,9 @@
             class="order-2 rounded-xl bg-base-100 p-6 shadow-md md:order-1 md:p-8"
             in:animationDelay={100}
           >
-            <h3 class="mb-2 font-sans text-2xl font-bold text-contrast-content">
+            <h3
+              class="mb-2 mt-6 font-sans text-2xl font-bold text-contrast-content"
+            >
               AgSKAN Free
             </h3>
 
@@ -277,7 +280,7 @@
             </ul>
 
             <button
-              class="group btn btn-outline w-full border-base-content text-base-content hover:bg-base-content hover:text-base-100"
+              class="group btn btn-outline w-full border-base-content text-base text-base-content hover:bg-base-content hover:text-base-100"
               on:click={() => goto("/signup")}
             >
               Get Started Free
@@ -295,7 +298,7 @@
           >
             <!-- Popular Badge -->
             <div
-              class="absolute -top-4 left-4 rounded-full bg-base-content px-3 py-1 text-xs font-bold uppercase text-base-100"
+              class="absolute -top-4 left-6 rounded-full bg-base-content px-3 py-1 text-xs font-bold uppercase text-base-100"
             >
               Popular
               {#if isTestDiscount}
@@ -303,12 +306,12 @@
               {/if}
             </div>
 
-            <!-- Savings Card - Top Right (lowered position) -->
+            <!-- Savings Card - Top Right (consistent padding) -->
             {#if annualSavings > 0}
               {#if interval === "monthly"}
                 <!-- Clickable version when in monthly mode -->
                 <button
-                  class="group absolute right-4 top-2 flex cursor-pointer items-center gap-2 rounded-lg border border-primary/30 bg-primary/20 px-3 py-2 transition-all duration-200 hover:bg-primary/30"
+                  class="group absolute right-6 top-6 flex cursor-pointer items-center gap-2 rounded-lg border border-primary/30 bg-primary/20 px-3 py-2 transition-all duration-200 hover:bg-primary/30"
                   on:click={activateYearlySavings}
                   title="Click to switch to yearly billing and save!"
                 >
@@ -332,7 +335,7 @@
               {:else}
                 <!-- Static version when in yearly mode -->
                 <div
-                  class="absolute right-4 top-2 flex items-center gap-2 rounded-lg border border-success/30 bg-success/20 px-3 py-2"
+                  class="absolute right-6 top-6 flex items-center gap-2 rounded-lg border border-success/30 bg-success/20 px-3 py-2"
                 >
                   <div
                     class="flex h-5 w-5 items-center justify-center rounded-full bg-success text-success-content"
@@ -420,7 +423,7 @@
             </ul>
 
             <button
-              class="group flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-3 font-medium text-base-100 shadow-lg shadow-base-content/30 transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/40"
+              class="group flex w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-3 text-lg font-medium text-secondary-content shadow-lg shadow-secondary/30 transition-all duration-300 hover:bg-secondary/90 hover:shadow-xl hover:shadow-secondary/40"
               on:click={() => goto("/upgrade")}
             >
               Upgrade to Pro

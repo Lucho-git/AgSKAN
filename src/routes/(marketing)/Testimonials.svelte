@@ -70,7 +70,7 @@
         <h2
           class="mb-6 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
-          Hear It From the <span class="text-secondary">Paddock</span>
+          Hear It From the <span class="text-base-content">Paddock</span>
         </h2>
 
         <p
@@ -174,7 +174,7 @@
 
         <div class="mt-10 text-center" in:animationDelay={400}>
           <button
-            class="group btn btn-outline w-full max-w-md border-base-content text-base-content hover:bg-base-content hover:text-base-100"
+            class="group btn btn-outline w-full max-w-md border-base-content text-lg text-base-content hover:bg-base-content hover:text-base-100"
             on:click={() => goto("/wall-of-love")}
           >
             View All Customer Stories

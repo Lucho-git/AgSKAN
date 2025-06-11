@@ -180,7 +180,10 @@
               Can't find what you're looking for? Our support team is available
               Monday through Friday, 8am-6pm AEST.
             </p>
-            <a href="mailto:support@skanfarming.com.au" class="btn btn-outline">
+            <a
+              href="mailto:support@skanfarming.com.au"
+              class="btn btn-outline px-6 text-lg"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"

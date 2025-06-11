@@ -110,7 +110,7 @@
 
           <div class="mt-6">
             <button
-              class="btn-base-content group btn w-full text-lg shadow-lg shadow-base-content/30 transition-all duration-300 hover:shadow-xl hover:shadow-base-content/40"
+              class="group btn btn-secondary w-full text-lg shadow-lg shadow-secondary/30 transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
               on:click={() => goto("/signup")}
             >
               Set Up My Farm
