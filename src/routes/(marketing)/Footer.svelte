@@ -92,7 +92,7 @@
               <ul class="space-y-2">
                 <li>
                   <FooterLink
-                    href="/contact"
+                    href="/contact-us"
                     className="transition-colors py-1 inline-block"
                   >
                     Contact Us
@@ -100,7 +100,7 @@
                 </li>
                 <li>
                   <FooterLink
-                    href="/about"
+                    href="/team"
                     className="transition-colors py-1 inline-block"
                   >
                     About Us
