@@ -191,7 +191,7 @@
         <!-- Auth Buttons -->
         <a href="/login" class="btn btn-outline px-6 text-base">Login</a>
         <a
-          href="/signup"
+          href="/login?tab=sign_up"
           class="group btn btn-secondary px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
         >
           Sign Up For Free
@@ -289,7 +289,7 @@
               Login
             </a>
             <a
-              href="/signup"
+              href="/login?tab=sign_up"
               on:click={closeMenu}
               class="group btn btn-secondary w-full px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
             >

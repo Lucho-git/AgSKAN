@@ -111,7 +111,7 @@
           <div class="mt-6">
             <button
               class="group btn btn-secondary w-full text-lg shadow-lg shadow-secondary/30 transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
-              on:click={() => goto("/signup")}
+              on:click={() => goto("/login?tab=sign_up")}
             >
               Set Up My Farm
               <ArrowRight

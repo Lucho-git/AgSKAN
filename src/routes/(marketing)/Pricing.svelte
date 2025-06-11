@@ -281,7 +281,7 @@
 
             <button
               class="group btn btn-outline w-full border-base-content text-base text-base-content hover:bg-base-content hover:text-base-100"
-              on:click={() => goto("/signup")}
+              on:click={() => goto("/login?tab=sign_up")}
             >
               Get Started Free
               <ArrowRight

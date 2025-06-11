@@ -103,7 +103,7 @@
           <div class="flex flex-col gap-4 sm:flex-row">
             <button
               class="group btn btn-secondary px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
-              on:click={() => goto("/signup")}
+              on:click={() => goto("/login?tab=sign_up")}
             >
               Get Started For Free
               <ArrowRight

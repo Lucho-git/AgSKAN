@@ -55,7 +55,7 @@
 
                 <button
                   class="group inline-flex items-center font-medium text-yellow-500 transition-colors hover:text-yellow-400"
-                  on:click={() => goto("/about")}
+                  on:click={() => goto("/team")}
                 >
                   Meet the Founders
                   <ArrowRight size={16} class="ml-2" />
