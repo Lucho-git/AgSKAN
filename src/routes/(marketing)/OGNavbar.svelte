@@ -253,7 +253,7 @@
           {#each navItems as item}
             <OgTextAnimatedDecoration
               href="javascript:void(0)"
-              className="p-3 text-xl font-semibold block"
+              className="p-3 text-lg font-semibold block"
               on:click={() => scrollToSection(item.id)}
             >
               {item.label}

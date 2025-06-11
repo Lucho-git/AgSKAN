@@ -121,7 +121,7 @@
                 class={`ml-4 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full shadow-lg transition-all duration-500 ${
                   hoveredCards[index]
                     ? "scale-110 bg-gradient-to-br from-secondary to-secondary/80 shadow-secondary/20"
-                    : "bg-gradient-to-br from-secondary/20 to-secondary/10"
+                    : "bg-gradient-to-br from-base-content/20 to-base-content/10"
                 }`}
               >
                 <svelte:component
@@ -129,7 +129,7 @@
                   size={20}
                   class={hoveredCards[index]
                     ? "text-secondary-content"
-                    : "text-secondary"}
+                    : "text-base-content"}
                 />
               </div>
             </div>

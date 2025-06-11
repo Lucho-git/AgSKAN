@@ -155,7 +155,7 @@
               <!-- Annual savings badge always visible when there are savings -->
               {#if annualSavings > 0}
                 <div
-                  class="absolute -right-8 -top-4 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-content shadow-md"
+                  class="absolute -right-8 -top-4 z-10 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-content shadow-md"
                 >
                   Save {CURRENCY_SYMBOL}{Math.round(annualSavings)}
                 </div>
