@@ -272,6 +272,22 @@ For connectivity concerns with multiple users, check our [Data Usage](/knowledge
     }
 ]
 
+// Export function to get all articles (needed for entries)
+export function getAllArticles(): Article[] {
+    return articles;
+}
+
+// Export function to get all unique category slugs
+export function getAllCategorySlugs(): string[] {
+    const categorySet = new Set(articles.map(article => article.categorySlug));
+    return Array.from(categorySet);
+}
+
+// Export function to get all article slugs
+export function getAllArticleSlugs(): string[] {
+    return articles.map(article => article.slug);
+}
+
 // Updated helper functions
 export function getArticlesByCategory(category: string): Article[] {
     return articles.filter(article =>
