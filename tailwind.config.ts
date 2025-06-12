@@ -178,7 +178,7 @@ const config: Config = {
         themes: [
             {
                 skantheme: {
-                    "primary": "#63A375",           // #63A375
+                    "primary": "#17a34a",           // #63A375
                     "primary-content": "#fefbf6",   // #fefbf6
                     "secondary": "#F7DB5C",         // #F7DB5C
                     "secondary-content": "#232322", // #232322
@@ -215,7 +215,7 @@ const config: Config = {
             },
             {
                 skanthemedark: {
-                    "primary": "#16a34a",           // #63A375
+                    "primary": "#17a34a",           // #63A375
                     "primary-content": "#fefbf6",   // #fefbf6
                     "secondary": "#F7DB5C",         // #F7DB5C
                     "secondary-content": "#232322", // #232322

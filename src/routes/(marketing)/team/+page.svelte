@@ -55,13 +55,13 @@
       name: "Ryan Skamp",
       role: "CEO & Co-Founder",
       bio: "Ryan has over 5000+ hours of machinery operating experience after spending 5+ years working in the Agricultural industry. He is applying these industry insights to build a program that will make farmers' lives easier.",
-      image: "https://randomuser.me/api/portraits/men/32.jpg",
+      image: "/images/ryanbald.png",
     },
     {
       name: "Lachie Ross",
       role: "CTO & Co-Founder",
       bio: "Lachie is a software engineer with a degree in Computer Science from Curtin University. He has been involved in many startups and innovations, bringing a wealth of technical knowledge to AgSKAN.",
-      image: "https://randomuser.me/api/portraits/men/45.jpg",
+      image: "/images/lachjacked.png",
     },
   ]
 
