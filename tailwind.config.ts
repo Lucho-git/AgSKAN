@@ -20,7 +20,7 @@ const config: Config = {
                 background: "var(--base-100)",
                 foreground: "var(--base-content)",
                 primary: {
-                    DEFAULT: "#63A375",
+                    DEFAULT: "#17a34a",
                     foreground: "#fefbf6",
                 },
                 secondary: {
@@ -178,7 +178,7 @@ const config: Config = {
         themes: [
             {
                 skantheme: {
-                    "primary": "#17a34a",           // #63A375
+                    "primary": "#17a34a",           // #17a34a
                     "primary-content": "#fefbf6",   // #fefbf6
                     "secondary": "#F7DB5C",         // #F7DB5C
                     "secondary-content": "#232322", // #232322
@@ -215,7 +215,7 @@ const config: Config = {
             },
             {
                 skanthemedark: {
-                    "primary": "#17a34a",           // #63A375
+                    "primary": "#17a34a",           // #17a34a
                     "primary-content": "#fefbf6",   // #fefbf6
                     "secondary": "#F7DB5C",         // #F7DB5C
                     "secondary-content": "#232322", // #232322

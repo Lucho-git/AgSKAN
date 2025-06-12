@@ -1,6 +1,8 @@
 <script lang="ts">
   import { page } from "$app/stores"
+  import { goto } from "$app/navigation"
   import { onMount } from "svelte"
+  import { afterNavigate } from "$app/navigation"
   import { Menu, X, ArrowRight } from "lucide-svelte"
   import OgTextAnimatedDecoration from "$lib/components/luxe/text-animated-decoration/OgTextAnimatedDecoration.svelte"
 
@@ -10,6 +12,7 @@
   let isVisible = true
   let lastScrollY = 0
   let isScrollingFromButton = false
+  let isNavigating = false
 
   onMount(() => {
     mounted = true
@@ -33,8 +36,8 @@
 
     // Scroll behavior
     const handleScroll = () => {
-      // Don't hide navbar if scrolling was initiated by button
-      if (isScrollingFromButton) return
+      // Don't hide navbar if scrolling was initiated by button or during navigation
+      if (isScrollingFromButton || isNavigating) return
 
       const currentScrollY = window.scrollY
 
@@ -58,6 +61,17 @@
     }
   })
 
+  // Handle navigation events
+  afterNavigate(() => {
+    isNavigating = true
+    isVisible = true // Always show navbar after navigation
+
+    // Reset navigation flag after a short delay
+    setTimeout(() => {
+      isNavigating = false
+    }, 1500) // Give extra time for smooth scrolling to complete
+  })
+
   function toggleTheme() {
     isDarkMode = !isDarkMode
     const newTheme = isDarkMode ? "skanthemedark" : "skantheme"
@@ -73,9 +87,19 @@
     isMenuOpen = false
   }
 
-  // Smooth scroll to section
+  // Smooth scroll to section - handles cross-page navigation
   function scrollToSection(elementId: string) {
     closeMenu()
+    isNavigating = true
+    isVisible = true // Ensure navbar stays visible
+
+    // If we're not on the homepage, navigate there first with hash
+    if ($page.url.pathname !== "/") {
+      goto(`/#${elementId}`)
+      return
+    }
+
+    // If we're already on the homepage, scroll directly
     isScrollingFromButton = true
 
     const element = document.getElementById(elementId)
@@ -85,11 +109,11 @@
         block: "start",
       })
 
-      // Reset the flag after scrolling completes
-      // Smooth scroll typically takes 500-1000ms
+      // Reset the flags after scrolling completes
       setTimeout(() => {
         isScrollingFromButton = false
-      }, 1000)
+        isNavigating = false
+      }, 1500) // Increased timeout to match smooth scroll duration
     }
   }
 
@@ -189,7 +213,7 @@
         </label>
 
         <!-- Auth Buttons -->
-        <a href="/login" class="btn btn-outline px-6 text-base">Login</a>
+        <a href="/login" class="btn btn-outline px-6 text-base">Dashboard</a>
         <a
           href="/login?tab=sign_up"
           class="group btn btn-secondary px-6 text-base shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/25"
@@ -286,7 +310,7 @@
               on:click={closeMenu}
               class="btn btn-outline w-full px-6 text-base"
             >
-              Login
+              Dashboard
             </a>
             <a
               href="/login?tab=sign_up"

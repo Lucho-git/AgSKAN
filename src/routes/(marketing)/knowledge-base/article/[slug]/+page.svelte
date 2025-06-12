@@ -142,7 +142,7 @@
           </div>
         </div>
 
-        <!-- Was this helpful section -->
+        <!-- Was this helpful section
         <div
           class="mb-10 border-t border-base-300 pt-6"
           in:animationDelay={300}
@@ -174,7 +174,7 @@
               No
             </button>
           </div>
-        </div>
+        </div> -->
 
         <!-- Related Articles -->
         {#if relatedArticles.length > 0}
