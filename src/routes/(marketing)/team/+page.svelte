@@ -63,6 +63,12 @@
       bio: "Lachie is a software engineer with a degree in Computer Science from Curtin University. He has been involved in many startups and innovations, bringing a wealth of technical knowledge to AgSKAN.",
       image: "/images/lachjacked.png",
     },
+    {
+      name: "Ella Ross",
+      role: "Community Engagement Manager",
+      bio: "Ella brings infectious enthusiasm and a genuine passion for connecting with farming communities across Australia. With her natural ability to bring people together, she's the heart of AgSKAN's outreach efforts.",
+      image: "/images/Ella2.jpeg",
+    },
   ]
 
   const milestones = [
@@ -265,7 +271,9 @@
           Our Leadership Team
         </h2>
 
-        <div class="mx-auto grid max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
+        <div
+          class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+        >
           {#each teamMembers as person, index}
             <div
               class="overflow-hidden rounded-xl bg-base-200 shadow-md"
