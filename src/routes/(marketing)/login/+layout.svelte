@@ -25,10 +25,12 @@
   }
 </script>
 
-<div
-  class="mx-auto mb-12 flex min-h-[70vh] max-w-lg place-content-center content-center items-center text-center"
->
-  <div class="flex w-64 flex-col lg:w-80">
-    <slot />
+<div class="min-h-screen bg-base-200 py-16">
+  <div class="container mx-auto px-4">
+    <div class="flex justify-center">
+      <div class="w-full max-w-md">
+        <slot />
+      </div>
+    </div>
   </div>
 </div>
