@@ -65,12 +65,12 @@
 
   afterNavigate(() => {
     isNavigating = true
-    isVisible = true
+    isVisible = true // Force navbar to stay visible during navigation
     isCompanyDropdownOpen = false
 
     setTimeout(() => {
       isNavigating = false
-    }, 1500)
+    }, 2000) // Extended timeout to ensure navbar stays visible longer
   })
 
   function toggleTheme() {
@@ -95,7 +95,7 @@
   function scrollToSection(elementId: string) {
     closeMenu()
     isNavigating = true
-    isVisible = true
+    isVisible = true // Ensure navbar stays visible
 
     if ($page.url.pathname !== "/") {
       goto(`/#${elementId}`)
@@ -114,8 +114,20 @@
       setTimeout(() => {
         isScrollingFromButton = false
         isNavigating = false
-      }, 1500)
+      }, 2000) // Extended timeout
     }
+  }
+
+  // Enhanced navigation function for mobile links that preserves navbar
+  function handleMobileNavigation(href: string) {
+    isNavigating = true
+    isVisible = true
+    closeMenu()
+
+    // Extended timeout for mobile navigation
+    setTimeout(() => {
+      isNavigating = false
+    }, 2500)
   }
 
   // Hover functions for dropdown
@@ -233,14 +245,19 @@
               class="absolute left-0 top-full mt-2 w-48 rounded-lg bg-base-100 py-2 shadow-lg ring-1 ring-base-content/10"
             >
               {#each companyLinks as link}
-                <div class="px-4 py-2">
-                  <OgTextAnimatedDecoration
+                <div class="rounded-lg transition-colors hover:bg-base-200">
+                  <a
                     href={link.href}
-                    className="text-sm font-medium"
+                    class="block w-full px-4 py-2"
                     on:click={closeMenu}
                   >
-                    {link.label}
-                  </OgTextAnimatedDecoration>
+                    <OgTextAnimatedDecoration
+                      href={link.href}
+                      className="text-sm font-medium"
+                    >
+                      {link.label}
+                    </OgTextAnimatedDecoration>
+                  </a>
                 </div>
               {/each}
             </div>
@@ -321,43 +338,71 @@
           : 'max-h-0'}"
       >
         <div class="space-y-1 pb-4 pt-4">
-          <!-- Mobile Main Links -->
-          <button
-            class="block w-full rounded-lg p-3 text-left text-base font-semibold text-contrast-content hover:bg-base-200"
-            on:click={() => scrollToSection("setup")}
-          >
-            How It Works
-          </button>
+          <!-- Mobile Main Links with Perfect Animation Pattern -->
+          <div class="rounded-lg transition-colors hover:bg-base-200">
+            <button
+              class="block w-full p-3 text-left"
+              on:click={() => scrollToSection("setup")}
+            >
+              <OgTextAnimatedDecoration
+                href="javascript:void(0)"
+                className="text-base font-semibold cursor-pointer"
+              >
+                How It Works
+              </OgTextAnimatedDecoration>
+            </button>
+          </div>
 
-          <button
-            class="block w-full rounded-lg p-3 text-left text-base font-semibold text-contrast-content hover:bg-base-200"
-            on:click={() => scrollToSection("pricing")}
-          >
-            Pricing
-          </button>
+          <div class="rounded-lg transition-colors hover:bg-base-200">
+            <button
+              class="block w-full p-3 text-left"
+              on:click={() => scrollToSection("pricing")}
+            >
+              <OgTextAnimatedDecoration
+                href="javascript:void(0)"
+                className="text-base font-semibold cursor-pointer"
+              >
+                Pricing
+              </OgTextAnimatedDecoration>
+            </button>
+          </div>
 
-          <button
-            class="block w-full rounded-lg p-3 text-left text-base font-semibold text-contrast-content hover:bg-base-200"
-            on:click={() => scrollToSection("qanda")}
-          >
-            FAQ
-          </button>
+          <div class="rounded-lg transition-colors hover:bg-base-200">
+            <button
+              class="block w-full p-3 text-left"
+              on:click={() => scrollToSection("qanda")}
+            >
+              <OgTextAnimatedDecoration
+                href="javascript:void(0)"
+                className="text-base font-semibold cursor-pointer"
+              >
+                FAQ
+              </OgTextAnimatedDecoration>
+            </button>
+          </div>
 
-          <!-- Mobile Company Section -->
+          <!-- Mobile Company Section with Same Perfect Pattern -->
           <div class="mt-2 border-t border-base-content/10 pt-2">
             <div
-              class="px-3 py-2 text-sm font-bold uppercase tracking-wide text-base-content/90"
+              class="px-3 py-2 text-sm font-bold uppercase tracking-wide text-base-content/60"
             >
               Company
             </div>
             {#each companyLinks as link}
-              <a
-                href={link.href}
-                on:click={closeMenu}
-                class="block rounded-lg p-3 text-base font-semibold text-contrast-content hover:bg-base-200"
-              >
-                {link.label}
-              </a>
+              <div class="rounded-lg transition-colors hover:bg-base-200">
+                <a
+                  href={link.href}
+                  class="block w-full p-3"
+                  on:click={() => handleMobileNavigation(link.href)}
+                >
+                  <OgTextAnimatedDecoration
+                    href={link.href}
+                    className="text-base font-semibold"
+                  >
+                    {link.label}
+                  </OgTextAnimatedDecoration>
+                </a>
+              </div>
             {/each}
           </div>
 

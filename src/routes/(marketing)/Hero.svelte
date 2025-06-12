@@ -31,6 +31,17 @@
     }
   }
 
+  // Add the smooth scroll function from the navbar
+  function scrollToSection(elementId: string) {
+    const element = document.getElementById(elementId)
+    if (element) {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    }
+  }
+
   // Animation delay placeholder - you can replace with your preferred animation library
   function animationDelay(node: HTMLElement, delay: number) {
     return {
@@ -112,12 +123,13 @@
               />
             </button>
 
-            <a
-              href="#how-it-works"
+            <!-- Fixed: Changed from <a> to <button> with proper scroll function -->
+            <button
               class="group btn btn-outline px-6 text-base"
+              on:click={() => scrollToSection("setup")}
             >
               See How It Works
-            </a>
+            </button>
           </div>
         </div>
       {/if}
