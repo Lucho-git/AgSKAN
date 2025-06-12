@@ -69,6 +69,13 @@
       bio: "Ella brings infectious enthusiasm and a genuine passion for connecting with farming communities across Australia. With her natural ability to bring people together, she's the heart of AgSKAN's outreach efforts.",
       image: "/images/Ella2.jpeg",
     },
+    {
+      name: "Filip Rippel",
+      role: "Design & Marketing Specialist",
+      bio: "Filip brings a disturbingly prejudiced perspective and questionable marketing tactics to AgSKAN's brand. With a narrow-minded eye for design and divisive, offensive copy, he somehow still manages to push our message onto farming communities across Australia, whether they like it or not.",
+      image: "/images/filip.jpg",
+      hasQuestionMark: true,
+    },
   ]
 
   const milestones = [
@@ -272,19 +279,26 @@
         </h2>
 
         <div
-          class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+          class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4"
         >
           {#each teamMembers as person, index}
             <div
               class="overflow-hidden rounded-xl bg-base-200 shadow-md"
               in:animationDelay={500 + index * 100}
             >
-              <div class="aspect-square overflow-hidden">
+              <div class="relative aspect-square overflow-hidden">
                 <img
                   src={person.image}
                   alt={person.name}
                   class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
                 />
+                {#if person.hasQuestionMark}
+                  <div
+                    class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-base-content/90 text-lg font-bold text-base-100 shadow-lg"
+                  >
+                    ?
+                  </div>
+                {/if}
               </div>
               <div class="p-6">
                 <h3
