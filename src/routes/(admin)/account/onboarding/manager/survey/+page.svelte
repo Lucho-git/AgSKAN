@@ -1,0 +1,1058 @@
+<!-- src/routes/(admin)/account/onboarding/manager/survey/+page.svelte -->
+<script lang="ts">
+  import { goto } from "$app/navigation"
+  import {
+    ArrowLeft,
+    ArrowRight,
+    Clock,
+    Database,
+    Globe,
+    Grid3x3,
+    Map,
+    MapPin,
+    MapPinned,
+    MessageCircle,
+    Navigation,
+    Target,
+    Users,
+    CircleCheck,
+    X,
+  } from "lucide-svelte"
+  import { toast } from "svelte-sonner"
+
+  // Track which step of the survey we're on
+  let currentStep = 1
+  let showThankYou = false
+
+  let surveyData = {
+    referralSource: "",
+    otherReferralSource: "",
+    role: "",
+    otherRole: "",
+    hectares: "",
+    devicePreference: "",
+    featureInterests: [] as string[],
+    pathRecreateInterest: "",
+    pathOptimizationInterest: "",
+    enterpriseGoals: [] as string[],
+    technologyInterest: 50,
+  }
+
+  let errors = {
+    referralSource: "",
+    otherReferralSource: "",
+    role: "",
+    otherRole: "",
+    hectares: "",
+    devicePreference: "",
+    featureInterests: "",
+    featureInterestRating: "",
+    enterpriseGoals: "",
+  }
+
+  const REFERRAL_OPTIONS = [
+    { id: "instagram", label: "Instagram" },
+    { id: "facebook", label: "Facebook" },
+    { id: "twitter", label: "X / Twitter" },
+    { id: "linkedin", label: "LinkedIn" },
+    { id: "email", label: "Email" },
+    { id: "news", label: "News article" },
+    { id: "friend", label: "Friend or colleague" },
+    { id: "other", label: "Other" },
+  ]
+
+  const ROLE_OPTIONS = [
+    { id: "owner", label: "Owner" },
+    { id: "manager", label: "Manager" },
+    { id: "operator", label: "Operator" },
+    { id: "shareholder", label: "Shareholder" },
+    { id: "agronomist", label: "Agronomist" },
+    { id: "other", label: "Other" },
+  ]
+
+  const HECTARES_OPTIONS = [
+    { id: "0-500", label: "0-500" },
+    { id: "500-1000", label: "500-1000" },
+    { id: "1000-3000", label: "1000-3000" },
+    { id: "3000-5000", label: "3000-5000" },
+    { id: "5000+", label: "5000+" },
+    { id: "na", label: "N/A" },
+  ]
+
+  const FEATURE_OPTIONS = [
+    { id: "tracking", label: "Tracking completed work", icon: Clock },
+    {
+      id: "live-locations",
+      label: "Live locations of operators",
+      icon: MapPinned,
+    },
+    { id: "poi", label: "Marking points of interest", icon: Target },
+    {
+      id: "map-overview",
+      label: "Interactive map overview (Management)",
+      icon: Map,
+    },
+    { id: "navigation", label: "Assisted Navigation", icon: Navigation },
+    { id: "data-storage", label: "Data storage platform", icon: Database },
+  ]
+
+  const INTEREST_LEVELS = [
+    { id: "not-interested", label: "Not interested" },
+    { id: "interested", label: "Interested" },
+    { id: "very-interested", label: "Very Interested" },
+  ]
+
+  const FUTURE_FEATURES = [
+    {
+      id: "path-recreate",
+      title: "Path Recreate",
+      description:
+        "Recreate historical paths so new operators can travel the exact same route an experienced operator has taken.",
+    },
+    {
+      id: "path-optimization",
+      title: "Path Optimization",
+      description:
+        "Live turning instructions and visual overlay for operators to always be following the most efficient path.",
+    },
+  ]
+
+  let modalRef: HTMLDivElement
+
+  function handleInputChange(field: string, value: string) {
+    surveyData = { ...surveyData, [field]: value }
+
+    // Clear error when user starts typing
+    if (errors[field as keyof typeof errors]) {
+      errors = { ...errors, [field]: "" }
+    }
+  }
+
+  function handleFeatureToggle(featureId: string) {
+    // Make a copy of the current features array
+    let updatedFeatures = [...surveyData.featureInterests]
+
+    // If already selected, remove it
+    if (updatedFeatures.includes(featureId)) {
+      updatedFeatures = updatedFeatures.filter((id) => id !== featureId)
+    }
+    // If not already selected and less than 3 features selected, add it
+    else if (updatedFeatures.length < 3) {
+      updatedFeatures.push(featureId)
+    }
+
+    surveyData = { ...surveyData, featureInterests: updatedFeatures }
+
+    // Clear error if any selection is made
+    if (errors.featureInterests && updatedFeatures.length > 0) {
+      errors = { ...errors, featureInterests: "" }
+    }
+  }
+
+  function handleInterestLevelChange(featureId: string, level: string) {
+    surveyData = { ...surveyData, [featureId + "Interest"]: level }
+
+    // Clear error if any selection is made
+    if (errors.featureInterestRating) {
+      errors = { ...errors, featureInterestRating: "" }
+    }
+  }
+
+  function handleEnterpriseGoalToggle(goalId: string) {
+    // Make a copy of the current goals array
+    let updatedGoals = [...surveyData.enterpriseGoals]
+
+    // If already selected, remove it
+    if (updatedGoals.includes(goalId)) {
+      updatedGoals = updatedGoals.filter((id) => id !== goalId)
+    }
+    // If not already selected, add it
+    else {
+      updatedGoals.push(goalId)
+    }
+
+    surveyData = { ...surveyData, enterpriseGoals: updatedGoals }
+
+    // Clear error if any selection is made
+    if (errors.enterpriseGoals && updatedGoals.length > 0) {
+      errors = { ...errors, enterpriseGoals: "" }
+    }
+  }
+
+  function validateStep1() {
+    const newErrors = {
+      referralSource: !surveyData.referralSource
+        ? "Please select how you heard about us"
+        : "",
+      otherReferralSource:
+        surveyData.referralSource === "other" && !surveyData.otherReferralSource
+          ? "Please specify how you heard about us"
+          : "",
+      role: !surveyData.role ? "Please select your role" : "",
+      otherRole:
+        surveyData.role === "other" && !surveyData.otherRole
+          ? "Please specify your role"
+          : "",
+      hectares: !surveyData.hectares
+        ? "Please select the hectares you work over"
+        : "",
+      devicePreference: "",
+      featureInterests: "",
+      featureInterestRating: "",
+      enterpriseGoals: "",
+    }
+
+    errors = newErrors
+    return !Object.values(newErrors).some((error) => error && error.length > 0)
+  }
+
+  function validateStep2() {
+    const newErrors = {
+      referralSource: "",
+      otherReferralSource: "",
+      role: "",
+      otherRole: "",
+      hectares: "",
+      devicePreference: !surveyData.devicePreference
+        ? "Please select your device preference"
+        : "",
+      featureInterests: "",
+      featureInterestRating: "",
+      enterpriseGoals: "",
+    }
+
+    errors = newErrors
+    return !Object.values(newErrors).some((error) => error && error.length > 0)
+  }
+
+  function validateStep3() {
+    const newErrors = {
+      referralSource: "",
+      otherReferralSource: "",
+      role: "",
+      otherRole: "",
+      hectares: "",
+      devicePreference: "",
+      featureInterests:
+        surveyData.featureInterests.length === 0
+          ? "Please select at least one feature"
+          : "",
+      featureInterestRating: "",
+      enterpriseGoals: "",
+    }
+
+    errors = newErrors
+    return !Object.values(newErrors).some((error) => error && error.length > 0)
+  }
+
+  function validateStep4() {
+    const bothFeaturesRated =
+      surveyData.pathRecreateInterest && surveyData.pathOptimizationInterest
+
+    const newErrors = {
+      referralSource: "",
+      otherReferralSource: "",
+      role: "",
+      otherRole: "",
+      hectares: "",
+      devicePreference: "",
+      featureInterests: "",
+      featureInterestRating: !bothFeaturesRated
+        ? "Please rate your interest in both features"
+        : "",
+      enterpriseGoals: "",
+    }
+
+    errors = newErrors
+    return !Object.values(newErrors).some((error) => error && error.length > 0)
+  }
+
+  function validateStep5() {
+    // Step 5 no longer has validation requirements
+    return true
+  }
+
+  function handleNextStep() {
+    if (currentStep === 1) {
+      if (validateStep1()) {
+        currentStep = 2
+        window.scrollTo(0, 0)
+      }
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        currentStep = 3
+        window.scrollTo(0, 0)
+      }
+    } else if (currentStep === 3) {
+      if (validateStep3()) {
+        currentStep = 4
+        window.scrollTo(0, 0)
+      }
+    } else if (currentStep === 4) {
+      if (validateStep4()) {
+        currentStep = 5
+        window.scrollTo(0, 0)
+      }
+    } else if (currentStep === 5) {
+      if (validateStep5()) {
+        // Show thank you modal instead of immediately navigating
+        showThankYou = true
+      }
+    }
+  }
+
+  function handlePreviousStep() {
+    if (currentStep > 1) {
+      currentStep = currentStep - 1
+      window.scrollTo(0, 0)
+    } else {
+      goto("/account/onboarding/manager/profile")
+    }
+  }
+
+  function handleSkipSurvey() {
+    goto("/account/onboarding/manager/map_setup")
+  }
+
+  function handleThankYouClose() {
+    showThankYou = false
+    // Navigate to map setup after closing the thank you modal
+    goto("/account/onboarding/manager/map_setup")
+  }
+
+  function handleEscape(e: KeyboardEvent) {
+    if (e.key === "Escape" && showThankYou) handleThankYouClose()
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    if (modalRef && !modalRef.contains(e.target as Node) && showThankYou) {
+      handleThankYouClose()
+    }
+  }
+
+  $: if (showThankYou) {
+    document.body.style.overflow = "hidden"
+    document.addEventListener("keydown", handleEscape)
+    document.addEventListener("mousedown", handleClickOutside)
+  } else {
+    document.body.style.overflow = ""
+    document.removeEventListener("keydown", handleEscape)
+    document.removeEventListener("mousedown", handleClickOutside)
+  }
+</script>
+
+<svelte:head>
+  <title>Quick Survey - AgSKAN</title>
+  <meta
+    name="description"
+    content="Help us understand your farming needs better"
+  />
+</svelte:head>
+
+<!-- Header -->
+<div class="mb-10 text-center">
+  <h2 class="mb-3 text-4xl font-bold text-contrast-content">
+    Quick <span class="text-warning">Survey</span>
+    <span class="text-lg font-medium text-contrast-content/60"
+      >({currentStep}/5)</span
+    >
+  </h2>
+  <p class="mx-auto max-w-md text-contrast-content/60">
+    As a small startup dedicated to agricultural innovation, your feedback is
+    invaluable to us. Your insights directly shape our development and help us
+    build tools that truly serve your farming needs.
+  </p>
+
+  <!-- Skip survey link -->
+  <button
+    on:click={handleSkipSurvey}
+    class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-warning/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-warning/50 hover:bg-warning/5 hover:text-warning hover:shadow"
+  >
+    <span>Skip survey and continue to map setup</span>
+    <ArrowRight
+      size={14}
+      class="text-warning/40 transition-all group-hover:translate-x-0.5 group-hover:text-warning"
+    />
+  </button>
+</div>
+
+<!-- Form Card -->
+<div
+  class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+>
+  <!-- Card header decoration -->
+  <div
+    class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+  ></div>
+
+  <form on:submit|preventDefault={handleNextStep} class="p-8 md:p-10">
+    <!-- Step 1: Referral, Role and Hectares -->
+    {#if currentStep === 1}
+      <div class="grid gap-8">
+        <!-- How did you hear about us -->
+        <div class="space-y-2">
+          <label
+            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <MessageCircle size={16} />
+            </div>
+            How did you hear about us?
+          </label>
+          <div
+            class="mb-4 rounded-lg border-l-2 border-warning/30 bg-base-200/70 p-3 text-sm text-contrast-content/60"
+          >
+            This information helps us understand where our community is coming
+            from and supports our growth efforts
+          </div>
+          <div
+            class="relative transition-all duration-300 {errors.referralSource
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {#each REFERRAL_OPTIONS as option}
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    bind:group={surveyData.referralSource}
+                    value={option.id}
+                    on:change={() =>
+                      handleInputChange("referralSource", option.id)}
+                    class="sr-only"
+                  />
+                  <div
+                    class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                    {surveyData.referralSource === option.id
+                      ? 'border-warning bg-warning/20 text-warning'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                  >
+                    {option.label}
+                  </div>
+                </label>
+              {/each}
+            </div>
+
+            {#if surveyData.referralSource === "other"}
+              <div class="mt-4">
+                <input
+                  type="text"
+                  placeholder="Please specify..."
+                  bind:value={surveyData.otherReferralSource}
+                  on:input={(e) =>
+                    handleInputChange("otherReferralSource", e.target.value)}
+                  class="input input-bordered w-full text-contrast-content
+                    {errors.otherReferralSource
+                    ? 'input-error'
+                    : 'focus:border-warning'}"
+                />
+                {#if errors.otherReferralSource}
+                  <p
+                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  >
+                    <span class="inline-block h-1 w-1 rounded-full bg-error"
+                    ></span>
+                    {errors.otherReferralSource}
+                  </p>
+                {/if}
+              </div>
+            {/if}
+
+            {#if errors.referralSource}
+              <p
+                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.referralSource}
+              </p>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Role in operation -->
+        <div class="space-y-2">
+          <label
+            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <Users size={16} />
+            </div>
+            What is your role in the operation?
+          </label>
+          <div
+            class="relative transition-all duration-300 {errors.role
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {#each ROLE_OPTIONS as option}
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    bind:group={surveyData.role}
+                    value={option.id}
+                    on:change={() => handleInputChange("role", option.id)}
+                    class="sr-only"
+                  />
+                  <div
+                    class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                    {surveyData.role === option.id
+                      ? 'border-warning bg-warning/20 text-warning'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                  >
+                    {option.label}
+                  </div>
+                </label>
+              {/each}
+            </div>
+
+            {#if surveyData.role === "other"}
+              <div class="mt-4">
+                <input
+                  type="text"
+                  placeholder="Please specify your role..."
+                  bind:value={surveyData.otherRole}
+                  on:input={(e) =>
+                    handleInputChange("otherRole", e.target.value)}
+                  class="input input-bordered w-full text-contrast-content
+                    {errors.otherRole ? 'input-error' : 'focus:border-warning'}"
+                />
+                {#if errors.otherRole}
+                  <p
+                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  >
+                    <span class="inline-block h-1 w-1 rounded-full bg-error"
+                    ></span>
+                    {errors.otherRole}
+                  </p>
+                {/if}
+              </div>
+            {/if}
+
+            {#if errors.role}
+              <p
+                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.role}
+              </p>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Hectares -->
+        <div class="space-y-2">
+          <label
+            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <Grid3x3 size={16} />
+            </div>
+            How many hectares do you work over?
+          </label>
+          <div
+            class="relative transition-all duration-300 {errors.hectares
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {#each HECTARES_OPTIONS as option}
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    bind:group={surveyData.hectares}
+                    value={option.id}
+                    on:change={() => handleInputChange("hectares", option.id)}
+                    class="sr-only"
+                  />
+                  <div
+                    class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                    {surveyData.hectares === option.id
+                      ? 'border-warning bg-warning/20 text-warning'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                  >
+                    {option.label}
+                  </div>
+                </label>
+              {/each}
+            </div>
+
+            {#if errors.hectares}
+              <p
+                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.hectares}
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Step 2: Device Preferences -->
+    {#if currentStep === 2}
+      <div class="grid gap-8">
+        <div class="space-y-2">
+          <label
+            class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-device"
+                ><rect width="18" height="12" x="3" y="8" rx="2" ry="2" /><path
+                  d="M5 8V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"
+                /><line x1="12" x2="12" y1="20" y2="22" /></svg
+              >
+            </div>
+            Which device(s) would you prefer to run our software on?
+          </label>
+
+          <div
+            class="relative transition-all duration-300 {errors.devicePreference
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="grid grid-cols-1 gap-3">
+              {#each ["ios-phone", "ios-tablet", "android-phone", "android-tablet", "desktop", "any"] as device}
+                {@const labels = {
+                  "ios-phone": "iOS Phone",
+                  "ios-tablet": "iOS Tablet",
+                  "android-phone": "Android Phone",
+                  "android-tablet": "Android Tablet",
+                  desktop: "Desktop (Stationary)",
+                  any: "Open to whatever works best",
+                }}
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    bind:group={surveyData.devicePreference}
+                    value={device}
+                    on:change={() =>
+                      handleInputChange("devicePreference", device)}
+                    class="sr-only"
+                  />
+                  <div
+                    class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                    {surveyData.devicePreference === device
+                      ? 'border-warning bg-warning/20 text-warning'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                  >
+                    {labels[device]}
+                  </div>
+                </label>
+              {/each}
+            </div>
+
+            {#if errors.devicePreference}
+              <p
+                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.devicePreference}
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Step 3: Feature Interest Rating -->
+    {#if currentStep === 3}
+      <div class="grid gap-8">
+        <div class="space-y-2">
+          <label
+            class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M12 2L2 7l10 5 10-5-10-5z" /><path
+                  d="M2 17l10 5 10-5"
+                /><path d="M2 12l10 5 10-5" /></svg
+              >
+            </div>
+            Which of our features are you most interested in?
+          </label>
+
+          <div class="mb-5 text-center text-sm text-contrast-content/60">
+            Up to 3.
+          </div>
+
+          <div
+            class="relative transition-all duration-300 {errors.featureInterests
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="grid grid-cols-1 gap-3">
+              {#each FEATURE_OPTIONS as option}
+                {@const isSelected = surveyData.featureInterests.includes(
+                  option.id,
+                )}
+                <div
+                  on:click={() => handleFeatureToggle(option.id)}
+                  on:keydown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      handleFeatureToggle(option.id)
+                    }
+                  }}
+                  role="button"
+                  tabindex="0"
+                  class="flex cursor-pointer items-center justify-center rounded-lg p-4 text-sm transition-all
+                    {isSelected
+                    ? 'border border-warning bg-warning/20 text-warning'
+                    : 'border border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}
+                    {surveyData.featureInterests.length >= 3 && !isSelected
+                    ? 'cursor-not-allowed opacity-50'
+                    : ''}"
+                >
+                  <span class="text-center">{option.label}</span>
+                </div>
+              {/each}
+            </div>
+
+            {#if errors.featureInterests}
+              <p
+                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.featureInterests}
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Step 4: Future Features -->
+    {#if currentStep === 4}
+      <div class="grid gap-8">
+        <div class="space-y-2">
+          <label
+            class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                ></polygon></svg
+              >
+            </div>
+            Rate your interest in future features.
+          </label>
+
+          <div
+            class="relative transition-all duration-300 {errors.featureInterestRating
+              ? 'animate-shake'
+              : ''}"
+          >
+            <div class="space-y-10">
+              <!-- First Feature -->
+              <div class="rounded-xl border border-base-300 bg-base-200 p-6">
+                <h3 class="mb-2 text-center text-xl font-bold text-warning">
+                  {FUTURE_FEATURES[0].title}
+                </h3>
+                <p class="mb-6 text-center text-contrast-content/80">
+                  {FUTURE_FEATURES[0].description}
+                </p>
+
+                <div class="flex flex-wrap justify-center gap-3">
+                  {#each INTEREST_LEVELS as level}
+                    <div class="relative min-w-[100px] max-w-[150px] flex-1">
+                      <label class="cursor-pointer">
+                        <input
+                          type="radio"
+                          bind:group={surveyData.pathRecreateInterest}
+                          value={level.id}
+                          on:change={() =>
+                            handleInterestLevelChange("pathRecreate", level.id)}
+                          class="sr-only"
+                        />
+                        <div
+                          class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                          {surveyData.pathRecreateInterest === level.id
+                            ? 'border-warning bg-warning/20 text-warning'
+                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-warning/40'}"
+                        >
+                          {level.label}
+                        </div>
+                      </label>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Second Feature -->
+              <div class="rounded-xl border border-base-300 bg-base-200 p-6">
+                <h3 class="mb-2 text-center text-xl font-bold text-warning">
+                  {FUTURE_FEATURES[1].title}
+                </h3>
+                <p class="mb-6 text-center text-contrast-content/80">
+                  {FUTURE_FEATURES[1].description}
+                </p>
+
+                <div class="flex flex-wrap justify-center gap-3">
+                  {#each INTEREST_LEVELS as level}
+                    <div class="relative min-w-[100px] max-w-[150px] flex-1">
+                      <label class="cursor-pointer">
+                        <input
+                          type="radio"
+                          bind:group={surveyData.pathOptimizationInterest}
+                          value={level.id}
+                          on:change={() =>
+                            handleInterestLevelChange(
+                              "pathOptimization",
+                              level.id,
+                            )}
+                          class="sr-only"
+                        />
+                        <div
+                          class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                          {surveyData.pathOptimizationInterest === level.id
+                            ? 'border-warning bg-warning/20 text-warning'
+                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-warning/40'}"
+                        >
+                          {level.label}
+                        </div>
+                      </label>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+
+            {#if errors.featureInterestRating}
+              <p
+                class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-error"
+              >
+                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
+                {errors.featureInterestRating}
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Step 5: Enterprise Goals -->
+    {#if currentStep === 5}
+      <div class="grid gap-8">
+        <div class="space-y-6">
+          <label
+            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          >
+            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg
+              >
+            </div>
+            What are the primary goals of your enterprise in the next 5 years?
+          </label>
+
+          <div class="grid grid-cols-1 gap-3">
+            <!-- Enterprise Goals Options -->
+            {#each [{ id: "expand-land", label: "Expand land holdings" }, { id: "increase-production", label: "Increase production on land already owned" }, { id: "reduce-labor", label: "Reduce labour requirements for my operation" }, { id: "more-tech", label: "Introduce more technology" }] as goal}
+              <div
+                on:click={() => handleEnterpriseGoalToggle(goal.id)}
+                on:keydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleEnterpriseGoalToggle(goal.id)
+                  }
+                }}
+                role="button"
+                tabindex="0"
+                class="flex cursor-pointer items-center justify-center rounded-lg border p-4 text-sm transition-all
+                  {surveyData.enterpriseGoals.includes(goal.id)
+                  ? 'border-warning bg-warning/20 text-warning'
+                  : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+              >
+                <span class="text-center">{goal.label}</span>
+              </div>
+            {/each}
+          </div>
+
+          <div class="mt-8">
+            <label
+              class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+            >
+              <div class="rounded-md bg-base-200 p-1.5 text-warning">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path
+                    d="M12 8h.01"
+                  /></svg
+                >
+              </div>
+              How interested are you in adopting new technologies to increase productivity?
+            </label>
+
+            <div class="px-2">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                bind:value={surveyData.technologyInterest}
+                class="range range-warning w-full"
+              />
+
+              <div
+                class="mt-2 flex justify-between text-sm text-contrast-content/60"
+              >
+                <span>Not Interested</span>
+                <span>Very Interested</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Navigation Buttons -->
+    <div class="mt-10 flex items-center justify-between gap-4">
+      <button
+        type="button"
+        on:click={handlePreviousStep}
+        class="btn btn-ghost text-contrast-content/60 hover:text-warning"
+      >
+        <ArrowLeft size={16} />
+        <span>Back</span>
+      </button>
+
+      <button type="submit" class="group btn btn-warning flex-1">
+        <span>{currentStep < 5 ? "Next" : "Finish"}</span>
+        <ArrowRight
+          size={18}
+          class="transition-transform group-hover:translate-x-1"
+        />
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Thank You Modal -->
+{#if showThankYou}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  >
+    <div
+      bind:this={modalRef}
+      class="animate-fadeIn w-full max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl"
+    >
+      <div
+        class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+      ></div>
+
+      <div class="relative p-6">
+        <button
+          on:click={handleThankYouClose}
+          class="absolute right-3 top-3 rounded-full p-2 text-base-content/40 transition-colors hover:bg-base-200 hover:text-base-content"
+          aria-label="Close"
+        >
+          <X size={20} />
+        </button>
+
+        <div class="flex flex-col items-center py-6 text-center">
+          <div
+            class="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-warning/20"
+          >
+            <CircleCheck size={40} class="text-warning" />
+          </div>
+
+          <h3 class="mb-3 text-2xl font-bold text-contrast-content">
+            Thank You!
+          </h3>
+          <p class="mb-6 max-w-xs text-contrast-content/60">
+            Your survey responses have been submitted successfully. We
+            appreciate your valuable feedback which helps us improve AGSKAN.
+          </p>
+
+          <div class="w-full border-t border-base-300/40 pt-4">
+            <button
+              on:click={handleThankYouClose}
+              class="btn btn-warning w-full transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Continue to Map Setup
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-5px);
+    }
+    75% {
+      transform: translateX(5px);
+    }
+  }
+
+  .animate-shake {
+    animation: shake 0.3s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
+</style>

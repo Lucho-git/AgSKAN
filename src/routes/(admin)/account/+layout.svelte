@@ -311,12 +311,13 @@
   async function checkOnboardingStatus(profile, connected_map, subscription) {
     if (!profile || !browser) return
 
+    // Updated onboarding routes to use new structure
     const onboarding = {
-      select_role: "/account/select_role",
-      join_map: "/account/join_map",
-      onboard_manager: "/account/onboard_manager",
+      select_role: "/account/onboarding",
+      join_map: "/account/onboarding/operator/profile",
+      onboard_manager: "/account/onboarding/manager/profile",
       payment_plans: "/account/payment_plans",
-      user_survey: "/account/user_survey",
+      user_survey: "/account/onboarding/manager/survey",
       select_plan: "/account/select_plan",
     }
 
@@ -339,18 +340,20 @@
     }
 
     if (!isOnboardingPath) {
+      // If user hasn't selected a role yet, send to role selection
       if (!profile.role) {
         goto(onboarding.select_role)
         return
       }
 
+      // If user hasn't completed onboarding
       if (!profile.onboarded) {
         if (profile.role === "operator") {
-          if (!connected_map) {
-            goto(onboarding.join_map)
-            return
-          }
+          // Operators need to join a map
+          goto(onboarding.join_map)
+          return
         } else if (profile.role === "manager") {
+          // Managers need subscription (unless native) then profile setup
           if (!subscription && !isNative) {
             goto(onboarding.payment_plans)
             return

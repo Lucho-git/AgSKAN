@@ -470,14 +470,13 @@
                         Phone Support
                       </h3>
                       <a
-                        href="tel:+61800555247"
+                        href="tel:+61439405248"
                         class="block text-lg font-medium text-base-content hover:underline"
                       >
-                        +61 (800) 555-AGSK
+                        +61 (439) 405-248
                       </a>
                       <p class="mt-2 text-contrast-content/70">
-                        Available Monday - Friday<br />
-                        8:00 AM - 6:00 PM (AEST)
+                        Call or Text anytime
                       </p>
                     </div>
                   </div>
@@ -495,10 +494,11 @@
                         Email Us
                       </h3>
                       <a
-                        href="mailto:support@skanfarming.com.au"
+                        href="mailto:service@skanfarming.com
+"
                         class="block text-lg font-medium text-base-content hover:underline"
                       >
-                        support@skanfarming.com.au
+                        service@skanfarming.com
                       </a>
                       <p class="mt-2 text-contrast-content/70">
                         For general inquiries and support<br />

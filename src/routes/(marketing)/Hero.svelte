@@ -68,9 +68,7 @@
               Like Google Maps — But Built for Your Farm
             </h1>
 
-            <p
-              class="mt-6 font-inter text-xl leading-relaxed text-contrast-content/80"
-            >
+            <p class="mt-6 text-xl leading-relaxed text-contrast-content/80">
               See where every operator and machine is, live. Drop pins, avoid
               overlap, and get the job done quicker -- without radio chaos.
             </p>
