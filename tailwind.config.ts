@@ -63,8 +63,10 @@ const config: Config = {
                 sm: "calc(var(--radius) - 4px)",
             },
             fontFamily: {
-                sans: ["Montserrat", "Inter", ...fontFamily.sans],
-                archivo: ['Montserrat', 'Inter', 'sans'],
+                sans: ["Montserrat", "Inter", "ui-sans-serif", "system-ui", "sans-serif"], // Remove ...fontFamily.sans
+                montserrat: ["Montserrat", "ui-sans-serif", "system-ui", "sans-serif"],
+                inter: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+                archivo: ['Montserrat', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], // Fix this naming
             },
             animation: {
                 'accordion-down': 'accordion-down 0.2s ease-out',
