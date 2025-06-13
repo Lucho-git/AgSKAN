@@ -228,7 +228,7 @@
           on:mouseleave={handleDropdownLeave}
         >
           <button
-            class="flex items-center gap-1 text-base font-semibold transition-colors hover:text-primary"
+            class="flex items-center gap-1 text-base font-semibold transition-colors hover:text-base-content"
             on:click={() => (isCompanyDropdownOpen = !isCompanyDropdownOpen)}
           >
             Company
@@ -382,9 +382,9 @@
           </div>
 
           <!-- Mobile Company Section with Same Perfect Pattern -->
-          <div class="mt-2 border-t border-base-content/10 pt-2">
+          <div class="mt-2 border-t border-base-content/30 pt-2">
             <div
-              class="px-3 py-2 text-sm font-bold uppercase tracking-wide text-base-content/60"
+              class="px-3 py-2 text-sm font-bold uppercase tracking-wide text-base-content/95"
             >
               Company
             </div>

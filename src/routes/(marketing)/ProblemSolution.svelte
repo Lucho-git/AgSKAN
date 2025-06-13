@@ -129,7 +129,7 @@
 
         <div class="mt-12">
           <button
-            class="group btn btn-secondary w-full text-lg shadow-lg shadow-secondary/30 transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
+            class="group btn btn-secondary w-full text-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
             on:click={() => goto("/login?tab=sign_up")}
           >
             Start Free and Get Instant Visibility

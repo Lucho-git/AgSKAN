@@ -65,11 +65,11 @@
             <h1
               class="font-sans text-4xl font-bold leading-tight text-contrast-content md:text-5xl"
             >
-              Like Google Maps -- But Built for Your Farm
+              Like Google Maps — But Built for Your Farm
             </h1>
 
             <p
-              class="font-inter mt-6 text-xl leading-relaxed text-contrast-content/80"
+              class="mt-6 font-inter text-xl leading-relaxed text-contrast-content/80"
             >
               See where every operator and machine is, live. Drop pins, avoid
               overlap, and get the job done quicker -- without radio chaos.
@@ -84,7 +84,7 @@
                 <MapPin size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
-                >No hardware needed -- works on any smartphone or tablet</span
+                >No hardware needed — works on any smartphone or tablet</span
               >
             </li>
 

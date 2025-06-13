@@ -19,7 +19,7 @@
     {
       icon: Map,
       title: "Real-Time Tracking",
-      subtitle: "Know Where Everyone Is -- Without the Phone Calls",
+      subtitle: "Know Where Everyone Is — Without the Phone Calls",
       description:
         "See your operators and gear live in the paddock. No more guessing, no more radio chatter -- just clear visibility from any phone or tablet.",
       imageUrl:

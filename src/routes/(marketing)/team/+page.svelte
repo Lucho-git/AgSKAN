@@ -55,19 +55,19 @@
       name: "Ryan Skamp",
       role: "CEO & Co-Founder",
       bio: "Ryan has over 5000+ hours of machinery operating experience after spending 5+ years working in the Agricultural industry. He is applying these industry insights to build a program that will make farmers' lives easier.",
-      image: "/images/ryanmassive.png",
+      image: "/images/ryan.jpg",
     },
     {
       name: "Lachie Ross",
       role: "CTO & Co-Founder",
       bio: "Lachie is a software engineer with a degree in Computer Science from Curtin University. He has been involved in many startups and innovations, bringing a wealth of technical knowledge to AgSKAN.",
-      image: "/images/lachmassive.png",
+      image: "/images/lachjacked.png",
     },
     {
       name: "Ella Ross",
       role: "Community Engagement Manager",
       bio: "Ella brings infectious enthusiasm and a genuine passion for connecting with farming communities across Australia. With her natural ability to bring people together, she's the heart of AgSKAN's outreach efforts.",
-      image: "/images/ellamassive.png",
+      image: "/images/Ella2.jpeg",
     },
     {
       name: "Filip Rippel",
