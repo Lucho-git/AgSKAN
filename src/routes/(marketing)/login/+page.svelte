@@ -42,17 +42,19 @@
     theme: {
       default: {
         colors: {
-          brand: "hsl(var(--s))", // secondary color
-          brandAccent: "hsl(var(--sf))", // secondary focus
-          inputText: "hsl(var(--bc))",
-          brandButtonText: "hsl(var(--sc))", // secondary content
-          messageText: "hsl(var(--bc))",
-          dividerBackground: "hsl(var(--b3))",
-          inputLabelText: "hsl(var(--bc))",
-          defaultButtonText: "hsl(var(--bc))",
-          anchorTextColor: "hsl(var(--s))",
-          inputBackground: "hsl(var(--b1))",
-          inputBorder: "hsl(var(--b3))",
+          brand: "#F7DB5C", // Yellow button background
+          brandAccent: "#E6C94F", // Slightly darker yellow for hover/focus
+          brandButtonText: "#232322", // Black text on yellow button
+
+          inputText: "hsl(var(--bc))", // input text color and border while typing
+          messageText: "hsl(var(--bc))", // error/success messages
+          dividerBackground: "hsl(var(--b3))", // divider color
+          inputLabelText: "hsl(var(--bc))", // input label text
+          defaultButtonText: "hsl(var(--bc))", // Google auth text color
+          anchorTextColor: "hsl(var(--p))", // link colors
+          inputBackground: "hsl(var(--b1))", // input background color while typing
+          inputBorder: "oklch(var(--contrast-content))", // Black in light, white in dark
+          defaultButtonBorder: "oklch(var(--contrast-content))", // Google button border
         },
         fonts: {
           bodyFontFamily: `ui-sans-serif, system-ui, sans-serif`,
