@@ -66,20 +66,20 @@
   // Style variations
   const styleVariations = {
     default: {
-      name: "Default (Yellow)",
+      name: "Default (Faded)",
       colors: {
         brand: "#F7DB5C",
         brandAccent: "#E6C94F",
         brandButtonText: "#232322",
-        inputText: "hsl(var(--bc))",
+        inputText: "oklch(var(--contrast-content) / 0.7)", // Faded
         messageText: "hsl(var(--bc))",
-        dividerBackground: "white",
-        inputLabelText: "hsl(var(--bc))",
+        dividerBackground: "oklch(var(--contrast-content) / 0.2)",
+        inputLabelText: "hsl(var(--bc) / 0.8)", // Slightly faded
         defaultButtonText: "hsl(var(--bc))",
         anchorTextColor: "hsl(var(--p))",
         inputBackground: "hsl(var(--b1))",
-        inputBorder: "oklch(var(--contrast-content))",
-        defaultButtonBorder: "oklch(var(--contrast-content))",
+        inputBorder: "oklch(var(--contrast-content) / 0.4)", // Much more faded
+        defaultButtonBorder: "oklch(var(--contrast-content) / 0.25)",
       },
     },
     green: {
@@ -554,7 +554,7 @@
   {#if activeTab === "sign_in"}
     <div class="mt-4 text-center">
       <a
-        class="hover:text-primary-focus text-sm font-medium text-base-content transition-colors duration-200"
+        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
         href="/login/forgot_password"
       >
         Forgot Password?
@@ -570,7 +570,7 @@
       </span>
       <button
         on:click={() => (activeTab = "sign_up")}
-        class="hover:text-primary-focus text-sm font-medium text-base-content transition-colors duration-200"
+        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
       >
         Sign up for free
       </button>
@@ -579,12 +579,12 @@
 
   {#if activeTab === "sign_up"}
     <div class="mt-6 text-center">
-      <span class="text-sm text-base-content/60"
+      <span class="text-sm text-contrast-content/60"
         >Already have an account?
       </span>
       <button
         on:click={() => (activeTab = "sign_in")}
-        class="hover:text-primary-focus text-sm font-medium text-primary transition-colors duration-200"
+        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
       >
         Sign in
       </button>
