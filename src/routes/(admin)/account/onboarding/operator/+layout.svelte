@@ -47,7 +47,7 @@
     currentStep > 1 ? steps[currentStep - 2]?.label : "Role Selection"
 </script>
 
-<div class="min-h-screen bg-base-100">
+<div class="relative min-h-screen overflow-hidden bg-base-100">
   <!-- Decorative Elements -->
   <div
     class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
