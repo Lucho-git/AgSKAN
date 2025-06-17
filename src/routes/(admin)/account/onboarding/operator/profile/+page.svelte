@@ -1,7 +1,7 @@
 <!-- src/routes/(admin)/account/onboarding/operator/profile/+page.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import { Map, User, ArrowLeft, Check, ArrowRight } from "lucide-svelte"
+  import { Map, User, Check, ArrowRight, Info } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
@@ -22,12 +22,34 @@
   let isLoading = false
   let isJoiningMap = false
   let fullName = ""
+  let exampleMapCode = ""
 
   // Form validation errors
   let errors = {
     fullName: "",
     mapId: "",
   }
+
+  // Generate example map code similar to React version
+  function generateExampleMapCode() {
+    const hexChars = "0123456789abcdef"
+    const sections = [8, 4, 4, 4, 12] // Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+    let uuid = ""
+    sections.forEach((length, index) => {
+      for (let i = 0; i < length; i++) {
+        uuid += hexChars.charAt(Math.floor(Math.random() * hexChars.length))
+      }
+      if (index < sections.length - 1) {
+        uuid += "-"
+      }
+    })
+
+    return uuid
+  }
+
+  // Initialize example map code
+  exampleMapCode = generateExampleMapCode()
 
   // Check if already connected to a map
   $: hasConnectedMap = $connectedMapStore?.id || connectedMap
@@ -41,7 +63,26 @@
     if (field === "fullName") {
       fullName = value as string
     } else if (field === "mapId") {
-      joinMapId = value as string
+      let formattedValue = value as string
+      // Remove any non-alphanumeric characters except dashes
+      formattedValue = formattedValue.replace(/[^a-zA-Z0-9-]/g, "")
+
+      // Auto-add dashes in the right positions for UUID format
+      if (formattedValue.length > joinMapId.length) {
+        const positions = [8, 13, 18, 23]
+        positions.forEach((pos) => {
+          if (
+            formattedValue.length > pos &&
+            formattedValue.charAt(pos) !== "-" &&
+            formattedValue.charAt(pos - 1) !== "-"
+          ) {
+            formattedValue =
+              formattedValue.slice(0, pos) + "-" + formattedValue.slice(pos)
+          }
+        })
+      }
+
+      joinMapId = formattedValue
     } else if (field === "skipMapId") {
       skipMapId = value as boolean
     }
@@ -228,7 +269,7 @@
 <!-- Header -->
 <div class="mb-10 text-center">
   <h2 class="mb-3 text-4xl font-bold text-contrast-content">
-    Join <span class="text-warning">Map</span>
+    Join <span class="text-base-content">Map</span>
   </h2>
   <p class="mx-auto max-w-md text-contrast-content/60">
     Connect to your farm's map
@@ -262,14 +303,14 @@
   >
     <!-- Card header decoration -->
     <div
-      class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
     ></div>
 
     <div class="p-8 md:p-10">
       <!-- Connected Map Info -->
       <div class="mb-8 rounded-xl bg-base-200 p-6">
         <div class="mb-3 flex items-center gap-3">
-          <div class="rounded-md bg-warning/20 p-2 text-warning">
+          <div class="rounded-md bg-base-content/20 p-2 text-base-content">
             <Map size={20} />
           </div>
           <h3 class="text-lg font-semibold text-contrast-content">
@@ -289,7 +330,7 @@
         <label
           class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
         >
-          <div class="rounded-md bg-base-200 p-1.5 text-warning">
+          <div class="rounded-md bg-base-200 p-1.5 text-base-content">
             <User size={16} />
           </div>
           Full Name
@@ -304,8 +345,9 @@
             placeholder="Enter your full name"
             bind:value={fullName}
             on:input={(e) => handleInputChange("fullName", e.target.value)}
-            class="input input-bordered w-full text-contrast-content
-              {errors.fullName ? 'input-error' : 'focus:border-warning'}"
+            class="w-full border bg-base-200 {errors.fullName
+              ? 'border-error'
+              : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
             required
           />
           {#if errors.fullName}
@@ -322,29 +364,17 @@
         <button
           on:click={handleContinue}
           disabled={!fullName.trim() || isLoading}
-          class="group btn btn-warning w-full py-4 text-lg
-            {!fullName.trim() || isLoading
-            ? 'btn-disabled'
-            : 'transform transition-transform hover:-translate-y-0.5'}"
+          class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {#if isLoading}
             <span class="loading loading-spinner"></span>
           {:else}
-            <span>Continue to Vehicle Setup</span>
+            <span>Continue to Vehicle Selection</span>
             <ArrowRight
               size={18}
               class="transition-transform group-hover:translate-x-1"
             />
           {/if}
-        </button>
-
-        <button
-          type="button"
-          on:click={() => goto("/account/onboarding")}
-          class="btn btn-ghost mt-3 w-full text-contrast-content/60 hover:text-warning"
-        >
-          <ArrowLeft size={16} />
-          <span>Back to Role Selection</span>
         </button>
       </div>
     </div>
@@ -356,7 +386,7 @@
   >
     <!-- Card header decoration -->
     <div
-      class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
     ></div>
 
     <div class="p-8 md:p-10">
@@ -366,7 +396,7 @@
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <User size={16} />
             </div>
             Full Name
@@ -381,8 +411,9 @@
               placeholder="Enter your full name"
               bind:value={fullName}
               on:input={(e) => handleInputChange("fullName", e.target.value)}
-              class="input input-bordered w-full text-contrast-content
-                {errors.fullName ? 'input-error' : 'focus:border-warning'}"
+              class="w-full border bg-base-200 {errors.fullName
+                ? 'border-error'
+                : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
               required
             />
             {#if errors.fullName}
@@ -402,7 +433,7 @@
             <label
               class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
                 <Map size={16} />
               </div>
               Map ID
@@ -412,33 +443,52 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter map ID"
-                  bind:value={joinMapId}
-                  on:input={(e) => {
-                    handleInputChange("mapId", e.target.value)
-                    checkMapIdValidity()
-                  }}
-                  class="input input-bordered flex-1 text-contrast-content
-                    {errors.mapId ? 'input-error' : 'focus:border-warning'}"
-                  required={!skipMapId}
-                />
-                <button
-                  type="button"
-                  on:click={handleJoinMap}
-                  disabled={!isValidMapId || isJoiningMap}
-                  class="btn btn-outline btn-warning
-                    {!isValidMapId || isJoiningMap ? 'btn-disabled' : ''}"
-                >
-                  {#if isJoiningMap}
-                    <span class="loading loading-spinner loading-sm"></span>
-                  {:else}
-                    Join
-                  {/if}
-                </button>
+              <div class="space-y-2">
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter map ID"
+                    bind:value={joinMapId}
+                    on:input={(e) => {
+                      handleInputChange("mapId", e.target.value)
+                      checkMapIdValidity()
+                    }}
+                    class="flex-1 border bg-base-200 {errors.mapId
+                      ? 'border-error'
+                      : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                    required={!skipMapId}
+                  />
+                  <button
+                    type="button"
+                    on:click={handleJoinMap}
+                    disabled={!isValidMapId || isJoiningMap}
+                    class="rounded-xl border border-base-300 bg-base-200 px-6 py-4 font-semibold transition-all {!isValidMapId ||
+                    isJoiningMap
+                      ? 'cursor-not-allowed text-contrast-content/50'
+                      : 'text-base-content hover:border-base-content/40 hover:bg-base-content/10'}"
+                  >
+                    {#if isJoiningMap}
+                      <span class="loading loading-spinner loading-sm"></span>
+                    {:else}
+                      Join
+                    {/if}
+                  </button>
+                </div>
+
+                <!-- Example Map Code -->
+                <div class="ml-1 flex items-center gap-2">
+                  <div class="text-xs text-info">
+                    <Info size={14} />
+                  </div>
+                  <div class="text-xs text-contrast-content/60">
+                    Example format: <span
+                      class="rounded-md bg-info/10 px-2 py-0.5 font-mono text-info/80"
+                      >{exampleMapCode}</span
+                    >
+                  </div>
+                </div>
               </div>
+
               {#if joinMapId && !isValidMapId}
                 <p
                   class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
@@ -475,8 +525,8 @@
               <div
                 class="flex h-5 w-5 items-center justify-center rounded-md transition-all
                 {skipMapId
-                  ? 'bg-warning text-warning-content'
-                  : 'border border-base-300 bg-base-100 hover:border-warning/50'}"
+                  ? 'bg-base-content text-base-100'
+                  : 'border border-base-300 bg-base-200 hover:border-base-content/50'}"
               >
                 {#if skipMapId}
                   <Check size={14} />
@@ -484,7 +534,7 @@
               </div>
             </label>
           </div>
-          <label class="cursor-pointer text-sm text-warning">
+          <label class="cursor-pointer text-sm text-base-content">
             I'll add my map ID later
           </label>
         </div>
@@ -493,31 +543,20 @@
       <!-- Form Actions -->
       <div class="mt-10 flex flex-col items-center">
         <button
+          type="button"
           on:click={handleContinue}
           disabled={!isFormValid || isLoading}
-          class="group btn btn-warning w-full py-4 text-lg
-            {!isFormValid || isLoading
-            ? 'btn-disabled'
-            : 'transform transition-transform hover:-translate-y-0.5'}"
+          class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {#if isLoading}
             <span class="loading loading-spinner"></span>
           {:else}
-            <span>Continue to Vehicle Setup</span>
+            <span>Continue to Vehicle Selection</span>
             <ArrowRight
               size={18}
               class="transition-transform group-hover:translate-x-1"
             />
           {/if}
-        </button>
-
-        <button
-          type="button"
-          on:click={() => goto("/account/onboarding")}
-          class="btn btn-ghost mt-3 w-full text-contrast-content/60 hover:text-warning"
-        >
-          <ArrowLeft size={16} />
-          <span>Back to Role Selection</span>
         </button>
 
         <div
@@ -530,26 +569,6 @@
     </div>
   </div>
 {/if}
-
-<!-- Support Chat Button (fixed position) -->
-<div
-  class="fixed bottom-6 right-6 cursor-pointer rounded-full bg-warning p-3 text-warning-content shadow-lg transition-all hover:scale-105 hover:bg-warning/90"
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-    ></path>
-  </svg>
-</div>
 
 <style>
   @keyframes shake {

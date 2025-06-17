@@ -96,10 +96,10 @@
 >
   <!-- Decorative Elements -->
   <div
-    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-warning/5 blur-3xl"
+    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
   ></div>
   <div
-    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-warning/5 blur-3xl"
+    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
   ></div>
 
   <!-- Main content -->
@@ -147,8 +147,8 @@
           <div
             class="group relative transform cursor-pointer overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02]
               {selectedRole === role.id
-              ? 'border-2 border-warning bg-base-100 shadow-[0_0_15px_rgba(254,221,100,0.3)]'
-              : 'border border-base-300 bg-base-100 hover:border-warning/40 hover:shadow-md'}"
+              ? 'border-2 border-base-content bg-base-100 shadow-[0_0_15px_rgba(0,0,0,0.15)]'
+              : 'border border-base-300 bg-base-100 hover:border-base-content/40 hover:shadow-md'}"
             on:click={() => (selectedRole = role.id)}
             on:keydown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -166,8 +166,8 @@
                 <div
                   class="rounded-xl p-4 transition-all duration-300
                   {selectedRole === role.id
-                    ? 'bg-warning/20 text-warning'
-                    : 'bg-base-200 text-contrast-content group-hover:bg-warning/10 group-hover:text-warning'}"
+                    ? 'bg-base-content/20 text-base-content'
+                    : 'bg-base-200 text-contrast-content group-hover:bg-base-content/10 group-hover:text-base-content'}"
                 >
                   <svelte:component
                     this={role.Icon}
@@ -178,8 +178,8 @@
                 <div
                   class="flex h-6 w-6 items-center justify-center rounded-full transition-all duration-300
                   {selectedRole === role.id
-                    ? 'bg-warning text-warning-content'
-                    : 'border border-base-300 group-hover:border-warning/40'}"
+                    ? 'bg-base-content text-base-100'
+                    : 'border border-base-300 group-hover:border-base-content/40'}"
                 >
                   {#if selectedRole === role.id}
                     <svg
@@ -202,8 +202,8 @@
               <h3
                 class="mb-3 text-2xl font-bold transition-all duration-300
                 {selectedRole === role.id
-                  ? 'origin-left scale-105 transform text-warning'
-                  : 'text-contrast-content group-hover:text-warning'}"
+                  ? 'origin-left scale-105 transform text-base-content'
+                  : 'text-contrast-content group-hover:text-base-content'}"
               >
                 {role.title}
               </h3>
@@ -218,8 +218,8 @@
                       this={feature.icon}
                       size={16}
                       class="{selectedRole === role.id
-                        ? 'text-warning'
-                        : 'text-contrast-content/60 group-hover:text-warning'} transition-all"
+                        ? 'text-base-content'
+                        : 'text-contrast-content/60 group-hover:text-base-content'} transition-all"
                     />
                     <span
                       class="text-sm {selectedRole === role.id
@@ -241,7 +241,7 @@
         <button
           class="group flex items-center justify-center gap-2 rounded-lg px-8 py-4 text-base font-semibold transition-all duration-300
             {selectedRole
-            ? 'hover:bg-warning-focus transform bg-warning text-warning-content shadow-lg shadow-warning/20 hover:scale-105 hover:shadow-xl hover:shadow-warning/30'
+            ? 'transform bg-base-content text-base-100 shadow-lg shadow-base-content/20 hover:scale-105 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/30'
             : 'cursor-not-allowed bg-base-300 text-contrast-content/40'}"
           disabled={!selectedRole || loading}
           on:click={handleSubmit}

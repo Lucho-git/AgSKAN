@@ -1,7 +1,7 @@
 <!-- src/routes/(admin)/account/onboarding/operator/operator_vehicle/+page.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import { ArrowLeft, ArrowRight, CheckCircle, Truck } from "lucide-svelte"
+  import { ArrowRight, CheckCircle, Truck } from "lucide-svelte"
 </script>
 
 <svelte:head>
@@ -11,32 +11,36 @@
 
 <!-- Header -->
 <div class="mb-12 text-center">
-  <h2 class="mb-2 text-4xl font-bold text-warning">Vehicle Setup</h2>
+  <h2 class="mb-2 text-4xl font-bold text-contrast-content">
+    Vehicle <span class="text-base-content">Setup</span>
+  </h2>
   <p class="text-contrast-content/60">Vehicle configuration coming soon</p>
 </div>
 
-<!-- Back Button -->
-<button
-  on:click={() => goto("/account/onboarding/operator/profile")}
-  class="mb-8 flex items-center gap-2 text-contrast-content/60 transition-colors hover:text-warning"
->
-  <ArrowLeft size={16} />
-  <span>Back to Profile</span>
-</button>
-
 <!-- Vehicle Setup Placeholder -->
 <div
-  class="flex h-96 items-center justify-center rounded-xl border border-base-300 bg-base-100 p-8 shadow-lg"
+  class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
 >
-  <div class="text-center">
-    <div class="mb-4 flex justify-center">
-      <div class="rounded-full bg-warning/20 p-4">
-        <Truck size={32} class="text-warning" />
+  <!-- Card header decoration -->
+  <div
+    class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
+  ></div>
+
+  <div class="flex h-96 items-center justify-center p-8">
+    <div class="text-center">
+      <div class="mb-6 flex justify-center">
+        <div class="rounded-xl bg-base-content/20 p-6">
+          <Truck size={48} class="text-base-content" />
+        </div>
       </div>
+      <h3 class="mb-3 text-xl font-semibold text-contrast-content">
+        Vehicle Configuration
+      </h3>
+      <p class="max-w-md text-contrast-content/60">
+        Vehicle setup interface will be implemented here. You'll be able to
+        configure your equipment and preferences.
+      </p>
     </div>
-    <p class="text-contrast-content/60">
-      Vehicle setup interface will be implemented here
-    </p>
   </div>
 </div>
 
@@ -44,7 +48,7 @@
 <div class="mt-10 flex flex-col items-center">
   <button
     on:click={() => goto("/account")}
-    class="group btn btn-warning w-full transform py-4 text-lg transition-transform hover:-translate-y-0.5"
+    class="group flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
   >
     <CheckCircle size={18} />
     <span>Complete Setup & Go to Dashboard</span>
@@ -54,30 +58,10 @@
     />
   </button>
 
-  <div class="mt-4 flex items-center gap-2 text-xs text-contrast-content/40">
+  <div class="mt-6 flex items-center gap-2 text-xs text-contrast-content/40">
     <CheckCircle size={14} />
     <span
       >Your account setup is complete! You can always configure vehicles later.</span
     >
   </div>
-</div>
-
-<!-- Support Chat Button (fixed position) -->
-<div
-  class="fixed bottom-6 right-6 cursor-pointer rounded-full bg-warning p-3 text-warning-content shadow-lg transition-all hover:scale-105 hover:bg-warning/90"
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-    ></path>
-  </svg>
 </div>

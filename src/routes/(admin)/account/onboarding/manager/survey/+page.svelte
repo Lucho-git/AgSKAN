@@ -276,22 +276,18 @@
     if (currentStep === 1) {
       if (validateStep1()) {
         currentStep = 2
-        window.scrollTo(0, 0)
       }
     } else if (currentStep === 2) {
       if (validateStep2()) {
         currentStep = 3
-        window.scrollTo(0, 0)
       }
     } else if (currentStep === 3) {
       if (validateStep3()) {
         currentStep = 4
-        window.scrollTo(0, 0)
       }
     } else if (currentStep === 4) {
       if (validateStep4()) {
         currentStep = 5
-        window.scrollTo(0, 0)
       }
     } else if (currentStep === 5) {
       if (validateStep5()) {
@@ -304,9 +300,6 @@
   function handlePreviousStep() {
     if (currentStep > 1) {
       currentStep = currentStep - 1
-      window.scrollTo(0, 0)
-    } else {
-      goto("/account/onboarding/manager/profile")
     }
   }
 
@@ -341,6 +334,7 @@
   }
 </script>
 
+<!-- Rest of the component remains exactly the same... -->
 <svelte:head>
   <title>Quick Survey - AgSKAN</title>
   <meta
@@ -352,7 +346,7 @@
 <!-- Header -->
 <div class="mb-10 text-center">
   <h2 class="mb-3 text-4xl font-bold text-contrast-content">
-    Quick <span class="text-warning">Survey</span>
+    Quick <span class="text-base-content">Survey</span>
     <span class="text-lg font-medium text-contrast-content/60"
       >({currentStep}/5)</span
     >
@@ -366,12 +360,12 @@
   <!-- Skip survey link -->
   <button
     on:click={handleSkipSurvey}
-    class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-warning/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-warning/50 hover:bg-warning/5 hover:text-warning hover:shadow"
+    class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
   >
     <span>Skip survey and continue to map setup</span>
     <ArrowRight
       size={14}
-      class="text-warning/40 transition-all group-hover:translate-x-0.5 group-hover:text-warning"
+      class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
     />
   </button>
 </div>
@@ -382,7 +376,7 @@
 >
   <!-- Card header decoration -->
   <div
-    class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+    class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
   ></div>
 
   <form on:submit|preventDefault={handleNextStep} class="p-8 md:p-10">
@@ -394,13 +388,13 @@
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <MessageCircle size={16} />
             </div>
             How did you hear about us?
           </label>
           <div
-            class="mb-4 rounded-lg border-l-2 border-warning/30 bg-base-200/70 p-3 text-sm text-contrast-content/60"
+            class="mb-4 rounded-lg border-l-2 border-base-content/30 bg-base-200/70 p-3 text-sm text-contrast-content/60"
           >
             This information helps us understand where our community is coming
             from and supports our growth efforts
@@ -424,8 +418,8 @@
                   <div
                     class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                     {surveyData.referralSource === option.id
-                      ? 'border-warning bg-warning/20 text-warning'
-                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                      ? 'border-base-content bg-base-content/20 text-base-content'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
                   >
                     {option.label}
                   </div>
@@ -441,10 +435,9 @@
                   bind:value={surveyData.otherReferralSource}
                   on:input={(e) =>
                     handleInputChange("otherReferralSource", e.target.value)}
-                  class="input input-bordered w-full text-contrast-content
-                    {errors.otherReferralSource
-                    ? 'input-error'
-                    : 'focus:border-warning'}"
+                  class="w-full border bg-base-200 {errors.otherReferralSource
+                    ? 'border-error'
+                    : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
                 />
                 {#if errors.otherReferralSource}
                   <p
@@ -474,7 +467,7 @@
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <Users size={16} />
             </div>
             What is your role in the operation?
@@ -497,8 +490,8 @@
                   <div
                     class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                     {surveyData.role === option.id
-                      ? 'border-warning bg-warning/20 text-warning'
-                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                      ? 'border-base-content bg-base-content/20 text-base-content'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
                   >
                     {option.label}
                   </div>
@@ -514,8 +507,9 @@
                   bind:value={surveyData.otherRole}
                   on:input={(e) =>
                     handleInputChange("otherRole", e.target.value)}
-                  class="input input-bordered w-full text-contrast-content
-                    {errors.otherRole ? 'input-error' : 'focus:border-warning'}"
+                  class="w-full border bg-base-200 {errors.otherRole
+                    ? 'border-error'
+                    : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
                 />
                 {#if errors.otherRole}
                   <p
@@ -545,7 +539,7 @@
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <Grid3x3 size={16} />
             </div>
             How many hectares do you work over?
@@ -568,8 +562,8 @@
                   <div
                     class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                     {surveyData.hectares === option.id
-                      ? 'border-warning bg-warning/20 text-warning'
-                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                      ? 'border-base-content bg-base-content/20 text-base-content'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
                   >
                     {option.label}
                   </div>
@@ -597,7 +591,7 @@
           <label
             class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -644,8 +638,8 @@
                   <div
                     class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                     {surveyData.devicePreference === device
-                      ? 'border-warning bg-warning/20 text-warning'
-                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                      ? 'border-base-content bg-base-content/20 text-base-content'
+                      : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
                   >
                     {labels[device]}
                   </div>
@@ -673,7 +667,7 @@
           <label
             class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -717,8 +711,8 @@
                   tabindex="0"
                   class="flex cursor-pointer items-center justify-center rounded-lg p-4 text-sm transition-all
                     {isSelected
-                    ? 'border border-warning bg-warning/20 text-warning'
-                    : 'border border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}
+                    ? 'border border-base-content bg-base-content/20 text-base-content'
+                    : 'border border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}
                     {surveyData.featureInterests.length >= 3 && !isSelected
                     ? 'cursor-not-allowed opacity-50'
                     : ''}"
@@ -748,7 +742,7 @@
           <label
             class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -775,7 +769,9 @@
             <div class="space-y-10">
               <!-- First Feature -->
               <div class="rounded-xl border border-base-300 bg-base-200 p-6">
-                <h3 class="mb-2 text-center text-xl font-bold text-warning">
+                <h3
+                  class="mb-2 text-center text-xl font-bold text-base-content"
+                >
                   {FUTURE_FEATURES[0].title}
                 </h3>
                 <p class="mb-6 text-center text-contrast-content/80">
@@ -797,8 +793,8 @@
                         <div
                           class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                           {surveyData.pathRecreateInterest === level.id
-                            ? 'border-warning bg-warning/20 text-warning'
-                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-warning/40'}"
+                            ? 'border-base-content bg-base-content/20 text-base-content'
+                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-base-content/40'}"
                         >
                           {level.label}
                         </div>
@@ -810,7 +806,9 @@
 
               <!-- Second Feature -->
               <div class="rounded-xl border border-base-300 bg-base-200 p-6">
-                <h3 class="mb-2 text-center text-xl font-bold text-warning">
+                <h3
+                  class="mb-2 text-center text-xl font-bold text-base-content"
+                >
                   {FUTURE_FEATURES[1].title}
                 </h3>
                 <p class="mb-6 text-center text-contrast-content/80">
@@ -835,8 +833,8 @@
                         <div
                           class="block w-full rounded-lg border p-3 text-center text-sm transition-all
                           {surveyData.pathOptimizationInterest === level.id
-                            ? 'border-warning bg-warning/20 text-warning'
-                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-warning/40'}"
+                            ? 'border-base-content bg-base-content/20 text-base-content'
+                            : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-base-content/40'}"
                         >
                           {level.label}
                         </div>
@@ -867,7 +865,7 @@
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-warning">
+            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -898,8 +896,8 @@
                 tabindex="0"
                 class="flex cursor-pointer items-center justify-center rounded-lg border p-4 text-sm transition-all
                   {surveyData.enterpriseGoals.includes(goal.id)
-                  ? 'border-warning bg-warning/20 text-warning'
-                  : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-warning/40'}"
+                  ? 'border-base-content bg-base-content/20 text-base-content'
+                  : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
               >
                 <span class="text-center">{goal.label}</span>
               </div>
@@ -910,7 +908,7 @@
             <label
               class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-warning">
+              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -935,7 +933,7 @@
                 min="0"
                 max="100"
                 bind:value={surveyData.technologyInterest}
-                class="range range-warning w-full"
+                class="range-base-content range w-full"
               />
 
               <div
@@ -952,16 +950,23 @@
 
     <!-- Navigation Buttons -->
     <div class="mt-10 flex items-center justify-between gap-4">
-      <button
-        type="button"
-        on:click={handlePreviousStep}
-        class="btn btn-ghost text-contrast-content/60 hover:text-warning"
-      >
-        <ArrowLeft size={16} />
-        <span>Back</span>
-      </button>
+      {#if currentStep > 1}
+        <button
+          type="button"
+          on:click={handlePreviousStep}
+          class="flex items-center gap-2 rounded-xl border border-transparent bg-transparent px-4 py-2 text-sm font-medium text-contrast-content/60 transition-all hover:border-base-content/20 hover:bg-base-content/5 hover:text-base-content"
+        >
+          <ArrowLeft size={16} />
+          <span>Back</span>
+        </button>
+      {:else}
+        <div></div>
+      {/if}
 
-      <button type="submit" class="group btn btn-warning flex-1">
+      <button
+        type="submit"
+        class="flex transform items-center justify-center gap-2 rounded-xl bg-base-content px-8 py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
+      >
         <span>{currentStep < 5 ? "Next" : "Finish"}</span>
         <ArrowRight
           size={18}
@@ -982,7 +987,7 @@
       class="animate-fadeIn w-full max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl"
     >
       <div
-        class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
       ></div>
 
       <div class="relative p-6">
@@ -996,9 +1001,9 @@
 
         <div class="flex flex-col items-center py-6 text-center">
           <div
-            class="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-warning/20"
+            class="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-base-content/20"
           >
-            <CircleCheck size={40} class="text-warning" />
+            <CircleCheck size={40} class="text-base-content" />
           </div>
 
           <h3 class="mb-3 text-2xl font-bold text-contrast-content">
@@ -1012,7 +1017,7 @@
           <div class="w-full border-t border-base-300/40 pt-4">
             <button
               on:click={handleThankYouClose}
-              class="btn btn-warning w-full transform hover:-translate-y-0.5 active:translate-y-0"
+              class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
             >
               Continue to Map Setup
             </button>

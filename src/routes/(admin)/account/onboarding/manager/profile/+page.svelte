@@ -6,7 +6,6 @@
     Building2,
     Phone,
     ArrowRight,
-    ArrowLeft,
     Check,
     Shield,
   } from "lucide-svelte"
@@ -102,10 +101,6 @@
       loading = false
     }
   }
-
-  function goBack() {
-    goto("/account/onboarding")
-  }
 </script>
 
 <svelte:head>
@@ -116,7 +111,7 @@
 <!-- Header -->
 <div class="mb-10 text-center">
   <h2 class="mb-3 text-4xl font-bold text-contrast-content">
-    Your <span class="text-warning">Farm Details</span>
+    Your <span class="text-base-content">Farm Details</span>
   </h2>
   <p class="mx-auto max-w-md text-contrast-content/60">
     Help us understand your operation better to customize your experience
@@ -149,7 +144,7 @@
 >
   <!-- Card header decoration -->
   <div
-    class="h-1.5 w-full bg-gradient-to-r from-warning/80 via-warning to-warning/80"
+    class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
   ></div>
 
   <form on:submit|preventDefault={handleSubmit} class="p-8 md:p-10">
@@ -159,7 +154,7 @@
         <label
           class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
         >
-          <div class="rounded-md bg-base-200 p-1.5 text-warning">
+          <div class="rounded-md bg-base-200 p-1.5 text-base-content">
             <User size={16} />
           </div>
           Full Name
@@ -174,8 +169,9 @@
             placeholder="Enter your full name"
             bind:value={formData.fullName}
             on:input={(e) => handleInputChange("fullName", e.target.value)}
-            class="input input-bordered w-full text-contrast-content
-              {errors.fullName ? 'input-error' : 'focus:border-warning'}"
+            class="w-full border bg-base-200 {errors.fullName
+              ? 'border-error'
+              : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
             required
           />
           {#if errors.fullName}
@@ -192,7 +188,7 @@
         <label
           class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
         >
-          <div class="rounded-md bg-base-200 p-1.5 text-warning">
+          <div class="rounded-md bg-base-200 p-1.5 text-base-content">
             <Building2 size={16} />
           </div>
           Company/Farm Name
@@ -207,8 +203,9 @@
             placeholder="Enter your company or farm name"
             bind:value={formData.companyName}
             on:input={(e) => handleInputChange("companyName", e.target.value)}
-            class="input input-bordered w-full text-contrast-content
-              {errors.companyName ? 'input-error' : 'focus:border-warning'}"
+            class="w-full border bg-base-200 {errors.companyName
+              ? 'border-error'
+              : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
             required
           />
           {#if errors.companyName}
@@ -225,7 +222,7 @@
         <label
           class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
         >
-          <div class="rounded-md bg-base-200 p-1.5 text-warning">
+          <div class="rounded-md bg-base-200 p-1.5 text-base-content">
             <Phone size={16} />
           </div>
           Mobile Number
@@ -240,8 +237,9 @@
             placeholder="04XX XXX XXX"
             bind:value={formData.mobileNumber}
             on:input={(e) => handleInputChange("mobileNumber", e.target.value)}
-            class="input input-bordered w-full text-contrast-content
-              {errors.mobileNumber ? 'input-error' : 'focus:border-warning'}"
+            class="w-full border bg-base-200 {errors.mobileNumber
+              ? 'border-error'
+              : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
             required
           />
           {#if errors.mobileNumber}
@@ -267,8 +265,8 @@
             <div
               class="flex h-5 w-5 items-center justify-center rounded-md transition-all
               {formData.agreeToContact
-                ? 'bg-warning text-warning-content'
-                : 'border border-base-300 bg-base-100 hover:border-warning/50'}"
+                ? 'bg-base-content text-base-100'
+                : 'border border-base-300 bg-base-200 hover:border-base-content/50'}"
             >
               {#if formData.agreeToContact}
                 <Check size={14} />
@@ -278,7 +276,7 @@
         </div>
         <label
           for="agreeToContact"
-          class="cursor-pointer text-sm text-contrast-content/80"
+          class="cursor-pointer text-sm text-base-content"
         >
           I agree to be contacted by the AGSKAN team for setup assistance and
           important updates about my farm management system
@@ -291,10 +289,7 @@
       <button
         type="submit"
         disabled={!isFormValid || loading}
-        class="group btn btn-warning w-full py-4 text-lg
-          {!isFormValid || loading
-          ? 'btn-disabled'
-          : 'transform transition-transform hover:-translate-y-0.5'}"
+        class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
       >
         {#if loading}
           <span class="loading loading-spinner"></span>
@@ -305,15 +300,6 @@
             class="transition-transform group-hover:translate-x-1"
           />
         {/if}
-      </button>
-
-      <button
-        type="button"
-        on:click={goBack}
-        class="btn btn-ghost mt-3 w-full text-contrast-content/60 hover:text-warning"
-      >
-        <ArrowLeft size={16} />
-        <span>Back to Role Selection</span>
       </button>
 
       <div
