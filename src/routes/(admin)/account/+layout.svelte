@@ -145,6 +145,7 @@
           master_map_id: profile.master_map_id,
           recent_maps: profile.recent_maps,
           selected_operation_id: profile.selected_operation_id,
+          mobile: profile.mobile,
         })
       }
 

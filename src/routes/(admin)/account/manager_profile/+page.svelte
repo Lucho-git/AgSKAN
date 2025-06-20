@@ -451,7 +451,7 @@
                 for="agreeToContact"
                 class="cursor-pointer text-sm text-contrast-content/80"
               >
-                I agree to be contacted by the AGSKAN team for setup assistance
+                I agree to be contacted by the AgSKAN team for setup assistance
                 and important updates about my farm management system
               </label>
             </div>

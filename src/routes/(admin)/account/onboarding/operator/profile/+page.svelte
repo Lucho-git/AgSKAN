@@ -12,6 +12,7 @@
   } from "$lib/stores/operationStore.js"
   import { toast } from "svelte-sonner"
   import { mapApi } from "$lib/api/mapApi"
+  import { onMount } from "svelte"
 
   let formError: string | null = null
   let skipMapId = false
@@ -23,6 +24,7 @@
   let isJoiningMap = false
   let fullName = ""
   let exampleMapCode = ""
+  let dataLoaded = false
 
   // Form validation errors
   let errors = {
@@ -51,6 +53,33 @@
   // Initialize example map code
   exampleMapCode = generateExampleMapCode()
 
+  // Load existing profile data when component mounts
+  onMount(async () => {
+    if ($profileStore) {
+      // Prefill form with existing data from profile store
+      fullName = $profileStore.full_name || ""
+      dataLoaded = true
+    } else {
+      // If profile store is empty, try to fetch from database
+      try {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .single()
+
+        if (error) {
+          console.error("Error fetching profile:", error)
+        } else if (profile) {
+          fullName = profile.full_name || ""
+        }
+      } catch (error) {
+        console.error("Error loading profile data:", error)
+      } finally {
+        dataLoaded = true
+      }
+    }
+  })
+
   // Check if already connected to a map
   $: hasConnectedMap = $connectedMapStore?.id || connectedMap
 
@@ -58,6 +87,9 @@
   $: isFormValid =
     fullName.trim().length > 0 && // Name must not be empty
     (skipMapId || hasConnectedMap) // Either skip map ID or have a connected map
+
+  // Check if we have existing name data
+  $: hasExistingName = dataLoaded && fullName
 
   function handleInputChange(field: string, value: string | boolean) {
     if (field === "fullName") {
@@ -276,122 +308,65 @@
   </p>
 </div>
 
-<!-- Error Alert -->
-{#if formError}
-  <div class="alert alert-error mb-6">
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      class="h-6 w-6 shrink-0 stroke-current"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
-    <span>{formError}</span>
-  </div>
-{/if}
-
-{#if hasConnectedMap}
-  <!-- Connected Map Card -->
-  <div
-    class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-  >
-    <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
-
-    <div class="p-8 md:p-10">
-      <!-- Connected Map Info -->
-      <div class="mb-8 rounded-xl bg-base-200 p-6">
-        <div class="mb-3 flex items-center gap-3">
-          <div class="rounded-md bg-base-content/20 p-2 text-base-content">
-            <Map size={20} />
-          </div>
-          <h3 class="text-lg font-semibold text-contrast-content">
-            Connected Map
-          </h3>
-        </div>
-        <p class="font-medium text-contrast-content">
-          {$connectedMapStore?.map_name || connectedMap?.map_name}
-        </p>
-        <p class="text-sm text-contrast-content/60">
-          Owned by {$connectedMapStore?.owner || connectedMap?.owner}
-        </p>
-      </div>
-
-      <!-- Full Name Input -->
-      <div class="space-y-2">
-        <label
-          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
-        >
-          <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-            <User size={16} />
-          </div>
-          Full Name
-        </label>
-        <div
-          class="relative transition-all duration-300 {errors.fullName
-            ? 'animate-shake'
-            : ''}"
-        >
-          <input
-            type="text"
-            placeholder="Enter your full name"
-            bind:value={fullName}
-            on:input={(e) => handleInputChange("fullName", e.target.value)}
-            class="w-full border bg-base-200 {errors.fullName
-              ? 'border-error'
-              : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
-            required
-          />
-          {#if errors.fullName}
-            <p class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error">
-              <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
-              {errors.fullName}
-            </p>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Continue Button -->
-      <div class="mt-10 flex flex-col items-center">
-        <button
-          on:click={handleContinue}
-          disabled={!fullName.trim() || isLoading}
-          class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {#if isLoading}
-            <span class="loading loading-spinner"></span>
-          {:else}
-            <span>Continue to Vehicle Selection</span>
-            <ArrowRight
-              size={18}
-              class="transition-transform group-hover:translate-x-1"
-            />
-          {/if}
-        </button>
-      </div>
+<!-- Loading state while fetching data -->
+{#if !dataLoaded}
+  <div class="flex justify-center py-8">
+    <div class="flex items-center gap-3 text-contrast-content/60">
+      <span class="loading loading-spinner loading-sm"></span>
+      <span>Loading your information...</span>
     </div>
   </div>
 {:else}
-  <!-- Join Map Form -->
-  <div
-    class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-  >
-    <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
+  <!-- Error Alert -->
+  {#if formError}
+    <div class="alert alert-error mb-6">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6 shrink-0 stroke-current"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      <span>{formError}</span>
+    </div>
+  {/if}
 
-    <div class="p-8 md:p-10">
-      <div class="grid gap-8">
-        <!-- Full Name -->
+  {#if hasConnectedMap}
+    <!-- Connected Map Card -->
+    <div
+      class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    >
+      <!-- Card header decoration -->
+      <div
+        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
+      ></div>
+
+      <div class="p-8 md:p-10">
+        <!-- Connected Map Info -->
+        <div class="mb-8 rounded-xl bg-base-200 p-6">
+          <div class="mb-3 flex items-center gap-3">
+            <div class="rounded-md bg-base-content/20 p-2 text-base-content">
+              <Map size={20} />
+            </div>
+            <h3 class="text-lg font-semibold text-contrast-content">
+              Connected Map
+            </h3>
+          </div>
+          <p class="font-medium text-contrast-content">
+            {$connectedMapStore?.map_name || connectedMap?.map_name}
+          </p>
+          <p class="text-sm text-contrast-content/60">
+            Owned by {$connectedMapStore?.owner || connectedMap?.owner}
+          </p>
+        </div>
+
+        <!-- Full Name Input -->
         <div class="space-y-2">
           <label
             class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
@@ -400,6 +375,13 @@
               <User size={16} />
             </div>
             Full Name
+            {#if fullName && hasExistingName}
+              <span
+                class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
+              >
+                Saved
+              </span>
+            {/if}
           </label>
           <div
             class="relative transition-all duration-300 {errors.fullName
@@ -427,147 +409,234 @@
           </div>
         </div>
 
-        <!-- Map ID -->
-        {#if !skipMapId}
+        <!-- Continue Button -->
+        <div class="mt-10 flex flex-col items-center">
+          <button
+            on:click={handleContinue}
+            disabled={!fullName.trim() || isLoading}
+            class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {#if isLoading}
+              <span class="loading loading-spinner"></span>
+            {:else}
+              <span
+                >{hasExistingName
+                  ? "Update & Continue"
+                  : "Continue to Vehicle Selection"}</span
+              >
+              <ArrowRight
+                size={18}
+                class="transition-transform group-hover:translate-x-1"
+              />
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <!-- Join Map Form -->
+    <div
+      class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    >
+      <!-- Card header decoration -->
+      <div
+        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
+      ></div>
+
+      <div class="p-8 md:p-10">
+        <div class="grid gap-8">
+          <!-- Full Name -->
           <div class="space-y-2">
             <label
               class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
               <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-                <Map size={16} />
+                <User size={16} />
               </div>
-              Map ID
+              Full Name
+              {#if fullName && hasExistingName}
+                <span
+                  class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
+                >
+                  Saved
+                </span>
+              {/if}
             </label>
             <div
-              class="relative transition-all duration-300 {errors.mapId
+              class="relative transition-all duration-300 {errors.fullName
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="space-y-2">
-                <div class="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter map ID"
-                    bind:value={joinMapId}
-                    on:input={(e) => {
-                      handleInputChange("mapId", e.target.value)
-                      checkMapIdValidity()
-                    }}
-                    class="flex-1 border bg-base-200 {errors.mapId
-                      ? 'border-error'
-                      : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
-                    required={!skipMapId}
-                  />
-                  <button
-                    type="button"
-                    on:click={handleJoinMap}
-                    disabled={!isValidMapId || isJoiningMap}
-                    class="rounded-xl border border-base-300 bg-base-200 px-6 py-4 font-semibold transition-all {!isValidMapId ||
-                    isJoiningMap
-                      ? 'cursor-not-allowed text-contrast-content/50'
-                      : 'text-base-content hover:border-base-content/40 hover:bg-base-content/10'}"
-                  >
-                    {#if isJoiningMap}
-                      <span class="loading loading-spinner loading-sm"></span>
-                    {:else}
-                      Join
-                    {/if}
-                  </button>
-                </div>
-
-                <!-- Example Map Code -->
-                <div class="ml-1 flex items-center gap-2">
-                  <div class="text-xs text-info">
-                    <Info size={14} />
-                  </div>
-                  <div class="text-xs text-contrast-content/60">
-                    Example format: <span
-                      class="rounded-md bg-info/10 px-2 py-0.5 font-mono text-info/80"
-                      >{exampleMapCode}</span
-                    >
-                  </div>
-                </div>
-              </div>
-
-              {#if joinMapId && !isValidMapId}
+              <input
+                type="text"
+                placeholder="Enter your full name"
+                bind:value={fullName}
+                on:input={(e) => handleInputChange("fullName", e.target.value)}
+                class="w-full border bg-base-200 {errors.fullName
+                  ? 'border-error'
+                  : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                required
+              />
+              {#if errors.fullName}
                 <p
                   class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
-                  Invalid Map ID
-                </p>
-              {/if}
-              {#if errors.mapId}
-                <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
-                >
-                  <span class="inline-block h-1 w-1 rounded-full bg-error"
-                  ></span>
-                  {errors.mapId}
+                  {errors.fullName}
                 </p>
               {/if}
             </div>
           </div>
-        {/if}
 
-        <!-- Skip Map ID Checkbox -->
-        <div class="flex items-start gap-3">
-          <div class="flex h-6 items-center pt-1">
-            <label class="cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={skipMapId}
-                on:change={(e) =>
-                  handleInputChange("skipMapId", e.target.checked)}
-                class="sr-only"
-              />
-              <div
-                class="flex h-5 w-5 items-center justify-center rounded-md transition-all
-                {skipMapId
-                  ? 'bg-base-content text-base-100'
-                  : 'border border-base-300 bg-base-200 hover:border-base-content/50'}"
+          <!-- Map ID -->
+          {#if !skipMapId}
+            <div class="space-y-2">
+              <label
+                class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
               >
-                {#if skipMapId}
-                  <Check size={14} />
+                <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+                  <Map size={16} />
+                </div>
+                Map ID
+              </label>
+              <div
+                class="relative transition-all duration-300 {errors.mapId
+                  ? 'animate-shake'
+                  : ''}"
+              >
+                <div class="space-y-2">
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter map ID"
+                      bind:value={joinMapId}
+                      on:input={(e) => {
+                        handleInputChange("mapId", e.target.value)
+                        checkMapIdValidity()
+                      }}
+                      class="flex-1 border bg-base-200 {errors.mapId
+                        ? 'border-error'
+                        : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                      required={!skipMapId}
+                    />
+                    <button
+                      type="button"
+                      on:click={handleJoinMap}
+                      disabled={!isValidMapId || isJoiningMap}
+                      class="rounded-xl border border-base-300 bg-base-200 px-6 py-4 font-semibold transition-all {!isValidMapId ||
+                      isJoiningMap
+                        ? 'cursor-not-allowed text-contrast-content/50'
+                        : 'text-base-content hover:border-base-content/40 hover:bg-base-content/10'}"
+                    >
+                      {#if isJoiningMap}
+                        <span class="loading loading-spinner loading-sm"></span>
+                      {:else}
+                        Join
+                      {/if}
+                    </button>
+                  </div>
+
+                  <!-- Example Map Code -->
+                  <div class="ml-1 flex items-center gap-2">
+                    <div class="text-xs text-info">
+                      <Info size={14} />
+                    </div>
+                    <div class="text-xs text-contrast-content/60">
+                      Example format: <span
+                        class="rounded-md bg-info/10 px-2 py-0.5 font-mono text-info/80"
+                        >{exampleMapCode}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                {#if joinMapId && !isValidMapId}
+                  <p
+                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  >
+                    <span class="inline-block h-1 w-1 rounded-full bg-error"
+                    ></span>
+                    Invalid Map ID
+                  </p>
+                {/if}
+                {#if errors.mapId}
+                  <p
+                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  >
+                    <span class="inline-block h-1 w-1 rounded-full bg-error"
+                    ></span>
+                    {errors.mapId}
+                  </p>
                 {/if}
               </div>
+            </div>
+          {/if}
+
+          <!-- Skip Map ID Checkbox -->
+          <div class="flex items-start gap-3">
+            <div class="flex h-6 items-center pt-1">
+              <label class="cursor-pointer">
+                <input
+                  type="checkbox"
+                  bind:checked={skipMapId}
+                  on:change={(e) =>
+                    handleInputChange("skipMapId", e.target.checked)}
+                  class="sr-only"
+                />
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-md transition-all
+                  {skipMapId
+                    ? 'bg-base-content text-base-100'
+                    : 'border border-base-300 bg-base-200 hover:border-base-content/50'}"
+                >
+                  {#if skipMapId}
+                    <Check size={14} />
+                  {/if}
+                </div>
+              </label>
+            </div>
+            <label class="cursor-pointer text-sm text-base-content">
+              I'll add my map ID later
             </label>
           </div>
-          <label class="cursor-pointer text-sm text-base-content">
-            I'll add my map ID later
-          </label>
         </div>
-      </div>
 
-      <!-- Form Actions -->
-      <div class="mt-10 flex flex-col items-center">
-        <button
-          type="button"
-          on:click={handleContinue}
-          disabled={!isFormValid || isLoading}
-          class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {#if isLoading}
-            <span class="loading loading-spinner"></span>
-          {:else}
-            <span>Continue to Vehicle Selection</span>
-            <ArrowRight
-              size={18}
-              class="transition-transform group-hover:translate-x-1"
-            />
-          {/if}
-        </button>
+        <!-- Form Actions -->
+        <div class="mt-10 flex flex-col items-center">
+          <button
+            type="button"
+            on:click={handleContinue}
+            disabled={!isFormValid || isLoading}
+            class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {#if isLoading}
+              <span class="loading loading-spinner"></span>
+            {:else}
+              <span
+                >{hasExistingName
+                  ? "Update & Continue"
+                  : "Continue to Vehicle Selection"}</span
+              >
+              <ArrowRight
+                size={18}
+                class="transition-transform group-hover:translate-x-1"
+              />
+            {/if}
+          </button>
 
-        <div
-          class="mt-6 flex items-center gap-2 text-xs text-contrast-content/40"
-        >
-          <Map size={14} />
-          <span>You can always connect to a map later from your dashboard</span>
+          <div
+            class="mt-6 flex items-center gap-2 text-xs text-contrast-content/40"
+          >
+            <Map size={14} />
+            <span
+              >You can always connect to a map later from your dashboard</span
+            >
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  {/if}
 {/if}
 
 <style>

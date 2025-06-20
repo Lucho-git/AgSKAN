@@ -112,7 +112,7 @@
           class="relative mb-4 inline-block text-4xl font-bold text-contrast-content md:text-5xl"
         >
           Welcome to
-          <span class="ml-2 text-base-content"> AGSKAN </span>
+          <span class="ml-2 text-base-content"> AgSKAN </span>
         </h2>
         <p class="mx-auto max-w-2xl text-lg text-contrast-content/60">
           Select your role to begin your agricultural management experience

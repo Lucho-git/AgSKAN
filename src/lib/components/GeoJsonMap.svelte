@@ -124,22 +124,46 @@
   {height}
   viewBox="0 0 {width} {height}"
   xmlns="http://www.w3.org/2000/svg"
+  class="field-boundary-svg"
 >
-  <path
-    d={pathData}
-    fill="rgba(34, 197, 94, 0.45)"
-    stroke="#fefbf6"
-    stroke-width="2.5"
-    filter="drop-shadow(0 0 4px rgba(0, 0, 0, 0.5))"
-    fill-rule="evenodd"
-  />
+  <!-- Polygon with theme-aware styling -->
+  <path d={pathData} class="field-polygon" fill-rule="evenodd" />
 </svg>
 
 <style>
-  svg {
+  .field-boundary-svg {
     width: 100%;
     height: 100%;
     max-width: 100%;
     max-height: 100%;
+    background: transparent; /* Remove any background */
+  }
+
+  .field-polygon {
+    /* Light theme colors */
+    fill: rgba(34, 197, 94, 0.25);
+    stroke: rgba(34, 197, 94, 0.8);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 2px 8px rgba(34, 197, 94, 0.3));
+    transition: all 0.3s ease;
+  }
+
+  /* Dark theme colors */
+  :global(.dark) .field-polygon {
+    fill: rgba(34, 197, 94, 0.15);
+    stroke: rgba(34, 197, 94, 0.6);
+    filter: drop-shadow(0 2px 8px rgba(34, 197, 94, 0.2));
+  }
+
+  .field-polygon:hover {
+    fill: rgba(34, 197, 94, 0.35);
+    stroke: rgba(34, 197, 94, 1);
+    filter: drop-shadow(0 4px 12px rgba(34, 197, 94, 0.4));
+  }
+
+  :global(.dark) .field-polygon:hover {
+    fill: rgba(34, 197, 94, 0.25);
+    stroke: rgba(34, 197, 94, 0.8);
+    filter: drop-shadow(0 4px 12px rgba(34, 197, 94, 0.3));
   }
 </style>
