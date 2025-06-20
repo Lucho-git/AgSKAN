@@ -27,6 +27,7 @@
         "Create and oversee farm operations, manage team members, and analyze performance metrics",
       accentColor: "#FEDD64", // Yellow
       hoverColor: "rgb(250 204 21)", // yellow-400
+      gradientBg: "bg-gradient-to-br from-base-200 to-base-300", // Neutral background to make yellow pop
       features: [
         { text: "Manage Maps", icon: MapPin },
         { text: "Team Control", icon: UserRound },
@@ -40,6 +41,7 @@
         "Execute field operations, track progress, and submit reports from the field",
       accentColor: "#3B82F6", // Blue
       hoverColor: "rgb(59 130 246)", // blue-500
+      gradientBg: "bg-gradient-to-br from-slate-50 to-slate-100/80", // Same neutral background
       features: [
         { text: "View Tasks", icon: ClipboardList },
         { text: "Track Progress", icon: Send },
@@ -146,7 +148,8 @@
       >
         {#each roles as role}
           <div
-            class="role-card group relative cursor-pointer overflow-hidden rounded-xl bg-base-100 transition-shadow duration-200
+            class="role-card group relative cursor-pointer overflow-hidden rounded-xl transition-shadow duration-200
+              {role.gradientBg}
               {selectedRole === role.id
               ? 'border-2 shadow-[0_0_15px_rgba(0,0,0,0.15)]'
               : 'border border-base-300 hover:shadow-md'}"
@@ -176,7 +179,7 @@
             <div
               class="absolute inset-0 bg-gradient-to-b from-transparent to-base-200/40 opacity-0 transition-opacity group-hover:opacity-100"
             ></div>
-            <div class="p-8">
+            <div class="relative z-10 p-8">
               <div class="mb-6 flex items-start justify-between">
                 <!-- Icon container - instant color change with role-specific hover -->
                 <div

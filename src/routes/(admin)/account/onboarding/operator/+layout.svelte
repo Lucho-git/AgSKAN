@@ -57,15 +57,16 @@
   ></div>
 
   <main class="container mx-auto flex flex-col items-center px-6 py-16">
-    <div class="relative mx-auto w-full max-w-xl">
-      <!-- Progress Indicator (centered) -->
-      <div class="mb-4 flex items-center justify-center gap-3">
+    <!-- Progress Indicator - Responsive -->
+    <div class="mx-auto mb-4 w-full max-w-md">
+      <div class="flex items-center justify-between">
         {#each Array.from({ length: totalSteps }, (_, i) => i + 1) as step, index}
-          <div class="flex items-center">
+          <!-- Step Circle -->
+          <div class="flex flex-col items-center">
             <button
               on:click={() => navigateToStep(step)}
               disabled={step > currentStep}
-              class="flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-all
+              class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all
               {step < currentStep
                 ? 'cursor-pointer bg-base-content text-base-100 hover:bg-base-content/90'
                 : step === currentStep
@@ -75,22 +76,27 @@
               title={step <= currentStep ? steps[step - 1]?.label : ""}
             >
               {#if step < currentStep}
-                <Check size={14} strokeWidth={3} />
+                <Check size={12} strokeWidth={3} />
               {:else}
                 <span>{step}</span>
               {/if}
             </button>
+          </div>
 
-            {#if index < totalSteps - 1}
+          <!-- Connecting Line - only between steps, not after the last step -->
+          {#if index < totalSteps - 1}
+            <div class="flex flex-1 items-center px-2">
               <div
-                class="mx-3 h-[2px] w-12 transition-all
+                class="h-0.5 w-full transition-all
                 {step < currentStep ? 'bg-base-content' : 'bg-base-300'}"
               ></div>
-            {/if}
-          </div>
+            </div>
+          {/if}
         {/each}
       </div>
+    </div>
 
+    <div class="relative mx-auto w-full max-w-xl">
       <!-- Back Button (left-aligned, below progress bar) -->
       <div class="mb-8 flex">
         <button
