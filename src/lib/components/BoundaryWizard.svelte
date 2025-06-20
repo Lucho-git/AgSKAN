@@ -17,6 +17,9 @@
   import { fileApi } from "$lib/api/fileApi"
   import GeoJSONMap from "$lib/components/GeoJsonMap.svelte"
 
+  // Add these imports for real functionality
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+
   export let fileId: string
   export let fileName: string
 
@@ -199,10 +202,20 @@
     toast.success("All fields approved successfully")
   }
 
+  // REAL API FUNCTIONALITY - Updated to match the working version
   async function handleLoadPaddocks() {
     processingAction = "load"
 
     try {
+      // Get the connected map ID
+      const map_id = $connectedMapStore.id
+
+      if (!map_id) {
+        toast.error("No map connected. Please select a map first.")
+        return
+      }
+
+      // Filter only accepted paddocks
       const acceptedPaddocks = paddocks.filter((p) => p.status === "accepted")
 
       if (acceptedPaddocks.length === 0) {
@@ -210,16 +223,54 @@
         return
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Create the API promise
+      const promise = fileApi
+        .uploadFields(map_id, acceptedPaddocks)
+        .then((result) => {
+          if (!result.success) {
+            throw new Error(result.message)
+          }
+          return result
+        })
 
-      toast.success(
-        `${acceptedPaddocks.length} field(s) successfully loaded into the system`,
-      )
+      // Show toast with promise states
+      toast.promise(promise, {
+        loading: "Submitting paddocks...",
+        success: (result) => {
+          const successCount = result.insertedFields.length
+          return successCount === 1
+            ? `Field "${result.insertedFields[0].name}" was uploaded.`
+            : `${successCount} fields were uploaded.`
+        },
+        error: (err) => err.message,
+      })
 
-      dispatch("fieldsLoaded", { paddocks: acceptedPaddocks })
+      // Wait for the result
+      const result = await promise
+
+      // Handle partial rejections
+      if (result.rejectedFields && result.rejectedFields.length > 0) {
+        const rejectionReasons = result.rejectedFields.reduce((acc, field) => {
+          acc[field.reason] = (acc[field.reason] || 0) + 1
+          return acc
+        }, {})
+
+        let rejectionMessage = `${result.rejectedFields.length} field(s) were rejected:`
+        for (const [reason, count] of Object.entries(rejectionReasons)) {
+          rejectionMessage += `\n${count} ${count === 1 ? "field" : "fields"} rejected for ${reason}`
+        }
+        toast.error(rejectionMessage, { duration: 7000 })
+      }
+
+      // Dispatch success event with the result
+      dispatch("fieldsLoaded", {
+        paddocks: acceptedPaddocks,
+        result: result,
+        successCount: result.insertedFields.length,
+      })
     } catch (error) {
       console.error("Error loading paddocks:", error)
-      toast.error("Failed to load fields into system")
+      // Error toast is already handled by toast.promise
     } finally {
       processingAction = null
     }
@@ -317,6 +368,7 @@
   }
 </script>
 
+<!-- Rest of the template remains the same... -->
 <svelte:window on:keydown={handleGlobalKeydown} />
 
 {#if loading}

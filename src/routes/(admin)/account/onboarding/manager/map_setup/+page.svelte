@@ -1,4 +1,3 @@
-<!-- src/routes/(admin)/account/onboarding/manager/map_setup/+page.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
   import {
@@ -8,6 +7,9 @@
     Settings,
     CheckCircle,
     Link2,
+    Check,
+    Cloud,
+    X,
   } from "lucide-svelte"
   import { v4 as uuidv4 } from "uuid"
   import { toast } from "svelte-sonner"
@@ -20,23 +22,32 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { supabase } from "$lib/stores/sessionStore"
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
 
   let isCreatingMap = false
   let mapName = ""
   let error = ""
   let mapCode = ""
-  let showSuccess = false
   let isLoading = false
   let dataLoaded = false
   let userMaps = []
   let loadingMapId = null
+  let createMapStatus = null // 'loading' | 'success' | null
+  let connectMapStatus = {} // { [mapId]: 'loading' | 'success' }
+  let isDisconnecting = false
 
-  // Check if already connected to a map
-  $: hasConnectedMap = $connectedMapStore?.id
+  // Animation timing
+  let operationStartTime = 0
+  const MIN_ANIMATION_TIME = 2000 // 2 seconds minimum
+  const SUCCESS_DISPLAY_TIME = 2500 // 2.5 seconds for success state
+
+  // Prevent reactive switching during animations
+  let isInActiveFlow = false
+
+  // Check if already connected to a map - BUT NOT during active flows
+  $: hasConnectedMap = $connectedMapStore?.id && !isInActiveFlow
 
   onMount(async () => {
-    // Load user's owned maps
     await loadUserMaps()
     dataLoaded = true
   })
@@ -47,14 +58,7 @@
     try {
       const { data, error } = await supabase
         .from("master_maps")
-        .select(
-          `
-          id, 
-          map_name, 
-          master_user_id,
-          created_at
-        `,
-        )
+        .select(`id, map_name, master_user_id, created_at`)
         .eq("master_user_id", $profileStore.id)
         .order("created_at", { ascending: false })
 
@@ -68,17 +72,62 @@
     }
   }
 
+  async function handleDisconnectMap() {
+    isDisconnecting = true
+
+    try {
+      // Clear connected map from stores
+      connectedMapStore.set(null)
+      mapActivityStore.set(null)
+      operationStore.set([])
+      selectedOperationStore.set(null)
+
+      // Update profile store to remove map connection
+      if ($profileStore) {
+        profileStore.update((profile) => ({
+          ...profile,
+          master_map_id: null,
+          selected_operation_id: null,
+        }))
+      }
+
+      toast.success("Disconnected from map", {
+        description: "You can now connect to a different map",
+      })
+
+      // Reload user maps to show available options
+      await loadUserMaps()
+    } catch (error) {
+      console.error("Error disconnecting from map:", error)
+      toast.error("Failed to disconnect from map")
+    } finally {
+      isDisconnecting = false
+    }
+  }
+
   async function connectToExistingMap(mapId) {
+    // Prevent reactive switching
+    isInActiveFlow = true
+
+    operationStartTime = Date.now()
     isLoading = true
     loadingMapId = mapId
+    connectMapStatus[mapId] = "loading"
 
     try {
       const result = await mapApi.connectToMap(mapId)
 
+      const elapsedTime = Date.now() - operationStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
+
       if (result.success && result.data) {
         const { connectedMap, mapActivity, operations, operation } = result.data
 
-        // Update all stores
+        // Update stores
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
 
@@ -87,7 +136,6 @@
           selectedOperationStore.set(operation || operations[0])
         }
 
-        // Update profile store
         if ($profileStore) {
           let recentMaps = $profileStore.recent_maps || []
           recentMaps = recentMaps.filter((id) => id !== mapId)
@@ -102,15 +150,25 @@
           }))
         }
 
+        // Show success animation in the SAME component
+        connectMapStatus[mapId] = "success"
         toast.success("Connected to existing map successfully")
-        goto("/account/onboarding/manager/boundary_upload")
+
+        // Navigate after success animation
+        setTimeout(() => {
+          goto("/account/onboarding/manager/boundary_upload")
+        }, SUCCESS_DISPLAY_TIME)
       } else {
+        connectMapStatus[mapId] = null
+        isInActiveFlow = false
         toast.error("Failed to connect to map", {
           description: result.message,
         })
       }
     } catch (error) {
       console.error("Error connecting to map:", error)
+      connectMapStatus[mapId] = null
+      isInActiveFlow = false
       toast.error("An error occurred", {
         description: error.message,
       })
@@ -133,10 +191,22 @@
       return
     }
 
+    // Prevent reactive switching
+    isInActiveFlow = true
+
+    operationStartTime = Date.now()
     isLoading = true
+    createMapStatus = "loading"
 
     try {
       const result = await mapApi.createAndJoinMap(mapName, mapCode)
+
+      const elapsedTime = Date.now() - operationStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
 
       if (result.success && result.data) {
         const {
@@ -147,15 +217,13 @@
           operation,
         } = result.data
 
-        // Update all stores using the data structures from the API
+        // Update stores
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
         operationStore.set([operation])
         selectedOperationStore.set(operation)
 
-        // Update the profile store with the new map connection
         if ($profileStore) {
-          // Update recent maps in the profile store
           let recentMaps = $profileStore.recent_maps || []
           recentMaps = recentMaps.filter((id) => id !== mapId)
           recentMaps.unshift(mapId)
@@ -169,18 +237,17 @@
           }))
         }
 
-        toast.success("Map created successfully", {
-          description: "You have been connected to your new map",
-        })
+        // Show success animation in the SAME component
+        createMapStatus = "success"
+        toast.success("Map created successfully")
 
-        // Show success message briefly
-        showSuccess = true
-
-        // Navigate to next step after 2 seconds
+        // Navigate after success animation
         setTimeout(() => {
           goto("/account/onboarding/manager/boundary_upload")
-        }, 2000)
+        }, SUCCESS_DISPLAY_TIME)
       } else {
+        createMapStatus = null
+        isInActiveFlow = false
         toast.error("Failed to create map", {
           description: result.message,
         })
@@ -188,6 +255,8 @@
       }
     } catch (error) {
       console.error("Error creating map:", error)
+      createMapStatus = null
+      isInActiveFlow = false
       toast.error("An error occurred", {
         description: error.message,
       })
@@ -198,8 +267,11 @@
   }
 
   function handleSkip() {
-    // Skip map creation and go to team invite
     goto("/account/onboarding/manager/team_invite")
+  }
+
+  function handleContinueNow() {
+    goto("/account/onboarding/manager/boundary_upload")
   }
 
   function handleInputChange(value: string) {
@@ -224,11 +296,10 @@
       : "Set up your interactive farm map to visualize and manage field operations"}
   </p>
 
-  <!-- Skip option -->
   <button
     on:click={handleSkip}
     class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
-    disabled={isLoading}
+    disabled={isLoading || isDisconnecting}
   >
     <span>Skip for now</span>
     <ArrowRight
@@ -238,7 +309,6 @@
   </button>
 </div>
 
-<!-- Loading state -->
 {#if !dataLoaded}
   <div class="flex justify-center py-8">
     <div class="flex items-center gap-3 text-contrast-content/60">
@@ -246,44 +316,24 @@
       <span>Loading your maps...</span>
     </div>
   </div>
-{:else if showSuccess}
-  <!-- Success Message -->
+{:else if hasConnectedMap}
+  <!-- Already connected - with disconnect option -->
   <div
     class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
-    <!-- Card header decoration -->
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
     ></div>
-
-    <div class="p-8">
-      <div class="flex flex-col items-center text-center">
-        <div class="mb-4 rounded-full bg-success/20 p-4 text-success">
-          <CheckCircle size={32} />
-        </div>
-        <h3 class="mb-2 text-xl font-bold text-contrast-content">
-          Map Created Successfully!
-        </h3>
-        <p class="text-sm text-contrast-content/60">
-          Taking you to boundary upload...
-        </p>
-      </div>
-    </div>
-  </div>
-{:else if hasConnectedMap}
-  <!-- Already Connected Map -->
-  <div
-    class="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-  >
-    <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-success/80 via-success to-success/80"
-    ></div>
-
     <div class="p-8">
       <div class="mb-6 flex flex-col items-center text-center">
-        <div class="mb-4 rounded-full bg-success/20 p-4 text-success">
-          <CheckCircle size={32} />
+        <div
+          class="animate-successPulse mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+        >
+          <div
+            class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+          >
+            <Check size={28} class="animate-checkDraw stroke-[3] text-white" />
+          </div>
         </div>
         <h3 class="mb-2 text-xl font-bold text-contrast-content">
           Already Connected to Map
@@ -292,25 +342,40 @@
           You're currently connected to your map
         </p>
 
-        <!-- Connected Map Info -->
-        <div class="w-full rounded-xl bg-base-200 p-4">
+        <!-- Connected Map Info with Disconnect Button -->
+        <div class="relative mb-6 w-full rounded-xl bg-base-200 p-4">
           <div class="mb-2 flex items-center gap-3">
             <div class="rounded-md bg-base-content/20 p-2 text-base-content">
               <Map size={16} />
             </div>
-            <span class="font-semibold text-contrast-content">
+            <span class="pr-8 font-semibold text-contrast-content">
               {$connectedMapStore.map_name}
             </span>
           </div>
           <p class="text-sm text-contrast-content/60">
             Map ID: {$connectedMapStore.id}
           </p>
+
+          <!-- Disconnect Button -->
+          <button
+            on:click={handleDisconnectMap}
+            disabled={isDisconnecting}
+            class="absolute right-3 top-3 rounded-full bg-base-content/10 p-1.5 text-base-content/60 transition-all duration-200 hover:bg-base-content/20 hover:text-base-content disabled:opacity-50"
+            title="Disconnect from this map"
+          >
+            {#if isDisconnecting}
+              <span class="loading loading-spinner loading-xs"></span>
+            {:else}
+              <X size={14} />
+            {/if}
+          </button>
         </div>
       </div>
 
       <button
-        on:click={() => goto("/account/onboarding/manager/boundary_upload")}
-        class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-success py-3 font-semibold text-base-100 shadow-lg shadow-success/20 transition-all hover:-translate-y-0.5 hover:bg-success/90"
+        on:click={handleContinueNow}
+        disabled={isDisconnecting}
+        class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:opacity-50 disabled:hover:translate-y-0"
       >
         <span>Continue to Boundary Upload</span>
         <ArrowRight size={18} />
@@ -318,15 +383,13 @@
     </div>
   </div>
 {:else if userMaps.length > 0}
-  <!-- Existing Maps List -->
+  <!-- Existing Maps - Success animations play HERE -->
   <div
-    class="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
-    <!-- Card header decoration -->
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
     ></div>
-
     <div class="p-8">
       <div class="mb-6 flex flex-col items-center text-center">
         <div class="mb-4 rounded-full bg-base-content/20 p-4 text-base-content">
@@ -340,166 +403,258 @@
         </p>
       </div>
 
-      <!-- Existing Maps List -->
       <div class="space-y-3">
         {#each userMaps as map, index}
-          <button
-            on:click={() => connectToExistingMap(map.id)}
-            disabled={isLoading}
-            class="flex w-full items-center justify-between rounded-xl p-4 transition-all {index %
-              2 ===
-            0
-              ? 'bg-base-200'
-              : 'bg-base-300'} hover:bg-base-content/10 disabled:opacity-50"
+          <div
+            class="flex w-full items-center justify-between rounded-xl border-2 p-4 transition-all {connectMapStatus[
+              map.id
+            ] === 'success'
+              ? 'border-success/30 bg-success/5 shadow-md shadow-success/10'
+              : connectMapStatus[map.id] === 'loading'
+                ? 'border-info/30 bg-info/5'
+                : index % 2 === 0
+                  ? 'border-transparent bg-base-200 hover:bg-base-content/10'
+                  : 'border-transparent bg-base-300 hover:bg-base-content/10'} {connectMapStatus[
+              map.id
+            ]
+              ? 'cursor-default'
+              : 'cursor-pointer'}"
+            on:click={() => {
+              if (!connectMapStatus[map.id]) {
+                connectToExistingMap(map.id)
+              }
+            }}
+            role="button"
+            tabindex="0"
           >
-            <div class="flex flex-col items-start">
-              <div class="flex items-center gap-2">
-                <Map size={16} class="text-base-content" />
-                <span class="font-medium text-contrast-content">
-                  {map.map_name}
-                </span>
+            {#if connectMapStatus[map.id] === "success"}
+              <div class="animate-scaleIn flex flex-col items-start">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="animate-successPulse flex h-4 w-4 items-center justify-center rounded-full bg-green-500/20"
+                  >
+                    <div
+                      class="animate-checkScale flex h-3 w-3 items-center justify-center rounded-full bg-green-500"
+                    >
+                      <Check
+                        size={10}
+                        class="animate-checkDraw stroke-[3] text-white"
+                      />
+                    </div>
+                  </div>
+                  <span class="font-medium text-contrast-content"
+                    >{map.map_name}</span
+                  >
+                </div>
+                <span class="animate-delayedFadeIn ml-6 text-xs text-green-600"
+                  >Connected successfully!</span
+                >
               </div>
-              <span class="text-xs text-contrast-content/60">
-                Created {new Date(map.created_at).toLocaleDateString()}
-              </span>
-            </div>
-            {#if isLoading && loadingMapId === map.id}
+              <span class="text-xs text-green-600">Redirecting...</span>
+            {:else if connectMapStatus[map.id] === "loading"}
+              <div class="animate-scaleIn flex flex-col items-start">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="relative flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/20"
+                  >
+                    <div
+                      class="absolute inset-0 animate-spin rounded-full border border-blue-400/30 border-t-blue-400"
+                    ></div>
+                    <Cloud size={8} class="animate-pulse text-blue-400" />
+                  </div>
+                  <span class="font-medium text-contrast-content"
+                    >{map.map_name}</span
+                  >
+                </div>
+                <span class="animate-delayedFadeIn ml-6 text-xs text-info"
+                  >Connecting to map...</span
+                >
+              </div>
               <span class="loading loading-spinner loading-sm"></span>
             {:else}
+              <div class="flex flex-col items-start">
+                <div class="flex items-center gap-2">
+                  <Map size={16} class="text-base-content" />
+                  <span class="font-medium text-contrast-content"
+                    >{map.map_name}</span
+                  >
+                </div>
+                <span class="text-xs text-contrast-content/60">
+                  Created {new Date(map.created_at).toLocaleDateString()}
+                </span>
+              </div>
               <Link2 size={18} class="text-base-content" />
             {/if}
-          </button>
+          </div>
         {/each}
       </div>
     </div>
   </div>
-{:else if !isCreatingMap}
-  <!-- Create Map Card (No existing maps) -->
-  <div
-    class="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-  >
-    <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
-
-    <div class="p-8">
-      <div class="mb-6 flex flex-col items-center text-center">
-        <div class="mb-4 rounded-full bg-base-content/20 p-4 text-base-content">
-          <Map size={32} />
-        </div>
-        <h3 class="mb-2 text-xl font-bold text-contrast-content">
-          Create Your First Map
-        </h3>
-        <p class="text-sm text-contrast-content/60">
-          Start by creating a map for your farm operations
-        </p>
-      </div>
-
-      <button
-        on:click={handleCreateMap}
-        class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
-        disabled={isLoading}
-      >
-        <Map size={18} />
-        <span>Create New Map</span>
-      </button>
-    </div>
-  </div>
 {:else}
-  <!-- Create Map Form -->
+  <!-- Create Map - Success animations play HERE -->
   <div
     class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
-    <!-- Card header decoration -->
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
     ></div>
-
-    <div class="p-8">
-      <div class="mb-6 flex flex-col items-center">
-        <div class="mb-4 flex items-center gap-3">
-          <div class="rounded-md bg-base-200 p-2 text-base-content">
-            <Map size={20} />
+    <div class="p-8 transition-all duration-500 ease-in-out">
+      {#if createMapStatus === "success"}
+        <!-- SUCCESS IN THIS COMPONENT -->
+        <div class="animate-scaleIn flex flex-col items-center gap-4">
+          <div
+            class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          >
+            <div
+              class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+            >
+              <Check
+                size={28}
+                class="animate-checkDraw stroke-[3] text-white"
+              />
+            </div>
           </div>
           <h3 class="text-xl font-bold text-contrast-content">
-            Create New Map
+            Map Created Successfully!
           </h3>
+          <p
+            class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+          >
+            {mapName}
+          </p>
+          <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
+            Redirecting to boundary upload...
+          </p>
         </div>
-
-        <!-- Map Code Display -->
-        <div class="mx-auto mb-2 w-full max-w-xs">
+      {:else if createMapStatus === "loading"}
+        <!-- LOADING IN THIS COMPONENT -->
+        <div class="animate-scaleIn flex flex-col items-center gap-4">
           <div
-            class="rounded-full bg-info/20 px-4 py-2 text-center font-mono text-sm text-info"
+            class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
           >
-            {mapCode}
+            <div
+              class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+            ></div>
+            <Cloud size={28} class="animate-pulse text-blue-400" />
           </div>
-        </div>
-      </div>
-
-      <form on:submit={handleSubmitMap} class="space-y-6">
-        <div class="space-y-2">
-          <label
-            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+          <p class="text-lg font-medium text-contrast-content">
+            Creating map...
+          </p>
+          <p
+            class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-              <Layers size={14} />
+            Setting up {mapName}
+          </p>
+        </div>
+      {:else if isCreatingMap}
+        <!-- FORM STATE -->
+        <div class="animate-expandUp space-y-6">
+          <div class="flex flex-col items-center">
+            <div class="mb-4 flex items-center gap-3">
+              <div class="rounded-md bg-base-200 p-2 text-base-content">
+                <Map size={20} />
+              </div>
+              <h3 class="text-xl font-bold text-contrast-content">
+                Create New Map
+              </h3>
             </div>
-            Map Name
-          </label>
-          <div
-            class="relative transition-all duration-300 {error
-              ? 'animate-shake'
-              : ''}"
-          >
-            <input
-              type="text"
-              bind:value={mapName}
-              on:input={(e) => handleInputChange(e.target.value)}
-              placeholder="e.g. North Field Operations"
-              disabled={isLoading}
-              class="w-full border bg-base-200 {error
-                ? 'border-error'
-                : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content disabled:opacity-50"
-            />
-            {#if error}
-              <p
-                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+            <div class="mx-auto mb-4 w-full max-w-xs">
+              <div
+                class="animate-slideIn rounded-full bg-info/20 px-4 py-2 text-center font-mono text-sm text-info"
               >
-                <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
-                {error}
-              </p>
-            {/if}
+                {mapCode}
+              </div>
+            </div>
+          </div>
+
+          <form on:submit={handleSubmitMap} class="space-y-6">
+            <div class="space-y-2">
+              <label
+                class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              >
+                <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+                  <Layers size={14} />
+                </div>
+                Map Name
+              </label>
+              <div
+                class="relative transition-all duration-300 {error
+                  ? 'animate-shake'
+                  : ''}"
+              >
+                <input
+                  type="text"
+                  bind:value={mapName}
+                  on:input={(e) => handleInputChange(e.target.value)}
+                  placeholder="e.g. North Field Operations"
+                  disabled={isLoading}
+                  class="w-full border bg-base-200 {error
+                    ? 'border-error'
+                    : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content disabled:opacity-50"
+                  autofocus
+                />
+                {#if error}
+                  <p
+                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  >
+                    <span class="inline-block h-1 w-1 rounded-full bg-error"
+                    ></span>
+                    {error}
+                  </p>
+                {/if}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              <span>Create Map</span>
+              <ArrowRight size={16} />
+            </button>
+          </form>
+
+          <div
+            class="flex items-center justify-center gap-2 border-t border-base-300 pt-4 text-xs text-contrast-content/60"
+          >
+            <Settings size={12} />
+            <span>Advanced settings available after creation</span>
           </div>
         </div>
-
-        <div class="pt-4">
-          <button
-            type="submit"
-            disabled={isLoading}
-            class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+      {:else}
+        <!-- INITIAL BUTTON STATE -->
+        <div class="flex flex-col items-center text-center">
+          <div
+            class="mb-4 rounded-full bg-base-content/20 p-4 text-base-content transition-all duration-300 hover:scale-110"
           >
-            {#if isLoading}
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-base-100 border-t-transparent"
-              ></div>
-            {/if}
-            <span>{isLoading ? "Creating Map..." : "Create Map"}</span>
+            <Map size={32} />
+          </div>
+          <h3 class="mb-2 text-xl font-bold text-contrast-content">
+            Create Your First Map
+          </h3>
+          <p class="mb-6 text-sm text-contrast-content/60">
+            Start by creating a map for your farm operations
+          </p>
+          <button
+            on:click={handleCreateMap}
+            class="group flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
+          >
+            <Map size={18} class="transition-transform group-hover:scale-110" />
+            <span>Create New Map</span>
+            <ArrowRight
+              size={16}
+              class="transition-transform group-hover:translate-x-1"
+            />
           </button>
         </div>
-      </form>
-
-      <div
-        class="mt-6 flex items-center justify-center gap-2 border-t border-base-300 pt-4 text-xs text-contrast-content/60"
-      >
-        <Settings size={12} />
-        <span>Advanced settings available after creation</span>
-      </div>
+      {/if}
     </div>
   </div>
 {/if}
 
 <style>
+  /* All the same animations as before */
   @keyframes shake {
     0%,
     100% {
@@ -512,7 +667,6 @@
       transform: translateX(5px);
     }
   }
-
   .animate-shake {
     animation: shake 0.3s ease-in-out;
   }
@@ -527,8 +681,110 @@
       transform: scale(1);
     }
   }
-
   .animate-fadeIn {
     animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .animate-scaleIn {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes delayedFadeIn {
+    0%,
+    60% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-delayedFadeIn {
+    animation: delayedFadeIn 1s ease-out;
+  }
+
+  @keyframes expandUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+      max-height: 200px;
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 600px;
+    }
+  }
+  .animate-expandUp {
+    animation: expandUp 0.5s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-slideIn {
+    animation: slideIn 0.3s ease-out 0.2s both;
+  }
+
+  @keyframes successPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+    }
+  }
+  .animate-successPulse {
+    animation: successPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes checkScale {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-checkScale {
+    animation: checkScale 0.6s ease-out 0.3s both;
+  }
+
+  @keyframes checkDraw {
+    0% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+    }
+    100% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 0;
+    }
+  }
+  .animate-checkDraw {
+    animation: checkDraw 0.5s ease-out 0.5s both;
   }
 </style>

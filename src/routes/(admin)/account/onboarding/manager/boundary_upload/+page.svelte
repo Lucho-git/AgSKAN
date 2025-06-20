@@ -11,6 +11,7 @@
     CheckCircle,
     AlertCircle,
     Mail,
+    Check,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
@@ -43,8 +44,12 @@
     | "processing"
     | "validating"
     | null = null
-  let showSuccess = false
   let fileInfo: string = ""
+
+  // Animation timing
+  let uploadStartTime = 0
+  const MIN_ANIMATION_TIME = 2000 // 2 seconds minimum
+  const SUCCESS_DISPLAY_TIME = 2500 // 2.5 seconds for success state
 
   // File validation constants
   const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
@@ -338,85 +343,92 @@
   async function startUpload() {
     if (!uploadedFile) return
 
+    // Record start time for minimum animation duration
+    uploadStartTime = Date.now()
     uploadStatus = "loading"
 
     try {
       console.log("🚀 Starting upload for:", uploadedFile.name)
       const result = await fileApi.uploadFile(uploadedFile)
 
+      // Calculate elapsed time and wait for minimum if needed
+      const elapsedTime = Date.now() - uploadStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
+
       if (result.success) {
         uploadStatus = "success"
-        showSuccess = true
         toast.success("File uploaded successfully!")
 
-        // Show the wizard instead of navigating away
+        // Show success animation for extended time, then show wizard
         setTimeout(() => {
           showWizard = true
           wizardFileId = result.file.file_id
           wizardFileName = result.file.file_name
-          showSuccess = false
-        }, 1500)
+        }, SUCCESS_DISPLAY_TIME)
       } else {
-        // Check if the error is due to file already existing
-        const errorMessage = result.message?.toLowerCase() || ""
-        const isFileExistsError =
-          errorMessage.includes("already exists") ||
-          errorMessage.includes("duplicate") ||
-          errorMessage.includes("file exists") ||
-          errorMessage.includes("unique constraint") ||
-          errorMessage.includes("violates unique")
-
-        if (isFileExistsError) {
-          console.log("📁 File already exists, proceeding with existing file")
-
-          // Try to get existing files to find the file
-          try {
-            const userFiles = await fileApi.getUserFiles()
-            const existingFile = userFiles.find(
-              (f) => f.name === uploadedFile.name,
-            )
-
-            if (existingFile) {
-              uploadStatus = "success"
-              showSuccess = true
-              toast.success("Using existing file!")
-
-              // Show the wizard with existing file data
-              setTimeout(() => {
-                showWizard = true
-                wizardFileId = existingFile.id
-                wizardFileName = existingFile.name
-                showSuccess = false
-              }, 1500)
-              return
-            }
-          } catch (findError) {
-            console.warn(
-              "Could not find existing file in user files:",
-              findError,
-            )
-          }
-
-          // If we can't find the existing file, just proceed to next step
-          toast.info("File already exists. Proceeding to next step.")
-          setTimeout(() => {
-            goto("/account/onboarding/manager/team_invite")
-          }, 1500)
-        } else {
-          // Handle other upload errors - proceed to next step instead of showing error
-          console.warn(
-            "Upload failed, proceeding to next step:",
-            result.message,
-          )
-          toast.info("Skipping boundary upload. You can add boundaries later.")
-          setTimeout(() => {
-            goto("/account/onboarding/manager/team_invite")
-          }, 1500)
-        }
+        // Handle errors with minimum time consideration
+        await handleUploadError(result)
       }
     } catch (error) {
       console.error("Upload error:", error)
-      // Instead of showing error, proceed to next step
+      // Ensure minimum time for error handling too
+      const elapsedTime = Date.now() - uploadStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
+
+      toast.info("Skipping boundary upload. You can add boundaries later.")
+      setTimeout(() => {
+        goto("/account/onboarding/manager/team_invite")
+      }, 1500)
+    }
+  }
+
+  async function handleUploadError(result: any) {
+    const errorMessage = result.message?.toLowerCase() || ""
+    const isFileExistsError =
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("duplicate") ||
+      errorMessage.includes("file exists") ||
+      errorMessage.includes("unique constraint") ||
+      errorMessage.includes("violates unique")
+
+    if (isFileExistsError) {
+      console.log("📁 File already exists, proceeding with existing file")
+
+      try {
+        const userFiles = await fileApi.getUserFiles()
+        const existingFile = userFiles.find(
+          (f) => f.name === uploadedFile?.name,
+        )
+
+        if (existingFile) {
+          uploadStatus = "success"
+          toast.success("Using existing file!")
+
+          setTimeout(() => {
+            showWizard = true
+            wizardFileId = existingFile.id
+            wizardFileName = existingFile.name
+          }, SUCCESS_DISPLAY_TIME)
+          return
+        }
+      } catch (findError) {
+        console.warn("Could not find existing file in user files:", findError)
+      }
+
+      toast.info("File already exists. Proceeding to next step.")
+      setTimeout(() => {
+        goto("/account/onboarding/manager/team_invite")
+      }, 1500)
+    } else {
+      console.warn("Upload failed, proceeding to next step:", result.message)
       toast.info("Skipping boundary upload. You can add boundaries later.")
       setTimeout(() => {
         goto("/account/onboarding/manager/team_invite")
@@ -443,14 +455,13 @@
     uploadStatus = null
     uploadError = null
     fileInfo = ""
-    showSuccess = false
     if (fileInput) {
       fileInput.value = ""
     }
   }
 
   function handleUploadClick() {
-    if (!uploadedFile) {
+    if (!uploadedFile && uploadStatus !== "success") {
       fileInput?.click()
     }
   }
@@ -489,6 +500,7 @@
     uploadStatus === "processing" ||
     uploadStatus === "loading"
   $: hasError = uploadStatus === "error"
+  $: hasSuccess = uploadStatus === "success"
 </script>
 
 <svelte:head>
@@ -496,407 +508,459 @@
   <meta name="description" content="Upload your farm paddock boundary files" />
 </svelte:head>
 
-{#if showWizard}
-  <!-- Show Boundary Wizard -->
-  <BoundaryWizard
-    fileId={wizardFileId}
-    fileName={wizardFileName}
-    on:fieldsLoaded={handleFieldsLoaded}
-    on:backToUpload={handleBackToUpload}
-  />
-{:else}
-  <!-- Show Upload Interface -->
+<div class="relative min-h-screen overflow-hidden bg-base-100">
+  <!-- Decorative Background Elements -->
+  <div
+    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
+  ></div>
+  <div
+    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
+  ></div>
 
-  <!-- Header -->
-  <div class="mb-12 text-center">
-    <h2 class="mb-3 text-4xl font-bold text-contrast-content">
-      Upload <span class="text-base-content">Boundaries</span>
-    </h2>
-    <p class="mx-auto max-w-md text-contrast-content/60">
-      Upload your farm paddock boundary files for processing
-    </p>
-  </div>
-
-  {#if showSuccess}
-    <!-- Success Message -->
-    <div
-      class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-    >
-      <div
-        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-      ></div>
-
-      <div class="p-8">
-        <div class="flex flex-col items-center text-center">
-          <div class="mb-4 rounded-full bg-success/20 p-4 text-success">
-            <CheckCircle size={32} />
-          </div>
-          <h3 class="mb-2 text-xl font-bold text-contrast-content">
-            Boundaries Uploaded Successfully!
-          </h3>
-          <p class="text-sm text-contrast-content/60">
-            Loading boundary review wizard...
+  <div class="relative z-10">
+    {#if showWizard}
+      <!-- Embedded Boundary Wizard with slide transition -->
+      <div class="animate-slideInRight">
+        <BoundaryWizard
+          fileId={wizardFileId}
+          fileName={wizardFileName}
+          on:fieldsLoaded={handleFieldsLoaded}
+          on:backToUpload={handleBackToUpload}
+        />
+      </div>
+    {:else}
+      <!-- Upload Interface with slide transition -->
+      <div class="animate-slideInLeft">
+        <!-- Header -->
+        <div class="mb-8 text-center">
+          <h2 class="mb-3 text-3xl font-bold md:text-4xl">
+            <span class="text-base-content">Upload</span> Paddock Boundaries
+          </h2>
+          <p class="mx-auto max-w-3xl text-contrast-content/60">
+            Upload your paddock boundary files for processing. No files yet?
+            Skip this step and return to upload later when available.
           </p>
         </div>
-      </div>
-    </div>
-  {:else}
-    <!-- Upload Card -->
-    <div
-      class="relative mx-auto max-w-2xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
-    >
-      <div
-        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-      ></div>
 
-      <div class="p-8">
-        <!-- File Drop Area -->
-        <div
-          class="group relative mb-8 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-10 transition-all
-            {isDragging
-            ? 'scale-[0.99] border-base-content bg-base-content/10'
-            : hasError
-              ? 'border-error/30 bg-error/5'
-              : uploadedFile
-                ? 'border-success/30 bg-success/5'
-                : 'border-base-300 bg-base-200/50 hover:border-base-content/40 hover:bg-base-content/5'}"
-          on:dragover={handleDragOver}
-          on:dragleave={handleDragLeave}
-          on:drop={handleDrop}
-          on:click={!isProcessing ? handleUploadClick : undefined}
-          on:keydown={(e) => {
-            if (!isProcessing && (e.key === "Enter" || e.key === " ")) {
-              handleUploadClick()
-            }
-          }}
-          role="button"
-          tabindex="0"
-          class:cursor-not-allowed={isProcessing}
-        >
-          <div
-            class="absolute inset-0 bg-gradient-to-tr from-base-content/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
-          ></div>
-
-          <input
-            bind:this={fileInput}
-            type="file"
-            class="hidden"
-            on:change={handleFileChange}
-            accept=".zip,.kml,.kmz,.xml,.isoxml"
-            disabled={isProcessing}
-          />
-
-          {#if isProcessing}
-            <div
-              class="animate-scaleIn relative z-10 flex flex-col items-center"
-            >
-              <div
-                class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-info/20"
-              >
-                <div class="loading loading-spinner loading-md text-info"></div>
-              </div>
-              <p class="mb-1 text-lg font-medium text-contrast-content">
-                {uploadStatus === "validating"
-                  ? "Validating file..."
-                  : uploadStatus === "processing"
-                    ? "Processing file..."
-                    : "Uploading file..."}
-              </p>
-              <p class="text-sm text-contrast-content/60">
-                {uploadedFile?.name}
-              </p>
-              {#if fileInfo && uploadStatus === "processing"}
-                <p class="mt-2 text-center text-sm text-success">
-                  ✓ {fileInfo}
-                </p>
-              {/if}
-            </div>
-          {:else if hasError}
-            <div
-              class="animate-scaleIn relative z-10 flex max-w-lg flex-col items-center"
-            >
-              <div
-                class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
-              >
-                <AlertCircle size={32} class="text-error" />
-              </div>
-              <p class="mb-2 text-lg font-medium text-error">
-                File Not Compatible
-              </p>
-              <p class="mb-6 text-center text-sm text-error">
-                {uploadError}
-              </p>
-
-              <div class="flex w-full flex-col gap-3">
-                <button
-                  on:click={(e) => {
-                    e.stopPropagation()
-                    handleRemoveFile()
-                  }}
-                  class="flex items-center justify-center gap-2 rounded-lg bg-base-200 px-4 py-2 text-sm text-contrast-content transition-all hover:bg-base-300 hover:shadow-md"
-                >
-                  <X size={14} />
-                  <span>Try Different File</span>
-                </button>
-
-                <div class="flex gap-2">
-                  <button
-                    on:click={(e) => {
-                      e.stopPropagation()
-                      contactSupport()
-                    }}
-                    class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info transition-all hover:bg-info/20"
-                  >
-                    <Mail size={14} />
-                    <span>Contact Support</span>
-                  </button>
-
-                  <button
-                    on:click={(e) => {
-                      e.stopPropagation()
-                      handleSkip()
-                    }}
-                    class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content/10 px-3 py-2 text-sm text-contrast-content transition-all hover:bg-base-content/20"
-                  >
-                    <ArrowRight size={14} />
-                    <span>Skip for Now</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          {:else}
-            <div class="relative z-10 flex flex-col items-center">
-              <div
-                class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
-              >
-                <div class="flex items-center justify-center space-x-6">
-                  <Cloud class="h-8 w-8 animate-pulse text-info" />
-                  <div class="relative">
-                    <File
-                      class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
-                    />
-                  </div>
-                  <Cloud class="h-8 w-8 animate-pulse text-info" />
-                </div>
-              </div>
-              <p class="mb-3 text-xl font-semibold text-contrast-content">
-                Click to upload or drag and drop
-              </p>
-              <p class="mb-2 text-center text-sm text-contrast-content/60">
-                ZIP, ISOXML or KML files (Max 50mb)
-              </p>
-              <div
-                class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-xs text-info/70"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4" />
-                  <path d="M12 8h.01" />
-                </svg>
-                Files are automatically uploaded after validation
-              </div>
-            </div>
-          {/if}
+        <!-- Skip Button - Moved to Top -->
+        <div class="mb-6 flex justify-center">
+          <button
+            on:click={handleSkip}
+            class="group flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
+          >
+            <span>Skip for now</span>
+            <ArrowRight
+              size={14}
+              class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
+            />
+          </button>
         </div>
 
-        <!-- Requirements Section -->
+        <!-- Upload Card -->
         <div
-          class="-mx-4 mb-8 rounded-lg bg-gradient-to-r from-base-200/80 to-transparent p-6"
+          class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
-          <h3
-            class="mb-5 flex items-center gap-2 font-bold text-contrast-content"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-base-content"
-            >
-              <path
-                d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
-              />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-            File Upload Requirements
-          </h3>
-          <ul class="space-y-4">
-            <li class="flex items-start gap-3">
-              <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <span class="text-sm text-contrast-content/80">
-                Zipped Shapefiles, KML files and ISOXML files are all accepted
-              </span>
-            </li>
-            <li class="flex items-start gap-3">
-              <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <span class="text-sm text-contrast-content/80">
-                Shapefile ZIP must contain .dbf, .shx and .shp files
-              </span>
-            </li>
-            <li class="flex items-start gap-3">
-              <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <span class="text-sm text-contrast-content/80">
-                Multiple ZIP files or an ISOXML can be contained in a single ZIP
-                file
-              </span>
-            </li>
-            <li
-              class="flex cursor-pointer items-start gap-3 text-info transition-colors hover:text-info/80"
-              on:click={downloadExample}
+          <!-- Decorative accent -->
+          <div class="absolute left-0 top-0 h-1 w-full bg-base-content"></div>
+
+          <div class="p-6 md:p-8">
+            <!-- File Drop Area - All states embedded here -->
+            <div
+              class="group relative mb-8 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-10 transition-all
+                {isDragging
+                ? 'scale-[0.99] border-base-content bg-base-content/10 shadow-inner'
+                : hasError
+                  ? 'border-error/30 bg-error/5'
+                  : hasSuccess
+                    ? 'border-success/30 bg-success/5 shadow-md shadow-success/10'
+                    : uploadedFile
+                      ? 'border-info/30 bg-info/5'
+                      : 'border-base-300 bg-base-200/50 hover:border-base-content/40 hover:bg-base-200 hover:shadow-md'}"
+              on:dragover={handleDragOver}
+              on:dragleave={handleDragLeave}
+              on:drop={handleDrop}
+              on:click={!isProcessing && !hasSuccess
+                ? handleUploadClick
+                : undefined}
               on:keydown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  downloadExample()
+                if (
+                  !isProcessing &&
+                  !hasSuccess &&
+                  (e.key === "Enter" || e.key === " ")
+                ) {
+                  handleUploadClick()
                 }
               }}
               role="button"
               tabindex="0"
+              class:cursor-not-allowed={isProcessing}
+              class:cursor-default={hasSuccess}
             >
+              <!-- Subtle background effect -->
               <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-info/20 text-info"
-              >
-                <Download size={12} />
-              </div>
-              <span class="text-sm">Download Example Paddock File</span>
-            </li>
-          </ul>
-        </div>
+                class="absolute inset-0 bg-gradient-to-tr from-base-content/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+              ></div>
 
-        <!-- Supported Types Section -->
-        <div class="mb-8">
-          <h3 class="mb-4 font-bold text-contrast-content">
-            Supported Polygon Types
-          </h3>
-          <ul class="space-y-3">
-            <li class="flex items-start gap-3">
-              <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
+              <input
+                bind:this={fileInput}
+                type="file"
+                class="hidden"
+                on:change={handleFileChange}
+                accept=".zip,.kml,.kmz,.xml,.isoxml"
+                disabled={isProcessing || hasSuccess}
+              />
+
+              {#if hasSuccess}
+                <!-- SUCCESS STATE - Embedded in upload area -->
+                <div
+                  class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+                >
+                  <div
+                    class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                  >
+                    <div
+                      class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                    >
+                      <Check
+                        size={28}
+                        class="animate-checkDraw stroke-[3] text-white"
+                      />
+                    </div>
+                  </div>
+                  <h3 class="text-xl font-bold text-contrast-content">
+                    File Uploaded Successfully!
+                  </h3>
+                  <p
+                    class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+                  >
+                    {uploadedFile?.name}
+                  </p>
+                  <p
+                    class="animate-delayedFadeIn text-sm text-contrast-content/60"
+                  >
+                    Loading boundary review wizard...
+                  </p>
+                </div>
+              {:else if isProcessing}
+                <!-- LOADING STATE - Embedded in upload area -->
+                <div
+                  class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+                >
+                  {#if uploadStatus === "loading"}
+                    <div
+                      class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+                    >
+                      <div
+                        class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                      ></div>
+                      <Cloud size={28} class="animate-pulse text-blue-400" />
+                    </div>
+                    <p class="text-lg font-medium text-contrast-content">
+                      Uploading file...
+                    </p>
+                  {:else}
+                    <div
+                      class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-info/20"
+                    >
+                      <div
+                        class="loading loading-spinner loading-md text-info"
+                      ></div>
+                    </div>
+                    <p class="text-lg font-medium text-contrast-content">
+                      {uploadStatus === "validating"
+                        ? "Validating file..."
+                        : "Processing file..."}
+                    </p>
+                  {/if}
+                  <p
+                    class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
+                  >
+                    Processing {uploadedFile?.name}
+                  </p>
+                  {#if fileInfo && uploadStatus === "processing"}
+                    <p class="animate-delayedFadeIn text-sm text-success">
+                      ✓ {fileInfo}
+                    </p>
+                  {/if}
+                </div>
+              {:else if hasError}
+                <!-- ERROR STATE - Embedded in upload area -->
+                <div
+                  class="animate-scaleIn relative z-10 flex max-w-lg flex-col items-center"
+                >
+                  <div
+                    class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
+                  >
+                    <AlertCircle size={32} class="text-error" />
+                  </div>
+                  <p class="mb-2 text-lg font-medium text-error">
+                    File Not Compatible
+                  </p>
+                  <p class="mb-6 text-center text-sm text-error">
+                    {uploadError}
+                  </p>
+
+                  <div class="flex w-full flex-col gap-3">
+                    <button
+                      on:click={(e) => {
+                        e.stopPropagation()
+                        handleRemoveFile()
+                      }}
+                      class="flex items-center justify-center gap-2 rounded-lg bg-base-200 px-4 py-2 text-sm text-contrast-content transition-all hover:bg-base-300 hover:shadow-md"
+                    >
+                      <X size={14} />
+                      <span>Try Different File</span>
+                    </button>
+
+                    <div class="flex gap-2">
+                      <button
+                        on:click={(e) => {
+                          e.stopPropagation()
+                          contactSupport()
+                        }}
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info transition-all hover:bg-info/20"
+                      >
+                        <Mail size={14} />
+                        <span>Contact Support</span>
+                      </button>
+
+                      <button
+                        on:click={(e) => {
+                          e.stopPropagation()
+                          handleSkip()
+                        }}
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content/10 px-3 py-2 text-sm text-contrast-content transition-all hover:bg-base-content/20"
+                      >
+                        <ArrowRight size={14} />
+                        <span>Skip for Now</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              {:else}
+                <!-- DEFAULT UPLOAD STATE - Embedded in upload area -->
+                <div class="relative z-10 flex flex-col items-center">
+                  <div
+                    class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
+                  >
+                    <div class="flex items-center justify-center space-x-6">
+                      <Cloud class="h-8 w-8 animate-pulse text-info" />
+                      <div class="relative">
+                        <File
+                          class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
+                        />
+                        <div
+                          class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
+                        ></div>
+                      </div>
+                      <Cloud class="h-8 w-8 animate-pulse text-info" />
+                    </div>
+                    <div
+                      class="animate-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
+                    ></div>
+                  </div>
+                  <p class="mb-3 text-xl font-semibold text-contrast-content">
+                    Click to upload or drag and drop
+                  </p>
+                  <p class="mb-2 text-center text-sm text-contrast-content/60">
+                    ZIP, ISOXML or KML files (Max 50mb)
+                  </p>
+                  <div
+                    class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-xs text-info/70"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4" />
+                      <path d="M12 8h.01" />
+                    </svg>
+                    Files are processed securely
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Requirements Section -->
+            <div
+              class="-mx-4 mb-8 rounded-lg bg-gradient-to-r from-base-200/80 to-transparent p-6"
+            >
+              <h3
+                class="mb-5 flex items-center gap-2 font-bold text-contrast-content"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
+                  class="text-base-content"
                 >
-                  <path d="M20 6 9 17l-5-5" />
+                  <path
+                    d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                  />
+                  <path d="m9 12 2 2 4-4" />
                 </svg>
-              </div>
-              <span class="text-sm text-contrast-content/80">Polygon</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <div
-                class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+                File Upload Requirements
+              </h3>
+              <ul class="space-y-4">
+                <li class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <span class="text-sm text-contrast-content/80">
+                    Zipped Shapefiles, KML files and ISOXML files are all
+                    accepted
+                  </span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <span class="text-sm text-contrast-content/80">
+                    Shapefile ZIP must contain .dbf, .shx and .shp files
+                  </span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <span class="text-sm text-contrast-content/80">
+                    Multiple ZIP files or an ISOXML can be contained in a single
+                    ZIP file
+                  </span>
+                </li>
+                <li
+                  class="flex cursor-pointer items-start gap-3 text-info transition-colors hover:text-info/80"
+                  on:click={downloadExample}
+                  on:keydown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      downloadExample()
+                    }
+                  }}
+                  role="button"
+                  tabindex="0"
                 >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <span class="text-sm text-contrast-content/80">Multipolygon</span>
-            </li>
-          </ul>
-        </div>
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-info/20 text-info"
+                  >
+                    <Download size={12} />
+                  </div>
+                  <span class="text-sm">Download Example Paddock File</span>
+                </li>
+              </ul>
+            </div>
 
-        <!-- Actions -->
-        <div class="flex items-center justify-between">
-          <div>
-            {#if !uploadedFile && !isProcessing}
-              <button
-                on:click={handleSkip}
-                class="group flex items-center gap-2 rounded-xl border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
-              >
-                <span>Skip for now</span>
-                <ArrowRight
-                  size={14}
-                  class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
-                />
-              </button>
-              <div class="ml-1 mt-2 text-xs text-contrast-content/40">
-                You can upload boundaries later
-              </div>
-            {/if}
+            <!-- Supported Types Section -->
+            <div class="mb-8">
+              <h3 class="mb-4 font-bold text-contrast-content">
+                Supported Polygon Types
+              </h3>
+              <ul class="space-y-3">
+                <li class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <span class="text-sm text-contrast-content/80">Polygon</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </div>
+                  <span class="text-sm text-contrast-content/80"
+                    >Multipolygon</span
+                  >
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  {/if}
-{/if}
+    {/if}
+  </div>
+</div>
 
 <style>
   @keyframes scaleIn {
@@ -927,5 +991,113 @@
 
   .animate-fadeIn {
     animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes delayedFadeIn {
+    0%,
+    60% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-delayedFadeIn {
+    animation: delayedFadeIn 1s ease-out;
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 8s linear infinite;
+  }
+
+  /* Enhanced success animations */
+  @keyframes successPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+    }
+  }
+
+  .animate-successPulse {
+    animation: successPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes checkScale {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .animate-checkScale {
+    animation: checkScale 0.6s ease-out 0.3s both;
+  }
+
+  @keyframes checkDraw {
+    0% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+    }
+    100% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .animate-checkDraw {
+    animation: checkDraw 0.5s ease-out 0.5s both;
+  }
+
+  /* Slide transitions for wizard */
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slideInRight {
+    animation: slideInRight 0.5s ease-out;
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slideInLeft {
+    animation: slideInLeft 0.3s ease-out;
   }
 </style>
