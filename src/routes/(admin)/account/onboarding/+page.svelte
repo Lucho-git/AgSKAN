@@ -25,6 +25,8 @@
       Icon: Users,
       description:
         "Create and oversee farm operations, manage team members, and analyze performance metrics",
+      accentColor: "#FEDD64", // Yellow
+      hoverColor: "rgb(250 204 21)", // yellow-400
       features: [
         { text: "Manage Maps", icon: MapPin },
         { text: "Team Control", icon: UserRound },
@@ -36,6 +38,8 @@
       Icon: Tractor,
       description:
         "Execute field operations, track progress, and submit reports from the field",
+      accentColor: "#3B82F6", // Blue
+      hoverColor: "rgb(59 130 246)", // blue-500
       features: [
         { text: "View Tasks", icon: ClipboardList },
         { text: "Track Progress", icon: Send },
@@ -53,7 +57,6 @@
     formError = null
 
     try {
-      // Update the role field in profiles table
       const { error } = await supabase
         .from("profiles")
         .update({ role: selectedRole })
@@ -61,13 +64,11 @@
 
       if (error) throw error
 
-      // Update local profile store
       profileStore.update((profile) => ({
         ...profile,
         user_type: selectedRole,
       }))
 
-      // Navigate to the new onboarding flow based on role
       if (selectedRole === "operator") {
         goto("/account/onboarding/operator/profile")
       } else if (selectedRole === "manager") {
@@ -145,10 +146,13 @@
       >
         {#each roles as role}
           <div
-            class="group relative transform cursor-pointer overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02]
+            class="role-card group relative cursor-pointer overflow-hidden rounded-xl bg-base-100 transition-shadow duration-200
               {selectedRole === role.id
-              ? 'border-2 border-base-content bg-base-100 shadow-[0_0_15px_rgba(0,0,0,0.15)]'
-              : 'border border-base-300 bg-base-100 hover:border-base-content/40 hover:shadow-md'}"
+              ? 'border-2 shadow-[0_0_15px_rgba(0,0,0,0.15)]'
+              : 'border border-base-300 hover:shadow-md'}"
+            style="--hover-color: {role.hoverColor}; {selectedRole === role.id
+              ? `border-color: ${role.accentColor};`
+              : ''}"
             on:click={() => (selectedRole = role.id)}
             on:keydown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -158,16 +162,34 @@
             role="button"
             tabindex="0"
           >
+            <!-- Top border - instant change, no transitions -->
+            <div
+              class="top-border h-0 w-full
+                     {selectedRole === role.id
+                ? ''
+                : 'border-t border-base-300'}"
+              style={selectedRole === null || selectedRole === role.id
+                ? `border-top: 6px solid ${role.accentColor};`
+                : ""}
+            ></div>
+
             <div
               class="absolute inset-0 bg-gradient-to-b from-transparent to-base-200/40 opacity-0 transition-opacity group-hover:opacity-100"
             ></div>
             <div class="p-8">
               <div class="mb-6 flex items-start justify-between">
+                <!-- Icon container - instant color change with role-specific hover -->
                 <div
-                  class="rounded-xl p-4 transition-all duration-300
-                  {selectedRole === role.id
-                    ? 'bg-base-content/20 text-base-content'
-                    : 'bg-base-200 text-contrast-content group-hover:bg-base-content/10 group-hover:text-base-content'}"
+                  class="rounded-xl p-4 transition-colors duration-200"
+                  style={selectedRole === role.id
+                    ? `background-color: ${role.accentColor}20; color: ${role.accentColor};`
+                    : ""}
+                  class:bg-base-200={selectedRole !== role.id}
+                  class:text-contrast-content={selectedRole !== role.id}
+                  class:group-hover:text-yellow-400={selectedRole !== role.id &&
+                    role.id === "manager"}
+                  class:group-hover:text-blue-500={selectedRole !== role.id &&
+                    role.id === "operator"}
                 >
                   <svelte:component
                     this={role.Icon}
@@ -175,11 +197,19 @@
                     class="transition-transform group-hover:scale-110"
                   />
                 </div>
+
+                <!-- Checkmark circle - instant background change with role-specific hover -->
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full transition-all duration-300
-                  {selectedRole === role.id
-                    ? 'bg-base-content text-base-100'
-                    : 'border border-base-300 group-hover:border-base-content/40'}"
+                  class="flex h-6 w-6 items-center justify-center rounded-full"
+                  style={selectedRole === role.id
+                    ? `background-color: ${role.accentColor}; color: ${role.id === "manager" ? "#000000" : "#ffffff"};`
+                    : ""}
+                  class:border={selectedRole !== role.id}
+                  class:border-base-300={selectedRole !== role.id}
+                  class:group-hover:border-yellow-400={selectedRole !==
+                    role.id && role.id === "manager"}
+                  class:group-hover:border-blue-500={selectedRole !== role.id &&
+                    role.id === "operator"}
                 >
                   {#if selectedRole === role.id}
                     <svg
@@ -199,11 +229,20 @@
                 </div>
               </div>
 
+              <!-- Title - instant color change with role-specific hover -->
               <h3
-                class="mb-3 text-2xl font-bold transition-all duration-300
-                {selectedRole === role.id
-                  ? 'origin-left scale-105 transform text-base-content'
-                  : 'text-contrast-content group-hover:text-base-content'}"
+                class="mb-3 text-2xl font-bold"
+                style={selectedRole === role.id
+                  ? `color: ${role.accentColor};`
+                  : ""}
+                class:text-contrast-content={selectedRole !== role.id}
+                class:group-hover:text-yellow-400={selectedRole !== role.id &&
+                  role.id === "manager"}
+                class:group-hover:text-blue-500={selectedRole !== role.id &&
+                  role.id === "operator"}
+                class:origin-left={selectedRole === role.id}
+                class:scale-105={selectedRole === role.id}
+                class:transform={selectedRole === role.id}
               >
                 {role.title}
               </h3>
@@ -214,17 +253,24 @@
               <div class="grid grid-cols-2 gap-4">
                 {#each role.features as feature}
                   <div class="flex items-center gap-2">
-                    <svelte:component
-                      this={feature.icon}
-                      size={16}
-                      class="{selectedRole === role.id
-                        ? 'text-base-content'
-                        : 'text-contrast-content/60 group-hover:text-base-content'} transition-all"
-                    />
+                    <!-- Feature icons - instant color change with role-specific hover -->
+                    <div
+                      style={selectedRole === role.id
+                        ? `color: ${role.accentColor};`
+                        : ""}
+                      class:text-contrast-content={selectedRole !== role.id}
+                      class:group-hover:text-yellow-400={selectedRole !==
+                        role.id && role.id === "manager"}
+                      class:group-hover:text-blue-500={selectedRole !==
+                        role.id && role.id === "operator"}
+                    >
+                      <svelte:component this={feature.icon} size={16} />
+                    </div>
                     <span
-                      class="text-sm {selectedRole === role.id
+                      class="text-sm
+                      {selectedRole === role.id
                         ? 'text-contrast-content'
-                        : 'text-contrast-content/80'} transition-colors"
+                        : 'text-contrast-content/80'}"
                     >
                       {feature.text}
                     </span>
@@ -239,7 +285,7 @@
       <!-- Continue Button -->
       <div class="flex flex-col items-center">
         <button
-          class="group flex items-center justify-center gap-2 rounded-lg px-8 py-4 text-base font-semibold transition-all duration-300
+          class="group flex items-center justify-center gap-2 rounded-lg px-8 py-4 text-base font-semibold transition-all duration-200
             {selectedRole
             ? 'transform bg-base-content text-base-100 shadow-lg shadow-base-content/20 hover:scale-105 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/30'
             : 'cursor-not-allowed bg-base-300 text-contrast-content/40'}"
@@ -258,7 +304,7 @@
             >
             <ArrowRight
               size={18}
-              class="transition-transform duration-300 {selectedRole
+              class="transition-transform duration-200 {selectedRole
                 ? 'group-hover:translate-x-1'
                 : ''}"
             />
@@ -274,7 +320,11 @@
 </div>
 
 <style>
-  .perspective-1000 {
-    perspective: 1000px;
+  .role-card:not(.border-2):hover {
+    border-color: var(--hover-color);
+  }
+
+  .role-card:not(.border-2):hover .top-border {
+    border-top-color: var(--hover-color);
   }
 </style>
