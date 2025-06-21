@@ -25,9 +25,9 @@
       Icon: Users,
       description:
         "Create and oversee farm operations, manage team members, and analyze performance metrics",
-      accentColor: "#FEDD64", // Yellow
-      hoverColor: "rgb(250 204 21)", // yellow-400
-      gradientBg: "bg-gradient-to-br from-base-200 to-base-300", // Neutral background to make yellow pop
+      accentColor: "#17a34a", // Green (emerald-500)
+      hoverColor: "rgb(16 185 129)", // emerald-500
+      gradientBg: "bg-gradient-to-br from-base-200 to-base-300/50",
       features: [
         { text: "Manage Maps", icon: MapPin },
         { text: "Team Control", icon: UserRound },
@@ -39,9 +39,9 @@
       Icon: Tractor,
       description:
         "Execute field operations, track progress, and submit reports from the field",
-      accentColor: "#3B82F6", // Blue
+      accentColor: "#3B82F6", // Blue (blue-500)
       hoverColor: "rgb(59 130 246)", // blue-500
-      gradientBg: "bg-gradient-to-br from-slate-50 to-slate-100/80", // Same neutral background
+      gradientBg: "bg-gradient-to-br to-base-100 from-base-300/50",
       features: [
         { text: "View Tasks", icon: ClipboardList },
         { text: "Track Progress", icon: Send },
@@ -189,8 +189,8 @@
                     : ""}
                   class:bg-base-200={selectedRole !== role.id}
                   class:text-contrast-content={selectedRole !== role.id}
-                  class:group-hover:text-yellow-400={selectedRole !== role.id &&
-                    role.id === "manager"}
+                  class:group-hover:text-emerald-500={selectedRole !==
+                    role.id && role.id === "manager"}
                   class:group-hover:text-blue-500={selectedRole !== role.id &&
                     role.id === "operator"}
                 >
@@ -205,11 +205,11 @@
                 <div
                   class="flex h-6 w-6 items-center justify-center rounded-full"
                   style={selectedRole === role.id
-                    ? `background-color: ${role.accentColor}; color: ${role.id === "manager" ? "#000000" : "#ffffff"};`
+                    ? `background-color: ${role.accentColor}; color: #ffffff;`
                     : ""}
                   class:border={selectedRole !== role.id}
                   class:border-base-300={selectedRole !== role.id}
-                  class:group-hover:border-yellow-400={selectedRole !==
+                  class:group-hover:border-emerald-500={selectedRole !==
                     role.id && role.id === "manager"}
                   class:group-hover:border-blue-500={selectedRole !== role.id &&
                     role.id === "operator"}
@@ -239,7 +239,7 @@
                   ? `color: ${role.accentColor};`
                   : ""}
                 class:text-contrast-content={selectedRole !== role.id}
-                class:group-hover:text-yellow-400={selectedRole !== role.id &&
+                class:group-hover:text-emerald-500={selectedRole !== role.id &&
                   role.id === "manager"}
                 class:group-hover:text-blue-500={selectedRole !== role.id &&
                   role.id === "operator"}
@@ -262,7 +262,7 @@
                         ? `color: ${role.accentColor};`
                         : ""}
                       class:text-contrast-content={selectedRole !== role.id}
-                      class:group-hover:text-yellow-400={selectedRole !==
+                      class:group-hover:text-emerald-500={selectedRole !==
                         role.id && role.id === "manager"}
                       class:group-hover:text-blue-500={selectedRole !==
                         role.id && role.id === "operator"}
