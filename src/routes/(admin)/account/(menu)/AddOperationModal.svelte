@@ -7,14 +7,45 @@
   import { toast } from "svelte-sonner"
   import { operationApi } from "$lib/api/operationApi"
   import { profileStore } from "$lib/stores/profileStore"
+  import { X, Save, FileText } from "lucide-svelte"
+  import { onMount } from "svelte"
 
   let newOperationName = ""
   let newOperationYear = new Date().getFullYear()
   let newOperationDescription = ""
   let isLoading = false
+  let modalRef
 
   let currentYear = new Date().getFullYear()
-  let yearOptions = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i)
+  let yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i)
+
+  // Focus the first input when modal opens
+  onMount(() => {
+    const timer = setTimeout(() => {
+      const nameInput = document.getElementById("new-operation-name")
+      if (nameInput) {
+        nameInput.focus()
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  })
+
+  function closeModal() {
+    menuStore.update((m) => ({ ...m, showAddOperationModal: false }))
+  }
+
+  function handleClickOutside(event) {
+    if (modalRef && !modalRef.contains(event.target)) {
+      closeModal()
+    }
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      closeModal()
+    }
+  }
 
   async function addOperation() {
     if (!newOperationName.trim()) {
@@ -65,7 +96,7 @@
         newOperationDescription = ""
 
         // Close the modal
-        menuStore.update((m) => ({ ...m, showAddOperationModal: false }))
+        closeModal()
 
         toast.success("Operation added successfully")
       } else {
@@ -79,69 +110,126 @@
   }
 </script>
 
-<div class="modal modal-open">
-  <div class="modal-box bg-base-200">
-    <h3 class="mb-4 text-lg font-bold">Add New Operation</h3>
+<svelte:window on:keydown={handleKeydown} />
 
-    <div class="form-control mb-4">
-      <label for="new-operation-name" class="label">
-        <span class="label-text">Operation Name</span>
-      </label>
-      <input
-        id="new-operation-name"
-        type="text"
-        placeholder="Enter name"
-        class="input input-bordered w-full bg-base-100"
-        bind:value={newOperationName}
-      />
-    </div>
-
-    <div class="form-control mb-4">
-      <label for="new-operation-year" class="label">
-        <span class="label-text">Year</span>
-      </label>
-      <select
-        id="new-operation-year"
-        class="select select-bordered w-full bg-base-100"
-        bind:value={newOperationYear}
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  on:click={handleClickOutside}
+>
+  <div
+    bind:this={modalRef}
+    class="w-full max-w-md overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
+    on:click|stopPropagation
+  >
+    <!-- Header with accent line -->
+    <div class="relative">
+      <div class="h-1 w-full bg-base-content"></div>
+      <div
+        class="flex items-center justify-between border-b border-base-300 p-5"
       >
-        {#each yearOptions as year}
-          <option value={year}>{year}</option>
-        {/each}
-      </select>
+        <h2 class="text-xl font-bold text-contrast-content">
+          Add New Operation
+        </h2>
+        <button
+          on:click={closeModal}
+          disabled={isLoading}
+          class="rounded-full p-1.5 text-base-content/60 transition-colors hover:bg-base-200 hover:text-contrast-content"
+          aria-label="Close"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
     </div>
 
-    <div class="form-control mb-4">
-      <label for="new-operation-description" class="label">
-        <span class="label-text">Description</span>
-      </label>
-      <textarea
-        id="new-operation-description"
-        class="textarea textarea-bordered w-full bg-base-100"
-        placeholder="Enter description"
-        bind:value={newOperationDescription}
-      ></textarea>
-    </div>
+    <!-- Form content -->
+    <form on:submit|preventDefault={addOperation} class="space-y-5 p-6">
+      <!-- Operation Name -->
+      <div>
+        <label
+          for="new-operation-name"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Operation Name
+        </label>
+        <div class="relative">
+          <input
+            type="text"
+            id="new-operation-name"
+            bind:value={newOperationName}
+            class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            placeholder="Enter operation name"
+            required
+          />
+        </div>
+      </div>
 
-    <div class="modal-action">
-      <button
-        class="btn btn-primary"
-        on:click={addOperation}
-        disabled={isLoading}
-      >
-        {#if isLoading}
-          <span class="loading loading-spinner loading-sm mr-2"></span>
-        {/if}
-        Add Operation
-      </button>
-      <button
-        class="btn"
-        on:click={() =>
-          menuStore.update((m) => ({ ...m, showAddOperationModal: false }))}
-        disabled={isLoading}
-      >
-        Close
-      </button>
-    </div>
+      <!-- Year -->
+      <div>
+        <label
+          for="new-operation-year"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Year
+        </label>
+        <div class="relative">
+          <select
+            id="new-operation-year"
+            bind:value={newOperationYear}
+            class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            required
+          >
+            {#each yearOptions as year}
+              <option value={year}>{year}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label
+          for="new-operation-description"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Description
+        </label>
+        <div class="relative">
+          <textarea
+            id="new-operation-description"
+            bind:value={newOperationDescription}
+            rows="4"
+            class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            placeholder="Describe this operation"
+          ></textarea>
+          <div class="absolute right-3 top-3 text-contrast-content/60">
+            <FileText class="h-4 w-4" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="mt-6 flex justify-between border-t border-base-300 pt-4">
+        <button
+          type="button"
+          on:click={closeModal}
+          class="rounded-lg border border-base-300 px-4 py-2.5 text-contrast-content/60 transition-colors hover:bg-base-200"
+        >
+          Close
+        </button>
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          class="flex items-center gap-2 rounded-lg bg-base-content px-6 py-2.5 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
+            ? 'cursor-not-allowed opacity-50'
+            : ''}"
+        >
+          <Save class="h-4 w-4" />
+          {isLoading ? "Adding..." : "Add Operation"}
+        </button>
+      </div>
+    </form>
   </div>
 </div>

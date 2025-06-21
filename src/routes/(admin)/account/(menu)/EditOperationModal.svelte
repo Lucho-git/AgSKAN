@@ -6,8 +6,9 @@
   import { menuStore } from "../../../../stores/menuStore"
   import { toast } from "svelte-sonner"
   import { operationApi } from "$lib/api/operationApi"
-  import { Trash2, X } from "lucide-svelte"
+  import { Trash2, X, Save, FileText } from "lucide-svelte"
   import { profileStore } from "$lib/stores/profileStore"
+  import { onMount } from "svelte"
 
   let editOperationId = $selectedOperationStore?.id
   let editOperationName = $selectedOperationStore?.name
@@ -15,15 +16,40 @@
   let editOperationDescription = $selectedOperationStore?.description
 
   let currentYear = new Date().getFullYear()
-  let yearOptions = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i)
+  let yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i)
   let isLoading = false
   let showDeleteConfirmation = false
+  let modalRef
 
   // Calculate if this is the only operation
   $: isOnlyOperation = $operationStore.length <= 1
 
+  // Focus the first input when modal opens
+  onMount(() => {
+    const timer = setTimeout(() => {
+      const nameInput = document.getElementById("edit-operation-name")
+      if (nameInput) {
+        nameInput.focus()
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  })
+
   function closeModal() {
     menuStore.update((m) => ({ ...m, showEditOperationModal: false }))
+  }
+
+  function handleClickOutside(event) {
+    if (modalRef && !modalRef.contains(event.target)) {
+      closeModal()
+    }
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      closeModal()
+    }
   }
 
   async function updateOperation() {
@@ -125,128 +151,154 @@
       isLoading = false
     }
   }
+
+  function handleDelete() {
+    if (showDeleteConfirmation) {
+      deleteOperation()
+    } else {
+      showDeleteConfirmation = true
+    }
+  }
 </script>
 
-<div class="modal modal-open">
-  <div class="modal-box relative bg-base-200">
-    <!-- Close button in the top right corner -->
-    <button
-      class="btn btn-circle btn-sm absolute right-2 top-2"
-      on:click={closeModal}
-      disabled={isLoading}
-    >
-      <X class="h-4 w-4" />
-    </button>
+<svelte:window on:keydown={handleKeydown} />
 
-    {#if showDeleteConfirmation}
-      <div class="flex flex-col gap-4 pt-4">
-        <h3 class="text-lg font-bold text-error">Delete Operation</h3>
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  on:click={handleClickOutside}
+>
+  <div
+    bind:this={modalRef}
+    class="w-full max-w-md overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
+    on:click|stopPropagation
+  >
+    <!-- Header with accent line -->
+    <div class="relative">
+      <div class="h-1 w-full bg-base-content"></div>
+      <div
+        class="flex items-center justify-between border-b border-base-300 p-5"
+      >
+        <h2 class="text-xl font-bold text-contrast-content">Edit Operation</h2>
+        <button
+          on:click={closeModal}
+          disabled={isLoading}
+          class="rounded-full p-1.5 text-base-content/60 transition-colors hover:bg-base-200 hover:text-contrast-content"
+          aria-label="Close"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+    </div>
 
-        <div class="alert alert-warning">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6 shrink-0 stroke-current"
-            fill="none"
-            viewBox="0 0 24 24"
-            ><path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            /></svg
+    <!-- Form content -->
+    <form on:submit|preventDefault={updateOperation} class="space-y-5 p-6">
+      <!-- Operation Name -->
+      <div>
+        <label
+          for="edit-operation-name"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Operation Name
+        </label>
+        <div class="relative">
+          <input
+            type="text"
+            id="edit-operation-name"
+            bind:value={editOperationName}
+            class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            placeholder="Enter operation name"
+            required
+          />
+        </div>
+      </div>
+
+      <!-- Year -->
+      <div>
+        <label
+          for="edit-operation-year"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Year
+        </label>
+        <div class="relative">
+          <select
+            id="edit-operation-year"
+            bind:value={editOperationYear}
+            class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            required
           >
-          <div>
-            <h3 class="font-bold">Warning!</h3>
-            <p class="text-sm">
-              Deleting this operation will permanently remove it and all
-              associated trails. This action cannot be undone.
-            </p>
+            {#each yearOptions as year}
+              <option value={year}>{year}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label
+          for="edit-operation-description"
+          class="mb-1.5 block text-sm text-contrast-content/60"
+        >
+          Description
+        </label>
+        <div class="relative">
+          <textarea
+            id="edit-operation-description"
+            bind:value={editOperationDescription}
+            rows="4"
+            class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+            placeholder="Describe this operation"
+          ></textarea>
+          <div class="absolute right-3 top-3 text-contrast-content/60">
+            <FileText class="h-4 w-4" />
           </div>
         </div>
-
-        <div class="modal-action">
-          <button
-            class="btn btn-error"
-            on:click={deleteOperation}
-            disabled={isLoading}
-          >
-            {#if isLoading}
-              <span class="loading loading-spinner loading-sm mr-2"></span>
-            {/if}
-            Delete Operation
-          </button>
-          <button
-            class="btn"
-            on:click={() => (showDeleteConfirmation = false)}
-            disabled={isLoading}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    {:else}
-      <h3 class="mb-4 pr-8 text-lg font-bold">Edit Operation</h3>
-
-      <div class="form-control mb-4">
-        <label for="edit-operation-name" class="label">
-          <span class="label-text">Operation Name</span>
-        </label>
-        <input
-          id="edit-operation-name"
-          type="text"
-          placeholder="Enter name"
-          class="input input-bordered w-full bg-base-100"
-          bind:value={editOperationName}
-        />
       </div>
 
-      <div class="form-control mb-4">
-        <label for="edit-operation-year" class="label">
-          <span class="label-text">Year</span>
-        </label>
-        <select
-          id="edit-operation-year"
-          class="select select-bordered w-full bg-base-100"
-          bind:value={editOperationYear}
-        >
-          {#each yearOptions as year}
-            <option value={year}>{year}</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="form-control mb-4">
-        <label for="edit-operation-description" class="label">
-          <span class="label-text">Description</span>
-        </label>
-        <textarea
-          id="edit-operation-description"
-          class="textarea textarea-bordered w-full bg-base-100"
-          placeholder="Enter description"
-          bind:value={editOperationDescription}
-        ></textarea>
-      </div>
-
-      <div class="modal-action">
+      <!-- Action buttons -->
+      <div class="mt-6 flex justify-between border-t border-base-300 pt-4">
         <button
-          class="btn btn-error mr-auto"
+          type="button"
+          on:click={handleDelete}
           disabled={isOnlyOperation || isLoading}
-          on:click={() => (showDeleteConfirmation = true)}
+          class="flex items-center gap-2 rounded-lg px-4 py-2.5 transition-all {showDeleteConfirmation
+            ? 'bg-red-600 text-white hover:bg-red-700'
+            : 'bg-base-200 text-contrast-content/60 hover:bg-base-300 hover:text-red-600'} {isLoading ||
+          isOnlyOperation
+            ? 'cursor-not-allowed opacity-50'
+            : ''}"
         >
-          <Trash2 class="mr-1 h-5 w-5" />
-          Delete
+          <Trash2 class="h-4 w-4" />
+          {showDeleteConfirmation ? "Confirm Delete" : "Delete"}
         </button>
+
         <button
-          class="btn btn-primary"
-          on:click={updateOperation}
+          type="submit"
           disabled={isLoading}
+          class="flex items-center gap-2 rounded-lg bg-base-content px-6 py-2.5 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
+            ? 'cursor-not-allowed opacity-50'
+            : ''}"
         >
-          {#if isLoading}
-            <span class="loading loading-spinner loading-sm mr-2"></span>
-          {/if}
-          Update Operation
+          <Save class="h-4 w-4" />
+          {isLoading ? "Updating..." : "Update Operation"}
         </button>
       </div>
-    {/if}
+    </form>
   </div>
 </div>
+
+<style>
+  /* Prevent dropdown from overflowing */
+  select {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Ensure modal stays above dropdown */
+  .fixed {
+    z-index: 50;
+  }
+</style>
