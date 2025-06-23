@@ -2,32 +2,25 @@
   import { onMount } from "svelte"
   import { DateTime } from "luxon"
   import InviteModal from "./InviteModal.svelte"
-  import * as Avatar from "$lib/components/ui/avatar"
-  import { Skeleton } from "$lib/components/ui/skeleton"
   import { toast } from "svelte-sonner"
   import VehicleIcons from "$lib/vehicles/index.js"
-  import * as Tabs from "$lib/components/ui/tabs"
   import { page } from "$app/stores"
-  import { enhance, applyAction } from "$app/forms"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { goto } from "$app/navigation"
   import Icon from "@iconify/svelte"
+  import { Users, User, UserPlus, Plus } from "lucide-svelte"
   // Import the mapApi for direct client-side calls
   import { mapApi } from "$lib/api/mapApi"
 
   let loading = true
-  let activeTab = "navigate"
   let disconnectingFromMap = false
   let kickingUser = null
 
   $: currentUserId = $profileStore.id
   $: is_owner = $connectedMapStore.is_owner
   $: is_user = (profileId) => profileId === currentUserId
-
-  $: buttonClass = activeTab === "manage" ? "btn-error" : "btn-primary"
-  $: buttonText = activeTab === "manage" ? "Kick" : "Locate"
 
   $: sortedProfiles = $mapActivityStore.connected_profiles.sort((a, b) => {
     if (a.id === currentUserId) return -1
@@ -57,10 +50,16 @@
   function getTimeSinceLastUpdate(lastUpdate) {
     const updateTime = DateTime.fromISO(lastUpdate, { zone: "utc" })
     const now = DateTime.utc()
-
-    // Use the toRelative method to get human-readable duration
     const timeDifference = updateTime.toRelative({ base: now })
     return timeDifference
+  }
+
+  function isOnline(lastUpdate) {
+    if (!lastUpdate) return false
+    const updateTime = DateTime.fromISO(lastUpdate, { zone: "utc" })
+    const now = DateTime.utc()
+    const diffMinutes = now.diff(updateTime, "minutes").minutes
+    return diffMinutes <= 10
   }
 
   function getVehicleIcon(type: string) {
@@ -77,7 +76,6 @@
       masterSubscription: null,
       is_connected: false,
     })
-    // Also clear the mapActivityStore to a default state
     mapActivityStore.set({
       marker_count: 0,
       trail_count: 0,
@@ -171,125 +169,141 @@
       goto(`/account/mapviewer`)
     }
   }
+
+  function getStatusColor(profile, vehicle) {
+    if (!vehicle) return "bg-gray-400"
+    return isOnline(vehicle.last_update) ? "bg-green-500" : "bg-gray-400"
+  }
+
+  function getStatusText(profile, vehicle) {
+    if (!vehicle) return "Offline"
+
+    if (isOnline(vehicle.last_update)) {
+      return "Online"
+    } else {
+      return `Last seen ${getTimeSinceLastUpdate(vehicle.last_update)}`
+    }
+  }
 </script>
 
-<div class="mt-0 rounded-lg bg-base-200 p-4 shadow-lg" style="z-index: 0;">
-  <div class="mb-4 flex items-center justify-between">
-    <h3 class="text-2xl font-bold">People</h3>
-    <Tabs.Root
-      value={activeTab}
-      onValueChange={(value) => (activeTab = value)}
-      class="w-[200px]"
-    >
-      <Tabs.List class="grid h-full grid-cols-2 rounded-lg bg-base-300 p-1">
-        <Tabs.Trigger
-          value="navigate"
-          class="rounded-lg px-4 py-2 text-base-content transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-content"
-        >
-          Navigate
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="manage"
-          class="rounded-lg px-4 py-2 text-base-content transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-content"
-        >
-          Manage
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs.Root>
+<!-- Team Members section -->
+<div
+  class="mt-6 rounded-lg border border-base-300 bg-base-100 p-6 shadow-md transition-all duration-300 hover:shadow-lg"
+>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h2 class="flex items-center gap-2 text-xl font-bold text-contrast-content">
+      <Users size={20} class="text-blue-500" /> Team Members
+    </h2>
   </div>
-  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+
+  <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
     {#each sortedProfiles as profile}
       {@const vehicle = $mapActivityStore.vehicle_states.find(
         (v) => v.vehicle_id === profile.id,
       )}
+      {@const isCurrentUser = is_user(profile.id)}
+      {@const online = vehicle ? isOnline(vehicle.last_update) : false}
+
+      <!-- Team member card -->
       <div
-        class="flex items-center rounded-lg bg-base-100 p-4 shadow-md {is_user(
-          profile.id,
-        )
-          ? 'border-2 border-primary'
-          : ''}"
+        class="flex items-center justify-between rounded-xl border border-base-300 bg-base-200 p-5 transition-all duration-300 hover:border-blue-400"
       >
-        <div
-          class="mr-4 flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-muted"
-        >
-          {#if vehicle}
-            <svelte:component
-              this={getVehicleIcon(vehicle.vehicle_marker.type)}
-              bodyColor={vehicle.vehicle_marker.bodyColor}
-              size="80%"
-            />
-          {:else}
-            <Icon
-              icon="solar:chair-bold"
-              width="40"
-              height="40"
-              class="text-base-content"
-            />
-          {/if}
-        </div>
-        <div class="flex-grow">
-          <h4 class="font-bold">{profile.full_name}</h4>
-          {#if vehicle}
-            <p class="text-sm opacity-70">
-              Last update: {getTimeSinceLastUpdate(vehicle.last_update)}
-            </p>
-          {:else}
-            <p class="text-sm opacity-70">Hasn't selected vehicle</p>
-          {/if}
-        </div>
-        {#if activeTab === "manage"}
-          {#if is_user(profile.id)}
-            <button
-              class="btn btn-warning btn-sm m-auto"
-              on:click={handleDisconnectFromMap}
-              disabled={disconnectingFromMap}
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <div
+              class="flex h-12 w-12 items-center justify-center rounded-full shadow-sm {isCurrentUser
+                ? 'bg-blue-600'
+                : 'bg-cyan-400'} text-white"
             >
-              {#if disconnectingFromMap}
-                <span class="loading loading-spinner loading-xs"></span>
+              {#if vehicle}
+                <svelte:component
+                  this={getVehicleIcon(vehicle.vehicle_marker.type)}
+                  bodyColor={vehicle.vehicle_marker.bodyColor}
+                  size="80%"
+                />
+              {:else}
+                <User size={20} />
               {/if}
-              Leave
-            </button>
-          {:else}
-            <button
-              class="btn {buttonClass} btn-sm m-auto"
-              on:click={() => handleKickUser(profile)}
-              disabled={!is_owner || kickingUser === profile.id}
-            >
-              {#if kickingUser === profile.id}
-                <span class="loading loading-spinner loading-xs"></span>
-              {/if}
-              {buttonText}
-            </button>
-          {/if}
-        {:else}
+            </div>
+            <!-- Status indicator -->
+            <div
+              class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-base-100 {getStatusColor(
+                profile,
+                vehicle,
+              )} {online && isCurrentUser ? 'animate-pulse' : ''}"
+            ></div>
+          </div>
+          <div>
+            <div class="text-base font-medium text-contrast-content">
+              {profile.full_name}
+            </div>
+            <div class="mt-1 flex items-center gap-1.5">
+              <span
+                class="inline-block h-2 w-2 rounded-full {getStatusColor(
+                  profile,
+                  vehicle,
+                )} {online && isCurrentUser ? 'animate-pulse' : ''}"
+              ></span>
+              <span
+                class="text-xs font-medium {online
+                  ? 'text-green-600'
+                  : 'text-gray-400'}"
+              >
+                {getStatusText(profile, vehicle)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {#if isCurrentUser}
           <button
-            class="btn btn-outline btn-sm m-auto"
-            class:btn-outline-info={!vehicle}
+            class="rounded-lg border-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-300 hover:bg-blue-600 hover:text-white"
             on:click={() =>
               vehicle ? handleLocate(profile) : handleConnect(profile)}
-            disabled={!vehicle && !is_user(profile.id)}
           >
-            {vehicle ? "Locate" : "Connect"}
+            Connect
+          </button>
+        {:else}
+          <button
+            class="rounded-lg border-2 border-base-content px-4 py-2 text-sm font-medium text-base-content transition-all duration-300 hover:bg-base-content hover:text-base-100"
+            on:click={() => (vehicle ? handleLocate(profile) : null)}
+            disabled={!vehicle}
+            class:opacity-50={!vehicle}
+            class:cursor-not-allowed={!vehicle}
+          >
+            {vehicle ? "Find" : "Offline"}
           </button>
         {/if}
       </div>
     {/each}
-    <!-- New invite box -->
-    <div class="flex items-center rounded-lg p-4 shadow-md">
-      <div
-        class="mr-4 flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-muted"
-      >
-        <Icon
-          icon="solar:user-plus-rounded-bold"
-          width="40"
-          height="40"
-          class="text-base-content"
-        />
+
+    <!-- Invite person card -->
+    <div
+      class="flex items-center justify-between rounded-xl border border-dashed border-base-300 bg-base-200/50 p-5 transition-all duration-300 hover:border-yellow-400"
+    >
+      <div class="flex items-center gap-4">
+        <div
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-400/10 text-yellow-600 transition-all duration-300"
+        >
+          <UserPlus size={20} />
+        </div>
+        <div>
+          <div class="text-base font-medium text-contrast-content">
+            Invite New Team Member
+          </div>
+          <div class="mt-1 text-sm text-contrast-content/60">
+            Add operators or managers to your farm
+          </div>
+        </div>
       </div>
-      <div class="flex-grow">
-        <h4 class="font-bold">Invite Person</h4>
-      </div>
-      <InviteModal />
+      <InviteModal>
+        <button
+          slot="trigger"
+          class="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-400 text-black shadow-sm transition-all duration-300 hover:bg-yellow-300 hover:shadow"
+        >
+          <Plus size={18} />
+        </button>
+      </InviteModal>
     </div>
   </div>
 </div>
