@@ -88,7 +88,8 @@
   // Updated to match mobile navbar highlighting
   const activeColor = "bg-neutral-content text-neutral"
   const hoverColor = "hover:bg-neutral-content hover:text-neutral group"
-  const disabledColor = "opacity-50 cursor-not-allowed pointer-events-none"
+  // Removed pointer-events-none to allow clicks on disabled items
+  const disabledColor = "opacity-50 cursor-not-allowed"
 
   // Check if connected to a map
   $: isMapConnected = Boolean($connectedMapStore?.id)
@@ -123,15 +124,15 @@
       topBarLabel: "Field Overview",
       path: "fieldview",
     },
-    {
-      href: "/account/pathplanner",
-      icon: "solar:routing-2-bold-duotone",
-      label: "Paths",
-      labelId: "pathplanner",
-      topBarIcon: "solar:routing-2-bold-duotone",
-      topBarLabel: "Path Planner",
-      path: "pathplanner",
-    },
+    // {
+    //   href: "/account/pathplanner",
+    //   icon: "solar:routing-2-bold-duotone",
+    //   label: "Paths",
+    //   labelId: "pathplanner",
+    //   topBarIcon: "solar:routing-2-bold-duotone",
+    //   topBarLabel: "Path Planner",
+    //   path: "pathplanner",
+    // },
     {
       href: browser && Capacitor.isNativePlatform() ? "#" : "/account/billing",
       icon: "solar:wallet-money-bold-duotone",
@@ -173,24 +174,41 @@
 
   // Function to handle navigation
   function handleNavigation(e, item) {
+    // Always prevent default first
+    e.preventDefault()
+
     // Check if item requires map connection and we're not connected
     const itemDisabled = item.disabled || (item.requiresMap && !isMapConnected)
 
-    // Prevent navigation for disabled items
+    // Handle disabled items
     if (itemDisabled) {
-      e.preventDefault()
-
-      // Show toast message for disabled items
-      if (item.tooltip) {
+      // Show different toast messages based on the reason for being disabled
+      if (item.requiresMap && !isMapConnected) {
+        // Create a toast with action button
+        toast("You need to connect to a map first", {
+          description: "Create or connect to a map to access this feature",
+          action: {
+            label: "Go to Home",
+            onClick: () => {
+              window.location.href = "/account"
+            },
+          },
+          duration: 5000,
+        })
+      } else if (item.tooltip) {
         toast.info(item.tooltip)
       }
       return
     }
 
+    // If not disabled, proceed with navigation
     // Only set flag to true if navigating to a different section
     if (currentSection !== item.path) {
       isNavigating.set(true)
     }
+
+    // Navigate to the href
+    window.location.href = item.href
   }
 
   // Function to check if an item should be disabled - make this more explicit
@@ -270,10 +288,9 @@
           {#each menuItems as item}
             {@const isItemDisabled = getItemDisabledStatus(item)}
             <li class="flex-1">
-              <a
-                href={item.href}
+              <button
                 on:click={(e) => handleNavigation(e, item)}
-                class="flex h-full flex-col items-center justify-center p-1
+                class="flex h-full w-full flex-col items-center justify-center p-1
                     {!$isNavigating && currentSection === item.path
                   ? 'bg-neutral-content text-neutral'
                   : ''} 
@@ -283,7 +300,7 @@
               >
                 <Icon icon={item.icon} width="24" height="24" />
                 <span class="mt-1 text-xs">{item.label}</span>
-              </a>
+              </button>
             </li>
           {/each}
         </ul>
@@ -296,8 +313,8 @@
     <div class="drawer-side">
       <label for="admin-drawer" class="drawer-overlay"></label>
       <ul
-        class="menu menu-lg min-h-full w-80 p-4 {selectedColor} text-neutral-content lg:border-r"
-        class:w-80={isExpanded}
+        class="w-70 menu menu-lg min-h-full p-4 {selectedColor} text-neutral-content lg:border-r"
+        class:w-70={isExpanded}
         class:w-35={!isExpanded}
       >
         <li class="my-1">
@@ -319,14 +336,13 @@
         {#each menuItems as item}
           {@const isItemDisabled = getItemDisabledStatus(item)}
           <li class="relative my-1">
-            <a
-              href={item.href}
+            <button
               on:click={(e) => handleNavigation(e, item)}
               class="nav-link {!$isNavigating && currentSection === item.path
                 ? activeColor
                 : ''} {isItemDisabled
                 ? disabledColor
-                : hoverColor} flex items-center rounded-lg px-5"
+                : hoverColor} flex w-full items-center rounded-lg px-5"
               class:tooltip={isItemDisabled && item.tooltip}
               data-tip={item.tooltip}
             >
@@ -339,7 +355,7 @@
                   : "group-hover:text-neutral"}
               />
               {#if isExpanded}<span class="ml-2">{item.label}</span>{/if}
-            </a>
+            </button>
           </li>
         {/each}
 
