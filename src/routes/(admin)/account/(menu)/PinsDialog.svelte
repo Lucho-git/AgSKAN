@@ -263,7 +263,7 @@
     >
       <!-- Header with accent -->
       <div class="relative shrink-0">
-        <div class="h-1 w-full bg-primary"></div>
+        <div class="h-1 w-full bg-base-content"></div>
         <div
           class="flex items-center justify-between border-b border-base-300 p-5"
         >
@@ -394,7 +394,7 @@
               <!-- svelte-ignore a11y-click-events-have-key-events -->
               <div
                 class="cursor-pointer select-none rounded-lg bg-base-200 p-4 transition-all {isSelected
-                  ? 'border border-base-content bg-primary/10'
+                  ? 'border border-base-content bg-base-content/10'
                   : 'border border-transparent hover:border-contrast-content hover:bg-base-300/50'}"
                 on:click={() => handleCardClick(marker.id)}
                 on:keydown={(e) => handleCardKeydown(e, marker.id)}
