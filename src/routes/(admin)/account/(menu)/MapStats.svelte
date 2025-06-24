@@ -3,7 +3,7 @@
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { Card, CardContent } from "$lib/components/ui/card"
-  import { Truck, Route } from "lucide-svelte"
+  import { Truck, Route, MapPin } from "lucide-svelte"
   import PinsDialog from "./PinsDialog.svelte"
 
   $: mapMarkers = $mapActivityStore.marker_count
@@ -24,73 +24,132 @@
 
   let markerLimit = 100
   let yourMapId = $connectedMapStore.id
+  let pinsDialogOpen = false
+
+  function openPinsDialog() {
+    pinsDialogOpen = true
+  }
 </script>
 
 {#if loading}
-  <div class="stats w-full text-xs shadow sm:text-sm md:text-base">
-    <div class="stat place-items-center p-2 sm:p-4">
-      <Skeleton class="mb-2 h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="mt-2 h-[20px] w-[100px] rounded-full" />
-    </div>
-    <div class="stat place-items-center p-2 sm:p-4">
-      <Skeleton class="mb-2 h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="mt-2 h-[20px] w-[100px] rounded-full" />
-    </div>
-    <div class="stat place-items-center p-2 sm:p-4">
-      <Skeleton class="mb-2 h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="h-[20px] w-[100px] rounded-full" />
-      <Skeleton class="mt-2 h-[20px] w-[100px] rounded-full" />
+  <div class="container mx-auto px-2 py-2">
+    <div class="grid grid-cols-3 gap-2 sm:gap-4">
+      {#each Array(3) as _}
+        <Card class="border border-base-300 bg-base-100 shadow-md">
+          <CardContent
+            class="flex h-full flex-col items-center justify-center p-3"
+          >
+            <Skeleton class="mb-2 h-[16px] w-[60px] rounded-full" />
+            <Skeleton class="h-[20px] w-[40px] rounded-full" />
+            <Skeleton class="mt-1 h-[12px] w-[80px] rounded-full" />
+          </CardContent>
+        </Card>
+      {/each}
     </div>
   </div>
 {:else}
   <div class="container mx-auto px-2 py-2">
     <div class="grid grid-cols-3 gap-2 sm:gap-4">
-      <PinsDialog
-        mapId={yourMapId}
-        {mapMarkers}
-        {isPaidSubscription}
-        {markerLimit}
-      />
+      <!-- Map Markers Card -->
+      <button on:click={openPinsDialog} class="text-left">
+        <Card
+          class="group cursor-pointer border border-base-300 bg-base-100 shadow-md transition-all duration-300 hover:shadow-lg"
+        >
+          <CardContent
+            class="flex h-full flex-col items-center justify-center p-3"
+          >
+            <div class="mb-2">
+              <div
+                class="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-green-100 transition-all duration-300 group-hover:scale-105"
+              >
+                <MapPin size={14} class="text-green-600" />
+              </div>
+            </div>
+            <p class="mb-1 text-xs font-semibold text-contrast-content">Pins</p>
+            <div class="mb-1 text-sm font-bold text-contrast-content">
+              {mapMarkers}/{markerLimit}
+            </div>
+            <p
+              class="text-center text-[10px] leading-tight text-contrast-content/60"
+            >
+              {#if isPaidSubscription}
+                Unlimited
+              {:else}
+                {markerLimit - mapMarkers} left
+              {/if}
+            </p>
+          </CardContent>
+        </Card>
+      </button>
 
+      <!-- Vehicles Card -->
       <Card
-        class="border border-base-300 bg-gradient-to-br from-base-100 to-base-200 backdrop-blur-sm"
+        class="border border-base-300 bg-base-100 shadow-md transition-all duration-300 hover:shadow-lg"
       >
         <CardContent
-          class="flex h-full flex-col items-center justify-center p-2"
+          class="flex h-full flex-col items-center justify-center p-3"
         >
-          <Truck class="mb-1 h-4 w-4 text-primary" />
-          <p class="text-xs font-semibold text-base-content">Vehicles</p>
-          <span class="text-base font-bold text-base-content">
+          <div class="mb-2">
+            <div
+              class="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-blue-100"
+            >
+              <Truck size={14} class="text-blue-600" />
+            </div>
+          </div>
+          <p class="mb-1 text-xs font-semibold text-contrast-content">
+            Vehicles
+          </p>
+          <div class="mb-1 text-sm font-bold text-contrast-content">
             {vehicles}/{masterSubscription.current_seats}
-          </span>
-          <p class="mt-1 text-center text-[10px] text-base-content/70">
-            Active Vehicles
+          </div>
+          <p
+            class="text-center text-[10px] leading-tight text-contrast-content/60"
+          >
+            Active
           </p>
         </CardContent>
       </Card>
 
+      <!-- Trail Points Card -->
       <Card
-        class="border border-base-300 bg-gradient-to-br from-base-100 to-base-200 backdrop-blur-sm"
+        class="border border-base-300 bg-base-100 shadow-md transition-all duration-300 hover:shadow-lg"
       >
         <CardContent
-          class="flex h-full flex-col items-center justify-center p-2"
+          class="flex h-full flex-col items-center justify-center p-3"
         >
-          <Route class="mb-1 h-4 w-4 text-primary" />
-          <p class="text-xs font-semibold text-base-content">Trail Points</p>
-          <span class="text-base font-bold text-base-content">
+          <div class="mb-2">
+            <div
+              class="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-purple-100"
+            >
+              <Route size={14} class="text-purple-600" />
+            </div>
+          </div>
+          <p class="mb-1 text-xs font-semibold text-contrast-content">
+            Trail Points
+          </p>
+          <div class="mb-1 text-sm font-bold text-contrast-content">
             {formatNumber(trailCoordinates)}
-          </span>
-          <p class="mt-1 text-center text-[10px] text-base-content/70">
+          </div>
+          <p
+            class="text-center text-[10px] leading-tight text-contrast-content/60"
+          >
             {#if isPaidSubscription}
-              Unlimited Trails
+              Unlimited
             {:else}
-              Limit: 100K coordinates
+              300K limit
             {/if}
           </p>
         </CardContent>
       </Card>
     </div>
   </div>
+
+  <!-- PinsDialog -->
+  <PinsDialog
+    bind:open={pinsDialogOpen}
+    mapId={yourMapId}
+    {mapMarkers}
+    {isPaidSubscription}
+    {markerLimit}
+  />
 {/if}

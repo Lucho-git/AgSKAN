@@ -1,27 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte"
-  import { Card, CardContent } from "$lib/components/ui/card"
-  import {
-    Dialog,
-    DialogTrigger,
-    DialogContent,
-    DialogHeader,
-    DialogFooter,
-    DialogTitle,
-    DialogDescription,
-    DialogClose,
-    DialogOverlay,
-    DialogPortal,
-  } from "$lib/components/ui/dialog"
-  import { Checkbox } from "$lib/components/ui/checkbox"
   import {
     MapPin,
     Search,
     SortAsc,
     SortDesc,
     Trash2,
-    ChevronDown,
     X,
+    Calendar,
   } from "lucide-svelte"
   import { DateTime } from "luxon"
   import {
@@ -31,6 +17,7 @@
   } from "$lib/utils/pinsFromMapId"
   import IconSVG from "../../../../components/IconSVG.svelte"
 
+  export let open = false
   export let mapMarkers: number
   export let isPaidSubscription: boolean
   export let markerLimit: number
@@ -42,10 +29,22 @@
   let searchQuery = ""
   let sortDirection: "asc" | "desc" = "desc"
   let selectedPins = new Set<number>()
+  let hasLoadedOnce = false
 
   // Pagination variables
   let itemsPerPage = 40
   let currentPage = 1
+
+  function closeDialog() {
+    open = false
+  }
+
+  // Prevent background scroll when modal is open
+  $: if (open) {
+    document.body.style.overflow = "hidden"
+  } else {
+    document.body.style.overflow = ""
+  }
 
   function getMarkerIcon(iconName: string) {
     const cleanIconName = iconName.replace("custom-svg-", "")
@@ -68,6 +67,36 @@
     }
   }
 
+  // Get pin color based on category/type - more subtle colors
+  function getPinColor(iconName: string) {
+    if (iconName.includes("access") || iconName.includes("entrance"))
+      return "rgba(74, 135, 224, 0.15)"
+    if (iconName.includes("equipment") || iconName.includes("machinery"))
+      return "rgba(76, 177, 113, 0.15)"
+    if (iconName.includes("sample") || iconName.includes("soil"))
+      return "rgba(254, 221, 100, 0.15)"
+    if (iconName.includes("issue") || iconName.includes("problem"))
+      return "rgba(231, 76, 60, 0.15)"
+    if (iconName.includes("storage") || iconName.includes("barn"))
+      return "rgba(155, 89, 182, 0.15)"
+    return "rgba(74, 135, 224, 0.15)"
+  }
+
+  // Get icon color - slightly more saturated than background
+  function getIconColor(iconName: string) {
+    if (iconName.includes("access") || iconName.includes("entrance"))
+      return "rgba(74, 135, 224, 0.7)"
+    if (iconName.includes("equipment") || iconName.includes("machinery"))
+      return "rgba(76, 177, 113, 0.7)"
+    if (iconName.includes("sample") || iconName.includes("soil"))
+      return "rgba(254, 221, 100, 0.8)"
+    if (iconName.includes("issue") || iconName.includes("problem"))
+      return "rgba(231, 76, 60, 0.7)"
+    if (iconName.includes("storage") || iconName.includes("barn"))
+      return "rgba(155, 89, 182, 0.7)"
+    return "rgba(74, 135, 224, 0.7)"
+  }
+
   async function loadPins() {
     loading = true
     const { data, error: pinError } = await getPinsFromMapId(mapId)
@@ -81,6 +110,7 @@
 
     markers = data || []
     loading = false
+    hasLoadedOnce = true
   }
 
   async function handleBulkDelete() {
@@ -100,9 +130,10 @@
     }
   }
 
-  onMount(() => {
+  // Load pins when dialog opens (only if not loaded before)
+  $: if (open && !hasLoadedOnce && mapId) {
     loadPins()
-  })
+  }
 
   $: filteredMarkers = markers
     .filter((marker) =>
@@ -118,10 +149,6 @@
 
   $: paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
   $: hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
-
-  $: isAllSelected =
-    filteredMarkers.length > 0 &&
-    filteredMarkers.every((marker) => selectedPins.has(marker.id))
 
   function loadMore() {
     if (hasMorePages) {
@@ -156,236 +183,294 @@
     selectedPins = selectedPins
   }
 
-  function toggleAllPins() {
-    if (isAllSelected) {
-      selectedPins.clear()
-    } else {
-      filteredMarkers.forEach((marker) => selectedPins.add(marker.id))
-    }
-    selectedPins = selectedPins
-  }
-
   function clearSelection() {
     selectedPins.clear()
     selectedPins = selectedPins
   }
+
+  function handleBackdropClick(event) {
+    if (event.target === event.currentTarget) {
+      closeDialog()
+    }
+  }
+
+  function handleCardClick(markerId: number) {
+    togglePin(markerId)
+  }
+
+  function handleCardKeydown(event, markerId: number) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      togglePin(markerId)
+    }
+  }
 </script>
 
-<Dialog>
-  <DialogTrigger>
-    <Card
-      class="group relative cursor-pointer border border-base-300 bg-gradient-to-br from-base-100 to-base-200 backdrop-blur-sm transition-all duration-200 hover:scale-[1.02] hover:bg-base-200/80 hover:shadow-lg"
+{#if open}
+  <!-- High z-index backdrop to ensure it's above everything -->
+  <div
+    class="fixed inset-0 flex items-start justify-center bg-black bg-opacity-60 p-0 sm:items-center sm:p-4"
+    style="z-index: 9999;"
+    on:click={handleBackdropClick}
+  >
+    <!-- Modal Content - Better responsive behavior -->
+    <div
+      class="flex h-screen w-full flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-2xl sm:h-auto sm:max-h-[90vh]
+             sm:min-h-[600px] sm:max-w-md sm:rounded-xl sm:border sm:border-base-300"
+      on:click|stopPropagation
     >
-      <div class="absolute right-2 top-2 rounded-full bg-base-content/5 p-1">
-        <ChevronDown
-          class="h-3 w-3 text-base-content/50 transition-transform duration-200 group-hover:-rotate-180 group-hover:text-primary"
-        />
+      <!-- Header with accent -->
+      <div class="relative shrink-0">
+        <div class="h-1 w-full bg-primary"></div>
+        <div
+          class="flex items-center justify-between border-b border-base-300 p-5"
+        >
+          <h2
+            class="flex items-center gap-2 text-xl font-bold text-base-content"
+          >
+            <MapPin size={20} class="text-primary" />
+            Map Pins
+          </h2>
+          <button
+            on:click={closeDialog}
+            class="rounded-full p-1.5 text-contrast-content transition-colors hover:bg-base-200 hover:text-base-content"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
-      <CardContent class="flex h-full flex-col items-center justify-center p-2">
-        <MapPin
-          class="mb-1 h-4 w-4 text-primary transition-transform duration-200 group-hover:scale-110"
-        />
-        <p class="text-xs font-semibold text-base-content">Pins</p>
-        <span class="text-base font-bold text-base-content">
-          {mapMarkers}{#if !isPaidSubscription}/{markerLimit}{/if}
-        </span>
-        <p class="mt-1 text-center text-[10px] text-base-content/70">
-          {#if isPaidSubscription}
-            Unlimited Drops
-          {:else}
-            Total markers
-          {/if}
+      <!-- Subtitle -->
+      <div class="shrink-0 px-6 pb-2 pt-4">
+        <p class="text-sm text-contrast-content">
+          View and manage your map pins
         </p>
-      </CardContent>
-    </Card>
-  </DialogTrigger>
+      </div>
 
-  <DialogPortal>
-    <DialogOverlay class="bg-black/80" />
-    <DialogContent
-      class="min-h-screen rounded-none bg-base-100 sm:min-h-fit sm:max-w-[425px] sm:rounded-xl"
-    >
-      <DialogHeader>
-        <div class="flex items-center gap-2">
-          <div class="rounded-lg bg-primary/10 p-2">
-            <MapPin class="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <DialogTitle>Map Pins</DialogTitle>
-            <DialogDescription>View and manage your map pins</DialogDescription>
-          </div>
-        </div>
-      </DialogHeader>
-
-      <div class="space-y-4 p-4">
-        <div class="flex items-center gap-2">
+      <!-- Search and filter section -->
+      <div class="shrink-0 px-6 pb-4">
+        <div class="flex gap-3">
           <div class="relative flex-1">
-            <Search
-              class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/50"
-            />
+            <div
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-contrast-content"
+            >
+              <Search size={18} />
+            </div>
             <input
               type="text"
               placeholder="Search pins..."
               bind:value={searchQuery}
-              class="input input-bordered w-full pl-10 text-sm"
+              class="w-full rounded-lg border border-base-300 bg-base-200 py-3 pl-10 pr-4 text-contrast-content outline-none transition-colors focus:border-primary"
             />
           </div>
-          <button class="btn btn-ghost btn-sm gap-2" on:click={toggleSort}>
+          <button
+            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-primary transition-colors hover:bg-base-300"
+            on:click={toggleSort}
+          >
             {#if sortDirection === "asc"}
-              <SortAsc class="h-4 w-4" />
+              <SortAsc size={16} />
             {:else}
-              <SortDesc class="h-4 w-4" />
+              <SortDesc size={16} />
             {/if}
-            Date
+            <span>Date</span>
           </button>
-        </div>
-
-        <div
-          class="flex items-center justify-between text-sm text-base-content/70"
-        >
-          <span>
-            {filteredMarkers.length} pin{filteredMarkers.length === 1
-              ? ""
-              : "s"} found
-          </span>
-          {#if filteredMarkers.length > 0}
-            <button
-              class="text-xs text-primary hover:underline"
-              on:click={toggleAllPins}
-            >
-              {isAllSelected ? "Deselect all" : "Select all"}
-            </button>
-          {/if}
         </div>
       </div>
 
-      <div class="max-h-[60vh] overflow-y-auto" on:scroll={handleScroll}>
-        <div class="space-y-2 px-4">
-          {#if loading}
-            {#each Array(5) as _}
-              <div class="animate-pulse rounded-lg bg-base-200 p-3">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="h-8 w-8 rounded bg-base-300" />
-                    <div>
-                      <div class="h-4 w-32 rounded bg-base-300" />
-                      <div class="mt-2 h-3 w-24 rounded bg-base-300" />
-                    </div>
-                  </div>
-                  <div class="h-5 w-5 rounded bg-base-300" />
-                </div>
+      <!-- Pins count -->
+      <div class="shrink-0 px-6 pb-4">
+        <p class="text-sm text-contrast-content">
+          {filteredMarkers.length} pins found
+        </p>
+      </div>
+
+      <!-- Pins list container - Flexible height -->
+      <div class="flex-1 overflow-y-auto px-6" on:scroll={handleScroll}>
+        {#if loading}
+          <div
+            class="flex flex-col items-center justify-center py-10 text-center"
+          >
+            <div
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-primary"
+            >
+              <div class="animate-spin">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                </svg>
               </div>
-            {/each}
-          {:else if error}
-            <div class="rounded-lg bg-error/10 p-4 text-error">
-              Failed to load pins. Please try again.
             </div>
-          {:else}
+            <p class="mb-1 text-contrast-content">Loading pins...</p>
+          </div>
+        {:else if error}
+          <div
+            class="flex flex-col items-center justify-center py-10 text-center"
+          >
+            <div
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-red-500"
+            >
+              <X size={24} />
+            </div>
+            <p class="mb-1 text-red-500">Failed to load pins</p>
+            <p class="text-sm text-contrast-content">Please try again</p>
+          </div>
+        {:else if filteredMarkers.length === 0}
+          <div
+            class="flex flex-col items-center justify-center py-10 text-center"
+          >
+            <div
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-contrast-content"
+            >
+              <MapPin size={24} />
+            </div>
+            <p class="mb-1 text-base-content">No pins found</p>
+            <p class="max-w-xs text-sm text-contrast-content">
+              Pins will appear here when you add them to your map
+            </p>
+          </div>
+        {:else}
+          <div class="space-y-3 pb-4">
             {#each paginatedMarkers as marker (marker.id)}
+              {@const pinColor = getPinColor(
+                marker.marker_data.properties.icon,
+              )}
+              {@const iconColor = getIconColor(
+                marker.marker_data.properties.icon,
+              )}
+              {@const isSelected = selectedPins.has(marker.id)}
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
               <div
-                class="group flex cursor-pointer items-center justify-between rounded-lg bg-base-200 p-3 hover:bg-base-300"
-                on:click={() => togglePin(marker.id)}
-                on:keydown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    togglePin(marker.id)
-                  }
-                }}
+                class="cursor-pointer select-none rounded-lg bg-base-200 p-4 transition-all {isSelected
+                  ? 'border border-base-content bg-primary/10'
+                  : 'border border-transparent hover:border-contrast-content hover:bg-base-300/50'}"
+                on:click={() => handleCardClick(marker.id)}
+                on:keydown={(e) => handleCardKeydown(e, marker.id)}
                 role="checkbox"
-                aria-checked={selectedPins.has(marker.id)}
+                aria-checked={isSelected}
                 tabindex="0"
               >
-                <div class="flex flex-1 items-center gap-3">
+                <div class="flex items-center">
+                  <!-- Icon Circle - Centered with faded background -->
                   <div
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-base-300"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                    style="background-color: {pinColor};"
                   >
                     {#if getMarkerIcon(marker.marker_data.properties.icon).type === "svg"}
-                      <IconSVG
-                        icon={getMarkerIcon(marker.marker_data.properties.icon)
-                          .name}
-                        size="24px"
-                      />
+                      <div style="color: {iconColor};">
+                        <IconSVG
+                          icon={getMarkerIcon(
+                            marker.marker_data.properties.icon,
+                          ).name}
+                          size="24px"
+                        />
+                      </div>
                     {:else if getMarkerIcon(marker.marker_data.properties.icon).type === "ionic"}
                       <ion-icon
                         name={getMarkerIcon(marker.marker_data.properties.icon)
                           .name}
-                        style="font-size: 24px;"
+                        style="font-size: 24px; color: {iconColor};"
                       />
                     {:else}
-                      <span class="text-xl">📍</span>
+                      <MapPin size={24} style="color: {iconColor};" />
                     {/if}
                   </div>
-                  <div class="flex-1">
-                    <h4 class="text-sm font-semibold text-base-content">
+
+                  <!-- Content - Centered -->
+                  <div class="ml-4 flex flex-1 flex-col justify-center">
+                    <h3 class="font-medium text-contrast-content">
                       {marker.marker_data.properties.icon}
-                    </h4>
-                    <p class="text-xs text-base-content/70">
-                      {formatDate(marker.updated_at)}
+                    </h3>
+                    <p class="mt-0.5 text-sm text-contrast-content">
+                      Pin marker on map
                     </p>
+                    <div class="mt-2 flex items-center gap-3">
+                      <span
+                        class="flex items-center text-xs text-contrast-content"
+                      >
+                        <Calendar size={12} class="mr-1" />
+                        {formatDate(marker.updated_at)}
+                      </span>
+                      <span
+                        class="flex items-center text-xs text-contrast-content"
+                      >
+                        <MapPin size={12} class="mr-1" />
+                        {marker.marker_data.geometry.coordinates[1].toFixed(4)}, {marker.marker_data.geometry.coordinates[0].toFixed(
+                          4,
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <Checkbox
-                    checked={selectedPins.has(marker.id)}
-                    tabindex="-1"
-                  />
+
+                  <!-- DaisyUI Checkbox - Centered -->
+                  <div class="ml-4 flex shrink-0 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      class="checkbox-primary checkbox checkbox-sm"
+                      on:click|stopPropagation={() => togglePin(marker.id)}
+                      tabindex="-1"
+                    />
+                  </div>
                 </div>
               </div>
             {/each}
 
             {#if hasMorePages}
               <div class="flex justify-center py-4">
-                <button class="btn btn-ghost btn-sm" on:click={loadMore}>
+                <button
+                  class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-primary transition-colors hover:bg-base-300"
+                  on:click={loadMore}
+                >
                   Load More ({filteredMarkers.length - paginatedMarkers.length} remaining)
                 </button>
               </div>
             {/if}
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
 
-      <DialogFooter class="sm:justify-between">
+      <!-- Footer with bulk actions and close button -->
+      <div class="mt-2 shrink-0 border-t border-base-300 p-4">
         {#if selectedPins.size > 0}
-          <div class="hidden items-center gap-4 sm:flex">
-            <div class="flex items-center gap-2">
-              <button class="btn btn-ghost btn-sm" on:click={clearSelection}>
-                <X class="h-4 w-4" />
+          <div class="mb-3 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-sm">
+              <button
+                class="rounded-full p-1.5 text-contrast-content transition-colors hover:bg-base-200 hover:text-base-content"
+                on:click={clearSelection}
+              >
+                <X size={16} />
               </button>
-              <span class="text-sm font-medium">
-                {selectedPins.size} selected
-              </span>
+              <span class="font-medium text-base-content"
+                >{selectedPins.size} selected</span
+              >
             </div>
             <button
-              class="btn btn-error btn-sm gap-2"
+              class="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm text-white shadow-sm transition-colors hover:bg-red-700"
               on:click={handleBulkDelete}
             >
-              <Trash2 class="h-4 w-4" />
+              <Trash2 size={16} />
               Delete
             </button>
           </div>
         {/if}
-        <DialogClose class="btn">Close</DialogClose>
-      </DialogFooter>
-
-      {#if selectedPins.size > 0}
-        <div
-          class="fixed bottom-0 left-0 flex w-full items-center justify-between border-t bg-base-100 p-4 sm:hidden"
+        <button
+          on:click={closeDialog}
+          class="w-full rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
         >
-          <div class="flex items-center gap-2">
-            <button class="btn btn-ghost btn-sm" on:click={clearSelection}>
-              <X class="h-4 w-4" />
-            </button>
-            <span class="text-sm font-medium">
-              {selectedPins.size} selected
-            </span>
-          </div>
-          <button
-            class="btn btn-error btn-sm gap-2"
-            on:click={handleBulkDelete}
-          >
-            <Trash2 class="h-4 w-4" />
-            Delete
-          </button>
-        </div>
-      {/if}
-    </DialogContent>
-  </DialogPortal>
-</Dialog>
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
