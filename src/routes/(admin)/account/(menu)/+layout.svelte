@@ -90,6 +90,9 @@
   const hoverColor = "hover:bg-neutral-content hover:text-neutral group"
   const disabledColor = "opacity-50 cursor-not-allowed pointer-events-none"
 
+  // Check if connected to a map
+  $: isMapConnected = Boolean($connectedMapStore?.id)
+
   const menuItems = [
     {
       href: "/account",
@@ -108,6 +111,8 @@
       topBarIcon: "solar:map-point-search-bold-duotone",
       topBarLabel: "Map Viewer",
       path: "mapviewer",
+      requiresMap: true,
+      tooltip: "Connect to a map first to access the map viewer",
     },
     {
       href: "/account/fieldview",
@@ -136,6 +141,10 @@
       topBarLabel: "Billing & Invoices",
       path: "billing",
       disabled: browser && Capacitor.isNativePlatform(),
+      tooltip:
+        browser && Capacitor.isNativePlatform()
+          ? "Billing is not available in the mobile app"
+          : undefined,
     },
     {
       href: "/account/settings",
@@ -164,8 +173,11 @@
 
   // Function to handle navigation
   function handleNavigation(e, item) {
+    // Check if item requires map connection and we're not connected
+    const itemDisabled = item.disabled || (item.requiresMap && !isMapConnected)
+
     // Prevent navigation for disabled items
-    if (item.disabled) {
+    if (itemDisabled) {
       e.preventDefault()
 
       // Show toast message for disabled items
@@ -179,6 +191,13 @@
     if (currentSection !== item.path) {
       isNavigating.set(true)
     }
+  }
+
+  // Function to check if an item should be disabled - make this more explicit
+  $: getItemDisabledStatus = (item) => {
+    if (item.disabled) return true
+    if (item.requiresMap && !isMapConnected) return true
+    return false
   }
 
   // Wait for stores to be populated
@@ -249,6 +268,7 @@
       >
         <ul class="flex h-16 items-stretch">
           {#each menuItems as item}
+            {@const isItemDisabled = getItemDisabledStatus(item)}
             <li class="flex-1">
               <a
                 href={item.href}
@@ -257,15 +277,12 @@
                     {!$isNavigating && currentSection === item.path
                   ? 'bg-neutral-content text-neutral'
                   : ''} 
-                    {item.disabled
+                    {isItemDisabled
                   ? disabledColor
                   : 'transition-colors duration-200 hover:bg-neutral-content hover:text-neutral'}"
               >
                 <Icon icon={item.icon} width="24" height="24" />
                 <span class="mt-1 text-xs">{item.label}</span>
-                {#if item.disabled && item.tooltip}
-                  <div class="tooltip tooltip-top text-xs">{item.tooltip}</div>
-                {/if}
               </a>
             </li>
           {/each}
@@ -300,16 +317,17 @@
         </li>
 
         {#each menuItems as item}
+          {@const isItemDisabled = getItemDisabledStatus(item)}
           <li class="relative my-1">
             <a
               href={item.href}
               on:click={(e) => handleNavigation(e, item)}
               class="nav-link {!$isNavigating && currentSection === item.path
                 ? activeColor
-                : ''} {item.disabled
+                : ''} {isItemDisabled
                 ? disabledColor
                 : hoverColor} flex items-center rounded-lg px-5"
-              class:tooltip={item.disabled && item.tooltip}
+              class:tooltip={isItemDisabled && item.tooltip}
               data-tip={item.tooltip}
             >
               <Icon
