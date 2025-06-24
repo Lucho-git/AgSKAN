@@ -35,6 +35,11 @@
   let itemsPerPage = 40
   let currentPage = 1
 
+  // Optimized variables to reduce recalculation
+  let filteredMarkers: MapMarker[] = []
+  let paginatedMarkers: MapMarker[] = []
+  let hasMorePages = false
+
   function closeDialog() {
     open = false
   }
@@ -46,61 +51,71 @@
     document.body.style.overflow = ""
   }
 
+  // Memoized icon processing - only calculate once per marker
+  const markerIconCache = new Map()
+
   function getMarkerIcon(iconName: string) {
+    if (markerIconCache.has(iconName)) {
+      return markerIconCache.get(iconName)
+    }
+
     const cleanIconName = iconName.replace("custom-svg-", "")
+    let result
 
     if (iconName.startsWith("custom-svg-")) {
-      return {
-        type: "svg",
-        name: cleanIconName,
-      }
+      result = { type: "svg", name: cleanIconName }
     } else if (iconName.startsWith("ionic-")) {
-      return {
-        type: "ionic",
-        name: iconName.replace("ionic-", ""),
-      }
+      result = { type: "ionic", name: iconName.replace("ionic-", "") }
     } else {
-      return {
-        type: "default",
-        name: "📍",
-      }
+      result = { type: "default", name: "📍" }
     }
+
+    markerIconCache.set(iconName, result)
+    return result
   }
 
-  // Get pin color based on category/type - more subtle colors
+  // Pre-calculated color maps for better performance
+  const pinColorMap = {
+    access: "rgba(74, 135, 224, 0.15)",
+    entrance: "rgba(74, 135, 224, 0.15)",
+    equipment: "rgba(76, 177, 113, 0.15)",
+    machinery: "rgba(76, 177, 113, 0.15)",
+    sample: "rgba(254, 221, 100, 0.15)",
+    soil: "rgba(254, 221, 100, 0.15)",
+    issue: "rgba(231, 76, 60, 0.15)",
+    problem: "rgba(231, 76, 60, 0.15)",
+    storage: "rgba(155, 89, 182, 0.15)",
+    barn: "rgba(155, 89, 182, 0.15)",
+    default: "rgba(74, 135, 224, 0.15)",
+  }
+
+  const iconColorMap = {
+    access: "rgba(74, 135, 224, 0.7)",
+    entrance: "rgba(74, 135, 224, 0.7)",
+    equipment: "rgba(76, 177, 113, 0.7)",
+    machinery: "rgba(76, 177, 113, 0.7)",
+    sample: "rgba(254, 221, 100, 0.8)",
+    soil: "rgba(254, 221, 100, 0.8)",
+    issue: "rgba(231, 76, 60, 0.7)",
+    problem: "rgba(231, 76, 60, 0.7)",
+    storage: "rgba(155, 89, 182, 0.7)",
+    barn: "rgba(155, 89, 182, 0.7)",
+    default: "rgba(74, 135, 224, 0.7)",
+  }
+
   function getPinColor(iconName: string) {
-    if (iconName.includes("access") || iconName.includes("entrance"))
-      return "rgba(74, 135, 224, 0.15)"
-    if (iconName.includes("equipment") || iconName.includes("machinery"))
-      return "rgba(76, 177, 113, 0.15)"
-    if (iconName.includes("sample") || iconName.includes("soil"))
-      return "rgba(254, 221, 100, 0.15)"
-    if (iconName.includes("issue") || iconName.includes("problem"))
-      return "rgba(231, 76, 60, 0.15)"
-    if (iconName.includes("storage") || iconName.includes("barn"))
-      return "rgba(155, 89, 182, 0.15)"
-    return "rgba(74, 135, 224, 0.15)"
+    const key = Object.keys(pinColorMap).find((k) => iconName.includes(k))
+    return pinColorMap[key] || pinColorMap.default
   }
 
-  // Get icon color - slightly more saturated than background
   function getIconColor(iconName: string) {
-    if (iconName.includes("access") || iconName.includes("entrance"))
-      return "rgba(74, 135, 224, 0.7)"
-    if (iconName.includes("equipment") || iconName.includes("machinery"))
-      return "rgba(76, 177, 113, 0.7)"
-    if (iconName.includes("sample") || iconName.includes("soil"))
-      return "rgba(254, 221, 100, 0.8)"
-    if (iconName.includes("issue") || iconName.includes("problem"))
-      return "rgba(231, 76, 60, 0.7)"
-    if (iconName.includes("storage") || iconName.includes("barn"))
-      return "rgba(155, 89, 182, 0.7)"
-    return "rgba(74, 135, 224, 0.7)"
+    const key = Object.keys(iconColorMap).find((k) => iconName.includes(k))
+    return iconColorMap[key] || iconColorMap.default
   }
 
   async function loadPins() {
     loading = true
     const { data, error: pinError } = await getPinsFromMapId(mapId)
-    console.log("Pins Data", data)
 
     if (pinError) {
       error = pinError
@@ -111,6 +126,7 @@
     markers = data || []
     loading = false
     hasLoadedOnce = true
+    updateFilteredMarkers()
   }
 
   async function handleBulkDelete() {
@@ -135,24 +151,43 @@
     loadPins()
   }
 
-  $: filteredMarkers = markers
-    .filter((marker) =>
-      marker.marker_data.properties.icon
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()),
-    )
-    .sort((a, b) => {
-      const dateA = new Date(a.updated_at).getTime()
-      const dateB = new Date(b.updated_at).getTime()
-      return sortDirection === "asc" ? dateA - dateB : dateB - dateA
-    })
+  // Debounced update function to reduce excessive recalculations
+  let updateTimeout
+  function updateFilteredMarkers() {
+    clearTimeout(updateTimeout)
+    updateTimeout = setTimeout(() => {
+      filteredMarkers = markers
+        .filter((marker) =>
+          marker.marker_data.properties.icon
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()),
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.updated_at).getTime()
+          const dateB = new Date(b.updated_at).getTime()
+          return sortDirection === "asc" ? dateA - dateB : dateB - dateA
+        })
 
-  $: paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
-  $: hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
+      // Reset pagination when filtering changes
+      currentPage = 1
+      updatePagination()
+    }, 50) // Reduced debounce time for better responsiveness
+  }
+
+  function updatePagination() {
+    paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
+    hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
+  }
+
+  // Watch for changes that should trigger updates
+  $: if (searchQuery !== undefined || sortDirection) {
+    updateFilteredMarkers()
+  }
 
   function loadMore() {
     if (hasMorePages) {
       currentPage++
+      updatePagination()
     }
   }
 
@@ -170,8 +205,15 @@
     sortDirection = sortDirection === "asc" ? "desc" : "asc"
   }
 
+  // Memoize date formatting
+  const dateCache = new Map()
   function formatDate(dateString: string) {
-    return DateTime.fromISO(dateString).toRelative()
+    if (dateCache.has(dateString)) {
+      return dateCache.get(dateString)
+    }
+    const formatted = DateTime.fromISO(dateString).toRelative()
+    dateCache.set(dateString, formatted)
+    return formatted
   }
 
   function togglePin(id: number) {
@@ -228,7 +270,7 @@
           <h2
             class="flex items-center gap-2 text-xl font-bold text-base-content"
           >
-            <MapPin size={20} class="text-primary" />
+            <MapPin size={20} class="text-base-content" />
             Map Pins
           </h2>
           <button
@@ -261,11 +303,11 @@
               type="text"
               placeholder="Search pins..."
               bind:value={searchQuery}
-              class="w-full rounded-lg border border-base-300 bg-base-200 py-3 pl-10 pr-4 text-contrast-content outline-none transition-colors focus:border-primary"
+              class="w-full rounded-lg border border-base-300 bg-base-200 py-3 pl-10 pr-4 text-contrast-content outline-none transition-colors focus:border-base-content"
             />
           </div>
           <button
-            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-primary transition-colors hover:bg-base-300"
+            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-base-content transition-colors hover:bg-base-300"
             on:click={toggleSort}
           >
             {#if sortDirection === "asc"}
@@ -292,7 +334,7 @@
             class="flex flex-col items-center justify-center py-10 text-center"
           >
             <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-primary"
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-base-content"
             >
               <div class="animate-spin">
                 <svg
@@ -429,7 +471,7 @@
             {#if hasMorePages}
               <div class="flex justify-center py-4">
                 <button
-                  class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-primary transition-colors hover:bg-base-300"
+                  class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-base-content transition-colors hover:bg-base-300"
                   on:click={loadMore}
                 >
                   Load More ({filteredMarkers.length - paginatedMarkers.length} remaining)
