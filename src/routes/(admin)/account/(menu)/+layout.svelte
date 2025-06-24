@@ -12,13 +12,16 @@
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { browser } from "$app/environment"
-  import { Capacitor } from "@capacitor/core" // Import Capacitor
+  import { Capacitor } from "@capacitor/core"
 
   import CrispChatWidget from "../../../../components/CrispChatWidget.svelte"
 
   const adminSectionStore = writable("")
   const isNavigating = writable(false)
   setContext("adminSection", adminSectionStore)
+
+  // Theme state
+  let isDarkMode = false
 
   // When navigation completes, update this flag
   afterNavigate(() => {
@@ -44,20 +47,46 @@
     }
   }
 
-  // Calculate usage statistics from mapActivity and subscription stores
-  $: seatsUsed = $connectedMapStore?.is_connected
-    ? $mapActivityStore?.connected_profiles?.length || 0
-    : 1
-  $: totalSeats = $subscriptionStore?.current_seats || 1
-  $: trailLaid = $mapActivityStore?.trail_count || 0
-  $: totalTrail = $subscriptionStore?.trail_limit || 100000
+  // Theme functions
+  function initializeTheme() {
+    if (!browser) return
 
-  // Calculate percentages
-  $: seatsPercentage = (seatsUsed / totalSeats) * 100
-  $: trailPercentage = (trailLaid / totalTrail) * 100
+    const savedTheme = localStorage.getItem("theme")
+
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme)
+      isDarkMode = savedTheme === "skanthemedark"
+    } else {
+      // Check system preference
+      const systemPrefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches
+      isDarkMode = systemPrefersDark
+      const initialTheme = isDarkMode ? "skanthemedark" : "skantheme"
+
+      document.documentElement.setAttribute("data-theme", initialTheme)
+      localStorage.setItem("theme", initialTheme)
+    }
+  }
+
+  function toggleTheme() {
+    if (!browser) return
+
+    isDarkMode = !isDarkMode
+    const newTheme = isDarkMode ? "skanthemedark" : "skantheme"
+    document.documentElement.setAttribute("data-theme", newTheme)
+    localStorage.setItem("theme", newTheme)
+
+    toast.success(`Switched to ${isDarkMode ? "dark" : "light"} mode`)
+  }
+
+  onMount(() => {
+    initializeTheme()
+  })
 
   const selectedColor = "bg-neutral"
-  const activeColor = "bg-neutral-content bg-opacity-10 text-neutral-content"
+  // Updated to match mobile navbar highlighting
+  const activeColor = "bg-neutral-content text-neutral"
   const hoverColor = "hover:bg-neutral-content hover:text-neutral group"
   const disabledColor = "opacity-50 cursor-not-allowed pointer-events-none"
 
@@ -178,16 +207,32 @@
               ?.topBarLabel || menuItems[0].topBarLabel}</span
           >
         </div>
-        <button
-          on:click={handleChatClick}
-          class="bg-neutral-focus rounded-full p-1 transition-colors duration-200"
-        >
-          <Icon
-            icon="solar:chat-round-line-bold-duotone"
-            width="24"
-            height="24"
-          />
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- Mobile Theme Toggle -->
+          <button
+            on:click={toggleTheme}
+            class="hover:bg-neutral-focus rounded-full p-1 transition-colors duration-200"
+          >
+            <Icon
+              icon={isDarkMode
+                ? "solar:sun-bold-duotone"
+                : "solar:moon-bold-duotone"}
+              width="20"
+              height="20"
+            />
+          </button>
+          <!-- Chat Button -->
+          <button
+            on:click={handleChatClick}
+            class="bg-neutral-focus rounded-full p-1 transition-colors duration-200"
+          >
+            <Icon
+              icon="solar:chat-round-line-bold-duotone"
+              width="24"
+              height="24"
+            />
+          </button>
+        </div>
       </div>
     {/if}
 
@@ -240,8 +285,8 @@
       >
         <li class="my-1">
           <button
+            class="no-focus-active flex w-full items-center rounded-lg bg-neutral px-5 hover:bg-neutral-content hover:text-neutral"
             on:click={toggleSidebar}
-            class="toggle-sidebar-btn focus:bg-focus focus:text-focus-content flex w-full items-center rounded-lg bg-neutral px-5 hover:bg-neutral-content hover:text-neutral"
           >
             <Icon
               icon={isExpanded
@@ -249,7 +294,6 @@
                 : "solar:alt-arrow-right-bold-duotone"}
               width="28"
               height="28"
-              class="group-hover:text-neutral"
             />
             {#if isExpanded}<span class="ml-2">Collapse Menu</span>{/if}
           </button>
@@ -260,7 +304,7 @@
             <a
               href={item.href}
               on:click={(e) => handleNavigation(e, item)}
-              class="{!$isNavigating && currentSection === item.path
+              class="nav-link {!$isNavigating && currentSection === item.path
                 ? activeColor
                 : ''} {item.disabled
                 ? disabledColor
@@ -272,7 +316,9 @@
                 icon={item.icon}
                 width="32"
                 height="32"
-                class="group-hover:text-neutral"
+                class={!$isNavigating && currentSection === item.path
+                  ? "text-neutral"
+                  : "group-hover:text-neutral"}
               />
               {#if isExpanded}<span class="ml-2">{item.label}</span>{/if}
             </a>
@@ -283,53 +329,39 @@
           <hr class=" transform border-neutral-content opacity-20" />
         </li>
 
+        <!-- Theme Toggle Section -->
+        <li class="my-1">
+          <div class="flex items-center px-5 py-4">
+            <button
+              class="no-focus-active flex w-full items-center gap-3 rounded-lg p-2 transition-colors duration-200 hover:bg-neutral-content hover:bg-opacity-20"
+              on:click={toggleTheme}
+            >
+              <Icon
+                icon={isDarkMode
+                  ? "solar:sun-bold-duotone"
+                  : "solar:moon-bold-duotone"}
+                width="20"
+                height="20"
+              />
+              {#if isExpanded}
+                <span class="text-sm font-medium">
+                  {isDarkMode ? "Light Mode" : "Dark Mode"}
+                </span>
+              {/if}
+            </button>
+          </div>
+        </li>
+
+        <!-- Profile Section -->
         {#if storesReady}
           <li class="my-1">
-            <div class="{hoverColor} group flex items-center px-3 py-2">
-              <div class="flex flex-col items-center">
-                <Icon
-                  icon="solar:user-circle-bold-duotone"
-                  width="32"
-                  height="32"
-                  class="flex-shrink-0"
-                />
-                {#if !isExpanded}
-                  <div class="mt-4 flex flex-col items-center space-y-1">
-                    <div
-                      class=" flex items-center"
-                      data-tip="Seats: {seatsUsed}/{totalSeats}"
-                    >
-                      <Icon
-                        icon="solar:users-group-rounded-bold"
-                        width="12"
-                        height="12"
-                        class="mr-1"
-                      />
-                      <progress
-                        class="progress progress-primary w-8 bg-neutral-content group-hover:bg-neutral"
-                        value={seatsPercentage}
-                        max="100"
-                      ></progress>
-                    </div>
-                    <div
-                      class=" flex items-center"
-                      data-tip="Trail: {trailLaid}/{totalTrail}"
-                    >
-                      <Icon
-                        icon="solar:routing-bold"
-                        width="12"
-                        height="12"
-                        class="mr-1"
-                      />
-                      <progress
-                        class="progress progress-secondary w-8 bg-neutral-content group-hover:bg-neutral"
-                        value={trailPercentage}
-                        max="100"
-                      ></progress>
-                    </div>
-                  </div>
-                {/if}
-              </div>
+            <div class="{hoverColor} group flex items-center px-5 py-3">
+              <Icon
+                icon="solar:user-circle-bold-duotone"
+                width="32"
+                height="32"
+                class="flex-shrink-0 group-hover:text-neutral"
+              />
               {#if isExpanded}
                 <div class="ml-2 flex-grow">
                   <p class="text-sm font-semibold">
@@ -349,49 +381,13 @@
                     </p>
                   {/if}
                 </div>
-                <div class="flex flex-col space-y-2">
-                  <div
-                    class=" flex items-center"
-                    data-tip="Seats: {seatsUsed}/{totalSeats}"
-                  >
-                    <Icon
-                      icon="solar:users-group-rounded-bold"
-                      width="16"
-                      height="16"
-                      class="mr-1"
-                    />
-                    <progress
-                      class="progress progress-primary w-16 bg-neutral-content group-hover:bg-neutral"
-                      value={seatsPercentage}
-                      max="100"
-                    ></progress>
-                    <span class="ml-1 w-2 text-right text-xs">Seats</span>
-                  </div>
-                  <div
-                    class=" flex items-center"
-                    data-tip="Trail: {trailLaid}/{totalTrail}"
-                  >
-                    <Icon
-                      icon="solar:routing-bold"
-                      width="16"
-                      height="16"
-                      class="mr-1"
-                    />
-                    <progress
-                      class="progress progress-secondary w-16 bg-neutral-content group-hover:bg-neutral"
-                      value={trailPercentage}
-                      max="100"
-                    ></progress>
-                    <span class="ml-1 mr-8 w-0 text-right text-xs">Trail</span>
-                  </div>
-                </div>
               {/if}
             </div>
           </li>
         {:else}
           <!-- Placeholder while waiting for stores to load -->
           <li class="my-1">
-            <div class="flex items-center px-3 py-2">
+            <div class="flex items-center px-5 py-3">
               <div class="flex-shrink-0">
                 <div
                   class="h-8 w-8 animate-pulse rounded-full bg-neutral-content bg-opacity-20"
@@ -437,8 +433,27 @@
 <CrispChatWidget bind:this={crispComponent} />
 
 <style>
-  .menu :focus {
+  /* Only apply focus styles to navigation links, not utility buttons */
+  .menu .nav-link:focus {
     background-color: theme("colors.neutral-content");
     color: theme("colors.neutral");
+  }
+
+  /* Prevent focus styles on utility buttons */
+  .menu .no-focus-active:focus {
+    outline: none;
+    background-color: transparent !important;
+    color: theme("colors.neutral-content") !important;
+  }
+
+  /* Ensure hover styles still work for utility buttons */
+  .menu .no-focus-active:hover {
+    background-color: theme("colors.neutral-content") !important;
+    color: theme("colors.neutral") !important;
+  }
+
+  /* Prevent child elements from inheriting focus colors */
+  .menu .no-focus-active:focus * {
+    color: inherit !important;
   }
 </style>
