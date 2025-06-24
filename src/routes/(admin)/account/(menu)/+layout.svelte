@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores"
-  import { afterNavigate } from "$app/navigation"
+  import { afterNavigate, goto } from "$app/navigation"
   import "../../../../app.css"
   import { writable, derived } from "svelte/store"
   import { setContext, onMount } from "svelte"
@@ -190,7 +190,7 @@
           action: {
             label: "Go to Home",
             onClick: () => {
-              window.location.href = "/account"
+              goto("/account")
             },
           },
           duration: 5000,
@@ -207,8 +207,8 @@
       isNavigating.set(true)
     }
 
-    // Navigate to the href
-    window.location.href = item.href
+    // Use SvelteKit's goto for instant navigation
+    goto(item.href)
   }
 
   // Function to check if an item should be disabled - make this more explicit
@@ -313,8 +313,8 @@
     <div class="drawer-side">
       <label for="admin-drawer" class="drawer-overlay"></label>
       <ul
-        class="w-70 menu menu-lg min-h-full p-4 {selectedColor} text-neutral-content lg:border-r"
-        class:w-70={isExpanded}
+        class="menu menu-lg min-h-full w-80 p-4 {selectedColor} text-neutral-content lg:border-r"
+        class:w-80={isExpanded}
         class:w-35={!isExpanded}
       >
         <li class="my-1">
