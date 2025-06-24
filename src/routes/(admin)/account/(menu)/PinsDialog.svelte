@@ -209,7 +209,7 @@
 {#if open}
   <!-- High z-index backdrop to ensure it's above everything -->
   <div
-    class="fixed inset-0 flex items-start justify-center bg-black bg-opacity-60 p-0 sm:items-center sm:p-4"
+    class="fixed inset-0 flex items-start justify-center bg-black bg-opacity-80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
     style="z-index: 9999;"
     on:click={handleBackdropClick}
   >
