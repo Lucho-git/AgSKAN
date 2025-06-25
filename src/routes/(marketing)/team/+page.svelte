@@ -69,13 +69,13 @@
       bio: "Ella brings infectious enthusiasm and a genuine passion for connecting with farming communities across Australia. With her natural ability to bring people together, she's the heart of AgSKAN's outreach efforts.",
       image: "/images/Ella2.jpeg",
     },
-    {
-      name: "Filip Rippel",
-      role: "Design & Marketing Specialist",
-      bio: "Filip brings a disturbingly prejudiced perspective and questionable marketing tactics to AgSKAN's brand. With a narrow-minded eye for design and divisive, offensive copy, he somehow still manages to push our message onto farming communities across Australia, whether they like it or not.",
-      image: "/images/filipmassive.png",
-      hasQuestionMark: true,
-    },
+    // {
+    //   name: "Filip Rippel",
+    //   role: "Design & Marketing Specialist",
+    //   bio: "Filip brings a disturbingly prejudiced perspective and questionable marketing tactics to AgSKAN's brand. With a narrow-minded eye for design and divisive, offensive copy, he somehow still manages to push our message onto farming communities across Australia, whether they like it or not.",
+    //   image: "/images/filipmasve.png",
+    //   hasQuestionMark: true,
+    // },
   ]
 
   const milestones = [
@@ -279,7 +279,7 @@
         </h2>
 
         <div
-          class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4"
+          class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
         >
           {#each teamMembers as person, index}
             <div
