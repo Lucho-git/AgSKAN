@@ -42,6 +42,12 @@
       href: "/account/settings/map-preferences",
     },
     {
+      id: "location-permissions",
+      icon: "solar:gps-bold-duotone",
+      label: "Location",
+      href: "/account/settings/location-permissions",
+    },
+    {
       id: "subscription",
       icon: "solar:card-bold-duotone",
       label: "Subscription",

@@ -1,46 +1,60 @@
 <script lang="ts">
   import { session } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
 
   // Profile state
   let editingProfile = false
   let formProfile = {
-    name: $profileStore?.full_name || "",
+    fullName: $profileStore?.full_name || "",
     companyName: $profileStore?.company_name || "",
-    avatar: "",
   }
 
   // Update form when profile store changes
   $: if ($profileStore) {
     formProfile = {
-      name: $profileStore.full_name || "",
+      fullName: $profileStore.full_name || "",
       companyName: $profileStore.company_name || "",
-      avatar: "",
     }
   }
 
+  // Handler for profile update using the API
   async function handleProfileUpdate() {
-    toast.promise(
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const result = await userSettingsApi.updateProfile(
+        formProfile.fullName,
+        formProfile.companyName,
+        "", // Empty website field
+      )
+
+      if (result.success) {
+        // Update the profile store with the new values
+        if ($profileStore) {
+          const updatedProfile = {
+            ...$profileStore,
+            full_name: formProfile.fullName,
+            company_name: formProfile.companyName,
+          }
+          profileStore.set(updatedProfile)
+        }
+
         editingProfile = false
-        return "Profile updated successfully"
-      },
-      {
-        loading: "Saving profile changes...",
-        success: (message) => message,
-        error: "Failed to update profile",
-      },
-    )
+        toast.success("Profile updated successfully")
+      } else {
+        toast.error(result.error || "Failed to update profile")
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      toast.error("Failed to update profile")
+    }
   }
 
   function cancelProfileEdit() {
     formProfile = {
-      name: $profileStore?.full_name || "",
+      fullName: $profileStore?.full_name || "",
       companyName: $profileStore?.company_name || "",
-      avatar: "",
     }
     editingProfile = false
   }
@@ -67,71 +81,79 @@
     </div>
     Profile
   </h2>
-  {#if !editingProfile}
-    <button
-      on:click={() => (editingProfile = true)}
-      class="rounded-lg p-1.5 text-base-content/60 transition-colors hover:bg-base-content/10 hover:text-base-content"
-    >
-      <Icon icon="solar:pen-bold-duotone" width="16" height="16" />
-    </button>
-  {/if}
 </div>
 
 <!-- Content -->
 <div class="p-6">
   {#if editingProfile}
-    <div class="space-y-4">
-      <div class="flex items-center gap-4">
+    <!-- Edit Form -->
+    <div class="space-y-6">
+      <!-- Profile Avatar Section -->
+      <div class="flex items-center gap-6">
         <div
-          class="group relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-base-200 text-contrast-content"
+          class="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-base-200 text-contrast-content"
         >
-          {#if formProfile.avatar}
-            <img
-              src={formProfile.avatar}
-              alt="Avatar"
-              class="h-full w-full object-cover"
-            />
-          {:else}
-            <span class="text-xl font-bold uppercase"
-              >{formProfile.name.charAt(0) || "U"}</span
-            >
-          {/if}
+          <span class="text-2xl font-bold uppercase">
+            {formProfile.fullName.charAt(0) || "U"}
+          </span>
           <div
             class="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
           >
             <Icon
               icon="solar:upload-bold-duotone"
-              width="16"
-              height="16"
+              width="20"
+              height="20"
               class="text-white"
             />
           </div>
         </div>
         <div class="flex-1">
-          <label class="mb-1 block text-sm text-contrast-content/60">Name</label
-          >
-          <input
-            type="text"
-            bind:value={formProfile.name}
-            class="input input-bordered w-full"
-            placeholder="Enter your name"
-          />
+          <h3 class="text-lg font-medium text-contrast-content">
+            Profile Picture
+          </h3>
+          <p class="text-sm text-contrast-content/60">
+            Click on the avatar to upload a new profile picture
+          </p>
         </div>
       </div>
 
-      <div>
-        <label class="mb-1 block text-sm text-contrast-content/60"
-          >Company Name</label
-        >
-        <input
-          type="text"
-          bind:value={formProfile.companyName}
-          class="input input-bordered w-full"
-          placeholder="Enter company name"
-        />
+      <!-- Form Fields -->
+      <div class="grid gap-6">
+        <!-- Full Name -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-contrast-content">
+            Full Name
+          </label>
+          <input
+            type="text"
+            bind:value={formProfile.fullName}
+            class="input input-bordered w-full"
+            placeholder="Enter your full name"
+          />
+          <p class="text-xs text-contrast-content/60">
+            This is the name that will be displayed across your account
+          </p>
+        </div>
+
+        <!-- Company Name -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-contrast-content">
+            Company Name
+          </label>
+          <input
+            type="text"
+            bind:value={formProfile.companyName}
+            class="input input-bordered w-full"
+            placeholder="Enter your company name"
+          />
+          <p class="text-xs text-contrast-content/60">
+            The name of your organization or business
+          </p>
+        </div>
       </div>
 
-      <div class="flex justify-end gap-3">
+      <!-- Action Buttons -->
+      <div class="flex justify-end gap-3 border-t border-base-300 pt-6">
         <button
           on:click={cancelProfileEdit}
           class="btn btn-outline btn-sm gap-2"
@@ -144,54 +166,121 @@
           class="btn btn-primary btn-sm gap-2"
         >
           <Icon icon="solar:diskette-bold-duotone" width="16" height="16" />
-          Save
+          Save Changes
         </button>
       </div>
     </div>
   {:else}
-    <div class="space-y-5">
-      <div class="flex items-start gap-4">
+    <!-- View Mode -->
+    <div class="space-y-6">
+      <!-- Profile Header -->
+      <div class="flex items-center gap-6">
         <div
-          class="flex h-16 w-16 items-center justify-center rounded-full bg-base-200 text-contrast-content"
+          class="flex h-20 w-20 items-center justify-center rounded-full bg-base-200 text-contrast-content"
         >
-          {#if formProfile.avatar}
-            <img
-              src={formProfile.avatar}
-              alt="Avatar"
-              class="h-full w-full object-cover"
-            />
-          {:else}
-            <span class="text-xl font-bold uppercase"
-              >{$profileStore?.full_name?.charAt(0) || "U"}</span
-            >
-          {/if}
+          <span class="text-2xl font-bold uppercase">
+            {$profileStore?.full_name?.charAt(0) || "U"}
+          </span>
         </div>
         <div>
-          <h3 class="text-xl font-medium text-contrast-content">
+          <h3 class="text-2xl font-bold text-contrast-content">
             {$profileStore?.full_name || "No name set"}
           </h3>
-          <p class="text-contrast-content/60">Free Plan</p>
+          <p class="text-contrast-content/60">
+            {$profileStore?.company_name || "No company"}
+          </p>
         </div>
       </div>
 
-      <div>
-        <label class="mb-1 block text-sm text-contrast-content/60"
-          >Company Name</label
-        >
-        <p
-          class="rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content"
-        >
-          {$profileStore?.company_name || "No company name set"}
-        </p>
+      <!-- Profile Information Cards -->
+      <div class="grid gap-4">
+        <!-- Name Card -->
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="block text-sm text-contrast-content/60"
+                >Full Name</label
+              >
+              <p class="font-medium text-contrast-content">
+                {$profileStore?.full_name || "Not set"}
+              </p>
+            </div>
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:user-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Company Card -->
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="block text-sm text-contrast-content/60"
+                >Company Name</label
+              >
+              <p class="font-medium text-contrast-content">
+                {$profileStore?.company_name || "Not set"}
+              </p>
+            </div>
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:buildings-2-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Email Card (Read-only) -->
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+          <div class="flex items-center justify-between">
+            <div class="min-w-0 flex-1">
+              <label class="block text-sm text-contrast-content/60"
+                >Email Address</label
+              >
+              <p class="truncate font-medium text-contrast-content">
+                {$session?.user?.email || "Not available"}
+              </p>
+              <span
+                class="mt-1 inline-flex items-center gap-1 text-xs text-success"
+              >
+                <Icon
+                  icon="solar:check-circle-bold-duotone"
+                  width="12"
+                  height="12"
+                />
+                Verified
+              </span>
+            </div>
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:letter-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <button
-        class="btn btn-outline w-full gap-2"
-        on:click={() => (editingProfile = true)}
-      >
-        <Icon icon="solar:pen-bold-duotone" width="16" height="16" />
-        Edit Profile
-      </button>
+      <!-- Edit Button -->
+      <div class="flex justify-end border-t border-base-300 pt-6">
+        <button
+          class="btn btn-outline gap-2"
+          on:click={() => (editingProfile = true)}
+        >
+          <Icon icon="solar:pen-bold-duotone" width="16" height="16" />
+          Edit Profile
+        </button>
+      </div>
     </div>
   {/if}
 </div>

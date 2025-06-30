@@ -19,9 +19,9 @@
     version: APP_VERSION,
     buildDate: new Date("2025-01-15"),
     platform: isNativePlatform ? "Mobile App" : "Web App",
-    supportEmail: "support@agskan.com",
-    privacyPolicyUrl: "https://agskan.com/privacy",
-    termsOfServiceUrl: "https://agskan.com/terms",
+    supportEmail: "support@skanfarming.com.au",
+    privacyPolicyUrl: "/docs/SKAN-Privacy-Policy.pdf",
+    termsOfServiceUrl: "/docs/terms_of_service.pdf",
   }
 
   async function handleDeleteAccount() {
