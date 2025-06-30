@@ -186,14 +186,16 @@
           Upgrade to Premium
         </h3>
 
-        <div class="rounded-lg border border-primary/20 bg-primary/5 p-6">
+        <div
+          class="rounded-lg border border-base-content/20 bg-base-content/5 p-6"
+        >
           <div class="mb-4 flex items-start gap-3">
-            <div class="rounded-full bg-primary p-2">
+            <div class="rounded-full bg-base-content p-2">
               <Icon
                 icon="solar:users-group-two-rounded-bold"
                 width="20"
                 height="20"
-                class="text-white"
+                class="text-base-100"
               />
             </div>
             <div>
@@ -214,7 +216,7 @@
                 icon="solar:check-circle-bold-duotone"
                 width="20"
                 height="20"
-                class="text-success"
+                class="text-base-content"
               />
               <span class="text-sm text-contrast-content">
                 Invite unlimited team members to your map
@@ -225,7 +227,7 @@
                 icon="solar:check-circle-bold-duotone"
                 width="20"
                 height="20"
-                class="text-success"
+                class="text-base-content"
               />
               <span class="text-sm text-contrast-content">
                 Real-time collaboration and tracking
@@ -236,7 +238,7 @@
                 icon="solar:check-circle-bold-duotone"
                 width="20"
                 height="20"
-                class="text-success"
+                class="text-base-content"
               />
               <span class="text-sm text-contrast-content">
                 Advanced reporting and analytics
@@ -247,7 +249,7 @@
                 icon="solar:check-circle-bold-duotone"
                 width="20"
                 height="20"
-                class="text-success"
+                class="text-base-content"
               />
               <span class="text-sm text-contrast-content">
                 Priority support and updates
@@ -255,7 +257,10 @@
             </div>
           </div>
 
-          <button class="btn btn-primary w-full gap-2" on:click={handleUpgrade}>
+          <button
+            class="btn btn-outline w-full gap-2 border-base-content text-base-content hover:bg-base-content hover:text-base-100"
+            on:click={handleUpgrade}
+          >
             <Icon icon="solar:crown-bold-duotone" width="16" height="16" />
             Upgrade to Premium
           </button>
@@ -280,7 +285,7 @@
 
         <div class="space-y-3">
           <button
-            class="btn btn-primary w-full justify-start gap-3"
+            class="btn btn-outline w-full justify-start gap-3"
             on:click={handleManageBilling}
           >
             <Icon icon="solar:settings-bold-duotone" width="18" height="18" />
