@@ -26,6 +26,13 @@
   $: userFiles = $userFilesStore
   let isExpanded = true
 
+  // Modal state
+  let deleteModalId = "delete-file-modal"
+  let fileToDelete: {
+    id: string
+    name: string
+  } | null = null
+
   function toggleExpand() {
     isExpanded = !isExpanded
   }
@@ -42,17 +49,39 @@
     return new Date(dateString).toLocaleDateString()
   }
 
-  async function handleDeleteFile(fileId: string, fileName: string) {
+  function openDeleteModal(fileId: string, fileName: string) {
+    fileToDelete = {
+      id: fileId,
+      name: fileName,
+    }
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
+    if (modal) modal.showModal()
+  }
+
+  function closeDeleteModal() {
+    const modal = document.getElementById(deleteModalId) as HTMLDialogElement
+    if (modal) modal.close()
+    fileToDelete = null
+  }
+
+  async function handleDeleteFile() {
+    if (!fileToDelete) return
+
     try {
-      const result = await fileApi.deleteFile(fileId)
+      const result = await fileApi.deleteFile(fileToDelete.name)
       if (result.success) {
-        userFilesStore.update((files) => files.filter((f) => f.id !== fileId))
-        toast.success(`File "${fileName}" deleted successfully`)
+        userFilesStore.update((files) =>
+          files.filter((f) => f.id !== fileToDelete.id),
+        )
+        toast.success(`File "${fileToDelete.name}" deleted successfully`)
+        closeDeleteModal()
       } else {
         throw new Error(result.message || "Failed to delete file")
       }
     } catch (error) {
-      toast.error(`Failed to delete file "${fileName}". Please try again.`)
+      toast.error(
+        `Failed to delete file "${fileToDelete.name}". Please try again.`,
+      )
     }
   }
 
@@ -60,6 +89,58 @@
     navigateToProcess(fileId, fileName)
   }
 </script>
+
+<!-- Delete File Modal -->
+<dialog id={deleteModalId} class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <div class="flex items-center gap-2">
+      <div class="rounded-lg bg-red-500/10 p-2">
+        <AlertCircle class="h-5 w-5 text-red-500" />
+      </div>
+      <div>
+        <h3 class="text-lg font-bold">Delete File</h3>
+        <p class="text-sm text-contrast-content/60">
+          This action cannot be undone
+        </p>
+      </div>
+    </div>
+
+    <div class="p-4">
+      {#if fileToDelete}
+        <p class="mb-4 text-contrast-content">
+          Are you sure you want to delete the file "{fileToDelete.name}"?
+        </p>
+        <div class="rounded-lg border border-red-200 bg-red-50 p-3">
+          <p class="text-sm text-red-700">
+            <strong>Warning:</strong> This will permanently remove the file from
+            storage. Any fields created from this file will remain but the original
+            boundary data will be lost.
+          </p>
+        </div>
+      {/if}
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog" class="flex w-full gap-2 sm:w-auto">
+        <button
+          class="btn btn-outline flex-1 sm:flex-none"
+          on:click={closeDeleteModal}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn flex-1 bg-red-500 text-white hover:bg-red-600 sm:flex-none"
+          on:click={handleDeleteFile}
+        >
+          Delete File
+        </button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 
 <!-- Files Overview Card - Updated styling to match other components -->
 <div class="p-6">
@@ -153,7 +234,7 @@
                       <button
                         class="btn btn-ghost btn-sm h-8 w-8 p-0"
                         aria-label="Delete file"
-                        on:click={() => handleDeleteFile(file.id, file.name)}
+                        on:click={() => openDeleteModal(file.id, file.name)}
                       >
                         <Trash2 class="h-4 w-4" />
                       </button>
@@ -225,7 +306,7 @@
                     </li>
                     <li>
                       <button
-                        on:click={() => handleDeleteFile(file.id, file.name)}
+                        on:click={() => openDeleteModal(file.id, file.name)}
                         class="text-red-600"
                       >
                         <Trash2 class="h-4 w-4" /> Delete
