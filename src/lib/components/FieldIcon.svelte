@@ -1,4 +1,3 @@
-<!-- src/lib/components/FieldIcon.svelte -->
 <script lang="ts">
   import { onMount } from "svelte"
   import type { GeoJSON } from "d3-geo"
@@ -111,20 +110,39 @@
   height={size}
   viewBox="0 0 {size} {size}"
   xmlns="http://www.w3.org/2000/svg"
-  style="background-color: #f0f0f0; border: 1px solid #ccc;"
+  class="field-icon"
 >
   <path
     d={pathData}
-    fill="rgba(0, 128, 0, 0.5)"
-    stroke="#006400"
-    stroke-width="0.5"
+    fill="currentColor"
+    fill-opacity="0.3"
+    stroke="currentColor"
+    stroke-width="1"
+    stroke-opacity="0.7"
     fill-rule="evenodd"
   />
 </svg>
 
 <style>
-  svg {
+  .field-icon {
     display: inline-block;
     vertical-align: middle;
+    color: hsl(var(--bc));
+    background: transparent;
+    border-radius: 4px;
   }
+
+  /* Optional: Add a subtle background that adapts to theme */
+  .field-icon {
+    background-color: hsl(var(--bc) / 0.05);
+    border: 1px solid hsl(var(--bc) / 0.1);
+  }
+
+  /* For completely transparent background (no background at all) */
+  /* Uncomment this if you prefer no background:
+  .field-icon {
+    background: none;
+    border: none;
+  }
+  */
 </style>
