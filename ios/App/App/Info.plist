@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<string>NO</string>
+                <false/>
 	<key>CFBundleGetInfoString</key>
 	<string></string>
     <key>NSAppTransportSecurity</key>
