@@ -123,6 +123,8 @@
       topBarIcon: "solar:map-bold-duotone",
       topBarLabel: "Field Overview",
       path: "fieldview",
+      requiresMap: true,
+      tooltip: "Connect to a map first to access the field overview",
     },
     // {
     //   href: "/account/pathplanner",
