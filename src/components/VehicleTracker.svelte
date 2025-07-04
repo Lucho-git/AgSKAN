@@ -1026,21 +1026,60 @@
   {/if}
 </button>
 
-<!-- Tracking Status Indicator - positioned to the right of the vehicle button -->
+<!-- Tracking Status Indicator - condensed single line -->
 {#if isTrackingVehicle}
   <div
-    class="tracking-indicator fixed z-50 flex items-center gap-2 rounded-lg bg-green-500/90 px-3 py-2 text-white shadow-lg backdrop-blur"
-    style="bottom: 8rem; left: 4.5rem;"
+    class="tracking-indicator fixed z-50 flex items-center gap-2 rounded-lg bg-black/70 px-3 py-2 text-white shadow-lg backdrop-blur-md"
+    style="bottom: 8rem; left: 4.5rem; transform-origin: left center;"
   >
-    <Target size={16} class="animate-pulse" />
-    <span class="text-sm font-medium">Tracking</span>
-    <button
-      on:click={stopTrackingVehicle}
-      class="ml-1 rounded-full bg-white/20 p-1 transition-colors hover:bg-white/30"
-      aria-label="Stop tracking"
-    >
-      <X size={12} />
-    </button>
+    {#if trackedVehicleId}
+      {@const vehicle = getVehicleById(trackedVehicleId)}
+      {#if vehicle}
+        <!-- Vehicle Icon -->
+        <div
+          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-green-500/20 p-0.5"
+        >
+          {#if getVehicleIcon(vehicle)}
+            <svelte:component
+              this={getVehicleIcon(vehicle)}
+              bodyColor={getVehicleColor(vehicle)}
+              size="14px"
+            />
+          {:else}
+            <!-- Fallback icon -->
+            <div class="h-2.5 w-2.5 rounded bg-green-300/60"></div>
+          {/if}
+        </div>
+
+        <!-- Vehicle Name -->
+        <span class="min-w-0 truncate text-sm font-medium text-green-300">
+          {vehicle.isCurrentUser ? "You" : truncateName(vehicle.full_name, 10)}
+        </span>
+
+        <!-- Tracking Icon -->
+        <Target size={14} class="flex-shrink-0 animate-pulse text-green-300" />
+
+        <!-- Close Button -->
+        <button
+          on:click={stopTrackingVehicle}
+          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/20 active:bg-white/30"
+          aria-label="Stop tracking"
+        >
+          <X size={10} class="text-white/70" />
+        </button>
+      {:else}
+        <!-- Fallback if vehicle not found -->
+        <Target size={14} class="animate-pulse text-green-300" />
+        <span class="text-sm text-white/70">Vehicle not found</span>
+        <button
+          on:click={stopTrackingVehicle}
+          class="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-white/20 active:bg-white/30"
+          aria-label="Stop tracking"
+        >
+          <X size={10} class="text-white/70" />
+        </button>
+      {/if}
+    {/if}
   </div>
 {/if}
 
@@ -1241,7 +1280,7 @@
   }
 
   .tracking-indicator {
-    animation: slideInRight 0.3s ease-out;
+    animation: expandFromLeft 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
   /* Responsive width for wider screens */
@@ -1283,14 +1322,18 @@
     }
   }
 
-  @keyframes slideInRight {
-    from {
+  @keyframes expandFromLeft {
+    0% {
       opacity: 0;
-      transform: translateX(100%);
+      transform: scaleX(0.1) translateX(-20px);
     }
-    to {
+    60% {
+      opacity: 0.8;
+      transform: scaleX(1.05) translateX(5px);
+    }
+    100% {
       opacity: 1;
-      transform: translateX(0);
+      transform: scaleX(1) translateX(0);
     }
   }
 
