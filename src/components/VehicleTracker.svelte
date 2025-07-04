@@ -16,9 +16,10 @@
   import { toast } from "svelte-sonner"
   import { page } from "$app/stores"
   import "../styles/global.css"
-  import { Gauge, X } from "lucide-svelte"
+  import { Gauge, X, Users, MapPin } from "lucide-svelte"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
+  import SVGComponents from "$lib/vehicles/index.js"
 
   export let map
   export let disableAutoZoom = false
@@ -31,10 +32,14 @@
   let otherVehicleMarkers = []
   let currentSpeed = 0
   let showSpeedometer = false
+  let showVehicleList = false
   let isMobileApp = false
   let isBackground = false
   let appState = "web" // Can be "web", "mobile-foreground", or "mobile-background"
   let removeBackgroundListener = null
+
+  // Static vehicle list that only updates when menu opens
+  let sortedVehicles = []
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
@@ -47,8 +52,228 @@
   let lastClientHeading = null
   let previousVehicleMarker = null
 
+  // Helper function to parse coordinates
+  function parseCoordinates(coords) {
+    if (!coords) return null
+
+    if (typeof coords === "object" && coords.latitude && coords.longitude) {
+      // User vehicle format: {latitude: number, longitude: number}
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }
+    }
+
+    if (typeof coords === "string") {
+      // Other vehicles format: "(longitude,latitude)"
+      const cleanedCoords = coords.slice(1, -1) // Remove parentheses
+      const [longitude, latitude] = cleanedCoords.split(",").map(parseFloat)
+      return {
+        latitude: latitude,
+        longitude: longitude,
+      }
+    }
+
+    return null
+  }
+
+  // Helper function to determine if vehicle is online/recent
+  function isVehicleOnline(vehicle) {
+    if (!vehicle.last_update) return false
+
+    let timestampMs
+    if (typeof vehicle.last_update === "string") {
+      timestampMs = new Date(vehicle.last_update).getTime()
+    } else {
+      timestampMs = vehicle.last_update
+    }
+
+    const now = Date.now()
+    const diff = now - timestampMs
+    const fiveMinutes = 5 * 60 * 1000 // 5 minutes in milliseconds
+
+    return diff < fiveMinutes
+  }
+
+  // Function to calculate and sort vehicles - only called when needed
+  function calculateSortedVehicles() {
+    const allVehicles = [
+      // User vehicle
+      {
+        id: $userVehicleStore.user_id || userVehicleId,
+        full_name: "You",
+        vehicle_marker: $userVehicleStore.vehicle_marker,
+        coordinates: $userVehicleStore.coordinates,
+        heading: $userVehicleStore.heading,
+        is_trailing: $userVehicleTrailing,
+        last_update: $userVehicleStore.last_update,
+        isCurrentUser: true,
+      },
+      // Other vehicles
+      ...$otherVehiclesStore.map((vehicle) => ({
+        ...vehicle,
+        id: vehicle.vehicle_id,
+        isCurrentUser: false,
+      })),
+    ]
+      .filter((vehicle) => {
+        const parsedCoords = parseCoordinates(vehicle.coordinates)
+        return parsedCoords !== null
+      })
+      .sort((a, b) => {
+        // Priority order:
+        // 1. Current user (always first)
+        if (a.isCurrentUser) return -1
+        if (b.isCurrentUser) return 1
+
+        // 2. Trailing vehicles (active)
+        if (a.is_trailing && !b.is_trailing) return -1
+        if (b.is_trailing && !a.is_trailing) return 1
+
+        // 3. Online vehicles (recent activity)
+        const aOnline = isVehicleOnline(a)
+        const bOnline = isVehicleOnline(b)
+        if (aOnline && !bOnline) return -1
+        if (bOnline && !aOnline) return 1
+
+        // 4. Sort by most recent activity
+        const aTime =
+          typeof a.last_update === "string"
+            ? new Date(a.last_update).getTime()
+            : a.last_update || 0
+        const bTime =
+          typeof b.last_update === "string"
+            ? new Date(b.last_update).getTime()
+            : b.last_update || 0
+        return bTime - aTime
+      })
+
+    return allVehicles
+  }
+
   function toggleSpeedometer() {
     showSpeedometer = !showSpeedometer
+  }
+
+  function toggleVehicleList() {
+    showVehicleList = !showVehicleList
+
+    // Only calculate and sort vehicles when opening the menu
+    if (showVehicleList) {
+      sortedVehicles = calculateSortedVehicles()
+      console.log(
+        "Vehicle list opened - calculated",
+        sortedVehicles.length,
+        "vehicles",
+      )
+    } else {
+      console.log("Vehicle list closed")
+    }
+  }
+
+  function zoomToVehicle(vehicle) {
+    const parsedCoords = parseCoordinates(vehicle.coordinates)
+    if (!parsedCoords) {
+      toast.error("Unable to get vehicle location")
+      return
+    }
+
+    const { latitude, longitude } = parsedCoords
+
+    map.flyTo({
+      center: [longitude, latitude],
+      zoom: 16,
+      duration: 1500,
+    })
+
+    // Show toast with vehicle info
+    const vehicleInfo = vehicle.isCurrentUser
+      ? "your location"
+      : `${vehicle.full_name}'s ${getVehicleDisplayName(vehicle)}`
+
+    toast.success(`Zooming to ${vehicleInfo}`)
+
+    // Close the vehicle list after selection
+    showVehicleList = false
+  }
+
+  function formatLastUpdate(timestamp) {
+    if (!timestamp) return "Unknown"
+
+    let timestampMs
+    if (typeof timestamp === "string") {
+      timestampMs = new Date(timestamp).getTime()
+    } else {
+      timestampMs = timestamp
+    }
+
+    const now = Date.now()
+    const diff = now - timestampMs
+    const minutes = Math.floor(diff / (1000 * 60))
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+
+    if (days > 0) return `${days}d ago`
+    if (hours > 0) return `${hours}h ago`
+    if (minutes > 0) return `${minutes}m ago`
+    return "Just now"
+  }
+
+  function getVehicleDisplayName(vehicle) {
+    const vehicleType = vehicle.vehicle_marker?.type || "Vehicle"
+
+    // Shortened names for display
+    const shortNames = {
+      FourWheelDriveTractor: "FWD Tractor",
+      TowBetweenSeeder: "TB Seeder",
+      TowBehindSeeder: "TB Seeder",
+      TowBehindSeederTracks: "TB Seeder Tracks",
+      TowBehindBoomspray: "TB Boomspray",
+      SelfPropelledBoomspray: "SP Boomspray",
+      ThreePointBoomspray: "3P Boomspray",
+      FarmUte: "Farm Ute",
+      FrontWheelChaserBin: "FW Chaser",
+      FourWheelDriveChaserBin: "FWD Chaser",
+      HeaderDuals: "Header Duals",
+      HeaderSingles: "Header Singles",
+      HeaderTracks: "Header Tracks",
+      SelfPropelledSwather: "SP Swather",
+      Spreader: "Spreader",
+      Truck: "Truck",
+      CabOverTruck: "Cab Over Truck",
+      CabOverRoadTrain: "Road Train",
+      Baler: "Baler",
+      Mower: "Mower",
+      SelfPropelledMower: "SP Mower",
+      Telehandler: "Telehandler",
+      Loader: "Loader",
+      SimpleTractor: "Simple Tractor",
+      Pointer: "Pointer",
+      CombineHarvester: "Combine",
+      Excavator: "Excavator",
+      Tractor: "Tractor",
+      WheelLoader: "Wheel Loader",
+      WorkCar: "Work Car",
+      Airplane: "Airplane",
+      simpleTractor: "Simple Tractor",
+    }
+
+    return shortNames[vehicleType] || vehicleType
+  }
+
+  function getVehicleIcon(vehicle) {
+    const vehicleType = vehicle.vehicle_marker?.type
+    if (!vehicleType) return null
+
+    return SVGComponents[vehicleType] || SVGComponents.SimpleTractor || null
+  }
+
+  function getVehicleColor(vehicle) {
+    return (
+      vehicle.vehicle_marker?.bodyColor ||
+      vehicle.vehicle_marker?.color ||
+      "red"
+    )
   }
 
   // Function to detect if running as a mobile app via Capacitor
@@ -619,6 +844,22 @@
   }
 </script>
 
+<!-- Vehicle List Button -->
+<button
+  class="btn btn-circle fixed bottom-32 left-6 z-50 flex h-10 w-10 items-center justify-center border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
+  style="background: {showVehicleList ? 'rgba(255, 255, 255, 0.9)' : ''}"
+  class:text-black={showVehicleList}
+  on:click={toggleVehicleList}
+  aria-label={showVehicleList ? "Hide vehicle list" : "Show vehicle list"}
+>
+  {#if showVehicleList}
+    <X size={20} color="black" />
+  {:else}
+    <Users size={20} />
+  {/if}
+</button>
+
+<!-- Speedometer Button -->
 <button
   class="btn btn-circle fixed bottom-20 left-6 z-50 flex h-10 w-10 items-center justify-center border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
   style="background: {showSpeedometer ? 'rgba(255, 255, 255, 0.9)' : ''}"
@@ -633,6 +874,143 @@
   {/if}
 </button>
 
+<!-- Vehicle List Modal - Expanding from button -->
+{#if showVehicleList}
+  <div
+    class="vehicle-list-modal fixed z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
+    style="bottom: 8.5rem; left: 1.5rem; width: 320px; max-height: 70vh; transform-origin: bottom left;"
+  >
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-white/20 p-4">
+      <div class="flex items-center gap-2">
+        <Users size={18} class="text-white" />
+        <h3 class="text-base font-semibold text-white">Vehicles</h3>
+        <span
+          class="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white"
+        >
+          {sortedVehicles.length}
+        </span>
+      </div>
+    </div>
+
+    <!-- Vehicle List -->
+    <div class="max-h-80 overflow-y-auto">
+      {#if sortedVehicles.length === 0}
+        <div
+          class="flex flex-col items-center justify-center p-6 text-white/70"
+        >
+          <Users size={32} class="mb-2 opacity-50" />
+          <p class="text-sm">No vehicles on map</p>
+        </div>
+      {:else}
+        <div class="divide-y divide-white/10">
+          {#each sortedVehicles as vehicle (vehicle.id)}
+            <button
+              class="w-full p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
+              on:click={() => zoomToVehicle(vehicle)}
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <!-- Vehicle Icon -->
+                  <div
+                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 p-1"
+                  >
+                    {#if getVehicleIcon(vehicle)}
+                      <svelte:component
+                        this={getVehicleIcon(vehicle)}
+                        bodyColor={getVehicleColor(vehicle)}
+                        size="24px"
+                      />
+                    {:else}
+                      <!-- Fallback icon -->
+                      <div class="h-4 w-4 rounded bg-white/40"></div>
+                    {/if}
+                  </div>
+
+                  <!-- Vehicle Info -->
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <p class="truncate text-sm font-medium text-white">
+                        {vehicle.full_name}
+                        {#if vehicle.isCurrentUser}
+                          <span class="text-xs font-normal text-blue-300"
+                            >(You)</span
+                          >
+                        {/if}
+                      </p>
+                      {#if vehicle.is_trailing}
+                        <span
+                          class="inline-flex items-center rounded-full bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-300"
+                        >
+                          •
+                        </span>
+                      {/if}
+                      {#if isVehicleOnline(vehicle) && !vehicle.isCurrentUser}
+                        <span
+                          class="inline-flex items-center rounded-full bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-300"
+                        >
+                          Online
+                        </span>
+                      {/if}
+                    </div>
+                    <div class="mt-0.5 flex items-center gap-2">
+                      <p class="text-xs text-white/70">
+                        {getVehicleDisplayName(vehicle)}
+                      </p>
+                      <div
+                        class="h-2 w-2 rounded-full border border-white/30"
+                        style="background-color: {getVehicleColor(vehicle)}"
+                        title="Vehicle color"
+                      ></div>
+                    </div>
+                    <p class="mt-0.5 text-xs text-white/50">
+                      {formatLastUpdate(vehicle.last_update)}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Status Indicator & Zoom Icon -->
+                <div class="flex items-center gap-2">
+                  <div class="relative">
+                    <div
+                      class="h-2 w-2 rounded-full {vehicle.isCurrentUser
+                        ? 'bg-blue-400'
+                        : vehicle.is_trailing
+                          ? 'bg-green-400'
+                          : isVehicleOnline(vehicle)
+                            ? 'bg-blue-400'
+                            : 'bg-white/40'}"
+                    ></div>
+                    {#if vehicle.is_trailing && !vehicle.isCurrentUser}
+                      <div
+                        class="absolute -inset-1 animate-ping rounded-full bg-green-400 opacity-75"
+                      ></div>
+                    {/if}
+                    {#if vehicle.isCurrentUser}
+                      <div
+                        class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-75"
+                      ></div>
+                    {/if}
+                  </div>
+                  <MapPin size={12} class="text-white/40" />
+                </div>
+              </div>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Footer -->
+    <div class="border-t border-white/20 p-3">
+      <p class="text-center text-xs text-white/60">
+        Tap vehicle to zoom to location
+      </p>
+    </div>
+  </div>
+{/if}
+
+<!-- Speedometer Display -->
 {#if showSpeedometer}
   <div
     class="speed-fade-in fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center rounded-lg bg-black/70 px-5 py-2.5 text-white backdrop-blur"
@@ -648,6 +1026,10 @@
     animation: fadeIn 0.3s ease-in-out;
   }
 
+  .vehicle-list-modal {
+    animation: bubbleExpand 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -657,5 +1039,38 @@
       opacity: 1;
       transform: translate(-50%, 0);
     }
+  }
+
+  @keyframes bubbleExpand {
+    0% {
+      opacity: 0;
+      transform: scale(0.1) translateY(20px);
+    }
+    60% {
+      opacity: 0.8;
+      transform: scale(1.05) translateY(-5px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  /* Custom scrollbar for vehicle list */
+  .vehicle-list-modal ::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .vehicle-list-modal ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .vehicle-list-modal ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .vehicle-list-modal ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
   }
 </style>
