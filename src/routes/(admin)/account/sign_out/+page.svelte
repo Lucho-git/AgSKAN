@@ -112,19 +112,15 @@
     console.time("Total Sign-out Duration")
 
     try {
-      // 1. Server-side signout
-      updateStatus("Signing out...", "Contacting server...", 20)
+      // 1. Clear cached data
+      updateStatus("Signing out...", "Clearing cached data...", 20)
       await new Promise((resolve) => setTimeout(resolve, 400)) // Small delay
 
       try {
-        const formData = new FormData()
-        const response = await fetch("?/signout", {
-          method: "POST",
-          body: formData,
-        })
+        // Call invalidateAll to clear any cached data
+        await invalidateAll()
       } catch (e) {
-        // Ignore errors from this step
-        console.log("Server-side signout skipped:", e)
+        console.log("Cache invalidation skipped:", e)
       }
 
       // 2. Client-side signout preparation

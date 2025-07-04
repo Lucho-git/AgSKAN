@@ -5,8 +5,6 @@
   import type { Writable } from "svelte/store"
   import { session } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { userSettingsApi } from "$lib/api/userSettingsApi"
-  import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
 
   let adminSection: Writable<string> = getContext("adminSection")
@@ -65,15 +63,8 @@
     goto("/account/settings")
   }
 
-  async function handleSignOut() {
-    toast.promise(userSettingsApi.signOut(), {
-      loading: "Signing out...",
-      success: () => {
-        goto("/")
-        return "Signed out successfully"
-      },
-      error: "Failed to sign out",
-    })
+  function handleSignOut() {
+    goto("/account/sign_out")
   }
 
   // Handle desktop default redirect
