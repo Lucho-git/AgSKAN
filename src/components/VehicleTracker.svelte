@@ -16,7 +16,7 @@
   import { toast } from "svelte-sonner"
   import { page } from "$app/stores"
   import "../styles/global.css"
-  import { Gauge, X, Users, MapPin } from "lucide-svelte"
+  import { Gauge, X, Users, MapPin, Crosshair, Target } from "lucide-svelte"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
   import SVGComponents from "$lib/vehicles/index.js"
@@ -38,11 +38,17 @@
   let appState = "web" // Can be "web", "mobile-foreground", or "mobile-background"
   let removeBackgroundListener = null
 
+  // Vehicle tracking state
+  let trackedVehicleId = null
+  let isTrackingVehicle = false
+  let trackingUpdateInterval = null
+
   // Static vehicle list that only updates when menu opens
   let sortedVehicles = []
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
+  const TRACKING_UPDATE_INTERVAL = 2000 // Update tracking every 2 seconds
 
   let otherVehiclesUnsubscribe
   let userVehicleUnsubscribe
@@ -95,6 +101,121 @@
     return diff < fiveMinutes
   }
 
+  // Function to get current vehicle data by ID
+  function getVehicleById(vehicleId) {
+    if (vehicleId === ($userVehicleStore.user_id || userVehicleId)) {
+      return {
+        id: $userVehicleStore.user_id || userVehicleId,
+        full_name: "You",
+        vehicle_marker: $userVehicleStore.vehicle_marker,
+        coordinates: $userVehicleStore.coordinates,
+        heading: $userVehicleStore.heading,
+        is_trailing: $userVehicleTrailing,
+        last_update: $userVehicleStore.last_update,
+        isCurrentUser: true,
+      }
+    }
+
+    const otherVehicle = $otherVehiclesStore.find(
+      (v) => v.vehicle_id === vehicleId,
+    )
+    if (otherVehicle) {
+      return {
+        ...otherVehicle,
+        id: otherVehicle.vehicle_id,
+        isCurrentUser: false,
+      }
+    }
+
+    return null
+  }
+
+  // Function to start tracking a vehicle
+  function startTrackingVehicle(vehicleId) {
+    // Stop any existing tracking
+    stopTrackingVehicle()
+
+    trackedVehicleId = vehicleId
+    isTrackingVehicle = true
+
+    const vehicle = getVehicleById(vehicleId)
+    if (vehicle) {
+      const vehicleName = vehicle.isCurrentUser ? "yourself" : vehicle.full_name
+      toast.success(`Now tracking ${vehicleName}`, {
+        description: "Camera will follow this vehicle's movements",
+        action: {
+          label: "Stop",
+          onClick: stopTrackingVehicle,
+        },
+      })
+
+      // Immediately center on the vehicle
+      updateCameraToTrackedVehicle()
+
+      // Set up interval to continuously update camera position
+      trackingUpdateInterval = setInterval(
+        updateCameraToTrackedVehicle,
+        TRACKING_UPDATE_INTERVAL,
+      )
+    }
+
+    console.log(`Started tracking vehicle: ${vehicleId}`)
+  }
+
+  // Function to stop tracking
+  function stopTrackingVehicle() {
+    if (isTrackingVehicle) {
+      const vehicle = getVehicleById(trackedVehicleId)
+      const vehicleName = vehicle?.isCurrentUser
+        ? "yourself"
+        : vehicle?.full_name || "vehicle"
+
+      toast.info(`Stopped tracking ${vehicleName}`)
+      console.log(`Stopped tracking vehicle: ${trackedVehicleId}`)
+    }
+
+    trackedVehicleId = null
+    isTrackingVehicle = false
+
+    if (trackingUpdateInterval) {
+      clearInterval(trackingUpdateInterval)
+      trackingUpdateInterval = null
+    }
+  }
+
+  // Function to update camera to tracked vehicle position
+  function updateCameraToTrackedVehicle() {
+    if (!isTrackingVehicle || !trackedVehicleId) return
+
+    const vehicle = getVehicleById(trackedVehicleId)
+    if (!vehicle) {
+      // Vehicle no longer exists, stop tracking
+      stopTrackingVehicle()
+      return
+    }
+
+    const parsedCoords = parseCoordinates(vehicle.coordinates)
+    if (!parsedCoords) return
+
+    const { latitude, longitude } = parsedCoords
+    const currentCenter = map.getCenter()
+
+    // Calculate distance to avoid unnecessary camera movements
+    const distance = Math.sqrt(
+      Math.pow(currentCenter.lng - longitude, 2) +
+        Math.pow(currentCenter.lat - latitude, 2),
+    )
+
+    // Only update camera if vehicle has moved significantly (about 10 meters)
+    if (distance > 0.0001) {
+      map.easeTo({
+        center: [longitude, latitude],
+        duration: 1500,
+        essential: true, // This ensures the animation continues even if user interacts
+      })
+    }
+  }
+
   // Function to calculate and sort vehicles - only called when needed
   function calculateSortedVehicles() {
     const allVehicles = [
@@ -122,21 +243,25 @@
       })
       .sort((a, b) => {
         // Priority order:
-        // 1. Current user (always first)
+        // 1. Currently tracked vehicle (always at top)
+        if (a.id === trackedVehicleId) return -1
+        if (b.id === trackedVehicleId) return 1
+
+        // 2. Current user (always second)
         if (a.isCurrentUser) return -1
         if (b.isCurrentUser) return 1
 
-        // 2. Trailing vehicles (active)
+        // 3. Trailing vehicles (active)
         if (a.is_trailing && !b.is_trailing) return -1
         if (b.is_trailing && !a.is_trailing) return 1
 
-        // 3. Online vehicles (recent activity)
+        // 4. Online vehicles (recent activity)
         const aOnline = isVehicleOnline(a)
         const bOnline = isVehicleOnline(b)
         if (aOnline && !bOnline) return -1
         if (bOnline && !aOnline) return 1
 
-        // 4. Sort by most recent activity
+        // 5. Sort by most recent activity
         const aTime =
           typeof a.last_update === "string"
             ? new Date(a.last_update).getTime()
@@ -492,6 +617,10 @@
 
   onDestroy(() => {
     console.log("Unmounting VehicleTracker")
+
+    // Stop any active tracking
+    stopTrackingVehicle()
+
     if (userMarker) {
       userMarker.remove()
     }
@@ -874,6 +1003,23 @@
   {/if}
 </button>
 
+<!-- Tracking Status Indicator -->
+{#if isTrackingVehicle}
+  <div
+    class="tracking-indicator fixed bottom-44 left-6 z-50 flex items-center gap-2 rounded-lg bg-green-500/90 px-3 py-2 text-white shadow-lg backdrop-blur"
+  >
+    <Target size={16} class="animate-pulse" />
+    <span class="text-sm font-medium">Tracking</span>
+    <button
+      on:click={stopTrackingVehicle}
+      class="ml-1 rounded-full bg-white/20 p-1 transition-colors hover:bg-white/30"
+      aria-label="Stop tracking"
+    >
+      <X size={12} />
+    </button>
+  </div>
+{/if}
+
 <!-- Vehicle List Modal - Expanding from button -->
 {#if showVehicleList}
   <div
@@ -905,97 +1051,129 @@
       {:else}
         <div class="divide-y divide-white/10">
           {#each sortedVehicles as vehicle (vehicle.id)}
-            <button
-              class="w-full p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
-              on:click={() => zoomToVehicle(vehicle)}
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <!-- Vehicle Icon -->
-                  <div
-                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 p-1"
-                  >
-                    {#if getVehicleIcon(vehicle)}
-                      <svelte:component
-                        this={getVehicleIcon(vehicle)}
-                        bodyColor={getVehicleColor(vehicle)}
-                        size="24px"
-                      />
-                    {:else}
-                      <!-- Fallback icon -->
-                      <div class="h-4 w-4 rounded bg-white/40"></div>
-                    {/if}
-                  </div>
-
-                  <!-- Vehicle Info -->
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <p class="truncate text-sm font-medium text-white">
-                        {vehicle.full_name}
-                        {#if vehicle.isCurrentUser}
-                          <span class="text-xs font-normal text-blue-300"
-                            >(You)</span
-                          >
-                        {/if}
-                      </p>
-                      {#if vehicle.is_trailing}
-                        <span
-                          class="inline-flex items-center rounded-full bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-300"
-                        >
-                          •
-                        </span>
-                      {/if}
-                      {#if isVehicleOnline(vehicle) && !vehicle.isCurrentUser}
-                        <span
-                          class="inline-flex items-center rounded-full bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-300"
-                        >
-                          Online
-                        </span>
-                      {/if}
-                    </div>
-                    <div class="mt-0.5 flex items-center gap-2">
-                      <p class="text-xs text-white/70">
-                        {getVehicleDisplayName(vehicle)}
-                      </p>
-                      <div
-                        class="h-2 w-2 rounded-full border border-white/30"
-                        style="background-color: {getVehicleColor(vehicle)}"
-                        title="Vehicle color"
-                      ></div>
-                    </div>
-                    <p class="mt-0.5 text-xs text-white/50">
-                      {formatLastUpdate(vehicle.last_update)}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Status Indicator & Zoom Icon -->
-                <div class="flex items-center gap-2">
-                  <div class="relative">
+            <div class="flex items-center">
+              <!-- Main vehicle button -->
+              <button
+                class="flex-1 p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
+                on:click={() => zoomToVehicle(vehicle)}
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <!-- Vehicle Icon -->
                     <div
-                      class="h-2 w-2 rounded-full {vehicle.isCurrentUser
-                        ? 'bg-blue-400'
-                        : vehicle.is_trailing
-                          ? 'bg-green-400'
-                          : isVehicleOnline(vehicle)
-                            ? 'bg-blue-400'
-                            : 'bg-white/40'}"
-                    ></div>
-                    {#if vehicle.is_trailing && !vehicle.isCurrentUser}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-green-400 opacity-75"
-                      ></div>
-                    {/if}
-                    {#if vehicle.isCurrentUser}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-75"
-                      ></div>
-                    {/if}
+                      class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 p-1"
+                    >
+                      {#if getVehicleIcon(vehicle)}
+                        <svelte:component
+                          this={getVehicleIcon(vehicle)}
+                          bodyColor={getVehicleColor(vehicle)}
+                          size="24px"
+                        />
+                      {:else}
+                        <!-- Fallback icon -->
+                        <div class="h-4 w-4 rounded bg-white/40"></div>
+                      {/if}
+                    </div>
+
+                    <!-- Vehicle Info -->
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-sm font-medium text-white">
+                          {vehicle.full_name}
+                          {#if vehicle.isCurrentUser}
+                            <span class="text-xs font-normal text-blue-300"
+                              >(You)</span
+                            >
+                          {/if}
+                          {#if vehicle.id === trackedVehicleId}
+                            <span class="text-xs font-normal text-green-300"
+                              >(Tracking)</span
+                            >
+                          {/if}
+                        </p>
+                        {#if vehicle.is_trailing}
+                          <span
+                            class="inline-flex items-center rounded-full bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-300"
+                          >
+                            •
+                          </span>
+                        {/if}
+                        {#if isVehicleOnline(vehicle) && !vehicle.isCurrentUser}
+                          <span
+                            class="inline-flex items-center rounded-full bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-300"
+                          >
+                            Online
+                          </span>
+                        {/if}
+                      </div>
+                      <div class="mt-0.5 flex items-center gap-2">
+                        <p class="text-xs text-white/70">
+                          {getVehicleDisplayName(vehicle)}
+                        </p>
+                        <div
+                          class="h-2 w-2 rounded-full border border-white/30"
+                          style="background-color: {getVehicleColor(vehicle)}"
+                          title="Vehicle color"
+                        ></div>
+                      </div>
+                      <p class="mt-0.5 text-xs text-white/50">
+                        {formatLastUpdate(vehicle.last_update)}
+                      </p>
+                    </div>
                   </div>
-                  <MapPin size={12} class="text-white/40" />
+
+                  <!-- Status Indicator & Zoom Icon -->
+                  <div class="flex items-center gap-2">
+                    <div class="relative">
+                      <div
+                        class="h-2 w-2 rounded-full {vehicle.isCurrentUser
+                          ? 'bg-blue-400'
+                          : vehicle.is_trailing
+                            ? 'bg-green-400'
+                            : isVehicleOnline(vehicle)
+                              ? 'bg-blue-400'
+                              : 'bg-white/40'}"
+                      ></div>
+                      {#if vehicle.is_trailing && !vehicle.isCurrentUser}
+                        <div
+                          class="absolute -inset-1 animate-ping rounded-full bg-green-400 opacity-75"
+                        ></div>
+                      {/if}
+                      {#if vehicle.isCurrentUser}
+                        <div
+                          class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-75"
+                        ></div>
+                      {/if}
+                    </div>
+                    <MapPin size={12} class="text-white/40" />
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              <!-- Track button -->
+              <button
+                class="flex h-12 w-12 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {vehicle.id ===
+                trackedVehicleId
+                  ? 'bg-green-500/20'
+                  : ''}"
+                on:click={() =>
+                  vehicle.id === trackedVehicleId
+                    ? stopTrackingVehicle()
+                    : startTrackingVehicle(vehicle.id)}
+                aria-label={vehicle.id === trackedVehicleId
+                  ? "Stop tracking"
+                  : "Track vehicle"}
+                title={vehicle.id === trackedVehicleId
+                  ? "Stop tracking"
+                  : "Track this vehicle"}
+              >
+                {#if vehicle.id === trackedVehicleId}
+                  <Target size={16} class="animate-pulse text-green-300" />
+                {:else}
+                  <Crosshair size={16} class="text-white/60" />
+                {/if}
+              </button>
+            </div>
           {/each}
         </div>
       {/if}
@@ -1004,7 +1182,7 @@
     <!-- Footer -->
     <div class="border-t border-white/20 p-3">
       <p class="text-center text-xs text-white/60">
-        Tap vehicle to zoom to location
+        Tap vehicle to zoom • Tap crosshair to track
       </p>
     </div>
   </div>
@@ -1030,6 +1208,10 @@
     animation: bubbleExpand 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
+  .tracking-indicator {
+    animation: slideInLeft 0.3s ease-out;
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -1053,6 +1235,17 @@
     100% {
       opacity: 1;
       transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
     }
   }
 
