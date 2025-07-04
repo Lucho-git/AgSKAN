@@ -22,7 +22,6 @@
   const { getMap } = getContext("map")
   let markerActionsUnsubscribe
   let locationMarkerUnsubscribe
-  let userSettings
 
   const markerIcons = [
     // { id: "barn", class: "custom-svg" },
@@ -213,7 +212,7 @@
     markerActionsStore.set([])
   })
 
-  // Instant Marker placement
+  // Instant Marker placement for location-based markers
 
   async function placeMarkerAtCurrentLocation() {
     const map = await getMap()
@@ -238,12 +237,14 @@
         },
       ])
 
-      // Center the map on the new marker
-      map.flyTo({
-        center: lngLat,
-        zoom: 15,
-        duration: 1000,
-      })
+      // Only zoom to the new location marker if the setting is enabled
+      if ($userSettingsStore?.zoomToLocationMarkers) {
+        map.flyTo({
+          center: lngLat,
+          zoom: 15,
+          duration: 1000,
+        })
+      }
 
       console.log("Marker placed at current location:", lngLat)
     } else {
@@ -318,6 +319,8 @@
     document.dispatchEvent(handleUpdateMarkerListeners)
   }
 
+  // Handle manually placed markers
+
   async function handleMarkerPlacement(event) {
     const map = await getMap()
     const { lngLat } = event
@@ -337,12 +340,15 @@
 
       selectedMarkerStore.set({ marker: newMarker, id: id })
 
-      // Center the screen on the placed marker
-      map.flyTo({
-        center: lngLat,
-        // zoom: 15, // Adjust the zoom level as needed
-        duration: 1000, // Adjust the duration of the animation as needed
-      })
+      // Only zoom to the new placed marker if the setting is enabled
+      if ($userSettingsStore?.zoomToPlacedMarkers) {
+        map.flyTo({
+          center: lngLat,
+          // zoom: 15, // Adjust the zoom level as needed (commented out to maintain current zoom)
+          duration: 1000, // Adjust the duration of the animation as needed
+        })
+      }
+
       controlStore.update((controls) => ({
         ...controls,
         showMarkerMenu: true,
@@ -440,6 +446,8 @@
     }))
   }
 
+  // Handle marker selection (clicking existing markers) - always zooms for UX
+
   async function handleMarkerSelection(event) {
     const map = await getMap()
     const { marker, id } = event
@@ -449,6 +457,7 @@
     if ($selectedMarkerStore) {
       const lngLat = marker.getLngLat()
 
+      // Always zoom when selecting existing markers for better UX
       map.flyTo({
         center: lngLat,
         zoom: 15, // Adjust the zoom level as needed

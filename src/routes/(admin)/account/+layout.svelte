@@ -172,6 +172,8 @@
           limitMarkersOn: user_settings.limit_markers,
           limitMarkersDays: user_settings.limit_markers_days,
           limitMarkersDate: currentDate.toISOString(),
+          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true, // Add this line with fallback
+          zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true, // Add this line with fallback
         })
       }
       // If user has no map connected, we're done

@@ -53,7 +53,8 @@
 
   // Marker display settings
   let selectedDays = 0 // 0 means no limit (show all) - default
-  let hasChanges = false
+  let zoomToLocationMarkers = true // Default to true for location-based markers
+  let zoomToPlacedMarkers = true // Default to true for manually placed markers
   let saving = false
 
   // Reactive values from stores
@@ -87,14 +88,25 @@
     return date.toISOString()
   }
 
-  // Handle selection change
-  function handleSelectionChange(event) {
+  // Handle selection change with instant save
+  async function handleSelectionChange(event) {
     selectedDays = parseInt(event.target.value)
-    hasChanges = true
+    await saveMarkerLimitSetting()
   }
 
-  // Save changes to store and database
-  async function saveChanges() {
+  // Handle zoom setting changes with instant save
+  async function handleLocationZoomToggle() {
+    zoomToLocationMarkers = !zoomToLocationMarkers
+    await saveZoomSettings()
+  }
+
+  async function handlePlacedZoomToggle() {
+    zoomToPlacedMarkers = !zoomToPlacedMarkers
+    await saveZoomSettings()
+  }
+
+  // Save marker limit setting
+  async function saveMarkerLimitSetting() {
     saving = true
     const userId = $session?.user?.id
 
@@ -118,8 +130,8 @@
       )
 
       if (error) {
-        console.error("Error saving settings:", error)
-        toast.error("Failed to save settings")
+        console.error("Error saving marker limit settings:", error)
+        toast.error("Failed to save marker limit settings")
         saving = false
         return
       }
@@ -133,10 +145,54 @@
         limitMarkersDate: newDate,
       }))
 
-      toast.success("Settings saved successfully")
-      hasChanges = false
+      toast.success("Marker display settings updated")
     } catch (err) {
-      console.error("Unexpected error saving settings:", err)
+      console.error("Unexpected error saving marker limit settings:", err)
+      toast.error("An error occurred")
+    } finally {
+      saving = false
+    }
+  }
+
+  // Save zoom settings
+  async function saveZoomSettings() {
+    saving = true
+    const userId = $session?.user?.id
+
+    if (!userId) {
+      toast.error("User not authenticated")
+      saving = false
+      return
+    }
+
+    try {
+      // Update the database
+      const { error } = await supabase.from("user_settings").upsert(
+        {
+          user_id: userId,
+          zoom_to_location_markers: zoomToLocationMarkers,
+          zoom_to_placed_markers: zoomToPlacedMarkers,
+        },
+        { onConflict: "user_id" },
+      )
+
+      if (error) {
+        console.error("Error saving zoom settings:", error)
+        toast.error("Failed to save zoom settings")
+        saving = false
+        return
+      }
+
+      // Update the store
+      userSettingsStore.update((settings) => ({
+        ...settings,
+        zoomToLocationMarkers: zoomToLocationMarkers,
+        zoomToPlacedMarkers: zoomToPlacedMarkers,
+      }))
+
+      toast.success("Zoom settings updated")
+    } catch (err) {
+      console.error("Unexpected error saving zoom settings:", err)
       toast.error("An error occurred")
     } finally {
       saving = false
@@ -144,21 +200,31 @@
   }
 
   // Initialize from store
-  $: if ($userSettingsStore && !hasChanges) {
+  $: if ($userSettingsStore) {
+    // Initialize marker limit settings
     if ($userSettingsStore.limitMarkersOn) {
       selectedDays = $userSettingsStore.limitMarkersDays || 7
     } else {
       selectedDays = 0 // Show all
     }
+
+    // Initialize zoom settings with fallbacks
+    zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
+    zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
   }
 
   onMount(() => {
     if ($userSettingsStore) {
+      // Initialize marker limit settings
       if ($userSettingsStore.limitMarkersOn) {
         selectedDays = $userSettingsStore.limitMarkersDays || 7
       } else {
         selectedDays = 0
       }
+
+      // Initialize zoom settings with fallbacks
+      zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
+      zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
     }
   })
 </script>
@@ -248,6 +314,85 @@
     {/if}
   </div>
 
+  <!-- Map Interaction Settings -->
+  <div>
+    <h3 class="mb-3 flex items-center gap-2 font-medium text-contrast-content">
+      <div class="rounded-lg bg-base-content/10 p-1.5">
+        <Icon
+          icon="solar:cursor-bold-duotone"
+          width="16"
+          height="16"
+          class="text-base-content"
+        />
+      </div>
+      Map Interaction
+    </h3>
+
+    <div class="space-y-4">
+      <!-- Location marker zoom setting -->
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-start gap-3">
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:gps-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+            <div>
+              <p class="font-medium text-contrast-content">
+                Zoom to location markers
+              </p>
+              <p class="text-sm text-contrast-content/60">
+                Automatically zoom when dropping pins at your current location
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-primary"
+            checked={zoomToLocationMarkers}
+            on:change={handleLocationZoomToggle}
+            disabled={saving}
+          />
+        </div>
+      </div>
+
+      <!-- Placed marker zoom setting -->
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-start gap-3">
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:map-point-add-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+            <div>
+              <p class="font-medium text-contrast-content">
+                Zoom to placed markers
+              </p>
+              <p class="text-sm text-contrast-content/60">
+                Automatically zoom when manually placing pins on the map
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-primary"
+            checked={zoomToPlacedMarkers}
+            on:change={handlePlacedZoomToggle}
+            disabled={saving}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Marker Display Settings -->
   <div>
     <h3 class="mb-3 flex items-center gap-2 font-medium text-contrast-content">
@@ -299,6 +444,7 @@
               class="select select-bordered w-full"
               value={selectedDays}
               on:change={handleSelectionChange}
+              disabled={saving}
             >
               {#each dayOptions as option}
                 <option value={option.value}>
@@ -321,34 +467,20 @@
               </div>
             {/if}
           </div>
-
-          <!-- Save button -->
-          {#if hasChanges}
-            <div class="flex justify-end">
-              <button
-                type="button"
-                class="btn btn-primary btn-sm gap-2"
-                disabled={saving}
-                on:click={saveChanges}
-              >
-                {#if saving}
-                  <span class="loading loading-spinner loading-sm"></span>
-                  Saving...
-                {:else}
-                  <Icon
-                    icon="solar:diskette-bold-duotone"
-                    width="16"
-                    height="16"
-                  />
-                  Save Changes
-                {/if}
-              </button>
-            </div>
-          {/if}
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Saving indicator -->
+  {#if saving}
+    <div class="flex items-center justify-center">
+      <div class="flex items-center gap-2 text-sm text-base-content/60">
+        <span class="loading loading-spinner loading-sm"></span>
+        Saving...
+      </div>
+    </div>
+  {/if}
 
   <!-- Map Information -->
   <div class="rounded-lg border border-base-300 bg-base-200/10 p-4">
@@ -364,9 +496,9 @@
           About Map Preferences
         </p>
         <p class="mt-1 text-xs text-contrast-content/60">
-          These settings control how much historical marker data is displayed on
-          your map. Changes are saved automatically and will apply to all map
-          views throughout the application.
+          These settings control how your map behaves and what data is
+          displayed. Changes are applied instantly and will affect all map views
+          throughout the application.
         </p>
       </div>
     </div>
