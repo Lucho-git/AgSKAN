@@ -24,6 +24,7 @@
     Crosshair,
     Target,
     ChevronDown,
+    Square,
   } from "lucide-svelte"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
@@ -50,13 +51,15 @@
   let trackedVehicleId = null
   let isTrackingVehicle = false
   let trackingUpdateInterval = null
+  let lastTrackedPosition = null // Track last known position to avoid unnecessary updates
 
   // Static vehicle list that only updates when menu opens
   let sortedVehicles = []
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const REJOIN_THRESHOLD = 5 * 60 * 1000
-  const TRACKING_UPDATE_INTERVAL = 2000 // Update tracking every 2 seconds
+  const TRACKING_UPDATE_INTERVAL = 2000 // Check for updates every 2 seconds
+  const TRACKING_MOVEMENT_THRESHOLD = 0.00005 // Minimum movement required (about 5 meters)
 
   let otherVehiclesUnsubscribe
   let userVehicleUnsubscribe
@@ -156,6 +159,7 @@
 
     trackedVehicleId = vehicleId
     isTrackingVehicle = true
+    lastTrackedPosition = null // Reset position tracking
 
     const vehicle = getVehicleById(vehicleId)
     if (vehicle) {
@@ -171,7 +175,7 @@
       // Immediately center on the vehicle
       updateCameraToTrackedVehicle()
 
-      // Set up interval to continuously update camera position
+      // Set up interval to continuously check for position updates
       trackingUpdateInterval = setInterval(
         updateCameraToTrackedVehicle,
         TRACKING_UPDATE_INTERVAL,
@@ -195,6 +199,7 @@
 
     trackedVehicleId = null
     isTrackingVehicle = false
+    lastTrackedPosition = null
 
     if (trackingUpdateInterval) {
       clearInterval(trackingUpdateInterval)
@@ -202,7 +207,7 @@
     }
   }
 
-  // Function to update camera to tracked vehicle position
+  // Function to update camera to tracked vehicle position (only when vehicle moves)
   function updateCameraToTrackedVehicle() {
     if (!isTrackingVehicle || !trackedVehicleId) return
 
@@ -217,21 +222,45 @@
     if (!parsedCoords) return
 
     const { latitude, longitude } = parsedCoords
-    const currentCenter = map.getCenter()
 
-    // Calculate distance to avoid unnecessary camera movements
-    const distance = Math.sqrt(
-      Math.pow(currentCenter.lng - longitude, 2) +
-        Math.pow(currentCenter.lat - latitude, 2),
-    )
-
-    // Only update camera if vehicle has moved significantly (about 10 meters)
-    if (distance > 0.0001) {
+    // Check if this is the first position or if the vehicle has moved significantly
+    if (!lastTrackedPosition) {
+      lastTrackedPosition = { latitude, longitude }
+      // Initial center on the vehicle
       map.easeTo({
         center: [longitude, latitude],
         duration: 1500,
-        essential: true, // This ensures the animation continues even if user interacts
+        essential: true,
       })
+      return
+    }
+
+    // Calculate distance from last tracked position
+    const latDiff = latitude - lastTrackedPosition.latitude
+    const lngDiff = longitude - lastTrackedPosition.longitude
+    const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff)
+
+    // Only update camera if vehicle has moved significantly
+    if (distance > TRACKING_MOVEMENT_THRESHOLD) {
+      console.log(
+        `Vehicle moved ${(distance * 111320).toFixed(1)}m, updating camera`,
+      )
+
+      map.easeTo({
+        center: [longitude, latitude],
+        duration: 1500,
+        essential: true,
+      })
+
+      // Update the last tracked position
+      lastTrackedPosition = { latitude, longitude }
+    }
+  }
+
+  // Function to handle clicking the tracking indicator (open vehicle list)
+  function handleTrackingIndicatorClick() {
+    if (!showVehicleList) {
+      toggleVehicleList()
     }
   }
 
@@ -1005,7 +1034,7 @@
   aria-label={showVehicleList ? "Hide vehicle list" : "Show vehicle list"}
 >
   {#if showVehicleList}
-    <X size={20} color="black" />
+    <ChevronDown size={20} color="black" />
   {:else}
     <Users size={20} />
   {/if}
@@ -1020,24 +1049,27 @@
   aria-label={showSpeedometer ? "Hide speed" : "Show speed"}
 >
   {#if showSpeedometer}
-    <X size={20} color="black" />
+    <ChevronDown size={20} color="black" />
   {:else}
     <Gauge size={20} />
   {/if}
 </button>
 
-<!-- Tracking Status Indicator - condensed single line -->
+<!-- Tracking Status Indicator - button-style design -->
 {#if isTrackingVehicle}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
-    class="tracking-indicator fixed z-50 flex items-center gap-2 rounded-lg bg-black/70 px-3 py-2 text-white shadow-lg backdrop-blur-md"
+    class="tracking-indicator btn fixed z-50 flex h-10 cursor-pointer items-center gap-2 rounded-full border-none bg-black/70 px-3 text-white shadow-lg backdrop-blur transition-all hover:scale-105"
     style="bottom: 8rem; left: 4.5rem; transform-origin: left center;"
+    on:click={handleTrackingIndicatorClick}
   >
     {#if trackedVehicleId}
       {@const vehicle = getVehicleById(trackedVehicleId)}
       {#if vehicle}
         <!-- Vehicle Icon -->
         <div
-          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-green-500/20 p-0.5"
+          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5"
         >
           {#if getVehicleIcon(vehicle)}
             <svelte:component
@@ -1059,24 +1091,24 @@
         <!-- Tracking Icon -->
         <Target size={14} class="flex-shrink-0 animate-pulse text-green-300" />
 
-        <!-- Close Button -->
+        <!-- Stop Button (Square icon) -->
         <button
-          on:click={stopTrackingVehicle}
-          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/20 active:bg-white/30"
+          on:click|stopPropagation={stopTrackingVehicle}
+          class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 hover:bg-white/20 active:bg-white/30"
           aria-label="Stop tracking"
         >
-          <X size={10} class="text-white/70" />
+          <Square size={10} class="fill-current text-white/70" />
         </button>
       {:else}
         <!-- Fallback if vehicle not found -->
         <Target size={14} class="animate-pulse text-green-300" />
         <span class="text-sm text-white/70">Vehicle not found</span>
         <button
-          on:click={stopTrackingVehicle}
-          class="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-white/20 active:bg-white/30"
+          on:click|stopPropagation={stopTrackingVehicle}
+          class="flex h-5 w-5 items-center justify-center rounded-full transition-all hover:scale-110 hover:bg-white/20 active:bg-white/30"
           aria-label="Stop tracking"
         >
-          <X size={10} class="text-white/70" />
+          <Square size={10} class="fill-current text-white/70" />
         </button>
       {/if}
     {/if}
@@ -1239,7 +1271,7 @@
                   : "Track this vehicle"}
               >
                 {#if vehicle.id === trackedVehicleId}
-                  <Target size={16} class="animate-pulse text-green-300" />
+                  <Square size={16} class="fill-current text-green-300" />
                 {:else}
                   <Crosshair size={16} class="text-white/60" />
                 {/if}
