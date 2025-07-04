@@ -165,6 +165,11 @@
         TRACKING_UPDATE_INTERVAL,
       )
     }
+
+    // Auto-close vehicle list when tracking starts
+    if (showVehicleList) {
+      showVehicleList = false
+    }
   }
 
   // Function to stop tracking
@@ -185,6 +190,11 @@
     if (trackingUpdateInterval) {
       clearInterval(trackingUpdateInterval)
       trackingUpdateInterval = null
+    }
+
+    // Auto-close vehicle list when tracking stops
+    if (showVehicleList) {
+      showVehicleList = false
     }
   }
 
@@ -323,6 +333,9 @@
       : `${vehicle.full_name}'s ${getVehicleDisplayName(vehicle)}`
 
     toast.success(`Zooming to ${vehicleInfo}`)
+
+    // Auto-close vehicle list when zooming to a vehicle
+    showVehicleList = false
   }
 
   function formatLastUpdate(timestamp) {
