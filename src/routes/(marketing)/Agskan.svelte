@@ -10,6 +10,7 @@
   import { onMount } from "svelte"
 
   let mounted = false
+  let videoRefs: HTMLVideoElement[] = []
 
   onMount(() => {
     mounted = true
@@ -19,9 +20,11 @@
     {
       icon: Map,
       title: "Real-Time Tracking",
-      subtitle: "Know Where Everyone Is — Without the Phone Calls",
+      subtitle: "Know Where Everyone Is -- Without the Phone Calls",
       description:
         "See your operators and gear live in the paddock. No more guessing, no more radio chatter -- just clear visibility from any phone or tablet.",
+      hasVideo: true,
+      videoUrl: "/content/landing/OperatorTracking.mp4",
       imageUrl:
         "https://images.unsplash.com/photo-1548266652-99cf27701ced?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
@@ -31,7 +34,9 @@
       subtitle: "Stop Overlap. Hit Every Strip.",
       description:
         "Live trails show exactly where the sprayer's been, so your planter doesn't miss a beat. Fewer skips. Tighter passes. Better coverage.",
-      imageUrl:
+      hasVideo: false,
+      imageUrl: "/content/landing/SeedingOverview.png",
+      fallbackImageUrl:
         "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
@@ -40,7 +45,9 @@
       subtitle: "Put Every Operator on the Same Page",
       description:
         "Upload or draw your paddocks in seconds. Every team member sees the same live boundary -- no confusion, no crossed wires.",
-      imageUrl:
+      hasVideo: false,
+      imageUrl: "/content/landing/FieldUpload.png",
+      fallbackImageUrl:
         "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
@@ -49,6 +56,8 @@
       subtitle: "Tag Hazards Before They Waste Time",
       description:
         "Drop pins for rocks, stumps, or wet patches with one tap. Everyone sees it, instantly -- no more gear damage or delays.",
+      hasVideo: true,
+      videoUrl: "/content/landing/PinDrop.mp4",
       imageUrl:
         "https://images.unsplash.com/photo-1609252509102-aa73ff8eab1a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
@@ -58,10 +67,17 @@
 
   function handleCardMouseEnter(index: number) {
     hoveredCards[index] = true
+    if (features[index].hasVideo && videoRefs[index]) {
+      videoRefs[index].play()
+    }
   }
 
   function handleCardMouseLeave(index: number) {
     hoveredCards[index] = false
+    if (features[index].hasVideo && videoRefs[index]) {
+      videoRefs[index].pause()
+      videoRefs[index].currentTime = 0
+    }
   }
 
   // Animation delay placeholder
@@ -138,18 +154,43 @@
             <div
               class={`overflow-hidden transition-all duration-500 ease-in-out ${
                 hoveredCards[index]
-                  ? "max-h-[500px] opacity-100"
+                  ? "max-h-[600px] opacity-100"
                   : "max-h-0 opacity-0"
               }`}
             >
               <div class="px-6 pb-6">
                 <div class="mb-5 overflow-hidden rounded-lg">
-                  <img
-                    src={feature.imageUrl}
-                    alt={`Demonstrating ${feature.title}`}
-                    class="h-auto max-h-[200px] w-full object-cover transition-transform duration-500"
-                    loading="lazy"
-                  />
+                  {#if feature.hasVideo}
+                    <video
+                      bind:this={videoRefs[index]}
+                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
+                      muted
+                      loop
+                      playsinline
+                      preload="metadata"
+                      on:error={() => {
+                        // Fallback to image if video fails
+                        feature.hasVideo = false
+                      }}
+                    >
+                      <source src={feature.videoUrl} type="video/mp4" />
+                      <!-- Fallback image if video doesn't load -->
+                      Your browser does not support the video tag.
+                    </video>
+                  {:else}
+                    <img
+                      src={feature.imageUrl}
+                      alt={`Demonstrating ${feature.title}`}
+                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
+                      loading="lazy"
+                      on:error={(e) => {
+                        // Fallback to stock image if PNG fails
+                        if (feature.fallbackImageUrl) {
+                          e.target.src = feature.fallbackImageUrl
+                        }
+                      }}
+                    />
+                  {/if}
                 </div>
                 <p class="leading-relaxed text-contrast-content/80">
                   {feature.description}
