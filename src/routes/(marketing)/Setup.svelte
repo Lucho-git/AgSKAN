@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation"
 
   let mounted = false
+  let showVideo = false
 
   onMount(() => {
     mounted = true
@@ -13,7 +14,7 @@
     {
       title: "Download the App",
       description:
-        "Install AgSKAN on any phone or tablet — no hardware, no setup headaches.",
+        "Install AgSKAN on any phone or tablet -- no hardware, no setup headaches.",
     },
     {
       title: "Upload Your Farm & Invite Your Crew",
@@ -40,8 +41,7 @@
   }
 
   function handleVideoClick() {
-    // Add video modal logic here or navigate to video page
-    console.log("Play video")
+    showVideo = true
   }
 </script>
 
@@ -88,24 +88,46 @@
           <div
             class="overflow-hidden rounded-xl border border-transparent bg-base-100 shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-base-content/30 hover:shadow-lg"
           >
-            <div
-              class="relative flex aspect-video items-center justify-center bg-base-300"
-            >
-              <div
-                class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1625246333195-78d9c38ad449?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80')] bg-cover bg-center opacity-20"
-              ></div>
-              <div class="relative flex flex-col items-center gap-4">
-                <button
-                  class="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg transition-colors hover:bg-primary/90"
-                  on:click={handleVideoClick}
-                >
-                  <Play size={24} />
-                </button>
-                <span class="font-medium text-contrast-content"
-                  >Watch: How AgSKAN Works in 90 Seconds</span
-                >
+            {#if showVideo}
+              <div class="aspect-video">
+                <iframe
+                  class="h-full w-full"
+                  src="https://www.youtube.com/embed/KMAOcSfhw4c?si=DoroVYQHQ31om0cO&autoplay=1"
+                  title="How AgSKAN Works in 90 Seconds"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                ></iframe>
               </div>
-            </div>
+            {:else}
+              <div
+                class="relative flex aspect-video cursor-pointer items-center justify-center bg-base-300"
+                on:click={handleVideoClick}
+                role="button"
+                tabindex="0"
+                on:keydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleVideoClick()
+                  }
+                }}
+              >
+                <div
+                  class="absolute inset-0 bg-[url('https://img.youtube.com/vi/KMAOcSfhw4c/maxresdefault.jpg')] bg-cover bg-center"
+                ></div>
+                <div class="absolute inset-0 bg-black/20"></div>
+                <div class="relative flex flex-col items-center gap-4">
+                  <button
+                    class="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg transition-all duration-300 hover:scale-110 hover:bg-primary/90"
+                  >
+                    <Play size={24} class="ml-1" />
+                  </button>
+                  <span class="font-medium text-white shadow-sm"
+                    >Watch: How AgSKAN Works in 90 Seconds</span
+                  >
+                </div>
+              </div>
+            {/if}
           </div>
 
           <div class="mt-6">
