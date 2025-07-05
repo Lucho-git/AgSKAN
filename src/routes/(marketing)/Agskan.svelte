@@ -1,84 +1,32 @@
 <script lang="ts">
-  import {
-    ChevronDown,
-    ChevronUp,
-    Compass,
-    Map,
-    MapPin,
-    Sprout,
-  } from "lucide-svelte"
+  import { ArrowRight, Play } from "lucide-svelte"
   import { onMount } from "svelte"
+  import { goto } from "$app/navigation"
 
   let mounted = false
-  let videoRefs: HTMLVideoElement[] = []
+  let showVideo = false
 
   onMount(() => {
     mounted = true
   })
 
-  const features = [
+  const steps = [
     {
-      icon: Map,
-      title: "Real-Time Tracking",
-      subtitle: "Know Where Everyone Is -- Without the Phone Calls",
+      title: "Download the App",
       description:
-        "See your operators and gear live in the paddock. No more guessing, no more radio chatter -- just clear visibility from any phone or tablet.",
-      hasVideo: true,
-      videoUrl: "/content/landing/OperatorTracking.mp4",
-      imageUrl:
-        "https://images.unsplash.com/photo-1548266652-99cf27701ced?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+        "Install AgSKAN on any phone or tablet -- no hardware, no setup headaches.",
     },
     {
-      icon: Sprout,
-      title: "Seeding Assist",
-      subtitle: "Stop Overlap. Hit Every Strip.",
+      title: "Upload Your Farm & Invite Your Crew",
       description:
-        "Live trails show exactly where the sprayer's been, so your planter doesn't miss a beat. Fewer skips. Tighter passes. Better coverage.",
-      hasVideo: false,
-      imageUrl: "/content/landing/SeedingOverview.png",
-      fallbackImageUrl:
-        "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+        "Add your paddock boundaries and bring your team on board. Everyone sees the same map, live.",
     },
     {
-      icon: Compass,
-      title: "Paddock Upload",
-      subtitle: "Put Every Operator on the Same Page",
+      title: "Track Operators and Machines in Real Time",
       description:
-        "Upload or draw your paddocks in seconds. Every team member sees the same live boundary -- no confusion, no crossed wires.",
-      hasVideo: false,
-      imageUrl: "/content/landing/FieldUpload.png",
-      fallbackImageUrl:
-        "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
-    },
-    {
-      icon: MapPin,
-      title: "Pin Drops",
-      subtitle: "Tag Hazards Before They Waste Time",
-      description:
-        "Drop pins for rocks, stumps, or wet patches with one tap. Everyone sees it, instantly -- no more gear damage or delays.",
-      hasVideo: true,
-      videoUrl: "/content/landing/PinDrop.mp4",
-      imageUrl:
-        "https://images.unsplash.com/photo-1609252509102-aa73ff8eab1a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
+        "Know where people are, what's been done, and what's next -- from one simple dashboard.",
     },
   ]
-
-  let hoveredCards = new Array(features.length).fill(false)
-
-  function handleCardMouseEnter(index: number) {
-    hoveredCards[index] = true
-    if (features[index].hasVideo && videoRefs[index]) {
-      videoRefs[index].play()
-    }
-  }
-
-  function handleCardMouseLeave(index: number) {
-    hoveredCards[index] = false
-    if (features[index].hasVideo && videoRefs[index]) {
-      videoRefs[index].pause()
-      videoRefs[index].currentTime = 0
-    }
-  }
 
   // Animation delay placeholder
   function animationDelay(node: HTMLElement, delay: number) {
@@ -91,138 +39,110 @@
       `,
     }
   }
+
+  function handleVideoClick() {
+    showVideo = true
+  }
 </script>
 
-<section class="bg-base-200" id="features">
+<section class="bg-base-200" id="setup">
   <div class="section-container py-20">
     {#if mounted}
-      <h2
-        class="mb-16 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
-        in:animationDelay={0}
-      >
-        Built to <span class="text-base-content">Solve Real Problems</span> in the
-        Field
-      </h2>
+      <div in:animationDelay={0}>
+        <h2
+          class="mb-16 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
+        >
+          Set Up in <span class="text-base-content">Minutes.</span> Track
+          <span class="text-base-content">Everything</span> All Season.
+        </h2>
 
-      <div
-        class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 md:gap-12"
-      >
-        {#each features as feature, index}
-          <div
-            class={`flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-base-100 shadow-md transition-all duration-500 ${
-              hoveredCards[index]
-                ? "transform border-2 border-base-content shadow-lg hover:scale-[1.02]"
-                : "border border-base-content/20 hover:border-primary/40 hover:shadow-lg"
-            }`}
-            in:animationDelay={100 + index * 100}
-            on:mouseenter={() => handleCardMouseEnter(index)}
-            on:mouseleave={() => handleCardMouseLeave(index)}
-            role="button"
-            tabindex="0"
-            aria-expanded={hoveredCards[index]}
-          >
-            <!-- Card Header - Always Visible -->
-            <div class="flex items-start p-6">
-              <div class="flex-1">
-                <h3
-                  class="mb-3 font-sans text-xl font-bold text-contrast-content"
+        <div class="relative mx-auto my-16 max-w-5xl">
+          <div class="grid gap-6 md:grid-cols-3 md:gap-8">
+            {#each steps as step, index}
+              <div
+                class="group flex flex-col items-center text-center"
+                in:animationDelay={100 + index * 100}
+              >
+                <!-- Step Content -->
+                <div
+                  class="h-full w-full rounded-xl border border-transparent bg-base-100 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-base-content/30 hover:shadow-md"
                 >
-                  {feature.title}
-                </h3>
-                <p class="font-medium text-base-content">{feature.subtitle}</p>
-              </div>
-
-              <!-- Feature icon in top right -->
-              <div
-                class={`ml-4 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full shadow-lg transition-all duration-500 ${
-                  hoveredCards[index]
-                    ? "scale-110 bg-gradient-to-br from-secondary to-secondary/80 shadow-secondary/20"
-                    : "bg-gradient-to-br from-base-content/20 to-base-content/10"
-                }`}
-              >
-                <svelte:component
-                  this={feature.icon}
-                  size={20}
-                  class={hoveredCards[index]
-                    ? "text-secondary-content"
-                    : "text-base-content"}
-                />
-              </div>
-            </div>
-
-            <!-- Expandable Content - Shows on hover -->
-            <div
-              class={`overflow-hidden transition-all duration-500 ease-in-out ${
-                hoveredCards[index]
-                  ? "max-h-[600px] opacity-100"
-                  : "max-h-0 opacity-0"
-              }`}
-            >
-              <div class="px-6 pb-6">
-                <div class="mb-5 overflow-hidden rounded-lg">
-                  {#if feature.hasVideo}
-                    <video
-                      bind:this={videoRefs[index]}
-                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
-                      muted
-                      loop
-                      playsinline
-                      preload="metadata"
-                      on:error={() => {
-                        // Fallback to image if video fails
-                        feature.hasVideo = false
-                      }}
-                    >
-                      <source src={feature.videoUrl} type="video/mp4" />
-                      <!-- Fallback image if video doesn't load -->
-                      Your browser does not support the video tag.
-                    </video>
-                  {:else}
-                    <img
-                      src={feature.imageUrl}
-                      alt={`Demonstrating ${feature.title}`}
-                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
-                      loading="lazy"
-                      on:error={(e) => {
-                        // Fallback to stock image if PNG fails
-                        if (feature.fallbackImageUrl) {
-                          e.target.src = feature.fallbackImageUrl
-                        }
-                      }}
-                    />
-                  {/if}
+                  <div
+                    class="mx-auto mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-base-content text-sm font-bold text-base-100"
+                  >
+                    {index + 1}
+                  </div>
+                  <h3
+                    class="mb-3 font-sans text-xl font-bold text-contrast-content"
+                  >
+                    {step.title}
+                  </h3>
+                  <p class="text-contrast-content/70">{step.description}</p>
                 </div>
-                <p class="leading-relaxed text-contrast-content/80">
-                  {feature.description}
-                </p>
               </div>
-            </div>
-
-            <!-- Always visible action button -->
-            <div class="mt-3 px-6 pb-6">
-              <div
-                class={`flex w-full items-center justify-center rounded-lg border border-base-content/20 px-4 py-2 font-medium shadow-sm transition-all duration-300 ${
-                  hoveredCards[index]
-                    ? "bg-base-300/90 text-contrast-content shadow"
-                    : "bg-base-200/80 text-contrast-content/80"
-                }`}
-              >
-                {hoveredCards[index] ? "Show Less" : "Learn More"}
-                {#if hoveredCards[index]}
-                  <ChevronUp
-                    size={16}
-                    class="ml-2 -translate-y-1 transition-transform duration-300"
-                  />
-                {:else}
-                  <ChevronDown
-                    size={16}
-                    class="ml-2 transition-transform duration-300"
-                  />
-                {/if}
-              </div>
-            </div>
+            {/each}
           </div>
-        {/each}
+        </div>
+
+        <div class="mx-auto mt-16 max-w-3xl" in:animationDelay={400}>
+          <div
+            class="overflow-hidden rounded-xl border border-transparent bg-base-100 shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-base-content/30 hover:shadow-lg"
+          >
+            {#if showVideo}
+              <div class="aspect-video">
+                <iframe
+                  class="h-full w-full"
+                  src="https://www.youtube.com/embed/KMAOcSfhw4c?si=DoroVYQHQ31om0cO&autoplay=1"
+                  title="How AgSKAN Works in 90 Seconds"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                ></iframe>
+              </div>
+            {:else}
+              <div
+                class="relative flex aspect-video cursor-pointer items-center justify-center bg-base-300"
+                on:click={handleVideoClick}
+                role="button"
+                tabindex="0"
+                on:keydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleVideoClick()
+                  }
+                }}
+              >
+                <div
+                  class="absolute inset-0 bg-[url('https://img.youtube.com/vi/KMAOcSfhw4c/maxresdefault.jpg')] bg-cover bg-center"
+                ></div>
+                <div class="absolute inset-0 bg-black/20"></div>
+                <div class="relative flex flex-col items-center gap-4">
+                  <button
+                    class="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg transition-all duration-300 hover:scale-110 hover:bg-primary/90"
+                  >
+                    <Play size={24} class="ml-1" />
+                  </button>
+                  <span class="font-medium text-white shadow-sm"
+                    >Watch: How AgSKAN Works in 90 Seconds</span
+                  >
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <div class="mt-6">
+            <button
+              class="group btn btn-secondary w-full text-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
+              on:click={() => goto("/login?tab=sign_up")}
+            >
+              Set Up My Farm
+              <ArrowRight
+                size={16}
+                class="ml-2 transition-transform group-hover:translate-x-1"
+              />
+            </button>
+          </div>
+        </div>
       </div>
     {/if}
   </div>
