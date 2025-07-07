@@ -113,7 +113,6 @@
       topBarLabel: "Map Viewer",
       path: "mapviewer",
       requiresMap: true,
-      tooltip: "Connect to a map first to access the map viewer",
     },
     {
       href: "/account/fieldview",
@@ -124,7 +123,6 @@
       topBarLabel: "Field Overview",
       path: "fieldview",
       requiresMap: true,
-      tooltip: "Connect to a map first to access the field overview",
     },
     // {
     //   href: "/account/pathplanner",
@@ -144,10 +142,6 @@
       topBarLabel: "Billing & Invoices",
       path: "billing",
       disabled: browser && Capacitor.isNativePlatform(),
-      tooltip:
-        browser && Capacitor.isNativePlatform()
-          ? "Billing is not available in the mobile app"
-          : undefined,
     },
     {
       href: "/account/settings",
@@ -197,8 +191,12 @@
           },
           duration: 5000,
         })
-      } else if (item.tooltip) {
-        toast.info(item.tooltip)
+      } else if (
+        browser &&
+        Capacitor.isNativePlatform() &&
+        item.path === "billing"
+      ) {
+        toast.info("Billing is not available in the mobile app")
       }
       return
     }
@@ -345,8 +343,6 @@
                 : ''} {isItemDisabled
                 ? disabledColor
                 : hoverColor} flex w-full items-center rounded-lg px-5"
-              class:tooltip={isItemDisabled && item.tooltip}
-              data-tip={item.tooltip}
             >
               <Icon
                 icon={item.icon}
