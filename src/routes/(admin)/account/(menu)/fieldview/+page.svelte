@@ -634,9 +634,12 @@
                   <!-- Back Button -->
                   <button
                     on:click={() => (showUploadInterface = false)}
-                    class="btn btn-ghost btn-sm mb-4 gap-2"
+                    class="mb-4 flex items-center gap-2 rounded-xl border border-transparent bg-transparent px-4 py-2 text-sm font-medium text-contrast-content/60 transition-all hover:border-base-content/20 hover:bg-base-content/5 hover:text-base-content"
                   >
-                    <ArrowRight class="h-4 w-4 rotate-180" />
+                    <ArrowRight
+                      size={16}
+                      class="rotate-180 transition-transform hover:-translate-x-0.5"
+                    />
                     Back to Overview
                   </button>
 
