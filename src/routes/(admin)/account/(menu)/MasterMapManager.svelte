@@ -1297,14 +1297,14 @@
     </div>
 
     <!-- ========================================
-         INTERACTIVE MENU SECTION (LEFT PANEL)
-         ======================================== -->
+     INTERACTIVE MENU SECTION (LEFT PANEL)
+     ======================================== -->
     <div class="w-full md:order-1 md:w-2/3">
       <div class="p-6">
         {#if currentView === "main"}
           <!-- ========================================
-               MAIN MENU
-               ======================================== -->
+           MAIN MENU
+           ======================================== -->
           <div class="space-y-3">
             {#if isConnected}
               <!-- Connected State Main Menu -->
@@ -1458,8 +1458,23 @@
           </div>
         {:else if currentView === "create"}
           <!-- ========================================
-       CREATE MAP FORM
-       ======================================== -->
+           CREATE MAP FORM
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to {navigationStack[navigationStack.length - 2] === "main"
+                ? "Main Menu"
+                : navigationStack[navigationStack.length - 2] === "settings"
+                  ? "Map Settings"
+                  : "Previous Menu"}
+            </button>
+          </div>
+
           <div class="space-y-6">
             {#if createMapStatus === "success"}
               <!-- SUCCESS STATE -->
@@ -1552,6 +1567,7 @@
                     </div>
                   </div>
                 </div>
+
                 <div>
                   <label
                     for="mapName"
@@ -1584,8 +1600,21 @@
           </div>
         {:else if currentView === "connect" || currentView === "switch-map"}
           <!-- ========================================
-               CONNECT/SWITCH MAP
-               ======================================== -->
+           CONNECT/SWITCH MAP
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to {navigationStack[navigationStack.length - 2] === "main"
+                ? "Main Menu"
+                : "Previous"}
+            </button>
+          </div>
+
           <div class="space-y-6">
             <!-- Manual Connect -->
             <div>
@@ -1717,8 +1746,19 @@
           </div>
         {:else if currentView === "settings"}
           <!-- ========================================
-               MAP SETTINGS
-               ======================================== -->
+           MAP SETTINGS
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Main Menu
+            </button>
+          </div>
+
           <div class="space-y-4">
             {#if isConnected}
               <!-- Map Name Edit -->
@@ -1896,8 +1936,19 @@
           </div>
         {:else if currentView === "operations"}
           <!-- ========================================
-               OPERATIONS MANAGEMENT
-               ======================================== -->
+           OPERATIONS MANAGEMENT
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Main Menu
+            </button>
+          </div>
+
           <div class="space-y-4">
             {#if $operationStore && $operationStore.length > 0}
               <!-- Operation Selector -->
@@ -1998,8 +2049,19 @@
           </div>
         {:else if currentView === "create-operation"}
           <!-- ========================================
-               CREATE OPERATION FORM
-               ======================================== -->
+           CREATE OPERATION FORM
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Operations
+            </button>
+          </div>
+
           <form
             on:submit|preventDefault={handleCreateOperation}
             class="space-y-6"
@@ -2077,8 +2139,19 @@
           </form>
         {:else if currentView === "edit-operation"}
           <!-- ========================================
-               EDIT OPERATION FORM
-               ======================================== -->
+           EDIT OPERATION FORM
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Operations
+            </button>
+          </div>
+
           <form
             on:submit|preventDefault={handleUpdateOperation}
             class="space-y-6"
@@ -2174,8 +2247,19 @@
           </form>
         {:else if currentView === "invite"}
           <!-- ========================================
-               INVITE TEAM MEMBERS
-               ======================================== -->
+           INVITE TEAM MEMBERS
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Main Menu
+            </button>
+          </div>
+
           <div class="space-y-6">
             <div class="mb-6 text-center">
               <h3 class="mb-2 text-lg font-semibold text-contrast-content">
@@ -2308,8 +2392,19 @@
           </div>
         {:else if currentView === "delete-confirm"}
           <!-- ========================================
-               DELETE CONFIRMATION
-               ======================================== -->
+           DELETE CONFIRMATION
+           ======================================== -->
+          <!-- Desktop Back Button -->
+          <div class="mb-4 hidden md:block">
+            <button
+              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+              on:click={goBack}
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Settings
+            </button>
+          </div>
+
           <div class="space-y-6">
             <div
               class="rounded-lg border border-red-200 bg-red-50 p-6 text-center"
