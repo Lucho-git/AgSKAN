@@ -43,6 +43,7 @@
     Mail,
     Link,
     Home,
+    Cloud,
   } from "lucide-svelte"
 
   // ========================================
@@ -125,11 +126,20 @@
       return
     }
 
+    operationStartTime = Date.now()
     isLoading = true
     loadingAction = "create"
+    createMapStatus = "loading"
 
     try {
       const result = await mapApi.createAndJoinMap(newMapName, generatedMapId)
+
+      const elapsedTime = Date.now() - operationStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
 
       if (result.success && result.data) {
         const { mapId, mapName, connectedMap, mapActivity, operation } =
@@ -154,23 +164,29 @@
           }))
         }
 
+        // Show success animation
+        createMapStatus = "success"
         toast.success("Map created successfully")
-        resetToMain()
-        newMapName = ""
-        generatedMapId = uuidv4()
-        await fetchUserMaps()
-        await fetchRecentMaps()
+
+        // Navigate after success animation
+        setTimeout(() => {
+          resetToMain()
+          newMapName = ""
+          generatedMapId = uuidv4()
+          createMapStatus = null
+        }, SUCCESS_DISPLAY_TIME)
       } else {
+        createMapStatus = null
         toast.error(`Failed to create map: ${result.message}`)
       }
     } catch (error) {
+      createMapStatus = null
       toast.error(`Error: ${error.message}`)
     } finally {
       isLoading = false
       loadingAction = null
     }
   }
-
   // ========================================
   // CONNECT TO MAP STATE & FUNCTIONS
   // ========================================
@@ -195,6 +211,12 @@
 
     isValidMapId = !error && map !== null
   }
+
+  // Animation timing and status for create map
+  let createMapStatus = null // 'loading' | 'success' | null
+  let operationStartTime = 0
+  const MIN_ANIMATION_TIME = 2000 // 2 seconds minimum
+  const SUCCESS_DISPLAY_TIME = 2500 // 2.5 seconds for success state
 
   // Fetch user's own maps
   async function fetchUserMaps() {
@@ -666,7 +688,7 @@
 
 <!-- Map Manager Component -->
 <div
-  class="mb-6 overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-lg"
+  class="mb-6 w-full overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-lg"
 >
   <!-- Header with accent line -->
   <div class="relative">
@@ -1282,14 +1304,18 @@
             {#if isConnected}
               <!-- Connected State Main Menu -->
               <button
-                class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-4 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-4 text-base-100 transition-colors hover:bg-base-content/90"
                 on:click={() => (window.location.href = "/account/mapviewer")}
               >
                 <div class="flex items-center gap-3">
-                  <Globe class="h-5 w-5" />
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100/20"
+                  >
+                    <Globe class="h-5 w-5 text-base-100" />
+                  </div>
                   <div class="text-left">
-                    <div class="font-medium">Launch Map</div>
-                    <div class="text-sm text-base-100/70">
+                    <div class="text-sm font-bold">Launch Map</div>
+                    <div class="text-xs font-medium text-base-100/70">
                       View your interactive map
                     </div>
                   </div>
@@ -1300,139 +1326,245 @@
               </button>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={() => navigateTo("settings")}
               >
-                <Settings class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Map Settings</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Configure map preferences
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <Settings class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Map Settings
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Configure map preferences
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={() => navigateTo("operations")}
               >
-                <MapPin class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Manage Operations</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Add, edit, and organize operations
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <MapPin class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Manage Operations
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Add, edit, and organize operations
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={() => navigateTo("invite")}
               >
-                <UserPlus class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Invite Team Members</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Share map access with others
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <UserPlus class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Invite Team Members
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Share map access with others
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
             {:else}
               <!-- Disconnected State Main Menu -->
               <div class="mb-6 text-center">
-                <p class="text-contrast-content/60">
+                <p class="text-sm text-contrast-content/60">
                   Get started with map management
                 </p>
               </div>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-content px-4 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-3 text-base-100 transition-colors hover:bg-base-content/90"
                 on:click={() => navigateTo("create")}
               >
-                <Plus class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Create New Map</div>
-                  <div class="text-xs text-base-100/70">
-                    Start a new farm map
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100/20"
+                  >
+                    <Plus class="h-5 w-5 text-base-100" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold">Create New Map</div>
+                    <div class="text-xs font-medium text-base-100/70">
+                      Start a new farm map
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={() => navigateTo("connect")}
               >
-                <Search class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Connect to Map</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Join an existing map
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <Search class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Connect to Map
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Join an existing map
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
             {/if}
           </div>
         {:else if currentView === "create"}
           <!-- ========================================
-               CREATE MAP FORM
-               ======================================== -->
-          <form on:submit|preventDefault={handleCreateMap} class="space-y-6">
-            <div class="rounded-lg border border-base-300 bg-base-200 p-6">
-              <div class="mb-4 flex items-center justify-center">
-                <div
-                  class="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-400/20"
-                >
-                  <Map class="h-8 w-8 text-yellow-600" />
-                </div>
-              </div>
-              <div class="text-center">
-                <h4 class="text-lg font-semibold text-contrast-content">
-                  {newMapName || "New Map"}
-                </h4>
-                <div
-                  class="mt-2 inline-block rounded bg-base-300 px-2 py-1 font-mono text-xs text-contrast-content/60"
-                >
-                  {generatedMapId}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label
-                for="mapName"
-                class="mb-1.5 block text-sm text-contrast-content/60"
+       CREATE MAP FORM
+       ======================================== -->
+          <div class="space-y-6">
+            {#if createMapStatus === "success"}
+              <!-- SUCCESS STATE -->
+              <div
+                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
               >
-                Map Name
-              </label>
-              <input
-                id="mapName"
-                type="text"
-                bind:value={newMapName}
-                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                placeholder="Enter map name"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
-                ? 'cursor-not-allowed opacity-50'
-                : ''}"
-            >
-              {#if isLoading && loadingAction === "create"}
                 <div
-                  class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                ></div>
-              {:else}
-                <Plus class="h-4 w-4" />
-              {/if}
-              {isLoading && loadingAction === "create"
-                ? "Creating Map..."
-                : "Create Map"}
-            </button>
-          </form>
+                  class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                >
+                  <div
+                    class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                  >
+                    <Check
+                      size={28}
+                      class="animate-checkDraw stroke-[3] text-white"
+                    />
+                  </div>
+                </div>
+                <h3 class="text-xl font-bold text-contrast-content">
+                  Map Created Successfully!
+                </h3>
+                <p
+                  class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+                >
+                  {newMapName}
+                </p>
+                <p
+                  class="animate-delayedFadeIn text-sm text-contrast-content/60"
+                >
+                  Returning to main menu...
+                </p>
+              </div>
+            {:else if createMapStatus === "loading"}
+              <!-- LOADING STATE -->
+              <div
+                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
+              >
+                <div
+                  class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+                >
+                  <div
+                    class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                  ></div>
+                  <Cloud size={28} class="animate-pulse text-blue-400" />
+                </div>
+                <p class="text-lg font-medium text-contrast-content">
+                  Creating map...
+                </p>
+                <p
+                  class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
+                >
+                  Setting up {newMapName}
+                </p>
+              </div>
+            {:else}
+              <!-- FORM STATE -->
+              <form
+                on:submit|preventDefault={handleCreateMap}
+                class="space-y-6"
+              >
+                <div class="rounded-lg border border-base-300 bg-base-200 p-6">
+                  <div class="mb-4 flex items-center justify-center">
+                    <div
+                      class="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-400/20"
+                    >
+                      <Map class="h-8 w-8 text-yellow-600" />
+                    </div>
+                  </div>
+                  <div class="text-center">
+                    <h4 class="text-lg font-semibold text-contrast-content">
+                      {newMapName || "New Map"}
+                    </h4>
+                    <div
+                      class="mt-2 inline-block rounded bg-base-300 px-2 py-1 font-mono text-xs text-contrast-content/60"
+                    >
+                      {generatedMapId}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    for="mapName"
+                    class="mb-1.5 block text-sm text-contrast-content/60"
+                  >
+                    Map Name
+                  </label>
+                  <input
+                    id="mapName"
+                    type="text"
+                    bind:value={newMapName}
+                    class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                    placeholder="Enter map name"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
+                    ? 'cursor-not-allowed opacity-50'
+                    : ''}"
+                >
+                  <Plus class="h-4 w-4" />
+                  Create Map
+                </button>
+              </form>
+            {/if}
+          </div>
         {:else if currentView === "connect" || currentView === "switch-map"}
           <!-- ========================================
                CONNECT/SWITCH MAP
@@ -1631,67 +1763,109 @@
               <div class="space-y-2">
                 <!-- Create New Map Option -->
                 <button
-                  class="flex w-full items-center gap-3 rounded-lg bg-base-content px-4 py-2.5 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                  class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-2.5 text-base-100 transition-colors hover:bg-base-content/90"
                   on:click={() => navigateTo("create")}
                 >
-                  <Plus class="h-4 w-4" />
-                  <div class="text-left">
-                    <div class="text-sm font-medium">Create New Map</div>
-                    <div class="text-xs text-base-100/70">
-                      Start a fresh map project
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100/20"
+                    >
+                      <Plus class="h-5 w-5 text-base-100" />
+                    </div>
+                    <div class="text-left">
+                      <div class="text-sm font-bold">Create New Map</div>
+                      <div class="text-xs font-medium text-base-100/70">
+                        Start a fresh map project
+                      </div>
                     </div>
                   </div>
+                  <ChevronRight
+                    class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                  />
                 </button>
 
                 <!-- Switch Map Option -->
                 <button
-                  class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 font-medium text-contrast-content transition-colors hover:bg-base-300"
+                  class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                   on:click={() => navigateTo("switch-map")}
                 >
-                  <Link2 class="h-4 w-4" />
-                  <div class="text-left">
-                    <div class="text-sm font-medium">
-                      Switch to Different Map
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                    >
+                      <Link2 class="h-5 w-5 text-contrast-content/60" />
                     </div>
-                    <div class="text-xs text-contrast-content/60">
-                      Connect to another map
+                    <div class="text-left">
+                      <div class="text-sm font-bold text-contrast-content">
+                        Switch to Different Map
+                      </div>
+                      <div class="text-xs font-medium text-contrast-content/60">
+                        Connect to another map
+                      </div>
                     </div>
                   </div>
+                  <ChevronRight
+                    class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                  />
                 </button>
 
                 <!-- Leave Map Option -->
                 <button
-                  class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 font-medium text-contrast-content transition-colors hover:bg-base-300"
+                  class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                   on:click={handleDisconnectFromMap}
                   disabled={isLoading}
                 >
-                  {#if isLoading && loadingAction === "disconnect"}
+                  <div class="flex items-center gap-3">
                     <div
-                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                    ></div>
-                  {:else}
-                    <LogOut class="h-4 w-4" />
-                  {/if}
-                  <div class="text-left">
-                    <div class="text-sm font-medium">Leave Map</div>
-                    <div class="text-xs text-contrast-content/60">
-                      Disconnect without switching
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                    >
+                      {#if isLoading && loadingAction === "disconnect"}
+                        <div
+                          class="h-5 w-5 animate-spin rounded-full border-2 border-contrast-content/60 border-t-transparent"
+                        ></div>
+                      {:else}
+                        <LogOut class="h-5 w-5 text-contrast-content/60" />
+                      {/if}
+                    </div>
+                    <div class="text-left">
+                      <div class="text-sm font-bold text-contrast-content">
+                        Leave Map
+                      </div>
+                      <div class="text-xs font-medium text-contrast-content/60">
+                        Disconnect without switching
+                      </div>
                     </div>
                   </div>
+                  <ChevronRight
+                    class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                  />
                 </button>
 
                 {#if isOwner}
                   <button
-                    class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                     on:click={() => navigateTo("delete-confirm")}
                   >
-                    <Trash2 class="h-4 w-4 text-red-600" />
-                    <div class="text-left">
-                      <div class="text-sm font-medium">Delete Map</div>
-                      <div class="text-xs text-contrast-content/60">
-                        Permanently remove this map
+                    <div class="flex items-center gap-3">
+                      <div
+                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                      >
+                        <Trash2 class="h-5 w-5 text-red-600" />
+                      </div>
+                      <div class="text-left">
+                        <div class="text-sm font-bold text-contrast-content">
+                          Delete Map
+                        </div>
+                        <div
+                          class="text-xs font-medium text-contrast-content/60"
+                        >
+                          Permanently remove this map
+                        </div>
                       </div>
                     </div>
+                    <ChevronRight
+                      class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                    />
                   </button>
                 {/if}
               </div>
@@ -1731,30 +1905,54 @@
               <!-- Operation Actions -->
               <div class="space-y-2">
                 <button
-                  class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 font-medium text-contrast-content transition-colors hover:bg-base-300"
+                  class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                   on:click={() => navigateTo("create-operation")}
                 >
-                  <Plus class="h-4 w-4" />
-                  <div class="text-left">
-                    <div class="text-sm font-medium">Create New Operation</div>
-                    <div class="text-xs text-contrast-content/60">
-                      Add a new operation to this map
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                    >
+                      <Plus class="h-5 w-5 text-contrast-content/60" />
+                    </div>
+                    <div class="text-left">
+                      <div class="text-sm font-bold text-contrast-content">
+                        Create New Operation
+                      </div>
+                      <div class="text-xs font-medium text-contrast-content/60">
+                        Add a new operation to this map
+                      </div>
                     </div>
                   </div>
+                  <ChevronRight
+                    class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                  />
                 </button>
 
                 {#if $selectedOperationStore}
                   <button
-                    class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
+                    class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                     on:click={prepareEditOperation}
                   >
-                    <Pencil class="h-4 w-4" />
-                    <div class="text-left">
-                      <div class="text-sm font-medium">Edit Operation</div>
-                      <div class="text-xs text-contrast-content/60">
-                        Modify operation details
+                    <div class="flex items-center gap-3">
+                      <div
+                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                      >
+                        <Pencil class="h-5 w-5 text-contrast-content/60" />
+                      </div>
+                      <div class="text-left">
+                        <div class="text-sm font-bold text-contrast-content">
+                          Edit Operation
+                        </div>
+                        <div
+                          class="text-xs font-medium text-contrast-content/60"
+                        >
+                          Modify operation details
+                        </div>
                       </div>
                     </div>
+                    <ChevronRight
+                      class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                    />
                   </button>
                 {/if}
               </div>
@@ -2043,29 +2241,51 @@
               </h4>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={shareViaSMS}
               >
-                <Phone class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Share via SMS</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Send link through your messaging app
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <Phone class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Share via SMS
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Send link through your messaging app
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
 
               <button
-                class="flex w-full items-center gap-3 rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-2.5 text-contrast-content transition-colors hover:bg-base-300"
                 on:click={shareViaEmail}
               >
-                <Mail class="h-4 w-4" />
-                <div class="text-left">
-                  <div class="text-sm font-medium">Share via Email</div>
-                  <div class="text-xs text-contrast-content/60">
-                    Send link through your email app
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <Mail class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Share via Email
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Send link through your email app
+                    </div>
                   </div>
                 </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
               </button>
             </div>
           </div>
@@ -2106,3 +2326,81 @@
     </div>
   </div>
 </div>
+
+<style>
+  .icon-container {
+    @apply flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-white/20;
+  }
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .animate-scaleIn {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes delayedFadeIn {
+    0%,
+    60% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-delayedFadeIn {
+    animation: delayedFadeIn 1s ease-out;
+  }
+
+  @keyframes successPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+    }
+  }
+  .animate-successPulse {
+    animation: successPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes checkScale {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-checkScale {
+    animation: checkScale 0.6s ease-out 0.3s both;
+  }
+
+  @keyframes checkDraw {
+    0% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+    }
+    100% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 0;
+    }
+  }
+  .animate-checkDraw {
+    animation: checkDraw 0.5s ease-out 0.5s both;
+  }
+</style>

@@ -13,6 +13,7 @@
   import { fly } from "svelte/transition"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
+  import { Cloud, AlertCircle, RotateCcw, ArrowLeft } from "lucide-svelte"
 
   // Import necessary stores
   import { profileStore } from "$lib/stores/profileStore"
@@ -39,6 +40,10 @@
   let userDataLoaded = false
   let pendingMapProcessed = false
   let isNative = false
+
+  // Animation timing
+  let operationStartTime = 0
+  const MIN_ANIMATION_TIME = 1200 // 2 seconds minimum
 
   console.log("Account layout initializing")
   console.log("Current session status:", data.sessionStatus)
@@ -172,8 +177,8 @@
           limitMarkersOn: user_settings.limit_markers,
           limitMarkersDays: user_settings.limit_markers_days,
           limitMarkersDate: currentDate.toISOString(),
-          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true, // Add this line with fallback
-          zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true, // Add this line with fallback
+          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true,
+          zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
         })
       }
       // If user has no map connected, we're done
@@ -384,6 +389,9 @@
 
   // Complete data loading after session is ready
   async function completeDataLoading() {
+    // Start timing for minimum animation duration
+    operationStartTime = Date.now()
+
     try {
       if (!$session?.user?.id) {
         console.log("No valid session, redirecting to login")
@@ -397,6 +405,14 @@
       userDataLoaded = true
 
       console.log("Loaded User Data:", userData)
+
+      // Calculate elapsed time and ensure minimum animation time
+      const elapsedTime = Date.now() - operationStartTime
+      const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime))
+      }
 
       // If we're processing a pending map, stop here as we'll reload
       if (userData && userData.pendingMapProcessing) {
@@ -508,32 +524,61 @@
 
 {#if browser}
   {#if loading}
-    <div class="flex h-screen w-full items-center justify-center">
-      <div class="flex flex-col items-center">
-        <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
-        <p class="mt-4 text-xl font-medium">Loading your account...</p>
+    <!-- Loading State with Spinning Cloud Animation -->
+    <div class="flex h-screen w-full items-center justify-center bg-base-100">
+      <div class="flex flex-col items-center gap-6">
+        <div
+          class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+        >
+          <div
+            class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+          ></div>
+          <Cloud size={32} class="animate-pulse text-blue-400" />
+        </div>
+        <div class="text-center">
+          <h2 class="text-xl font-medium text-contrast-content">
+            Loading your account...
+          </h2>
+          <p class="mt-2 text-sm text-contrast-content/60">
+            Please wait while we set up your dashboard
+          </p>
+        </div>
       </div>
     </div>
   {:else if error}
-    <div class="flex h-screen w-full items-center justify-center">
-      <div class="max-w-md rounded-lg bg-red-50 p-6 text-center shadow-lg">
-        <h2 class="text-2xl font-bold text-red-700">Error Loading Account</h2>
-        <p class="mt-2 text-red-600">
-          {error.message || "Unknown error occurred"}
-        </p>
-        <div class="mt-6 flex justify-center space-x-4">
-          <button
-            class="rounded bg-primary px-4 py-2 text-white"
-            on:click={() => window.location.reload()}
+    <!-- Error State -->
+    <div class="flex h-screen w-full items-center justify-center bg-base-100">
+      <div
+        class="mx-4 max-w-md rounded-2xl border border-red-200 bg-red-50 p-8 shadow-xl"
+      >
+        <div class="text-center">
+          <div
+            class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100"
           >
-            Try Again
-          </button>
-          <a
-            href="/login"
-            class="rounded border border-gray-300 bg-white px-4 py-2 text-gray-700"
-          >
-            Back to Login
-          </a>
+            <AlertCircle class="h-8 w-8 text-red-600" />
+          </div>
+          <h2 class="mb-2 text-xl font-bold text-red-900">
+            Error Loading Account
+          </h2>
+          <p class="mb-6 text-red-700">
+            {error.message || "Unknown error occurred"}
+          </p>
+          <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-red-700"
+              on:click={() => window.location.reload()}
+            >
+              <RotateCcw class="h-4 w-4" />
+              Try Again
+            </button>
+            <a
+              href="/login"
+              class="flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 font-medium text-red-700 transition-colors hover:bg-red-50"
+            >
+              <ArrowLeft class="h-4 w-4" />
+              Back to Login
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -541,3 +586,32 @@
     <slot />
   {/if}
 {/if}
+
+<style>
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>
