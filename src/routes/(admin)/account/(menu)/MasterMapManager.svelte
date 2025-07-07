@@ -1518,23 +1518,35 @@
                 <div class="rounded-lg border border-base-300 bg-base-200 p-6">
                   <div class="mb-4 flex items-center justify-center">
                     <div
-                      class="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-400/20"
+                      class="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
                     >
-                      <Map class="h-8 w-8 text-yellow-600" />
+                      <Map class="h-8 w-8 text-blue-500" />
                     </div>
                   </div>
                   <div class="text-center">
                     <h4 class="text-lg font-semibold text-contrast-content">
                       {newMapName || "New Map"}
                     </h4>
-                    <div
-                      class="mt-2 inline-block rounded bg-base-300 px-2 py-1 font-mono text-xs text-contrast-content/60"
-                    >
-                      {generatedMapId}
+                    <div class="mt-3 flex items-center justify-center gap-2">
+                      <div
+                        class="rounded border border-blue-500/30 bg-blue-500/10 px-3 py-2"
+                      >
+                        <code class="font-mono text-sm text-blue-500"
+                          >{generatedMapId}</code
+                        >
+                      </div>
+                      <button
+                        class="flex items-center justify-center rounded bg-blue-500/20 px-2 py-2 text-blue-500 transition-colors hover:bg-blue-500/30"
+                        on:click={() => {
+                          navigator.clipboard.writeText(generatedMapId)
+                          toast.success("Map ID copied to clipboard")
+                        }}
+                      >
+                        <Copy class="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
-
                 <div>
                   <label
                     for="mapName"
