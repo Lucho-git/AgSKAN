@@ -21,6 +21,10 @@
     Upload,
     Plus,
     Sparkles,
+    MapPin,
+    Folder,
+    Settings,
+    LandPlot, // Add this line
   } from "lucide-svelte"
   import { userFilesStore } from "./userFilesStore"
   import { fieldStore } from "$lib/stores/fieldStore"
@@ -555,15 +559,7 @@
 </script>
 
 {#if browser}
-  <div class="relative min-h-screen overflow-hidden bg-base-100">
-    <!-- Decorative Background Elements -->
-    <div
-      class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
-    ></div>
-    <div
-      class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
-    ></div>
-
+  <div class="relative min-h-screen bg-base-100">
     <!-- Fixed mobile padding issue - removed container class and added proper padding -->
     <div class="relative z-10 px-4 py-6 sm:px-6 lg:px-8">
       <div class="mx-auto max-w-7xl space-y-8">
@@ -571,7 +567,11 @@
           class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"
         >
           <div>
-            <h2 class="text-3xl font-bold tracking-tight text-base-content">
+            <h2
+              class="flex items-center gap-3 text-3xl font-bold tracking-tight text-contrast-content"
+            >
+              <LandPlot class="h-8 w-8 text-base-content" />
+              <!-- Change Settings to LandPlot -->
               Field Management
             </h2>
             <p class="max-w-3xl text-contrast-content/70">
@@ -582,7 +582,7 @@
 
           <!-- Help button moved to page header -->
           <button
-            class="btn btn-outline gap-2 self-start"
+            class="btn btn-outline gap-2 self-start text-contrast-content"
             on:click={openInfoModal}
             aria-label="Help with field boundaries"
           >
@@ -621,9 +621,9 @@
           {#if showUploadInterface}
             <!-- Full Upload Interface with slide transition -->
             <div class="animate-slideInLeft">
-              <!-- Upload Card - Now max-w-4xl to match FieldsOverview -->
+              <!-- Upload Card -->
               <div
-                class="animate-fadeIn relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+                class="animate-fadeIn relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
               >
                 <!-- Decorative accent -->
                 <div
@@ -727,11 +727,11 @@
                             class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
                           >
                             <div
-                              class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                              class="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-t-blue-400"
                             ></div>
                             <Cloud
                               size={28}
-                              class="animate-pulse text-blue-400"
+                              class="relative z-10 animate-pulse text-blue-400"
                             />
                           </div>
                           <p class="text-lg font-medium text-contrast-content">
@@ -1037,22 +1037,14 @@
               </div>
             </div>
           {:else}
-            <!-- Inviting Start Upload Button - Now max-w-4xl to match FieldsOverview -->
+            <!-- Inviting Start Upload Button -->
             <div class="animate-slideInLeft">
               <div
-                class="relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-gradient-to-br from-base-100 to-base-200/50 shadow-xl"
+                class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
               >
                 <!-- Decorative accent -->
                 <div
-                  class="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-base-content to-base-content/70"
-                ></div>
-
-                <!-- Floating decoration elements -->
-                <div
-                  class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-base-content/10 opacity-50"
-                ></div>
-                <div
-                  class="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-base-content/10 opacity-30"
+                  class="absolute left-0 top-0 h-1 w-full bg-base-content"
                 ></div>
 
                 <div class="relative p-8 text-center">
@@ -1060,9 +1052,9 @@
                     <div
                       class="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center"
                     >
-                      <!-- Animated background circle -->
+                      <!-- Animated background circles - simplified without extra elements -->
                       <div
-                        class="absolute inset-0 animate-ping rounded-full bg-base-content/20"
+                        class="animate-heartbeat absolute inset-0 rounded-full bg-base-content/20"
                       ></div>
                       <div
                         class="absolute inset-2 animate-pulse rounded-full bg-base-content/10"
@@ -1074,17 +1066,12 @@
                       >
                         <Upload class="h-6 w-6 text-base-content" />
                       </div>
-
-                      <!-- Sparkle effects -->
-                      <Sparkles
-                        class="absolute -right-1 -top-1 h-4 w-4 animate-bounce text-base-content/70"
-                      />
-                      <Plus
-                        class="absolute -bottom-1 -left-1 h-3 w-3 animate-pulse text-base-content/50"
-                      />
                     </div>
 
-                    <h3 class="mb-2 text-2xl font-bold text-base-content">
+                    <h3
+                      class="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-contrast-content"
+                    >
+                      <Upload class="h-6 w-6 text-base-content" />
                       Upload Field Boundaries
                     </h3>
                     <p class="mx-auto max-w-md text-contrast-content/70">
@@ -1140,12 +1127,10 @@
           <!-- FileUpload component (uploaded files overview) - Always shown below upload interface -->
           <div class="animate-slideInUp">
             <div
-              class="relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+              class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
             >
               <!-- Top accent line to match other components -->
-              <div
-                class="h-1 w-full bg-gradient-to-r from-base-content/60 via-base-content to-base-content/60"
-              ></div>
+              <div class="h-1 w-full bg-base-content"></div>
 
               <!-- Pass the navigation function to FileUpload -->
               <FileUpload {navigateToProcess} />
@@ -1156,12 +1141,10 @@
           <div class="animate-slideInUp">
             <!-- Updated FieldsOverview with matching styling -->
             <div
-              class="relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+              class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
             >
-              <!-- Top accent line to match other components -->
-              <div
-                class="h-1 w-full bg-gradient-to-r from-base-content/60 via-base-content to-base-content/60"
-              ></div>
+              <!-- Top accent line for field boundaries component -->
+              <div class="h-1 w-full bg-base-content"></div>
 
               <!-- Pass the navigation function to FieldsOverview -->
               <FieldsOverview {navigateToProcess} />
@@ -1176,9 +1159,7 @@
               </h3>
 
               <div class="mb-6 p-8 text-center">
-                <HelpCircle
-                  class="mx-auto mb-4 h-16 w-16 text-base-content/40"
-                />
+                <HelpCircle class="mx-auto mb-4 h-16 w-16 text-base-content" />
                 <p class="text-contrast-content/70">
                   Help content coming soon! This section will contain detailed
                   guidance on:
@@ -1271,6 +1252,22 @@
 
   .animate-spin-slow {
     animation: spin-slow 8s linear infinite;
+  }
+
+  @keyframes heartbeat {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 0.4;
+    }
+  }
+
+  .animate-heartbeat {
+    animation: heartbeat 2s ease-in-out infinite;
   }
 
   /* Enhanced success animations */

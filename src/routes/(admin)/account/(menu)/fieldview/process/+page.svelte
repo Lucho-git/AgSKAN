@@ -11,6 +11,7 @@
     Save,
     Loader,
     ArrowUp,
+    ArrowRight,
     AlertTriangle,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
@@ -391,14 +392,6 @@
 <svelte:window on:keydown={handleGlobalKeydown} />
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
-  <!-- Decorative Background Elements -->
-  <div
-    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
-  ></div>
-  <div
-    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
-  ></div>
-
   <div class="relative z-10">
     {#if loading}
       <!-- Loading State -->
@@ -414,9 +407,6 @@
         <div
           class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
-          <!-- Decorative accent -->
-          <div class="absolute left-0 top-0 h-1 w-full bg-base-content"></div>
-
           <div class="p-4 md:p-6">
             <div class="flex flex-col items-center justify-center py-12">
               <div class="text-center">
@@ -446,9 +436,6 @@
         <div
           class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
-          <!-- Decorative accent -->
-          <div class="absolute left-0 top-0 h-1 w-full bg-base-content"></div>
-
           <div class="p-4 md:p-6">
             <div class="flex flex-col items-center justify-center py-12">
               <div class="max-w-md text-center">
@@ -484,12 +471,13 @@
           <div class="mx-auto max-w-4xl">
             <button
               on:click={handleBackToUpload}
-              class="flex items-center gap-2 text-contrast-content/60 transition-colors hover:text-base-content"
+              class="flex items-center gap-2 rounded-xl border border-transparent bg-transparent px-4 py-2 text-sm font-medium text-contrast-content/60 transition-all hover:border-base-content/20 hover:bg-base-content/5 hover:text-base-content"
             >
-              <ChevronLeft size={16} />
-              <span class="text-xs font-medium md:text-sm"
-                >Back to Field Management</span
-              >
+              <ArrowRight
+                size={16}
+                class="rotate-180 transition-transform hover:-translate-x-0.5"
+              />
+              <span>Back to Field Management</span>
             </button>
           </div>
 
@@ -515,11 +503,6 @@
           <div
             class="animate-fadeIn relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
           >
-            <!-- Top accent line -->
-            <div
-              class="h-1 w-full bg-gradient-to-r from-base-content/60 via-base-content to-base-content/60"
-            ></div>
-
             <div class="p-3 md:p-5">
               <!-- Field Name Section with Field Counter -->
               <div class="mb-4 md:mb-5">

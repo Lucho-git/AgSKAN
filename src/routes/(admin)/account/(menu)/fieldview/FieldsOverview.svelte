@@ -445,7 +445,9 @@
   <div class="flex flex-row items-center justify-between space-y-0 pb-4">
     <div class="flex items-center space-x-2">
       <LandPlot class="h-6 w-6 text-base-content" />
-      <h3 class="text-2xl font-bold text-base-content">Fields</h3>
+      <h3 class="font-bold text-contrast-content" style="font-size: 20px;">
+        Field Boundaries
+      </h3>
       {#if fields.length > 0}
         <span
           class="ml-2 rounded-full bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
