@@ -699,16 +699,21 @@
         <!-- Always show main breadcrumb with fixed height -->
         <div class="flex h-8 items-center">
           <button
-            class="flex items-center gap-1 rounded px-1 py-0.5 text-contrast-content transition-colors hover:text-contrast-content/80 {currentView ===
+            class="flex items-center gap-1.5 rounded px-1 py-0.5 text-contrast-content transition-colors hover:text-contrast-content/80 {currentView ===
             'main'
               ? 'cursor-default'
               : 'hover:bg-base-200'}"
             on:click={() => navigateToPath(0)}
             disabled={currentView === "main"}
           >
-            <Map class="h-4 w-4 sm:h-5 sm:w-5" />
+            <div
+              class="flex h-6 w-6 items-center justify-center rounded-full bg-green-500/20"
+            >
+              <Map class="h-4 w-4 text-green-500 sm:h-4 sm:w-4" />
+            </div>
             <span
-              class="text-sm font-semibold sm:text-sm {currentView === 'main'
+              class="text-base font-semibold sm:text-base {currentView ===
+              'main'
                 ? 'inline'
                 : 'hidden'}">Map Manager</span
             >
