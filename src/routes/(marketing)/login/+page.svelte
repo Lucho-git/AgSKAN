@@ -33,6 +33,11 @@
     buttonPadding: "0.75rem 1.25rem",
     borderRadiusButton: "0.5rem",
     inputBorderRadius: "0.5rem",
+    inputBorderWidth: "0.5px",
+    defaultButtonBorderWidth: "0.5px",
+    // NEW: Google Auth specific settings
+    googleButtonBorderWidth: "2px",
+    socialButtonBorderWidth: "2px",
   }
 
   // Process URL parameters
@@ -188,6 +193,10 @@
       buttonPadding: "0.5rem 1rem",
       borderRadiusButton: "0.25rem",
       inputBorderRadius: "0.25rem",
+      inputBorderWidth: "0.5px",
+      defaultButtonBorderWidth: "0.5px",
+      googleButtonBorderWidth: "2px",
+      socialButtonBorderWidth: "2px",
     },
     default: {
       name: "Default",
@@ -195,6 +204,10 @@
       buttonPadding: "0.75rem 1.25rem",
       borderRadiusButton: "0.5rem",
       inputBorderRadius: "0.5rem",
+      inputBorderWidth: "0.5px",
+      defaultButtonBorderWidth: "0.5px",
+      googleButtonBorderWidth: "2px",
+      socialButtonBorderWidth: "2px",
     },
     spacious: {
       name: "Spacious",
@@ -202,6 +215,10 @@
       buttonPadding: "1rem 1.5rem",
       borderRadiusButton: "0.75rem",
       inputBorderRadius: "0.75rem",
+      inputBorderWidth: "1px",
+      defaultButtonBorderWidth: "1px",
+      googleButtonBorderWidth: "3px",
+      socialButtonBorderWidth: "3px",
     },
     rounded: {
       name: "Very Rounded",
@@ -209,6 +226,10 @@
       buttonPadding: "0.75rem 1.25rem",
       borderRadiusButton: "1.5rem",
       inputBorderRadius: "1.5rem",
+      inputBorderWidth: "0.5px",
+      defaultButtonBorderWidth: "0.5px",
+      googleButtonBorderWidth: "2px",
+      socialButtonBorderWidth: "2px",
     },
   }
 
@@ -229,7 +250,32 @@
           inputPadding: spacing.inputPadding,
           buttonPadding: spacing.buttonPadding,
         },
+        borderWidths: {
+          inputBorderWidth: spacing.inputBorderWidth,
+          defaultButtonBorderWidth: spacing.defaultButtonBorderWidth,
+          // Option 1: Try adding these properties
+          googleButtonBorderWidth: spacing.googleButtonBorderWidth,
+          socialButtonBorderWidth: spacing.socialButtonBorderWidth,
+          buttonBorderWidth: spacing.googleButtonBorderWidth,
+        },
       },
+    },
+    // Option 2: Try adding style overrides
+    style: {
+      button: {
+        borderWidth: spacing.googleButtonBorderWidth,
+        borderStyle: "solid",
+      },
+      socialButton: {
+        borderWidth: spacing.socialButtonBorderWidth,
+        borderStyle: "solid",
+      },
+    },
+    // Option 3: Try className approach
+    className: {
+      button: "custom-auth-button",
+      socialButton: "custom-social-button",
+      container: "custom-auth-container",
     },
   }
 
@@ -492,6 +538,87 @@
                     <option value="1.5rem">Pill (1.5rem)</option>
                   </select>
                 </div>
+
+                <div>
+                  <label class="mb-1 block text-xs text-base-content/80"
+                    >Input Border Width</label
+                  >
+                  <select
+                    bind:value={spacing.inputBorderWidth}
+                    class="select select-xs w-full"
+                  >
+                    <option value="0px">None (0px)</option>
+                    <option value="0.5px">Ultra Thin (0.5px)</option>
+                    <option value="1px">Thin (1px)</option>
+                    <option value="1.5px">Medium Thin (1.5px)</option>
+                    <option value="2px">Medium (2px)</option>
+                    <option value="3px">Thick (3px)</option>
+                    <option value="4px">Extra Thick (4px)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="mb-1 block text-xs text-base-content/80"
+                    >Button Border Width</label
+                  >
+                  <select
+                    bind:value={spacing.defaultButtonBorderWidth}
+                    class="select select-xs w-full"
+                  >
+                    <option value="0px">None (0px)</option>
+                    <option value="0.5px">Ultra Thin (0.5px)</option>
+                    <option value="1px">Thin (1px)</option>
+                    <option value="1.5px">Medium Thin (1.5px)</option>
+                    <option value="2px">Medium (2px)</option>
+                    <option value="3px">Thick (3px)</option>
+                    <option value="4px">Extra Thick (4px)</option>
+                  </select>
+                </div>
+
+                <!-- NEW: Google Auth specific options -->
+                <div class="border-t border-base-300 pt-3">
+                  <h4 class="mb-2 text-xs font-semibold text-base-content">
+                    Google Auth Button
+                  </h4>
+
+                  <div>
+                    <label class="mb-1 block text-xs text-base-content/80"
+                      >Google Button Border Width</label
+                    >
+                    <select
+                      bind:value={spacing.googleButtonBorderWidth}
+                      class="select select-xs w-full"
+                    >
+                      <option value="0px">None (0px)</option>
+                      <option value="0.5px">Ultra Thin (0.5px)</option>
+                      <option value="1px">Thin (1px)</option>
+                      <option value="1.5px">Medium Thin (1.5px)</option>
+                      <option value="2px">Medium (2px)</option>
+                      <option value="3px">Thick (3px)</option>
+                      <option value="4px">Extra Thick (4px)</option>
+                      <option value="5px">Very Thick (5px)</option>
+                    </select>
+                  </div>
+
+                  <div class="mt-2">
+                    <label class="mb-1 block text-xs text-base-content/80"
+                      >Social Button Border Width</label
+                    >
+                    <select
+                      bind:value={spacing.socialButtonBorderWidth}
+                      class="select select-xs w-full"
+                    >
+                      <option value="0px">None (0px)</option>
+                      <option value="0.5px">Ultra Thin (0.5px)</option>
+                      <option value="1px">Thin (1px)</option>
+                      <option value="1.5px">Medium Thin (1.5px)</option>
+                      <option value="2px">Medium (2px)</option>
+                      <option value="3px">Thick (3px)</option>
+                      <option value="4px">Extra Thick (4px)</option>
+                      <option value="5px">Very Thick (5px)</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           {/if}
@@ -627,5 +754,45 @@
 <style>
   .font-archivo {
     font-family: "Archivo", Arial, sans-serif;
+  }
+
+  /* Option 4: Global CSS targeting for Google auth button */
+  :global(.custom-auth-button) {
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  :global(.custom-social-button) {
+    border-width: v-bind("spacing.socialButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  /* Option 5: Direct targeting attempts */
+  :global(.supabase-auth-ui_ui button) {
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  :global(button[data-provider="google"]) {
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  /* Option 6: More specific selectors */
+  :global([class*="supabase-auth-ui"] button[type="button"]) {
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  /* Option 7: Container-based targeting */
+  :global(.custom-auth-container button) {
+    border-width: v-bind("spacing.socialButtonBorderWidth") !important;
+    border-style: solid !important;
+  }
+
+  /* Option 8: Alternative box-shadow approach */
+  :global(.supabase-auth-ui_ui button:not([type="submit"])) {
+    border: v-bind("spacing.googleButtonBorderWidth") solid currentColor !important;
+    box-shadow: 0 0 0 v-bind("spacing.googleButtonBorderWidth") currentColor !important;
   }
 </style>
