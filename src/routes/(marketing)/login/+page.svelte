@@ -16,9 +16,8 @@
     $page.url.searchParams.get("tab") === "sign_up" ? "sign_up" : "sign_in"
 
   // Style variation state
-  let currentVariation = "default"
   let showStylePanel = false
-  let activePanel = "colors" // "colors", "typography", "spacing"
+  let activePanel = "typography" // "typography", "spacing"
 
   // Typography settings
   let fontSizes = {
@@ -34,10 +33,8 @@
     borderRadiusButton: "0.5rem",
     inputBorderRadius: "0.5rem",
     inputBorderWidth: "0.5px",
-    defaultButtonBorderWidth: "0.5px",
-    // NEW: Google Auth specific settings
+    defaultButtonBorderWidth: "0.5px", // Need this back for the theme
     googleButtonBorderWidth: "2px",
-    socialButtonBorderWidth: "2px",
   }
 
   // Process URL parameters
@@ -68,93 +65,20 @@
     }
   })
 
-  // Style variations
-  const styleVariations = {
-    default: {
-      name: "Default (Faded)",
-      colors: {
-        brand: "#F7DB5C",
-        brandAccent: "#E6C94F",
-        brandButtonText: "#232322",
-        inputText: "oklch(var(--contrast-content) / 0.7)", // Faded
-        messageText: "hsl(var(--bc))",
-        dividerBackground: "oklch(var(--contrast-content) / 0.2)",
-        inputLabelText: "hsl(var(--bc) / 0.8)", // Slightly faded
-        defaultButtonText: "hsl(var(--bc))",
-        anchorTextColor: "hsl(var(--p))",
-        inputBackground: "hsl(var(--b1))",
-        inputBorder: "oklch(var(--contrast-content) / 0.4)", // Much more faded
-        defaultButtonBorder: "oklch(var(--contrast-content) / 0.25)",
-      },
-    },
-    green: {
-      name: "Green Primary",
-      colors: {
-        brand: "#17a34a",
-        brandAccent: "#15803d",
-        brandButtonText: "#ffffff",
-        inputText: "hsl(var(--bc))",
-        messageText: "hsl(var(--bc))",
-        dividerBackground: "white",
-        inputLabelText: "hsl(var(--bc))",
-        defaultButtonText: "hsl(var(--bc))",
-        anchorTextColor: "hsl(var(--p))",
-        inputBackground: "hsl(var(--b1))",
-        inputBorder: "oklch(var(--contrast-content))",
-        defaultButtonBorder: "oklch(var(--contrast-content))",
-      },
-    },
-    orange: {
-      name: "Orange Accent",
-      colors: {
-        brand: "#D95D39",
-        brandAccent: "#c2410c",
-        brandButtonText: "#ffffff",
-        inputText: "hsl(var(--bc))",
-        messageText: "hsl(var(--bc))",
-        dividerBackground: "white",
-        inputLabelText: "hsl(var(--bc))",
-        defaultButtonText: "hsl(var(--bc))",
-        anchorTextColor: "hsl(var(--p))",
-        inputBackground: "hsl(var(--b1))",
-        inputBorder: "oklch(var(--contrast-content))",
-        defaultButtonBorder: "oklch(var(--contrast-content))",
-      },
-    },
-    minimal: {
-      name: "Minimal Black",
-      colors: {
-        brand: "#232322",
-        brandAccent: "#000000",
-        brandButtonText: "#ffffff",
-        inputText: "hsl(var(--bc))",
-        messageText: "hsl(var(--bc))",
-        dividerBackground: "hsl(var(--b3))",
-        inputLabelText: "hsl(var(--bc))",
-        defaultButtonText: "hsl(var(--bc))",
-        anchorTextColor: "hsl(var(--p))",
-        inputBackground: "hsl(var(--b1))",
-        inputBorder: "hsl(var(--b3))",
-        defaultButtonBorder: "hsl(var(--b3))",
-      },
-    },
-    gradient: {
-      name: "Gradient Fun",
-      colors: {
-        brand: "linear-gradient(135deg, #F7DB5C 0%, #D95D39 100%)",
-        brandAccent: "linear-gradient(135deg, #E6C94F 0%, #c2410c 100%)",
-        brandButtonText: "#ffffff",
-        inputText: "hsl(var(--bc))",
-        messageText: "hsl(var(--bc))",
-        dividerBackground: "white",
-        inputLabelText: "hsl(var(--bc))",
-        defaultButtonText: "hsl(var(--bc))",
-        anchorTextColor: "hsl(var(--p))",
-        inputBackground: "hsl(var(--b1))",
-        inputBorder: "oklch(var(--contrast-content))",
-        defaultButtonBorder: "oklch(var(--contrast-content))",
-      },
-    },
+  // Default style configuration
+  const defaultColors = {
+    brand: "#F7DB5C",
+    brandAccent: "#E6C94F",
+    brandButtonText: "#232322",
+    inputText: "oklch(var(--contrast-content) / 0.7)", // Faded
+    messageText: "hsl(var(--bc))",
+    dividerBackground: "oklch(var(--contrast-content) / 0.2)",
+    inputLabelText: "hsl(var(--bc) / 0.8)", // Slightly faded
+    defaultButtonText: "hsl(var(--bc))",
+    anchorTextColor: "hsl(var(--p))",
+    inputBackground: "hsl(var(--b1))",
+    inputBorder: "oklch(var(--contrast-content) / 0.4)", // Much more faded
+    defaultButtonBorder: "oklch(var(--contrast-content) / 0.25)",
   }
 
   // Typography presets
@@ -196,7 +120,6 @@
       inputBorderWidth: "0.5px",
       defaultButtonBorderWidth: "0.5px",
       googleButtonBorderWidth: "2px",
-      socialButtonBorderWidth: "2px",
     },
     default: {
       name: "Default",
@@ -207,7 +130,6 @@
       inputBorderWidth: "0.5px",
       defaultButtonBorderWidth: "0.5px",
       googleButtonBorderWidth: "2px",
-      socialButtonBorderWidth: "2px",
     },
     spacious: {
       name: "Spacious",
@@ -218,7 +140,6 @@
       inputBorderWidth: "1px",
       defaultButtonBorderWidth: "1px",
       googleButtonBorderWidth: "3px",
-      socialButtonBorderWidth: "3px",
     },
     rounded: {
       name: "Very Rounded",
@@ -229,15 +150,14 @@
       inputBorderWidth: "0.5px",
       defaultButtonBorderWidth: "0.5px",
       googleButtonBorderWidth: "2px",
-      socialButtonBorderWidth: "2px",
     },
   }
 
-  // Generate appearance config based on current settings
+  // Generate appearance config based on current settings - RESTORED THE FULL CONFIG
   $: currentAppearance = {
     theme: {
       default: {
-        colors: styleVariations[currentVariation].colors,
+        colors: defaultColors,
         fonts: {
           bodyFontFamily: `ui-sans-serif, system-ui, sans-serif`,
         },
@@ -253,25 +173,21 @@
         borderWidths: {
           inputBorderWidth: spacing.inputBorderWidth,
           defaultButtonBorderWidth: spacing.defaultButtonBorderWidth,
-          // Option 1: Try adding these properties
           googleButtonBorderWidth: spacing.googleButtonBorderWidth,
-          socialButtonBorderWidth: spacing.socialButtonBorderWidth,
           buttonBorderWidth: spacing.googleButtonBorderWidth,
         },
       },
     },
-    // Option 2: Try adding style overrides
     style: {
       button: {
         borderWidth: spacing.googleButtonBorderWidth,
         borderStyle: "solid",
       },
       socialButton: {
-        borderWidth: spacing.socialButtonBorderWidth,
+        borderWidth: spacing.googleButtonBorderWidth,
         borderStyle: "solid",
       },
     },
-    // Option 3: Try className approach
     className: {
       button: "custom-auth-button",
       socialButton: "custom-social-button",
@@ -281,7 +197,6 @@
 
   // Reset functions
   function resetToDefaults() {
-    currentVariation = "default"
     fontSizes = { ...typographyPresets.default }
     spacing = { ...spacingPresets.default }
   }
@@ -336,16 +251,6 @@
           <div class="flex rounded-md bg-base-200 p-1">
             <button
               class="flex-1 rounded px-3 py-1 text-xs transition-all {activePanel ===
-              'colors'
-                ? 'bg-base-100 shadow'
-                : ''}"
-              on:click={() => (activePanel = "colors")}
-            >
-              <Palette size={12} class="mr-1 inline" />
-              Colors
-            </button>
-            <button
-              class="flex-1 rounded px-3 py-1 text-xs transition-all {activePanel ===
               'typography'
                 ? 'bg-base-100 shadow'
                 : ''}"
@@ -369,28 +274,7 @@
 
         <!-- Panel Content -->
         <div class="max-h-64 overflow-y-auto p-4">
-          {#if activePanel === "colors"}
-            <!-- Color Variations -->
-            <div class="space-y-2">
-              {#each Object.entries(styleVariations) as [key, variation]}
-                <button
-                  class="btn btn-sm w-full justify-start text-left {currentVariation ===
-                  key
-                    ? 'btn-primary'
-                    : 'btn-ghost'}"
-                  on:click={() => (currentVariation = key)}
-                >
-                  <div class="flex items-center gap-2">
-                    <div
-                      class="h-3 w-3 rounded-full border border-base-300"
-                      style="background: {variation.colors.brand}"
-                    ></div>
-                    <span class="text-xs">{variation.name}</span>
-                  </div>
-                </button>
-              {/each}
-            </div>
-          {:else if activePanel === "typography"}
+          {#if activePanel === "typography"}
             <!-- Typography Controls -->
             <div class="space-y-4">
               <!-- Typography Presets -->
@@ -557,25 +441,7 @@
                   </select>
                 </div>
 
-                <div>
-                  <label class="mb-1 block text-xs text-base-content/80"
-                    >Button Border Width</label
-                  >
-                  <select
-                    bind:value={spacing.defaultButtonBorderWidth}
-                    class="select select-xs w-full"
-                  >
-                    <option value="0px">None (0px)</option>
-                    <option value="0.5px">Ultra Thin (0.5px)</option>
-                    <option value="1px">Thin (1px)</option>
-                    <option value="1.5px">Medium Thin (1.5px)</option>
-                    <option value="2px">Medium (2px)</option>
-                    <option value="3px">Thick (3px)</option>
-                    <option value="4px">Extra Thick (4px)</option>
-                  </select>
-                </div>
-
-                <!-- NEW: Google Auth specific options -->
+                <!-- Google Auth specific options -->
                 <div class="border-t border-base-300 pt-3">
                   <h4 class="mb-2 text-xs font-semibold text-base-content">
                     Google Auth Button
@@ -587,25 +453,6 @@
                     >
                     <select
                       bind:value={spacing.googleButtonBorderWidth}
-                      class="select select-xs w-full"
-                    >
-                      <option value="0px">None (0px)</option>
-                      <option value="0.5px">Ultra Thin (0.5px)</option>
-                      <option value="1px">Thin (1px)</option>
-                      <option value="1.5px">Medium Thin (1.5px)</option>
-                      <option value="2px">Medium (2px)</option>
-                      <option value="3px">Thick (3px)</option>
-                      <option value="4px">Extra Thick (4px)</option>
-                      <option value="5px">Very Thick (5px)</option>
-                    </select>
-                  </div>
-
-                  <div class="mt-2">
-                    <label class="mb-1 block text-xs text-base-content/80"
-                      >Social Button Border Width</label
-                    >
-                    <select
-                      bind:value={spacing.socialButtonBorderWidth}
                       class="select select-xs w-full"
                     >
                       <option value="0px">None (0px)</option>
@@ -664,8 +511,8 @@
 
   <!-- Supabase Auth Component -->
   <div class="space-y-6">
-    <!-- Force re-render when any setting changes -->
-    {#key `${currentVariation}-${JSON.stringify(fontSizes)}-${JSON.stringify(spacing)}`}
+    <!-- RESTORED THE FULL KEY FOR PROPER RE-RENDERING -->
+    {#key `${JSON.stringify(fontSizes)}-${JSON.stringify(spacing)}-${spacing.googleButtonBorderWidth}`}
       <Auth
         supabaseClient={supabase}
         view={activeTab}
@@ -756,18 +603,17 @@
     font-family: "Archivo", Arial, sans-serif;
   }
 
-  /* Option 4: Global CSS targeting for Google auth button */
+  /* Google auth button styling */
   :global(.custom-auth-button) {
     border-width: v-bind("spacing.googleButtonBorderWidth") !important;
     border-style: solid !important;
   }
 
   :global(.custom-social-button) {
-    border-width: v-bind("spacing.socialButtonBorderWidth") !important;
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
     border-style: solid !important;
   }
 
-  /* Option 5: Direct targeting attempts */
   :global(.supabase-auth-ui_ui button) {
     border-width: v-bind("spacing.googleButtonBorderWidth") !important;
     border-style: solid !important;
@@ -778,21 +624,13 @@
     border-style: solid !important;
   }
 
-  /* Option 6: More specific selectors */
   :global([class*="supabase-auth-ui"] button[type="button"]) {
     border-width: v-bind("spacing.googleButtonBorderWidth") !important;
     border-style: solid !important;
   }
 
-  /* Option 7: Container-based targeting */
   :global(.custom-auth-container button) {
-    border-width: v-bind("spacing.socialButtonBorderWidth") !important;
+    border-width: v-bind("spacing.googleButtonBorderWidth") !important;
     border-style: solid !important;
-  }
-
-  /* Option 8: Alternative box-shadow approach */
-  :global(.supabase-auth-ui_ui button:not([type="submit"])) {
-    border: v-bind("spacing.googleButtonBorderWidth") solid currentColor !important;
-    box-shadow: 0 0 0 v-bind("spacing.googleButtonBorderWidth") currentColor !important;
   }
 </style>
