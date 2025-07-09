@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from "$app/navigation"
   import { Skeleton } from "$lib/components/ui/skeleton"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -35,6 +36,10 @@
 
   function openPinsDialog() {
     pinsDialogOpen = true
+  }
+
+  function goToFieldView() {
+    goto("/account/fieldview")
   }
 
   // Placeholder for field boundaries - replace with actual data
@@ -252,60 +257,62 @@
     </div>
 
     <!-- Field Boundaries Card -->
-    <div
-      class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
-    >
-      <!-- Background gradient overlay -->
+    <button on:click={goToFieldView} class="text-left">
       <div
-        class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-      ></div>
+        class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
+      >
+        <!-- Background gradient overlay -->
+        <div
+          class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        ></div>
 
-      <div class="relative z-10">
-        <!-- Icon Section -->
-        <div class="mb-3 flex items-center justify-center">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
-          >
-            <Layers size={20} class="text-sky-500" />
-          </div>
-        </div>
-
-        <!-- Content -->
-        <div class="text-center">
-          <h3
-            class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
-          >
-            Field Boundaries
-          </h3>
-          <div class="mb-2">
-            <span class="text-base font-bold text-base-content"
-              >{fieldBoundaries}</span
+        <div class="relative z-10">
+          <!-- Icon Section -->
+          <div class="mb-3 flex items-center justify-center">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
             >
-            <span class="ml-1 text-base text-contrast-content"
-              >/ {fieldBoundariesMax}</span
-            >
+              <Layers size={20} class="text-sky-500" />
+            </div>
           </div>
-          <p class="mb-3 text-xs text-contrast-content">
-            {#if isPaidSubscription}
-              Unlimited
-            {:else}
-              {fieldBoundariesMax} max on free plan
-            {/if}
-          </p>
 
-          <!-- Expandable indicator -->
-          <div
-            class="flex items-center justify-center gap-2 font-medium text-sky-500"
-          >
-            <span class="text-xs">View Details</span>
-            <ChevronRight
-              size={12}
-              class="transition-transform duration-300 group-hover:translate-x-1"
-            />
+          <!-- Content -->
+          <div class="text-center">
+            <h3
+              class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
+            >
+              Field Boundaries
+            </h3>
+            <div class="mb-2">
+              <span class="text-base font-bold text-base-content"
+                >{fieldBoundaries}</span
+              >
+              <span class="ml-1 text-base text-contrast-content"
+                >/ {fieldBoundariesMax}</span
+              >
+            </div>
+            <p class="mb-3 text-xs text-contrast-content">
+              {#if isPaidSubscription}
+                Unlimited
+              {:else}
+                {fieldBoundariesMax} max on free plan
+              {/if}
+            </p>
+
+            <!-- Expandable indicator -->
+            <div
+              class="flex items-center justify-center gap-2 font-medium text-sky-500"
+            >
+              <span class="text-xs">View Details</span>
+              <ChevronRight
+                size={12}
+                class="transition-transform duration-300 group-hover:translate-x-1"
+              />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </button>
   </div>
 
   <!-- Desktop Layout -->
@@ -491,60 +498,62 @@
         </div>
 
         <!-- Field Boundaries Card -->
-        <div
-          class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
-        >
-          <!-- Background gradient overlay -->
+        <button on:click={goToFieldView} class="text-left">
           <div
-            class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-          ></div>
+            class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
+          >
+            <!-- Background gradient overlay -->
+            <div
+              class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            ></div>
 
-          <div class="relative z-10">
-            <!-- Icon Section -->
-            <div class="mb-4 flex items-center justify-center">
-              <div
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
-              >
-                <Layers size={24} class="text-sky-500" />
-              </div>
-            </div>
-
-            <!-- Content -->
-            <div class="text-center">
-              <h3
-                class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
-              >
-                Field Boundaries
-              </h3>
-              <div class="mb-3">
-                <span class="text-lg font-bold text-base-content"
-                  >{fieldBoundaries}</span
+            <div class="relative z-10">
+              <!-- Icon Section -->
+              <div class="mb-4 flex items-center justify-center">
+                <div
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
                 >
-                <span class="ml-1 text-lg text-contrast-content"
-                  >/ {fieldBoundariesMax}</span
-                >
+                  <Layers size={24} class="text-sky-500" />
+                </div>
               </div>
-              <p class="mb-4 text-sm text-contrast-content">
-                {#if isPaidSubscription}
-                  Unlimited
-                {:else}
-                  {fieldBoundariesMax} max on free plan
-                {/if}
-              </p>
 
-              <!-- Expandable indicator -->
-              <div
-                class="flex items-center justify-center gap-2 font-medium text-sky-500"
-              >
-                <span class="text-xs">View Details</span>
-                <ChevronRight
-                  size={14}
-                  class="transition-transform duration-300 group-hover:translate-x-1"
-                />
+              <!-- Content -->
+              <div class="text-center">
+                <h3
+                  class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
+                >
+                  Field Boundaries
+                </h3>
+                <div class="mb-3">
+                  <span class="text-lg font-bold text-base-content"
+                    >{fieldBoundaries}</span
+                  >
+                  <span class="ml-1 text-lg text-contrast-content"
+                    >/ {fieldBoundariesMax}</span
+                  >
+                </div>
+                <p class="mb-4 text-sm text-contrast-content">
+                  {#if isPaidSubscription}
+                    Unlimited
+                  {:else}
+                    {fieldBoundariesMax} max on free plan
+                  {/if}
+                </p>
+
+                <!-- Expandable indicator -->
+                <div
+                  class="flex items-center justify-center gap-2 font-medium text-sky-500"
+                >
+                  <span class="text-xs">View Details</span>
+                  <ChevronRight
+                    size={14}
+                    class="transition-transform duration-300 group-hover:translate-x-1"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   </div>
