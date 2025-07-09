@@ -1130,7 +1130,16 @@
               </button>
             </div>
 
-            {#if createMapStatus === "creating"}
+            <div class="mb-6 text-center">
+              <h4 class="mb-2 text-xl font-semibold text-contrast-content">
+                Create New Map
+              </h4>
+              <p class="text-sm text-contrast-content/60">
+                Set up a new farm map to start tracking your operations
+              </p>
+            </div>
+
+            {#if createMapStatus === "loading"}
               <!-- Creating Map State -->
               <div
                 class="animate-scaleIn flex flex-col items-center gap-4 py-8"
@@ -1249,15 +1258,8 @@
                         ? 'cursor-not-allowed bg-base-content/70 text-base-100/70'
                         : 'bg-base-content text-base-100 hover:bg-base-content/90'} shadow-lg shadow-base-content/10 hover:shadow-base-content/20"
                     >
-                      {#if isLoading}
-                        <div
-                          class="-ml-1 mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                        ></div>
-                        Creating...
-                      {:else}
-                        <span>Create Map</span>
-                        <Plus size={16} />
-                      {/if}
+                      <span>Create Map</span>
+                      <Plus size={16} />
                     </button>
                   </div>
                 </form>
