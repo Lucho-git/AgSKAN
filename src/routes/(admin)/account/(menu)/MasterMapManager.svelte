@@ -707,7 +707,7 @@
         <div
           class="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 shadow-sm"
         >
-          <Settings size={20} className="text-green-500" />
+          <Map size={20} className="text-green-500" />
         </div>
         <div class="min-w-0 flex-1">
           <!-- Breadcrumb Navigation -->
@@ -725,7 +725,7 @@
                 <span
                   class="text-lg font-semibold {currentView === 'main'
                     ? 'inline'
-                    : 'hidden sm:inline'}">Map Settings</span
+                    : 'hidden sm:inline'}">Map Manager</span
                 >
               </button>
             </div>
@@ -2124,8 +2124,8 @@
 
     <!-- Vertical Divider - Only visible on desktop, aligned with content -->
     <div
-      class="absolute hidden w-px bg-gradient-to-b from-base-content/30 via-base-content/20 to-transparent lg:block"
-      style="left: calc(50% - 0.5px); top: 6rem; bottom: 6rem;"
+      class="absolute hidden w-px bg-gradient-to-b from-transparent via-base-content/20 via-base-content/30 via-base-content/30 to-transparent lg:block"
+      style="left: calc(50% - 0.5px); top: 0; bottom: 0;"
     ></div>
 
     <!-- ========================================
