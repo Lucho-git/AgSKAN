@@ -36,7 +36,7 @@
     description="Enjoy special pricing for the next 7 days during our launch week. This is the best price we will ever offer, don't miss out! Deal Ends Tuesday."
     link="/account/billing"
   /> -->
-<div class="mx-auto w-full px-4 sm:px-6 lg:px-8">
+<div class="mx-auto w-full">
   <div>
     <!-- <h2 class="mt-2 text-2xl font-bold">Map Manager</h2> -->
 

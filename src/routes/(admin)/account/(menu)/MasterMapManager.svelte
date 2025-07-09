@@ -44,6 +44,9 @@
     Link,
     Home,
     Cloud,
+    BarChart3,
+    Info,
+    Layers,
   } from "lucide-svelte"
 
   // ========================================
@@ -187,6 +190,7 @@
       loadingAction = null
     }
   }
+
   // ========================================
   // CONNECT TO MAP STATE & FUNCTIONS
   // ========================================
@@ -687,721 +691,170 @@
      ======================================== -->
 
 <!-- Map Manager Component -->
-<div
-  class="mb-6 w-full overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-lg"
->
-  <!-- Header with accent line -->
-  <div class="relative">
-    <div class="h-1 w-full bg-base-content"></div>
-    <div class="flex items-center justify-between border-b border-base-300 p-4">
-      <!-- Breadcrumb Navigation -->
-      <div class="flex min-w-0 flex-1 items-center gap-1">
-        <!-- Always show main breadcrumb with fixed height -->
-        <div class="flex h-8 items-center">
-          <button
-            class="flex items-center gap-1.5 rounded px-1 py-0.5 text-contrast-content transition-colors hover:text-contrast-content/80 {currentView ===
-            'main'
-              ? 'cursor-default'
-              : 'hover:bg-base-200'}"
-            on:click={() => navigateToPath(0)}
-            disabled={currentView === "main"}
-          >
-            <div
-              class="flex h-6 w-6 items-center justify-center rounded-full bg-green-500/20"
-            >
-              <Map class="h-4 w-4 text-green-500 sm:h-4 sm:w-4" />
+<div class="mb-8">
+  <!-- Main Content - Two separate components -->
+  <div class="relative grid grid-cols-1 gap-8 lg:grid-cols-2">
+    <!-- ========================================
+         LEFT COMPONENT - Map Settings & Actions
+         ======================================== -->
+    <div
+      class="rounded-xl border border-base-300 bg-base-100 shadow-lg transition-all duration-300 hover:shadow-xl"
+    >
+      <!-- Left Section Header with Breadcrumbs -->
+      <div
+        class="mx-6 grid min-h-[5rem] grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-base-300 px-0 py-4"
+      >
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 shadow-sm"
+        >
+          <Settings size={20} className="text-green-500" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <!-- Breadcrumb Navigation -->
+          <div class="flex min-w-0 flex-1 items-center gap-1">
+            <!-- Always show main breadcrumb -->
+            <div class="flex h-6 items-center">
+              <button
+                class="flex items-center gap-2 rounded px-1 py-0.5 text-contrast-content transition-colors hover:text-contrast-content/80 {currentView ===
+                'main'
+                  ? 'cursor-default'
+                  : 'hover:bg-base-200'}"
+                on:click={() => navigateToPath(0)}
+                disabled={currentView === "main"}
+              >
+                <span
+                  class="text-lg font-semibold {currentView === 'main'
+                    ? 'inline'
+                    : 'hidden sm:inline'}">Map Settings</span
+                >
+              </button>
             </div>
-            <span
-              class="text-base font-semibold sm:text-base {currentView ===
-              'main'
-                ? 'inline'
-                : 'hidden'}">Map Manager</span
-            >
-          </button>
+
+            <!-- Show additional breadcrumbs if not on main -->
+            {#if currentView !== "main"}
+              <ChevronRight
+                class="h-4 w-4 flex-shrink-0 text-contrast-content/40"
+              />
+
+              <!-- For multi-level navigation, show intermediate steps -->
+              {#if navigationStack.length > 2}
+                {#each navigationStack.slice(1, -1) as view, index}
+                  <div class="flex h-6 items-center">
+                    <button
+                      class="flex items-center gap-1 rounded px-1 py-0.5 text-sm font-medium text-contrast-content/70 transition-colors hover:bg-base-200 hover:text-contrast-content"
+                      on:click={() => navigateToPath(index + 1)}
+                    >
+                      {#if view === "create"}
+                        <Plus class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Create</span>
+                      {:else if view === "connect"}
+                        <Search class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Connect</span>
+                      {:else if view === "switch-map"}
+                        <Link2 class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Switch</span>
+                      {:else if view === "settings"}
+                        <Settings class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Settings</span>
+                      {:else if view === "operations"}
+                        <MapPin class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Operations</span
+                        >
+                      {:else if view === "create-operation"}
+                        <Plus class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Create Op</span>
+                      {:else if view === "edit-operation"}
+                        <Pencil class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Edit Op</span>
+                      {:else if view === "invite"}
+                        <UserPlus class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Invite</span>
+                      {:else if view === "delete-confirm"}
+                        <Trash2 class="h-3 w-3 flex-shrink-0" />
+                        <span class="hidden truncate sm:inline">Delete</span>
+                      {:else}
+                        <span class="hidden truncate sm:inline">{view}</span>
+                      {/if}
+                    </button>
+                  </div>
+                  <ChevronRight
+                    class="h-4 w-4 flex-shrink-0 text-contrast-content/40"
+                  />
+                {/each}
+              {/if}
+
+              <!-- Current page breadcrumb (always highlighted) -->
+              <div class="flex h-6 items-center">
+                <div
+                  class="flex cursor-default items-center gap-1 rounded bg-base-200 px-2 py-1 text-sm font-medium text-contrast-content"
+                >
+                  {#if currentView === "create"}
+                    <Plus class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Create</span>
+                  {:else if currentView === "connect"}
+                    <Search class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Connect</span>
+                  {:else if currentView === "switch-map"}
+                    <Link2 class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Switch</span>
+                  {:else if currentView === "settings"}
+                    <Settings class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Settings</span>
+                  {:else if currentView === "operations"}
+                    <MapPin class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Operations</span>
+                  {:else if currentView === "create-operation"}
+                    <Plus class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Create Op</span>
+                  {:else if currentView === "edit-operation"}
+                    <Pencil class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Edit Op</span>
+                  {:else if currentView === "invite"}
+                    <UserPlus class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Invite</span>
+                  {:else if currentView === "delete-confirm"}
+                    <Trash2 class="h-3 w-3 flex-shrink-0" />
+                    <span class="truncate">Delete</span>
+                  {:else}
+                    <span class="truncate">{currentView}</span>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </div>
         </div>
 
-        <!-- Show additional breadcrumbs if not on main -->
-        {#if currentView !== "main"}
-          <ChevronRight
-            class="h-3 w-3 flex-shrink-0 text-contrast-content/40"
-          />
-
-          <!-- For multi-level navigation, show intermediate steps -->
-          {#if navigationStack.length > 2}
-            {#each navigationStack.slice(1, -1) as view, index}
-              <div class="flex h-8 items-center">
-                <button
-                  class="flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium text-contrast-content/70 transition-colors hover:bg-base-200 hover:text-contrast-content sm:text-sm"
-                  on:click={() => navigateToPath(index + 1)}
-                >
-                  {#if view === "create"}
-                    <Plus class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Create</span>
-                  {:else if view === "connect"}
-                    <Search class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Connect</span>
-                  {:else if view === "switch-map"}
-                    <Link2 class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Switch</span>
-                  {:else if view === "settings"}
-                    <Settings class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Settings</span>
-                  {:else if view === "operations"}
-                    <MapPin class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Operations</span>
-                  {:else if view === "create-operation"}
-                    <Plus class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Create Op</span>
-                  {:else if view === "edit-operation"}
-                    <Pencil class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Edit Op</span>
-                  {:else if view === "invite"}
-                    <UserPlus class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Invite</span>
-                  {:else if view === "delete-confirm"}
-                    <Trash2 class="h-3 w-3 flex-shrink-0" />
-                    <span class="hidden truncate sm:inline">Delete</span>
-                  {:else}
-                    <span class="hidden truncate sm:inline">{view}</span>
-                  {/if}
-                </button>
-              </div>
-              <ChevronRight
-                class="h-3 w-3 flex-shrink-0 text-contrast-content/40"
-              />
-            {/each}
-          {/if}
-
-          <!-- Current page breadcrumb (always highlighted) -->
-          <div class="flex h-8 items-center">
-            <div
-              class="flex cursor-default items-center gap-1 rounded bg-base-200 px-1 py-0.5 text-xs font-medium text-contrast-content sm:text-sm"
-            >
-              {#if currentView === "create"}
-                <Plus class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Create</span>
-              {:else if currentView === "connect"}
-                <Search class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Connect</span>
-              {:else if currentView === "switch-map"}
-                <Link2 class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Switch</span>
-              {:else if currentView === "settings"}
-                <Settings class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Settings</span>
-              {:else if currentView === "operations"}
-                <MapPin class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Operations</span>
-              {:else if currentView === "create-operation"}
-                <Plus class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Create Op</span>
-              {:else if currentView === "edit-operation"}
-                <Pencil class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Edit Op</span>
-              {:else if currentView === "invite"}
-                <UserPlus class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Invite</span>
-              {:else if currentView === "delete-confirm"}
-                <Trash2 class="h-3 w-3 flex-shrink-0" />
-                <span class="truncate">Delete</span>
-              {:else}
-                <span class="truncate">{currentView}</span>
-              {/if}
-            </div>
-          </div>
+        <!-- Back Button - Mobile only -->
+        {#if navigationStack.length > 1}
+          <button
+            class="ml-2 flex h-8 items-center gap-1 rounded bg-base-200 px-2 py-1 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300 lg:hidden"
+            on:click={goBack}
+          >
+            <ChevronLeft class="h-4 w-4" />
+            <span class="hidden sm:inline">Back</span>
+          </button>
         {/if}
       </div>
 
-      <!-- Back Button - Larger on mobile -->
+      <!-- Mobile Back Button - Below header bar -->
       {#if navigationStack.length > 1}
-        <button
-          class="ml-4 flex h-8 items-center gap-1 rounded bg-base-200 px-2 py-1 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300 sm:gap-2"
-          on:click={goBack}
-        >
-          <ChevronLeft class="h-4 w-4" />
-          <span class="hidden sm:inline">Back</span>
-        </button>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Main Content -->
-  <div class="flex min-h-[400px] flex-col md:flex-row">
-    <!-- ========================================
-         DISPLAY INFO SECTION (RIGHT PANEL)
-         ======================================== -->
-    <div
-      class="w-full border-b border-base-300 md:order-2 md:w-1/3 md:border-b-0 md:border-l"
-    >
-      {#if isConnected}
-        {#if currentView === "main"}
-          <!-- Main Menu Display - Show Map + Operation -->
-          <!-- Mobile Compact View -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="space-y-3">
-                <!-- Map Section -->
-                <div class="flex items-center gap-2">
-                  <div
-                    class="flex min-w-0 items-center gap-3"
-                    style="flex: 1 1 50%;"
-                  >
-                    <div
-                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
-                    >
-                      <Map class="h-4 w-4 text-green-600" />
-                    </div>
-                    <div class="min-w-0">
-                      <h3
-                        class="truncate text-sm font-bold text-contrast-content"
-                      >
-                        {$connectedMapStore.map_name}
-                      </h3>
-                      <div
-                        class="flex items-center gap-1 text-xs text-green-600"
-                      >
-                        <div
-                          class="h-1.5 w-1.5 rounded-full bg-green-500"
-                        ></div>
-                        <span>Connected</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-1" style="flex: 0 0 50%;">
-                    <MapPin
-                      class="h-4 w-4 flex-shrink-0 text-contrast-content/60"
-                    />
-                    <select
-                      class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-                      value={$selectedOperationStore?.id}
-                      on:change={(e) => handleOperationSelect(e.target.value)}
-                      disabled={isLoading &&
-                        loadingAction.startsWith("select-")}
-                    >
-                      {#each $operationStore as operation}
-                        <option value={operation.id}>
-                          {operation.name} ({operation.year})
-                        </option>
-                      {/each}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Desktop Full View -->
-          <div class="hidden space-y-4 p-6 md:block">
-            <!-- Map Section -->
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-              >
-                <Map class="h-6 w-6 text-green-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                {$connectedMapStore.map_name}
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                Owner: {$connectedMapStore.owner}
-              </p>
-            </div>
-
-            <!-- Current Operation with Dropdown -->
-            {#if $operationStore && $operationStore.length > 0}
-              <div class="rounded-lg bg-base-200 p-3">
-                <div class="mb-2 flex items-center gap-2">
-                  <MapPin class="h-4 w-4 text-contrast-content/60" />
-                  <span class="text-xs text-contrast-content/60"
-                    >Current Operation</span
-                  >
-                </div>
-                <select
-                  class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-                  value={$selectedOperationStore?.id}
-                  on:change={(e) => handleOperationSelect(e.target.value)}
-                  disabled={isLoading && loadingAction.startsWith("select-")}
-                >
-                  {#each $operationStore as operation}
-                    <option value={operation.id}>
-                      {operation.name} ({operation.year})
-                    </option>
-                  {/each}
-                </select>
-                {#if $selectedOperationStore?.description}
-                  <div class="mt-2 text-xs text-contrast-content/60">
-                    {$selectedOperationStore.description}
-                  </div>
-                {/if}
-              </div>
-            {/if}
-
-            <!-- Map ID -->
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 flex items-center justify-between">
-                <span class="text-xs text-contrast-content/60">Map ID</span>
-                <button
-                  class="text-xs transition-colors hover:text-contrast-content"
-                  on:click={copyMapId}
-                >
-                  {#if copied}
-                    <Check class="h-3 w-3 text-green-500" />
-                  {:else}
-                    <Copy class="h-3 w-3" />
-                  {/if}
-                </button>
-              </div>
-              <code class="break-all font-mono text-xs text-contrast-content/80"
-                >{$connectedMapStore.id}</code
-              >
-            </div>
-
-            <!-- Status Indicators -->
-            <div class="space-y-2">
-              <div class="flex items-center justify-between text-sm">
-                <span class="text-contrast-content/60">Status</span>
-                <div class="flex items-center gap-1">
-                  <div class="h-2 w-2 rounded-full bg-green-500"></div>
-                  <span class="font-medium text-green-600">Connected</span>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between text-sm">
-                <span class="text-contrast-content/60">Role</span>
-                <span class="font-medium text-contrast-content"
-                  >{isOwner ? "Owner" : "Member"}</span
-                >
-              </div>
-            </div>
-          </div>
-        {:else if currentView === "operations"}
-          <!-- Operations Management Display -->
-          <!-- Mobile Compact View -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100"
-                  >
-                    <MapPin class="h-4 w-4 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 class="text-sm font-bold text-contrast-content">
-                      Operations
-                    </h3>
-                    <div class="text-xs text-contrast-content/60">
-                      {$selectedOperationStore?.name || "No operation selected"}
-                      ({$selectedOperationStore?.year || ""})
-                    </div>
-                  </div>
-                </div>
-                <span
-                  class="rounded bg-base-content/10 px-2 py-1 text-xs text-contrast-content/60"
-                >
-                  {$operationStore?.length || 0} Total
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Desktop Full View -->
-          <div class="hidden space-y-4 p-6 md:block">
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100"
-              >
-                <MapPin class="h-6 w-6 text-orange-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                Operations Management
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                {$connectedMapStore.map_name}
-              </p>
-            </div>
-
-            <!-- Current Operation Info -->
-            {#if $selectedOperationStore}
-              <div class="rounded-lg bg-base-200 p-3">
-                <div class="mb-1 text-xs text-contrast-content/60">
-                  Current Operation
-                </div>
-                <div class="font-medium text-contrast-content">
-                  {$selectedOperationStore.name} ({$selectedOperationStore.year})
-                </div>
-                {#if $selectedOperationStore.description}
-                  <div class="mt-1 text-xs text-contrast-content/60">
-                    {$selectedOperationStore.description}
-                  </div>
-                {/if}
-              </div>
-            {/if}
-
-            <!-- Operations Count -->
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 text-xs text-contrast-content/60">
-                Total Operations
-              </div>
-              <div class="font-medium text-contrast-content">
-                {$operationStore?.length || 0}
-              </div>
-            </div>
-          </div>
-        {:else if currentView === "settings"}
-          <!-- Map Settings Display -->
-          <!-- Mobile Compact View -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100"
-                  >
-                    <Settings class="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 class="text-sm font-bold text-contrast-content">
-                      {$connectedMapStore.map_name}
-                    </h3>
-                    <div class="text-xs text-contrast-content/60">
-                      Map Settings
-                    </div>
-                  </div>
-                </div>
-                <span
-                  class="rounded bg-base-content/10 px-2 py-1 text-xs text-contrast-content/60"
-                >
-                  {isOwner ? "Owner" : "Member"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Desktop Full View -->
-          <div class="hidden space-y-4 p-6 md:block">
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100"
-              >
-                <Settings class="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                {$connectedMapStore.map_name}
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                Owner: {$connectedMapStore.owner}
-              </p>
-            </div>
-
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 flex items-center justify-between">
-                <span class="text-xs text-contrast-content/60">Map ID</span>
-                <button
-                  class="text-xs transition-colors hover:text-contrast-content"
-                  on:click={copyMapId}
-                >
-                  {#if copied}
-                    <Check class="h-3 w-3 text-green-500" />
-                  {:else}
-                    <Copy class="h-3 w-3" />
-                  {/if}
-                </button>
-              </div>
-              <code class="break-all font-mono text-xs text-contrast-content/80"
-                >{$connectedMapStore.id}</code
-              >
-            </div>
-
-            <div class="space-y-2">
-              <div class="flex items-center justify-between text-sm">
-                <span class="text-contrast-content/60">Role</span>
-                <span class="font-medium text-contrast-content"
-                  >{isOwner ? "Owner" : "Member"}</span
-                >
-              </div>
-            </div>
-          </div>
-        {:else if currentView === "create-operation"}
-          <!-- Create Operation Display -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100"
-                >
-                  <Plus class="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <h3 class="text-sm font-bold text-contrast-content">
-                    {newOperationName || "New Operation"}
-                  </h3>
-                  <div class="text-xs text-contrast-content/60">
-                    {newOperationYear}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="hidden space-y-4 p-6 md:block">
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100"
-              >
-                <Plus class="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                {newOperationName || "New Operation"}
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                Year: {newOperationYear}
-              </p>
-              {#if newOperationDescription}
-                <p class="mt-2 text-xs text-contrast-content/60">
-                  {newOperationDescription}
-                </p>
-              {/if}
-            </div>
-
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 text-xs text-contrast-content/60">Map</div>
-              <div class="font-medium text-contrast-content">
-                {$connectedMapStore.map_name}
-              </div>
-            </div>
-          </div>
-        {:else if currentView === "edit-operation"}
-          <!-- Edit Operation Display -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100"
-                >
-                  <Pencil class="h-4 w-4 text-yellow-600" />
-                </div>
-                <div>
-                  <h3 class="text-sm font-bold text-contrast-content">
-                    {editOperationName || "Edit Operation"}
-                  </h3>
-                  <div class="text-xs text-contrast-content/60">
-                    {editOperationYear}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="hidden space-y-4 p-6 md:block">
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
-              >
-                <Pencil class="h-6 w-6 text-yellow-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                {editOperationName || "Edit Operation"}
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                Year: {editOperationYear}
-              </p>
-              {#if editOperationDescription}
-                <p class="mt-2 text-xs text-contrast-content/60">
-                  {editOperationDescription}
-                </p>
-              {/if}
-            </div>
-
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 text-xs text-contrast-content/60">Map</div>
-              <div class="font-medium text-contrast-content">
-                {$connectedMapStore.map_name}
-              </div>
-            </div>
-          </div>
-        {:else if currentView === "invite"}
-          <!-- Invite Team Members Display -->
-          <div class="md:hidden">
-            <div class="bg-base-200/50 p-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100"
-                >
-                  <UserPlus class="h-4 w-4 text-purple-600" />
-                </div>
-                <div>
-                  <h3 class="text-sm font-bold text-contrast-content">
-                    Invite Team
-                  </h3>
-                  <div class="text-xs text-contrast-content/60">
-                    {$connectedMapStore.map_name}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="hidden space-y-4 p-6 md:block">
-            <div class="text-center">
-              <div
-                class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100"
-              >
-                <UserPlus class="h-6 w-6 text-purple-600" />
-              </div>
-              <h3 class="font-bold text-contrast-content">
-                Invite Team Members
-              </h3>
-              <p class="text-sm text-contrast-content/60">
-                Share access to {$connectedMapStore.map_name}
-              </p>
-            </div>
-
-            <div class="rounded-lg bg-base-200 p-3">
-              <div class="mb-1 text-xs text-contrast-content/60">Map ID</div>
-              <code class="break-all font-mono text-xs text-contrast-content"
-                >{$connectedMapStore.id}</code
-              >
-            </div>
-          </div>
-        {/if}
-      {:else}
-        <!-- Not Connected Display -->
-        <div class="bg-base-200/30 p-4 md:hidden">
-          <div class="flex items-center justify-center gap-2">
-            <div
-              class="flex h-6 w-6 items-center justify-center rounded-full bg-base-300"
-            >
-              <Map class="h-3 w-3 text-base-content/60" />
-            </div>
-            <span class="text-sm font-medium text-contrast-content/70"
-              >No Map Connected</span
-            >
-          </div>
-        </div>
-
-        <div class="hidden px-6 py-8 text-center md:block">
-          <div
-            class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-200"
+        <div class="px-6 pt-4 lg:hidden">
+          <button
+            class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+            on:click={goBack}
           >
-            <Map class="h-6 w-6 text-base-content/60" />
-          </div>
-          <h3 class="mb-2 font-semibold text-contrast-content">
-            No Map Connected
-          </h3>
-          <p class="text-sm text-contrast-content/60">
-            Create or connect to a map to begin tracking your farm operations.
-          </p>
+            <ArrowLeft class="h-4 w-4" />
+            Back to Main Menu
+          </button>
         </div>
       {/if}
-    </div>
 
-    <!-- ========================================
-     INTERACTIVE MENU SECTION (LEFT PANEL)
-     ======================================== -->
-    <div class="w-full md:order-1 md:w-2/3">
-      <div class="p-6">
+      <!-- Content based on current view -->
+      <div class="space-y-6 p-6">
         {#if currentView === "main"}
-          <!-- ========================================
-           MAIN MENU
-           ======================================== -->
+          <!-- Main Menu Actions -->
           <div class="space-y-3">
-            {#if isConnected}
-              <!-- Connected State Main Menu -->
-              <button
-                class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-4 text-base-100 transition-colors hover:bg-base-content/90"
-                on:click={() => (window.location.href = "/account/mapviewer")}
-              >
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100/20"
-                  >
-                    <Globe class="h-5 w-5 text-base-100" />
-                  </div>
-                  <div class="text-left">
-                    <div class="text-sm font-bold">Launch Map</div>
-                    <div class="text-xs font-medium text-base-100/70">
-                      View your interactive map
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight
-                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
-                />
-              </button>
-
-              <button
-                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
-                on:click={() => navigateTo("settings")}
-              >
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
-                  >
-                    <Settings class="h-5 w-5 text-contrast-content/60" />
-                  </div>
-                  <div class="text-left">
-                    <div class="text-sm font-bold text-contrast-content">
-                      Map Settings
-                    </div>
-                    <div class="text-xs font-medium text-contrast-content/60">
-                      Configure map preferences
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight
-                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
-                />
-              </button>
-
-              <button
-                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
-                on:click={() => navigateTo("operations")}
-              >
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
-                  >
-                    <MapPin class="h-5 w-5 text-contrast-content/60" />
-                  </div>
-                  <div class="text-left">
-                    <div class="text-sm font-bold text-contrast-content">
-                      Manage Operations
-                    </div>
-                    <div class="text-xs font-medium text-contrast-content/60">
-                      Add, edit, and organize operations
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight
-                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
-                />
-              </button>
-
-              <button
-                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300"
-                on:click={() => navigateTo("invite")}
-              >
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
-                  >
-                    <UserPlus class="h-5 w-5 text-contrast-content/60" />
-                  </div>
-                  <div class="text-left">
-                    <div class="text-sm font-bold text-contrast-content">
-                      Invite Team Members
-                    </div>
-                    <div class="text-xs font-medium text-contrast-content/60">
-                      Share map access with others
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight
-                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
-                />
-              </button>
-            {:else}
+            {#if !isConnected}
               <!-- Disconnected State Main Menu -->
               <div class="mb-6 text-center">
                 <p class="text-sm text-contrast-content/60">
@@ -1454,61 +907,231 @@
                   class="h-4 w-4 transition-transform group-hover:translate-x-1"
                 />
               </button>
+            {:else}
+              <!-- Connected State Main Menu -->
+              <button
+                class="group flex w-full items-center justify-between rounded-lg bg-base-content px-4 py-4 text-base-100 transition-colors hover:bg-base-content/90"
+                on:click={() => (window.location.href = "/account/mapviewer")}
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100/20"
+                  >
+                    <Globe class="h-5 w-5 text-base-100" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold">Launch Map</div>
+                    <div class="text-xs font-medium text-base-100/70">
+                      View your interactive map
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+
+              <button
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-4 text-contrast-content transition-colors hover:bg-base-300"
+                on:click={() => navigateTo("settings")}
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <Settings class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Map Settings
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Configure map preferences
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+
+              <button
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-4 text-contrast-content transition-colors hover:bg-base-300"
+                on:click={() => navigateTo("operations")}
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <MapPin class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Manage Operations
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Add, edit, and organize operations
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+
+              <button
+                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-4 py-4 text-contrast-content transition-colors hover:bg-base-300"
+                on:click={() => navigateTo("invite")}
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-base-100"
+                  >
+                    <UserPlus class="h-5 w-5 text-contrast-content/60" />
+                  </div>
+                  <div class="text-left">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Invite Team Members
+                    </div>
+                    <div class="text-xs font-medium text-contrast-content/60">
+                      Share map access with others
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+            {/if}
+          </div>
+
+          <!-- Mobile View - Include Right Component Content -->
+          <div class="mt-8 border-t border-base-300 pt-6 lg:hidden">
+            {#if isConnected}
+              <!-- Connected Map Display for Mobile -->
+              <div class="space-y-3">
+                <!-- Connected Map Info Card -->
+                <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-green-600/20"
+                  >
+                    <Map class="h-5 w-5 text-green-600" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div
+                      class="truncate text-sm font-semibold text-contrast-content"
+                    >
+                      {$connectedMapStore.map_name}
+                    </div>
+                    <div class="text-xs text-contrast-content/60">
+                      Owned by {$connectedMapStore.owner}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Current Operation Display -->
+                <div class="rounded-lg bg-base-200 p-4">
+                  <div class="mb-3 flex items-center gap-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded bg-primary/20"
+                    >
+                      <div class="h-3 w-3 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-sm font-medium text-contrast-content"
+                      >Active Operation</span
+                    >
+                  </div>
+
+                  <div class="relative mb-3">
+                    <select
+                      class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-2.5 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                      value={$selectedOperationStore?.id}
+                      on:change={(e) => handleOperationSelect(e.target.value)}
+                      disabled={isLoading &&
+                        loadingAction.startsWith("select-")}
+                    >
+                      {#each $operationStore as operation}
+                        <option value={operation.id}>
+                          {operation.name} ({operation.year})
+                        </option>
+                      {/each}
+                    </select>
+                    <ChevronDown
+                      class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                    />
+                  </div>
+
+                  {#if $selectedOperationStore?.description}
+                    <div class="text-xs text-contrast-content/60">
+                      {$selectedOperationStore.description}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- Map ID Display -->
+                <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-blue-600/20"
+                  >
+                    <Copy class="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-bold text-contrast-content">
+                      Map ID
+                    </div>
+                    <code
+                      class="block truncate font-mono text-xs text-contrast-content/60"
+                    >
+                      {$connectedMapStore.id}
+                    </code>
+                  </div>
+                  <button
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-base-300"
+                    on:click={copyMapId}
+                    title="Copy Map ID"
+                  >
+                    {#if copied}
+                      <Check class="h-4 w-4 text-green-500" />
+                    {:else}
+                      <Copy class="h-4 w-4 text-contrast-content/60" />
+                    {/if}
+                  </button>
+                </div>
+              </div>
+            {:else}
+              <!-- Not Connected Display for Mobile -->
+              <div class="rounded-lg bg-base-200 p-8 text-center">
+                <div
+                  class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-300"
+                >
+                  <Map class="h-6 w-6 text-base-content/60" />
+                </div>
+                <h3 class="mb-2 font-semibold text-contrast-content">
+                  Get Started
+                </h3>
+                <p class="text-sm text-contrast-content/60">
+                  Create a new map or connect to an existing one to begin
+                  tracking your farm operations.
+                </p>
+              </div>
             {/if}
           </div>
         {:else if currentView === "create"}
-          <!-- ========================================
-           CREATE MAP FORM
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to {navigationStack[navigationStack.length - 2] === "main"
-                ? "Main Menu"
-                : navigationStack[navigationStack.length - 2] === "settings"
-                  ? "Map Settings"
-                  : "Previous Menu"}
-            </button>
-          </div>
-
+          <!-- Create Map Form -->
           <div class="space-y-6">
-            {#if createMapStatus === "success"}
-              <!-- SUCCESS STATE -->
-              <div
-                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
               >
-                <div
-                  class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
-                >
-                  <div
-                    class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
-                  >
-                    <Check
-                      size={28}
-                      class="animate-checkDraw stroke-[3] text-white"
-                    />
-                  </div>
-                </div>
-                <h3 class="text-xl font-bold text-contrast-content">
-                  Map Created Successfully!
-                </h3>
-                <p
-                  class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
-                >
-                  {newMapName}
-                </p>
-                <p
-                  class="animate-delayedFadeIn text-sm text-contrast-content/60"
-                >
-                  Returning to main menu...
-                </p>
-              </div>
-            {:else if createMapStatus === "loading"}
-              <!-- LOADING STATE -->
+                <ArrowLeft class="h-4 w-4" />
+                Back to Main Menu
+              </button>
+            </div>
+
+            {#if createMapStatus === "creating"}
+              <!-- Creating Map State -->
               <div
                 class="animate-scaleIn flex flex-col items-center gap-4 py-8"
               >
@@ -1518,7 +1141,7 @@
                   <div
                     class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
                   ></div>
-                  <Cloud size={28} class="animate-pulse text-blue-400" />
+                  <Map size={28} className="text-blue-400" />
                 </div>
                 <p class="text-lg font-medium text-contrast-content">
                   Creating map...
@@ -1526,96 +1149,135 @@
                 <p
                   class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
                 >
-                  Setting up {newMapName}
+                  Processing {newMapName || "New Map"}
+                </p>
+              </div>
+            {:else if createMapStatus === "success"}
+              <!-- Success State -->
+              <div
+                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
+              >
+                <div
+                  class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                >
+                  <div
+                    class="flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                  >
+                    <Check size={28} className="text-white stroke-[3]" />
+                  </div>
+                </div>
+                <p class="text-lg font-medium text-contrast-content">
+                  Map Created Successfully!
+                </p>
+                <p
+                  class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+                >
+                  {newMapName || "New Map"}
+                </p>
+                <p
+                  class="animate-delayedFadeIn mt-2 text-sm text-contrast-content/60"
+                >
+                  Map setup complete!
                 </p>
               </div>
             {:else}
-              <!-- FORM STATE -->
-              <form
-                on:submit|preventDefault={handleCreateMap}
-                class="space-y-6"
-              >
-                <div class="rounded-lg border border-base-300 bg-base-200 p-6">
-                  <div class="mb-4 flex items-center justify-center">
-                    <div
-                      class="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+              <!-- Form State -->
+              <div class="space-y-6">
+                <!-- Map Code Display -->
+                <div class="rounded-xl border border-base-300 bg-base-200 p-4">
+                  <div class="mb-2 flex items-center justify-between">
+                    <h5 class="text-sm font-medium text-contrast-content">
+                      Map ID
+                    </h5>
+                    <button
+                      class="rounded-lg p-1.5 text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-base-content"
+                      title="Copy to clipboard"
+                      on:click={() => {
+                        navigator.clipboard.writeText(generatedMapId)
+                        toast.success("Map ID copied to clipboard")
+                      }}
                     >
-                      <Map class="h-8 w-8 text-blue-500" />
-                    </div>
+                      <Copy size={14} />
+                    </button>
                   </div>
-                  <div class="text-center">
-                    <h4 class="text-lg font-semibold text-contrast-content">
-                      {newMapName || "New Map"}
-                    </h4>
-                    <div class="mt-3 flex items-center justify-center gap-2">
-                      <div
-                        class="rounded border border-blue-500/30 bg-blue-500/10 px-3 py-2"
-                      >
-                        <code class="font-mono text-sm text-blue-500"
-                          >{generatedMapId}</code
-                        >
-                      </div>
-                      <button
-                        class="flex items-center justify-center rounded bg-blue-500/20 px-2 py-2 text-blue-500 transition-colors hover:bg-blue-500/30"
-                        on:click={() => {
-                          navigator.clipboard.writeText(generatedMapId)
-                          toast.success("Map ID copied to clipboard")
-                        }}
-                      >
-                        <Copy class="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    for="mapName"
-                    class="mb-1.5 block text-sm text-contrast-content/60"
+                  <code
+                    class="block break-all rounded-lg bg-blue-600/10 px-3 py-2 font-mono text-sm text-blue-600"
                   >
-                    Map Name
-                  </label>
-                  <input
-                    id="mapName"
-                    type="text"
-                    bind:value={newMapName}
-                    class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                    placeholder="Enter map name"
-                    required
-                  />
+                    {generatedMapId}
+                  </code>
+                  <p class="mt-2 text-xs text-contrast-content/60">
+                    This is your unique map identifier
+                  </p>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
-                    ? 'cursor-not-allowed opacity-50'
-                    : ''}"
+                <form
+                  on:submit|preventDefault={handleCreateMap}
+                  class="space-y-6"
                 >
-                  <Plus class="h-4 w-4" />
-                  Create Map
-                </button>
-              </form>
+                  <div class="space-y-2">
+                    <label
+                      class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                    >
+                      <div class="rounded-full bg-base-content/20 p-1.5">
+                        <Map size={14} className="text-base-content" />
+                      </div>
+                      Map Name<span class="text-base-content">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      bind:value={newMapName}
+                      placeholder="e.g. North Field Operations"
+                      class="w-full rounded-xl border border-base-300 bg-base-200 p-3.5 text-contrast-content transition-colors placeholder:text-contrast-content/60 focus:border-base-content focus:outline-none focus:ring-1 focus:ring-base-content"
+                      required
+                    />
+                  </div>
+
+                  <div class="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      on:click={goBack}
+                      class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-base-300 bg-base-200 py-3.5 font-medium text-contrast-content/60 transition-all hover:bg-base-300 hover:text-contrast-content"
+                    >
+                      <ArrowLeft size={16} />
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      class="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 font-semibold transition-all {isLoading
+                        ? 'cursor-not-allowed bg-base-content/70 text-base-100/70'
+                        : 'bg-base-content text-base-100 hover:bg-base-content/90'} shadow-lg shadow-base-content/10 hover:shadow-base-content/20"
+                    >
+                      {#if isLoading}
+                        <div
+                          class="-ml-1 mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                        ></div>
+                        Creating...
+                      {:else}
+                        <span>Create Map</span>
+                        <Plus size={16} />
+                      {/if}
+                    </button>
+                  </div>
+                </form>
+              </div>
             {/if}
           </div>
         {:else if currentView === "connect" || currentView === "switch-map"}
-          <!-- ========================================
-           CONNECT/SWITCH MAP
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to {navigationStack[navigationStack.length - 2] === "main"
-                ? "Main Menu"
-                : "Previous"}
-            </button>
-          </div>
-
+          <!-- Connect/Switch Map Content -->
           <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Main Menu
+              </button>
+            </div>
+
             <!-- Manual Connect -->
             <div>
               <label
@@ -1684,7 +1346,7 @@
                               {map.map_name}
                             </div>
                             <div class="text-xs text-contrast-content/60">
-                              Owner: {map.owner_name}
+                              Owned by <strong>{map.owner_name}</strong>
                             </div>
                           </div>
                           {#if isLoading && loadingAction === `connect-${map.id}`}
@@ -1745,21 +1407,19 @@
             {/if}
           </div>
         {:else if currentView === "settings"}
-          <!-- ========================================
-           MAP SETTINGS
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Main Menu
-            </button>
-          </div>
+          <!-- Map Settings Content -->
+          <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Main Menu
+              </button>
+            </div>
 
-          <div class="space-y-4">
             {#if isConnected}
               <!-- Map Name Edit -->
               <div>
@@ -1935,39 +1595,56 @@
             {/if}
           </div>
         {:else if currentView === "operations"}
-          <!-- ========================================
-           OPERATIONS MANAGEMENT
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Main Menu
-            </button>
-          </div>
+          <!-- Operations Management Content -->
+          <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Main Menu
+              </button>
+            </div>
 
-          <div class="space-y-4">
             {#if $operationStore && $operationStore.length > 0}
               <!-- Operation Selector -->
-              <div>
-                <label class="mb-2 block text-sm text-contrast-content/60"
-                  >Current Operation</label
-                >
-                <select
-                  class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                  value={$selectedOperationStore?.id}
-                  on:change={(e) => handleOperationSelect(e.target.value)}
-                  disabled={isLoading}
-                >
-                  {#each $operationStore as operation}
-                    <option value={operation.id}>
-                      {operation.name} ({operation.year})
-                    </option>
-                  {/each}
-                </select>
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-3 flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 items-center justify-center rounded bg-primary/20"
+                  >
+                    <div class="h-3 w-3 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Current Operation</span
+                  >
+                </div>
+
+                <div class="relative mb-3">
+                  <select
+                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-2.5 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    value={$selectedOperationStore?.id}
+                    on:change={(e) => handleOperationSelect(e.target.value)}
+                    disabled={isLoading}
+                  >
+                    {#each $operationStore as operation}
+                      <option value={operation.id}>
+                        {operation.name} ({operation.year})
+                      </option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                  />
+                </div>
+
+                {#if $selectedOperationStore?.description}
+                  <div class="text-xs text-contrast-content/60">
+                    {$selectedOperationStore.description}
+                  </div>
+                {/if}
               </div>
 
               <!-- Operation Actions -->
@@ -2048,219 +1725,227 @@
             {/if}
           </div>
         {:else if currentView === "create-operation"}
-          <!-- ========================================
-           CREATE OPERATION FORM
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
+          <!-- Create Operation Form -->
+          <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Operations
+              </button>
+            </div>
+
+            <form
+              on:submit|preventDefault={handleCreateOperation}
+              class="space-y-6"
             >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Operations
-            </button>
-          </div>
+              <div>
+                <label
+                  for="operationName"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Operation Name
+                </label>
+                <input
+                  id="operationName"
+                  type="text"
+                  bind:value={newOperationName}
+                  class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                  placeholder="Enter operation name"
+                  required
+                />
+              </div>
 
-          <form
-            on:submit|preventDefault={handleCreateOperation}
-            class="space-y-6"
-          >
-            <div>
-              <label
-                for="operationName"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Operation Name
-              </label>
-              <input
-                id="operationName"
-                type="text"
-                bind:value={newOperationName}
-                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                placeholder="Enter operation name"
-                required
-              />
-            </div>
+              <div>
+                <label
+                  for="operationYear"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Year
+                </label>
+                <div class="relative">
+                  <select
+                    id="operationYear"
+                    bind:value={newOperationYear}
+                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-200 p-3 pr-10 text-contrast-content outline-none transition-colors focus:border-base-content"
+                    required
+                  >
+                    {#each yearOptions as year}
+                      <option value={year}>{year}</option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                  />
+                </div>
+              </div>
 
-            <div>
-              <label
-                for="operationYear"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Year
-              </label>
-              <select
-                id="operationYear"
-                bind:value={newOperationYear}
-                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                required
-              >
-                {#each yearOptions as year}
-                  <option value={year}>{year}</option>
-                {/each}
-              </select>
-            </div>
+              <div>
+                <label
+                  for="operationDescription"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="operationDescription"
+                  bind:value={newOperationDescription}
+                  rows="4"
+                  class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                  placeholder="Describe this operation"
+                ></textarea>
+              </div>
 
-            <div>
-              <label
-                for="operationDescription"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                id="operationDescription"
-                bind:value={newOperationDescription}
-                rows="4"
-                class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                placeholder="Describe this operation"
-              ></textarea>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
-                ? 'cursor-not-allowed opacity-50'
-                : ''}"
-            >
-              {#if isLoading && loadingAction === "create-operation"}
-                <div
-                  class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                ></div>
-              {:else}
-                <Save class="h-4 w-4" />
-              {/if}
-              {isLoading && loadingAction === "create-operation"
-                ? "Creating..."
-                : "Create Operation"}
-            </button>
-          </form>
-        {:else if currentView === "edit-operation"}
-          <!-- ========================================
-           EDIT OPERATION FORM
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Operations
-            </button>
-          </div>
-
-          <form
-            on:submit|preventDefault={handleUpdateOperation}
-            class="space-y-6"
-          >
-            <div>
-              <label
-                for="editOperationName"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Operation Name
-              </label>
-              <input
-                id="editOperationName"
-                type="text"
-                bind:value={editOperationName}
-                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                placeholder="Enter operation name"
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                for="editOperationYear"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Year
-              </label>
-              <select
-                id="editOperationYear"
-                bind:value={editOperationYear}
-                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                required
-              >
-                {#each yearOptions as year}
-                  <option value={year}>{year}</option>
-                {/each}
-              </select>
-            </div>
-
-            <div>
-              <label
-                for="editOperationDescription"
-                class="mb-1.5 block text-sm text-contrast-content/60"
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                id="editOperationDescription"
-                bind:value={editOperationDescription}
-                rows="4"
-                class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
-                placeholder="Describe this operation"
-              ></textarea>
-            </div>
-
-            <div class="flex gap-2">
               <button
                 type="submit"
                 disabled={isLoading}
-                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                class="flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90 {isLoading
+                  ? 'cursor-not-allowed opacity-50'
+                  : ''}"
               >
-                {#if isLoading && loadingAction === "update-operation"}
+                {#if isLoading && loadingAction === "create-operation"}
                   <div
                     class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
                   ></div>
                 {:else}
                   <Save class="h-4 w-4" />
                 {/if}
-                {isLoading && loadingAction === "update-operation"
-                  ? "Updating..."
-                  : "Save"}
+                {isLoading && loadingAction === "create-operation"
+                  ? "Creating..."
+                  : "Create Operation"}
               </button>
+            </form>
+          </div>
+        {:else if currentView === "edit-operation"}
+          <!-- Edit Operation Form -->
+          <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
               <button
-                type="button"
-                disabled={isOnlyOperation || isLoading}
-                class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-700 {isOnlyOperation ||
-                isLoading
-                  ? 'cursor-not-allowed opacity-50'
-                  : ''}"
-                on:click={handleDeleteOperation}
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
               >
-                {#if isLoading && loadingAction === "delete-operation"}
-                  <div
-                    class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  ></div>
-                {:else}
-                  <Trash2 class="h-4 w-4" />
-                {/if}
-                Delete
+                <ArrowLeft class="h-4 w-4" />
+                Back to Operations
               </button>
             </div>
-          </form>
-        {:else if currentView === "invite"}
-          <!-- ========================================
-           INVITE TEAM MEMBERS
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Main Menu
-            </button>
-          </div>
 
+            <form
+              on:submit|preventDefault={handleUpdateOperation}
+              class="space-y-6"
+            >
+              <div>
+                <label
+                  for="editOperationName"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Operation Name
+                </label>
+                <input
+                  id="editOperationName"
+                  type="text"
+                  bind:value={editOperationName}
+                  class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                  placeholder="Enter operation name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  for="editOperationYear"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Year
+                </label>
+                <div class="relative">
+                  <select
+                    id="editOperationYear"
+                    bind:value={editOperationYear}
+                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-200 p-3 pr-10 text-contrast-content outline-none transition-colors focus:border-base-content"
+                    required
+                  >
+                    {#each yearOptions as year}
+                      <option value={year}>{year}</option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  for="editOperationDescription"
+                  class="mb-1.5 block text-sm text-contrast-content/60"
+                >
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="editOperationDescription"
+                  bind:value={editOperationDescription}
+                  rows="4"
+                  class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                  placeholder="Describe this operation"
+                ></textarea>
+              </div>
+
+              <div class="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content px-6 py-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                >
+                  {#if isLoading && loadingAction === "update-operation"}
+                    <div
+                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    ></div>
+                  {:else}
+                    <Save class="h-4 w-4" />
+                  {/if}
+                  {isLoading && loadingAction === "update-operation"
+                    ? "Updating..."
+                    : "Save"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isOnlyOperation || isLoading}
+                  class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-700 {isOnlyOperation ||
+                  isLoading
+                    ? 'cursor-not-allowed opacity-50'
+                    : ''}"
+                  on:click={handleDeleteOperation}
+                >
+                  {#if isLoading && loadingAction === "delete-operation"}
+                    <div
+                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    ></div>
+                  {:else}
+                    <Trash2 class="h-4 w-4" />
+                  {/if}
+                  Delete
+                </button>
+              </div>
+            </form>
+          </div>
+        {:else if currentView === "invite"}
+          <!-- Invite Team Members -->
           <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Main Menu
+              </button>
+            </div>
+
             <div class="mb-6 text-center">
               <h3 class="mb-2 text-lg font-semibold text-contrast-content">
                 Share Map Access
@@ -2391,21 +2076,19 @@
             </div>
           </div>
         {:else if currentView === "delete-confirm"}
-          <!-- ========================================
-           DELETE CONFIRMATION
-           ======================================== -->
-          <!-- Desktop Back Button -->
-          <div class="mb-4 hidden md:block">
-            <button
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-              on:click={goBack}
-            >
-              <ArrowLeft class="h-4 w-4" />
-              Back to Settings
-            </button>
-          </div>
-
+          <!-- Delete Confirmation -->
           <div class="space-y-6">
+            <!-- Desktop Back Button -->
+            <div class="hidden lg:block">
+              <button
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={goBack}
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Back to Settings
+              </button>
+            </div>
+
             <div
               class="rounded-lg border border-red-200 bg-red-50 p-6 text-center"
             >
@@ -2436,13 +2119,864 @@
         {/if}
       </div>
     </div>
+
+    <!-- Vertical Divider - Only visible on desktop, aligned with content -->
+    <div
+      class="absolute hidden w-px bg-gradient-to-b from-base-content/30 via-base-content/20 to-transparent lg:block"
+      style="left: calc(50% - 0.5px); top: 6rem; bottom: 6rem;"
+    ></div>
+
+    <!-- ========================================
+         RIGHT COMPONENT - Map Information & Stats (Dynamic)
+         ======================================== -->
+    <div
+      class="hidden rounded-xl border border-base-300 bg-base-100 shadow-lg transition-all duration-300 hover:shadow-xl lg:block"
+    >
+      <!-- Mobile divider -->
+      <div
+        class="mb-6 h-px w-full bg-gradient-to-r from-base-content/30 via-base-content/20 to-transparent lg:hidden"
+      ></div>
+
+      <!-- Dynamic Section Header based on current view -->
+      <div
+        class="mx-6 grid min-h-[5rem] grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-base-300 px-0 py-4"
+      >
+        {#if currentView === "main"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 shadow-sm"
+          >
+            <BarChart3 size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              Map Information & Stats
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              View your map details and status
+            </p>
+          </div>
+        {:else if currentView === "create"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 shadow-sm"
+          >
+            <Layers size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              {newMapName || "New Map Preview"}
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              Set up your new farming map
+            </p>
+          </div>
+        {:else if currentView === "connect" || currentView === "switch-map"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20 shadow-sm"
+          >
+            <Search size={20} className="text-green-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              {currentView === "switch-map" ? "Switch Map" : "Connect to Map"}
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              {recentMaps.length + userMaps.length} maps available to connect to
+            </p>
+          </div>
+        {:else if currentView === "settings"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-orange-600/20 shadow-sm"
+          >
+            <Settings size={20} className="text-orange-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              {isConnected ? $connectedMapStore.map_name : "Map Settings"}
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              {isConnected
+                ? "Configure your map preferences"
+                : "Connect to a map to access settings"}
+            </p>
+          </div>
+        {:else if currentView === "operations"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600/20 shadow-sm"
+          >
+            <MapPin size={20} className="text-purple-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              Operations Management
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              {$operationStore?.length || 0} operations available
+            </p>
+          </div>
+        {:else if currentView === "create-operation"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 shadow-sm"
+          >
+            <Plus size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              {newOperationName || "New Operation"}
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              Year: {newOperationYear}
+            </p>
+          </div>
+        {:else if currentView === "edit-operation"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-600/20 shadow-sm"
+          >
+            <Pencil size={20} className="text-yellow-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              {editOperationName ||
+                $selectedOperationStore?.name ||
+                "Edit Operation"}
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              Year: {editOperationYear || $selectedOperationStore?.year}
+            </p>
+          </div>
+        {:else if currentView === "invite"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20 shadow-sm"
+          >
+            <UserPlus size={20} className="text-green-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              Invite Team Members
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              Share access to {$connectedMapStore?.map_name}
+            </p>
+          </div>
+        {:else if currentView === "delete-confirm"}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-red-600/20 shadow-sm"
+          >
+            <Trash2 size={20} className="text-red-600" />
+          </div>
+          <div>
+            <h4 class="text-lg font-semibold text-contrast-content">
+              Delete Map
+            </h4>
+            <p class="mt-0.5 text-xs text-contrast-content/60">
+              Permanent deletion warning
+            </p>
+          </div>
+        {/if}
+      </div>
+
+      <div class="space-y-4 p-6">
+        {#if currentView === "main"}
+          {#if isConnected}
+            <!-- Main Menu - Connected Map Display -->
+            <div class="space-y-3">
+              <!-- Connected Map Info Card -->
+              <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-green-600/20"
+                >
+                  <Map class="h-5 w-5 text-green-600" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="truncate text-sm font-semibold text-contrast-content"
+                  >
+                    {$connectedMapStore.map_name}
+                  </div>
+                  <div class="text-xs text-contrast-content/60">
+                    Owned by {$connectedMapStore.owner}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Current Operation Selector -->
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-3 flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 items-center justify-center rounded bg-primary/20"
+                  >
+                    <div class="h-3 w-3 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Active Operation</span
+                  >
+                </div>
+
+                <div class="relative mb-3">
+                  <select
+                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-2.5 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    value={$selectedOperationStore?.id}
+                    on:change={(e) => handleOperationSelect(e.target.value)}
+                    disabled={isLoading && loadingAction.startsWith("select-")}
+                  >
+                    {#each $operationStore as operation}
+                      <option value={operation.id}>
+                        {operation.name} ({operation.year})
+                      </option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                  />
+                </div>
+
+                {#if $selectedOperationStore?.description}
+                  <div class="text-xs text-contrast-content/60">
+                    {$selectedOperationStore.description}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Map ID Display -->
+              <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-blue-600/20"
+                >
+                  <Copy class="h-5 w-5 text-blue-600" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-bold text-contrast-content">
+                    Map ID
+                  </div>
+                  <code
+                    class="block truncate font-mono text-xs text-contrast-content/60"
+                  >
+                    {$connectedMapStore.id}
+                  </code>
+                </div>
+                <button
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-base-300"
+                  on:click={copyMapId}
+                  title="Copy Map ID"
+                >
+                  {#if copied}
+                    <Check class="h-4 w-4 text-green-500" />
+                  {:else}
+                    <Copy class="h-4 w-4 text-contrast-content/60" />
+                  {/if}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <!-- Main Menu - No Map Connected Display -->
+            <div class="space-y-4">
+              <div class="mb-6 text-center">
+                <div
+                  class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-blue-600/30 bg-gradient-to-br from-blue-600/10 to-blue-600/5 shadow-sm"
+                >
+                  <Map size={36} className="text-blue-600/60" />
+                </div>
+
+                <h3 class="mb-3 text-lg font-semibold text-contrast-content">
+                  No Map Connected
+                </h3>
+                <p
+                  class="mb-6 text-sm leading-relaxed text-contrast-content/60"
+                >
+                  Connect to a map to view information, stats, and operational
+                  data.
+                </p>
+              </div>
+
+              <!-- Info Card -->
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                  >
+                    <Info class="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div class="flex-1">
+                    <div class="mb-1 text-sm font-medium text-contrast-content">
+                      Getting Started
+                    </div>
+                    <div class="text-xs text-contrast-content/60">
+                      Use the options on the left to create your first map
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+        {:else if currentView === "create"}
+          <!-- Create Map Preview -->
+          <div class="space-y-4">
+            <!-- Map Preview Card -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                >
+                  <Layers class="h-4 w-4 text-blue-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Generated Map ID</span
+                >
+              </div>
+              <code
+                class="break-all font-mono text-xs text-contrast-content/80"
+              >
+                {generatedMapId}
+              </code>
+            </div>
+
+            {#if newMapName}
+              <!-- Map Name Preview -->
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-green-600/20"
+                  >
+                    <Map class="h-4 w-4 text-green-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Map Name</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">{newMapName}</div>
+              </div>
+            {/if}
+
+            <!-- Creation Status -->
+            {#if createMapStatus === "loading"}
+              <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div class="mb-1 text-sm font-medium text-blue-900">
+                  Creating Map...
+                </div>
+                <div class="text-xs text-blue-700">
+                  Setting up your farm map
+                </div>
+              </div>
+            {:else if createMapStatus === "success"}
+              <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div class="mb-1 text-sm font-medium text-green-900">
+                  Map Created!
+                </div>
+                <div class="text-xs text-green-700">
+                  Your map is ready to use
+                </div>
+              </div>
+            {:else}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-gray-600/20"
+                  >
+                    <Info class="h-4 w-4 text-gray-600" />
+                  </div>
+                  <div class="flex-1">
+                    <div class="mb-1 text-sm font-medium text-contrast-content">
+                      Ready to Create
+                    </div>
+                    <div class="text-xs text-contrast-content/60">
+                      Enter a map name to continue
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if currentView === "connect" || currentView === "switch-map"}
+          <!-- Connect/Switch Map Info -->
+          <div class="space-y-4">
+            <!-- Available Maps Summary -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-green-600/20"
+                >
+                  <BarChart3 class="h-4 w-4 text-green-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Available Maps</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {recentMaps.length + userMaps.length} maps available to connect
+              </div>
+            </div>
+
+            {#if userMaps.length > 0}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                  >
+                    <User class="h-4 w-4 text-blue-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Your Maps</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {userMaps.length} maps owned by you
+                </div>
+              </div>
+            {/if}
+
+            {#if recentMaps.length > 0}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-purple-600/20"
+                  >
+                    <Clock class="h-4 w-4 text-purple-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Recent Maps</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {recentMaps.length} recently accessed maps
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if currentView === "settings"}
+          <!-- Settings Information -->
+          <div class="space-y-4">
+            {#if isConnected}
+              <!-- Operation Selector for Settings Menu -->
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-3 flex items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 items-center justify-center rounded bg-primary/20"
+                  >
+                    <div class="h-3 w-3 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Active Operation</span
+                  >
+                </div>
+
+                <div class="relative mb-3">
+                  <select
+                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-2.5 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    value={$selectedOperationStore?.id}
+                    on:change={(e) => handleOperationSelect(e.target.value)}
+                    disabled={isLoading && loadingAction.startsWith("select-")}
+                  >
+                    {#each $operationStore as operation}
+                      <option value={operation.id}>
+                        {operation.name} ({operation.year})
+                      </option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                  />
+                </div>
+
+                {#if $selectedOperationStore?.description}
+                  <div class="text-xs text-contrast-content/60">
+                    {$selectedOperationStore.description}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Map ID -->
+              <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-blue-600/20"
+                >
+                  <Copy class="h-5 w-5 text-blue-600" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-bold text-contrast-content">
+                    Map ID
+                  </div>
+                  <code
+                    class="block truncate font-mono text-xs text-contrast-content/60"
+                  >
+                    {$connectedMapStore.id}
+                  </code>
+                </div>
+                <button
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-base-300"
+                  on:click={copyMapId}
+                  title="Copy Map ID"
+                >
+                  {#if copied}
+                    <Check class="h-4 w-4 text-green-500" />
+                  {:else}
+                    <Copy class="h-4 w-4 text-contrast-content/60" />
+                  {/if}
+                </button>
+              </div>
+
+              <!-- Ownership Status -->
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-{isOwner
+                      ? 'green'
+                      : 'blue'}-600/20"
+                  >
+                    <User
+                      class="h-4 w-4 text-{isOwner ? 'green' : 'blue'}-600"
+                    />
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-contrast-content">
+                      {isOwner ? "Map Owner" : "Map Member"}
+                    </div>
+                    <div class="text-xs text-contrast-content/60">
+                      {isOwner
+                        ? "You have full control over this map"
+                        : "You have access to this map"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <!-- No Map Connected -->
+              <div class="rounded-lg bg-base-200 p-4 text-center">
+                <div class="text-sm text-contrast-content/60">
+                  Connect to a map to access settings
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if currentView === "operations"}
+          <!-- Operations Information -->
+          <div class="space-y-4">
+            <!-- Current Operation -->
+            {#if $selectedOperationStore}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-purple-600/20"
+                  >
+                    <MapPin class="h-4 w-4 text-purple-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Current Operation</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {$selectedOperationStore.name} ({$selectedOperationStore.year})
+                </div>
+                {#if $selectedOperationStore.description}
+                  <div class="mt-1 text-xs text-contrast-content/60">
+                    {$selectedOperationStore.description}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+
+            <!-- Operations Count -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                >
+                  <BarChart3 class="h-4 w-4 text-blue-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Total Operations</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {$operationStore?.length || 0} operations available
+              </div>
+            </div>
+
+            <!-- Map Context -->
+            {#if isConnected}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-green-600/20"
+                  >
+                    <Map class="h-4 w-4 text-green-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Map Context</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {$connectedMapStore.map_name}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if currentView === "create-operation"}
+          <!-- Create Operation Preview -->
+          <div class="space-y-4">
+            {#if newOperationName}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                  >
+                    <FileText class="h-4 w-4 text-blue-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Operation Name</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {newOperationName}
+                </div>
+              </div>
+            {/if}
+
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-purple-600/20"
+                >
+                  <Calendar class="h-4 w-4 text-purple-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Year</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {newOperationYear}
+              </div>
+            </div>
+
+            {#if newOperationDescription}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-orange-600/20"
+                  >
+                    <FileText class="h-4 w-4 text-orange-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Description</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {newOperationDescription}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Map Context -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-green-600/20"
+                >
+                  <Map class="h-4 w-4 text-green-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Target Map</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {$connectedMapStore?.map_name || "No map selected"}
+              </div>
+            </div>
+          </div>
+        {:else if currentView === "edit-operation"}
+          <!-- Edit Operation Preview -->
+          <div class="space-y-4">
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-yellow-600/20"
+                >
+                  <FileText class="h-4 w-4 text-yellow-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Operation Name</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {editOperationName || $selectedOperationStore?.name}
+              </div>
+            </div>
+
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-purple-600/20"
+                >
+                  <Calendar class="h-4 w-4 text-purple-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Year</span
+                >
+              </div>
+              <div class="text-sm text-contrast-content">
+                {editOperationYear || $selectedOperationStore?.year}
+              </div>
+            </div>
+
+            {#if editOperationDescription || $selectedOperationStore?.description}
+              <div class="rounded-lg bg-base-200 p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded bg-orange-600/20"
+                  >
+                    <FileText class="h-4 w-4 text-orange-600" />
+                  </div>
+                  <span class="text-sm font-medium text-contrast-content"
+                    >Description</span
+                  >
+                </div>
+                <div class="text-sm text-contrast-content">
+                  {editOperationDescription ||
+                    $selectedOperationStore?.description}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Warning for only operation -->
+            {#if isOnlyOperation}
+              <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <div class="mb-1 text-sm font-medium text-yellow-900">
+                  Only Operation
+                </div>
+                <div class="text-xs text-yellow-700">
+                  This is the only operation and cannot be deleted
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if currentView === "invite"}
+          <!-- Invite Information -->
+          <div class="space-y-4">
+            <!-- Share URL -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-green-600/20"
+                >
+                  <Link class="h-4 w-4 text-green-600" />
+                </div>
+                <span class="text-sm font-medium text-contrast-content"
+                  >Share URL</span
+                >
+              </div>
+              <code class="break-all text-xs text-contrast-content/80">
+                https://www.skanfarming.com.au/login?map_id={$connectedMapStore?.id}
+              </code>
+            </div>
+
+            <!-- Map ID -->
+            <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
+              <div
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-blue-600/20"
+              >
+                <Copy class="h-5 w-5 text-blue-600" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-bold text-contrast-content">
+                  Map ID
+                </div>
+                <code
+                  class="block truncate font-mono text-xs text-contrast-content/60"
+                >
+                  {$connectedMapStore?.id}
+                </code>
+              </div>
+              <button
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-base-300"
+                on:click={copyMapId}
+                title="Copy Map ID"
+              >
+                {#if copied}
+                  <Check class="h-4 w-4 text-green-500" />
+                {:else}
+                  <Copy class="h-4 w-4 text-contrast-content/60" />
+                {/if}
+              </button>
+            </div>
+
+            <!-- Share Instructions -->
+            <div class="rounded-lg bg-base-200 p-4">
+              <div class="flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-blue-600/20"
+                >
+                  <Info class="h-4 w-4 text-blue-600" />
+                </div>
+                <div class="flex-1">
+                  <div class="mb-1 text-sm font-medium text-contrast-content">
+                    How to Share
+                  </div>
+                  <div class="text-xs text-contrast-content/60">
+                    Copy the Map ID or share link to invite team members
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {:else if currentView === "delete-confirm"}
+          <!-- Delete Confirmation Info -->
+          <div class="space-y-4">
+            <!-- Map to Delete -->
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+              <div class="mb-2 flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-red-600/20"
+                >
+                  <Map class="h-4 w-4 text-red-600" />
+                </div>
+                <span class="text-sm font-medium text-red-900"
+                  >Map to Delete</span
+                >
+              </div>
+              <div class="text-sm font-medium text-red-900">
+                {$connectedMapStore?.map_name}
+              </div>
+              <div class="mt-1 text-xs text-red-700">
+                Owned by {$connectedMapStore?.owner}
+              </div>
+            </div>
+
+            <!-- Warning -->
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+              <div class="flex items-center gap-3">
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded bg-red-600/20"
+                >
+                  <Trash2 class="h-4 w-4 text-red-600" />
+                </div>
+                <div class="flex-1">
+                  <div class="mb-1 text-sm font-medium text-red-900">
+                    Warning
+                  </div>
+                  <div class="text-xs text-red-700">
+                    This action cannot be undone and will remove all associated
+                    data
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
-  .icon-container {
-    @apply flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-white/20;
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
+
   @keyframes scaleIn {
     from {
       opacity: 0;
@@ -2452,9 +2986,6 @@
       opacity: 1;
       transform: scale(1);
     }
-  }
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
   }
 
   @keyframes delayedFadeIn {
@@ -2468,51 +2999,16 @@
       transform: translateY(0);
     }
   }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-scaleIn {
+    animation: scaleIn 0.2s ease-out;
+  }
+
   .animate-delayedFadeIn {
     animation: delayedFadeIn 1s ease-out;
-  }
-
-  @keyframes successPulse {
-    0%,
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
-    }
-    50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-    }
-  }
-  .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
-  }
-
-  @keyframes checkScale {
-    0% {
-      transform: scale(0);
-    }
-    50% {
-      transform: scale(1.1);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-  .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
-  }
-
-  @keyframes checkDraw {
-    0% {
-      stroke-dasharray: 50;
-      stroke-dashoffset: 50;
-    }
-    100% {
-      stroke-dasharray: 50;
-      stroke-dashoffset: 0;
-    }
-  }
-  .animate-checkDraw {
-    animation: checkDraw 0.5s ease-out 0.5s both;
   }
 </style>
