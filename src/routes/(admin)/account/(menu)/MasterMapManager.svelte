@@ -2547,44 +2547,6 @@
           <!-- Settings Information -->
           <div class="space-y-4">
             {#if isConnected}
-              <!-- Operation Selector for Settings Menu -->
-              <div class="rounded-lg bg-base-200 p-4">
-                <div class="mb-3 flex items-center gap-3">
-                  <div
-                    class="flex h-8 w-8 items-center justify-center rounded bg-primary/20"
-                  >
-                    <div class="h-3 w-3 rounded-full bg-primary"></div>
-                  </div>
-                  <span class="text-sm font-medium text-contrast-content"
-                    >Active Operation</span
-                  >
-                </div>
-
-                <div class="relative mb-3">
-                  <select
-                    class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-2.5 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-                    value={$selectedOperationStore?.id}
-                    on:change={(e) => handleOperationSelect(e.target.value)}
-                    disabled={isLoading && loadingAction.startsWith("select-")}
-                  >
-                    {#each $operationStore as operation}
-                      <option value={operation.id}>
-                        {operation.name} ({operation.year})
-                      </option>
-                    {/each}
-                  </select>
-                  <ChevronDown
-                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
-                  />
-                </div>
-
-                {#if $selectedOperationStore?.description}
-                  <div class="text-xs text-contrast-content/60">
-                    {$selectedOperationStore.description}
-                  </div>
-                {/if}
-              </div>
-
               <!-- Map ID -->
               <div class="flex items-center gap-3 rounded-lg bg-base-200 p-4">
                 <div
