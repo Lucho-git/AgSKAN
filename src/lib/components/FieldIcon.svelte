@@ -114,11 +114,11 @@
 >
   <path
     d={pathData}
-    fill="currentColor"
+    fill="#22c55e"
     fill-opacity="0.3"
-    stroke="currentColor"
+    stroke="#16a34a"
     stroke-width="1"
-    stroke-opacity="0.7"
+    stroke-opacity="1"
     fill-rule="evenodd"
   />
 </svg>
@@ -127,22 +127,7 @@
   .field-icon {
     display: inline-block;
     vertical-align: middle;
-    color: hsl(var(--bc));
     background: transparent;
     border-radius: 4px;
   }
-
-  /* Optional: Add a subtle background that adapts to theme */
-  .field-icon {
-    background-color: hsl(var(--bc) / 0.05);
-    border: 1px solid hsl(var(--bc) / 0.1);
-  }
-
-  /* For completely transparent background (no background at all) */
-  /* Uncomment this if you prefer no background:
-  .field-icon {
-    background: none;
-    border: none;
-  }
-  */
 </style>
