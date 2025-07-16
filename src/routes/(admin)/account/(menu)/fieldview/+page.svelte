@@ -566,18 +566,23 @@
         <div
           class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"
         >
-          <div>
-            <h2
-              class="flex items-center gap-3 text-3xl font-bold tracking-tight text-contrast-content"
+          <div class="flex items-center gap-4">
+            <div
+              class="flex h-8 w-8 items-center justify-center rounded-full bg-base-content/10"
             >
-              <LandPlot class="h-8 w-8 text-base-content" />
-              <!-- Change Settings to LandPlot -->
-              Field Management
-            </h2>
-            <p class="max-w-3xl text-contrast-content/70">
-              Upload field boundaries, manage your fields, and view field data
-              all in one place.
-            </p>
+              <LandPlot class="h-5 w-5 text-base-content" />
+            </div>
+            <div>
+              <h2
+                class="text-lg font-bold tracking-tight text-contrast-content"
+              >
+                Field Management
+              </h2>
+              <p class="text-sm text-contrast-content/70">
+                Upload field boundaries, manage your fields, and view field data
+                all in one place.
+              </p>
+            </div>
           </div>
 
           <!-- Help button moved to page header -->
@@ -625,11 +630,6 @@
               <div
                 class="animate-fadeIn relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
               >
-                <!-- Decorative accent -->
-                <div
-                  class="absolute left-0 top-0 h-1 w-full bg-base-content"
-                ></div>
-
                 <div class="p-6 md:p-8">
                   <!-- Back Button -->
                   <button
@@ -706,7 +706,7 @@
                             />
                           </div>
                         </div>
-                        <h3 class="text-xl font-bold text-contrast-content">
+                        <h3 class="text-lg font-bold text-contrast-content">
                           File Uploaded Successfully!
                         </h3>
                         <p
@@ -737,7 +737,9 @@
                               class="relative z-10 animate-pulse text-blue-400"
                             />
                           </div>
-                          <p class="text-lg font-medium text-contrast-content">
+                          <p
+                            class="text-base font-medium text-contrast-content"
+                          >
                             Uploading file...
                           </p>
                         {:else}
@@ -748,7 +750,9 @@
                               class="loading loading-spinner loading-md text-info"
                             ></div>
                           </div>
-                          <p class="text-lg font-medium text-contrast-content">
+                          <p
+                            class="text-base font-medium text-contrast-content"
+                          >
                             {uploadStatus === "validating"
                               ? "Validating file..."
                               : "Processing file..."}
@@ -775,7 +779,7 @@
                         >
                           <AlertCircle size={32} class="text-error" />
                         </div>
-                        <p class="mb-2 text-lg font-medium text-error">
+                        <p class="mb-2 text-base font-medium text-error">
                           File Not Compatible
                         </p>
                         <p class="mb-6 text-center text-sm text-error">
@@ -833,7 +837,7 @@
                           ></div>
                         </div>
                         <p
-                          class="mb-3 text-xl font-semibold text-contrast-content"
+                          class="mb-3 text-lg font-semibold text-contrast-content"
                         >
                           Click to upload or drag and drop
                         </p>
@@ -1045,11 +1049,6 @@
               <div
                 class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
               >
-                <!-- Decorative accent -->
-                <div
-                  class="absolute left-0 top-0 h-1 w-full bg-base-content"
-                ></div>
-
                 <div class="relative p-8 text-center">
                   <div class="mb-6">
                     <div
@@ -1072,21 +1071,46 @@
                     </div>
 
                     <h3
-                      class="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-contrast-content"
+                      class="mb-2 flex items-center justify-center gap-2 text-lg font-bold text-contrast-content"
                     >
-                      <Upload class="h-6 w-6 text-base-content" />
                       Upload Field Boundaries
                     </h3>
-                    <p class="mx-auto max-w-md text-contrast-content/70">
+                    <p
+                      class="mx-auto max-w-md text-sm text-contrast-content/70"
+                    >
                       Ready to import your field boundaries? Upload your
                       shapefile, KML, or ISOXML files to get started.
                     </p>
                   </div>
 
+                  <!-- Quick stats or info - moved above button -->
+                  <div
+                    class="mb-6 flex justify-center gap-4 text-xs text-contrast-content/60"
+                  >
+                    <div
+                      class="flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1.5"
+                    >
+                      <div class="h-2 w-2 rounded-full bg-success"></div>
+                      <span>Secure Upload</span>
+                    </div>
+                    <div
+                      class="flex items-center gap-2 rounded-full border border-info/30 bg-info/10 px-3 py-1.5"
+                    >
+                      <div class="h-2 w-2 rounded-full bg-info"></div>
+                      <span>Multiple Formats</span>
+                    </div>
+                    <div
+                      class="flex items-center gap-2 rounded-full border border-warning/30 bg-warning/10 px-3 py-1.5"
+                    >
+                      <div class="h-2 w-2 rounded-full bg-warning"></div>
+                      <span>Instant Processing</span>
+                    </div>
+                  </div>
+
                   <!-- Main CTA Button -->
                   <button
                     on:click={startUploading}
-                    class="group relative mx-auto flex items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-base-content to-base-content/90 px-8 py-4 text-lg font-semibold text-base-100 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                    class="text- group relative mx-auto flex items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-base-content to-base-content/90 px-6 py-3 font-semibold text-base-100 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
                   >
                     <!-- Button background animation -->
                     <div
@@ -1095,33 +1119,12 @@
 
                     <!-- Button content -->
                     <div class="relative flex items-center gap-3">
-                      <Upload
-                        class="h-5 w-5 transition-transform group-hover:scale-110"
-                      />
                       <span>Start Uploading</span>
                       <ArrowRight
                         class="h-4 w-4 transition-transform group-hover:translate-x-1"
                       />
                     </div>
                   </button>
-
-                  <!-- Quick stats or info -->
-                  <div
-                    class="mt-6 flex justify-center gap-6 text-sm text-contrast-content/60"
-                  >
-                    <div class="flex items-center gap-2">
-                      <div class="h-2 w-2 rounded-full bg-success"></div>
-                      <span>Secure Upload</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <div class="h-2 w-2 rounded-full bg-info"></div>
-                      <span>Multiple Formats</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <div class="h-2 w-2 rounded-full bg-warning"></div>
-                      <span>Instant Processing</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1132,9 +1135,6 @@
             <div
               class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
             >
-              <!-- Top accent line to match other components -->
-              <div class="h-1 w-full bg-base-content"></div>
-
               <!-- Pass the navigation function to FileUpload -->
               <FileUpload {navigateToProcess} />
             </div>
@@ -1146,9 +1146,6 @@
             <div
               class="relative mx-auto overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
             >
-              <!-- Top accent line for field boundaries component -->
-              <div class="h-1 w-full bg-base-content"></div>
-
               <!-- Pass the navigation function to FieldsOverview -->
               <FieldsOverview {navigateToProcess} />
             </div>
