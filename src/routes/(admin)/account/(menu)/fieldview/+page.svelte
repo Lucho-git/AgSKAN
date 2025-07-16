@@ -1085,25 +1085,31 @@
 
                   <!-- Quick stats or info - moved above button -->
                   <div
-                    class="mb-6 flex justify-center gap-4 text-xs text-contrast-content/60"
+                    class="mb-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4"
                   >
                     <div
-                      class="flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1.5"
+                      class="flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1.5 text-xs text-contrast-content/60"
                     >
-                      <div class="h-2 w-2 rounded-full bg-success"></div>
-                      <span>Secure Upload</span>
+                      <div
+                        class="h-2 w-2 flex-shrink-0 rounded-full bg-success"
+                      ></div>
+                      <span class="whitespace-nowrap">Secure Upload</span>
                     </div>
                     <div
-                      class="flex items-center gap-2 rounded-full border border-info/30 bg-info/10 px-3 py-1.5"
+                      class="flex items-center gap-2 rounded-full border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-contrast-content/60"
                     >
-                      <div class="h-2 w-2 rounded-full bg-info"></div>
-                      <span>Multiple Formats</span>
+                      <div
+                        class="h-2 w-2 flex-shrink-0 rounded-full bg-info"
+                      ></div>
+                      <span class="whitespace-nowrap">Multiple Formats</span>
                     </div>
                     <div
-                      class="flex items-center gap-2 rounded-full border border-warning/30 bg-warning/10 px-3 py-1.5"
+                      class="flex items-center gap-2 rounded-full border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-contrast-content/60"
                     >
-                      <div class="h-2 w-2 rounded-full bg-warning"></div>
-                      <span>Instant Processing</span>
+                      <div
+                        class="h-2 w-2 flex-shrink-0 rounded-full bg-warning"
+                      ></div>
+                      <span class="whitespace-nowrap">Instant Processing</span>
                     </div>
                   </div>
 
