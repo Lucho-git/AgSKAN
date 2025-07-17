@@ -319,7 +319,7 @@
 {:else if hasConnectedMap}
   <!-- Already connected - with disconnect option -->
   <div
-    class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
@@ -327,12 +327,15 @@
     <div class="p-8">
       <div class="mb-6 flex flex-col items-center text-center">
         <div
-          class="animate-successPulse mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          class="animate-setup-successPulse mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
         >
           <div
-            class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+            class="animate-setup-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
           >
-            <Check size={28} class="animate-checkDraw stroke-[3] text-white" />
+            <Check
+              size={28}
+              class="animate-setup-checkDraw stroke-[3] text-white"
+            />
           </div>
         </div>
         <h3 class="mb-2 text-xl font-bold text-contrast-content">
@@ -385,7 +388,7 @@
 {:else if userMaps.length > 0}
   <!-- Existing Maps - Success animations play HERE -->
   <div
-    class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
@@ -428,17 +431,17 @@
             tabindex="0"
           >
             {#if connectMapStatus[map.id] === "success"}
-              <div class="animate-scaleIn flex flex-col items-start">
+              <div class="animate-setup-scaleIn flex flex-col items-start">
                 <div class="flex items-center gap-2">
                   <div
-                    class="animate-successPulse flex h-4 w-4 items-center justify-center rounded-full bg-green-500/20"
+                    class="animate-setup-successPulse flex h-4 w-4 items-center justify-center rounded-full bg-green-500/20"
                   >
                     <div
-                      class="animate-checkScale flex h-3 w-3 items-center justify-center rounded-full bg-green-500"
+                      class="animate-setup-checkScale flex h-3 w-3 items-center justify-center rounded-full bg-green-500"
                     >
                       <Check
                         size={10}
-                        class="animate-checkDraw stroke-[3] text-white"
+                        class="animate-setup-checkDraw stroke-[3] text-white"
                       />
                     </div>
                   </div>
@@ -446,27 +449,28 @@
                     >{map.map_name}</span
                   >
                 </div>
-                <span class="animate-delayedFadeIn ml-6 text-xs text-green-600"
+                <span
+                  class="animate-setup-delayedFadeIn ml-6 text-xs text-green-600"
                   >Connected successfully!</span
                 >
               </div>
               <span class="text-xs text-green-600">Redirecting...</span>
             {:else if connectMapStatus[map.id] === "loading"}
-              <div class="animate-scaleIn flex flex-col items-start">
+              <div class="animate-setup-scaleIn flex flex-col items-start">
                 <div class="flex items-center gap-2">
                   <div
                     class="relative flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/20"
                   >
                     <div
-                      class="absolute inset-0 animate-spin rounded-full border border-blue-400/30 border-t-blue-400"
+                      class="animate-setup-spin absolute inset-0 rounded-full border border-blue-400/30 border-t-blue-400"
                     ></div>
-                    <Cloud size={8} class="animate-pulse text-blue-400" />
+                    <Cloud size={8} class="animate-setup-pulse text-blue-400" />
                   </div>
                   <span class="font-medium text-contrast-content"
                     >{map.map_name}</span
                   >
                 </div>
-                <span class="animate-delayedFadeIn ml-6 text-xs text-info"
+                <span class="animate-setup-delayedFadeIn ml-6 text-xs text-info"
                   >Connecting to map...</span
                 >
               </div>
@@ -493,7 +497,7 @@
 {:else}
   <!-- Create Map - Success animations play HERE -->
   <div
-    class="animate-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
   >
     <div
       class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
@@ -501,16 +505,16 @@
     <div class="p-8 transition-all duration-500 ease-in-out">
       {#if createMapStatus === "success"}
         <!-- SUCCESS IN THIS COMPONENT -->
-        <div class="animate-scaleIn flex flex-col items-center gap-4">
+        <div class="animate-setup-scaleIn flex flex-col items-center gap-4">
           <div
-            class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+            class="animate-setup-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
           >
             <div
-              class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+              class="animate-setup-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
             >
               <Check
                 size={28}
-                class="animate-checkDraw stroke-[3] text-white"
+                class="animate-setup-checkDraw stroke-[3] text-white"
               />
             </div>
           </div>
@@ -522,20 +526,22 @@
           >
             {mapName}
           </p>
-          <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
+          <p
+            class="animate-setup-delayedFadeIn text-sm text-contrast-content/60"
+          >
             Redirecting to boundary upload...
           </p>
         </div>
       {:else if createMapStatus === "loading"}
         <!-- LOADING IN THIS COMPONENT -->
-        <div class="animate-scaleIn flex flex-col items-center gap-4">
+        <div class="animate-setup-scaleIn flex flex-col items-center gap-4">
           <div
             class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
           >
             <div
-              class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+              class="animate-setup-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
             ></div>
-            <Cloud size={28} class="animate-pulse text-blue-400" />
+            <Cloud size={28} class="animate-setup-pulse text-blue-400" />
           </div>
           <p class="text-lg font-medium text-contrast-content">
             Creating map...
@@ -548,7 +554,7 @@
         </div>
       {:else if isCreatingMap}
         <!-- FORM STATE -->
-        <div class="animate-expandUp space-y-6">
+        <div class="animate-setup-expandUp space-y-6">
           <div class="flex flex-col items-center">
             <div class="mb-4 flex items-center gap-3">
               <div class="rounded-md bg-base-200 p-2 text-base-content">
@@ -560,7 +566,7 @@
             </div>
             <div class="mx-auto mb-4 w-full max-w-xs">
               <div
-                class="animate-slideIn rounded-full bg-info/20 px-4 py-2 text-center font-mono text-sm text-info"
+                class="animate-setup-slideIn rounded-full bg-info/20 px-4 py-2 text-center font-mono text-sm text-info"
               >
                 {mapCode}
               </div>
@@ -579,7 +585,7 @@
               </label>
               <div
                 class="relative transition-all duration-300 {error
-                  ? 'animate-shake'
+                  ? 'animate-setup-shake'
                   : ''}"
               >
                 <input
@@ -654,8 +660,8 @@
 {/if}
 
 <style>
-  /* All the same animations as before */
-  @keyframes shake {
+  /* Unique setup animations to avoid conflicts */
+  @keyframes setup-shake {
     0%,
     100% {
       transform: translateX(0);
@@ -667,11 +673,11 @@
       transform: translateX(5px);
     }
   }
-  .animate-shake {
-    animation: shake 0.3s ease-in-out;
+  .animate-setup-shake {
+    animation: setup-shake 0.3s ease-in-out;
   }
 
-  @keyframes fadeIn {
+  @keyframes setup-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -681,11 +687,11 @@
       transform: scale(1);
     }
   }
-  .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+  .animate-setup-fadeIn {
+    animation: setup-fadeIn 0.2s ease-out;
   }
 
-  @keyframes scaleIn {
+  @keyframes setup-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -695,11 +701,11 @@
       transform: scale(1);
     }
   }
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+  .animate-setup-scaleIn {
+    animation: setup-scaleIn 0.2s ease-out;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes setup-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -710,11 +716,11 @@
       transform: translateY(0);
     }
   }
-  .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+  .animate-setup-delayedFadeIn {
+    animation: setup-delayedFadeIn 1s ease-out;
   }
 
-  @keyframes expandUp {
+  @keyframes setup-expandUp {
     from {
       opacity: 0;
       transform: translateY(20px);
@@ -726,11 +732,11 @@
       max-height: 600px;
     }
   }
-  .animate-expandUp {
-    animation: expandUp 0.5s ease-out;
+  .animate-setup-expandUp {
+    animation: setup-expandUp 0.5s ease-out;
   }
 
-  @keyframes slideIn {
+  @keyframes setup-slideIn {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -740,11 +746,36 @@
       transform: translateY(0);
     }
   }
-  .animate-slideIn {
-    animation: slideIn 0.3s ease-out 0.2s both;
+  .animate-setup-slideIn {
+    animation: setup-slideIn 0.3s ease-out 0.2s both;
   }
 
-  @keyframes successPulse {
+  @keyframes setup-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .animate-setup-spin {
+    animation: setup-spin 1s linear infinite;
+  }
+
+  @keyframes setup-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  .animate-setup-pulse {
+    animation: setup-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes setup-successPulse {
     0%,
     100% {
       transform: scale(1);
@@ -755,11 +786,11 @@
       box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
     }
   }
-  .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+  .animate-setup-successPulse {
+    animation: setup-successPulse 2s ease-in-out infinite;
   }
 
-  @keyframes checkScale {
+  @keyframes setup-checkScale {
     0% {
       transform: scale(0);
     }
@@ -770,11 +801,11 @@
       transform: scale(1);
     }
   }
-  .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
+  .animate-setup-checkScale {
+    animation: setup-checkScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes checkDraw {
+  @keyframes setup-checkDraw {
     0% {
       stroke-dasharray: 50;
       stroke-dashoffset: 50;
@@ -784,7 +815,7 @@
       stroke-dashoffset: 0;
     }
   }
-  .animate-checkDraw {
-    animation: checkDraw 0.5s ease-out 0.5s both;
+  .animate-setup-checkDraw {
+    animation: setup-checkDraw 0.5s ease-out 0.5s both;
   }
 </style>

@@ -65,7 +65,7 @@
 
 <!-- Vehicle Setup Card -->
 <div
-  class="animate-fadeIn relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+  class="animate-operator-vehicle-fadeIn relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
 >
   <!-- Card header decoration -->
   <div
@@ -75,14 +75,19 @@
   <div class="transition-all duration-500 ease-in-out">
     {#if completionStatus === "success"}
       <!-- SUCCESS STATE -->
-      <div class="animate-scaleIn flex flex-col items-center gap-6 p-8 py-12">
+      <div
+        class="animate-operator-vehicle-scaleIn flex flex-col items-center gap-6 p-8 py-12"
+      >
         <div
-          class="animate-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          class="animate-operator-vehicle-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
         >
           <div
-            class="animate-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
+            class="animate-operator-vehicle-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
           >
-            <Check size={40} class="animate-checkDraw stroke-[3] text-white" />
+            <Check
+              size={40}
+              class="animate-operator-vehicle-checkDraw stroke-[3] text-white"
+            />
           </div>
         </div>
         <div class="text-center">
@@ -100,20 +105,27 @@
             </p>
           </div>
         </div>
-        <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
+        <p
+          class="animate-operator-vehicle-delayedFadeIn text-sm text-contrast-content/60"
+        >
           Redirecting to dashboard...
         </p>
       </div>
     {:else if completionStatus === "loading"}
       <!-- LOADING STATE -->
-      <div class="animate-scaleIn flex flex-col items-center gap-6 p-8 py-12">
+      <div
+        class="animate-operator-vehicle-scaleIn flex flex-col items-center gap-6 p-8 py-12"
+      >
         <div
           class="relative flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20"
         >
           <div
-            class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+            class="animate-operator-vehicle-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={40} class="animate-pulse text-blue-400" />
+          <Cloud
+            size={40}
+            class="animate-operator-vehicle-pulse text-blue-400"
+          />
         </div>
         <div class="text-center">
           <p class="mb-2 text-xl font-medium text-contrast-content">
@@ -128,7 +140,9 @@
       </div>
     {:else}
       <!-- PLACEHOLDER STATE -->
-      <div class="animate-formEntry flex items-center justify-center p-8 py-12">
+      <div
+        class="animate-operator-vehicle-formEntry flex items-center justify-center p-8 py-12"
+      >
         <div class="text-center">
           <div class="mb-6 flex justify-center">
             <div
@@ -152,7 +166,9 @@
 
 <!-- Complete Setup Button -->
 {#if !completionStatus}
-  <div class="animate-formEntry mt-10 flex flex-col items-center">
+  <div
+    class="animate-operator-vehicle-formEntry mt-10 flex flex-col items-center"
+  >
     <button
       on:click={handleCompleteSetup}
       class="group flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
@@ -176,7 +192,7 @@
 {/if}
 
 <style>
-  @keyframes fadeIn {
+  @keyframes operator-vehicle-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -187,11 +203,11 @@
     }
   }
 
-  .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+  .animate-operator-vehicle-fadeIn {
+    animation: operator-vehicle-fadeIn 0.2s ease-out;
   }
 
-  @keyframes scaleIn {
+  @keyframes operator-vehicle-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -202,11 +218,11 @@
     }
   }
 
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+  .animate-operator-vehicle-scaleIn {
+    animation: operator-vehicle-scaleIn 0.2s ease-out;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes operator-vehicle-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -218,11 +234,11 @@
     }
   }
 
-  .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+  .animate-operator-vehicle-delayedFadeIn {
+    animation: operator-vehicle-delayedFadeIn 1s ease-out;
   }
 
-  @keyframes formEntry {
+  @keyframes operator-vehicle-formEntry {
     from {
       opacity: 0;
       transform: translateY(10px);
@@ -233,12 +249,39 @@
     }
   }
 
-  .animate-formEntry {
-    animation: formEntry 0.3s ease-out;
+  .animate-operator-vehicle-formEntry {
+    animation: operator-vehicle-formEntry 0.3s ease-out;
+  }
+
+  @keyframes operator-vehicle-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-operator-vehicle-spin {
+    animation: operator-vehicle-spin 1s linear infinite;
+  }
+
+  @keyframes operator-vehicle-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-operator-vehicle-pulse {
+    animation: operator-vehicle-pulse 2s ease-in-out infinite;
   }
 
   /* Enhanced success animations */
-  @keyframes successPulse {
+  @keyframes operator-vehicle-successPulse {
     0%,
     100% {
       transform: scale(1);
@@ -250,11 +293,11 @@
     }
   }
 
-  .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+  .animate-operator-vehicle-successPulse {
+    animation: operator-vehicle-successPulse 2s ease-in-out infinite;
   }
 
-  @keyframes checkScale {
+  @keyframes operator-vehicle-checkScale {
     0% {
       transform: scale(0);
     }
@@ -266,11 +309,11 @@
     }
   }
 
-  .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
+  .animate-operator-vehicle-checkScale {
+    animation: operator-vehicle-checkScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes checkDraw {
+  @keyframes operator-vehicle-checkDraw {
     0% {
       stroke-dasharray: 80;
       stroke-dashoffset: 80;
@@ -281,7 +324,7 @@
     }
   }
 
-  .animate-checkDraw {
-    animation: checkDraw 0.5s ease-out 0.5s both;
+  .animate-operator-vehicle-checkDraw {
+    animation: operator-vehicle-checkDraw 0.5s ease-out 0.5s both;
   }
 </style>

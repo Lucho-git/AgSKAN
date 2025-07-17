@@ -1142,15 +1142,15 @@
             {#if createMapStatus === "loading"}
               <!-- Creating Map State -->
               <div
-                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
+                class="animate-map-scaleIn flex flex-col items-center gap-4 py-8"
               >
                 <div
                   class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
                 >
                   <div
-                    class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                    class="animate-map-spin absolute inset-1 rounded-full border-2 border-transparent border-t-blue-400"
                   ></div>
-                  <Map size={28} className="text-blue-400" />
+                  <Map size={28} className="animate-map-pulse text-blue-400" />
                 </div>
                 <p class="text-lg font-medium text-contrast-content">
                   Creating map...
@@ -1164,15 +1164,18 @@
             {:else if createMapStatus === "success"}
               <!-- Success State -->
               <div
-                class="animate-scaleIn flex flex-col items-center gap-4 py-8"
+                class="animate-map-scaleIn flex flex-col items-center gap-4 py-8"
               >
                 <div
-                  class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                  class="animate-map-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
                 >
                   <div
-                    class="flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                    class="animate-map-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
                   >
-                    <Check size={28} className="text-white stroke-[3]" />
+                    <Check
+                      size={28}
+                      className="animate-map-checkDraw stroke-[3] text-white"
+                    />
                   </div>
                 </div>
                 <p class="text-lg font-medium text-contrast-content">
@@ -1184,7 +1187,7 @@
                   {newMapName || "New Map"}
                 </p>
                 <p
-                  class="animate-delayedFadeIn mt-2 text-sm text-contrast-content/60"
+                  class="animate-map-delayedFadeIn mt-2 text-sm text-contrast-content/60"
                 >
                   Map setup complete!
                 </p>
@@ -1313,7 +1316,7 @@
                 >
                   {#if isLoading && loadingAction === `connect-${enteredMapId}`}
                     <div
-                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                     ></div>
                   {:else}
                     <Link2 class="h-4 w-4" />
@@ -1353,7 +1356,7 @@
                           </div>
                           {#if isLoading && loadingAction === `connect-${map.id}`}
                             <div
-                              class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                              class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                             ></div>
                           {:else}
                             <ChevronRight
@@ -1393,7 +1396,7 @@
                           </div>
                           {#if isLoading && loadingAction === `connect-${map.id}`}
                             <div
-                              class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                              class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                             ></div>
                           {:else}
                             <ChevronRight
@@ -1442,7 +1445,7 @@
                     >
                       {#if isLoading && loadingAction === "rename"}
                         <div
-                          class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                          class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                         ></div>
                       {:else}
                         <Save class="h-4 w-4" />
@@ -1540,7 +1543,7 @@
                     >
                       {#if isLoading && loadingAction === "disconnect"}
                         <div
-                          class="h-5 w-5 animate-spin rounded-full border-2 border-contrast-content/60 border-t-transparent"
+                          class="animate-map-spin h-5 w-5 rounded-full border-2 border-contrast-content/60 border-t-transparent"
                         ></div>
                       {:else}
                         <LogOut class="h-5 w-5 text-contrast-content/60" />
@@ -1810,7 +1813,7 @@
               >
                 {#if isLoading && loadingAction === "create-operation"}
                   <div
-                    class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                   ></div>
                 {:else}
                   <Save class="h-4 w-4" />
@@ -1904,7 +1907,7 @@
                 >
                   {#if isLoading && loadingAction === "update-operation"}
                     <div
-                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                     ></div>
                   {:else}
                     <Save class="h-4 w-4" />
@@ -1924,7 +1927,7 @@
                 >
                   {#if isLoading && loadingAction === "delete-operation"}
                     <div
-                      class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
                     ></div>
                   {:else}
                     <Trash2 class="h-4 w-4" />
@@ -2941,7 +2944,7 @@
     }
   }
 
-  @keyframes scaleIn {
+  @keyframes map-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -2952,7 +2955,7 @@
     }
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes map-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -2964,15 +2967,91 @@
     }
   }
 
+  /* Unique map animations to avoid conflicts */
+  @keyframes map-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-map-spin {
+    animation: map-spin 1s linear infinite;
+  }
+
+  @keyframes map-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-map-pulse {
+    animation: map-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Enhanced success animations */
+  @keyframes map-successPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+    }
+  }
+
+  .animate-map-successPulse {
+    animation: map-successPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes map-checkScale {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .animate-map-checkScale {
+    animation: map-checkScale 0.6s ease-out 0.3s both;
+  }
+
+  @keyframes map-checkDraw {
+    0% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+    }
+    100% {
+      stroke-dasharray: 50;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .animate-map-checkDraw {
+    animation: map-checkDraw 0.5s ease-out 0.5s both;
+  }
+
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-out;
   }
 
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+  .animate-map-scaleIn {
+    animation: map-scaleIn 0.2s ease-out;
   }
 
-  .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+  .animate-map-delayedFadeIn {
+    animation: map-delayedFadeIn 1s ease-out;
   }
 </style>

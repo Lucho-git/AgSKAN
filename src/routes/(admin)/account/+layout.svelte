@@ -531,9 +531,9 @@
           class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
         >
           <div
-            class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+            class="animate-account-layout-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={32} class="animate-pulse text-blue-400" />
+          <Cloud size={32} class="animate-account-layout-pulse text-blue-400" />
         </div>
         <div class="text-center">
           <h2 class="text-xl font-medium text-contrast-content">
@@ -588,7 +588,7 @@
 {/if}
 
 <style>
-  @keyframes spin {
+  @keyframes account-layout-spin {
     from {
       transform: rotate(0deg);
     }
@@ -597,11 +597,11 @@
     }
   }
 
-  .animate-spin {
-    animation: spin 1s linear infinite;
+  .animate-account-layout-spin {
+    animation: account-layout-spin 1s linear infinite;
   }
 
-  @keyframes pulse {
+  @keyframes account-layout-pulse {
     0%,
     100% {
       opacity: 1;
@@ -611,7 +611,7 @@
     }
   }
 
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  .animate-account-layout-pulse {
+    animation: account-layout-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 </style>

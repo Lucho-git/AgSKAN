@@ -520,7 +520,7 @@
   <div class="relative z-10">
     {#if showWizard}
       <!-- Embedded Boundary Wizard with slide transition -->
-      <div class="animate-slideInRight">
+      <div class="animate-boundary-slideInRight">
         <BoundaryWizard
           fileId={wizardFileId}
           fileName={wizardFileName}
@@ -530,7 +530,7 @@
       </div>
     {:else}
       <!-- Upload Interface with slide transition -->
-      <div class="animate-slideInLeft">
+      <div class="animate-boundary-slideInLeft">
         <!-- Header -->
         <div class="mb-8 text-center">
           <h2 class="mb-3 text-3xl font-bold md:text-4xl">
@@ -558,7 +558,7 @@
 
         <!-- Upload Card -->
         <div
-          class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+          class="animate-boundary-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
           <!-- Decorative accent -->
           <div class="absolute left-0 top-0 h-1 w-full bg-base-content"></div>
@@ -613,17 +613,17 @@
               {#if hasSuccess}
                 <!-- SUCCESS STATE - Embedded in upload area -->
                 <div
-                  class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-4"
                 >
                   <div
-                    class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                    class="animate-boundary-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
                   >
                     <div
-                      class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                      class="animate-boundary-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
                     >
                       <Check
                         size={28}
-                        class="animate-checkDraw stroke-[3] text-white"
+                        class="animate-boundary-checkDraw stroke-[3] text-white"
                       />
                     </div>
                   </div>
@@ -636,7 +636,7 @@
                     {uploadedFile?.name}
                   </p>
                   <p
-                    class="animate-delayedFadeIn text-sm text-contrast-content/60"
+                    class="animate-boundary-delayedFadeIn text-sm text-contrast-content/60"
                   >
                     Loading boundary review wizard...
                   </p>
@@ -644,16 +644,19 @@
               {:else if isProcessing}
                 <!-- LOADING STATE - Embedded in upload area -->
                 <div
-                  class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-4"
                 >
                   {#if uploadStatus === "loading"}
                     <div
                       class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
                     >
                       <div
-                        class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                        class="animate-boundary-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
                       ></div>
-                      <Cloud size={28} class="animate-pulse text-blue-400" />
+                      <Cloud
+                        size={28}
+                        class="animate-boundary-pulse text-blue-400"
+                      />
                     </div>
                     <p class="text-lg font-medium text-contrast-content">
                       Uploading file...
@@ -678,7 +681,9 @@
                     Processing {uploadedFile?.name}
                   </p>
                   {#if fileInfo && uploadStatus === "processing"}
-                    <p class="animate-delayedFadeIn text-sm text-success">
+                    <p
+                      class="animate-boundary-delayedFadeIn text-sm text-success"
+                    >
                       ✓ {fileInfo}
                     </p>
                   {/if}
@@ -686,7 +691,7 @@
               {:else if hasError}
                 <!-- ERROR STATE - Embedded in upload area -->
                 <div
-                  class="animate-scaleIn relative z-10 flex max-w-lg flex-col items-center"
+                  class="animate-boundary-scaleIn relative z-10 flex max-w-lg flex-col items-center"
                 >
                   <div
                     class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
@@ -744,7 +749,7 @@
                     class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
                   >
                     <div class="flex items-center justify-center space-x-6">
-                      <Cloud class="h-8 w-8 animate-pulse text-info" />
+                      <Cloud class="animate-boundary-pulse h-8 w-8 text-info" />
                       <div class="relative">
                         <File
                           class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
@@ -753,10 +758,10 @@
                           class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
                         ></div>
                       </div>
-                      <Cloud class="h-8 w-8 animate-pulse text-info" />
+                      <Cloud class="animate-boundary-pulse h-8 w-8 text-info" />
                     </div>
                     <div
-                      class="animate-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
+                      class="animate-boundary-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
                     ></div>
                   </div>
                   <p class="mb-3 text-xl font-semibold text-contrast-content">
@@ -963,7 +968,8 @@
 </div>
 
 <style>
-  @keyframes scaleIn {
+  /* Unique boundary animations to avoid conflicts */
+  @keyframes boundary-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -974,11 +980,11 @@
     }
   }
 
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+  .animate-boundary-scaleIn {
+    animation: boundary-scaleIn 0.2s ease-out;
   }
 
-  @keyframes fadeIn {
+  @keyframes boundary-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -989,11 +995,11 @@
     }
   }
 
-  .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+  .animate-boundary-fadeIn {
+    animation: boundary-fadeIn 0.2s ease-out;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes boundary-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -1005,11 +1011,11 @@
     }
   }
 
-  .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+  .animate-boundary-delayedFadeIn {
+    animation: boundary-delayedFadeIn 1s ease-out;
   }
 
-  @keyframes spin-slow {
+  @keyframes boundary-spin {
     from {
       transform: rotate(0deg);
     }
@@ -1018,12 +1024,39 @@
     }
   }
 
-  .animate-spin-slow {
-    animation: spin-slow 8s linear infinite;
+  .animate-boundary-spin {
+    animation: boundary-spin 1s linear infinite;
+  }
+
+  @keyframes boundary-spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-boundary-spin-slow {
+    animation: boundary-spin-slow 8s linear infinite;
+  }
+
+  @keyframes boundary-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-boundary-pulse {
+    animation: boundary-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* Enhanced success animations */
-  @keyframes successPulse {
+  @keyframes boundary-successPulse {
     0%,
     100% {
       transform: scale(1);
@@ -1035,11 +1068,11 @@
     }
   }
 
-  .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+  .animate-boundary-successPulse {
+    animation: boundary-successPulse 2s ease-in-out infinite;
   }
 
-  @keyframes checkScale {
+  @keyframes boundary-checkScale {
     0% {
       transform: scale(0);
     }
@@ -1051,11 +1084,11 @@
     }
   }
 
-  .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
+  .animate-boundary-checkScale {
+    animation: boundary-checkScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes checkDraw {
+  @keyframes boundary-checkDraw {
     0% {
       stroke-dasharray: 50;
       stroke-dashoffset: 50;
@@ -1066,12 +1099,12 @@
     }
   }
 
-  .animate-checkDraw {
-    animation: checkDraw 0.5s ease-out 0.5s both;
+  .animate-boundary-checkDraw {
+    animation: boundary-checkDraw 0.5s ease-out 0.5s both;
   }
 
   /* Slide transitions for wizard */
-  @keyframes slideInRight {
+  @keyframes boundary-slideInRight {
     from {
       opacity: 0;
       transform: translateX(100%);
@@ -1082,11 +1115,11 @@
     }
   }
 
-  .animate-slideInRight {
-    animation: slideInRight 0.5s ease-out;
+  .animate-boundary-slideInRight {
+    animation: boundary-slideInRight 0.5s ease-out;
   }
 
-  @keyframes slideInLeft {
+  @keyframes boundary-slideInLeft {
     from {
       opacity: 0;
       transform: translateX(-20px);
@@ -1097,7 +1130,7 @@
     }
   }
 
-  .animate-slideInLeft {
-    animation: slideInLeft 0.3s ease-out;
+  .animate-boundary-slideInLeft {
+    animation: boundary-slideInLeft 0.3s ease-out;
   }
 </style>

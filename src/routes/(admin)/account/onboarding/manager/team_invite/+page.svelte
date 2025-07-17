@@ -106,7 +106,7 @@
 
 <!-- Team Invite Card -->
 <div
-  class="animate-fadeIn relative mx-auto max-w-xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+  class="animate-team-invite-fadeIn relative mx-auto max-w-xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
 >
   <!-- Card header decoration -->
   <div
@@ -116,14 +116,19 @@
   <div class="p-8 transition-all duration-500 ease-in-out">
     {#if completionStatus === "success"}
       <!-- SUCCESS STATE -->
-      <div class="animate-scaleIn flex flex-col items-center gap-6 py-8">
+      <div
+        class="animate-team-invite-scaleIn flex flex-col items-center gap-6 py-8"
+      >
         <div
-          class="animate-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          class="animate-team-invite-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
         >
           <div
-            class="animate-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
+            class="animate-team-invite-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
           >
-            <Check size={40} class="animate-checkDraw stroke-[3] text-white" />
+            <Check
+              size={40}
+              class="animate-team-invite-checkDraw stroke-[3] text-white"
+            />
           </div>
         </div>
         <div class="text-center">
@@ -141,20 +146,24 @@
             </p>
           </div>
         </div>
-        <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
+        <p
+          class="animate-team-invite-delayedFadeIn text-sm text-contrast-content/60"
+        >
           Redirecting to dashboard...
         </p>
       </div>
     {:else if completionStatus === "loading"}
       <!-- LOADING STATE -->
-      <div class="animate-scaleIn flex flex-col items-center gap-6 py-8">
+      <div
+        class="animate-team-invite-scaleIn flex flex-col items-center gap-6 py-8"
+      >
         <div
           class="relative flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20"
         >
           <div
-            class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+            class="animate-team-invite-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={40} class="animate-pulse text-blue-400" />
+          <Cloud size={40} class="animate-team-invite-pulse text-blue-400" />
         </div>
         <div class="text-center">
           <p class="mb-2 text-xl font-medium text-contrast-content">
@@ -169,7 +178,7 @@
       </div>
     {:else}
       <!-- FORM STATE -->
-      <div class="animate-formEntry">
+      <div class="animate-team-invite-formEntry">
         <!-- Icon -->
         <div class="mb-8 flex justify-center">
           <div
@@ -259,7 +268,7 @@
 </div>
 
 <style>
-  @keyframes fadeIn {
+  @keyframes team-invite-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -270,11 +279,11 @@
     }
   }
 
-  .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+  .animate-team-invite-fadeIn {
+    animation: team-invite-fadeIn 0.2s ease-out;
   }
 
-  @keyframes scaleIn {
+  @keyframes team-invite-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -285,11 +294,11 @@
     }
   }
 
-  .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+  .animate-team-invite-scaleIn {
+    animation: team-invite-scaleIn 0.2s ease-out;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes team-invite-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -301,11 +310,11 @@
     }
   }
 
-  .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+  .animate-team-invite-delayedFadeIn {
+    animation: team-invite-delayedFadeIn 1s ease-out;
   }
 
-  @keyframes formEntry {
+  @keyframes team-invite-formEntry {
     from {
       opacity: 0;
       transform: translateY(10px);
@@ -316,12 +325,39 @@
     }
   }
 
-  .animate-formEntry {
-    animation: formEntry 0.3s ease-out;
+  .animate-team-invite-formEntry {
+    animation: team-invite-formEntry 0.3s ease-out;
+  }
+
+  @keyframes team-invite-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-team-invite-spin {
+    animation: team-invite-spin 1s linear infinite;
+  }
+
+  @keyframes team-invite-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-team-invite-pulse {
+    animation: team-invite-pulse 2s ease-in-out infinite;
   }
 
   /* Enhanced success animations */
-  @keyframes successPulse {
+  @keyframes team-invite-successPulse {
     0%,
     100% {
       transform: scale(1);
@@ -333,11 +369,11 @@
     }
   }
 
-  .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+  .animate-team-invite-successPulse {
+    animation: team-invite-successPulse 2s ease-in-out infinite;
   }
 
-  @keyframes checkScale {
+  @keyframes team-invite-checkScale {
     0% {
       transform: scale(0);
     }
@@ -349,11 +385,11 @@
     }
   }
 
-  .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
+  .animate-team-invite-checkScale {
+    animation: team-invite-checkScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes checkDraw {
+  @keyframes team-invite-checkDraw {
     0% {
       stroke-dasharray: 80;
       stroke-dashoffset: 80;
@@ -364,7 +400,7 @@
     }
   }
 
-  .animate-checkDraw {
-    animation: checkDraw 0.5s ease-out 0.5s both;
+  .animate-team-invite-checkDraw {
+    animation: team-invite-checkDraw 0.5s ease-out 0.5s both;
   }
 </style>

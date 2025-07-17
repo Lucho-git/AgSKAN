@@ -336,7 +336,7 @@
             <div
               class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-base-200 text-base-content"
             >
-              <div class="animate-spin">
+              <div class="animate-pins-dialog-spin">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -516,3 +516,18 @@
     </div>
   </div>
 {/if}
+
+<style>
+  @keyframes pins-dialog-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-pins-dialog-spin {
+    animation: pins-dialog-spin 1s linear infinite;
+  }
+</style>
