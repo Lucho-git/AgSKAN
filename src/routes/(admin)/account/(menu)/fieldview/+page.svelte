@@ -730,11 +730,11 @@
                             class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
                           >
                             <div
-                              class="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-t-blue-400"
+                              class="animate-upload-spin absolute inset-1 rounded-full border-2 border-transparent border-t-blue-400"
                             ></div>
                             <Cloud
                               size={28}
-                              class="relative z-10 animate-pulse text-blue-400"
+                              class="animate-upload-pulse relative z-10 text-blue-400"
                             />
                           </div>
                           <p
@@ -821,7 +821,9 @@
                           <div
                             class="flex items-center justify-center space-x-6"
                           >
-                            <Cloud class="h-8 w-8 animate-pulse text-info" />
+                            <Cloud
+                              class="animate-upload-pulse h-8 w-8 text-info"
+                            />
                             <div class="relative">
                               <File
                                 class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
@@ -830,10 +832,12 @@
                                 class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
                               ></div>
                             </div>
-                            <Cloud class="h-8 w-8 animate-pulse text-info" />
+                            <Cloud
+                              class="animate-upload-pulse h-8 w-8 text-info"
+                            />
                           </div>
                           <div
-                            class="animate-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
+                            class="animate-upload-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
                           ></div>
                         </div>
                         <p
@@ -1056,10 +1060,10 @@
                     >
                       <!-- Animated background circles - simplified without extra elements -->
                       <div
-                        class="animate-heartbeat absolute inset-0 rounded-full bg-base-content/20"
+                        class="animate-upload-heartbeat absolute inset-0 rounded-full bg-base-content/20"
                       ></div>
                       <div
-                        class="absolute inset-2 animate-pulse rounded-full bg-base-content/10"
+                        class="animate-upload-pulse absolute inset-2 rounded-full bg-base-content/10"
                       ></div>
 
                       <!-- Main icon -->
@@ -1247,7 +1251,8 @@
     animation: delayedFadeIn 1s ease-out;
   }
 
-  @keyframes spin-slow {
+  /* Unique upload animations to avoid conflicts */
+  @keyframes upload-spin {
     from {
       transform: rotate(0deg);
     }
@@ -1256,11 +1261,38 @@
     }
   }
 
-  .animate-spin-slow {
-    animation: spin-slow 8s linear infinite;
+  .animate-upload-spin {
+    animation: upload-spin 1s linear infinite;
   }
 
-  @keyframes heartbeat {
+  @keyframes upload-spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-upload-spin-slow {
+    animation: upload-spin-slow 8s linear infinite;
+  }
+
+  @keyframes upload-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-upload-pulse {
+    animation: upload-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes upload-heartbeat {
     0%,
     100% {
       transform: scale(1);
@@ -1272,8 +1304,8 @@
     }
   }
 
-  .animate-heartbeat {
-    animation: heartbeat 2s ease-in-out infinite;
+  .animate-upload-heartbeat {
+    animation: upload-heartbeat 2s ease-in-out infinite;
   }
 
   /* Enhanced success animations */
