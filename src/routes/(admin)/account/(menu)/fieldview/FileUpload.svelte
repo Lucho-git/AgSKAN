@@ -443,14 +443,6 @@
             >{userFiles.length}</span
           >
         </div>
-        <div
-          class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm"
-        >
-          <span class="text-contrast-content/70">Ready to Process:</span>
-          <span class="ml-2 font-semibold text-base-content"
-            >{userFiles.filter((f) => f.status === "Uploaded").length}</span
-          >
-        </div>
       </div>
     </div>
   {/if}
