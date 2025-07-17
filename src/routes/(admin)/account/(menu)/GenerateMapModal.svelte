@@ -48,7 +48,7 @@
           let recentMaps = $profileStore.recent_maps || []
           recentMaps = recentMaps.filter((id) => id !== mapId)
           recentMaps.unshift(mapId)
-          recentMaps = recentMaps.slice(0, 10)
+          recentMaps = recentMaps.slice(0, 20)
 
           profileStore.update((profile) => ({
             ...profile,

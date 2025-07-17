@@ -215,22 +215,22 @@
           </div>
         </div>
       </div>
-
-      <!-- Bottom section -->
-      <div
-        class="mb-6 h-px bg-gradient-to-r from-transparent via-neutral-content/20 to-transparent"
-      ></div>
-
-      <div
-        class="flex flex-col items-center justify-between gap-3 text-sm text-neutral-content/70 md:flex-row"
-        in:animationDelay={200}
-      >
-        <div class="font-medium">
-          &copy; {currentYear} SKAN Farming Logistics. All rights reserved.
-        </div>
-        <div class="flex items-center">
-          Made with <span class="mx-1 text-red-500">❤</span> in Australia for farmers
-        </div>
+      <div class="mt-4">
+        <nav class="footer-center grid grid-flow-col gap-4">
+          <a
+            class="link-hover link text-base-content/70 hover:text-base-content"
+            href="/terms-of-service">Terms of Service</a
+          >
+          <a
+            class="link-hover link text-base-content/70 hover:text-base-content"
+            href="/privacy-policy">Privacy Policy</a
+          >
+          <a
+            class="link-hover link text-base-content/70 hover:text-base-content"
+            href="/">Data Security</a
+          >
+          <!-- Assuming Data Security links to homepage or a specific page, adjust href as needed -->
+        </nav>
       </div>
     {/if}
   </div>
