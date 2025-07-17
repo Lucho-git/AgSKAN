@@ -143,8 +143,7 @@
               <ul class="space-y-2">
                 <li>
                   <FooterLink
-                    href="/docs/terms_of_service.pdf"
-                    target="_blank"
+                    href="/terms-of-service"
                     className="transition-colors py-1 inline-block"
                   >
                     Terms of Service
@@ -152,19 +151,10 @@
                 </li>
                 <li>
                   <FooterLink
-                    href="/docs/SKAN-Privacy-Policy.pdf"
-                    target="_blank"
+                    href="/privacy-policy"
                     className="transition-colors py-1 inline-block"
                   >
                     Privacy Policy
-                  </FooterLink>
-                </li>
-                <li>
-                  <FooterLink
-                    href="/"
-                    className="transition-colors py-1 inline-block"
-                  >
-                    Data Security
                   </FooterLink>
                 </li>
               </ul>
@@ -215,22 +205,30 @@
           </div>
         </div>
       </div>
-      <div class="mt-4">
-        <nav class="footer-center grid grid-flow-col gap-4">
-          <a
-            class="link-hover link text-base-content/70 hover:text-base-content"
-            href="/terms-of-service">Terms of Service</a
-          >
-          <a
-            class="link-hover link text-base-content/70 hover:text-base-content"
-            href="/privacy-policy">Privacy Policy</a
-          >
-          <a
-            class="link-hover link text-base-content/70 hover:text-base-content"
-            href="/">Data Security</a
-          >
-          <!-- Assuming Data Security links to homepage or a specific page, adjust href as needed -->
-        </nav>
+
+      <!-- Bottom copyright row -->
+      <div class="border-t border-neutral-content/10 pt-6">
+        <div
+          class="flex flex-col items-center justify-between gap-4 text-sm text-neutral-content/60 sm:flex-row"
+        >
+          <p>
+            © {currentYear} SKAN Farming Logistics Pty Ltd. All rights reserved.
+          </p>
+          <nav class="flex gap-6">
+            <a
+              href="/terms-of-service"
+              class="transition-colors hover:text-neutral-content"
+            >
+              Terms of Service
+            </a>
+            <a
+              href="/privacy-policy"
+              class="transition-colors hover:text-neutral-content"
+            >
+              Privacy Policy
+            </a>
+          </nav>
+        </div>
       </div>
     {/if}
   </div>
