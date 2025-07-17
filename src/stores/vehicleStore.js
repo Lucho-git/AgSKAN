@@ -1,5 +1,5 @@
-// vehicleStore.js
 import { writable } from "svelte/store"
+import vehicleComponents from "$lib/vehicles"
 
 function createUserVehicleStore() {
   const { subscribe, set, update } = writable({
@@ -8,11 +8,11 @@ function createUserVehicleStore() {
     last_update: null,
     is_trailing: false,
     vehicle_marker: {
-      type: "simpleTractor",
+      type: "SimpleTractor",
       color: "red",
       size: "25px",
       swath: 12,
-      path: () => import("$lib/vehicles/SimpleTractor.svelte"),
+      path: () => vehicleComponents.SimpleTractor,
     },
     heading: 0,
   })
@@ -27,7 +27,7 @@ function createUserVehicleStore() {
         vehicle_marker: {
           ...store.vehicle_marker,
           ...newMarker,
-          path: () => import(`../components/SVG/${newMarker.type}.svelte`),
+          path: () => vehicleComponents[newMarker.type],
         },
       }))
     },
