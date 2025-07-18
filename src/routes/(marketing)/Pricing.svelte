@@ -424,7 +424,7 @@
 
             <button
               class="group flex w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-3 text-lg font-medium text-secondary-content shadow-lg shadow-secondary/30 transition-all duration-300 hover:bg-secondary/90 hover:shadow-xl hover:shadow-secondary/40"
-              on:click={() => goto("/upgrade")}
+              on:click={() => goto("/login?tab=sign_up")}
             >
               Upgrade to Pro
               <ArrowRight

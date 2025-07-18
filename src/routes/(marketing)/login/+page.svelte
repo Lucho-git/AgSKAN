@@ -128,7 +128,7 @@
       supabaseClient={supabase}
       view={activeTab}
       redirectTo={`${$page.url.origin}/auth/callback?next=/account`}
-      providers={["google"]}
+      providers={["google", "apple"]}
       socialLayout="horizontal"
       showLinks={false}
       {appearance}
@@ -179,10 +179,12 @@
 <!-- Footer Note -->
 <p class="mt-6 text-center text-xs text-contrast-content/60">
   By signing {activeTab === "sign_up" ? "up" : "in"}, you agree to AgSKAN's
-  <a href="/terms" class="text-base-content hover:underline">Terms of Service</a
+  <a href="/terms-of-service" class="text-base-content hover:underline"
+    >Terms of Service</a
   >
   and
-  <a href="/privacy" class="text-base-content hover:underline">Privacy Policy</a
+  <a href="/privacy-policy" class="text-base-content hover:underline"
+    >Privacy Policy</a
   >.
 </p>
 
