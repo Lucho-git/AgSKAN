@@ -7,11 +7,11 @@ const config: CapacitorConfig = {
     bundledWebRuntime: false,
     server: {
         androidScheme: 'https',
+        iosScheme: 'https'
         cleartext: true,
         allowNavigation: ['*'],
         // For iOS, you might need to specify hostname
         hostname: 'localhost',
-        iosScheme: 'capacitor'
     },
     plugins: {
         SplashScreen: {
