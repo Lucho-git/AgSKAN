@@ -37,12 +37,17 @@
   }
 
   function handleUpgrade() {
-    // Always redirect to billing page for upgrades
-    goto("/account/billing")
+    // Only redirect if not on native platform
+    if (!isNativePlatform) {
+      goto("/account/billing")
+    }
   }
 
   function handleManageBilling() {
-    goto("/account/billing")
+    // Only redirect if not on native platform
+    if (!isNativePlatform) {
+      goto("/account/billing")
+    }
   }
 
   onMount(async () => {
@@ -259,11 +264,19 @@
 
           <button
             class="btn btn-outline w-full gap-2 border-base-content text-base-content hover:bg-base-content hover:text-base-100"
+            class:btn-disabled={isNativePlatform}
+            disabled={isNativePlatform}
             on:click={handleUpgrade}
           >
             <Icon icon="solar:crown-bold-duotone" width="16" height="16" />
-            Upgrade to Premium
+            {isNativePlatform ? "Upgrade via Web App" : "Upgrade to Premium"}
           </button>
+
+          {#if isNativePlatform}
+            <p class="mt-2 text-center text-xs text-contrast-content/60">
+              Billing management is only available in the web version
+            </p>
+          {/if}
         </div>
       </div>
     {:else}
@@ -286,10 +299,14 @@
         <div class="space-y-3">
           <button
             class="btn btn-outline w-full justify-start gap-3"
+            class:btn-disabled={isNativePlatform}
+            disabled={isNativePlatform}
             on:click={handleManageBilling}
           >
             <Icon icon="solar:settings-bold-duotone" width="18" height="18" />
-            Manage Billing & Payment
+            {isNativePlatform
+              ? "Manage Billing (Web Only)"
+              : "Manage Billing & Payment"}
           </button>
 
           <div class="rounded-lg border border-info/20 bg-info/5 p-4">
@@ -305,8 +322,9 @@
                   Billing Information
                 </p>
                 <p class="mt-1 text-xs text-contrast-content/60">
-                  Manage your payment methods, view billing history, and update
-                  subscription settings in the billing portal.
+                  {isNativePlatform
+                    ? "Billing management is only available in the web version of the app. Please visit the web app to manage your payment methods and subscription settings."
+                    : "Manage your payment methods, view billing history, and update subscription settings in the billing portal."}
                 </p>
               </div>
             </div>
