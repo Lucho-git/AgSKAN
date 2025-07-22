@@ -19,6 +19,14 @@
   let nativeProvider: "google" | "apple" | null = null
   let isSocialLoading = false
 
+  // Debug info
+  let debugInfo = {
+    isNativePlatform: false,
+    platform: "",
+    userAgent: "",
+    capacitorNative: false,
+  }
+
   // Handle native social login
   async function handleNativeSocialLogin() {
     if (!isNative || !nativeProvider) return
@@ -41,8 +49,22 @@
   onMount(() => {
     if (browser) {
       console.log("Login page mounted")
+
+      // Gather debug information
+      debugInfo = {
+        isNativePlatform: Capacitor.isNativePlatform(),
+        platform: Capacitor.getPlatform(),
+        userAgent: navigator.userAgent,
+        capacitorNative: Capacitor.isNativePlatform(),
+      }
+
+      console.log("Debug Info:", debugInfo)
+
       isNative = Capacitor.isNativePlatform()
       nativeProvider = getNativeProvider()
+
+      console.log("isNative:", isNative)
+      console.log("nativeProvider:", nativeProvider)
 
       // Handle map_id from URL if present
       const urlParams = new URLSearchParams(window.location.search)
@@ -119,6 +141,15 @@
 </svelte:head>
 
 <div class="rounded-xl bg-base-100 p-8 shadow-xl">
+  <!-- Debug Information (remove this in production) -->
+  <div class="mb-4 rounded bg-gray-100 p-3 text-xs">
+    <strong>Debug Info:</strong><br />
+    Platform: {debugInfo.platform}<br />
+    Is Native: {debugInfo.isNativePlatform}<br />
+    Native Provider: {nativeProvider || "null"}<br />
+    User Agent: {debugInfo.userAgent.substring(0, 50)}...
+  </div>
+
   <div class="mb-8 text-center">
     <h1 class="mb-2 font-archivo text-2xl font-bold text-contrast-content">
       {activeTab === "sign_up" ? "Create Account" : "Welcome Back"}
@@ -155,6 +186,10 @@
   <!-- Native Platform: Platform-specific Social Button -->
   {#if isNative && nativeProvider}
     <div class="space-y-4">
+      <div class="text-center text-sm font-medium text-green-600">
+        Native Mode: {nativeProvider.toUpperCase()} Authentication
+      </div>
+
       <!-- Google Button for Android -->
       {#if nativeProvider === "google"}
         <button
@@ -222,6 +257,10 @@
   {:else}
     <!-- Web Platform: Use Supabase Auth UI with both providers -->
     <div class="space-y-6">
+      <div class="text-center text-sm font-medium text-blue-600">
+        Web Mode: Full OAuth Flow
+      </div>
+
       <Auth
         supabaseClient={supabase}
         view={activeTab}
