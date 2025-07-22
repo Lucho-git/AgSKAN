@@ -20,8 +20,26 @@
     buildDate: new Date("2025-01-15"),
     platform: isNativePlatform ? "Mobile App" : "Web App",
     supportEmail: "support@skanfarming.com.au",
-    privacyPolicyUrl: "/docs/SKAN-Privacy-Policy.pdf",
-    termsOfServiceUrl: "/docs/terms_of_service.pdf",
+  }
+
+  // Function to truncate user agent string based on screen size
+  function truncateUserAgent(userAgent: string): string {
+    const screenWidth = window.innerWidth
+    let maxLength: number
+
+    if (screenWidth < 640) {
+      // Mobile
+      maxLength = 50
+    } else if (screenWidth < 1024) {
+      // Tablet
+      maxLength = 100
+    } else {
+      // Desktop
+      maxLength = 150
+    }
+
+    if (userAgent.length <= maxLength) return userAgent
+    return userAgent.substring(0, maxLength) + "..."
   }
 
   async function handleDeleteAccount() {
@@ -40,11 +58,12 @@
     showDeleteConfirm = false
   }
 
-  function handleContactSupport() {
-    window.open(
-      `mailto:${appInfo.supportEmail}?subject=AgSkan Support Request`,
-      "_blank",
-    )
+  function handlePrivacyPolicy() {
+    goto("/privacy-policy")
+  }
+
+  function handleTermsOfService() {
+    goto("/terms-of-service")
   }
 </script>
 
@@ -134,46 +153,34 @@
     </div>
   </div>
 
-  <!-- Support & Legal -->
+  <!-- Legal -->
   <div class="space-y-4">
     <h3 class="flex items-center gap-2 font-medium text-contrast-content">
       <Icon
-        icon="solar:help-bold-duotone"
+        icon="solar:document-text-bold-duotone"
         width="16"
         height="16"
         class="text-base-content/60"
       />
-      Support & Legal
+      Legal
     </h3>
 
     <div class="grid gap-3">
       <button
         class="btn btn-outline w-full justify-start gap-3"
-        on:click={handleContactSupport}
-      >
-        <Icon icon="solar:letter-bold-duotone" width="18" height="18" />
-        Contact Support
-      </button>
-
-      <a
-        href={appInfo.privacyPolicyUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="btn btn-outline w-full justify-start gap-3"
+        on:click={handlePrivacyPolicy}
       >
         <Icon icon="solar:shield-check-bold-duotone" width="18" height="18" />
         Privacy Policy
-      </a>
+      </button>
 
-      <a
-        href={appInfo.termsOfServiceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
         class="btn btn-outline w-full justify-start gap-3"
+        on:click={handleTermsOfService}
       >
         <Icon icon="solar:document-text-bold-duotone" width="18" height="18" />
         Terms of Service
-      </a>
+      </button>
     </div>
   </div>
 
@@ -189,24 +196,33 @@
       System Information
     </h3>
 
-    <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-      <div class="grid gap-2 text-sm">
-        <div class="flex justify-between">
-          <span class="text-contrast-content/60">User Agent:</span>
-          <span class="ml-2 truncate font-mono text-xs text-contrast-content">
-            {navigator.userAgent}
-          </span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-contrast-content/60">Screen Resolution:</span>
-          <span class="text-contrast-content">
-            {window.screen.width} × {window.screen.height}
-          </span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-contrast-content/60">Language:</span>
-          <span class="text-contrast-content">{navigator.language}</span>
-        </div>
+    <div class="grid gap-4">
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <label class="mb-1 block text-sm text-contrast-content/60"
+          >User Agent</label
+        >
+        <p
+          class="break-all font-mono text-xs text-contrast-content"
+          title={navigator.userAgent}
+        >
+          {truncateUserAgent(navigator.userAgent)}
+        </p>
+      </div>
+
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <label class="mb-1 block text-sm text-contrast-content/60"
+          >Screen Resolution</label
+        >
+        <p class="font-medium text-contrast-content">
+          {window.screen.width} × {window.screen.height}
+        </p>
+      </div>
+
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <label class="mb-1 block text-sm text-contrast-content/60"
+          >Language</label
+        >
+        <p class="font-medium text-contrast-content">{navigator.language}</p>
       </div>
     </div>
   </div>
