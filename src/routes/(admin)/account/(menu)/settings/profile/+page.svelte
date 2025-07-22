@@ -2,21 +2,22 @@
   import { session } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
-  import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
 
   // Profile state
   let editingProfile = false
   let formProfile = {
-    fullName: $profileStore?.full_name || "",
-    companyName: $profileStore?.company_name || "",
+    fullName: "",
+    companyName: "",
   }
 
-  // Update form when profile store changes
-  $: if ($profileStore) {
-    formProfile = {
-      fullName: $profileStore.full_name || "",
-      companyName: $profileStore.company_name || "",
+  // Initialize form when component loads or profile store changes
+  $: {
+    if ($profileStore && !editingProfile) {
+      formProfile = {
+        fullName: $profileStore.full_name || "",
+        companyName: $profileStore.company_name || "",
+      }
     }
   }
 
@@ -30,8 +31,16 @@
       )
 
       if (result.success) {
-        // Update the profile store with the new values
-        if ($profileStore) {
+        // Update the profile store with the actual response data
+        if ($profileStore && result.data) {
+          const updatedProfile = {
+            ...$profileStore,
+            full_name: result.data.full_name || formProfile.fullName,
+            company_name: result.data.company_name || formProfile.companyName,
+          }
+          profileStore.set(updatedProfile)
+        } else if ($profileStore) {
+          // Fallback if no data in response
           const updatedProfile = {
             ...$profileStore,
             full_name: formProfile.fullName,
@@ -41,17 +50,23 @@
         }
 
         editingProfile = false
-        toast.success("Profile updated successfully")
-      } else {
-        toast.error(result.error || "Failed to update profile")
       }
     } catch (error) {
       console.error("Error updating profile:", error)
-      toast.error("Failed to update profile")
     }
   }
 
+  function startEdit() {
+    // Initialize form with current profile data when starting edit
+    formProfile = {
+      fullName: $profileStore?.full_name || "",
+      companyName: $profileStore?.company_name || "",
+    }
+    editingProfile = true
+  }
+
   function cancelProfileEdit() {
+    // Reset form to original values
     formProfile = {
       fullName: $profileStore?.full_name || "",
       companyName: $profileStore?.company_name || "",
@@ -88,35 +103,6 @@
   {#if editingProfile}
     <!-- Edit Form -->
     <div class="space-y-6">
-      <!-- Profile Avatar Section -->
-      <div class="flex items-center gap-6">
-        <div
-          class="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-base-200 text-contrast-content"
-        >
-          <span class="text-2xl font-bold uppercase">
-            {formProfile.fullName.charAt(0) || "U"}
-          </span>
-          <div
-            class="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-          >
-            <Icon
-              icon="solar:upload-bold-duotone"
-              width="20"
-              height="20"
-              class="text-white"
-            />
-          </div>
-        </div>
-        <div class="flex-1">
-          <h3 class="text-lg font-medium text-contrast-content">
-            Profile Picture
-          </h3>
-          <p class="text-sm text-contrast-content/60">
-            Click on the avatar to upload a new profile picture
-          </p>
-        </div>
-      </div>
-
       <!-- Form Fields -->
       <div class="grid gap-6">
         <!-- Full Name -->
@@ -127,7 +113,7 @@
           <input
             type="text"
             bind:value={formProfile.fullName}
-            class="input input-bordered w-full"
+            class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             placeholder="Enter your full name"
           />
           <p class="text-xs text-contrast-content/60">
@@ -143,7 +129,7 @@
           <input
             type="text"
             bind:value={formProfile.companyName}
-            class="input input-bordered w-full"
+            class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             placeholder="Enter your company name"
           />
           <p class="text-xs text-contrast-content/60">
@@ -156,14 +142,14 @@
       <div class="flex justify-end gap-3 border-t border-base-300 pt-6">
         <button
           on:click={cancelProfileEdit}
-          class="btn btn-outline btn-sm gap-2"
+          class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <Icon icon="solar:close-circle-bold-duotone" width="16" height="16" />
           Cancel
         </button>
         <button
           on:click={handleProfileUpdate}
-          class="btn btn-primary btn-sm gap-2"
+          class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <Icon icon="solar:diskette-bold-duotone" width="16" height="16" />
           Save Changes
@@ -173,25 +159,6 @@
   {:else}
     <!-- View Mode -->
     <div class="space-y-6">
-      <!-- Profile Header -->
-      <div class="flex items-center gap-6">
-        <div
-          class="flex h-20 w-20 items-center justify-center rounded-full bg-base-200 text-contrast-content"
-        >
-          <span class="text-2xl font-bold uppercase">
-            {$profileStore?.full_name?.charAt(0) || "U"}
-          </span>
-        </div>
-        <div>
-          <h3 class="text-2xl font-bold text-contrast-content">
-            {$profileStore?.full_name || "No name set"}
-          </h3>
-          <p class="text-contrast-content/60">
-            {$profileStore?.company_name || "No company"}
-          </p>
-        </div>
-      </div>
-
       <!-- Profile Information Cards -->
       <div class="grid gap-4">
         <!-- Name Card -->
@@ -274,8 +241,8 @@
       <!-- Edit Button -->
       <div class="flex justify-end border-t border-base-300 pt-6">
         <button
-          class="btn btn-outline gap-2"
-          on:click={() => (editingProfile = true)}
+          class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          on:click={startEdit}
         >
           <Icon icon="solar:pen-bold-duotone" width="16" height="16" />
           Edit Profile
