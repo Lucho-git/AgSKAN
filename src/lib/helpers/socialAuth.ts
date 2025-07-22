@@ -26,22 +26,22 @@ async function signInWithProvider(provider: 'google' | 'apple') {
         if (Capacitor.isNativePlatform()) {
             console.log(`Using native ${provider} login`);
 
-            // Initialize the plugin with platform-specific configuration
+            // Initialize first
             try {
-                const config: any = {};
-
                 if (provider === 'google') {
-                    config.google = {
-                        webClientId: '838630639549-vabhickg9ad67hffa0ftb2uil9fr94fd.apps.googleusercontent.com',
-                        androidClientId: '838630639549-v71401637scd3tiqehv14dbth6812qdb.apps.googleusercontent.com',
-                    };
+                    await SocialLogin.initialize({
+                        google: {
+                            webClientId: '838630639549-vabhickg9ad67hffa0ftb2uil9fr94fd.apps.googleusercontent.com',
+                            androidClientId: '838630639549-v71401637scd3tiqehv14dbth6812qdb.apps.googleusercontent.com',
+                        }
+                    });
                 } else if (provider === 'apple') {
-                    config.apple = {
-                        // Apple doesn't need additional config for iOS
-                    };
+                    await SocialLogin.initialize({
+                        apple: {
+                            scopes: ['email', 'name']
+                        }
+                    });
                 }
-
-                await SocialLogin.initialize(config);
                 console.log('SocialLogin plugin initialized successfully');
             } catch (initError) {
                 console.error('Failed to initialize SocialLogin plugin:', initError);
@@ -49,16 +49,43 @@ async function signInWithProvider(provider: 'google' | 'apple') {
             }
 
             // Attempt login
+            console.log('Attempting login with options:', { provider, options: {} });
             const result = await SocialLogin.login({
-                provider: provider
+                provider: provider,
+                options: {}
             });
 
             console.log(`Native ${provider} login result:`, result);
 
+            // Check if we got a valid result
+            if (!result || !result.result) {
+                console.error('Invalid login result:', result);
+                throw new Error(`Invalid ${provider} login result`);
+            }
+
+            // Extract the correct token based on provider
+            let idToken;
+
+            if (provider === 'apple') {
+                // For Apple, use the accessToken.token which contains the proper JWT
+                idToken = result.result.accessToken?.token;
+                console.log('Using Apple accessToken as idToken:', idToken ? 'found' : 'not found');
+            } else {
+                // For Google, use the standard idToken
+                idToken = result.result.idToken;
+            }
+
+            if (!idToken) {
+                console.error('No ID token found in result:', result);
+                throw new Error(`No authentication token received from ${provider}`);
+            }
+
+            console.log('Sending token to Supabase:', idToken.substring(0, 50) + '...');
+
             // Use the ID token with Supabase
             const { data, error } = await supabase.auth.signInWithIdToken({
                 provider: provider,
-                token: result.result.idToken,
+                token: idToken,
             });
 
             if (error) {
@@ -66,6 +93,7 @@ async function signInWithProvider(provider: 'google' | 'apple') {
                 throw error;
             }
 
+            console.log('Supabase auth success:', data);
             return data;
         } else {
             // Web login
@@ -82,6 +110,20 @@ async function signInWithProvider(provider: 'google' | 'apple') {
         }
     } catch (error) {
         console.error(`${provider} sign in error:`, error);
+
+        // Provide more helpful error messages
+        if (provider === 'apple' && error.errorMessage) {
+            if (error.errorMessage.includes('1000')) {
+                throw new Error('Apple Sign-In was canceled or failed. Please try again.');
+            } else if (error.errorMessage.includes('1001')) {
+                throw new Error('Apple Sign-In is not available. Please check your device settings.');
+            }
+        }
+
+        if (error.code === 'validation_failed') {
+            throw new Error(`${provider} authentication token validation failed. Please try again.`);
+        }
+
         throw error;
     }
 }

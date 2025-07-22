@@ -274,7 +274,7 @@
 
           {#if isNativePlatform}
             <p class="mt-2 text-center text-xs text-contrast-content/60">
-              Billing management is only available in the web version
+              Billing management is not avaliable in app
             </p>
           {/if}
         </div>
@@ -323,7 +323,7 @@
                 </p>
                 <p class="mt-1 text-xs text-contrast-content/60">
                   {isNativePlatform
-                    ? "Billing management is only available in the web version of the app. Please visit the web app to manage your payment methods and subscription settings."
+                    ? "Billing management is not avaliable in the app."
                     : "Manage your payment methods, view billing history, and update subscription settings in the billing portal."}
                 </p>
               </div>
