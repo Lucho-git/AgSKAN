@@ -47,6 +47,7 @@
     BarChart3,
     Info,
     Layers,
+    AlertTriangle,
   } from "lucide-svelte"
 
   // ========================================
@@ -419,10 +420,92 @@
     }
   }
 
-  // Delete map - stub for now
-  async function handleDeleteMap() {
-    toast.success("Delete functionality - stubbed for now")
-    resetToMain()
+  // ========================================
+  // DELETE MAP FUNCTIONALITY
+  // ========================================
+
+  let confirmationInput = ""
+  let deleteLoadingStage = null // 'confirming' | 'deleting' | null
+  let deleteCountdown = 0
+  let countdownInterval = null
+
+  $: mapName = $connectedMapStore?.map_name || "Unnamed Map"
+  $: mapId = $connectedMapStore?.id || ""
+  $: isConfirmationValid =
+    confirmationInput.toLowerCase() === mapId.slice(0, 8).toLowerCase()
+
+  function updateStoresAfterDelete() {
+    connectedMapStore.set({
+      id: null,
+      map_name: null,
+      master_user_id: null,
+      owner: null,
+      is_owner: false,
+      masterSubscription: null,
+      is_connected: false,
+    })
+
+    mapActivityStore.set({
+      marker_count: 0,
+      trail_count: 0,
+      connected_profiles: [],
+      vehicle_states: [],
+    })
+
+    operationStore.set([])
+    selectedOperationStore.set(null)
+  }
+
+  function startDeleteCountdown() {
+    deleteLoadingStage = "confirming"
+    deleteCountdown = 5
+
+    countdownInterval = setInterval(() => {
+      deleteCountdown -= 1
+      if (deleteCountdown <= 0) {
+        clearInterval(countdownInterval)
+        executeDelete()
+      }
+    }, 1000)
+  }
+
+  function cancelDelete() {
+    if (countdownInterval) {
+      clearInterval(countdownInterval)
+      countdownInterval = null
+    }
+    deleteLoadingStage = null
+    deleteCountdown = 0
+    confirmationInput = ""
+  }
+
+  async function executeDelete() {
+    deleteLoadingStage = "deleting"
+
+    try {
+      const result = await mapApi.deleteMap(mapId)
+
+      if (result.success) {
+        updateStoresAfterDelete()
+        toast.success("Map deleted successfully")
+        resetToMain()
+
+        // Reset delete state
+        deleteLoadingStage = null
+        confirmationInput = ""
+      } else {
+        toast.error(`Failed to delete map: ${result.message}`)
+        deleteLoadingStage = null
+      }
+    } catch (error) {
+      toast.error(`An error occurred: ${error.message}`)
+      deleteLoadingStage = null
+    }
+  }
+
+  function handleDeleteMap() {
+    if (!isConfirmationValid || deleteLoadingStage) return
+    startDeleteCountdown()
   }
 
   // ========================================
@@ -435,6 +518,9 @@
   let editOperationName = ""
   let editOperationYear = new Date().getFullYear()
   let editOperationDescription = ""
+  let deleteOperationCountdown = 0
+  let deleteOperationInterval = null
+  let isConfirmingOperationDelete = false
 
   async function handleCreateOperation() {
     if (!newOperationName.trim()) {
@@ -584,12 +670,29 @@
     }
   }
 
-  async function handleDeleteOperation() {
-    if (isOnlyOperation) {
-      toast.error("Cannot delete the only operation")
-      return
-    }
+  function startOperationDeleteCountdown() {
+    isConfirmingOperationDelete = true
+    deleteOperationCountdown = 5 // 3 seconds for operations (less critical)
 
+    deleteOperationInterval = setInterval(() => {
+      deleteOperationCountdown -= 1
+      if (deleteOperationCountdown <= 0) {
+        clearInterval(deleteOperationInterval)
+        executeOperationDelete()
+      }
+    }, 1000)
+  }
+
+  function cancelOperationDelete() {
+    if (deleteOperationInterval) {
+      clearInterval(deleteOperationInterval)
+      deleteOperationInterval = null
+    }
+    isConfirmingOperationDelete = false
+    deleteOperationCountdown = 0
+  }
+
+  async function executeOperationDelete() {
     isLoading = true
     loadingAction = "delete-operation"
 
@@ -623,17 +726,28 @@
           }
         }
 
+        // Reset delete state
+        isConfirmingOperationDelete = false
+        deleteOperationCountdown = 0
+
         goBack()
         toast.success("Operation deleted successfully")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
+        isConfirmingOperationDelete = false
       }
     } catch (error) {
       toast.error(`Error: ${error.message}`)
+      isConfirmingOperationDelete = false
     } finally {
       isLoading = false
       loadingAction = null
     }
+  }
+
+  function handleDeleteOperation() {
+    if (isOnlyOperation || isConfirmingOperationDelete || isLoading) return
+    startOperationDeleteCountdown()
   }
 
   // ========================================
@@ -1140,26 +1254,24 @@
             </div>
 
             {#if createMapStatus === "loading"}
-              <!-- Creating Map State -->
-              <div
-                class="animate-map-scaleIn flex flex-col items-center gap-4 py-8"
-              >
-                <div
-                  class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
-                >
-                  <div
-                    class="animate-map-spin absolute inset-1 rounded-full border-2 border-transparent border-t-blue-400"
-                  ></div>
-                  <Map size={28} className="animate-map-pulse text-blue-400" />
+              <div class="rounded-lg border border-base-300 bg-blue-600/10 p-4">
+                <div class="mb-1 text-sm font-semibold text-blue-600">
+                  Creating Map...
                 </div>
-                <p class="text-lg font-medium text-contrast-content">
-                  Creating map...
-                </p>
-                <p
-                  class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
-                >
-                  Processing {newMapName || "New Map"}
-                </p>
+                <div class="text-xs text-contrast-content/70">
+                  Setting up your farm map
+                </div>
+              </div>
+            {:else if createMapStatus === "success"}
+              <div
+                class="rounded-lg border border-base-300 bg-green-600/10 p-4"
+              >
+                <div class="mb-1 text-sm font-semibold text-green-600">
+                  Map Created!
+                </div>
+                <div class="text-xs text-contrast-content/70">
+                  Your map is ready to use
+                </div>
               </div>
             {:else if createMapStatus === "success"}
               <!-- Success State -->
@@ -1916,24 +2028,46 @@
                     ? "Updating..."
                     : "Save"}
                 </button>
-                <button
-                  type="button"
-                  disabled={isOnlyOperation || isLoading}
-                  class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-700 {isOnlyOperation ||
-                  isLoading
-                    ? 'cursor-not-allowed opacity-50'
-                    : ''}"
-                  on:click={handleDeleteOperation}
-                >
-                  {#if isLoading && loadingAction === "delete-operation"}
+
+                {#if isConfirmingOperationDelete}
+                  <!-- Countdown State -->
+                  <div
+                    class="flex flex-1 items-center justify-center gap-2 rounded-lg border border-base-300 bg-orange-600/10 px-6 py-3"
+                  >
                     <div
-                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-orange-600 border-t-transparent"
                     ></div>
-                  {:else}
-                    <Trash2 class="h-4 w-4" />
-                  {/if}
-                  Delete
-                </button>
+                    <span class="text-sm font-semibold text-orange-600">
+                      Deleting in {deleteOperationCountdown}...
+                    </span>
+                    <button
+                      type="button"
+                      class="ml-2 rounded px-2 py-1 text-xs font-medium text-contrast-content hover:bg-base-200"
+                      on:click={cancelOperationDelete}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                {:else}
+                  <button
+                    type="button"
+                    disabled={isOnlyOperation || isLoading}
+                    class="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-700 {isOnlyOperation ||
+                    isLoading
+                      ? 'cursor-not-allowed opacity-50'
+                      : ''}"
+                    on:click={handleDeleteOperation}
+                  >
+                    {#if isLoading && loadingAction === "delete-operation"}
+                      <div
+                        class="animate-map-spin h-4 w-4 rounded-full border-2 border-current border-t-transparent"
+                      ></div>
+                    {:else}
+                      <Trash2 class="h-4 w-4" />
+                    {/if}
+                    Delete
+                  </button>
+                {/if}
               </div>
             </form>
           </div>
@@ -2088,37 +2222,126 @@
               <button
                 class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
                 on:click={goBack}
+                disabled={deleteLoadingStage === "confirming" ||
+                  deleteLoadingStage === "deleting"}
               >
                 <ArrowLeft class="h-4 w-4" />
                 Back to Settings
               </button>
             </div>
 
-            <div
-              class="rounded-lg border border-red-200 bg-red-50 p-6 text-center"
-            >
-              <div
-                class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100"
-              >
-                <Trash2 class="h-8 w-8 text-red-600" />
+            <!-- Warning Section -->
+            <div class="rounded-lg border border-base-300 bg-red-600/10 p-6">
+              <div class="mb-4 flex items-center gap-3">
+                <div
+                  class="flex h-12 w-12 items-center justify-center rounded-full bg-red-600/20"
+                >
+                  <AlertTriangle class="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold text-red-600">Delete Map</h3>
+                  <p class="text-sm font-medium text-contrast-content/70">
+                    This action cannot be undone
+                  </p>
+                </div>
               </div>
-              <h3 class="mb-2 text-lg font-semibold text-red-900">
-                Delete Map
-              </h3>
-              <p class="mb-4 text-red-800">
-                Are you sure you want to permanently delete "{$connectedMapStore.map_name}"?
-                This action cannot be undone and will remove all associated
-                data.
-              </p>
+
+              <div class="rounded-lg border border-base-300 bg-base-200 p-4">
+                <p class="mb-2 font-semibold text-contrast-content">
+                  You are about to permanently delete:
+                </p>
+                <p class="mb-3 text-xl font-bold text-red-600">{mapName}</p>
+                <div
+                  class="space-y-1 text-sm font-medium text-contrast-content/80"
+                >
+                  <p>• All map data will be permanently deleted</p>
+                  <p>• This action cannot be undone</p>
+                  <p>• All collaborators will lose access</p>
+                </div>
+              </div>
             </div>
 
-            <div class="space-y-3">
-              <button
-                class="w-full rounded-lg bg-red-600 px-4 py-3 font-medium text-white transition-colors hover:bg-red-700"
-                on:click={handleDeleteMap}
+            <!-- Confirmation Input -->
+            <div>
+              <label
+                class="mb-2 block text-sm font-medium text-contrast-content"
               >
-                Yes, Delete Map Permanently
-              </button>
+                For security, please type the first 8 characters of the map ID
+                to confirm:
+              </label>
+              <div
+                class="mb-3 rounded-lg border border-base-300 bg-base-200 p-3 font-mono text-sm"
+              >
+                <span class="font-bold text-red-600">{mapId.slice(0, 8)}</span>
+                <span class="text-contrast-content/40">{mapId.slice(8)}</span>
+              </div>
+              <input
+                type="text"
+                bind:value={confirmationInput}
+                placeholder="Type the first 8 characters"
+                disabled={deleteLoadingStage === "confirming" ||
+                  deleteLoadingStage === "deleting"}
+                class="w-full rounded-lg border border-base-300 bg-base-200 p-3 text-contrast-content outline-none transition-colors focus:border-red-600 {deleteLoadingStage
+                  ? 'cursor-not-allowed opacity-50'
+                  : ''}"
+              />
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-3">
+              {#if deleteLoadingStage === "confirming"}
+                <!-- Countdown State -->
+                <div
+                  class="rounded-lg border border-base-300 bg-orange-600/10 p-4 text-center"
+                >
+                  <div class="mb-2 flex items-center justify-center gap-2">
+                    <div
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-orange-600 border-t-transparent"
+                    ></div>
+                    <span class="font-bold text-orange-600"
+                      >Deleting in {deleteCountdown} seconds...</span
+                    >
+                  </div>
+                  <button
+                    class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    on:click={cancelDelete}
+                  >
+                    Cancel Deletion
+                  </button>
+                </div>
+              {:else if deleteLoadingStage === "deleting"}
+                <!-- Deleting State -->
+                <div
+                  class="rounded-lg border border-base-300 bg-red-600/10 p-4 text-center"
+                >
+                  <div class="flex items-center justify-center gap-2">
+                    <div
+                      class="animate-map-spin h-4 w-4 rounded-full border-2 border-red-600 border-t-transparent"
+                    ></div>
+                    <span class="font-bold text-red-600">Deleting map...</span>
+                  </div>
+                </div>
+              {:else}
+                <!-- Normal State -->
+                <button
+                  class="w-full rounded-lg bg-error px-4 py-3 font-medium text-white transition-colors hover:bg-error/90 {!isConfirmationValid
+                    ? 'cursor-not-allowed opacity-50'
+                    : ''}"
+                  disabled={!isConfirmationValid}
+                  on:click={handleDeleteMap}
+                >
+                  <div class="flex items-center justify-center gap-2">
+                    <Trash2 class="h-4 w-4" />
+                    Yes, Delete Map Permanently
+                  </div>
+                </button>
+              {/if}
+            </div>
+
+            <!-- Footer Warning -->
+            <div class="text-center text-xs text-contrast-content/50">
+              Deleted maps cannot be recovered. Make sure you have any needed
+              data backed up.
             </div>
           </div>
         {/if}
@@ -2453,20 +2676,22 @@
 
             <!-- Creation Status -->
             {#if createMapStatus === "loading"}
-              <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                <div class="mb-1 text-sm font-medium text-blue-900">
+              <div class="rounded-lg border border-base-300 bg-blue-600/10 p-4">
+                <div class="mb-1 text-sm font-semibold text-blue-600">
                   Creating Map...
                 </div>
-                <div class="text-xs text-blue-700">
+                <div class="text-xs text-contrast-content/70">
                   Setting up your farm map
                 </div>
               </div>
             {:else if createMapStatus === "success"}
-              <div class="rounded-lg border border-green-200 bg-green-50 p-4">
-                <div class="mb-1 text-sm font-medium text-green-900">
+              <div
+                class="rounded-lg border border-base-300 bg-green-600/10 p-4"
+              >
+                <div class="mb-1 text-sm font-semibold text-green-600">
                   Map Created!
                 </div>
-                <div class="text-xs text-green-700">
+                <div class="text-xs text-contrast-content/70">
                   Your map is ready to use
                 </div>
               </div>
@@ -2804,11 +3029,13 @@
 
             <!-- Warning for only operation -->
             {#if isOnlyOperation}
-              <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-                <div class="mb-1 text-sm font-medium text-yellow-900">
+              <div
+                class="rounded-lg border border-base-300 bg-orange-600/10 p-4"
+              >
+                <div class="mb-1 text-sm font-semibold text-orange-600">
                   Only Operation
                 </div>
-                <div class="text-xs text-yellow-700">
+                <div class="text-xs text-contrast-content/70">
                   This is the only operation and cannot be deleted
                 </div>
               </div>
@@ -2887,44 +3114,67 @@
           <!-- Delete Confirmation Info -->
           <div class="space-y-4">
             <!-- Map to Delete -->
-            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div class="rounded-lg border border-base-300 bg-red-600/10 p-4">
               <div class="mb-2 flex items-center gap-3">
                 <div
                   class="flex h-6 w-6 items-center justify-center rounded bg-red-600/20"
                 >
                   <Map class="h-4 w-4 text-red-600" />
                 </div>
-                <span class="text-sm font-medium text-red-900"
+                <span class="text-sm font-semibold text-red-600"
                   >Map to Delete</span
                 >
               </div>
-              <div class="text-sm font-medium text-red-900">
+              <div class="text-sm font-bold text-contrast-content">
                 {$connectedMapStore?.map_name}
               </div>
-              <div class="mt-1 text-xs text-red-700">
+              <div class="mt-1 text-xs text-contrast-content/60">
                 Owned by {$connectedMapStore?.owner}
               </div>
             </div>
 
             <!-- Warning -->
-            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div class="rounded-lg border border-base-300 bg-orange-600/10 p-4">
               <div class="flex items-center gap-3">
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded bg-red-600/20"
+                  class="flex h-6 w-6 items-center justify-center rounded bg-orange-600/20"
                 >
-                  <Trash2 class="h-4 w-4 text-red-600" />
+                  <Trash2 class="h-4 w-4 text-orange-600" />
                 </div>
                 <div class="flex-1">
-                  <div class="mb-1 text-sm font-medium text-red-900">
+                  <div class="mb-1 text-sm font-semibold text-orange-600">
                     Warning
                   </div>
-                  <div class="text-xs text-red-700">
+                  <div class="text-xs text-contrast-content/70">
                     This action cannot be undone and will remove all associated
                     data
                   </div>
                 </div>
               </div>
             </div>
+
+            <!-- Deletion Status -->
+            {#if deleteLoadingStage === "confirming"}
+              <div
+                class="rounded-lg border border-base-300 bg-orange-600/10 p-4 text-center"
+              >
+                <div class="mb-1 text-sm font-bold text-orange-600">
+                  Deleting in {deleteCountdown}...
+                </div>
+                <div class="text-xs text-contrast-content/70">
+                  Click cancel to stop deletion
+                </div>
+              </div>
+            {:else if deleteLoadingStage === "deleting"}
+              <div
+                class="rounded-lg border border-base-300 bg-red-600/10 p-4 text-center"
+              >
+                <div class="mb-1 text-sm font-bold text-red-600">
+                  Deleting Map...
+                </div>
+                <div class="text-xs text-contrast-content/70">Please wait</div>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
