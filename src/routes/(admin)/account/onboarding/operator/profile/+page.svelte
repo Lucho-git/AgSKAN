@@ -1,4 +1,3 @@
-<!-- src/routes/(admin)/account/onboarding/operator/profile/+page.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
   import { Map, User, Check, ArrowRight, Info } from "lucide-svelte"
@@ -207,6 +206,7 @@
       const updates = {
         full_name: fullName,
         role: "operator",
+        onboarded: true, // Set onboarded to true
         updated_at: new Date().toISOString(),
       }
 
@@ -251,6 +251,7 @@
         ...profile,
         full_name: fullName,
         user_type: "operator",
+        onboarded: true, // Update the store as well
         master_map_id: hasConnectedMap
           ? connectedMap?.id || $connectedMapStore.id
           : null,
@@ -293,6 +294,7 @@
   }
 </script>
 
+<!-- Rest of the template remains the same... -->
 <svelte:head>
   <title>Join Map - AgSKAN</title>
   <meta name="description" content="Connect to your farm's map" />

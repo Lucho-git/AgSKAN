@@ -319,19 +319,9 @@
   async function checkOnboardingStatus(profile, connected_map, subscription) {
     if (!profile || !browser) return
 
-    // Updated onboarding routes to use new structure
-    const onboarding = {
-      select_role: "/account/onboarding",
-      join_map: "/account/onboarding/operator/profile",
-      onboard_manager: "/account/onboarding/manager/profile",
-      payment_plans: "/account/payment_plans",
-      user_survey: "/account/onboarding/manager/survey",
-      select_plan: "/account/select_plan",
-    }
-
-    const isOnboardingPath = Object.values(onboarding).some(
-      (path) =>
-        $page.url.pathname === path || $page.url.pathname.startsWith(path),
+    // Check if user is currently on any onboarding route
+    const isOnboardingPath = $page.url.pathname.startsWith(
+      "/account/onboarding",
     )
 
     // Skip billing routes and consider native users as already having a subscription
@@ -339,37 +329,17 @@
       // If on a payment-related path, redirect to account
       if (
         $page.url.pathname.includes("/payment") ||
-        $page.url.pathname.includes("/select_plan") ||
-        $page.url.pathname === onboarding.payment_plans
+        $page.url.pathname.includes("/select_plan")
       ) {
         goto("/account")
         return
       }
     }
 
-    if (!isOnboardingPath) {
-      // If user hasn't selected a role yet, send to role selection
-      if (!profile.role) {
-        goto(onboarding.select_role)
-        return
-      }
-
-      // If user hasn't completed onboarding
-      if (!profile.onboarded) {
-        if (profile.role === "operator") {
-          // Operators need to join a map
-          goto(onboarding.join_map)
-          return
-        } else if (profile.role === "manager") {
-          // Managers need subscription (unless native) then profile setup
-          if (!subscription && !isNative) {
-            goto(onboarding.payment_plans)
-            return
-          }
-          goto(onboarding.onboard_manager)
-          return
-        }
-      }
+    // If not on an onboarding route and user is not onboarded, send to onboarding
+    if (!isOnboardingPath && !profile.onboarded) {
+      goto("/account/onboarding")
+      return
     }
   }
 
