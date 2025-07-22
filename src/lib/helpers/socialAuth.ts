@@ -32,7 +32,7 @@ async function signInWithProvider(provider: 'google' | 'apple') {
                     await SocialLogin.initialize({
                         google: {
                             webClientId: '838630639549-vabhickg9ad67hffa0ftb2uil9fr94fd.apps.googleusercontent.com',
-                            androidClientId: '838630639549-v71401637scd3tiqehv14dbth6812qdb.apps.googleusercontent.com',
+                            androidClientId: '838630639549-0r4ef1sbip8le0sokao2ukte7m45tnu1.apps.googleusercontent.com',
                         }
                     });
                 } else if (provider === 'apple') {
