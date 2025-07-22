@@ -7,16 +7,15 @@ const config: CapacitorConfig = {
     bundledWebRuntime: false,
     server: {
         androidScheme: 'https',
-        iosScheme: 'https'
+        iosScheme: 'https',
         cleartext: true,
         allowNavigation: ['*'],
-        // For iOS, you might need to specify hostname
         hostname: 'localhost',
     },
     plugins: {
         SplashScreen: {
             launchShowDuration: 3000,
-            launchAutoHide: false, // Set to false and manually hide
+            launchAutoHide: false,
             launchFadeOutDuration: 500,
             backgroundColor: "#ffffffff",
             androidSplashResourceName: "splash",
