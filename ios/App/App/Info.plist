@@ -32,13 +32,13 @@
 		<string>*</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location access is required for our app to provide location-based features and services.</string>
+	<string>AgSKAN requires precise location access to accurately track operator movements and create detailed trail maps in paddocks for farming operations and work history documentation.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Background location tracking is required for our app so we can provide location-based features and services even when the app is not in use.</string>
+	<string>AgSKAN needs continuous location access to maintain accurate operator tracking, create real-time trail maps, and enable other connected users to view operator positions for coordinated farming operations.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Background location tracking is required for our app so we can provide location-based features and services even when the app is not in use.</string>
+	<string>AgSKAN requires background location access to continuously track operator movements and maintain accurate work history even when the app is not actively in use.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>Device motion updates help determine when the device is stationary so the app can save power by turning off location-updates.</string>
+	<string>Device motion updates help determine when farming equipment is stationary so the app can optimize power consumption by adjusting location tracking frequency.</string>
 	<key>LSApplicationCategoryType</key>
 	<string></string>
 	<key>NSHumanReadableCopyright</key>
@@ -87,8 +87,10 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to the camera to take photos.</string>
+	<string>AgSKAN needs camera access to allow users to capture and share photos and videos in chat conversations and when communicating with support.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AgSKAN requires microphone access to record audio with videos for sharing in chat conversations and support communications.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to the photo library to select images.</string>
+	<string>AgSKAN needs photo library access to allow users to select and share existing photos and videos in chat conversations and support communications.</string>
 </dict>
 </plist>

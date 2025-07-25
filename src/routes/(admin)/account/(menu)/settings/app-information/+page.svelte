@@ -12,6 +12,7 @@
 
   // Delete account modal
   let showDeleteConfirm = false
+  let showDeleteSuccess = false
   let confirmText = ""
 
   // App information
@@ -43,19 +44,23 @@
   }
 
   async function handleDeleteAccount() {
-    toast.promise(
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-        goto("/")
-        return "Account deleted successfully"
-      },
-      {
-        loading: "Deleting account...",
-        success: (message) => message,
-        error: "Failed to delete account",
-      },
-    )
-    showDeleteConfirm = false
+    try {
+      // Show loading state
+      const loadingToast = toast.loading("Submitting deletion request...")
+
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Hide loading toast
+      toast.dismiss(loadingToast)
+
+      // Close confirmation modal and show success modal
+      showDeleteConfirm = false
+      showDeleteSuccess = true
+      confirmText = ""
+    } catch (error) {
+      toast.error("Failed to submit deletion request")
+    }
   }
 
   function handlePrivacyPolicy() {
@@ -64,6 +69,11 @@
 
   function handleTermsOfService() {
     goto("/terms-of-service")
+  }
+
+  function closeSuccessModal() {
+    showDeleteSuccess = false
+    goto("/")
   }
 </script>
 
@@ -241,7 +251,8 @@
 
     <div class="rounded-lg border border-error/20 bg-error/5 p-4">
       <p class="mb-3 text-sm text-contrast-content/80">
-        Once you delete your account, there is no going back. Please be certain.
+        Request account deletion. Please ensure you've saved any important data
+        before proceeding.
       </p>
       <button
         class="btn btn-outline w-full gap-2 border-error text-error hover:bg-error hover:text-white"
@@ -252,7 +263,7 @@
           width="16"
           height="16"
         />
-        Delete Account
+        Request Account Deletion
       </button>
     </div>
   </div>
@@ -278,11 +289,11 @@
           width="20"
           height="20"
         />
-        Delete Account
+        Request Account Deletion
       </h3>
       <p class="py-4 text-contrast-content">
-        Are you sure you want to delete your account? This action cannot be
-        undone and will permanently remove all your data including:
+        Are you sure you want to request account deletion? This will permanently
+        remove all your data including:
       </p>
 
       <div class="mb-4 rounded-lg bg-error/10 p-4">
@@ -362,7 +373,7 @@
             width="16"
             height="16"
           />
-          Delete Account
+          Submit Deletion Request
         </button>
       </div>
     </div>
@@ -373,5 +384,58 @@
         confirmText = ""
       }}
     ></div>
+  </div>
+{/if}
+
+<!-- Delete Success Modal -->
+{#if showDeleteSuccess}
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md">
+      <div class="text-center">
+        <div
+          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-warning/20"
+        >
+          <Icon
+            icon="solar:clock-circle-bold-duotone"
+            width="32"
+            height="32"
+            class="text-warning"
+          />
+        </div>
+
+        <h3 class="mb-3 text-lg font-bold text-contrast-content">
+          Deletion Request Submitted
+        </h3>
+
+        <div class="space-y-3 text-left">
+          <p class="text-sm text-contrast-content">
+            Your account deletion request has been successfully submitted. Your
+            account will be permanently deleted within 24-48 hours without any
+            further action required from you.
+          </p>
+
+          <div class="rounded-lg bg-warning/10 p-3">
+            <p class="text-sm font-medium text-warning">
+              ⚠️ Important: Save your files immediately
+            </p>
+            <p class="mt-1 text-xs text-contrast-content/80">
+              All your data and files will be permanently removed once the
+              deletion is processed and will not be recoverable.
+            </p>
+          </div>
+
+          <p class="text-xs text-contrast-content/60">
+            If you need to cancel this request or have any questions, our
+            support team will contact you before the deletion is finalized.
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-action justify-center">
+        <button class="btn btn-primary" on:click={closeSuccessModal}>
+          I Understand
+        </button>
+      </div>
+    </div>
   </div>
 {/if}
