@@ -152,6 +152,16 @@
       topBarLabel: "Account Settings",
       path: "settings",
     },
+    {
+      href: "/account/app",
+      icon: "solar:smartphone-bold-duotone",
+      label: "App",
+      labelId: "app",
+      topBarIcon: "solar:smartphone-bold-duotone",
+      topBarLabel: "Get Mobile App",
+      path: "app",
+      webOnly: true,
+    },
   ]
 
   // Directly determine the current section from the URL path
@@ -218,6 +228,11 @@
     return false
   }
 
+  // Filter menu items based on platform
+  $: filteredMenuItems = menuItems.filter(
+    (item) => !(item.webOnly && browser && Capacitor.isNativePlatform()),
+  )
+
   // Wait for stores to be populated
   $: storesReady =
     browser && $profileStore?.id && $subscriptionStore?.subscription
@@ -234,14 +249,14 @@
       >
         <div class="flex items-center">
           <Icon
-            icon={menuItems.find((item) => item.path === currentSection)
-              ?.topBarIcon || menuItems[0].topBarIcon}
+            icon={filteredMenuItems.find((item) => item.path === currentSection)
+              ?.topBarIcon || filteredMenuItems[0].topBarIcon}
             width="24"
             height="24"
           />
           <span class="ml-3 font-semibold"
-            >{menuItems.find((item) => item.path === currentSection)
-              ?.topBarLabel || menuItems[0].topBarLabel}</span
+            >{filteredMenuItems.find((item) => item.path === currentSection)
+              ?.topBarLabel || filteredMenuItems[0].topBarLabel}</span
           >
         </div>
         <div class="flex items-center gap-2">
@@ -285,7 +300,7 @@
         class="fixed bottom-0 left-0 right-0 z-50 bg-neutral text-neutral-content lg:hidden"
       >
         <ul class="flex h-16 items-stretch">
-          {#each menuItems as item}
+          {#each filteredMenuItems as item}
             {@const isItemDisabled = getItemDisabledStatus(item)}
             <li class="flex-1">
               <button
@@ -333,7 +348,7 @@
           </button>
         </li>
 
-        {#each menuItems as item}
+        {#each filteredMenuItems as item}
           {@const isItemDisabled = getItemDisabledStatus(item)}
           <li class="relative my-1">
             <button
