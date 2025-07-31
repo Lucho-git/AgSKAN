@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
-import mapboxgl from "mapbox-gl"
+  import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import { mapStore } from "../stores/mapStore"
   import {
@@ -38,9 +38,23 @@ import mapboxgl from "mapbox-gl"
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
   const DEFAULT_OUTDOORS_STYLE = "mapbox://styles/mapbox/outdoors-v12"
 
+  // ====== DATA SOURCE SELECTOR ======
+  // Change this to switch between data sources:
+  // "sentinel" = Sentinel Hub (no auth needed)
+  // "copernicus" = Copernicus Data Space (requires OAuth)
+  const NDVI_DATA_SOURCE = "copernicus" // Change this to "copernicus" to test the other source
+
   let isSatelliteStyle = true
   let currentMapStyle = DEFAULT_SATELLITE_STYLE
   let mapLoaded = false
+
+  // NDVI state variables
+  let showNDVI = false
+  let ndviLayerAdded = false
+
+  // NDVI layer configuration
+  const NDVI_SOURCE_ID = "ndvi-source"
+  const NDVI_LAYER_ID = "ndvi-layer"
 
   let mapContainer
   let map
@@ -85,6 +99,136 @@ import mapboxgl from "mapbox-gl"
     }
   }
 
+  async function getAccessToken() {
+    const response = await fetch(
+      "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: "sh-836e4f9a-e66f-43d4-8490-3fd21d812b86",
+          client_secret: "cf70kUdpk9SPhBKraYUseiwuBCjX4fKt",
+        }),
+      },
+    )
+
+    const data = await response.json()
+    return data.access_token
+  }
+
+  async function addNDVILayer() {
+    if (!map || !mapLoaded || ndviLayerAdded) return
+
+    try {
+      let sourceConfig
+
+      if (NDVI_DATA_SOURCE === "sentinel") {
+        // Keep sentinel as is for now
+        const today = new Date()
+        const thirtyDaysAgo = new Date(
+          today.getTime() - 30 * 24 * 60 * 60 * 1000,
+        )
+        const recentTimeRange = `&time=${thirtyDaysAgo.toISOString().split("T")[0]}/${today.toISOString().split("T")[0]}`
+
+        sourceConfig = {
+          type: "raster",
+          tiles: [
+            `https://services.sentinel-hub.com/ogc/wms/e3de5c11-a2b1-4697-90b3-60d8fc9bf802?service=WMS&request=GetMap&layers=2_FALSE_COLOR&width=256&height=256&format=image%2Fpng&bbox={bbox-epsg-3857}&crs=EPSG%3A3857${recentTimeRange}&MAXCC=15`,
+          ],
+          tileSize: 256,
+          maxzoom: 18,
+          attribution: "Sentinel Hub / ESA Copernicus",
+        }
+
+        map.addSource(NDVI_SOURCE_ID, sourceConfig)
+
+        map.addLayer({
+          id: NDVI_LAYER_ID,
+          type: "raster",
+          source: NDVI_SOURCE_ID,
+          paint: {
+            "raster-opacity": 0.7,
+            "raster-contrast": 0.3,
+            "raster-saturation": 1.0,
+            "raster-brightness-min": 0.2,
+            "raster-brightness-max": 0.8,
+          },
+        })
+
+        ndviLayerAdded = true
+        toast.success(
+          "Latest Vegetation layer loaded (Red = healthy vegetation)",
+        )
+      } else if (NDVI_DATA_SOURCE === "copernicus") {
+        // Use the new agricultural color-mapped NDVI (no additional styling needed)
+        const accessToken = await getAccessToken()
+
+        sourceConfig = {
+          type: "raster",
+          tiles: [
+            `https://sh.dataspace.copernicus.eu/ogc/wms/2cd4524e-fbeb-46fb-a3ab-34a3ca27d2cb?SERVICE=WMS&REQUEST=GetMap&LAYERS=NDVI&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&SRS=EPSG:3857&FORMAT=image/png&ACCESS_TOKEN=${accessToken}`,
+          ],
+          tileSize: 256,
+          attribution: "Copernicus Data Space / ESA",
+        }
+
+        map.addSource(NDVI_SOURCE_ID, sourceConfig)
+
+        map.addLayer({
+          id: NDVI_LAYER_ID,
+          type: "raster",
+          source: NDVI_SOURCE_ID,
+          paint: {
+            "raster-opacity": 0.8, // Clean display since colors are already optimized
+          },
+        })
+
+        ndviLayerAdded = true
+        toast.success(
+          "Agricultural NDVI loaded! (Gray = bare soil, Green/Blue/Red = increasing vegetation)",
+        )
+      }
+    } catch (error) {
+      console.error("Error adding NDVI layer:", error)
+      toast.error(`Failed to load ${NDVI_DATA_SOURCE} NDVI: ${error.message}`)
+    }
+  }
+  function removeNDVILayer() {
+    if (!map || !ndviLayerAdded) return
+
+    try {
+      if (map.getLayer(NDVI_LAYER_ID)) {
+        map.removeLayer(NDVI_LAYER_ID)
+      }
+      if (map.getSource(NDVI_SOURCE_ID)) {
+        map.removeSource(NDVI_SOURCE_ID)
+      }
+      ndviLayerAdded = false
+      console.log("NDVI layer removed successfully")
+      toast.success("NDVI layer disabled")
+    } catch (error) {
+      console.error("Error removing NDVI layer:", error)
+    }
+  }
+
+  function toggleNDVI() {
+    if (!map || !mapLoaded) {
+      toast.error("Map not ready")
+      return
+    }
+
+    showNDVI = !showNDVI
+
+    if (showNDVI) {
+      addNDVILayer()
+    } else {
+      removeNDVILayer()
+    }
+  }
+
   onMount(async () => {
     if (!browser) return
 
@@ -108,10 +252,20 @@ import mapboxgl from "mapbox-gl"
       if (map.loaded()) {
         mapLoaded = true
         initializeMapLocation()
+
+        // If NDVI was supposed to be showing, add it now
+        if (showNDVI && !ndviLayerAdded) {
+          addNDVILayer()
+        }
       } else {
         map.on("load", () => {
           mapLoaded = true
           initializeMapLocation()
+
+          // If NDVI was supposed to be showing, add it now
+          if (showNDVI && !ndviLayerAdded) {
+            addNDVILayer()
+          }
         })
       }
 
@@ -160,16 +314,30 @@ import mapboxgl from "mapbox-gl"
   function toggleMapStyle() {
     if (!map) return
 
+    const wasShowingNDVI = showNDVI
+
     mapLoaded = false
     if (isSatelliteStyle) {
       currentMapStyle = DEFAULT_OUTDOORS_STYLE
     } else {
       currentMapStyle = DEFAULT_SATELLITE_STYLE
     }
+
+    // Remove NDVI layer before style change
+    if (ndviLayerAdded) {
+      removeNDVILayer()
+    }
+
     map.setStyle(currentMapStyle)
     map.once("load", () => {
       mapLoaded = true
       initializeMapLocation()
+
+      // Re-add NDVI layer if it was previously showing
+      if (wasShowingNDVI) {
+        showNDVI = true
+        addNDVILayer()
+      }
     })
     isSatelliteStyle = !isSatelliteStyle
   }
@@ -211,6 +379,8 @@ import mapboxgl from "mapbox-gl"
       on:toggleMapStyleDispatcher={toggleMapStyle}
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
+      on:toggleNDVI={toggleNDVI}
+      {showNDVI}
     />
     <NavigationControl />
 

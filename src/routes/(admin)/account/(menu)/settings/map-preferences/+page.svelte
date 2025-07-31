@@ -57,6 +57,11 @@
   let zoomToPlacedMarkers = true // Default to true for manually placed markers
   let saving = false
 
+  // NDVI settings
+  let ndviEnabled = false
+  let showNdviInput = false
+  let ndviCode = ""
+
   // Reactive values from stores
   $: isConnected = $connectedMapStore?.id
   $: mapName = $connectedMapStore?.map_name || "Unknown Map"
@@ -103,6 +108,39 @@
   async function handlePlacedZoomToggle() {
     zoomToPlacedMarkers = !zoomToPlacedMarkers
     await saveZoomSettings()
+  }
+
+  // Handle NDVI toggle
+  function handleNdviToggle() {
+    if (ndviEnabled) {
+      // If currently enabled, disable it directly
+      ndviEnabled = false
+      saveNdviSetting()
+    } else {
+      // If currently disabled, show input to enable
+      showNdviInput = true
+      ndviCode = ""
+    }
+  }
+
+  // Handle NDVI code submission
+  async function handleNdviCodeSubmit() {
+    if (ndviCode.toLowerCase() === "allow") {
+      ndviEnabled = true
+      showNdviInput = false
+      ndviCode = ""
+      await saveNdviSetting()
+      toast.success("NDVI feature enabled!")
+    } else {
+      toast.error("Invalid code. Please contact support for access.")
+      ndviCode = ""
+    }
+  }
+
+  // Cancel NDVI input
+  function cancelNdviInput() {
+    showNdviInput = false
+    ndviCode = ""
   }
 
   // Save marker limit setting
@@ -199,6 +237,53 @@
     }
   }
 
+  // Save NDVI setting
+  async function saveNdviSetting() {
+    saving = true
+    const userId = $session?.user?.id
+
+    if (!userId) {
+      toast.error("User not authenticated")
+      saving = false
+      return
+    }
+
+    try {
+      // Update the database
+      const { error } = await supabase.from("user_settings").upsert(
+        {
+          user_id: userId,
+          ndvi_enabled: ndviEnabled,
+        },
+        { onConflict: "user_id" },
+      )
+
+      if (error) {
+        console.error("Error saving NDVI settings:", error)
+        toast.error("Failed to save NDVI settings")
+        saving = false
+        return
+      }
+
+      // Update the store
+      userSettingsStore.update((settings) => ({
+        ...settings,
+        NDVI: ndviEnabled,
+      }))
+
+      if (ndviEnabled) {
+        toast.success("NDVI feature enabled")
+      } else {
+        toast.success("NDVI feature disabled")
+      }
+    } catch (err) {
+      console.error("Unexpected error saving NDVI settings:", err)
+      toast.error("An error occurred")
+    } finally {
+      saving = false
+    }
+  }
+
   // Initialize from store
   $: if ($userSettingsStore) {
     // Initialize marker limit settings
@@ -211,6 +296,9 @@
     // Initialize zoom settings with fallbacks
     zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
     zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
+
+    // Initialize NDVI setting
+    ndviEnabled = $userSettingsStore.NDVI ?? false
   }
 
   onMount(() => {
@@ -225,6 +313,9 @@
       // Initialize zoom settings with fallbacks
       zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
       zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
+
+      // Initialize NDVI setting
+      ndviEnabled = $userSettingsStore.NDVI ?? false
     }
   })
 </script>
@@ -312,6 +403,98 @@
         </div>
       </div>
     {/if}
+  </div>
+
+  <!-- Advanced Features -->
+  <div>
+    <h3 class="mb-3 flex items-center gap-2 font-medium text-contrast-content">
+      <div class="rounded-lg bg-base-content/10 p-1.5">
+        <Icon
+          icon="solar:satellite-bold-duotone"
+          width="16"
+          height="16"
+          class="text-base-content"
+        />
+      </div>
+      Advanced Features
+    </h3>
+
+    <div class="space-y-4">
+      <!-- NDVI Feature Toggle -->
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-start gap-3">
+              <div class="rounded-lg bg-base-content/10 p-2">
+                <Icon
+                  icon="solar:leaf-bold-duotone"
+                  width="18"
+                  height="18"
+                  class="text-base-content"
+                />
+              </div>
+              <div>
+                <p class="font-medium text-contrast-content">
+                  NDVI Vegetation Analysis
+                </p>
+                <p class="text-sm text-contrast-content/60">
+                  Enable satellite vegetation index mapping for agricultural
+                  insights
+                </p>
+                {#if ndviEnabled}
+                  <p class="mt-1 text-xs text-success">Feature enabled</p>
+                {:else}
+                  <p class="mt-1 text-xs text-contrast-content/40">
+                    Feature disabled - requires access code
+                  </p>
+                {/if}
+              </div>
+            </div>
+            <button
+              class="btn btn-sm {ndviEnabled ? 'btn-error' : 'btn-primary'}"
+              on:click={handleNdviToggle}
+              disabled={saving}
+            >
+              {ndviEnabled ? "Disable" : "Enable"}
+            </button>
+          </div>
+
+          <!-- NDVI Code Input -->
+          {#if showNdviInput}
+            <div class="rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div class="space-y-3">
+                <p class="text-sm font-medium text-contrast-content">
+                  Enter access code to enable NDVI features:
+                </p>
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    class="input input-bordered flex-1"
+                    placeholder="Enter access code"
+                    bind:value={ndviCode}
+                    on:keydown={(e) =>
+                      e.key === "Enter" && handleNdviCodeSubmit()}
+                  />
+                  <button
+                    class="btn btn-primary"
+                    on:click={handleNdviCodeSubmit}
+                    disabled={!ndviCode.trim()}
+                  >
+                    Submit
+                  </button>
+                  <button class="btn btn-ghost" on:click={cancelNdviInput}>
+                    Cancel
+                  </button>
+                </div>
+                <p class="text-xs text-contrast-content/60">
+                  Contact support if you need an access code for NDVI features.
+                </p>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Map Interaction Settings -->

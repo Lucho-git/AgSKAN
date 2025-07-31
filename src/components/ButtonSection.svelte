@@ -1,9 +1,10 @@
 <!-- src/components/ButtonSection.svelte -->
 <script>
-  import { createEventDispatcher, beforeUpdate, afterUpdate } from "svelte"
+  import { createEventDispatcher } from "svelte"
   import { mapStore, locationMarkerStore, syncStore } from "../stores/mapStore"
   import { userVehicleStore, userVehicleTrailing } from "../stores/vehicleStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   import { antLineConfigStore } from "../stores/trailDataStore"
   import {
@@ -20,28 +21,17 @@
   import { Home, PencilRuler, PenOff, MapPin, Navigation } from "lucide-svelte"
 
   let isCircular = true
-  let currentStyle = "skan"
-
-  const styles = [
-    "skan",
-    "glassmorphism",
-    "gradient",
-    "outlined",
-    "neon",
-    "minimal",
-    "neumorphism",
-    "cyberpunk",
-  ]
 
   onMount(async () => {
     console.log("Mounting ButtonSection")
 
     setTimeout(() => {
       isExpanded = true
-    }, 200) // Adjust the delay as needed
+    }, 200)
   })
 
   export let isSatelliteView = true
+  export let showNDVI = false
   let isVehicleMenuOpen = false
   let VehicleIcon
 
@@ -64,8 +54,6 @@
   function toggleTrailing() {
     trailingButtonPressed.update((value) => !value)
 
-    // We'll keep the toast notifications, but note that the actual trailing state
-    // might not change immediately due to the modal confirmations
     if (!$userVehicleTrailing) {
       toast.info("Initiating trail recording...")
     } else {
@@ -86,14 +74,18 @@
     })
   }
 
-  // Add this reactive statement to keep isVehicleMenuOpen in sync with the store
   $: isVehicleMenuOpen = $controlStore.showVehicleMenu
 
   function handleBackToDashboard() {
     dispatch("backToDashboard")
   }
 
-  //Cycles between 3 animation styles of the trailtracker
+  function handleToggleNDVI() {
+    console.log("NDVI button clicked, current showNDVI:", showNDVI)
+    dispatch("toggleNDVI")
+    console.log("toggleNDVI event dispatched")
+  }
+
   const antLineConfigModes = [
     "noTrails",
     "allTrails",
@@ -108,16 +100,13 @@
     const currentMode = antLineConfigModes[currentAntLineConfigIndex]
 
     antLineConfigStore.update((config) => {
-      // Reset all modes to false
       config.noTrails = false
       config.allTrails = false
       config.latestTrail = false
       config.userLatestTrail = false
 
-      // Set the current mode to true
       config[currentMode] = true
 
-      // Show toast notification based on the current mode
       switch (currentMode) {
         case "noTrails":
           toast.info("No trail animation")
@@ -141,7 +130,7 @@
     $syncStore.synchronizeMarkers("Synchronizing with server")
   }
 
-  let isExpanded = false // Set default state to open
+  let isExpanded = false
 
   function toggleExpanded() {
     isExpanded = !isExpanded
@@ -166,11 +155,9 @@
 </script>
 
 <div>
-  <!-- Map Controls -->
-
   <!-- Back to Dashboard Button, Top Left -->
   <button
-    class="top-button {currentStyle} btn {isCircular
+    class="top-button btn {isCircular
       ? 'btn-circle'
       : 'btn-square'} btn-lg absolute left-4 top-4 z-10 bg-white bg-opacity-50 hover:bg-opacity-100"
     on:click={handleBackToDashboard}
@@ -191,11 +178,24 @@
     </svg>
   </button>
 
+  <!-- NDVI Toggle Button - Only show if NDVI is enabled in settings -->
+  {#if $userSettingsStore.NDVI}
+    <button
+      class="ndvi-button btn btn-lg absolute right-20 top-4 z-10 {showNDVI
+        ? 'ndvi-active'
+        : ''}"
+      on:click={handleToggleNDVI}
+      title="Toggle NDVI Vegetation Index"
+    >
+      <span class="text-sm font-semibold">NDVI</span>
+    </button>
+  {/if}
+
   <!-- Floating button container -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end">
     <!-- Toggle expand/collapse button -->
     <button
-      class="top-button {currentStyle} btn {isCircular
+      class="top-button btn {isCircular
         ? 'btn-circle'
         : 'btn-square'} btn-lg mb-3 bg-white hover:bg-opacity-90"
       on:click={toggleExpanded}
@@ -226,7 +226,7 @@
     >
       <!-- Drawing Mode Toggle Button -->
       <button
-        class="menu-button {currentStyle} btn {isCircular
+        class="menu-button btn {isCircular
           ? 'btn-circle'
           : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
         on:click={toggleDrawingMode}
@@ -238,9 +238,9 @@
         {/if}
       </button>
 
-      <!-- InstantLocationMarker Button - REPLACED WITH GENERIC MARKER -->
+      <!-- InstantLocationMarker Button -->
       <button
-        class="menu-button {currentStyle} btn {isCircular
+        class="menu-button btn {isCircular
           ? 'btn-circle'
           : 'btn-square'} btn-lg bg-white text-sm hover:bg-opacity-90"
         on:click={handleLocationClick}
@@ -248,9 +248,9 @@
         <MapPin size={24} />
       </button>
 
-      <!-- Locate Home Button - REPLACED WITH GENERIC HOME ICON -->
+      <!-- Locate Home Button -->
       <button
-        class="menu-button {currentStyle} btn {isCircular
+        class="menu-button btn {isCircular
           ? 'btn-circle'
           : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
         on:click={handleLocateHome}
@@ -260,7 +260,7 @@
 
       <!-- Vehicle Selection Button -->
       <button
-        class="menu-button {currentStyle} btn {isCircular
+        class="menu-button btn {isCircular
           ? 'btn-circle'
           : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
         on:click={toggleVehicleMenu}
@@ -281,7 +281,7 @@
 
       <!-- Toggle Trailing Button -->
       <button
-        class="menu-button {currentStyle} btn {isCircular
+        class="menu-button btn {isCircular
           ? 'btn-circle'
           : 'btn-square'} btn-lg bg-white hover:bg-opacity-90 {$userVehicleTrailing
           ? 'trailing-active'
@@ -322,8 +322,6 @@
     </div>
   </div>
 
-  <!-- End of Floating button container -->
-
   {#if isVehicleMenuOpen}
     <VehicleSelectionMenu
       showMenu={$controlStore.showVehicleMenu}
@@ -349,146 +347,63 @@
   /* Base styles for all menu buttons */
   .menu-button {
     transition: all 0.3s ease;
-  }
-
-  /* Glassmorphism effect */
-  .menu-button.glassmorphism,
-  .top-button.glassmorphism {
-    background-color: rgba(255, 255, 255, 0.5);
-    color: white;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  .menu-button.glassmorphism:hover,
-  .top-button.glassmorphism:hover {
-    background-color: rgba(255, 255, 255, 0.7);
-  }
-
-  /* Gradient background with hover effect */
-  .menu-button.gradient,
-  .top-button.gradient {
-    background: linear-gradient(to right, #60a5fa, #a78bfa);
-    color: white;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  .menu-button.gradient:hover,
-  .top-button.gradient:hover {
-    background: linear-gradient(to right, #3b82f6, #8b5cf6);
-  }
-
-  /* Outlined style with hover fill */
-  .menu-button.outlined,
-  .top-button.outlined {
-    background-color: rgb(199, 202, 208);
-    border: 2px solid #374151;
-    color: #374151;
-  }
-  .menu-button.outlined:hover,
-  .top-button.outlined:hover {
-    background-color: #374151;
-    color: white;
-  }
-
-  /* Neon glow effect */
-  .menu-button.neon,
-  .top-button.neon {
-    background-color: black;
-    color: #4ade80;
-    border: 2px solid #4ade80;
-    box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
-  }
-  .menu-button.neon:hover,
-  .top-button.neon:hover {
-    background-color: #4ade80;
-    color: black;
-  }
-
-  /* Minimal flat design */
-  .menu-button.minimal,
-  .top-button.minimal {
-    background-color: #f3f4f6;
-    color: #1f2937;
-  }
-  .menu-button.minimal:hover,
-  .top-button.minimal:hover {
-    background-color: #e5e7eb;
-  }
-
-  /* Neumorphism effect */
-  .menu-button.neumorphism,
-  .top-button.neumorphism {
-    background-color: #e6e9ee;
-    box-shadow:
-      inset 3px 3px 6px #c8ccd1,
-      inset -3px -3px 6px #ffffff;
-    color: #4a5568;
-  }
-  .menu-button.neumorphism:hover,
-  .top-button.neumorphism:hover {
-    background-color: #e0e5ec;
-    box-shadow:
-      3px 3px 6px #c8ccd1,
-      -3px -3px 6px #ffffff;
-  }
-
-  /* Cyberpunk-inspired */
-  .menu-button.cyberpunk,
-  .top-button.cyberpunk {
-    background-color: #000000;
-    border: 2px solid #00ff00;
-    color: #00ff00;
-    text-shadow: 0 0 5px #00ff00;
-    box-shadow: 0 0 10px #00ff00;
-  }
-  .menu-button.cyberpunk:hover,
-  .top-button.cyberpunk:hover {
-    background-color: #00ff00;
-    color: #000000;
-    text-shadow: none;
-  }
-
-  /* Skan Theme */
-  .menu-button.skan,
-  .top-button.skan {
     background-color: #f7db5c;
     border: 2px solid #000000;
     color: #000000;
   }
 
-  /* Add this condition */
-  .menu-button.skan.trailing-active {
-    background-color: #ff0000;
-    border: 2px solid #000000;
-    color: f7db5c;
-  }
-
-  .menu-button.skan.trailing-active:hover {
-    background-color: #dc0000;
-    color: f7db5c;
-  }
-
-  .menu-button.skan:hover,
-  .top-button.skan:hover {
+  .menu-button:hover {
     background-color: rgb(0, 0, 0, 0.5);
     color: #f7db5c;
   }
 
-  @keyframes pulse {
-    0% {
-      transform: scale(1);
-      opacity: 1;
-      filter: drop-shadow(0 0 0 white);
-    }
-    50% {
-      transform: scale(1.3);
-      opacity: 0.4;
-      filter: drop-shadow(2px 2px 6px rgb(255, 0, 0));
-    }
-    100% {
-      transform: scale(1);
-      opacity: 1;
-      filter: drop-shadow(0 0 0px white);
-    }
+  /* Top button styles */
+  .top-button {
+    background-color: #f7db5c;
+    border: 2px solid #000000;
+    color: #000000;
+  }
+
+  .top-button:hover {
+    background-color: rgb(0, 0, 0, 0.5);
+    color: #f7db5c;
+  }
+
+  /* NDVI Button Styles */
+  .ndvi-button {
+    transition: all 0.3s ease;
+    min-width: 80px;
+    padding: 0 16px;
+    background-color: #2d5f3f;
+    border: 2px solid #000000;
+    color: #f7db5c;
+  }
+
+  .ndvi-button:hover {
+    background-color: #245a37;
+    color: #ffffff;
+  }
+
+  .ndvi-button.ndvi-active {
+    background-color: #4ade80;
+    color: #000000;
+    border: 2px solid #000000;
+  }
+
+  .ndvi-button.ndvi-active:hover {
+    background-color: #22c55e;
+  }
+
+  /* Trailing active state */
+  .menu-button.trailing-active {
+    background-color: #ff0000;
+    border: 2px solid #000000;
+    color: #f7db5c;
+  }
+
+  .menu-button.trailing-active:hover {
+    background-color: #dc0000;
+    color: #f7db5c;
   }
 
   @keyframes draw {
@@ -500,14 +415,6 @@
     }
   }
 
-  @keyframes fade {
-    0% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0;
-    }
-  }
   @keyframes fillUnfill {
     0%,
     100% {
@@ -518,6 +425,7 @@
       fill-opacity: 1;
     }
   }
+
   .animate-trail path {
     stroke: currentColor;
     stroke-width: 1;
@@ -528,66 +436,8 @@
       fillUnfill 3s linear infinite;
   }
 
-  /* Add to your existing styles */
   .trailing-active {
     position: relative;
     overflow: visible !important;
-  }
-
-  /* Pulsing ring effect */
-  .pulse-ring {
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    border-radius: 50%;
-    border: 2px solid #ff0000;
-    animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-  }
-
-  @keyframes pulse-ring {
-    0% {
-      transform: scale(1);
-      opacity: 0.5;
-    }
-    50% {
-      transform: scale(1.1);
-      opacity: 0;
-    }
-    100% {
-      transform: scale(1);
-      opacity: 0.5;
-    }
-  }
-
-  /* Tracing outline effect */
-  .trace-outline {
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    border-radius: 50%;
-    border: 2px solid #ff0000;
-    animation: trace 2s linear infinite;
-  }
-
-  @keyframes trace {
-    0% {
-      clip-path: polygon(0% 0%, 0% 0%, 0% 0%);
-    }
-    25% {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 0%);
-    }
-    50% {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 100%);
-    }
-    75% {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-    }
-    100% {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-    }
   }
 </style>
