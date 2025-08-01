@@ -2,6 +2,8 @@
   import Icon from "@iconify/svelte"
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
+  import { supabase } from "$lib/stores/sessionStore"
+  import { toast } from "svelte-sonner"
 
   let userAgent = ""
   let isIOS = false
@@ -9,11 +11,16 @@
   let isMobile = false
   let qrCodeUrl = ""
   let authLink = ""
+  let isGeneratingLink = false
 
   // Real AgSKAN app store URLs
   const APP_STORE_URL = "https://apps.apple.com/app/agskan/id6746783538"
   const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=com.skanfarming"
+
+  // Your Vercel deployment URL
+  const BASE_URL =
+    "https://agskan-git-app-rebrand-lucho-gits-projects.vercel.app"
 
   onMount(() => {
     if (browser) {
@@ -30,32 +37,138 @@
     }
   })
 
-  function generateFreshQRCode() {
+  async function generateFreshQRCode() {
     if (!browser) return
 
-    const token = getAuthToken()
-    const userId = getCurrentUserId()
+    console.log("🔄 Generating fresh QR code with current auth tokens...")
+    isGeneratingLink = true
 
-    // Create universal link that will handle both app opening and fallback
-    authLink = `https://skanfarming.com/app-redirect?token=${token}&userId=${userId}&source=qr`
+    try {
+      const authData = await getCurrentSupabaseSession()
 
-    qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(authLink)}`
+      if (!authData) {
+        console.warn("⚠️ No active session found for QR generation")
+        toast.warning("Please log in to generate mobile app link", {
+          duration: 5000,
+        })
+        return
+      }
+
+      // Create universal link using your Vercel URL
+      authLink = `${BASE_URL}/app-redirect?token=${encodeURIComponent(authData.access_token)}&userId=${encodeURIComponent(authData.user.id)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&source=qr`
+
+      console.log("✅ Generated universal link:", {
+        userId: authData.user.id,
+        hasAccessToken: !!authData.access_token,
+        hasRefreshToken: !!authData.refresh_token,
+        linkLength: authLink.length,
+        url: authLink,
+      })
+
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(authLink)}`
+    } catch (error) {
+      console.error("❌ Error generating QR code:", error)
+      toast.error("Failed to generate mobile app link", {
+        description: "Please try refreshing the page or logging in again.",
+        duration: 5000,
+      })
+    } finally {
+      isGeneratingLink = false
+    }
   }
 
-  function getCurrentUserId() {
-    // Get from your auth system/store - adjust based on your implementation
-    return localStorage.getItem("userId") || "demo-user"
+  async function getCurrentSupabaseSession() {
+    try {
+      console.log("📡 Getting current Supabase session...")
+
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+
+      if (error) {
+        console.error("❌ Supabase getSession error:", error)
+        throw error
+      }
+
+      if (session?.access_token && session?.refresh_token && session?.user) {
+        console.log("✅ Got session from Supabase client:", {
+          userId: session.user.id,
+          email: session.user.email,
+          expiresAt: session.expires_at,
+          hasAccessToken: !!session.access_token,
+          hasRefreshToken: !!session.refresh_token,
+        })
+
+        return {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          user: session.user,
+          expires_at: session.expires_at,
+        }
+      }
+
+      console.warn("⚠️ No valid session found")
+      return null
+    } catch (error) {
+      console.error("💥 Error getting Supabase session:", error)
+      return null
+    }
   }
 
-  function getAuthToken() {
-    // Get from your auth system/store - adjust based on your implementation
-    return localStorage.getItem("authToken") || ""
+  async function generateMobileLink() {
+    console.log("📱 Generating mobile universal link...")
+
+    try {
+      const authData = await getCurrentSupabaseSession()
+
+      if (!authData) {
+        toast.error("Please log in to access the mobile app", {
+          duration: 5000,
+        })
+        return "#"
+      }
+
+      const mobileLink = `${BASE_URL}/app-redirect?token=${encodeURIComponent(authData.access_token)}&userId=${encodeURIComponent(authData.user.id)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&source=mobile`
+
+      console.log("📱 Generated mobile universal link:", {
+        userId: authData.user.id,
+        linkLength: mobileLink.length,
+      })
+
+      return mobileLink
+    } catch (error) {
+      console.error("❌ Error generating mobile link:", error)
+      toast.error("Failed to generate mobile app link")
+      return "#"
+    }
   }
 
-  function generateMobileLink() {
-    const token = getAuthToken()
-    const userId = getCurrentUserId()
-    return `https://skanfarming.com/app-redirect?token=${token}&userId=${userId}&source=mobile`
+  async function handleMobileLinkClick(event: Event) {
+    event.preventDefault()
+
+    const link = await generateMobileLink()
+    if (link !== "#") {
+      console.log("🔗 Opening mobile universal link:", link)
+      window.location.href = link
+    }
+  }
+
+  // Debug function to show current session info
+  async function debugSession() {
+    console.log("🐛 Debug: Current session info")
+    const authData = await getCurrentSupabaseSession()
+    console.log("Session data:", authData)
+
+    if (authData) {
+      toast.success("Session found! Check console for details", {
+        duration: 3000,
+      })
+    } else {
+      toast.error("No active session found", {
+        duration: 3000,
+      })
+    }
   }
 </script>
 
@@ -63,13 +176,21 @@
   <title>Get AgSKAN Mobile App</title>
 </svelte:head>
 
-<div class="mx-auto max-w-4xl">
+<div class="mx-auto max-w-4xl p-4">
   <div class="mb-8">
     <h1 class="mb-4 text-3xl font-bold">Get the AgSKAN Mobile App</h1>
     <p class="text-lg opacity-80">
       Track and trail your farm work with real-time visibility on your mobile
       device.
     </p>
+
+    <!-- Debug button -->
+    <button
+      on:click={debugSession}
+      class="mt-2 text-xs opacity-50 hover:opacity-100"
+    >
+      🐛 Debug Session
+    </button>
   </div>
 
   <div class="grid gap-8 lg:grid-cols-2">
@@ -127,15 +248,24 @@
 
           <!-- Mobile Quick Link -->
           <div class="mt-6 text-center">
-            <a href={generateMobileLink()} class="btn btn-primary btn-wide">
-              <Icon
-                icon="solar:login-2-bold-duotone"
-                width="20"
-                height="20"
-                class="mr-2"
-              />
-              Open in AgSKAN (if installed)
-            </a>
+            <button
+              on:click={handleMobileLinkClick}
+              class="btn btn-primary btn-wide"
+              disabled={isGeneratingLink}
+            >
+              {#if isGeneratingLink}
+                <span class="loading loading-spinner loading-sm mr-2"></span>
+                Generating link...
+              {:else}
+                <Icon
+                  icon="solar:login-2-bold-duotone"
+                  width="20"
+                  height="20"
+                  class="mr-2"
+                />
+                Open in AgSKAN (if installed)
+              {/if}
+            </button>
             <p class="mt-2 text-xs opacity-70">
               This will open the app if installed, or redirect to download
             </p>
@@ -156,7 +286,7 @@
         </h2>
 
         <div class="text-center">
-          {#if qrCodeUrl}
+          {#if qrCodeUrl && !isGeneratingLink}
             <div class="mb-4">
               <img
                 src={qrCodeUrl}
@@ -177,17 +307,36 @@
                   height="32"
                   class="mx-auto animate-spin text-gray-400"
                 />
-                <p class="mt-2 text-sm text-gray-500">Generating QR code...</p>
+                <p class="mt-2 text-sm text-gray-500">
+                  {isGeneratingLink
+                    ? "Generating secure link..."
+                    : "Generating QR code..."}
+                </p>
               </div>
             </div>
           {/if}
 
           <div class="space-y-2">
-            <p class="font-medium">Scan to download & auto-login</p>
+            <p class="font-medium">Scan to open AgSKAN & auto-login</p>
             <p class="text-sm opacity-70">
               Opens AgSKAN if installed, or redirects to app store
             </p>
           </div>
+
+          <!-- Manual refresh button -->
+          <button
+            on:click={generateFreshQRCode}
+            class="btn btn-ghost btn-sm mt-2"
+            disabled={isGeneratingLink}
+          >
+            <Icon
+              icon="solar:refresh-bold-duotone"
+              width="16"
+              height="16"
+              class="mr-1 {isGeneratingLink ? 'animate-spin' : ''}"
+            />
+            Refresh QR Code
+          </button>
 
           <!-- QR Code refresh indicator -->
           <div class="mt-4 rounded-lg bg-info bg-opacity-20 p-3">
@@ -230,7 +379,7 @@
             height="24"
             class="mr-2"
           />
-          Download Links
+          Download Linkss
         </h2>
 
         <div class="space-y-4">
