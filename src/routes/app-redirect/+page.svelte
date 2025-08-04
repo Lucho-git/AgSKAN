@@ -12,7 +12,6 @@
   let userId = ""
   let refreshToken = ""
   let source = ""
-  let countdown = 3
 
   // App store URLs
   const APP_STORE_URL = "https://apps.apple.com/app/agskan/id6746783538"
@@ -48,7 +47,7 @@
 
       if (isMobile) {
         if (token && userId && refreshToken) {
-          status = "Preparing to open AgSKAN..."
+          status = "Opening AgSKAN app..."
           attemptAppRedirect()
         } else {
           status = "Invalid link - missing authentication data"
@@ -75,43 +74,17 @@
       length: deepLinkUrl.length,
     })
 
-    status = "Opening AgSKAN app..."
-
     // Try to open the app immediately
     console.log("📱 Attempting to open app with deep link")
     window.location.href = deepLinkUrl
 
-    // Start countdown and fallback to app store
-    let countdownInterval = setInterval(() => {
-      countdown--
-      if (countdown <= 0) {
-        clearInterval(countdownInterval)
-        fallbackToAppStore()
-      }
-    }, 1000)
+    // Show success message and stop here - no fallback countdown
+    status = "Redirecting to AgSKAN app..."
 
-    // Also try after a short delay (in case the first attempt fails)
+    // If after 2 seconds we're still here, show manual options
     setTimeout(() => {
-      if (countdown > 0) {
-        console.log("🔄 Trying deep link again after delay")
-        window.location.href = deepLinkUrl
-      }
-    }, 500)
-  }
-
-  function fallbackToAppStore() {
-    console.log("🏪 Falling back to app store")
-    status = "App not installed - redirecting to store..."
-
-    setTimeout(() => {
-      if (isIOS) {
-        console.log("🍎 Redirecting to App Store")
-        window.location.href = APP_STORE_URL
-      } else if (isAndroid) {
-        console.log("🤖 Redirecting to Play Store")
-        window.location.href = PLAY_STORE_URL
-      }
-    }, 1000)
+      status = "Having trouble? Try downloading the app first."
+    }, 2000)
   }
 
   function manualStoreRedirect() {
@@ -123,7 +96,6 @@
   }
 
   function tryAgainButton() {
-    countdown = 3
     attemptAppRedirect()
   }
 </script>
@@ -162,22 +134,6 @@
     <p class="mb-6 text-base-content/70">
       {status}
     </p>
-
-    <!-- Countdown -->
-    {#if countdown > 0 && isMobile && token && userId && refreshToken}
-      <div class="mb-6 rounded-lg bg-base-200 p-4">
-        <div class="flex items-center justify-center font-mono text-lg">
-          <Icon
-            icon="solar:clock-circle-bold"
-            class="mr-2 h-5 w-5 text-primary"
-          />
-          {countdown}s
-        </div>
-        <p class="mt-1 text-sm text-base-content/60">
-          Attempting to open AgSKAN...
-        </p>
-      </div>
-    {/if}
 
     <!-- Platform Info -->
     {#if isMobile}
