@@ -32,45 +32,51 @@
   function handleDeepLink(urlString: string) {
     console.log("🔗 Deep link received:", urlString)
 
-    try {
-      // Handle iOS deep link format more robustly
-      if (urlString.startsWith("agskan://")) {
-        const urlWithoutProtocol = urlString.replace("agskan://", "")
-        const [pathPart, queryPart] = urlWithoutProtocol.split("?")
+    // Add iOS-specific delay to ensure app is fully loaded
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const delay = isIOS ? 500 : 0
 
-        console.log("📋 Deep link parsed:", {
-          pathPart,
-          queryPart,
-          originalUrl: urlString,
-        })
+    setTimeout(() => {
+      try {
+        if (urlString.startsWith("agskan://")) {
+          const urlWithoutProtocol = urlString.replace("agskan://", "")
+          const [pathPart, queryPart] = urlWithoutProtocol.split("?")
 
-        if (pathPart === "auth" && queryPart) {
-          const params = new URLSearchParams(queryPart)
-          const token = params.get("token")
-          const userId = params.get("userId")
-          const refreshToken = params.get("refresh_token")
-
-          console.log("🔍 Auth parameters:", {
-            hasToken: !!token,
-            hasUserId: !!userId,
-            hasRefreshToken: !!refreshToken,
-            tokenLength: token?.length || 0,
+          console.log("📋 Deep link parsed:", {
+            pathPart,
+            queryPart,
+            originalUrl: urlString,
+            delayUsed: delay,
           })
 
-          if (token && userId && refreshToken) {
-            console.log("✅ Redirecting to auth callback")
+          if (pathPart === "auth" && queryPart) {
+            const params = new URLSearchParams(queryPart)
+            const token = params.get("token")
+            const userId = params.get("userId")
+            const refreshToken = params.get("refresh_token")
 
-            const callbackUrl = `/auth/callback?access_token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
-            goto(callbackUrl)
-          } else {
-            console.error("❌ Missing auth parameters")
-            toast.error("Authentication failed - missing data")
+            console.log("🔍 Auth parameters:", {
+              hasToken: !!token,
+              hasUserId: !!userId,
+              hasRefreshToken: !!refreshToken,
+              tokenLength: token?.length || 0,
+            })
+
+            if (token && userId && refreshToken) {
+              console.log("✅ Redirecting to auth callback after delay")
+
+              const callbackUrl = `/auth/callback?access_token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
+              goto(callbackUrl)
+            } else {
+              console.error("❌ Missing auth parameters")
+              toast.error("Authentication failed - missing data")
+            }
           }
         }
+      } catch (error) {
+        console.error("💥 Deep link parsing error:", error)
       }
-    } catch (error) {
-      console.error("💥 Deep link parsing error:", error)
-    }
+    }, delay)
   }
 
   // --- Function to Apply Native Theme Styles (iOS handled natively, Android via JS) ---
