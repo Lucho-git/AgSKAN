@@ -18,7 +18,7 @@
   import { Capacitor } from "@capacitor/core"
   import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
   import { SplashScreen } from "@capacitor/splash-screen"
-  import { App } from "@capacitor/app" // 👈 CORRECTED: Import App from @capacitor/app
+  import { App } from "@capacitor/app"
 
   // Supabase import - you'll need to import your supabase client
   // Adjust this import path based on your setup
@@ -43,12 +43,13 @@
       })
 
       if (url.protocol === "agskan:") {
-        const path = url.hostname || url.pathname.replace("/", "") // 'auth' from agskan://auth
+        const path = url.hostname || url.pathname.replace("/", "")
         const params = new URLSearchParams(url.search)
 
         const token = params.get("token")
         const userId = params.get("userId")
         const refreshToken = params.get("refresh_token")
+        const source = params.get("source")
 
         console.log("🔍 Deep link authentication data:", {
           path,
@@ -62,9 +63,21 @@
         if (path === "auth") {
           if (token && userId && refreshToken) {
             console.log(
-              "✅ All required auth parameters present, attempting auto-login",
+              "✅ All required auth parameters present, redirecting to auth callback",
             )
-            handleAutoLogin(token, userId, refreshToken)
+
+            // Show loading message
+            toast.loading("Authenticating...", {
+              description: "Redirecting to secure login",
+              duration: 3000,
+            })
+
+            // Redirect to the standard auth callback route with the tokens
+            // This uses your existing auth flow instead of a custom one
+            const callbackUrl = `/auth/callback?access_token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
+
+            console.log("🧭 Redirecting to auth callback:", callbackUrl)
+            goto(callbackUrl)
           } else {
             console.error("❌ Missing required auth parameters:", {
               hasToken: !!token,
@@ -105,210 +118,6 @@
       toast.error("Invalid deep link format", {
         description: "The link could not be processed.",
         duration: 5000,
-      })
-    }
-  }
-
-  async function handleAutoLogin(
-    token: string,
-    userId: string,
-    refreshToken: string,
-  ) {
-    console.log("🚀 Starting Supabase auto-login process")
-    console.log("📊 Auto-login parameters:", {
-      userId,
-      hasToken: !!token,
-      tokenLength: token?.length || 0,
-      hasRefreshToken: !!refreshToken,
-      refreshTokenLength: refreshToken?.length || 0,
-      timestamp: new Date().toISOString(),
-    })
-
-    let loadingToast: string | undefined
-
-    try {
-      // Show loading toast
-      loadingToast = toast.loading("Authenticating...", {
-        description: "Verifying your credentials",
-        duration: 15000,
-      })
-
-      console.log("🔐 Calling Supabase setSession...")
-
-      // Set the Supabase session using both access and refresh tokens
-      const { data, error } = await supabase.auth.setSession({
-        access_token: token,
-        refresh_token: refreshToken,
-      })
-
-      console.log("📡 Supabase setSession response:", {
-        hasData: !!data,
-        hasError: !!error,
-        hasSession: !!data?.session,
-        hasUser: !!data?.user,
-        errorMessage: error?.message,
-        errorStatus: error?.status,
-      })
-
-      if (error) {
-        console.error("❌ Supabase setSession error details:", {
-          message: error.message,
-          status: error.status,
-          name: error.name,
-          cause: error.cause,
-        })
-        throw error
-      }
-
-      // Verify we have valid session and user data
-      if (data.session && data.user) {
-        console.log("✅ Supabase session established successfully!")
-        console.log("👤 User details:", {
-          id: data.user.id,
-          email: data.user.email,
-          emailConfirmed: data.user.email_confirmed_at,
-          lastSignIn: data.user.last_sign_in_at,
-          createdAt: data.user.created_at,
-          role: data.user.role,
-          userMetadata: data.user.user_metadata,
-        })
-        console.log("🎫 Session details:", {
-          accessToken: data.session.access_token ? "Present" : "Missing",
-          refreshToken: data.session.refresh_token ? "Present" : "Missing",
-          expiresAt: data.session.expires_at,
-          expiresIn: data.session.expires_in,
-          tokenType: data.session.token_type,
-        })
-
-        // Verify the userId matches what was passed in the deep link
-        if (data.user.id !== userId) {
-          console.warn("⚠️ User ID mismatch detected:", {
-            deepLinkUserId: userId,
-            actualUserId: data.user.id,
-            note: "Continuing with actual user ID from token",
-          })
-        } else {
-          console.log("✅ User ID verification passed")
-        }
-
-        // Extract user display name
-        const userName =
-          data.user.user_metadata?.full_name ||
-          data.user.user_metadata?.name ||
-          data.user.user_metadata?.display_name ||
-          data.user.email?.split("@")[0] ||
-          "User"
-
-        console.log("🎯 Extracted user display name:", userName)
-
-        // Dismiss loading toast
-        if (loadingToast) {
-          toast.dismiss(loadingToast)
-          loadingToast = undefined
-        }
-
-        // Show success message
-        toast.success(`Welcome back, ${userName}!`, {
-          description: "You have been automatically signed in.",
-          duration: 4000,
-        })
-
-        console.log("🧭 Navigating to /account...")
-
-        // Navigate to account page (your dashboard)
-        await goto("/account")
-
-        console.log("🎉 Auto-login completed successfully!")
-        console.log("📍 User should now be on /account page")
-      } else {
-        // Session was set but no user data received
-        console.error("❌ Invalid session data received from Supabase")
-        console.error("Session data details:", {
-          session: data?.session,
-          user: data?.user,
-          rawData: data,
-        })
-        throw new Error(
-          "No valid user session could be established - missing session or user data",
-        )
-      }
-    } catch (error: any) {
-      console.error("💥 Supabase auto-login failed!")
-      console.error("Error details:", {
-        message: error?.message,
-        status: error?.status,
-        name: error?.name,
-        stack: error?.stack,
-        cause: error?.cause,
-        fullError: error,
-      })
-
-      // Dismiss loading toast if still showing
-      if (loadingToast) {
-        toast.dismiss(loadingToast)
-        loadingToast = undefined
-      }
-
-      // Clear any potentially corrupted session data
-      try {
-        console.log("🧹 Attempting to clear potentially corrupted session...")
-        await supabase.auth.signOut()
-        console.log("✅ Session cleared successfully")
-      } catch (signOutError: any) {
-        console.error("💥 Error during cleanup signOut:", {
-          message: signOutError?.message,
-          error: signOutError,
-        })
-      }
-
-      // Determine user-friendly error message based on error type
-      let errorMessage = "Authentication failed. Please login manually."
-      let errorDescription = ""
-
-      if (
-        error?.message?.toLowerCase().includes("invalid") &&
-        error?.message?.toLowerCase().includes("token")
-      ) {
-        errorMessage = "Authentication link has expired"
-        errorDescription = "Please request a new login link or login manually."
-      } else if (error?.message?.toLowerCase().includes("refresh_token")) {
-        errorMessage = "Session could not be restored"
-        errorDescription = "Your login session has expired. Please login again."
-      } else if (
-        error?.message?.toLowerCase().includes("network") ||
-        error?.message?.toLowerCase().includes("fetch")
-      ) {
-        errorMessage = "Network connection error"
-        errorDescription =
-          "Please check your internet connection and try again."
-      } else if (error?.status === 401) {
-        errorMessage = "Authentication credentials invalid"
-        errorDescription =
-          "The login link may have expired or been used already."
-      } else if (error?.status === 403) {
-        errorMessage = "Access denied"
-        errorDescription =
-          "Your account may not have permission to access this app."
-      } else {
-        errorDescription = "An unexpected error occurred during authentication."
-      }
-
-      console.log("📋 Showing user error message:", {
-        errorMessage,
-        errorDescription,
-      })
-
-      // Show error toast with action to go to login
-      toast.error(errorMessage, {
-        description: errorDescription,
-        duration: 10000,
-        action: {
-          label: "Go to Login",
-          onClick: () => {
-            console.log('🔄 User clicked "Go to Login" - navigating to /login')
-            goto("/login")
-          },
-        },
       })
     }
   }

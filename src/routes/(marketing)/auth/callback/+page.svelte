@@ -3,6 +3,7 @@
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
   import { supabase, session } from "$lib/stores/sessionStore"
+  import { toast } from "svelte-sonner"
 
   // Show a loading indicator
   let loading = true
@@ -13,6 +14,7 @@
     sessionResult: null,
     profileCreated: false,
     redirectTo: "",
+    isDeepLink: false,
   }
 
   async function createOrUpdateProfile(sessionData) {
@@ -137,16 +139,56 @@
       // Get next URL from query params or use default
       debugInfo.redirectTo = queryParams.get("next") || "/account"
 
+      // ADDED: Check if this is a deep link flow (tokens in query params)
+      const deepLinkAccessToken = queryParams.get("access_token")
+      const deepLinkRefreshToken = queryParams.get("refresh_token")
+      debugInfo.isDeepLink = !!(deepLinkAccessToken && deepLinkRefreshToken)
+
       console.log("Auth callback parameters:", {
         hash: hashParams.toString(),
         query: queryParams.toString(),
         redirectTo: debugInfo.redirectTo,
+        isDeepLink: debugInfo.isDeepLink,
       })
 
       let sessionResult = null
 
+      // ADDED: Handle deep link flow first (tokens in query params)
+      if (debugInfo.isDeepLink) {
+        console.log("Processing deep link authentication")
+
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: deepLinkAccessToken,
+          refresh_token: deepLinkRefreshToken,
+        })
+
+        if (sessionError) throw sessionError
+        sessionResult = data.session
+
+        // Manually update the store as well
+        if (data.session) {
+          console.log("Manually updating session store from deep link")
+          session.set(data.session)
+
+          // Create or update profile
+          debugInfo.profileCreated = await createOrUpdateProfile(data.session)
+          console.log("Profile creation result:", debugInfo.profileCreated)
+
+          // Show success toast for deep link
+          const userName =
+            data.session.user.user_metadata?.full_name ||
+            data.session.user.user_metadata?.name ||
+            data.session.user.email?.split("@")[0] ||
+            "User"
+
+          toast.success(`Welcome back, ${userName}!`, {
+            description: "You have been automatically signed in.",
+            duration: 4000,
+          })
+        }
+      }
       // OAuth login will return a hash fragment
-      if (window.location.hash) {
+      else if (window.location.hash) {
         console.log("Processing hash fragment")
         const accessToken = hashParams.get("access_token")
         const refreshToken = hashParams.get("refresh_token")
@@ -212,6 +254,16 @@
       error = e.message
       debugInfo.sessionResult = "error: " + e.message
       loading = false
+
+      // ADDED: Show error toast for failed authentication
+      toast.error("Authentication failed", {
+        description: "Please try logging in again.",
+        duration: 5000,
+        action: {
+          label: "Go to Login",
+          onClick: () => goto("/login"),
+        },
+      })
     }
   })
 </script>
@@ -223,7 +275,11 @@
 {#if loading}
   <div class="flex h-screen items-center justify-center">
     <div class="text-center">
-      <h2 class="mb-4 text-xl font-semibold">Completing authentication...</h2>
+      <h2 class="mb-4 text-xl font-semibold">
+        {debugInfo.isDeepLink
+          ? "Authenticating via deep link..."
+          : "Completing authentication..."}
+      </h2>
       <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
 
       <!-- Debug info -->
@@ -235,6 +291,7 @@
           Profile Created/Updated: {debugInfo.profileCreated ? "Yes" : "No"}
         </p>
         <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
+        <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
       </div>
     </div>
   </div>
@@ -258,6 +315,7 @@
           Profile Created/Updated: {debugInfo.profileCreated ? "Yes" : "No"}
         </p>
         <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
+        <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
       </div>
     </div>
   </div>
