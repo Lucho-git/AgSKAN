@@ -33,92 +33,43 @@
     console.log("🔗 Deep link received:", urlString)
 
     try {
-      const url = new URL(urlString)
-      console.log("📋 Deep link parsed:", {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        pathname: url.pathname,
-        search: url.search,
-        searchParams: Object.fromEntries(url.searchParams),
-      })
+      // Handle iOS deep link format more robustly
+      if (urlString.startsWith("agskan://")) {
+        const urlWithoutProtocol = urlString.replace("agskan://", "")
+        const [pathPart, queryPart] = urlWithoutProtocol.split("?")
 
-      if (url.protocol === "agskan:") {
-        const path = url.hostname || url.pathname.replace("/", "")
-        const params = new URLSearchParams(url.search)
-
-        const token = params.get("token")
-        const userId = params.get("userId")
-        const refreshToken = params.get("refresh_token")
-        const source = params.get("source")
-
-        console.log("🔍 Deep link authentication data:", {
-          path,
-          hasToken: !!token,
-          tokenLength: token?.length || 0,
-          userId,
-          hasRefreshToken: !!refreshToken,
-          refreshTokenLength: refreshToken?.length || 0,
+        console.log("📋 Deep link parsed:", {
+          pathPart,
+          queryPart,
+          originalUrl: urlString,
         })
 
-        if (path === "auth") {
+        if (pathPart === "auth" && queryPart) {
+          const params = new URLSearchParams(queryPart)
+          const token = params.get("token")
+          const userId = params.get("userId")
+          const refreshToken = params.get("refresh_token")
+
+          console.log("🔍 Auth parameters:", {
+            hasToken: !!token,
+            hasUserId: !!userId,
+            hasRefreshToken: !!refreshToken,
+            tokenLength: token?.length || 0,
+          })
+
           if (token && userId && refreshToken) {
-            console.log(
-              "✅ All required auth parameters present, redirecting to auth callback",
-            )
+            console.log("✅ Redirecting to auth callback")
 
-            // Show loading message
-            toast.loading("Authenticating...", {
-              description: "Redirecting to secure login",
-              duration: 3000,
-            })
-
-            // Redirect to the standard auth callback route with the tokens
-            // This uses your existing auth flow instead of a custom one
             const callbackUrl = `/auth/callback?access_token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
-
-            console.log("🧭 Redirecting to auth callback:", callbackUrl)
             goto(callbackUrl)
           } else {
-            console.error("❌ Missing required auth parameters:", {
-              hasToken: !!token,
-              hasUserId: !!userId,
-              hasRefreshToken: !!refreshToken,
-            })
-
-            toast.error(
-              "Invalid authentication link - missing required data.",
-              {
-                description: "Please try logging in manually.",
-                duration: 6000,
-                action: {
-                  label: "Go to Login",
-                  onClick: () => goto("/login"),
-                },
-              },
-            )
+            console.error("❌ Missing auth parameters")
+            toast.error("Authentication failed - missing data")
           }
-        } else {
-          console.log("ℹ️ Deep link opened app with path:", path)
-          toast.info("App opened via deep link", {
-            description: `Navigated to: ${path || "home"}`,
-            duration: 3000,
-          })
         }
-      } else {
-        console.warn("⚠️ Non-agskan protocol received:", url.protocol)
-        toast.warning("Unsupported link format", {
-          description: "This link format is not supported by the app.",
-          duration: 4000,
-        })
       }
     } catch (error) {
-      console.error("💥 Error parsing deep link:", error)
-      console.error("Original URL string:", urlString)
-
-      toast.error("Invalid deep link format", {
-        description: "The link could not be processed.",
-        duration: 5000,
-      })
+      console.error("💥 Deep link parsing error:", error)
     }
   }
 
