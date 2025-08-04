@@ -3,6 +3,7 @@
   import { page } from "$app/stores"
   import { browser } from "$app/environment"
   import Icon from "@iconify/svelte"
+  import { Cloud, ArrowLeft } from "lucide-svelte"
 
   let status = "Detecting device..."
   let isIOS = false
@@ -98,6 +99,10 @@
   function tryAgainButton() {
     attemptAppRedirect()
   }
+
+  function goToLogin() {
+    window.location.href = "/login"
+  }
 </script>
 
 <svelte:head>
@@ -105,26 +110,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </svelte:head>
 
-<div
-  class="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 p-4"
->
+<div class="flex min-h-screen items-center justify-center bg-base-100 p-4">
   <div
-    class="w-full max-w-md rounded-2xl bg-base-100 p-8 text-center shadow-xl"
+    class="w-full max-w-md rounded-2xl bg-base-200 p-8 text-center shadow-xl"
   >
-    <!-- AgSKAN Logo/Icon -->
+    <!-- Back Button -->
+    <div class="mb-4 flex justify-start">
+      <button
+        on:click={goToLogin}
+        class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition-colors hover:bg-base-300"
+      >
+        <ArrowLeft class="h-4 w-4" />
+        Back to Login
+      </button>
+    </div>
+
+    <!-- Loading Spinner (same as account layout) -->
     <div class="mb-6">
-      <div class="relative mx-auto mb-4 h-20 w-20">
+      <div
+        class="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+      >
         <div
-          class="absolute inset-0 rounded-full border-4 border-primary/20"
+          class="animate-account-layout-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
         ></div>
-        <div
-          class="absolute inset-0 animate-spin rounded-full border-4 border-primary border-t-transparent"
-        ></div>
-        <div
-          class="absolute inset-2 flex items-center justify-center rounded-full bg-primary/10"
-        >
-          <Icon icon="solar:tractor-bold" class="h-8 w-8 text-primary" />
-        </div>
+        <Cloud size={32} class="animate-account-layout-pulse text-blue-400" />
       </div>
     </div>
 
@@ -137,7 +146,7 @@
 
     <!-- Platform Info -->
     {#if isMobile}
-      <div class="mb-6 rounded-lg bg-base-200 p-4">
+      <div class="mb-6 rounded-lg bg-base-100 p-4">
         <div
           class="flex items-center justify-center text-sm text-base-content/60"
         >
@@ -186,7 +195,7 @@
     {#if token && userId && refreshToken}
       <details class="mt-6 text-left">
         <summary class="cursor-pointer text-xs opacity-50">Debug Info</summary>
-        <div class="mt-2 rounded bg-base-200 p-2 text-xs opacity-60">
+        <div class="mt-2 rounded bg-base-100 p-2 text-xs opacity-60">
           <div>User ID: {userId.substring(0, 8)}...</div>
           <div>Token: {token.substring(0, 20)}...</div>
           <div>Refresh: {refreshToken.substring(0, 20)}...</div>
@@ -196,3 +205,32 @@
     {/if}
   </div>
 </div>
+
+<style>
+  @keyframes account-layout-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-account-layout-spin {
+    animation: account-layout-spin 1s linear infinite;
+  }
+
+  @keyframes account-layout-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-account-layout-pulse {
+    animation: account-layout-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>
