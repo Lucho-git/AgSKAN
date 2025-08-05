@@ -15,7 +15,7 @@
   const testimonials = [
     {
       name: "Kieran Popplewell",
-      position: "Broadacre Farmer, WA",
+      position: "6,000ha Operation - Moora, WA",
       quote:
         "We saved hours every day once the whole crew was on AgSKAN. I just look at the map and know exactly what's going on.",
       image: "/content/reviews/KieranPoppelwell.JPG",
@@ -23,7 +23,7 @@
     },
     {
       name: "Gary Guelfi",
-      position: "Mixed Crop, VIC",
+      position: "Mixed Crop, Gnowangerup",
       quote:
         "Easy to on-board new users, fast to load, easy to access at most times, anyone with a phone can be navigating around the farm in minutes.",
       image: "/content/reviews/GaryGuifelli.JPG",
@@ -31,7 +31,7 @@
     },
     {
       name: "Adam Smith",
-      position: "3,500ha Operation, NSW",
+      position: "3,500ha Operation, Northam",
       quote:
         "You've single-handedly made seeding half as stressful. Working flawlessly. Well done to you and Lachie",
       image: "/content/reviews/AdamSmith.JPG",

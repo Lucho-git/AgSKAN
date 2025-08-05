@@ -14,7 +14,7 @@
     {
       title: "Download the App",
       description:
-        "Install AgSKAN on any phone or tablet -- no hardware, no setup headaches.",
+        "Install AgSKAN on any phone or tablet — no hardware, no setup headaches.",
     },
     {
       title: "Upload Your Farm & Invite Your Crew",
@@ -24,7 +24,7 @@
     {
       title: "Track Operators and Machines in Real Time",
       description:
-        "Know where people are, what's been done, and what's next -- from one simple dashboard.",
+        "Know where people are, what's been done, and what's next — from one simple dashboard.",
     },
   ]
 

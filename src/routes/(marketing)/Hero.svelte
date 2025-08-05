@@ -107,12 +107,12 @@
             <h1
               class="font-sans text-4xl font-bold leading-tight text-contrast-content md:text-5xl"
             >
-              Like Google Maps -- But Built for Your Farm
+              Farm Coordination Made Simple
             </h1>
 
             <p class="mt-6 text-xl leading-relaxed text-contrast-content/80">
-              See where every operator and machine is, live. Drop pins, avoid
-              overlap, and get the job done quicker -- without radio chaos.
+              Live GPS tracking, vehicle trails, and team communication Simple
+              app-based tracking that works with any machine, any brand.
             </p>
           </div>
 
@@ -124,8 +124,8 @@
                 <MapPin size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
-                >No hardware needed -- works on any smartphone or tablet</span
-              >
+                >No hardware needed — works on any smartphone or tablet
+              </span>
             </li>
 
             <li class="group flex items-center gap-4">
@@ -135,8 +135,8 @@
                 <Smartphone size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
-                >Works offline in areas with poor reception</span
-              >
+                >Designed by farmers, for farmers
+              </span>
             </li>
 
             <li class="group flex items-center gap-4">
@@ -146,7 +146,7 @@
                 <Check size={18} class="text-base-100" />
               </div>
               <span class="font-medium text-contrast-content/80"
-                >Trusted by 400+ farms across Australia</span
+                >Loved by 100+ operators across Australia</span
               >
             </li>
           </ul>

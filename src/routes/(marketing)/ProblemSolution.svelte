@@ -99,7 +99,7 @@
             </h3>
             <p class="text-contrast-content">
               AgSKAN cuts through the chaos. One live map shows where everyone
-              is, what's done, and what's next -- all from a phone or tablet.
+              is, what's done, and what's next — all from a phone or tablet.
             </p>
             <ul class="mt-4 space-y-2 text-contrast-content">
               <li class="flex items-start gap-2">
