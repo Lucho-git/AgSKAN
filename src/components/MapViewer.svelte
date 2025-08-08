@@ -95,6 +95,7 @@
         fadeDuration: 300,
         refreshExpiredTiles: false,
         maxTileCacheSize: 100,
+        attributionControl: false, // Disable default attribution
       })
 
       map.setMaxPitch(0)
@@ -263,5 +264,10 @@
 
   .error-container button:hover {
     background-color: #3182ce;
+  }
+
+  /* Hide the Mapbox logo in bottom left */
+  :global(.mapboxgl-ctrl-logo) {
+    display: none !important;
   }
 </style>

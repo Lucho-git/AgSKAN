@@ -51,16 +51,68 @@
     },
   ]
 
+  // Available imagery providers
+  const imageryProviders = [
+    {
+      key: "google_hybrid",
+      name: "Google Hybrid",
+      description: "Satellite imagery with road labels",
+      icon: "solar:global-bold-duotone",
+    },
+    {
+      key: "bing_aerial",
+      name: "Microsoft Bing Aerial",
+      description: "High-resolution aerial photography",
+      icon: "solar:camera-bold-duotone",
+    },
+    {
+      key: "esri_clarity",
+      name: "Esri Clarity+",
+      description: "Enhanced clarity processing, may use older imagery",
+      icon: "solar:eye-bold-duotone",
+    },
+    {
+      key: "esri_standard",
+      name: "Esri World Imagery",
+      description: "Standard high-resolution imagery",
+      icon: "solar:planet-bold-duotone",
+    },
+    {
+      key: "esri_vivid",
+      name: "Esri Vivid Basemap",
+      description: "Enhanced colors for vegetation analysis",
+      icon: "solar:palette-bold-duotone",
+    },
+    {
+      key: "ndvi",
+      name: "NDVI Vegetation Index",
+      description: "Agricultural vegetation health analysis",
+      icon: "solar:leaf-bold-duotone",
+    },
+  ]
+
+  // Default options for imagery selector
+  const defaultImageryOptions = [
+    { key: "mapbox", name: "Mapbox Satellite" },
+    { key: "google_hybrid", name: "Google Hybrid" },
+    { key: "bing_aerial", name: "Microsoft Bing Aerial" },
+    { key: "esri_clarity", name: "Esri Clarity+" },
+    { key: "esri_standard", name: "Esri World Imagery" },
+    { key: "esri_vivid", name: "Esri Vivid Basemap" },
+  ]
+
   // Marker display settings
-  let selectedDays = 0 // 0 means no limit (show all) - default
-  let zoomToLocationMarkers = true // Default to true for location-based markers
-  let zoomToPlacedMarkers = true // Default to true for manually placed markers
+  let selectedDays = 0
+  let zoomToLocationMarkers = true
+  let zoomToPlacedMarkers = true
   let saving = false
 
-  // NDVI settings
-  let ndviEnabled = false
-  let showNdviInput = false
-  let ndviCode = ""
+  // Satellite imagery settings
+  let satelliteDropdownEnabled = false
+  let enabledImageryProviders = []
+  let defaultImagerySource = "mapbox"
+  let showSatelliteInput = false
+  let satelliteCode = ""
 
   // Reactive values from stores
   $: isConnected = $connectedMapStore?.id
@@ -75,6 +127,12 @@
     ? formatDate(calculateDateFromDays(selectedDays))
     : null
 
+  // Filter default options based on enabled providers
+  $: availableDefaultOptions = defaultImageryOptions.filter(
+    (option) =>
+      option.key === "mapbox" || enabledImageryProviders.includes(option.key),
+  )
+
   // Format date for display
   function formatDate(dateString) {
     const date = new Date(dateString)
@@ -87,7 +145,7 @@
 
   // Calculate date based on selected days
   function calculateDateFromDays(days) {
-    if (days === 0) return null // No limit
+    if (days === 0) return null
     const date = new Date()
     date.setDate(date.getDate() - days)
     return date.toISOString()
@@ -110,37 +168,62 @@
     await saveZoomSettings()
   }
 
-  // Handle NDVI toggle
-  function handleNdviToggle() {
-    if (ndviEnabled) {
-      // If currently enabled, disable it directly
-      ndviEnabled = false
-      saveNdviSetting()
+  // Handle satellite dropdown toggle
+  function handleSatelliteDropdownToggle() {
+    if (satelliteDropdownEnabled) {
+      satelliteDropdownEnabled = false
+      saveSatelliteSettings()
     } else {
-      // If currently disabled, show input to enable
-      showNdviInput = true
-      ndviCode = ""
+      showSatelliteInput = true
+      satelliteCode = ""
     }
   }
 
-  // Handle NDVI code submission
-  async function handleNdviCodeSubmit() {
-    if (ndviCode.toLowerCase() === "allow") {
-      ndviEnabled = true
-      showNdviInput = false
-      ndviCode = ""
-      await saveNdviSetting()
-      toast.success("NDVI feature enabled!")
+  // Handle satellite code submission
+  async function handleSatelliteCodeSubmit() {
+    if (satelliteCode.toLowerCase() === "allow") {
+      satelliteDropdownEnabled = true
+      showSatelliteInput = false
+      satelliteCode = ""
+      await saveSatelliteSettings()
+      toast.success("Satellite imagery options enabled!")
     } else {
       toast.error("Invalid code. Please contact support for access.")
-      ndviCode = ""
+      satelliteCode = ""
     }
   }
 
-  // Cancel NDVI input
-  function cancelNdviInput() {
-    showNdviInput = false
-    ndviCode = ""
+  // Cancel satellite input
+  function cancelSatelliteInput() {
+    showSatelliteInput = false
+    satelliteCode = ""
+  }
+
+  // Handle imagery provider checkbox changes
+  async function handleImageryProviderToggle(providerKey) {
+    if (enabledImageryProviders.includes(providerKey)) {
+      enabledImageryProviders = enabledImageryProviders.filter(
+        (key) => key !== providerKey,
+      )
+    } else {
+      enabledImageryProviders = [...enabledImageryProviders, providerKey]
+    }
+
+    // If the current default is being disabled, reset to mapbox
+    if (
+      !enabledImageryProviders.includes(defaultImagerySource) &&
+      defaultImagerySource !== "mapbox"
+    ) {
+      defaultImagerySource = "mapbox"
+    }
+
+    await saveSatelliteSettings()
+  }
+
+  // Handle default imagery source change
+  async function handleDefaultImageryChange(event) {
+    defaultImagerySource = event.target.value
+    await saveSatelliteSettings()
   }
 
   // Save marker limit setting
@@ -157,7 +240,6 @@
     try {
       const limitMarkersOn = selectedDays > 0
 
-      // Update the database
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: userId,
@@ -174,7 +256,6 @@
         return
       }
 
-      // Update the store with calculated date
       const newDate = calculateDateFromDays(selectedDays)
       userSettingsStore.update((settings) => ({
         ...settings,
@@ -204,7 +285,6 @@
     }
 
     try {
-      // Update the database
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: userId,
@@ -221,7 +301,6 @@
         return
       }
 
-      // Update the store
       userSettingsStore.update((settings) => ({
         ...settings,
         zoomToLocationMarkers: zoomToLocationMarkers,
@@ -237,8 +316,8 @@
     }
   }
 
-  // Save NDVI setting
-  async function saveNdviSetting() {
+  // Save satellite settings
+  async function saveSatelliteSettings() {
     saving = true
     const userId = $session?.user?.id
 
@@ -249,35 +328,33 @@
     }
 
     try {
-      // Update the database
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: userId,
-          ndvi_enabled: ndviEnabled,
+          satellite_dropdown_enabled: satelliteDropdownEnabled,
+          enabled_imagery_providers: enabledImageryProviders,
+          default_imagery_source: defaultImagerySource,
         },
         { onConflict: "user_id" },
       )
 
       if (error) {
-        console.error("Error saving NDVI settings:", error)
-        toast.error("Failed to save NDVI settings")
+        console.error("Error saving satellite settings:", error)
+        toast.error("Failed to save satellite settings")
         saving = false
         return
       }
 
-      // Update the store
       userSettingsStore.update((settings) => ({
         ...settings,
-        NDVI: ndviEnabled,
+        satelliteDropdownEnabled: satelliteDropdownEnabled,
+        enabledImageryProviders: enabledImageryProviders,
+        defaultImagerySource: defaultImagerySource,
       }))
 
-      if (ndviEnabled) {
-        toast.success("NDVI feature enabled")
-      } else {
-        toast.success("NDVI feature disabled")
-      }
+      toast.success("Satellite imagery settings updated")
     } catch (err) {
-      console.error("Unexpected error saving NDVI settings:", err)
+      console.error("Unexpected error saving satellite settings:", err)
       toast.error("An error occurred")
     } finally {
       saving = false
@@ -290,15 +367,18 @@
     if ($userSettingsStore.limitMarkersOn) {
       selectedDays = $userSettingsStore.limitMarkersDays || 7
     } else {
-      selectedDays = 0 // Show all
+      selectedDays = 0
     }
 
     // Initialize zoom settings with fallbacks
     zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
     zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
 
-    // Initialize NDVI setting
-    ndviEnabled = $userSettingsStore.NDVI ?? false
+    // Initialize satellite settings
+    satelliteDropdownEnabled =
+      $userSettingsStore.satelliteDropdownEnabled ?? false
+    enabledImageryProviders = $userSettingsStore.enabledImageryProviders ?? []
+    defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
   }
 
   onMount(() => {
@@ -314,8 +394,11 @@
       zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
       zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
 
-      // Initialize NDVI setting
-      ndviEnabled = $userSettingsStore.NDVI ?? false
+      // Initialize satellite settings
+      satelliteDropdownEnabled =
+        $userSettingsStore.satelliteDropdownEnabled ?? false
+      enabledImageryProviders = $userSettingsStore.enabledImageryProviders ?? []
+      defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
     }
   })
 </script>
@@ -405,7 +488,7 @@
     {/if}
   </div>
 
-  <!-- Advanced Features -->
+  <!-- Satellite Imagery Settings -->
   <div>
     <h3 class="mb-3 flex items-center gap-2 font-medium text-contrast-content">
       <div class="rounded-lg bg-base-content/10 p-1.5">
@@ -416,18 +499,18 @@
           class="text-base-content"
         />
       </div>
-      Advanced Features
+      Satellite Imagery
     </h3>
 
     <div class="space-y-4">
-      <!-- NDVI Feature Toggle -->
+      <!-- Satellite Dropdown Toggle -->
       <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <div class="flex items-start gap-3">
               <div class="rounded-lg bg-base-content/10 p-2">
                 <Icon
-                  icon="solar:leaf-bold-duotone"
+                  icon="solar:layers-bold-duotone"
                   width="18"
                   height="18"
                   class="text-base-content"
@@ -435,13 +518,13 @@
               </div>
               <div>
                 <p class="font-medium text-contrast-content">
-                  NDVI Vegetation Analysis
+                  Advanced Imagery Options
                 </p>
                 <p class="text-sm text-contrast-content/60">
-                  Enable satellite vegetation index mapping for agricultural
-                  insights
+                  Enable additional satellite imagery providers and NDVI
+                  analysis
                 </p>
-                {#if ndviEnabled}
+                {#if satelliteDropdownEnabled}
                   <p class="mt-1 text-xs text-success">Feature enabled</p>
                 {:else}
                   <p class="mt-1 text-xs text-contrast-content/40">
@@ -451,45 +534,152 @@
               </div>
             </div>
             <button
-              class="btn btn-sm {ndviEnabled ? 'btn-error' : 'btn-primary'}"
-              on:click={handleNdviToggle}
+              class="btn btn-sm {satelliteDropdownEnabled
+                ? 'btn-error'
+                : 'btn-primary'}"
+              on:click={handleSatelliteDropdownToggle}
               disabled={saving}
             >
-              {ndviEnabled ? "Disable" : "Enable"}
+              {satelliteDropdownEnabled ? "Disable" : "Enable"}
             </button>
           </div>
 
-          <!-- NDVI Code Input -->
-          {#if showNdviInput}
+          <!-- Satellite Code Input -->
+          {#if showSatelliteInput}
             <div class="rounded-lg border border-primary/20 bg-primary/5 p-4">
               <div class="space-y-3">
                 <p class="text-sm font-medium text-contrast-content">
-                  Enter access code to enable NDVI features:
+                  Enter access code to enable advanced imagery features:
                 </p>
                 <div class="flex gap-2">
                   <input
                     type="text"
                     class="input input-bordered flex-1"
                     placeholder="Enter access code"
-                    bind:value={ndviCode}
+                    bind:value={satelliteCode}
                     on:keydown={(e) =>
-                      e.key === "Enter" && handleNdviCodeSubmit()}
+                      e.key === "Enter" && handleSatelliteCodeSubmit()}
                   />
                   <button
                     class="btn btn-primary"
-                    on:click={handleNdviCodeSubmit}
-                    disabled={!ndviCode.trim()}
+                    on:click={handleSatelliteCodeSubmit}
+                    disabled={!satelliteCode.trim()}
                   >
                     Submit
                   </button>
-                  <button class="btn btn-ghost" on:click={cancelNdviInput}>
+                  <button class="btn btn-ghost" on:click={cancelSatelliteInput}>
                     Cancel
                   </button>
                 </div>
                 <p class="text-xs text-contrast-content/60">
-                  Contact support if you need an access code for NDVI features.
+                  Contact support if you need an access code for advanced
+                  imagery features.
                 </p>
               </div>
+            </div>
+          {/if}
+
+          <!-- Imagery Provider Selection -->
+          {#if satelliteDropdownEnabled}
+            <div class="space-y-4">
+              <div class="rounded-lg border border-info/20 bg-info/5 p-4">
+                <div class="flex items-start gap-3">
+                  <Icon
+                    icon="solar:info-circle-bold-duotone"
+                    width="20"
+                    height="20"
+                    class="mt-0.5 text-info"
+                  />
+                  <div>
+                    <p class="text-sm font-medium text-contrast-content">
+                      Select Available Imagery Sources
+                    </p>
+                    <p class="mt-1 text-xs text-contrast-content/60">
+                      Choose which satellite imagery providers appear in your
+                      map dropdown menu. Mapbox Satellite is always available.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Provider Checkboxes -->
+              <div class="grid gap-3 sm:grid-cols-2">
+                {#each imageryProviders as provider}
+                  <div
+                    class="rounded-lg border border-base-300 bg-base-200/30 p-3"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-start gap-3">
+                        <div class="rounded-lg bg-base-content/10 p-1.5">
+                          <Icon
+                            icon={provider.icon}
+                            width="16"
+                            height="16"
+                            class="text-base-content"
+                          />
+                        </div>
+                        <div>
+                          <p class="text-sm font-medium text-contrast-content">
+                            {provider.name}
+                          </p>
+                          <p class="text-xs text-contrast-content/60">
+                            {provider.description}
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        class="checkbox-primary checkbox"
+                        checked={enabledImageryProviders.includes(provider.key)}
+                        on:change={() =>
+                          handleImageryProviderToggle(provider.key)}
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                {/each}
+              </div>
+
+              <!-- Default Imagery Source Selection -->
+              {#if enabledImageryProviders.length > 0}
+                <div
+                  class="rounded-lg border border-base-300 bg-base-200/30 p-4"
+                >
+                  <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                      <div class="rounded-lg bg-base-content/10 p-2">
+                        <Icon
+                          icon="solar:star-bold-duotone"
+                          width="18"
+                          height="18"
+                          class="text-base-content"
+                        />
+                      </div>
+                      <div>
+                        <p class="font-medium text-contrast-content">
+                          Default Imagery Source
+                        </p>
+                        <p class="text-sm text-contrast-content/60">
+                          Choose which imagery source loads by default when
+                          opening the map
+                        </p>
+                      </div>
+                    </div>
+                    <select
+                      class="select select-bordered w-full"
+                      value={defaultImagerySource}
+                      on:change={handleDefaultImageryChange}
+                      disabled={saving}
+                    >
+                      {#each availableDefaultOptions as option}
+                        <option value={option.key}>
+                          {option.name}
+                        </option>
+                      {/each}
+                    </select>
+                  </div>
+                </div>
+              {/if}
             </div>
           {/if}
         </div>

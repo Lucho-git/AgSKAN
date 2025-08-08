@@ -16,37 +16,28 @@
   const NDVI_SOURCE_ID = "ndvi-source"
   const NDVI_LAYER_ID = "ndvi-layer"
 
-  // Imagery source configurations - Optimized for Australian farming
+  // Zoom limits for different providers
+  const ZOOM_LIMITS = {
+    esri: 17.5,
+    bing: 18.5,
+    ndvi: { min: 8.5, max: 20 }, // NDVI needs to be zoomed in enough to see detail
+  }
+
+  // Imagery source configurations - Reordered: Mapbox, Google, Bing, Esris, NDVI
   const IMAGERY_SOURCES = {
     mapbox: {
       name: "Mapbox Satellite",
       url: null, // Uses default Mapbox style
       description: "Best offline support and caching",
       attribution: "© Mapbox © OpenStreetMap",
-    },
-    esri_clarity: {
-      name: "Esri Clarity+ ⭐",
-      url: `https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
-      description: "Enhanced clarity processing for field detail",
-      attribution: "Esri Clarity, Maxar, Earthstar",
-    },
-    esri_standard: {
-      name: "Esri World Imagery",
-      url: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
-      description: "Standard high-resolution imagery",
-      attribution: "Esri, Maxar, Earthstar Geographics",
-    },
-    esri_vivid: {
-      name: "Esri Vivid Basemap",
-      url: `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blendMode=vivid&token=${ARCGIS_API_KEY}`,
-      description: "Enhanced colors for vegetation analysis",
-      attribution: "Esri Vivid Imagery",
+      provider: "mapbox",
     },
     google_hybrid: {
       name: "Google Hybrid",
       url: `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}`,
       description: "Satellite imagery with road labels",
       attribution: "Google Maps",
+      provider: "google",
     },
     bing_aerial: {
       name: "Microsoft Bing Aerial",
@@ -54,6 +45,28 @@
       description: "High-resolution aerial photography",
       attribution: "Microsoft Bing",
       isBing: true,
+      provider: "bing",
+    },
+    esri_clarity: {
+      name: "Esri Clarity+ ⭐",
+      url: `https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
+      description: "Enhanced clarity processing, may use older imagery",
+      attribution: "Esri Clarity, Maxar, Earthstar",
+      provider: "esri",
+    },
+    esri_standard: {
+      name: "Esri World Imagery",
+      url: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
+      description: "Standard high-resolution imagery",
+      attribution: "Esri, Maxar, Earthstar Geographics",
+      provider: "esri",
+    },
+    esri_vivid: {
+      name: "Esri Vivid Basemap",
+      url: `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blendMode=vivid&token=${ARCGIS_API_KEY}`,
+      description: "Enhanced colors for vegetation analysis",
+      attribution: "Esri Vivid Imagery",
+      provider: "esri",
     },
     ndvi: {
       name: "NDVI Vegetation Index",
@@ -61,6 +74,7 @@
       description: "Agricultural vegetation health analysis",
       attribution: "Copernicus Data Space / ESA",
       isNDVI: true,
+      provider: "ndvi",
     },
   }
 
@@ -74,6 +88,48 @@
   let previousSource = "mapbox"
   let showNDVI = false
   let ndviLayerAdded = false
+  let isInitialized = false // Track if we've set the initial source
+
+  // Filter sources based on user preferences
+  $: availableSources = Object.entries(IMAGERY_SOURCES).filter(
+    ([key, source]) => {
+      // Always show Mapbox
+      if (key === "mapbox") return true
+
+      // Check if this provider is enabled by the user
+      return $userSettingsStore.enabledImageryProviders?.includes(key) || false
+    },
+  )
+
+  // Watch for when map becomes loaded and apply default source
+  $: if (
+    mapLoaded &&
+    map &&
+    !isInitialized &&
+    $userSettingsStore.defaultImagerySource
+  ) {
+    initializeDefaultSource()
+  }
+
+  function initializeDefaultSource() {
+    const defaultSource = $userSettingsStore.defaultImagerySource
+
+    // Check if the default source is available
+    const isAvailable = availableSources.some(([key]) => key === defaultSource)
+
+    if (isAvailable && defaultSource !== "mapbox") {
+      console.log("Setting initial imagery source to:", defaultSource)
+      selectedImagerySource = defaultSource
+      setTimeout(() => {
+        updateImagerySource()
+        isInitialized = true
+      }, 200) // Give map time to fully initialize
+    } else {
+      // Default to mapbox if source not available
+      selectedImagerySource = "mapbox"
+      isInitialized = true
+    }
+  }
 
   // Helper function to convert tile coordinates to Bing quadkey
   function tileToQuadkey(x, y, z) {
@@ -86,6 +142,24 @@
       quadkey += digit
     }
     return quadkey
+  }
+
+  // Get effective max zoom for a provider
+  function getMaxZoom(provider) {
+    if (ZOOM_LIMITS[provider]) {
+      if (typeof ZOOM_LIMITS[provider] === "object") {
+        return Math.floor(ZOOM_LIMITS[provider].max)
+      }
+      return Math.floor(ZOOM_LIMITS[provider])
+    }
+    return 20 // Default max zoom
+  }
+
+  // Check if current zoom is valid for NDVI
+  function isValidZoomForNDVI() {
+    if (!map) return true
+    const currentZoom = map.getZoom()
+    return currentZoom >= ZOOM_LIMITS.ndvi.min
   }
 
   async function getAccessToken() {
@@ -110,6 +184,19 @@
 
   async function addNDVILayer() {
     if (!map || !mapLoaded || ndviLayerAdded) return
+
+    // Check zoom level first
+    if (!isValidZoomForNDVI()) {
+      toast.error(
+        `NDVI requires zoom level ${ZOOM_LIMITS.ndvi.min} or higher to see vegetation detail`,
+      )
+      // Switch back to previous source
+      selectedImagerySource = previousSource
+      return
+    }
+
+    // Show loading toast
+    const loadingToast = toast.loading("Loading NDVI vegetation data...")
 
     try {
       let sourceConfig
@@ -138,13 +225,22 @@
         })
 
         ndviLayerAdded = true
+
+        // Dismiss loading toast and show success
+        toast.dismiss(loadingToast)
         toast.success(
-          "Agricultural NDVI loaded! (Gray = bare soil, Green/Blue/Red = increasing vegetation)",
+          "NDVI loaded! Gray = bare soil, Green/Blue/Red = increasing vegetation",
         )
       }
     } catch (error) {
       console.error("Error adding NDVI layer:", error)
+
+      // Dismiss loading toast and show error
+      toast.dismiss(loadingToast)
       toast.error(`Failed to load NDVI: ${error.message}`)
+
+      // Switch back to previous source
+      selectedImagerySource = previousSource
     }
   }
 
@@ -159,47 +255,68 @@
         map.removeSource(NDVI_SOURCE_ID)
       }
       ndviLayerAdded = false
-      toast.success("NDVI layer disabled")
     } catch (error) {
       console.error("Error removing NDVI layer:", error)
+    }
+  }
+
+  function cleanupExistingLayers() {
+    if (!map) return
+
+    try {
+      // Remove NDVI layer if it exists
+      if (map.getLayer(NDVI_LAYER_ID)) {
+        map.removeLayer(NDVI_LAYER_ID)
+      }
+      if (map.getSource(NDVI_SOURCE_ID)) {
+        map.removeSource(NDVI_SOURCE_ID)
+      }
+      ndviLayerAdded = false
+      showNDVI = false
+
+      // Remove imagery layer if it exists
+      if (map.getLayer(ESRI_LAYER_ID)) {
+        map.removeLayer(ESRI_LAYER_ID)
+      }
+      if (map.getSource(ESRI_SOURCE_ID)) {
+        map.removeSource(ESRI_SOURCE_ID)
+      }
+    } catch (error) {
+      console.error("Error cleaning up layers:", error)
     }
   }
 
   function updateImagerySource() {
     if (!map || !mapLoaded) return
 
+    console.log("Updating imagery source to:", selectedImagerySource)
+
     const source = IMAGERY_SOURCES[selectedImagerySource]
 
-    // Remove existing layer if it exists
-    if (map.getLayer(ESRI_LAYER_ID)) {
-      map.removeLayer(ESRI_LAYER_ID)
-    }
-    if (map.getSource(ESRI_SOURCE_ID)) {
-      map.removeSource(ESRI_SOURCE_ID)
-    }
+    // Clean up all existing overlays first
+    cleanupExistingLayers()
 
     // Handle NDVI selection
     if (selectedImagerySource === "ndvi") {
-      if (!showNDVI) {
-        showNDVI = true
-        addNDVILayer()
-      }
+      showNDVI = true
+      addNDVILayer()
       return
     }
 
-    // If switching to Mapbox, just remove the overlay and we're done
+    // If switching to Mapbox, we're done (just cleaned up overlays)
     if (selectedImagerySource === "mapbox") {
-      toast.success("Switched to Mapbox imagery")
       return
     }
 
     // Add the new imagery source
     try {
+      const maxZoom = getMaxZoom(source.provider)
+
       let sourceConfig = {
         type: "raster",
         tileSize: 256,
         attribution: source.attribution,
-        maxzoom: 20,
+        maxzoom: maxZoom,
         minzoom: 0,
       }
 
@@ -216,7 +333,7 @@
           tileSize: 256,
           bounds: [-180, -85.0511, 180, 85.0511],
           minzoom: 0,
-          maxzoom: 20,
+          maxzoom: maxZoom,
           attribution: source.attribution,
           transformRequest: (url, resourceType) => {
             if (resourceType === "Tile" && url.includes("virtualearth")) {
@@ -239,7 +356,7 @@
           },
         })
       } else {
-        // Standard tile source
+        // Standard tile source with zoom limit
         sourceConfig.tiles = [source.url]
         map.addSource(ESRI_SOURCE_ID, sourceConfig)
       }
@@ -274,46 +391,38 @@
         },
         firstLabelLayerId,
       )
-
-      toast.success(`Switched to ${source.name}`)
     } catch (error) {
       console.error("Error updating imagery source:", error)
-      toast.error(`Failed to load ${source.name}`)
-      selectedImagerySource = previousSource
+      toast.error(`Failed to load ${source.name}, switching back to Mapbox`)
+      // Fallback to Mapbox on error
+      selectedImagerySource = "mapbox"
     }
   }
 
   function selectImagerySource(sourceKey) {
+    console.log("User selected imagery source:", sourceKey)
     previousSource = selectedImagerySource
     selectedImagerySource = sourceKey
     dropdownOpen = false
-
-    // If switching away from NDVI, remove it
-    if (previousSource === "ndvi" && sourceKey !== "ndvi") {
-      showNDVI = false
-      removeNDVILayer()
-    }
 
     updateImagerySource()
   }
 
   // Handle map style changes
   function handleMapStyleChange() {
-    if (
-      selectedImagerySource !== "mapbox" &&
-      selectedImagerySource !== "ndvi" &&
-      mapLoaded
-    ) {
-      setTimeout(() => {
-        updateImagerySource()
-      }, 100)
-    }
-    // Re-add NDVI if it was active
-    if (showNDVI && selectedImagerySource === "ndvi") {
-      setTimeout(() => {
+    console.log(
+      "Map style changed, reapplying imagery source:",
+      selectedImagerySource,
+    )
+
+    // Small delay to let the map style fully load
+    setTimeout(() => {
+      if (selectedImagerySource === "ndvi" && showNDVI) {
         addNDVILayer()
-      }, 100)
-    }
+      } else if (selectedImagerySource !== "mapbox") {
+        updateImagerySource()
+      }
+    }, 100)
   }
 
   // Click outside to close dropdown
@@ -323,19 +432,32 @@
     }
   }
 
-  // Filter sources based on NDVI permission
-  $: availableSources = Object.entries(IMAGERY_SOURCES).filter(
-    ([key, source]) => {
-      if (source.isNDVI) {
-        return $userSettingsStore.NDVI
+  // Monitor zoom changes for NDVI
+  function handleZoomChange() {
+    if (selectedImagerySource === "ndvi" && showNDVI && ndviLayerAdded) {
+      if (!isValidZoomForNDVI()) {
+        // Remove NDVI if zoom is too low
+        removeNDVILayer()
+        toast.warning(
+          `NDVI hidden - zoom to ${ZOOM_LIMITS.ndvi.min}+ to see vegetation detail`,
+        )
       }
-      return true
-    },
-  )
+    } else if (
+      selectedImagerySource === "ndvi" &&
+      showNDVI &&
+      !ndviLayerAdded
+    ) {
+      if (isValidZoomForNDVI()) {
+        // Re-add NDVI if zoom is now sufficient
+        addNDVILayer()
+      }
+    }
+  }
 
   onMount(() => {
     if (map) {
       map.on("style.load", handleMapStyleChange)
+      map.on("zoomend", handleZoomChange)
     }
     document.addEventListener("click", handleClickOutside)
   })
@@ -343,13 +465,17 @@
   onDestroy(() => {
     if (map) {
       map.off("style.load", handleMapStyleChange)
+      map.off("zoomend", handleZoomChange)
     }
     document.removeEventListener("click", handleClickOutside)
+
+    // Reset initialization flag for next time
+    isInitialized = false
   })
 </script>
 
-<!-- Only show if user has NDVI permission or is using non-NDVI sources -->
-{#if $userSettingsStore.NDVI || availableSources.length > 1}
+<!-- Only show if satellite dropdown is enabled -->
+{#if $userSettingsStore.satelliteDropdownEnabled}
   <div class="imagery-selector-container">
     <button
       class="imagery-selector-button"
@@ -357,10 +483,6 @@
       on:click|stopPropagation={() => (dropdownOpen = !dropdownOpen)}
     >
       <span class="selector-icon">🛰️</span>
-      <span class="selector-text">
-        {IMAGERY_SOURCES[selectedImagerySource].name}
-      </span>
-      <span class="selector-arrow">▼</span>
     </button>
 
     {#if dropdownOpen}
@@ -374,6 +496,17 @@
           >
             <div class="dropdown-item-name">
               {source.name}
+              {#if ZOOM_LIMITS[source.provider]}
+                {#if typeof ZOOM_LIMITS[source.provider] === "object"}
+                  <span class="zoom-limit-badge"
+                    >Min: {ZOOM_LIMITS[source.provider].min}</span
+                  >
+                {:else}
+                  <span class="zoom-limit-badge"
+                    >Max: {ZOOM_LIMITS[source.provider]}</span
+                  >
+                {/if}
+              {/if}
             </div>
             <div class="dropdown-item-description">{source.description}</div>
           </button>
@@ -386,54 +519,41 @@
 <style>
   .imagery-selector-container {
     position: absolute;
-    top: 20px;
-    left: 300px;
-    z-index: 1000;
+    top: 92px; /* Moved down below the back button */
+    left: 16px; /* Same left margin as back button */
+    z-index: 10;
   }
 
+  /* Same size as back button (btn-lg) */
   .imagery-selector-button {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background-color: white;
-    border: 2px solid #e2e8f0;
-    border-radius: 25px;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.5);
+    border: 2px solid #000000;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
-    min-width: 200px;
-    justify-content: space-between;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    width: 64px; /* Same as btn-lg */
+    height: 64px; /* Same as btn-lg */
   }
 
   .imagery-selector-button:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    background-color: #f7fafc;
+    background-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
   }
 
   .imagery-selector-button.dropdown-open {
-    border-color: #4299e1;
-    background-color: #ebf8ff;
+    background-color: #f7db5c;
+    border-color: #000000;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   }
 
   .selector-icon {
-    font-size: 18px;
-  }
-
-  .selector-text {
-    flex-grow: 1;
-    text-align: left;
-  }
-
-  .selector-arrow {
-    font-size: 10px;
-    transition: transform 0.3s ease;
-  }
-
-  .dropdown-open .selector-arrow {
-    transform: rotate(180deg);
+    font-size: 20px;
+    line-height: 1;
   }
 
   .imagery-dropdown {
@@ -498,12 +618,26 @@
     font-size: 14px;
     color: #2d3748;
     margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   .dropdown-item-description {
     font-size: 12px;
     color: #718096;
     line-height: 1.3;
+  }
+
+  .zoom-limit-badge {
+    background-color: #fed7aa;
+    color: #9a3412;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
   }
 
   /* Special styling for NDVI option */
@@ -520,20 +654,24 @@
     background-color: #bbf7d0;
   }
 
+  .ndvi-item .zoom-limit-badge {
+    background-color: #bbf7d0;
+    color: #166534;
+  }
+
   @media (max-width: 640px) {
     .imagery-selector-container {
-      top: 10px;
-      left: 10px;
+      top: 92px;
+      left: 16px;
     }
 
     .imagery-selector-button {
-      padding: 8px 16px;
-      font-size: 13px;
-      min-width: 180px;
+      width: 64px; /* Slightly smaller on mobile */
+      height: 64px;
     }
 
     .selector-icon {
-      font-size: 16px;
+      font-size: 18px;
     }
 
     .imagery-dropdown {
@@ -551,6 +689,11 @@
 
     .dropdown-item-description {
       font-size: 11px;
+    }
+
+    .zoom-limit-badge {
+      font-size: 9px;
+      padding: 1px 4px;
     }
   }
 </style>

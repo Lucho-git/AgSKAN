@@ -177,10 +177,34 @@
           limitMarkersOn: user_settings.limit_markers,
           limitMarkersDays: user_settings.limit_markers_days,
           limitMarkersDate: currentDate.toISOString(),
+          backgroundGeolocationEnabled:
+            user_settings.background_geolocation_enabled ?? false,
           zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
+          satelliteDropdownEnabled:
+            user_settings.satellite_dropdown_enabled ?? false,
+          enabledImageryProviders:
+            user_settings.enabled_imagery_providers ?? [],
+          defaultImagerySource:
+            user_settings.default_imagery_source ?? "mapbox",
+        })
+      } else {
+        // If no user settings exist, use defaults
+        userSettingsStore.set({
+          limitMarkersOn: false,
+          limitMarkersDays: 7,
+          limitMarkersDate: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          backgroundGeolocationEnabled: false,
+          zoomToLocationMarkers: true,
+          zoomToPlacedMarkers: true,
+          satelliteDropdownEnabled: false,
+          enabledImageryProviders: [],
+          defaultImagerySource: "mapbox",
         })
       }
+
       // If user has no map connected, we're done
       if (!profile?.master_map_id) {
         return { profile, subscription, connected_map: null, user_settings }
