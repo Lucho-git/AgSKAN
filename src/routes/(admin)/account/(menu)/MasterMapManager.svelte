@@ -54,8 +54,6 @@
   let activeTab = "dashboard"
   let isLoading = false
   let loadingAction = null
-  let showMapDropdown = false
-  let showOperationDropdown = false
 
   // Reactive values
   $: isConnected = $connectedMapStore?.id
@@ -87,6 +85,10 @@
     showCreateForm = false
     showJoinForm = false
     showDeleteConfirm = false
+    showLeaveMapConfirm = false
+    showSwitchMapConfirm = false
+    showLaunchMapConfirm = false
+    showMapOptions = false
   }
 
   async function handleCreateMap() {
@@ -230,6 +232,7 @@
         activeTab = "dashboard"
         enteredMapId = ""
         showJoinForm = false
+        showSwitchMapConfirm = false
         await fetchUserMaps()
         await fetchRecentMaps()
       } else {
@@ -249,7 +252,18 @@
   let isRenaming = false
   let newMapNameInput = ""
   let showDeleteConfirm = false
+  let showLeaveMapConfirm = false
+  let showSwitchMapConfirm = false
+  let showLaunchMapConfirm = false
+  let showMapOptions = false
   let confirmationInput = ""
+
+  // Check if any map menu is open
+  $: isMapMenuOpen =
+    showMapOptions ||
+    showLaunchMapConfirm ||
+    showSwitchMapConfirm ||
+    showLeaveMapConfirm
 
   async function handleDisconnectFromMap() {
     isLoading = true
@@ -278,6 +292,7 @@
 
         toast.success("Disconnected from map")
         activeTab = "map"
+        showLeaveMapConfirm = false
         await fetchUserMaps()
         await fetchRecentMaps()
       } else {
@@ -295,7 +310,7 @@
     if ($connectedMapStore?.id) {
       navigator.clipboard.writeText($connectedMapStore.id)
       copied = true
-      showMapDropdown = false
+      closeAllMapMenus() // Close dropdown after copy
       setTimeout(() => (copied = false), 2000)
       toast.success("Map ID copied")
     }
@@ -305,7 +320,7 @@
     if ($connectedMapStore?.id) {
       const shareUrl = `https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`
       navigator.clipboard.writeText(shareUrl)
-      showMapDropdown = false
+      closeAllMapMenus() // Close dropdown after copy
       toast.success("Map link copied")
     }
   }
@@ -395,11 +410,59 @@
     }
   }
 
+  function handleLaunchMap() {
+    window.location.href = "/account/mapviewer"
+    showLaunchMapConfirm = false
+  }
+
+  function handleMapPanelClick() {
+    if (isMapMenuOpen) {
+      // If any menu is open, close all
+      closeAllMapMenus()
+      closeAllOperationMenus()
+    } else {
+      // If no menu is open, open options dropdown
+      closeAllOperationMenus()
+      showMapOptions = true
+    }
+  }
+
+  function handleMapOptionsClick() {
+    if (isMapMenuOpen) {
+      // If any menu is open, close all
+      closeAllMapMenus()
+    } else {
+      // If no menu is open, open options
+      closeAllOperationMenus()
+      showMapOptions = true
+    }
+  }
+
+  function openLeaveMapConfirm() {
+    closeAllMapMenus()
+    closeAllOperationMenus()
+    showLeaveMapConfirm = true
+  }
+
+  function openSwitchMapConfirm() {
+    closeAllMapMenus()
+    closeAllOperationMenus()
+    showSwitchMapConfirm = true
+  }
+
+  function openLaunchMapConfirm() {
+    closeAllMapMenus()
+    closeAllOperationMenus()
+    showLaunchMapConfirm = true
+  }
+
   // ========================================
   // OPERATIONS FUNCTIONS
   // ========================================
   let showCreateOperation = false
   let showEditOperation = false
+  let showDeleteOperationConfirm = false
+  let showOperationOptions = false
   let newOperationName = ""
   let newOperationYear = new Date().getFullYear()
   let newOperationDescription = ""
@@ -407,10 +470,19 @@
   let editOperationYear = new Date().getFullYear()
   let editOperationDescription = ""
 
+  // Check if any operation menu is open
+  $: isOperationMenuOpen =
+    showOperationOptions ||
+    showCreateOperation ||
+    showEditOperation ||
+    showDeleteOperationConfirm
+
   // Helper function to close all operation submenus
   function closeAllOperationMenus() {
     showCreateOperation = false
     showEditOperation = false
+    showDeleteOperationConfirm = false
+    showOperationOptions = false
   }
 
   async function handleCreateOperation() {
@@ -511,15 +583,38 @@
       editOperationYear = $selectedOperationStore.year
       editOperationDescription = $selectedOperationStore.description || ""
       closeAllOperationMenus()
+      closeAllMapMenus()
       showEditOperation = true
-      showOperationDropdown = false
     }
   }
 
-  function openCreateOperation() {
+  function handleOperationPanelClick() {
+    if (isOperationMenuOpen) {
+      // If any menu is open, close all
+      closeAllOperationMenus()
+      closeAllMapMenus()
+    } else {
+      // If no menu is open, open options dropdown
+      closeAllMapMenus()
+      showOperationOptions = true
+    }
+  }
+
+  function handleOperationOptionsClick() {
+    if (isOperationMenuOpen) {
+      // If any menu is open, close all
+      closeAllOperationMenus()
+    } else {
+      // If no menu is open, open options
+      closeAllMapMenus()
+      showOperationOptions = true
+    }
+  }
+
+  function openCreateOperationFromOptions() {
     closeAllOperationMenus()
+    closeAllMapMenus()
     showCreateOperation = true
-    showOperationDropdown = false
   }
 
   function openCreateMapForm() {
@@ -535,6 +630,12 @@
   function openDeleteConfirmation() {
     closeAllMapMenus()
     showDeleteConfirm = true
+  }
+
+  function openDeleteOperationConfirm() {
+    closeAllOperationMenus()
+    closeAllMapMenus()
+    showDeleteOperationConfirm = true
   }
 
   async function handleUpdateOperation() {
@@ -590,10 +691,6 @@
       return
     }
 
-    if (!confirm("Are you sure you want to delete this operation?")) {
-      return
-    }
-
     isLoading = true
     loadingAction = "delete-operation"
 
@@ -627,8 +724,7 @@
           }
         }
 
-        showEditOperation = false
-        showOperationDropdown = false
+        showDeleteOperationConfirm = false
         toast.success("Operation deleted successfully")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
@@ -651,19 +747,7 @@
       activeTab = "map"
     }
   })
-
-  // Close dropdowns when clicking outside
-  function handleClickOutside(event) {
-    if (!event.target.closest(".map-dropdown")) {
-      showMapDropdown = false
-    }
-    if (!event.target.closest(".operation-dropdown")) {
-      showOperationDropdown = false
-    }
-  }
 </script>
-
-<svelte:window on:click={handleClickOutside} />
 
 <!-- Main Dashboard Container -->
 <div class="w-full">
@@ -779,81 +863,311 @@
       <!-- Dashboard Tab - Condensed -->
       <div class="space-y-6">
         <!-- Map Info Header - Full Width -->
-        <div
-          class="relative flex items-center gap-3 rounded-lg bg-base-200 p-4"
-        >
-          <div
-            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-600/20"
+        <div class="relative rounded-lg bg-base-200 p-4 transition-colors">
+          <button
+            class="flex w-full items-center justify-between text-left"
+            on:click={handleMapPanelClick}
           >
-            <Map class="h-5 w-5 text-green-600" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <h2 class="truncate font-semibold text-contrast-content">
-              {$connectedMapStore.map_name}
-            </h2>
-            <p class="truncate text-sm text-contrast-content/60">
-              Owned by {$connectedMapStore.owner}
-            </p>
-          </div>
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-600/20"
+              >
+                <Map class="h-5 w-5 text-green-600" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h2 class="truncate font-semibold text-contrast-content">
+                  {$connectedMapStore.map_name}
+                </h2>
+                <p class="truncate text-sm text-contrast-content/60">
+                  Owned by {$connectedMapStore.owner}
+                </p>
+              </div>
+            </div>
 
-          <!-- Action Buttons - Launch Map and Options -->
-          <div class="flex gap-2">
-            <!-- Launch Map Button -->
-            <button
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-content transition-colors hover:bg-base-content/90"
-              on:click={() => (window.location.href = "/account/mapviewer")}
-              title="Launch interactive map"
-            >
-              <Globe class="h-4 w-4 text-base-100" />
-            </button>
-
-            <!-- Map Options Dropdown -->
-            <div class="map-dropdown relative">
+            <!-- Options Button -->
+            <div class="flex gap-2">
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                on:click|stopPropagation={() =>
-                  (showMapDropdown = !showMapDropdown)}
+                on:click|stopPropagation={handleMapOptionsClick}
                 title="Map options"
               >
-                <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                {#if isMapMenuOpen}
+                  <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                {:else}
+                  <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                {/if}
               </button>
+            </div>
+          </button>
 
-              {#if showMapDropdown}
+          <!-- Options Menu Dropdown -->
+          {#if showMapOptions}
+            <div
+              class="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+            >
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={openLaunchMapConfirm}
+              >
                 <div
-                  class="absolute right-0 top-10 z-50 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
                 >
+                  <Globe class="h-3 w-3 text-green-600" />
+                </div>
+                Launch Map
+              </button>
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={copyMapId}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                >
+                  <Copy class="h-3 w-3 text-blue-600" />
+                </div>
+                Copy Map ID
+              </button>
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={copyMapLink}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                >
+                  <Link class="h-3 w-3 text-green-600" />
+                </div>
+                Copy Map Link
+              </button>
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={openSwitchMapConfirm}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600/20"
+                >
+                  <Link2 class="h-3 w-3 text-purple-600" />
+                </div>
+                Switch Map
+              </button>
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={openLeaveMapConfirm}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-orange-600/20"
+                >
+                  <LogOut class="h-3 w-3 text-orange-600" />
+                </div>
+                Leave Map
+              </button>
+            </div>
+          {/if}
+
+          <!-- Expandable Launch Map Confirmation -->
+          {#if showLaunchMapConfirm}
+            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
+              <div class="space-y-4" on:click|stopPropagation>
+                <div>
+                  <h4 class="mb-2 font-semibold text-contrast-content">
+                    Launch Interactive Map
+                  </h4>
+                  <p class="text-sm text-contrast-content/60">
+                    This will open the interactive map viewer in a new window
+                    where you can view and edit map data.
+                  </p>
+                </div>
+                <div class="flex gap-2">
                   <button
-                    class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
-                    on:click={copyMapId}
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    on:click={() => closeAllMapMenus()}
                   >
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
-                    >
-                      <Copy class="h-3 w-3 text-blue-600" />
-                    </div>
-                    Copy Map ID
+                    Cancel
                   </button>
                   <button
-                    class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
-                    on:click={copyMapLink}
+                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    on:click={handleLaunchMap}
                   >
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
-                    >
-                      <Link class="h-3 w-3 text-green-600" />
-                    </div>
-                    Copy Map Link
+                    Launch Map
                   </button>
                 </div>
-              {/if}
+              </div>
             </div>
-          </div>
+          {/if}
+
+          <!-- Expandable Switch Map - Full Form -->
+          {#if showSwitchMapConfirm}
+            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
+              <div class="space-y-4" on:click|stopPropagation>
+                <div>
+                  <h4 class="mb-2 font-semibold text-contrast-content">
+                    Switch to Another Map
+                  </h4>
+                  <label class="mb-1 block text-sm text-contrast-content/60"
+                    >Map ID</label
+                  >
+                  <input
+                    type="text"
+                    bind:value={enteredMapId}
+                    placeholder="Enter Map ID"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                  />
+                </div>
+
+                {#if recentMaps.length > 0 || userMaps.length > 0}
+                  <div class="space-y-3">
+                    {#if recentMaps.length > 0}
+                      <div>
+                        <h5
+                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                        >
+                          <div
+                            class="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600/20"
+                          >
+                            <Clock class="h-2.5 w-2.5 text-purple-600" />
+                          </div>
+                          Recent Maps
+                        </h5>
+                        <div class="space-y-1">
+                          {#each recentMaps.slice(0, 3) as map}
+                            <button
+                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300"
+                              on:click={() => connectToMap(map.id)}
+                              disabled={isLoading}
+                            >
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20"
+                              >
+                                <Map class="h-4 w-4 text-blue-600" />
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div
+                                  class="truncate font-medium text-contrast-content"
+                                >
+                                  {map.map_name}
+                                </div>
+                                <div class="text-sm text-contrast-content/60">
+                                  by {map.owner_name}
+                                </div>
+                              </div>
+                              <Link2
+                                class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                              />
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+
+                    {#if userMaps.length > 0}
+                      <div>
+                        <h5
+                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                        >
+                          <div
+                            class="flex h-4 w-4 items-center justify-center rounded-full bg-green-600/20"
+                          >
+                            <User class="h-2.5 w-2.5 text-green-600" />
+                          </div>
+                          Your Maps
+                        </h5>
+                        <div class="space-y-1">
+                          {#each userMaps.slice(0, 3) as map}
+                            <button
+                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300"
+                              on:click={() => connectToMap(map.id)}
+                              disabled={isLoading}
+                            >
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-green-600/20"
+                              >
+                                <Map class="h-4 w-4 text-green-600" />
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div
+                                  class="truncate font-medium text-contrast-content"
+                                >
+                                  {map.map_name}
+                                </div>
+                                <div class="text-sm text-contrast-content/60">
+                                  You own this map
+                                </div>
+                              </div>
+                              <Link2
+                                class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                              />
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    on:click={() => {
+                      closeAllMapMenus()
+                      enteredMapId = ""
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    on:click={() => connectToMap(enteredMapId)}
+                    disabled={isLoading || !enteredMapId.trim()}
+                  >
+                    {isLoading && loadingAction === `connect-${enteredMapId}`
+                      ? "Switching..."
+                      : "Switch Map"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Expandable Leave Map Confirmation -->
+          {#if showLeaveMapConfirm}
+            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
+              <div class="space-y-4" on:click|stopPropagation>
+                <div>
+                  <h4 class="mb-2 font-semibold text-contrast-content">
+                    Leave Map
+                  </h4>
+                  <p class="text-sm text-contrast-content/60">
+                    Are you sure you want to disconnect from "{$connectedMapStore.map_name}"?
+                    You can reconnect later using the Map ID.
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    on:click={() => closeAllMapMenus()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded-lg bg-orange-500 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    on:click={handleDisconnectFromMap}
+                    disabled={isLoading}
+                  >
+                    {isLoading && loadingAction === "disconnect"
+                      ? "Leaving..."
+                      : "Leave Map"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
 
         <!-- Operation Selector with Header and Dropdown -->
-        <div class="relative rounded-lg bg-base-200 p-4">
-          <!-- Header with title, subtext, and dropdown -->
-          <div class="mb-3 flex items-center justify-between">
+        <div class="relative rounded-lg bg-base-200 p-4 transition-colors">
+          <button
+            class="mb-3 flex w-full items-center justify-between text-left"
+            on:click={handleOperationPanelClick}
+          >
             <div class="flex items-center gap-3">
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600/20"
@@ -868,93 +1182,87 @@
               </div>
             </div>
 
-            <!-- Operation Options Dropdown -->
-            <div class="operation-dropdown relative">
+            <!-- Options Button -->
+            <div class="flex gap-2">
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                on:click|stopPropagation={() =>
-                  (showOperationDropdown = !showOperationDropdown)}
+                on:click|stopPropagation={handleOperationOptionsClick}
                 title="Operation options"
               >
-                <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                {#if isOperationMenuOpen}
+                  <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                {:else}
+                  <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                {/if}
               </button>
-
-              {#if showOperationDropdown}
-                <div
-                  class="absolute right-0 top-10 z-50 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
-                >
-                  <button
-                    class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
-                    on:click={openCreateOperation}
-                  >
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
-                    >
-                      <Plus class="h-3 w-3 text-green-600" />
-                    </div>
-                    Add Operation
-                  </button>
-                  <button
-                    class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
-                    on:click={prepareEditOperation}
-                  >
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
-                    >
-                      <Pencil class="h-3 w-3 text-blue-600" />
-                    </div>
-                    Edit Operation
-                  </button>
-                  {#if !isOnlyOperation}
-                    <button
-                      class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
-                      on:click={handleDeleteOperation}
-                    >
-                      <div
-                        class="flex h-6 w-6 items-center justify-center rounded-full bg-red-600/20"
-                      >
-                        <Trash2 class="h-3 w-3 text-red-600" />
-                      </div>
-                      Delete Operation
-                    </button>
-                  {/if}
-                </div>
-              {/if}
             </div>
-          </div>
+          </button>
 
-          <!-- Operation selector and add button -->
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <select
-                class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-3 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-                value={$selectedOperationStore?.id}
-                on:change={(e) => handleOperationSelect(e.target.value)}
-                disabled={isLoading}
-              >
-                {#each $operationStore as operation}
-                  <option value={operation.id}>
-                    {operation.name} ({operation.year})
-                  </option>
-                {/each}
-              </select>
-              <ChevronDown
-                class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
-              />
-            </div>
-            <!-- Add Operation Button - Same size as other buttons -->
-            <button
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-content transition-colors hover:bg-base-content/90"
-              on:click={openCreateOperation}
-              title="Create new operation"
+          <!-- Operation selector -->
+          <div class="relative">
+            <select
+              class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-3 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+              value={$selectedOperationStore?.id}
+              on:change={(e) => handleOperationSelect(e.target.value)}
+              disabled={isLoading}
             >
-              <Plus class="h-4 w-4 text-base-100" />
-            </button>
+              {#each $operationStore as operation}
+                <option value={operation.id}>
+                  {operation.name} ({operation.year})
+                </option>
+              {/each}
+            </select>
+            <ChevronDown
+              class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+            />
           </div>
           {#if $selectedOperationStore?.description}
             <p class="mt-2 text-xs text-contrast-content/60">
               {$selectedOperationStore.description}
             </p>
+          {/if}
+
+          <!-- Options Menu Dropdown -->
+          {#if showOperationOptions}
+            <div
+              class="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+            >
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={openCreateOperationFromOptions}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                >
+                  <Plus class="h-3 w-3 text-green-600" />
+                </div>
+                Add Operation
+              </button>
+              <button
+                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                on:click|stopPropagation={prepareEditOperation}
+              >
+                <div
+                  class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                >
+                  <Pencil class="h-3 w-3 text-blue-600" />
+                </div>
+                Edit Operation
+              </button>
+              {#if !isOnlyOperation}
+                <button
+                  class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                  on:click|stopPropagation={openDeleteOperationConfirm}
+                >
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded-full bg-red-600/20"
+                  >
+                    <Trash2 class="h-3 w-3 text-red-600" />
+                  </div>
+                  Delete Operation
+                </button>
+              {/if}
+            </div>
           {/if}
 
           <!-- Expandable Create Operation Section -->
@@ -964,15 +1272,8 @@
                 <h4 class="font-semibold text-contrast-content">
                   Create Operation
                 </h4>
-                <button
-                  class="flex h-6 w-6 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                  on:click={() => (showCreateOperation = false)}
-                  title="Close"
-                >
-                  <Minus class="h-3 w-3 text-contrast-content/60" />
-                </button>
               </div>
-              <div class="space-y-3">
+              <div class="space-y-3" on:click|stopPropagation>
                 <div>
                   <label class="mb-1 block text-sm text-contrast-content/60"
                     >Name</label
@@ -1012,7 +1313,7 @@
                   <button
                     class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
                     on:click={() => {
-                      showCreateOperation = false
+                      closeAllOperationMenus()
                       newOperationName = ""
                       newOperationDescription = ""
                     }}
@@ -1038,15 +1339,8 @@
                 <h4 class="font-semibold text-contrast-content">
                   Edit Operation
                 </h4>
-                <button
-                  class="flex h-6 w-6 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                  on:click={() => (showEditOperation = false)}
-                  title="Close"
-                >
-                  <Minus class="h-3 w-3 text-contrast-content/60" />
-                </button>
               </div>
-              <div class="space-y-3">
+              <div class="space-y-3" on:click|stopPropagation>
                 <div>
                   <label class="mb-1 block text-sm text-contrast-content/60"
                     >Name</label
@@ -1083,7 +1377,7 @@
                 <div class="flex gap-2 pt-2">
                   <button
                     class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
-                    on:click={() => (showEditOperation = false)}
+                    on:click={() => closeAllOperationMenus()}
                   >
                     Cancel
                   </button>
@@ -1093,6 +1387,39 @@
                     disabled={isLoading}
                   >
                     {isLoading ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Expandable Delete Operation Confirmation -->
+          {#if showDeleteOperationConfirm}
+            <div class="animate-slideDown mt-4 border-t border-red-300 pt-4">
+              <div class="rounded-lg bg-red-50 p-4" on:click|stopPropagation>
+                <div class="mb-3 flex items-center gap-2">
+                  <AlertTriangle class="h-5 w-5 text-red-500" />
+                  <h4 class="font-semibold text-red-700">Delete Operation</h4>
+                </div>
+                <p class="mb-3 text-sm text-red-600">
+                  Are you sure you want to delete "{$selectedOperationStore.name}"?
+                  This action cannot be undone.
+                </p>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded bg-gray-200 py-2 text-sm font-medium transition-colors hover:bg-gray-300"
+                    on:click={() => closeAllOperationMenus()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded bg-red-500 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    on:click={handleDeleteOperation}
+                    disabled={isLoading}
+                  >
+                    {isLoading && loadingAction === "delete-operation"
+                      ? "Deleting..."
+                      : "Delete"}
                   </button>
                 </div>
               </div>
@@ -1164,7 +1491,7 @@
                   on:click={() => (showCreateForm = false)}
                   title="Close"
                 >
-                  <Minus class="h-3 w-3 text-contrast-content/60" />
+                  <X class="h-3 w-3 text-contrast-content/60" />
                 </button>
               </div>
               <div class="space-y-4">
@@ -1223,7 +1550,7 @@
                   on:click={() => (showJoinForm = false)}
                   title="Close"
                 >
-                  <Minus class="h-3 w-3 text-contrast-content/60" />
+                  <X class="h-3 w-3 text-contrast-content/60" />
                 </button>
               </div>
               <div class="space-y-4">
@@ -1360,15 +1687,15 @@
               <div class="mb-3 flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <div
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/20"
+                    class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20"
                   >
-                    <Map class="h-4 w-4 text-green-500" />
+                    <Map class="h-5 w-5 text-green-500" />
                   </div>
-                  <div>
-                    <h3 class="font-semibold text-contrast-content">
+                  <div class="min-w-0 flex-1">
+                    <h2 class="truncate font-semibold text-contrast-content">
                       {$connectedMapStore.map_name}
-                    </h3>
-                    <p class="text-xs text-contrast-content/60">
+                    </h2>
+                    <p class="truncate text-sm text-contrast-content/60">
                       Owned by {$connectedMapStore.owner}
                     </p>
                   </div>
@@ -1407,14 +1734,8 @@
               </div>
             </div>
 
-            <!-- Map Actions with Chevron Controls -->
-            <div
-              class="grid gap-3 {showCreateForm ||
-              showJoinForm ||
-              showDeleteConfirm
-                ? 'grid-cols-1'
-                : 'sm:grid-cols-2'}"
-            >
+            <!-- Map Actions in Line Format -->
+            <div class="space-y-3">
               <!-- Create New Map Button -->
               <div class="rounded-lg bg-base-200 p-4 transition-colors">
                 <button
@@ -1670,7 +1991,7 @@
 
               <!-- Leave Map Button -->
               <button
-                class="flex items-center gap-3 rounded-lg bg-base-200 p-4 text-left transition-colors hover:bg-base-300"
+                class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-4 text-left transition-colors hover:bg-base-300"
                 on:click={handleDisconnectFromMap}
                 disabled={isLoading}
               >
@@ -1979,7 +2300,7 @@
                   {#if !isOnlyOperation}
                     <button
                       class="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
-                      on:click={handleDeleteOperation}
+                      on:click={openDeleteOperationConfirm}
                       disabled={isLoading}
                     >
                       <Trash2 class="h-3 w-3" />

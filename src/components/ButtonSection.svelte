@@ -30,8 +30,6 @@
     }, 200)
   })
 
-  export let isSatelliteView = true
-  export let showNDVI = false
   let isVehicleMenuOpen = false
   let VehicleIcon
 
@@ -47,9 +45,6 @@
   }
 
   const dispatch = createEventDispatcher()
-
-  const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
-  const DEFAULT_OUTDOORS_STYLE = "mapbox://styles/mapbox/outdoors-v12"
 
   function toggleTrailing() {
     trailingButtonPressed.update((value) => !value)
@@ -78,12 +73,6 @@
 
   function handleBackToDashboard() {
     dispatch("backToDashboard")
-  }
-
-  function handleToggleNDVI() {
-    console.log("NDVI button clicked, current showNDVI:", showNDVI)
-    dispatch("toggleNDVI")
-    console.log("toggleNDVI event dispatched")
   }
 
   const antLineConfigModes = [
@@ -177,19 +166,6 @@
       />
     </svg>
   </button>
-
-  <!-- NDVI Toggle Button - Only show if NDVI is enabled in settings -->
-  {#if $userSettingsStore.NDVI}
-    <button
-      class="ndvi-button btn btn-lg absolute right-20 top-4 z-10 {showNDVI
-        ? 'ndvi-active'
-        : ''}"
-      on:click={handleToggleNDVI}
-      title="Toggle NDVI Vegetation Index"
-    >
-      <span class="text-sm font-semibold">NDVI</span>
-    </button>
-  {/if}
 
   <!-- Floating button container -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end">
@@ -367,31 +343,6 @@
   .top-button:hover {
     background-color: rgb(0, 0, 0, 0.5);
     color: #f7db5c;
-  }
-
-  /* NDVI Button Styles */
-  .ndvi-button {
-    transition: all 0.3s ease;
-    min-width: 80px;
-    padding: 0 16px;
-    background-color: #2d5f3f;
-    border: 2px solid #000000;
-    color: #f7db5c;
-  }
-
-  .ndvi-button:hover {
-    background-color: #245a37;
-    color: #ffffff;
-  }
-
-  .ndvi-button.ndvi-active {
-    background-color: #4ade80;
-    color: #000000;
-    border: 2px solid #000000;
-  }
-
-  .ndvi-button.ndvi-active:hover {
-    background-color: #22c55e;
   }
 
   /* Trailing active state */
