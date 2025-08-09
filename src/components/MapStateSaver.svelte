@@ -7,10 +7,10 @@
     markerActionsStore,
     syncStore,
   } from "../stores/mapStore"
-  import { userSettingsStore } from "$lib/stores/userSettingsStore" // Import the new store
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import * as mapboxgl from "mapbox-gl"
+  import mapboxgl from "mapbox-gl"
   const { LngLatBounds } = mapboxgl
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { supabase } from "$lib/supabaseClient"
@@ -45,7 +45,7 @@
           event: "*",
           schema: "public",
           table: "map_markers",
-          filter: `master_map_id=eq.${masterMapId}`, // Add filter for specific map
+          filter: `master_map_id=eq.${masterMapId}`,
         },
         async (payload) => {
           // First check if it's current user's change
@@ -125,14 +125,7 @@
       supabase.removeChannel(channel)
     }
 
-    console.log("Removing all markers from the map")
-    confirmedMarkersStore.update((markers) => {
-      markers.forEach(({ marker }) => {
-        marker.remove()
-      })
-      return []
-    })
-
+    console.log("Clearing all markers")
     confirmedMarkersStore.set([])
     removeMarkerStore.set([])
     markerActionsStore.set([])
@@ -409,8 +402,7 @@
     // Process markers to be added
     if (serverMarkersToBeAdded.length > 0) {
       const addMarkerData = serverMarkersToBeAdded.map((marker) => {
-        const { marker: mapboxMarker, id, last_confirmed, iconClass } = marker
-        const coordinates = mapboxMarker.getLngLat().toArray()
+        const { id, last_confirmed, iconClass, coordinates } = marker
 
         const feature = {
           type: "Feature",
@@ -445,8 +437,7 @@
     // Process markers to be updated
     if (serverMarkersToBeUpdated.length > 0) {
       const updateMarkerData = serverMarkersToBeUpdated.map((marker) => {
-        const { marker: mapboxMarker, id, last_confirmed, iconClass } = marker
-        const coordinates = mapboxMarker.getLngLat().toArray()
+        const { id, last_confirmed, iconClass, coordinates } = marker
 
         const feature = {
           type: "Feature",
@@ -566,8 +557,10 @@
     const markers = $confirmedMarkersStore
     if (markers.length > 0) {
       const bounds = new LngLatBounds()
-      markers.forEach(({ marker }) => {
-        bounds.extend(marker.getLngLat())
+      markers.forEach(({ coordinates }) => {
+        if (coordinates) {
+          bounds.extend(coordinates)
+        }
       })
       markerBoundaryStore.set(bounds)
     } else {

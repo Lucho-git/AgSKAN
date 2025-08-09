@@ -204,7 +204,12 @@
     />
     <NavigationControl />
 
-    <MarkerManager {markerPlacementEvent} {markerClickEvent} />
+    <MarkerManager
+      {map}
+      {mapLoaded}
+      {markerPlacementEvent}
+      {markerClickEvent}
+    />
     <MapStateSaver {map} />
 
     <MapControls
