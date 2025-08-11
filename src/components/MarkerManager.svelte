@@ -29,6 +29,8 @@
   let markersInitialized = false
   let selectedMarkerPopup = null
   let iconsLoaded = false
+  let iconPaths = null
+  let markerTopInterval = null
 
   const markerIcons = [
     { id: "rock", class: "custom-svg" },
@@ -140,108 +142,86 @@
     initializeMarkerLayers()
   }
 
-  async function loadCustomSvgIcon(iconId) {
-    const iconKey = `custom-svg-${iconId}`
+  // Efficient function to ensure markers stay on top
+  function ensureMarkersOnTop() {
+    if (!map || !map.getLayer("markers-layer") || !markersInitialized) return
 
-    if (map.hasImage(iconKey)) {
-      return
+    try {
+      // moveLayer() with no beforeId moves the layer to the very top
+      map.moveLayer("markers-layer")
+      console.log("🔝 Moved markers to top layer")
+    } catch (error) {
+      // Only log if it's an actual error, not just "layer already on top"
+      if (!error.message.includes("does not exist")) {
+        console.warn("Could not move markers layer:", error.message)
+      }
     }
-
-    // Create a temporary container to render the SVG component
-    const container = document.createElement("div")
-    container.style.position = "absolute"
-    container.style.left = "-9999px"
-    container.style.width = "35px"
-    container.style.height = "35px"
-    document.body.appendChild(container)
-
-    // Create wrapper for background
-    const wrapper = document.createElement("div")
-    wrapper.style.width = "35px"
-    wrapper.style.height = "35px"
-    wrapper.style.backgroundColor = "rgba(211, 211, 211, 0.9)"
-    wrapper.style.borderRadius = "50%"
-    wrapper.style.display = "flex"
-    wrapper.style.alignItems = "center"
-    wrapper.style.justifyContent = "center"
-    container.appendChild(wrapper)
-
-    // Render the IconSVG component
-    const svgComponent = new IconSVG({
-      target: wrapper,
-      props: {
-        icon: iconId,
-        size: "25px",
-        color: "black",
-      },
-    })
-
-    // Wait for the SVG to render
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Use html2canvas or DOM to image conversion
-    const canvas = document.createElement("canvas")
-    canvas.width = 35
-    canvas.height = 35
-    const ctx = canvas.getContext("2d")
-
-    // Draw background circle
-    ctx.fillStyle = "rgba(211, 211, 211, 0.9)"
-    ctx.beginPath()
-    ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
-    ctx.fill()
-
-    // Get the SVG element and convert to image
-    const svgElement = wrapper.querySelector("svg")
-    if (svgElement) {
-      // Clone the SVG and set attributes
-      const clonedSvg = svgElement.cloneNode(true)
-      clonedSvg.setAttribute("width", "25")
-      clonedSvg.setAttribute("height", "25")
-
-      const svgData = new XMLSerializer().serializeToString(clonedSvg)
-      const svgBlob = new Blob([svgData], {
-        type: "image/svg+xml;charset=utf-8",
-      })
-      const url = URL.createObjectURL(svgBlob)
-
-      const img = new Image()
-      await new Promise((resolve, reject) => {
-        img.onload = () => {
-          ctx.drawImage(img, 5, 5, 25, 25)
-          URL.revokeObjectURL(url)
-
-          // Get ImageData and add to map
-          const imageData = ctx.getImageData(0, 0, 35, 35)
-          map.addImage(iconKey, {
-            width: 35,
-            height: 35,
-            data: imageData.data,
-          })
-
-          resolve()
-        }
-        img.onerror = () => {
-          console.error(`Failed to load custom icon: ${iconId}`)
-          resolve() // Continue even if one icon fails
-        }
-        img.src = url
-      })
-    }
-
-    // Clean up
-    svgComponent.$destroy()
-    document.body.removeChild(container)
   }
 
-  async function loadIonicIcon(iconId) {
+  // Load high-DPI PNG icons using Mapbox's loadImage method
+  async function loadHighDpiIcons() {
+    if (!map || iconsLoaded || iconPaths) return
+
+    console.log("🚀 Loading high-DPI PNG icons...")
+
+    try {
+      // Load the icon paths mapping
+      const response = await fetch("/icon-paths.json")
+      if (!response.ok) {
+        throw new Error(`Failed to load icon paths: ${response.status}`)
+      }
+
+      iconPaths = await response.json()
+      console.log(`📋 Loaded ${Object.keys(iconPaths).length} icon paths`)
+
+      // Load each PNG file using Mapbox's loadImage
+      const loadPromises = Object.entries(iconPaths).map(
+        async ([iconKey, iconPath]) => {
+          return new Promise((resolve, reject) => {
+            map.loadImage(`/${iconPath}`, (error, image) => {
+              if (error) {
+                console.error(
+                  `❌ Failed to load ${iconKey} from ${iconPath}:`,
+                  error,
+                )
+                reject(error)
+                return
+              }
+
+              // Add the high-DPI image to the map
+              if (!map.hasImage(iconKey)) {
+                map.addImage(iconKey, image)
+                console.log(`✅ Loaded high-DPI icon: ${iconKey}`)
+              }
+
+              resolve()
+            })
+          })
+        },
+      )
+
+      // Wait for all icons to load
+      await Promise.allSettled(loadPromises)
+
+      iconsLoaded = true
+      console.log("🎯 All high-DPI PNG icons loaded successfully!")
+    } catch (error) {
+      console.error("❌ Error loading high-DPI icons:", error)
+      // Fallback to old method
+      console.warn("⚠️  Falling back to runtime icon generation...")
+      await loadAllIconsFallback()
+    }
+  }
+
+  // Fallback icon generation for ionic and atlas icons (unchanged)
+  async function generateIonicIcon(iconId) {
     const iconKey = `ionic-${iconId}`
 
     if (map.hasImage(iconKey)) {
       return
     }
 
-    // Create canvas for ionic icon
+    // Create canvas for ionic icon fallback
     const canvas = document.createElement("canvas")
     canvas.width = 35
     canvas.height = 35
@@ -253,17 +233,7 @@
     ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
     ctx.fill()
 
-    // Create the ionic SVG directly (ionicons are available as SVGs)
-    const ionicSvg = `
-      <svg width="25" height="25" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-        <style>
-          .ionicon-fill-none{fill:none}
-          .ionicon-stroke-width{stroke-width:32px}
-        </style>
-      </svg>
-    `
-
-    // For ionic icons, we'll use the ion-icon web component approach
+    // Try to use ion-icon web component
     const tempDiv = document.createElement("div")
     tempDiv.style.position = "absolute"
     tempDiv.style.left = "-9999px"
@@ -293,7 +263,6 @@
             ctx.drawImage(img, 5, 5, 25, 25)
             URL.revokeObjectURL(url)
 
-            // Get ImageData and add to map
             const imageData = ctx.getImageData(0, 0, 35, 35)
             map.addImage(iconKey, {
               width: 35,
@@ -304,7 +273,13 @@
             resolve()
           }
           img.onerror = () => {
-            // Fallback - just use the circle
+            // Fallback - just use the circle with text
+            ctx.fillStyle = "black"
+            ctx.font = "bold 12px Arial"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.fillText("I", 17.5, 17.5)
+
             const imageData = ctx.getImageData(0, 0, 35, 35)
             map.addImage(iconKey, {
               width: 35,
@@ -318,6 +293,12 @@
       }
     } else {
       // Fallback if shadow DOM not available
+      ctx.fillStyle = "black"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText("I", 17.5, 17.5)
+
       const imageData = ctx.getImageData(0, 0, 35, 35)
       map.addImage(iconKey, {
         width: 35,
@@ -330,7 +311,7 @@
     document.body.removeChild(tempDiv)
   }
 
-  async function loadAtlasIcon(iconId, iconClass) {
+  async function generateAtlasIcon(iconId, iconClass) {
     const iconKey = iconClass
 
     if (map.hasImage(iconKey)) {
@@ -349,45 +330,12 @@
     ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
     ctx.fill()
 
-    // Create a temporary element with the atlas icon class
-    const tempDiv = document.createElement("div")
-    tempDiv.style.position = "absolute"
-    tempDiv.style.left = "-9999px"
-    tempDiv.innerHTML = `<i class="${iconClass}" style="font-size: 20px; color: black;"></i>`
-    document.body.appendChild(tempDiv)
-
-    // Wait a moment for font to load
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Try to render the font icon
+    // Draw simple placeholder
     ctx.fillStyle = "black"
-    ctx.font = "20px atlas-icons" // Or whatever the font family is
+    ctx.font = "20px Arial"
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
-
-    // Get the computed style to see if font loaded
-    const iconElement = tempDiv.querySelector("i")
-    if (iconElement) {
-      const computedStyle = window.getComputedStyle(iconElement)
-      const fontFamily = computedStyle.fontFamily
-
-      if (fontFamily && fontFamily !== "atlas-icons") {
-        ctx.font = `20px ${fontFamily}`
-      }
-
-      // Try to get the actual character/content
-      const beforeContent = window.getComputedStyle(
-        iconElement,
-        "::before",
-      ).content
-      if (beforeContent && beforeContent !== "none") {
-        const char = beforeContent.replace(/['"]/g, "")
-        ctx.fillText(char, 17.5, 17.5)
-      } else {
-        // Fallback to a generic symbol
-        ctx.fillText("◆", 17.5, 17.5)
-      }
-    }
+    ctx.fillText("◆", 17.5, 17.5)
 
     // Get ImageData and add to map
     const imageData = ctx.getImageData(0, 0, 35, 35)
@@ -396,69 +344,61 @@
       height: 35,
       data: imageData.data,
     })
-
-    // Clean up
-    document.body.removeChild(tempDiv)
   }
 
-  async function loadAllIcons() {
+  // Fallback icon loading (only for ionic and atlas icons)
+  async function loadAllIconsFallback() {
     if (!map || iconsLoaded) return
 
-    console.log("Loading icon images...")
+    console.log("Loading fallback icons...")
 
-    // Load default marker first
-    const defaultCanvas = document.createElement("canvas")
-    defaultCanvas.width = 35
-    defaultCanvas.height = 35
-    const defaultCtx = defaultCanvas.getContext("2d")
+    // Load default marker if not already loaded
+    if (!map.hasImage("default")) {
+      const defaultCanvas = document.createElement("canvas")
+      defaultCanvas.width = 35
+      defaultCanvas.height = 35
+      const defaultCtx = defaultCanvas.getContext("2d")
 
-    // Draw default blue marker
-    defaultCtx.fillStyle = "#3b82f6"
-    defaultCtx.beginPath()
-    defaultCtx.arc(17.5, 17.5, 14, 0, 2 * Math.PI)
-    defaultCtx.fill()
-    defaultCtx.strokeStyle = "white"
-    defaultCtx.lineWidth = 2
-    defaultCtx.stroke()
+      // Draw default blue marker
+      defaultCtx.fillStyle = "#3b82f6"
+      defaultCtx.beginPath()
+      defaultCtx.arc(17.5, 17.5, 14, 0, 2 * Math.PI)
+      defaultCtx.fill()
+      defaultCtx.strokeStyle = "white"
+      defaultCtx.lineWidth = 2
+      defaultCtx.stroke()
 
-    defaultCtx.fillStyle = "white"
-    defaultCtx.beginPath()
-    defaultCtx.arc(17.5, 17.5, 4, 0, 2 * Math.PI)
-    defaultCtx.fill()
+      defaultCtx.fillStyle = "white"
+      defaultCtx.beginPath()
+      defaultCtx.arc(17.5, 17.5, 4, 0, 2 * Math.PI)
+      defaultCtx.fill()
 
-    const defaultImageData = defaultCtx.getImageData(0, 0, 35, 35)
-    map.addImage("default", {
-      width: 35,
-      height: 35,
-      data: defaultImageData.data,
-    })
-
-    // Load all custom SVG icons
-    const customIcons = markerIcons.filter((icon) =>
-      icon.class.startsWith("custom-svg"),
-    )
-    for (const icon of customIcons) {
-      await loadCustomSvgIcon(icon.id)
+      const defaultImageData = defaultCtx.getImageData(0, 0, 35, 35)
+      map.addImage("default", {
+        width: 35,
+        height: 35,
+        data: defaultImageData.data,
+      })
     }
 
-    // Load all ionic icons
+    // Load ionic icons (fallback)
     const ionicIcons = markerIcons.filter((icon) =>
       icon.class.startsWith("ionic-"),
     )
     for (const icon of ionicIcons) {
-      await loadIonicIcon(icon.id)
+      await generateIonicIcon(icon.id)
     }
 
-    // Load all atlas icons
+    // Load atlas icons (fallback)
     const atlasIcons = markerIcons.filter((icon) =>
       icon.class.startsWith("at-"),
     )
     for (const icon of atlasIcons) {
-      await loadAtlasIcon(icon.id, icon.class)
+      await generateAtlasIcon(icon.id, icon.class)
     }
 
     iconsLoaded = true
-    console.log("All icon images loaded successfully")
+    console.log("Fallback icon loading completed")
   }
 
   function getIconImageName(iconClass) {
@@ -478,13 +418,18 @@
     return "default"
   }
 
+  function getIconAnchor(iconName) {
+    // Use bottom anchor for the Mapbox pin, center for everything else
+    return iconName === "default" ? "bottom" : "center"
+  }
+
   async function initializeMarkerLayers() {
     if (!map || markersInitialized) return
 
-    console.log("Initializing marker layers...")
+    console.log("🏁 Initializing marker layers...")
 
-    // Load all icons
-    await loadAllIcons()
+    // Load high-DPI PNG icons first
+    await loadHighDpiIcons()
 
     // Initialize empty GeoJSON source for markers
     if (!map.getSource("markers")) {
@@ -495,10 +440,10 @@
           features: [],
         },
       })
-      console.log("Markers source added")
+      console.log("📍 Markers source added")
     }
 
-    // Add marker layer
+    // Add marker layer with dynamic anchor based on icon type
     if (!map.getLayer("markers-layer")) {
       map.addLayer({
         id: "markers-layer",
@@ -506,30 +451,18 @@
         source: "markers",
         layout: {
           "icon-image": ["get", "icon"],
-          "icon-size": 1,
+          "icon-size": 0.35,
           "icon-allow-overlap": true,
           "text-allow-overlap": true,
-          "icon-anchor": "center",
+          "icon-anchor": [
+            "case",
+            ["==", ["get", "icon"], "default"],
+            "bottom", // Pin anchor for default Mapbox marker
+            "center", // Center anchor for all other icons
+          ],
         },
       })
-      console.log("Markers layer added")
-    }
-
-    // Add selection highlight layer
-    if (!map.getLayer("marker-selection")) {
-      map.addLayer({
-        id: "marker-selection",
-        type: "circle",
-        source: "markers",
-        paint: {
-          "circle-radius": 20,
-          "circle-color": "transparent",
-          "circle-stroke-color": "#3b82f6",
-          "circle-stroke-width": 3,
-          "circle-opacity": ["case", ["==", ["get", "selected"], true], 1, 0],
-        },
-      })
-      console.log("Marker selection layer added")
+      console.log("🎯 Markers layer added with dynamic anchors")
     }
 
     // Add click handler for markers
@@ -553,7 +486,10 @@
     })
 
     markersInitialized = true
-    console.log("Marker layers initialization complete")
+    console.log("✅ Marker layers initialization complete")
+
+    // Ensure markers are on top initially
+    ensureMarkersOnTop()
 
     // Load any existing markers from the store
     refreshMapMarkers()
@@ -563,7 +499,7 @@
     if (!map || !map.getSource("markers")) return
 
     const markers = $confirmedMarkersStore
-    console.log("Refreshing map with", markers.length, "markers from store")
+    console.log("🔄 Refreshing map with", markers.length, "markers from store")
 
     const features = markers.map((marker) => {
       const iconName = getIconImageName(marker.iconClass)
@@ -588,7 +524,7 @@
       features: features,
     })
 
-    console.log("Map refreshed with", features.length, "features")
+    console.log("✅ Map refreshed with", features.length, "features")
   }
 
   onMount(() => {
@@ -611,6 +547,29 @@
         refreshMapMarkers()
       }
     })
+
+    // Start polling to keep markers on top every 5 seconds for 20 calls (100 seconds total)
+    let pollCount = 0
+    const maxPolls = 20
+
+    markerTopInterval = setInterval(() => {
+      if (markersInitialized && map) {
+        ensureMarkersOnTop()
+        pollCount++
+
+        if (pollCount >= maxPolls) {
+          clearInterval(markerTopInterval)
+          markerTopInterval = null
+          console.log(
+            `🛑 Stopped marker layer polling after ${maxPolls} calls (${maxPolls * 5} seconds)`,
+          )
+        }
+      }
+    }, 5000) // 5 seconds
+
+    console.log(
+      `🔄 Started marker layer polling (5s interval, max ${maxPolls} calls)`,
+    )
   })
 
   onDestroy(() => {
@@ -626,16 +585,31 @@
       confirmedMarkersUnsubscribe()
     }
 
+    // Clear the polling interval
+    if (markerTopInterval) {
+      clearInterval(markerTopInterval)
+      markerTopInterval = null
+      console.log("🛑 Stopped marker layer polling")
+    }
+
     if (selectedMarkerPopup) {
       selectedMarkerPopup.remove()
       selectedMarkerPopup = null
     }
 
-    // Clear map layers and source
-    if (map) {
-      if (map.getLayer("marker-selection")) map.removeLayer("marker-selection")
-      if (map.getLayer("markers-layer")) map.removeLayer("markers-layer")
-      if (map.getSource("markers")) map.removeSource("markers")
+    // Clear map layers and source with proper error handling
+    if (map && map.getStyle && typeof map.getLayer === "function") {
+      try {
+        if (map.getLayer("markers-layer")) {
+          map.removeLayer("markers-layer")
+        }
+        if (map.getSource("markers")) {
+          map.removeSource("markers")
+        }
+      } catch (error) {
+        console.warn("Error cleaning up map layers:", error)
+        // Continue with cleanup even if map operations fail
+      }
     }
 
     // Clear stores
