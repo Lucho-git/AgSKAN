@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { createCanvas, loadImage } from 'canvas'
 import fs from 'fs'
+import { atlasIconSvgs } from './atlas-icons.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -22,8 +23,7 @@ const customSvgIcons = [
   "silo2",
   "tree_stump",
   "workshop_icon",
-    "mapbox-marker"  
-
+  "mapbox-marker"  
 ]
 
 const ionicIcons = [
@@ -332,7 +332,7 @@ async function generateIonicIconPng(iconId, outputDir) {
   }
 }
 
-// Generate Atlas icon PNG (placeholder approach)
+// Generate Atlas icon PNG with SVG support
 async function generateAtlasIconPng(iconId, outputDir) {
   try {
     const displaySize = 35
@@ -345,7 +345,7 @@ async function generateAtlasIconPng(iconId, outputDir) {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
 
-    // Draw same LightGray background
+    // Draw background circle
     const centerX = canvasSize / 2
     const centerY = canvasSize / 2
     const radius = (canvasSize / 2) - (1 * dpiScale)
@@ -365,36 +365,50 @@ async function generateAtlasIconPng(iconId, outputDir) {
     ctx.shadowBlur = 0
     ctx.shadowOffsetY = 0
 
-    // Draw a themed icon based on the name
-    ctx.fillStyle = 'black'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    // Check if we have SVG content
+    const svgContent = atlasIconSvgs[iconId]
     
-    const iconMap = {
-      'construction-truck': '🚚',
-      'electric-car': '🚗',
-      'gasoline': '⛽',
-      'kg-weight': '⚖️',
-      'carrot': '🥕',
-      'toilet-bathroom': '🚽',
-      'car-garage': '🏠',
-      'electricity-home': '⚡',
-      'wheat-harvest': '🌾',
-      'helicopter-travel': '🚁',
-      'camper-vehicle': '🚐',
-      'bulldozer': '🚜',
-      'crane-truck': '🏗️',
-      'cargo-transport': '📦',
-      'construction-transport': '🚧',
-      'delivery-truck': '🚛',
-      'liquid-transportation': '🛢️',
-      'transport-truck': '🚚',
-      'ladder-truck': '🪜'
+    if (svgContent && !svgContent.includes('<!-- Paste SVG here -->')) {
+      // We have actual SVG content
+      const iconSize = Math.floor(canvasSize * 0.7)
+      
+      // Clean up the SVG and set proper size
+      const cleanSvg = svgContent.replace(
+        /<svg[^>]*>/,
+        `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">`
+      )
+      
+      const svgBuffer = Buffer.from(cleanSvg, 'utf-8')
+      const img = await loadImage(svgBuffer)
+      
+      const iconX = (canvasSize - iconSize) / 2
+      const iconY = (canvasSize - iconSize) / 2
+      
+      ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
+      
+      console.log(`  ✅ Generated Atlas: ${iconId} (using SVG)`)
+      
+    } else {
+      // Fallback to emoji
+      const emojiMap = {
+        'construction-truck': '🚚', 'electric-car': '🚗', 'gasoline': '⛽',
+        'kg-weight': '⚖️', 'carrot': '🥕', 'middle-finger': '🖕',
+        'toilet-bathroom': '🚽', 'car-garage': '🏠', 'electricity-home': '⚡',
+        'carrot-turnip-vegetable': '🥕', 'wheat-harvest': '🌾', 'helicopter-travel': '🚁',
+        'camper-vehicle': '🚐', 'bulldozer': '🚜', 'crane-truck': '🏗️',
+        'cargo-transport': '📦', 'construction-transport': '🚧', 'delivery-truck': '🚛',
+        'liquid-transportation': '🛢️', 'transport-truck': '🚚', 'ladder-truck': '🪜'
+      }
+      
+      const emoji = emojiMap[iconId] || '🔧'
+      ctx.fillStyle = 'black'
+      ctx.font = `${Math.floor(canvasSize * 0.4)}px Arial`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(emoji, centerX, centerY)
+      
+      console.log(`  ⚠️  Generated Atlas: ${iconId} (using emoji fallback)`)
     }
-    
-    const emoji = iconMap[iconId] || '🔧'
-    ctx.font = `${Math.floor(canvasSize * 0.4)}px Arial`
-    ctx.fillText(emoji, centerX, centerY)
 
     // Save PNG
     const filename = `${iconId}-atlas-3x.png`
@@ -402,7 +416,6 @@ async function generateAtlasIconPng(iconId, outputDir) {
     const buffer = canvas.toBuffer('image/png', { compressionLevel: 9, quality: 1.0 })
     fs.writeFileSync(filepath, buffer)
 
-    console.log(`  ✅ Generated Atlas: ${filename}`)
     return `icons/${filename}`
 
   } catch (error) {
