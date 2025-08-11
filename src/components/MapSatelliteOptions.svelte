@@ -32,10 +32,10 @@
       attribution: "© Mapbox © OpenStreetMap",
       provider: "mapbox",
     },
-    google_hybrid: {
-      name: "Google Hybrid",
-      url: `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}`,
-      description: "Satellite imagery with road labels",
+    google_satellite: {
+      name: "Google Satellite",
+      url: `https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}`,
+      description: "Google satellite imagery",
       attribution: "Google Maps",
       provider: "google",
     },

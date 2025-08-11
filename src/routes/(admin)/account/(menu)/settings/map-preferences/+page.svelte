@@ -54,9 +54,9 @@
   // Available imagery providers
   const imageryProviders = [
     {
-      key: "google_hybrid",
-      name: "Google Hybrid",
-      description: "Satellite imagery with road labels",
+      key: "google_satellite",
+      name: "Google Satellite",
+      description: "Google Satellite Imagery",
       icon: "solar:global-bold-duotone",
     },
     {
@@ -94,7 +94,7 @@
   // Default options for imagery selector
   const defaultImageryOptions = [
     { key: "mapbox", name: "Mapbox Satellite" },
-    { key: "google_hybrid", name: "Google Hybrid" },
+    { key: "google_satellite", name: "Google Satellite" },
     { key: "bing_aerial", name: "Microsoft Bing Aerial" },
     { key: "esri_clarity", name: "Esri Clarity+" },
     { key: "esri_standard", name: "Esri World Imagery" },
