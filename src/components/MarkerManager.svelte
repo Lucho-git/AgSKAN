@@ -191,7 +191,6 @@
               // Add the high-DPI image to the map
               if (!map.hasImage(iconKey)) {
                 map.addImage(iconKey, image)
-                console.log(`✅ Loaded high-DPI icon: ${iconKey}`)
               }
 
               resolve()
@@ -499,7 +498,6 @@
     if (!map || !map.getSource("markers")) return
 
     const markers = $confirmedMarkersStore
-    console.log("🔄 Refreshing map with", markers.length, "markers from store")
 
     const features = markers.map((marker) => {
       const iconName = getIconImageName(marker.iconClass)
@@ -523,8 +521,6 @@
       type: "FeatureCollection",
       features: features,
     })
-
-    console.log("✅ Map refreshed with", features.length, "features")
   }
 
   onMount(() => {
@@ -539,11 +535,6 @@
     // Subscribe to confirmedMarkersStore to update map when it changes
     confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
       if (markersInitialized && map) {
-        console.log(
-          "ConfirmedMarkersStore updated with",
-          markers.length,
-          "markers",
-        )
         refreshMapMarkers()
       }
     })
@@ -684,12 +675,6 @@
     }
 
     source.setData(data)
-    console.log(
-      "Added/updated marker in layer:",
-      feature.properties.id,
-      "with icon:",
-      feature.properties.icon,
-    )
   }
 
   function removeMarkerFromLayer(markerId) {
