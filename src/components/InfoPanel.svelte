@@ -31,6 +31,7 @@
 
   function handleCollapseButtonClick() {
     showInfoPanel = false
+    dispatch("deselect")
   }
 
   function closeInfoPanel() {
