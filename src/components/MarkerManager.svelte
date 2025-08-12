@@ -13,24 +13,30 @@
   import { profileStore } from "$lib/stores/profileStore"
 
   import { onMount, onDestroy } from "svelte"
-  import mapboxgl from "mapbox-gl"
   import { v4 as uuidv4 } from "uuid"
-  import IconSVG from "../components/IconSVG.svelte"
-  import { toast } from "svelte-sonner"
+  import IconSVG from "./IconSVG.svelte"
 
   export let map
   export let mapLoaded = false
-  export let markerPlacementEvent = null
-  export let markerClickEvent = null
 
   let markerActionsUnsubscribe
   let locationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
   let markersInitialized = false
-  let selectedMarkerPopup = null
   let iconsLoaded = false
   let iconPaths = null
-  let markerTopInterval = null
+
+  // Long press variables
+  let longPressTimer = null
+  let longPressStartPosition = null
+  const longPressThreshold = 850
+  const longPressMoveThreshold = 5
+  let isLongPressing = false
+
+  // Touch tracking variables for markers
+  let touchStartPosition = null
+  let hasTouchMoved = false
+  const touchMoveThreshold = 10 // pixels
 
   const markerIcons = [
     { id: "rock", class: "custom-svg" },
@@ -130,319 +136,255 @@
     { id: "ladder-truck", class: "at-ladder-truck" },
   ]
 
-  $: if (markerPlacementEvent) {
-    handleMarkerPlacement(markerPlacementEvent)
-  }
-
-  $: if (markerClickEvent) {
-    handleMarkerSelection(markerClickEvent)
-  }
-
   $: if (mapLoaded && map && !markersInitialized) {
     initializeMarkerLayers()
   }
 
-  // Efficient function to ensure markers stay on top
-  function ensureMarkersOnTop() {
-    if (!map || !map.getLayer("markers-layer") || !markersInitialized) return
-
-    try {
-      // moveLayer() with no beforeId moves the layer to the very top
-      map.moveLayer("markers-layer")
-      console.log("🔝 Moved markers to top layer")
-    } catch (error) {
-      // Only log if it's an actual error, not just "layer already on top"
-      if (!error.message.includes("does not exist")) {
-        console.warn("Could not move markers layer:", error.message)
-      }
-    }
-  }
-
-  // Load high-DPI PNG icons using Mapbox's loadImage method
+  // Load high-DPI PNG icons
   async function loadHighDpiIcons() {
     if (!map || iconsLoaded || iconPaths) return
 
     console.log("🚀 Loading high-DPI PNG icons...")
 
     try {
-      // Load the icon paths mapping
       const response = await fetch("/icon-paths.json")
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to load icon paths: ${response.status}`)
-      }
 
       iconPaths = await response.json()
       console.log(`📋 Loaded ${Object.keys(iconPaths).length} icon paths`)
 
-      // Load each PNG file using Mapbox's loadImage
       const loadPromises = Object.entries(iconPaths).map(
         async ([iconKey, iconPath]) => {
           return new Promise((resolve, reject) => {
             map.loadImage(`/${iconPath}`, (error, image) => {
               if (error) {
-                console.error(
-                  `❌ Failed to load ${iconKey} from ${iconPath}:`,
-                  error,
-                )
+                console.error(`❌ Failed to load ${iconKey}:`, error)
                 reject(error)
                 return
               }
-
-              // Add the high-DPI image to the map
               if (!map.hasImage(iconKey)) {
                 map.addImage(iconKey, image)
               }
-
               resolve()
             })
           })
         },
       )
 
-      // Wait for all icons to load
       await Promise.allSettled(loadPromises)
-
       iconsLoaded = true
       console.log("🎯 All high-DPI PNG icons loaded successfully!")
     } catch (error) {
       console.error("❌ Error loading high-DPI icons:", error)
-      // Fallback to old method
-      console.warn("⚠️  Falling back to runtime icon generation...")
-      await loadAllIconsFallback()
+      await loadFallbackIcons()
     }
   }
 
-  // Fallback icon generation for ionic and atlas icons (unchanged)
-  async function generateIonicIcon(iconId) {
-    const iconKey = `ionic-${iconId}`
-
-    if (map.hasImage(iconKey)) {
-      return
-    }
-
-    // Create canvas for ionic icon fallback
-    const canvas = document.createElement("canvas")
-    canvas.width = 35
-    canvas.height = 35
-    const ctx = canvas.getContext("2d")
-
-    // Draw background circle
-    ctx.fillStyle = "rgba(211, 211, 211, 0.9)"
-    ctx.beginPath()
-    ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
-    ctx.fill()
-
-    // Try to use ion-icon web component
-    const tempDiv = document.createElement("div")
-    tempDiv.style.position = "absolute"
-    tempDiv.style.left = "-9999px"
-    tempDiv.innerHTML = `<ion-icon name="${iconId}" style="font-size: 25px; color: black;"></ion-icon>`
-    document.body.appendChild(tempDiv)
-
-    // Wait for the icon to load
-    await new Promise((resolve) => setTimeout(resolve, 200))
-
-    const ionIcon = tempDiv.querySelector("ion-icon")
-    if (ionIcon && ionIcon.shadowRoot) {
-      const svg = ionIcon.shadowRoot.querySelector("svg")
-      if (svg) {
-        svg.setAttribute("width", "25")
-        svg.setAttribute("height", "25")
-        svg.setAttribute("fill", "black")
-
-        const svgData = new XMLSerializer().serializeToString(svg)
-        const svgBlob = new Blob([svgData], {
-          type: "image/svg+xml;charset=utf-8",
-        })
-        const url = URL.createObjectURL(svgBlob)
-
-        const img = new Image()
-        await new Promise((resolve) => {
-          img.onload = () => {
-            ctx.drawImage(img, 5, 5, 25, 25)
-            URL.revokeObjectURL(url)
-
-            const imageData = ctx.getImageData(0, 0, 35, 35)
-            map.addImage(iconKey, {
-              width: 35,
-              height: 35,
-              data: imageData.data,
-            })
-
-            resolve()
-          }
-          img.onerror = () => {
-            // Fallback - just use the circle with text
-            ctx.fillStyle = "black"
-            ctx.font = "bold 12px Arial"
-            ctx.textAlign = "center"
-            ctx.textBaseline = "middle"
-            ctx.fillText("I", 17.5, 17.5)
-
-            const imageData = ctx.getImageData(0, 0, 35, 35)
-            map.addImage(iconKey, {
-              width: 35,
-              height: 35,
-              data: imageData.data,
-            })
-            resolve()
-          }
-          img.src = url
-        })
-      }
-    } else {
-      // Fallback if shadow DOM not available
-      ctx.fillStyle = "black"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.fillText("I", 17.5, 17.5)
-
-      const imageData = ctx.getImageData(0, 0, 35, 35)
-      map.addImage(iconKey, {
-        width: 35,
-        height: 35,
-        data: imageData.data,
-      })
-    }
-
-    // Clean up
-    document.body.removeChild(tempDiv)
-  }
-
-  async function generateAtlasIcon(iconId, iconClass) {
-    const iconKey = iconClass
-
-    if (map.hasImage(iconKey)) {
-      return
-    }
-
-    // Create canvas for atlas icon
-    const canvas = document.createElement("canvas")
-    canvas.width = 35
-    canvas.height = 35
-    const ctx = canvas.getContext("2d")
-
-    // Draw background circle
-    ctx.fillStyle = "rgba(211, 211, 211, 0.9)"
-    ctx.beginPath()
-    ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
-    ctx.fill()
-
-    // Draw simple placeholder
-    ctx.fillStyle = "black"
-    ctx.font = "20px Arial"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-    ctx.fillText("◆", 17.5, 17.5)
-
-    // Get ImageData and add to map
-    const imageData = ctx.getImageData(0, 0, 35, 35)
-    map.addImage(iconKey, {
-      width: 35,
-      height: 35,
-      data: imageData.data,
-    })
-  }
-
-  // Fallback icon loading (only for ionic and atlas icons)
-  async function loadAllIconsFallback() {
+  // Simplified fallback icon generation
+  async function loadFallbackIcons() {
     if (!map || iconsLoaded) return
 
     console.log("Loading fallback icons...")
 
-    // Load default marker if not already loaded
+    // Load default marker
     if (!map.hasImage("default")) {
-      const defaultCanvas = document.createElement("canvas")
-      defaultCanvas.width = 35
-      defaultCanvas.height = 35
-      const defaultCtx = defaultCanvas.getContext("2d")
+      const canvas = document.createElement("canvas")
+      canvas.width = 35
+      canvas.height = 35
+      const ctx = canvas.getContext("2d")
 
-      // Draw default blue marker
-      defaultCtx.fillStyle = "#3b82f6"
-      defaultCtx.beginPath()
-      defaultCtx.arc(17.5, 17.5, 14, 0, 2 * Math.PI)
-      defaultCtx.fill()
-      defaultCtx.strokeStyle = "white"
-      defaultCtx.lineWidth = 2
-      defaultCtx.stroke()
+      ctx.fillStyle = "#3b82f6"
+      ctx.beginPath()
+      ctx.arc(17.5, 17.5, 14, 0, 2 * Math.PI)
+      ctx.fill()
+      ctx.strokeStyle = "white"
+      ctx.lineWidth = 2
+      ctx.stroke()
 
-      defaultCtx.fillStyle = "white"
-      defaultCtx.beginPath()
-      defaultCtx.arc(17.5, 17.5, 4, 0, 2 * Math.PI)
-      defaultCtx.fill()
+      ctx.fillStyle = "white"
+      ctx.beginPath()
+      ctx.arc(17.5, 17.5, 4, 0, 2 * Math.PI)
+      ctx.fill()
 
-      const defaultImageData = defaultCtx.getImageData(0, 0, 35, 35)
-      map.addImage("default", {
-        width: 35,
-        height: 35,
-        data: defaultImageData.data,
-      })
+      const imageData = ctx.getImageData(0, 0, 35, 35)
+      map.addImage("default", { width: 35, height: 35, data: imageData.data })
     }
 
-    // Load ionic icons (fallback)
-    const ionicIcons = markerIcons.filter((icon) =>
-      icon.class.startsWith("ionic-"),
-    )
-    for (const icon of ionicIcons) {
-      await generateIonicIcon(icon.id)
-    }
+    // Generate simple fallbacks for other icons
+    const iconTypes = [
+      { filter: (icon) => icon.class.startsWith("ionic-"), symbol: "I" },
+      { filter: (icon) => icon.class.startsWith("at-"), symbol: "◆" },
+    ]
 
-    // Load atlas icons (fallback)
-    const atlasIcons = markerIcons.filter((icon) =>
-      icon.class.startsWith("at-"),
-    )
-    for (const icon of atlasIcons) {
-      await generateAtlasIcon(icon.id, icon.class)
+    for (const iconType of iconTypes) {
+      const icons = markerIcons.filter(iconType.filter)
+      for (const icon of icons) {
+        await generateFallbackIcon(icon.class, iconType.symbol)
+      }
     }
 
     iconsLoaded = true
     console.log("Fallback icon loading completed")
   }
 
-  function getIconImageName(iconClass) {
-    if (!iconClass || iconClass === "default") {
-      return "default"
-    }
+  async function generateFallbackIcon(iconKey, symbol) {
+    if (map.hasImage(iconKey)) return
 
-    // Handle different icon class formats
-    if (iconClass.startsWith("custom-svg-")) {
-      return iconClass
-    } else if (iconClass.startsWith("ionic-")) {
-      return iconClass
-    } else if (iconClass.startsWith("at-")) {
+    const canvas = document.createElement("canvas")
+    canvas.width = 35
+    canvas.height = 35
+    const ctx = canvas.getContext("2d")
+
+    ctx.fillStyle = "rgba(211, 211, 211, 0.9)"
+    ctx.beginPath()
+    ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
+    ctx.fill()
+
+    ctx.fillStyle = "black"
+    ctx.font = "bold 16px Arial"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText(symbol, 17.5, 17.5)
+
+    const imageData = ctx.getImageData(0, 0, 35, 35)
+    map.addImage(iconKey, { width: 35, height: 35, data: imageData.data })
+  }
+
+  function getIconImageName(iconClass) {
+    if (!iconClass || iconClass === "default") return "default"
+
+    if (
+      iconClass.startsWith("custom-svg-") ||
+      iconClass.startsWith("ionic-") ||
+      iconClass.startsWith("at-")
+    ) {
       return iconClass
     }
 
     return "default"
   }
 
-  function getIconAnchor(iconName) {
-    // Use bottom anchor for the Mapbox pin, center for everything else
-    return iconName === "default" ? "bottom" : "center"
+  // Unified event handlers
+  function handleMapMouseDown(e) {
+    startLongPress(e)
+  }
+
+  function handleMapTouchStart(e) {
+    if (e.originalEvent.touches.length > 1) return // Ignore multi-touch
+    startLongPress(e)
+  }
+
+  function startLongPress(e) {
+    isLongPressing = true
+    longPressStartPosition = {
+      x: e.originalEvent.clientX || e.originalEvent.touches[0].clientX,
+      y: e.originalEvent.clientY || e.originalEvent.touches[0].clientY,
+      lngLat: e.lngLat,
+    }
+
+    longPressTimer = setTimeout(() => {
+      if (isLongPressing) {
+        handleMarkerPlacement(longPressStartPosition.lngLat)
+      }
+    }, longPressThreshold)
+  }
+
+  function checkLongPressMovement(e) {
+    if (!isLongPressing || !longPressStartPosition) return
+
+    const currentX =
+      e.originalEvent.clientX || e.originalEvent.touches[0].clientX
+    const currentY =
+      e.originalEvent.clientY || e.originalEvent.touches[0].clientY
+
+    const dx = currentX - longPressStartPosition.x
+    const dy = currentY - longPressStartPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > longPressMoveThreshold) {
+      cancelLongPress()
+    }
+  }
+
+  function cancelLongPress() {
+    isLongPressing = false
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+    longPressStartPosition = null
+  }
+
+  // Marker touch tracking functions
+  function handleMarkerTouchStart(e) {
+    touchStartPosition = {
+      x: e.originalEvent.touches[0].clientX,
+      y: e.originalEvent.touches[0].clientY,
+    }
+    hasTouchMoved = false
+  }
+
+  function handleMarkerTouchMove(e) {
+    if (!touchStartPosition) return
+
+    const currentX = e.originalEvent.touches[0].clientX
+    const currentY = e.originalEvent.touches[0].clientY
+
+    const dx = currentX - touchStartPosition.x
+    const dy = currentY - touchStartPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > touchMoveThreshold) {
+      hasTouchMoved = true
+    }
+  }
+
+  function handleMarkerTouchEnd(e) {
+    // Reset touch tracking after a delay
+    setTimeout(() => {
+      touchStartPosition = null
+      hasTouchMoved = false
+    }, 100)
+  }
+
+  // Unified marker selection handler
+  function handleMarkerLayerSelection(e) {
+    if (e.features.length > 0) {
+      // For click events, always proceed
+      if (e.type === "click") {
+        cancelLongPress()
+        const feature = e.features[0]
+        handleMarkerSelection({
+          id: feature.properties.id,
+          lngLat: feature.geometry.coordinates,
+        })
+        return
+      }
+
+      // For touchend events, only proceed if there was minimal movement
+      if (e.type === "touchend" && !hasTouchMoved) {
+        cancelLongPress()
+        const feature = e.features[0]
+        handleMarkerSelection({
+          id: feature.properties.id,
+          lngLat: feature.geometry.coordinates,
+        })
+      }
+    }
   }
 
   async function initializeMarkerLayers() {
     if (!map || markersInitialized) return
 
     console.log("🏁 Initializing marker layers...")
-
-    // Load high-DPI PNG icons first
     await loadHighDpiIcons()
 
-    // Initialize empty GeoJSON source for markers
     if (!map.getSource("markers")) {
       map.addSource("markers", {
         type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [],
-        },
+        data: { type: "FeatureCollection", features: [] },
       })
-      console.log("📍 Markers source added")
     }
 
-    // Add marker layer with dynamic anchor based on icon type
     if (!map.getLayer("markers-layer")) {
       map.addLayer({
         id: "markers-layer",
@@ -456,218 +398,74 @@
           "icon-anchor": [
             "case",
             ["==", ["get", "icon"], "default"],
-            "bottom", // Pin anchor for default Mapbox marker
-            "center", // Center anchor for all other icons
+            "bottom",
+            "center",
           ],
         },
       })
-      console.log("🎯 Markers layer added with dynamic anchors")
     }
 
-    // Add click handler for markers
-    map.on("click", "markers-layer", (e) => {
-      if (e.features.length > 0) {
-        const feature = e.features[0]
-        handleMarkerSelection({
-          id: feature.properties.id,
-          lngLat: feature.geometry.coordinates,
-        })
-      }
-    })
+    // Add marker interaction handlers
+    map.on("click", "markers-layer", handleMarkerLayerSelection)
+    map.on("touchstart", "markers-layer", handleMarkerTouchStart)
+    map.on("touchmove", "markers-layer", handleMarkerTouchMove)
+    map.on("touchend", "markers-layer", handleMarkerLayerSelection)
 
-    // Change cursor on hover
+    // Add hover effects
     map.on("mouseenter", "markers-layer", () => {
       map.getCanvas().style.cursor = "pointer"
     })
-
     map.on("mouseleave", "markers-layer", () => {
       map.getCanvas().style.cursor = ""
     })
 
+    // Add long press handlers for map
+    map.on("mousedown", handleMapMouseDown)
+    map.on("touchstart", handleMapTouchStart)
+    map.on("mousemove", checkLongPressMovement)
+    map.on("touchmove", checkLongPressMovement)
+    map.on("mouseup", cancelLongPress)
+    map.on("touchend", cancelLongPress)
+
     markersInitialized = true
     console.log("✅ Marker layers initialization complete")
 
-    // Ensure markers are on top initially
-    ensureMarkersOnTop()
-
-    // Load any existing markers from the store
     refreshMapMarkers()
   }
 
   function refreshMapMarkers() {
     if (!map || !map.getSource("markers")) return
 
-    const markers = $confirmedMarkersStore
+    const features = $confirmedMarkersStore.map((marker) => ({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: marker.coordinates,
+      },
+      properties: {
+        id: marker.id,
+        icon: getIconImageName(marker.iconClass),
+        iconClass: marker.iconClass || "default",
+        selected: false,
+      },
+    }))
 
-    const features = markers.map((marker) => {
-      const iconName = getIconImageName(marker.iconClass)
-      return {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: marker.coordinates,
-        },
-        properties: {
-          id: marker.id,
-          icon: iconName,
-          iconClass: marker.iconClass || "default",
-          selected: false,
-        },
-      }
-    })
-
-    const source = map.getSource("markers")
-    source.setData({
+    map.getSource("markers").setData({
       type: "FeatureCollection",
       features: features,
     })
   }
 
-  onMount(() => {
-    markerActionsUnsubscribe = markerActionsStore.subscribe(applyMarkerActions)
-
-    locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
-      if (timestamp) {
-        placeMarkerAtCurrentLocation()
-      }
-    })
-
-    // Subscribe to confirmedMarkersStore to update map when it changes
-    confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
-      if (markersInitialized && map) {
-        refreshMapMarkers()
-      }
-    })
-
-    // Start polling to keep markers on top every 5 seconds for 20 calls (100 seconds total)
-    let pollCount = 0
-    const maxPolls = 20
-
-    markerTopInterval = setInterval(() => {
-      if (markersInitialized && map) {
-        ensureMarkersOnTop()
-        pollCount++
-
-        if (pollCount >= maxPolls) {
-          clearInterval(markerTopInterval)
-          markerTopInterval = null
-          console.log(
-            `🛑 Stopped marker layer polling after ${maxPolls} calls (${maxPolls * 5} seconds)`,
-          )
-        }
-      }
-    }, 5000) // 5 seconds
-
-    console.log(
-      `🔄 Started marker layer polling (5s interval, max ${maxPolls} calls)`,
-    )
-  })
-
-  onDestroy(() => {
-    console.log("Destroying MarkerManager")
-
-    if (markerActionsUnsubscribe) {
-      markerActionsUnsubscribe()
-    }
-    if (locationMarkerUnsubscribe) {
-      locationMarkerUnsubscribe()
-    }
-    if (confirmedMarkersUnsubscribe) {
-      confirmedMarkersUnsubscribe()
-    }
-
-    // Clear the polling interval
-    if (markerTopInterval) {
-      clearInterval(markerTopInterval)
-      markerTopInterval = null
-      console.log("🛑 Stopped marker layer polling")
-    }
-
-    if (selectedMarkerPopup) {
-      selectedMarkerPopup.remove()
-      selectedMarkerPopup = null
-    }
-
-    // Clear map layers and source with proper error handling
-    if (map && map.getStyle && typeof map.getLayer === "function") {
-      try {
-        if (map.getLayer("markers-layer")) {
-          map.removeLayer("markers-layer")
-        }
-        if (map.getSource("markers")) {
-          map.removeSource("markers")
-        }
-      } catch (error) {
-        console.warn("Error cleaning up map layers:", error)
-        // Continue with cleanup even if map operations fail
-      }
-    }
-
-    // Clear stores
-    confirmedMarkersStore.set([])
-    removeMarkerStore.set([])
-    markerActionsStore.set([])
-  })
-
-  async function placeMarkerAtCurrentLocation() {
-    if (!map) return
-
-    const coordinates = $locationMarkerStore
-
-    if (coordinates) {
-      const id = uuidv4()
-      const feature = {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [coordinates.longitude, coordinates.latitude],
-        },
-        properties: {
-          id,
-          icon: "default",
-          iconClass: "default",
-        },
-      }
-
-      addMarkerToLayer(feature)
-
-      confirmedMarkersStore.update((markers) => [
-        ...markers,
-        {
-          id,
-          last_confirmed: new Date().toISOString(),
-          iconClass: "default",
-          coordinates: [coordinates.longitude, coordinates.latitude],
-        },
-      ])
-
-      if ($userSettingsStore?.zoomToLocationMarkers) {
-        map.flyTo({
-          center: [coordinates.longitude, coordinates.latitude],
-          zoom: 15,
-          duration: 1000,
-        })
-      }
-
-      console.log("Marker placed at current location:", coordinates)
-    } else {
-      console.error("Unable to get current location")
-    }
-  }
-
   function addMarkerToLayer(feature) {
-    if (!map || !map.getSource("markers")) {
-      console.warn("Map or markers source not ready")
-      return
-    }
+    if (!map || !map.getSource("markers")) return
 
     const source = map.getSource("markers")
     const data = source._data
 
-    // Check if marker already exists and update it
     const existingIndex = data.features.findIndex(
       (f) => f.properties.id === feature.properties.id,
     )
+
     if (existingIndex >= 0) {
       data.features[existingIndex] = feature
     } else {
@@ -684,7 +482,6 @@
     const data = source._data
     data.features = data.features.filter((f) => f.properties.id !== markerId)
     source.setData(data)
-    console.log("Removed marker from layer:", markerId)
   }
 
   function updateMarkerSelection(markerId, selected) {
@@ -704,57 +501,74 @@
     source.setData(data)
   }
 
-  async function handleMarkerPlacement(event) {
+  async function handleMarkerPlacement(lngLat) {
     if (!map) return
 
-    const { lngLat } = event
-
-    if (lngLat) {
-      // Remove previous temporary marker
-      if ($selectedMarkerStore) {
-        removeMarkerFromLayer($selectedMarkerStore.id)
-      }
-
-      const id = uuidv4()
-      const feature = {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [lngLat.lng, lngLat.lat],
-        },
-        properties: {
-          id,
-          icon: "default",
-          iconClass: "default",
-          selected: true,
-        },
-      }
-
-      addMarkerToLayer(feature)
-      selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
-
-      if ($userSettingsStore?.zoomToPlacedMarkers) {
-        map.flyTo({
-          center: [lngLat.lng, lngLat.lat],
-          duration: 1000,
-        })
-      }
-
-      controlStore.update((controls) => ({
-        ...controls,
-        showMarkerMenu: true,
-      }))
-
-      console.log("Marker ID Placed:", id)
+    // Remove previous temporary marker
+    if ($selectedMarkerStore) {
+      removeMarkerFromLayer($selectedMarkerStore.id)
     }
+
+    const id = uuidv4()
+    const feature = {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [lngLat.lng, lngLat.lat],
+      },
+      properties: {
+        id,
+        icon: "default",
+        iconClass: "default",
+        selected: true,
+      },
+    }
+
+    addMarkerToLayer(feature)
+    selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
+
+    if ($userSettingsStore?.zoomToPlacedMarkers) {
+      map.flyTo({
+        center: [lngLat.lng, lngLat.lat],
+        duration: 1000,
+      })
+    }
+
+    controlStore.update((controls) => ({
+      ...controls,
+      showMarkerMenu: true,
+    }))
+  }
+
+  function handleMarkerSelection(event) {
+    if (!map) return
+
+    const { id, lngLat } = event
+    const coordinates = Array.isArray(lngLat)
+      ? { lng: lngLat[0], lat: lngLat[1] }
+      : lngLat
+
+    updateMarkerSelection(id, true)
+    selectedMarkerStore.set({
+      id,
+      coordinates: [coordinates.lng, coordinates.lat],
+    })
+
+    map.flyTo({
+      center: [coordinates.lng, coordinates.lat],
+      zoom: 15,
+      duration: 1000,
+    })
+
+    controlStore.update((controls) => ({
+      ...controls,
+      showMarkerMenu: true,
+    }))
   }
 
   function confirmMarker() {
     if ($selectedMarkerStore) {
       const { id, coordinates } = $selectedMarkerStore
-      const currentTimestamp = new Date().toISOString()
-
-      // Get the current icon from the layer
       const source = map.getSource("markers")
       const data = source._data
       const feature = data.features.find((f) => f.properties.id === id)
@@ -762,7 +576,7 @@
 
       const markerData = {
         id,
-        last_confirmed: currentTimestamp,
+        last_confirmed: new Date().toISOString(),
         iconClass,
         coordinates,
       }
@@ -790,23 +604,24 @@
   function removeMarker() {
     if ($selectedMarkerStore) {
       const { id } = $selectedMarkerStore
+      const existingMarker = $confirmedMarkersStore.find((m) => m.id === id)
 
       removeMarkerFromLayer(id)
       selectedMarkerStore.set(null)
-
-      const deletedBy = $profileStore.id
-      const existingMarker = $confirmedMarkersStore.find((m) => m.id === id)
 
       if (existingMarker) {
         confirmedMarkersStore.update((markers) => {
           const updatedMarkers = markers.filter((m) => m.id !== id)
           removeMarkerStore.update((removedMarkers) => [
             ...removedMarkers,
-            { id, deletedBy, last_confirmed: existingMarker.last_confirmed },
+            {
+              id,
+              deletedBy: $profileStore.id,
+              last_confirmed: existingMarker.last_confirmed,
+            },
           ])
           return updatedMarkers
         })
-        console.log("Marker removed:", id)
       }
     }
 
@@ -816,34 +631,10 @@
     }))
   }
 
-  async function handleMarkerSelection(event) {
-    if (!map) return
-
-    const { id, lngLat } = event
-
-    updateMarkerSelection(id, true)
-    selectedMarkerStore.set({ id, coordinates: lngLat })
-
-    console.log(`Marker selected with ID: ${id}`)
-
-    map.flyTo({
-      center: lngLat,
-      zoom: 15,
-      duration: 1000,
-    })
-
-    controlStore.update((controls) => ({
-      ...controls,
-      showMarkerMenu: true,
-    }))
-  }
-
   async function handleIconSelection(icon) {
     if (!map || !$selectedMarkerStore) return
 
-    const { id, coordinates } = $selectedMarkerStore
-
-    // Update the icon in the layer
+    const { id } = $selectedMarkerStore
     const source = map.getSource("markers")
     const data = source._data
     const feature = data.features.find((f) => f.properties.id === id)
@@ -853,18 +644,55 @@
         ? `custom-svg-${icon.id}`
         : icon.class
 
-      const newIconName = getIconImageName(newIconClass)
-
-      feature.properties.icon = newIconName
+      feature.properties.icon = getIconImageName(newIconClass)
       feature.properties.iconClass = newIconClass
-
       source.setData(data)
-      console.log("Updated marker icon to:", newIconName, newIconClass)
+    }
+  }
+
+  async function placeMarkerAtCurrentLocation() {
+    if (!map) return
+
+    const coordinates = $locationMarkerStore
+    if (!coordinates) return
+
+    const id = uuidv4()
+    const feature = {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [coordinates.longitude, coordinates.latitude],
+      },
+      properties: {
+        id,
+        icon: "default",
+        iconClass: "default",
+      },
+    }
+
+    addMarkerToLayer(feature)
+
+    confirmedMarkersStore.update((markers) => [
+      ...markers,
+      {
+        id,
+        last_confirmed: new Date().toISOString(),
+        iconClass: "default",
+        coordinates: [coordinates.longitude, coordinates.latitude],
+      },
+    ])
+
+    if ($userSettingsStore?.zoomToLocationMarkers) {
+      map.flyTo({
+        center: [coordinates.longitude, coordinates.latitude],
+        zoom: 15,
+        duration: 1000,
+      })
     }
   }
 
   async function applyMarkerActions(actions) {
-    if (!map) return
+    if (!map || actions.length === 0) return
 
     console.log("Applying", actions.length, "marker actions")
     const completedActions = []
@@ -874,20 +702,16 @@
       const { id, marker_data, last_confirmed, iconClass } = markerData
 
       if (action.action === "add" || action.action === "update") {
-        const { geometry, properties } = marker_data
+        const { geometry } = marker_data
         const { coordinates } = geometry
-        const icon = iconClass || properties.icon || "default"
-        const iconImageName = getIconImageName(icon)
+        const icon = iconClass || "default"
 
         const feature = {
           type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates,
-          },
+          geometry: { type: "Point", coordinates },
           properties: {
             id,
-            icon: iconImageName,
+            icon: getIconImageName(icon),
             iconClass: icon,
           },
         }
@@ -908,18 +732,14 @@
             ),
           )
         }
-
-        completedActions.push(index)
       } else if (action.action === "delete") {
         removeMarkerFromLayer(id)
-
         confirmedMarkersStore.update((markers) =>
           markers.filter((marker) => marker.id !== id),
         )
-
-        console.log("Marker removed:", markerData)
-        completedActions.push(index)
       }
+
+      completedActions.push(index)
     })
 
     if (completedActions.length > 0) {
@@ -927,9 +747,58 @@
         currentActions.filter((_, index) => !completedActions.includes(index)),
       )
     }
-
-    console.log("Completed", completedActions.length, "marker actions")
   }
+
+  onMount(() => {
+    markerActionsUnsubscribe = markerActionsStore.subscribe(applyMarkerActions)
+    locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
+      if (timestamp) placeMarkerAtCurrentLocation()
+    })
+    confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
+      if (markersInitialized && map) refreshMapMarkers()
+    })
+  })
+
+  onDestroy(() => {
+    if (markerActionsUnsubscribe) markerActionsUnsubscribe()
+    if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
+    if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
+
+    cancelLongPress()
+
+    if (map && map.off) {
+      // Remove marker event handlers
+      map.off("click", "markers-layer", handleMarkerLayerSelection)
+      map.off("touchstart", "markers-layer", handleMarkerTouchStart)
+      map.off("touchmove", "markers-layer", handleMarkerTouchMove)
+      map.off("touchend", "markers-layer", handleMarkerLayerSelection)
+      map.off("mouseenter", "markers-layer")
+      map.off("mouseleave", "markers-layer")
+
+      // Remove long press handlers
+      map.off("mousedown", handleMapMouseDown)
+      map.off("touchstart", handleMapTouchStart)
+      map.off("mousemove", checkLongPressMovement)
+      map.off("touchmove", checkLongPressMovement)
+      map.off("mouseup", cancelLongPress)
+      map.off("touchend", cancelLongPress)
+    }
+
+    // Clear map layers and source
+    if (map && map.getStyle && typeof map.getLayer === "function") {
+      try {
+        if (map.getLayer("markers-layer")) map.removeLayer("markers-layer")
+        if (map.getSource("markers")) map.removeSource("markers")
+      } catch (error) {
+        console.warn("Error cleaning up map layers:", error)
+      }
+    }
+
+    // Clear stores
+    confirmedMarkersStore.set([])
+    removeMarkerStore.set([])
+    markerActionsStore.set([])
+  })
 </script>
 
 <!-- Marker Menu -->

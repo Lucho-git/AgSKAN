@@ -15,7 +15,6 @@
 
   import MarkerManager from "./MarkerManager.svelte"
   import ButtonSection from "./ButtonSection.svelte"
-  import MapControls from "./MapControls.svelte"
   import MapStateSaver from "./MapStateSaver.svelte"
   import VehicleTracker from "./VehicleTracker.svelte"
   import VehicleStateSynchronizer from "./VehicleStateSynchronizer.svelte"
@@ -42,7 +41,6 @@
   let mapContainer
   let map
 
-  let mapControls
   let mapInitialized = false
   let mapboxInitError = null
 
@@ -146,9 +144,6 @@
       map = null
       mapStore.set(null)
     }
-    if (mapControls) {
-      mapControls.$destroy()
-    }
   })
 
   let markerPlacementEvent = null
@@ -211,13 +206,6 @@
       {markerClickEvent}
     />
     <MapStateSaver {map} />
-
-    <MapControls
-      bind:this={mapControls}
-      {map}
-      on:markerPlacement={handleMarkerPlacement}
-      on:markerClick={handleMarkerClick}
-    />
 
     <VehicleStateSynchronizer />
     <VehicleTracker {map} disableAutoZoom={initialLocation} />

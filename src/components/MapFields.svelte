@@ -28,6 +28,11 @@
   let selectedFieldId: number | null = null
   let showInfoPanel = false
 
+  // Touch tracking variables for fields
+  let touchStartPosition = null
+  let hasTouchMoved = false
+  const touchMoveThreshold = 10 // pixels
+
   function createLabelPoints(fields: Field[]) {
     return {
       type: "FeatureCollection",
@@ -257,15 +262,34 @@
     map.setZoom(currentZoom)
   }
 
-  function handleFieldClick(
+  // Field touch tracking functions
+  function handleFieldTouchStart(e: mapboxgl.MapTouchEvent) {
+    touchStartPosition = {
+      x: e.originalEvent.touches[0].clientX,
+      y: e.originalEvent.touches[0].clientY,
+    }
+    hasTouchMoved = false
+  }
+
+  function handleFieldTouchMove(e: mapboxgl.MapTouchEvent) {
+    if (!touchStartPosition) return
+
+    const currentX = e.originalEvent.touches[0].clientX
+    const currentY = e.originalEvent.touches[0].clientY
+
+    const dx = currentX - touchStartPosition.x
+    const dy = currentY - touchStartPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > touchMoveThreshold) {
+      hasTouchMoved = true
+    }
+  }
+
+  // Extract the field selection logic into a separate function
+  function processFieldSelection(
     e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
   ) {
-    if (!map) return
-
-    if (e.originalEvent) {
-      e.originalEvent.stopPropagation()
-    }
-
     const features = map.queryRenderedFeatures(e.point, {
       layers: ["fields-fill", "fields-fill-selected"],
     })
@@ -284,6 +308,35 @@
       }
 
       updateFieldSelection()
+    }
+  }
+
+  function handleFieldClick(
+    e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
+  ) {
+    if (!map) return
+
+    if (e.originalEvent) {
+      e.originalEvent.stopPropagation()
+    }
+
+    // For click events, always proceed
+    if (e.type === "click") {
+      processFieldSelection(e)
+      return
+    }
+
+    // For touchend events, only proceed if there was minimal movement
+    if (e.type === "touchend" && !hasTouchMoved) {
+      processFieldSelection(e)
+    }
+
+    // Reset touch tracking after a delay
+    if (e.type === "touchend") {
+      setTimeout(() => {
+        touchStartPosition = null
+        hasTouchMoved = false
+      }, 100)
     }
   }
 
@@ -308,6 +361,14 @@
 
     map.on("click", "fields-fill", handleFieldClick)
     map.on("click", "fields-fill-selected", handleFieldClick)
+
+    // Add touch handlers
+    map.on("touchstart", "fields-fill", handleFieldTouchStart)
+    map.on("touchstart", "fields-fill-selected", handleFieldTouchStart)
+    map.on("touchmove", "fields-fill", handleFieldTouchMove)
+    map.on("touchmove", "fields-fill-selected", handleFieldTouchMove)
+    map.on("touchend", "fields-fill", handleFieldClick)
+    map.on("touchend", "fields-fill-selected", handleFieldClick)
 
     map.on("mouseenter", "fields-fill", () => {
       if (!map) return
@@ -335,6 +396,15 @@
 
     map.off("click", "fields-fill", handleFieldClick)
     map.off("click", "fields-fill-selected", handleFieldClick)
+
+    // Remove touch handlers
+    map.off("touchstart", "fields-fill", handleFieldTouchStart)
+    map.off("touchstart", "fields-fill-selected", handleFieldTouchStart)
+    map.off("touchmove", "fields-fill", handleFieldTouchMove)
+    map.off("touchmove", "fields-fill-selected", handleFieldTouchMove)
+    map.off("touchend", "fields-fill", handleFieldClick)
+    map.off("touchend", "fields-fill-selected", handleFieldClick)
+
     map.off("mouseenter", "fields-fill")
     map.off("mouseleave", "fields-fill")
     map.off("mouseenter", "fields-fill-selected")
