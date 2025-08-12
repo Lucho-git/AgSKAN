@@ -31,6 +31,7 @@ export const fileApi = {
                     area: field.area,
                     boundary: field.boundary,
                     properties: field.properties,
+                    polygon_areas: field.polygon_areas || null, // Add polygon_areas if it exists
                 };
 
                 try {
@@ -183,7 +184,7 @@ export const fileApi = {
     },
 
     // Update field function
-    async updateField(fieldId: string, name: string, area?: number) {
+    async updateField(fieldId: string, name: string, area?: number, polygonAreas?: { individual_areas: number[], total_area: number }) {
         try {
             const { data: session } = await supabase.auth.getSession();
             if (!session?.session?.user) {
@@ -208,9 +209,16 @@ export const fileApi = {
                 throw new Error("No master map associated with user");
             }
 
-            // Prepare update data with conditional area
+            // Prepare update data with conditional fields
             const updateData: Record<string, any> = { name };
-            if (area !== undefined) {
+
+            // If polygon areas are provided, use their cumulative total as the area
+            if (polygonAreas && polygonAreas.individual_areas && polygonAreas.individual_areas.length > 0) {
+                const calculatedTotalArea = polygonAreas.individual_areas.reduce((sum, area) => sum + area, 0);
+                updateData['area'] = calculatedTotalArea;
+                updateData['polygon_areas'] = polygonAreas;
+            } else if (area !== undefined) {
+                // Fallback to provided area if no polygon areas
                 updateData['area'] = area;
             }
 

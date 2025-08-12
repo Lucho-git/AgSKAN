@@ -3,18 +3,104 @@
   import { get } from "svelte/store"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
+  import { fieldStore } from "$lib/stores/fieldStore"
   import * as mapboxgl from "mapbox-gl"
   import * as turf from "@turf/turf"
+  import InfoPanel from "./InfoPanel.svelte"
 
   export let map: mapboxgl.Map
 
   interface Field {
+    field_id?: string
     area: number
     boundary: {
       type: "Polygon" | "MultiPolygon"
       coordinates: number[][][] | number[][][][]
     }
     name: string
+    polygon_areas?: {
+      individual_areas: number[]
+      total_area: number
+    }
+  }
+
+  // Track selected field and info panel state
+  let selectedFieldId: number | null = null
+  let showInfoPanel = false
+
+  function createLabelPoints(fields: Field[]) {
+    return {
+      type: "FeatureCollection",
+      features: fields
+        .flatMap((field, index) => {
+          try {
+            if (field.boundary.type === "Polygon") {
+              const feature = turf.polygon(field.boundary.coordinates)
+              const centerPoint = turf.center(feature)
+
+              const isInside = turf.booleanPointInPolygon(
+                centerPoint.geometry.coordinates,
+                feature,
+              )
+
+              const labelPoint = isInside
+                ? centerPoint
+                : turf.pointOnFeature(feature)
+
+              return [
+                {
+                  type: "Feature",
+                  geometry: labelPoint.geometry,
+                  properties: {
+                    id: index,
+                    name: field.name,
+                    area: Math.round(field.area * 10) / 10,
+                  },
+                },
+              ]
+            } else if (field.boundary.type === "MultiPolygon") {
+              return field.boundary.coordinates.map(
+                (polygonCoords, polygonIndex) => {
+                  const polygonFeature = turf.polygon(polygonCoords)
+                  const centerPoint = turf.center(polygonFeature)
+
+                  const isInside = turf.booleanPointInPolygon(
+                    centerPoint.geometry.coordinates,
+                    polygonFeature,
+                  )
+
+                  const labelPoint = isInside
+                    ? centerPoint
+                    : turf.pointOnFeature(polygonFeature)
+
+                  const polygonArea =
+                    field.polygon_areas?.individual_areas?.[polygonIndex] ??
+                    Math.round(field.area * 10) / 10
+
+                  return {
+                    type: "Feature",
+                    geometry: labelPoint.geometry,
+                    properties: {
+                      id: index,
+                      name: field.name,
+                      area: Math.round(polygonArea * 10) / 10,
+                    },
+                  }
+                },
+              )
+            } else {
+              console.warn(
+                `Invalid geometry type for field ${index}: ${field.boundary.type}`,
+              )
+              return []
+            }
+          } catch (error) {
+            console.warn(`Error processing field ${index}:`, error)
+            return []
+          }
+        })
+        .filter((feature) => feature !== null),
+    }
   }
 
   function calculateBoundingBox(fields: Field[]): mapboxgl.LngLatBounds | null {
@@ -101,8 +187,8 @@
       layout: {
         "text-field": ["concat", ["get", "area"], " ha"],
         "text-anchor": "top",
-        "text-offset": [0, 1.2], // Position below the field name
-        "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"], // Lighter font weight
+        "text-offset": [0, 1.2],
+        "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -110,7 +196,7 @@
           10,
           0,
           11,
-          6, // Smaller than main text
+          6,
           13,
           9,
           15,
@@ -126,7 +212,7 @@
         "text-ignore-placement": false,
       },
       paint: {
-        "text-color": "#c0ffc0", // Light green (matches your outline color theme)
+        "text-color": "#c0ffc0",
         "text-halo-color": "#000000",
         "text-halo-width": 2,
         "text-opacity": 0.9,
@@ -134,29 +220,118 @@
     })
   }
 
+  function updateMapLabels() {
+    console.log("Updating map labels with latest field data")
+
+    if (!map.getSource("label-points")) {
+      console.warn("Label points source not found")
+      return
+    }
+
+    const fields: Field[] = get(mapFieldsStore)
+    const labelPointsGeojson = createLabelPoints(fields)
+
+    const labelPointsSource = map.getSource(
+      "label-points",
+    ) as mapboxgl.GeoJSONSource
+    if (labelPointsSource) {
+      labelPointsSource.setData(labelPointsGeojson)
+      console.log("Updated label points source with new data")
+    }
+  }
+
   function readdLabels() {
     console.log("ReadingLABELS!!", $mapFieldsStore)
     if (map.getLayer("fields-labels")) {
       const currentZoom = map.getZoom()
 
-      // Remove both label layers
       if (map.getLayer("fields-labels-area")) {
         map.removeLayer("fields-labels-area")
       }
       map.removeLayer("fields-labels")
 
-      // Re-add both label layers using shared function
       addLabelLayers()
-
       map.setZoom(currentZoom)
     }
+  }
+
+  function handleFieldClick(
+    e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
+  ) {
+    if (e.originalEvent) {
+      e.originalEvent.stopPropagation()
+    }
+
+    const features = map.queryRenderedFeatures(e.point, {
+      layers: ["fields-fill", "fields-fill-selected"],
+    })
+
+    if (features.length > 0) {
+      const clickedFieldId = features[0].properties?.id
+
+      if (selectedFieldId === clickedFieldId) {
+        selectedFieldId = null
+        showInfoPanel = false
+        console.log("Field deselected")
+      } else {
+        selectedFieldId = clickedFieldId
+        showInfoPanel = false
+        console.log("Selected field ID:", selectedFieldId)
+      }
+
+      updateFieldSelection()
+    }
+  }
+
+  function updateFieldSelection() {
+    if (selectedFieldId !== null) {
+      map.setFilter("fields-fill-selected", ["==", "id", selectedFieldId])
+      map.setFilter("fields-outline-selected", ["==", "id", selectedFieldId])
+      map.setFilter("fields-fill", ["!=", "id", selectedFieldId])
+      map.setFilter("fields-outline", ["!=", "id", selectedFieldId])
+    } else {
+      map.setFilter("fields-fill-selected", ["==", "id", -1])
+      map.setFilter("fields-outline-selected", ["==", "id", -1])
+      map.setFilter("fields-fill", null)
+      map.setFilter("fields-outline", null)
+    }
+  }
+
+  function addClickHandlers() {
+    map.on("click", "fields-fill", handleFieldClick)
+    map.on("click", "fields-fill-selected", handleFieldClick)
+
+    map.on("mouseenter", "fields-fill", () => {
+      map.getCanvas().style.cursor = "pointer"
+    })
+
+    map.on("mouseleave", "fields-fill", () => {
+      map.getCanvas().style.cursor = ""
+    })
+
+    map.on("mouseenter", "fields-fill-selected", () => {
+      map.getCanvas().style.cursor = "pointer"
+    })
+
+    map.on("mouseleave", "fields-fill-selected", () => {
+      map.getCanvas().style.cursor = ""
+    })
+  }
+
+  function removeClickHandlers() {
+    map.off("click", "fields-fill", handleFieldClick)
+    map.off("click", "fields-fill-selected", handleFieldClick)
+    map.off("mouseenter", "fields-fill")
+    map.off("mouseleave", "fields-fill")
+    map.off("mouseenter", "fields-fill-selected")
+    map.off("mouseleave", "fields-fill-selected")
   }
 
   function loadFields() {
     const fields: Field[] = get(mapFieldsStore)
     console.log("Loading fields from", $mapFieldsStore)
+
     if (fields.length > 0) {
-      // Create polygons GeoJSON
       const fieldsGeojson = {
         type: "FeatureCollection",
         features: fields.map((field, index) => ({
@@ -164,98 +339,25 @@
           geometry: field.boundary,
           properties: {
             id: index,
-            area: Math.round(field.area * 10) / 10, // Round to 1 decimal place
+            area: Math.round(field.area * 10) / 10,
             name: field.name,
           },
         })),
       }
 
-      // Create label points GeoJSON
-      const labelPointsGeojson = {
-        type: "FeatureCollection",
-        features: fields
-          .flatMap((field, index) => {
-            try {
-              if (field.boundary.type === "Polygon") {
-                const feature = turf.polygon(field.boundary.coordinates)
-                const centerPoint = turf.center(feature)
+      const labelPointsGeojson = createLabelPoints(fields)
 
-                // Check if center point is inside polygon
-                const isInside = turf.booleanPointInPolygon(
-                  centerPoint.geometry.coordinates,
-                  feature,
-                )
-
-                // Use pointOnFeature if center is outside
-                const labelPoint = isInside
-                  ? centerPoint
-                  : turf.pointOnFeature(feature)
-
-                return [
-                  {
-                    type: "Feature",
-                    geometry: labelPoint.geometry,
-                    properties: {
-                      id: index,
-                      name: field.name,
-                      area: Math.round(field.area * 10) / 10, // Round to 1 decimal place
-                    },
-                  },
-                ]
-              } else if (field.boundary.type === "MultiPolygon") {
-                // Create a center point for each polygon in the MultiPolygon
-                return field.boundary.coordinates.map((polygonCoords) => {
-                  const polygonFeature = turf.polygon(polygonCoords)
-                  const centerPoint = turf.center(polygonFeature)
-
-                  // Check if center point is inside polygon
-                  const isInside = turf.booleanPointInPolygon(
-                    centerPoint.geometry.coordinates,
-                    polygonFeature,
-                  )
-
-                  // Use pointOnFeature if center is outside
-                  const labelPoint = isInside
-                    ? centerPoint
-                    : turf.pointOnFeature(polygonFeature)
-
-                  return {
-                    type: "Feature",
-                    geometry: labelPoint.geometry,
-                    properties: {
-                      id: index,
-                      name: field.name,
-                      area: Math.round(field.area * 10) / 10, // Round to 1 decimal place
-                    },
-                  }
-                })
-              } else {
-                console.warn(
-                  `Invalid geometry type for field ${index}: ${field.boundary.type}`,
-                )
-                return []
-              }
-            } catch (error) {
-              console.warn(`Error processing field ${index}:`, error)
-              return []
-            }
-          })
-          .filter((feature) => feature !== null),
-      }
-
-      // Add the fields source
       map.addSource("fields", {
         type: "geojson",
         data: fieldsGeojson,
       })
 
-      // Add the label points source
       map.addSource("label-points", {
         type: "geojson",
         data: labelPointsGeojson,
       })
 
-      // Add filled polygons
+      // Add layers
       map.addLayer({
         id: "fields-fill",
         type: "fill",
@@ -266,7 +368,6 @@
         },
       })
 
-      // Add field outlines
       map.addLayer({
         id: "fields-outline",
         type: "line",
@@ -278,20 +379,35 @@
         },
       })
 
-      // Add both label layers using shared function
+      map.addLayer({
+        id: "fields-fill-selected",
+        type: "fill",
+        source: "fields",
+        filter: ["==", "id", -1],
+        paint: {
+          "fill-color": "#0056b3",
+          "fill-opacity": 0.5,
+        },
+      })
+
+      map.addLayer({
+        id: "fields-outline-selected",
+        type: "line",
+        source: "fields",
+        filter: ["==", "id", -1],
+        paint: {
+          "line-color": "#ffffff",
+          "line-opacity": 1.0,
+          "line-width": 3,
+        },
+      })
+
       addLabelLayers()
+      addClickHandlers()
 
-      // Re-add labels at 10 seconds
-      setTimeout(() => {
-        readdLabels()
-      }, 10000)
+      setTimeout(() => readdLabels(), 10000)
+      setTimeout(() => readdLabels(), 20000)
 
-      // Re-add labels at 20 seconds
-      setTimeout(() => {
-        readdLabels()
-      }, 20000)
-
-      // Calculate bounding box and store it
       const bounds = calculateBoundingBox(fields)
       if (bounds) {
         fieldBoundaryStore.set(bounds.toArray())
@@ -300,6 +416,16 @@
         console.warn("Unable to calculate valid bounding box")
       }
     }
+  }
+
+  function handleFieldDeselect() {
+    selectedFieldId = null
+    showInfoPanel = false
+    updateFieldSelection()
+  }
+
+  function handleFieldUpdate() {
+    updateMapLabels()
   }
 
   onMount(() => {
@@ -318,6 +444,23 @@
 
     return () => {
       map.off("load", loadFields)
+      if (map.getLayer("fields-fill")) {
+        removeClickHandlers()
+      }
     }
   })
+
+  export { selectedFieldId }
+  $: selectedField =
+    selectedFieldId !== null ? $mapFieldsStore[selectedFieldId] : null
 </script>
+
+{#if selectedFieldId !== null && selectedField}
+  <InfoPanel
+    {selectedField}
+    {selectedFieldId}
+    bind:showInfoPanel
+    on:deselect={handleFieldDeselect}
+    on:fieldUpdated={handleFieldUpdate}
+  />
+{/if}

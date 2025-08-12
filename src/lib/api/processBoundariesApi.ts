@@ -123,11 +123,27 @@ function processFeaturesIntoPaddocks(features: any[], sourceFileInfo: { type: st
         }
 
         let areaValue = 0;
+        let polygonAreas = null;
+
         try {
-            const turfGeometry = feature.geometry.type === 'Polygon' ?
-                polygon(feature.geometry.coordinates) :
-                multiPolygon(feature.geometry.coordinates);
-            areaValue = area(turfGeometry);
+            if (feature.geometry.type === 'Polygon') {
+                const turfGeometry = polygon(feature.geometry.coordinates);
+                areaValue = area(turfGeometry);
+            } else if (feature.geometry.type === 'MultiPolygon') {
+                const turfGeometry = multiPolygon(feature.geometry.coordinates);
+                areaValue = area(turfGeometry); // Total area
+
+                // Calculate individual polygon areas
+                const individualAreas = feature.geometry.coordinates.map(polygonCoords => {
+                    const polygonArea = area(polygon(polygonCoords)) / 10000;
+                    return Math.round(polygonArea * 100) / 100; // Round to 2 decimal places
+                });
+
+                polygonAreas = {
+                    individual_areas: individualAreas,
+                    total_area: Math.round((areaValue / 10000) * 100) / 100 // Also round total to 2 decimal places
+                };
+            }
 
             const areaHectares = areaValue / 10000;
 
@@ -144,12 +160,19 @@ function processFeaturesIntoPaddocks(features: any[], sourceFileInfo: { type: st
             const properties = feature.properties || {};
             const paddockName = findPaddockName(properties) || `ImportPaddock_${sourceFileInfo.type}_${paddockList.length + 1}`;
 
-            paddockList.push({
+            const paddockData = {
                 name: paddockName,
                 properties: properties,
                 boundary: feature.geometry,
                 area: areaHectares
-            });
+            };
+
+            // Add polygon_areas only for multipolygons
+            if (polygonAreas) {
+                paddockData.polygon_areas = polygonAreas;
+            }
+
+            paddockList.push(paddockData);
 
         } catch (error: any) {
             console.error(`Error calculating area for feature (Name: ${featureIdentifier}):`, error);
