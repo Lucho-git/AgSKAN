@@ -53,6 +53,87 @@
     }
   }
 
+  function addLabelLayers() {
+    // Add field name labels layer
+    map.addLayer({
+      id: "fields-labels",
+      type: "symbol",
+      source: "label-points",
+      layout: {
+        "text-field": ["get", "name"],
+        "text-anchor": "center",
+        "symbol-sort-key": -1,
+        "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0,
+          11,
+          8,
+          13,
+          12,
+          15,
+          28,
+          17,
+          48,
+          19,
+          96,
+          20,
+          120,
+        ],
+        "text-allow-overlap": true,
+        "text-ignore-placement": false,
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#000000",
+        "text-halo-width": 2,
+      },
+    })
+
+    // Add area labels layer (smaller, lighter)
+    map.addLayer({
+      id: "fields-labels-area",
+      type: "symbol",
+      source: "label-points",
+      layout: {
+        "text-field": ["concat", ["get", "area"], " ha"],
+        "text-anchor": "top",
+        "text-offset": [0, 1.2], // Position below the field name
+        "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"], // Lighter font weight
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0,
+          11,
+          6, // Smaller than main text
+          13,
+          9,
+          15,
+          21,
+          17,
+          36,
+          19,
+          72,
+          20,
+          90,
+        ],
+        "text-allow-overlap": true,
+        "text-ignore-placement": false,
+      },
+      paint: {
+        "text-color": "#c0ffc0", // Light green (matches your outline color theme)
+        "text-halo-color": "#000000",
+        "text-halo-width": 2,
+        "text-opacity": 0.9,
+      },
+    })
+  }
+
   function readdLabels() {
     console.log("ReadingLABELS!!", $mapFieldsStore)
     if (map.getLayer("fields-labels")) {
@@ -64,84 +145,8 @@
       }
       map.removeLayer("fields-labels")
 
-      // Re-add field name labels
-      map.addLayer({
-        id: "fields-labels",
-        type: "symbol",
-        source: "label-points",
-        layout: {
-          "text-field": ["get", "name"],
-          "text-anchor": "center",
-          "symbol-sort-key": -1,
-          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
-          "text-size": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            0,
-            11,
-            8,
-            13,
-            12,
-            15,
-            28,
-            17,
-            48,
-            19,
-            96,
-            20,
-            120,
-          ],
-          "text-allow-overlap": true,
-          "text-ignore-placement": false,
-        },
-        paint: {
-          "text-color": "#ffffff",
-          "text-halo-color": "#000000",
-          "text-halo-width": 2,
-        },
-      })
-
-      // Re-add area labels
-      map.addLayer({
-        id: "fields-labels-area",
-        type: "symbol",
-        source: "label-points",
-        layout: {
-          "text-field": ["concat", ["get", "area"], " ha"],
-          "text-anchor": "top",
-          "text-offset": [0, 1.2],
-          "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
-          "text-size": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            0,
-            11,
-            6,
-            13,
-            9,
-            15,
-            21,
-            17,
-            36,
-            19,
-            72,
-            20,
-            90,
-          ],
-          "text-allow-overlap": true,
-          "text-ignore-placement": false,
-        },
-        paint: {
-          "text-color": "#cccccc",
-          "text-halo-color": "#000000",
-          "text-halo-width": 1,
-          "text-opacity": 0.8,
-        },
-      })
+      // Re-add both label layers using shared function
+      addLabelLayers()
 
       map.setZoom(currentZoom)
     }
@@ -273,84 +278,8 @@
         },
       })
 
-      // Add field name labels layer
-      map.addLayer({
-        id: "fields-labels",
-        type: "symbol",
-        source: "label-points",
-        layout: {
-          "text-field": ["get", "name"],
-          "text-anchor": "center",
-          "symbol-sort-key": -1,
-          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
-          "text-size": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            0,
-            11,
-            8,
-            13,
-            12,
-            15,
-            28,
-            17,
-            48,
-            19,
-            96,
-            20,
-            120,
-          ],
-          "text-allow-overlap": true,
-          "text-ignore-placement": false,
-        },
-        paint: {
-          "text-color": "#ffffff",
-          "text-halo-color": "#000000",
-          "text-halo-width": 2,
-        },
-      })
-
-      // Add area labels layer (smaller, lighter)
-      map.addLayer({
-        id: "fields-labels-area",
-        type: "symbol",
-        source: "label-points",
-        layout: {
-          "text-field": ["concat", ["get", "area"], " ha"],
-          "text-anchor": "top",
-          "text-offset": [0, 1.2], // Position below the field name
-          "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"], // Lighter font weight
-          "text-size": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            0,
-            11,
-            6, // Smaller than main text
-            13,
-            9,
-            15,
-            21,
-            17,
-            36,
-            19,
-            72,
-            20,
-            90,
-          ],
-          "text-allow-overlap": true,
-          "text-ignore-placement": false,
-        },
-        paint: {
-          "text-color": "#cccccc", // Lighter color
-          "text-halo-color": "#000000",
-          "text-halo-width": 1, // Thinner halo
-          "text-opacity": 0.8, // Slightly transparent
-        },
-      })
+      // Add both label layers using shared function
+      addLabelLayers()
 
       // Re-add labels at 10 seconds
       setTimeout(() => {
