@@ -140,6 +140,8 @@
   }
 
   function addLabelLayers() {
+    if (!map) return
+
     // Add field name labels layer
     map.addLayer({
       id: "fields-labels",
@@ -223,8 +225,8 @@
   function updateMapLabels() {
     console.log("Updating map labels with latest field data")
 
-    if (!map.getSource("label-points")) {
-      console.warn("Label points source not found")
+    if (!map || !map.getSource("label-points")) {
+      console.warn("Map or label points source not found")
       return
     }
 
@@ -242,22 +244,24 @@
 
   function readdLabels() {
     console.log("ReadingLABELS!!", $mapFieldsStore)
-    if (map.getLayer("fields-labels")) {
-      const currentZoom = map.getZoom()
+    if (!map || !map.getLayer("fields-labels")) return
 
-      if (map.getLayer("fields-labels-area")) {
-        map.removeLayer("fields-labels-area")
-      }
-      map.removeLayer("fields-labels")
+    const currentZoom = map.getZoom()
 
-      addLabelLayers()
-      map.setZoom(currentZoom)
+    if (map.getLayer("fields-labels-area")) {
+      map.removeLayer("fields-labels-area")
     }
+    map.removeLayer("fields-labels")
+
+    addLabelLayers()
+    map.setZoom(currentZoom)
   }
 
   function handleFieldClick(
     e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
   ) {
+    if (!map) return
+
     if (e.originalEvent) {
       e.originalEvent.stopPropagation()
     }
@@ -284,6 +288,8 @@
   }
 
   function updateFieldSelection() {
+    if (!map) return
+
     if (selectedFieldId !== null) {
       map.setFilter("fields-fill-selected", ["==", "id", selectedFieldId])
       map.setFilter("fields-outline-selected", ["==", "id", selectedFieldId])
@@ -298,27 +304,35 @@
   }
 
   function addClickHandlers() {
+    if (!map) return
+
     map.on("click", "fields-fill", handleFieldClick)
     map.on("click", "fields-fill-selected", handleFieldClick)
 
     map.on("mouseenter", "fields-fill", () => {
+      if (!map) return
       map.getCanvas().style.cursor = "pointer"
     })
 
     map.on("mouseleave", "fields-fill", () => {
+      if (!map) return
       map.getCanvas().style.cursor = ""
     })
 
     map.on("mouseenter", "fields-fill-selected", () => {
+      if (!map) return
       map.getCanvas().style.cursor = "pointer"
     })
 
     map.on("mouseleave", "fields-fill-selected", () => {
+      if (!map) return
       map.getCanvas().style.cursor = ""
     })
   }
 
   function removeClickHandlers() {
+    if (!map) return
+
     map.off("click", "fields-fill", handleFieldClick)
     map.off("click", "fields-fill-selected", handleFieldClick)
     map.off("mouseenter", "fields-fill")
@@ -328,6 +342,8 @@
   }
 
   function loadFields() {
+    if (!map) return
+
     const fields: Field[] = get(mapFieldsStore)
     console.log("Loading fields from", $mapFieldsStore)
 
@@ -443,9 +459,18 @@
     }
 
     return () => {
-      map.off("load", loadFields)
-      if (map.getLayer("fields-fill")) {
-        removeClickHandlers()
+      // Add null checks to prevent errors during cleanup
+      if (map) {
+        map.off("load", loadFields)
+
+        // Only try to remove click handlers if map and layers still exist
+        try {
+          if (map.getLayer && map.getLayer("fields-fill")) {
+            removeClickHandlers()
+          }
+        } catch (error) {
+          console.warn("Error during cleanup:", error)
+        }
       }
     }
   })
