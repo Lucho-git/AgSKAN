@@ -133,7 +133,13 @@
       console.log(
         `🎯 Coordinated click - selected layer: ${selectedLayer.layerId} (priority: ${selectedLayer.priority})`,
       )
-      handleLayerInteraction(selectedLayer.layerId, "onClick", event)
+      console.log("Selected layer features:", selectedLayer.features)
+      handleLayerInteraction(
+        selectedLayer.layerId,
+        "onClick",
+        event,
+        selectedLayer,
+      )
     }
   }
 
@@ -162,7 +168,12 @@
       console.log(
         `📱 Coordinated touch end - selected layer: ${selectedLayer.layerId} (priority: ${selectedLayer.priority})`,
       )
-      handleLayerInteraction(selectedLayer.layerId, "onTouchEnd", event)
+      handleLayerInteraction(
+        selectedLayer.layerId,
+        "onTouchEnd",
+        event,
+        selectedLayer,
+      )
     }
 
     resetAllLayerTouchTracking()
@@ -251,8 +262,13 @@
     }
   }
 
-  // Generic layer interaction handler
-  function handleLayerInteraction(layerId, interactionType, event) {
+  // Generic layer interaction handler - FIXED VERSION
+  function handleLayerInteraction(
+    layerId,
+    interactionType,
+    originalEvent,
+    selectedLayer,
+  ) {
     const config = layerRegistry.get(layerId)
 
     if (!config || !config.handlers[interactionType]) return
@@ -268,8 +284,21 @@
     longPressTimer = null
     longPressStartPosition = null
 
-    console.log(`✅ ${layerId} ${interactionType}:`, event)
-    config.handlers[interactionType](event)
+    console.log(`✅ ${layerId} ${interactionType}:`, originalEvent)
+    console.log(`✅ Selected layer data:`, selectedLayer)
+
+    // Create a properly formatted event object with the correct features
+    const formattedEvent = {
+      ...originalEvent,
+      features: selectedLayer.features, // Use the features from our priority selection
+      point: originalEvent.point,
+      lngLat: originalEvent.lngLat,
+    }
+
+    console.log(`✅ Formatted event for ${layerId}:`, formattedEvent)
+
+    // Call the handler with the properly formatted event
+    config.handlers[interactionType](formattedEvent)
   }
 
   // Touch detection functions
@@ -454,11 +483,13 @@
           componentRef: markerManagerRef,
           handlers: {
             onClick: (e) => {
+              console.log("🎯 Marker onClick handler called with:", e)
               if (e.features.length > 0) {
                 markerManagerRef.handleMarkerSelection(e)
               }
             },
             onTouchEnd: (e) => {
+              console.log("📱 Marker onTouchEnd handler called with:", e)
               if (e.features.length > 0) {
                 markerManagerRef.handleMarkerSelection(e)
               }
@@ -481,11 +512,13 @@
           componentRef: mapFieldsRef,
           handlers: {
             onClick: (e) => {
+              console.log("🎯 Field onClick handler called with:", e)
               if (e.features.length > 0) {
                 mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
               }
             },
             onTouchEnd: (e) => {
+              console.log("📱 Field onTouchEnd handler called with:", e)
               if (e.features.length > 0) {
                 mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
               }
