@@ -13,6 +13,8 @@
   // Long press state
   let longPressTimer = null
   let longPressStartPosition = null
+  let longPressStartTime = null
+  let longPressJustCompleted = false
   let isDragging = false
   const longPressThreshold = 850
   const longPressMoveThreshold = 5
@@ -126,6 +128,12 @@
 
   // Coordinated click handler - determines which layer gets the interaction
   function handleCoordinatedLayerClick(event) {
+    // Check if this click follows a recent long press
+    if (longPressJustCompleted) {
+      console.log("🚫 Click ignored - follows recent long press")
+      return
+    }
+
     const layersAtPoint = getLayersAtPoint(event.point)
     const selectedLayer = selectHighestPriorityLayer(layersAtPoint)
 
@@ -143,8 +151,15 @@
     }
   }
 
-  // Coordinated touch end handler
+  // Coordinated touch end handler - FIXED
   function handleCoordinatedLayerTouchEnd(event) {
+    // FIXED: Check if this touch end follows a recent long press
+    if (longPressJustCompleted) {
+      console.log("🚫 Touch end ignored - follows recent long press")
+      resetAllLayerTouchTracking() // Clean up tracking
+      return
+    }
+
     // Check if any layer had touch movement that should cancel the interaction
     let shouldCancelDueToMovement = false
 
@@ -262,7 +277,7 @@
     }
   }
 
-  // Generic layer interaction handler - FIXED VERSION
+  // Generic layer interaction handler
   function handleLayerInteraction(
     layerId,
     interactionType,
@@ -345,8 +360,10 @@
     }
 
     isDragging = false
+    longPressJustCompleted = false
     clearTimeout(longPressTimer)
 
+    longPressStartTime = Date.now()
     longPressStartPosition = {
       x:
         event.originalEvent.clientX ||
@@ -360,7 +377,15 @@
     longPressTimer = setTimeout(() => {
       if (!isDragging) {
         console.log("⏰ Long press timer fired")
+        longPressJustCompleted = true
         onLongPress(event.lngLat)
+
+        // Reset the flag after a short delay to allow the marker to be placed
+        // but prevent the subsequent click/touch events
+        setTimeout(() => {
+          longPressJustCompleted = false
+          console.log("🧊 Long press flag reset")
+        }, 300)
       }
       longPressTimer = null
     }, longPressThreshold)
@@ -396,6 +421,14 @@
   }
 
   function handleMouseUp(event) {
+    // If this mouseup/touchend follows a completed long press, prevent further processing
+    if (longPressStartTime && longPressJustCompleted) {
+      const timeSinceStart = Date.now() - longPressStartTime
+      if (timeSinceStart >= longPressThreshold - 50) {
+        console.log("🚫 Preventing mouseup/touchend after long press")
+      }
+    }
+
     // Reset isDragging after a delay to prevent immediate layer interactions
     setTimeout(() => {
       isDragging = false
@@ -404,6 +437,7 @@
     clearTimeout(longPressTimer)
     longPressTimer = null
     longPressStartPosition = null
+    longPressStartTime = null
   }
 
   function setupMapEventListeners() {
@@ -469,6 +503,8 @@
     clearTimeout(longPressTimer)
     longPressTimer = null
     longPressStartPosition = null
+    longPressStartTime = null
+    longPressJustCompleted = false
   }
 
   // Register child component layers
