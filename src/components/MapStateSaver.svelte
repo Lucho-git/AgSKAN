@@ -20,11 +20,13 @@
   let userId
   let userSettings
   let isOnline = true
-  let pendingChanges = new Set() // Track IDs of changed markers only
-  let pendingDeletions = new Set() // Track IDs of deleted markers
-  let lastKnownState = new Map() // Track last synced state
+  let pendingChanges = new Set()
+  let pendingDeletions = new Set()
+  let lastKnownState = new Map()
   let isSyncing = false
+  let isInitialized = false // ✅ Track initialization state
   let debouncedSync
+  let markersUnsubscribe
 
   onMount(() => {
     masterMapId = $profileStore.master_map_id
@@ -56,7 +58,9 @@
         },
         async (payload) => {
           // Skip if it's our own change
-          if (payload.new.update_user_id === userId) return
+          if (payload.new?.update_user_id === userId) return
+
+          console.log("🔄 Received real-time change:", payload.eventType)
 
           // Show notification
           await showChangeNotification(payload)
@@ -69,18 +73,10 @@
       )
       .subscribe()
 
-    // Initial load
-    loadMarkersFromServer()
-
-    // Watch for local changes and track what actually changed
-    const markersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
-      if (!isSyncing) {
-        trackChangedMarkers(markers)
-
-        if (isOnline) {
-          debouncedSync()
-        }
-      }
+    // Initial load - MUST happen before setting up change tracking
+    loadMarkersFromServer().then(() => {
+      // ✅ Only start tracking changes AFTER initial load
+      setupChangeTracking()
     })
 
     // Add sync method to store for manual triggers
@@ -91,24 +87,59 @@
 
     return () => {
       userSettingsUnsubscribe()
-      markersUnsubscribe()
+      if (markersUnsubscribe) markersUnsubscribe()
     }
   })
 
+  // ✅ Separate function to setup change tracking after initialization
+  function setupChangeTracking() {
+    console.log("🎯 Setting up change tracking after initialization")
+
+    markersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
+      if (!isSyncing && isInitialized) {
+        console.log("📊 Tracking changes for", markers.length, "markers")
+        trackChangedMarkers(markers)
+
+        if (
+          isOnline &&
+          (pendingChanges.size > 0 || pendingDeletions.size > 0)
+        ) {
+          console.log("🚀 Debouncing sync due to changes")
+          debouncedSync()
+        }
+      }
+    })
+  }
+
   onDestroy(() => {
+    console.log("🧹 MapStateSaver cleanup - preserving markers")
+
     if (browser) {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
     }
     if (channel) supabase.removeChannel(channel)
     if (debouncedSync) debouncedSync.cancel()
+    if (markersUnsubscribe) markersUnsubscribe()
 
-    // Clear stores
-    confirmedMarkersStore.set([])
+    // ✅ DON'T clear the store - let it persist!
+    // confirmedMarkersStore.set([])  // ❌ REMOVED - This was deleting markers!
   })
 
   function trackChangedMarkers(currentMarkers) {
-    // Compare current state with last known state to detect changes
+    // ✅ Don't track changes until we're initialized
+    if (!isInitialized) {
+      console.log("⏸️ Skipping change tracking - not initialized yet")
+      return
+    }
+
+    console.log("🔍 Tracking changes:", {
+      current: currentMarkers.length,
+      lastKnown: lastKnownState.size,
+      pendingChanges: pendingChanges.size,
+      pendingDeletions: pendingDeletions.size,
+    })
+
     const currentMap = new Map(currentMarkers.map((m) => [m.id, m]))
 
     // Check for new or modified markers
@@ -122,15 +153,17 @@
         lastKnown.coordinates[1] !== marker.coordinates[1]
       ) {
         pendingChanges.add(id)
-        console.log(`Tracked change for marker ${id}`)
+        console.log(`✏️ Tracked change for marker ${id}`)
       }
     }
 
-    // Check for deleted markers
-    for (const [id] of lastKnownState) {
-      if (!currentMap.has(id)) {
-        pendingDeletions.add(id)
-        console.log(`Tracked deletion for marker ${id}`)
+    // ✅ Only check for deletions if we have a baseline
+    if (lastKnownState.size > 0) {
+      for (const [id] of lastKnownState) {
+        if (!currentMap.has(id)) {
+          pendingDeletions.add(id)
+          console.log(`🗑️ Tracked deletion for marker ${id}`)
+        }
       }
     }
   }
@@ -146,28 +179,44 @@
     })
     pendingChanges.clear()
     pendingDeletions.clear()
-    console.log(`Updated known state with ${markers.length} markers`)
+
+    // ✅ Mark as initialized after first successful load
+    if (!isInitialized) {
+      isInitialized = true
+      console.log(
+        "✅ MapStateSaver initialized with",
+        markers.length,
+        "markers",
+      )
+    }
+
+    console.log(`📝 Updated known state with ${markers.length} markers`)
   }
 
   function handleOnline() {
     isOnline = true
-    console.log("Back online - syncing pending changes")
+    console.log("🌐 Back online - syncing pending changes")
     syncPendingChanges()
   }
 
   function handleOffline() {
     isOnline = false
-    console.log("Gone offline - will queue changes")
+    console.log("📴 Gone offline - will queue changes")
     toast.info("Gone offline - changes will be saved when reconnected")
   }
 
   async function loadMarkersFromServer() {
-    if (isSyncing) return
+    if (isSyncing) {
+      console.log("⏸️ Skipping load - already syncing")
+      return
+    }
 
+    console.log("📥 Loading markers from server...")
     syncStore.update((store) => ({ ...store, spinning: true }))
+    isSyncing = true
 
     try {
-      // Build query - keep original field selection for compatibility
+      // Build query
       let query = supabase
         .from("map_markers")
         .select("id, marker_data, last_confirmed, created_at, deleted")
@@ -185,14 +234,14 @@
 
       if (error) throw error
 
-      // Process markers - handle both old and new data structures
+      // Process markers
       const processedMarkers = (markers || [])
         .map((marker) => {
           const coordinates = marker.marker_data?.geometry?.coordinates
           const iconClass = marker.marker_data?.properties?.icon || "default"
 
           if (!coordinates) {
-            console.warn("Marker missing coordinates:", marker)
+            console.warn("⚠️ Marker missing coordinates:", marker)
             return null
           }
 
@@ -209,17 +258,16 @@
         .filter(Boolean)
 
       // Update local store
-      isSyncing = true
       confirmedMarkersStore.set(processedMarkers)
-      updateLastKnownState(processedMarkers) // Update our tracking
+      updateLastKnownState(processedMarkers)
       calculateAndStoreBoundingBox(processedMarkers)
-      isSyncing = false
 
-      console.log(`Loaded ${processedMarkers.length} markers from server`)
+      console.log(`✅ Loaded ${processedMarkers.length} markers from server`)
     } catch (error) {
-      console.error("Error loading markers:", error)
+      console.error("❌ Error loading markers:", error)
       toast.error(`Failed to load markers: ${error.message}`)
     } finally {
+      isSyncing = false
       syncStore.update((store) => ({ ...store, spinning: false }))
     }
   }
@@ -228,15 +276,17 @@
     if (
       !isOnline ||
       isSyncing ||
+      !isInitialized ||
       (pendingChanges.size === 0 && pendingDeletions.size === 0)
-    )
+    ) {
       return
+    }
 
     try {
       await syncOnlyChangedMarkers()
-      console.log("Synced local changes to server")
+      console.log("✅ Synced local changes to server")
     } catch (error) {
-      console.error("Sync failed:", error)
+      console.error("❌ Sync failed:", error)
       toast.error(
         "Failed to sync changes - will retry when connection improves",
       )
@@ -252,7 +302,7 @@
         `Synced ${pendingChanges.size + pendingDeletions.size} offline changes`,
       )
     } catch (error) {
-      console.error("Failed to sync pending changes:", error)
+      console.error("❌ Failed to sync pending changes:", error)
       toast.error("Failed to sync offline changes")
     }
   }
@@ -272,11 +322,7 @@
     )
 
     console.log(
-      `Syncing ${changedMarkers.length} changed markers and ${pendingDeletions.size} deletions`,
-      {
-        changes: Array.from(pendingChanges),
-        deletions: Array.from(pendingDeletions),
-      },
+      `🔄 Syncing ${changedMarkers.length} changed markers and ${pendingDeletions.size} deletions`,
     )
 
     // Sync marker updates/additions
@@ -325,28 +371,28 @@
     }
 
     // Update our tracking after successful sync
-    updateLastKnownState(currentMarkers)
+    updateLastKnownState($confirmedMarkersStore)
 
     console.log(
-      `Successfully synced ${changedMarkers.length} markers and ${pendingDeletions.size} deletions`,
+      `✅ Successfully synced ${changedMarkers.length} markers and ${pendingDeletions.size} deletions`,
     )
   }
 
   async function showChangeNotification(payload) {
     const changeType = payload.eventType
-    const iconClass = payload.new.marker_data?.properties?.icon || "unknown"
-    const coordinates = payload.new.marker_data?.geometry?.coordinates
-    const isDeleted = payload.new.deleted === true
+    const iconClass = payload.new?.marker_data?.properties?.icon || "unknown"
+    const coordinates = payload.new?.marker_data?.geometry?.coordinates
+    const isDeleted = payload.new?.deleted === true
 
     // Get username
     let username = "Another user"
-    const connectedUser = $mapActivityStore.connected_profiles.find(
-      (profile) => profile.id === payload.new.update_user_id,
+    const connectedUser = $mapActivityStore.connected_profiles?.find(
+      (profile) => profile.id === payload.new?.update_user_id,
     )
 
     if (connectedUser) {
       username = connectedUser.full_name
-    } else {
+    } else if (payload.new?.update_user_id) {
       const { data: user } = await supabase
         .from("profiles")
         .select("full_name")
@@ -381,7 +427,7 @@
           ? {
               label: "Locate",
               onClick: () => {
-                map.flyTo({
+                map?.flyTo({
                   center: coordinates,
                   zoom: 15,
                   duration: 1000,

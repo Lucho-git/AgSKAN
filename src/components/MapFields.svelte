@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import { get } from "svelte/store"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
@@ -27,6 +27,13 @@
 
   let selectedFieldId: number | null = null
   let showInfoPanel = false
+  let isDestroyed = false
+  let readdLabelsTimeouts: NodeJS.Timeout[] = []
+
+  // Lightweight map check - only check what we absolutely need
+  function canUseMap(): boolean {
+    return !isDestroyed && map && map.getLayer && map.getSource
+  }
 
   function createLabelPoints(fields: Field[]) {
     return {
@@ -142,84 +149,88 @@
   function addLabelLayers() {
     if (!map) return
 
-    // FIXED: Add area labels FIRST (they appear underneath)
-    map.addLayer({
-      id: "fields-labels-area",
-      type: "symbol",
-      source: "label-points",
-      layout: {
-        "text-field": ["concat", ["get", "area"], " ha"],
-        "text-anchor": "top",
-        "text-offset": [0, 1.2],
-        "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          0,
-          11,
-          6,
-          13,
-          9,
-          15,
-          21,
-          17,
-          36,
-          19,
-          72,
-          20,
-          90,
-        ],
-        "text-allow-overlap": false, // CHANGED: Don't allow overlap to prevent covering other field names
-        "text-ignore-placement": false,
-      },
-      paint: {
-        "text-color": "#c0ffc0",
-        "text-halo-color": "#000000",
-        "text-halo-width": 2,
-        "text-opacity": 0.9,
-      },
-    })
+    try {
+      // FIXED: Add area labels FIRST (they appear underneath)
+      map.addLayer({
+        id: "fields-labels-area",
+        type: "symbol",
+        source: "label-points",
+        layout: {
+          "text-field": ["concat", ["get", "area"], " ha"],
+          "text-anchor": "top",
+          "text-offset": [0, 1.2],
+          "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            0,
+            11,
+            6,
+            13,
+            9,
+            15,
+            21,
+            17,
+            36,
+            19,
+            72,
+            20,
+            90,
+          ],
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+        },
+        paint: {
+          "text-color": "#c0ffc0",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+          "text-opacity": 0.9,
+        },
+      })
 
-    // FIXED: Add field name labels SECOND (they appear on top)
-    map.addLayer({
-      id: "fields-labels",
-      type: "symbol",
-      source: "label-points",
-      layout: {
-        "text-field": ["get", "name"],
-        "text-anchor": "center",
-        "symbol-sort-key": 10, // CHANGED: Higher sort key to ensure field names are on top
-        "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          0,
-          11,
-          8,
-          13,
-          12,
-          15,
-          28,
-          17,
-          48,
-          19,
-          96,
-          20,
-          120,
-        ],
-        "text-allow-overlap": true,
-        "text-ignore-placement": false,
-      },
-      paint: {
-        "text-color": "#ffffff",
-        "text-halo-color": "#000000",
-        "text-halo-width": 2,
-      },
-    })
+      // FIXED: Add field name labels SECOND (they appear on top)
+      map.addLayer({
+        id: "fields-labels",
+        type: "symbol",
+        source: "label-points",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-anchor": "center",
+          "symbol-sort-key": 10,
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            0,
+            11,
+            8,
+            13,
+            12,
+            15,
+            28,
+            17,
+            48,
+            19,
+            96,
+            20,
+            120,
+          ],
+          "text-allow-overlap": true,
+          "text-ignore-placement": false,
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+        },
+      })
+    } catch (error) {
+      console.error("Error adding label layers:", error)
+    }
   }
 
   function updateMapLabels() {
@@ -230,34 +241,58 @@
       return
     }
 
-    const fields: Field[] = get(mapFieldsStore)
-    const labelPointsGeojson = createLabelPoints(fields)
+    try {
+      const fields: Field[] = get(mapFieldsStore)
+      const labelPointsGeojson = createLabelPoints(fields)
 
-    const labelPointsSource = map.getSource(
-      "label-points",
-    ) as mapboxgl.GeoJSONSource
-    if (labelPointsSource) {
-      labelPointsSource.setData(labelPointsGeojson)
-      console.log("Updated label points source with new data")
+      const labelPointsSource = map.getSource(
+        "label-points",
+      ) as mapboxgl.GeoJSONSource
+      if (labelPointsSource) {
+        labelPointsSource.setData(labelPointsGeojson)
+        console.log("Updated label points source with new data")
+      }
+    } catch (error) {
+      console.error("Error updating map labels:", error)
     }
   }
 
   function readdLabels() {
     console.log("ReadingLABELS!!", $mapFieldsStore)
-    if (!map || !map.getLayer("fields-labels")) return
 
-    const currentZoom = map.getZoom()
-
-    // FIXED: Remove layers in reverse order (names first, then areas)
-    if (map.getLayer("fields-labels")) {
-      map.removeLayer("fields-labels")
-    }
-    if (map.getLayer("fields-labels-area")) {
-      map.removeLayer("fields-labels-area")
+    // FIXED: Only check if component is destroyed, not map readiness
+    if (isDestroyed) {
+      console.log("Skipping readdLabels - component destroyed")
+      return
     }
 
-    addLabelLayers()
-    map.setZoom(currentZoom)
+    // FIXED: Check for basic map availability, not style loaded
+    if (!canUseMap()) {
+      console.log("Skipping readdLabels - map not available")
+      return
+    }
+
+    try {
+      const currentZoom = map.getZoom()
+
+      // FIXED: Remove layers in reverse order with safety checks
+      if (map.getLayer("fields-labels")) {
+        map.removeLayer("fields-labels")
+      }
+      if (map.getLayer("fields-labels-area")) {
+        map.removeLayer("fields-labels-area")
+      }
+
+      addLabelLayers()
+
+      if (!isDestroyed && map) {
+        map.setZoom(currentZoom)
+      }
+    } catch (error) {
+      if (!isDestroyed) {
+        console.error("Error in readdLabels:", error)
+      }
+    }
   }
 
   // Public method called by MapViewer's layer interaction system
@@ -278,111 +313,128 @@
   }
 
   function updateFieldSelection() {
-    if (!map) return
+    if (!canUseMap()) return
 
-    if (selectedFieldId !== null) {
-      map.setFilter("fields-fill-selected", ["==", "id", selectedFieldId])
-      map.setFilter("fields-outline-selected", ["==", "id", selectedFieldId])
-      map.setFilter("fields-fill", ["!=", "id", selectedFieldId])
-      map.setFilter("fields-outline", ["!=", "id", selectedFieldId])
-    } else {
-      map.setFilter("fields-fill-selected", ["==", "id", -1])
-      map.setFilter("fields-outline-selected", ["==", "id", -1])
-      map.setFilter("fields-fill", null)
-      map.setFilter("fields-outline", null)
+    try {
+      if (selectedFieldId !== null) {
+        map.setFilter("fields-fill-selected", ["==", "id", selectedFieldId])
+        map.setFilter("fields-outline-selected", ["==", "id", selectedFieldId])
+        map.setFilter("fields-fill", ["!=", "id", selectedFieldId])
+        map.setFilter("fields-outline", ["!=", "id", selectedFieldId])
+      } else {
+        map.setFilter("fields-fill-selected", ["==", "id", -1])
+        map.setFilter("fields-outline-selected", ["==", "id", -1])
+        map.setFilter("fields-fill", null)
+        map.setFilter("fields-outline", null)
+      }
+    } catch (error) {
+      if (!isDestroyed) {
+        console.error("Error updating field selection:", error)
+      }
     }
   }
 
   function loadFields() {
     if (!map) return
 
-    const fields: Field[] = get(mapFieldsStore)
-    console.log("Loading fields from", $mapFieldsStore)
+    try {
+      const fields: Field[] = get(mapFieldsStore)
+      console.log("Loading fields from", $mapFieldsStore)
 
-    if (fields.length > 0) {
-      const fieldsGeojson = {
-        type: "FeatureCollection",
-        features: fields.map((field, index) => ({
-          type: "Feature",
-          geometry: field.boundary,
-          properties: {
-            id: index,
-            area: Math.round(field.area * 10) / 10,
-            name: field.name,
+      if (fields.length > 0) {
+        const fieldsGeojson = {
+          type: "FeatureCollection",
+          features: fields.map((field, index) => ({
+            type: "Feature",
+            geometry: field.boundary,
+            properties: {
+              id: index,
+              area: Math.round(field.area * 10) / 10,
+              name: field.name,
+            },
+          })),
+        }
+
+        const labelPointsGeojson = createLabelPoints(fields)
+
+        map.addSource("fields", {
+          type: "geojson",
+          data: fieldsGeojson,
+        })
+
+        map.addSource("label-points", {
+          type: "geojson",
+          data: labelPointsGeojson,
+        })
+
+        map.addLayer({
+          id: "fields-fill",
+          type: "fill",
+          source: "fields",
+          paint: {
+            "fill-color": "#0080ff",
+            "fill-opacity": 0.2,
           },
-        })),
+        })
+
+        map.addLayer({
+          id: "fields-outline",
+          type: "line",
+          source: "fields",
+          paint: {
+            "line-color": "#bfffbf",
+            "line-opacity": 0.5,
+            "line-width": 2,
+          },
+        })
+
+        map.addLayer({
+          id: "fields-fill-selected",
+          type: "fill",
+          source: "fields",
+          filter: ["==", "id", -1],
+          paint: {
+            "fill-color": "#0056b3",
+            "fill-opacity": 0.5,
+          },
+        })
+
+        map.addLayer({
+          id: "fields-outline-selected",
+          type: "line",
+          source: "fields",
+          filter: ["==", "id", -1],
+          paint: {
+            "line-color": "#ffffff",
+            "line-opacity": 1.0,
+            "line-width": 3,
+          },
+        })
+
+        addLabelLayers()
+
+        // FIXED: Store timeout IDs and check destroyed flag
+        const timeout1 = setTimeout(() => {
+          if (!isDestroyed) readdLabels()
+        }, 10000)
+        const timeout2 = setTimeout(() => {
+          if (!isDestroyed) readdLabels()
+        }, 20000)
+
+        readdLabelsTimeouts.push(timeout1, timeout2)
+
+        const bounds = calculateBoundingBox(fields)
+        if (bounds) {
+          fieldBoundaryStore.set(bounds.toArray())
+          console.log("Stored field bounding box")
+        } else {
+          console.warn("Unable to calculate valid bounding box")
+        }
+
+        console.log("Fields loaded and layers created")
       }
-
-      const labelPointsGeojson = createLabelPoints(fields)
-
-      map.addSource("fields", {
-        type: "geojson",
-        data: fieldsGeojson,
-      })
-
-      map.addSource("label-points", {
-        type: "geojson",
-        data: labelPointsGeojson,
-      })
-
-      map.addLayer({
-        id: "fields-fill",
-        type: "fill",
-        source: "fields",
-        paint: {
-          "fill-color": "#0080ff",
-          "fill-opacity": 0.2,
-        },
-      })
-
-      map.addLayer({
-        id: "fields-outline",
-        type: "line",
-        source: "fields",
-        paint: {
-          "line-color": "#bfffbf",
-          "line-opacity": 0.5,
-          "line-width": 2,
-        },
-      })
-
-      map.addLayer({
-        id: "fields-fill-selected",
-        type: "fill",
-        source: "fields",
-        filter: ["==", "id", -1],
-        paint: {
-          "fill-color": "#0056b3",
-          "fill-opacity": 0.5,
-        },
-      })
-
-      map.addLayer({
-        id: "fields-outline-selected",
-        type: "line",
-        source: "fields",
-        filter: ["==", "id", -1],
-        paint: {
-          "line-color": "#ffffff",
-          "line-opacity": 1.0,
-          "line-width": 3,
-        },
-      })
-
-      addLabelLayers()
-
-      setTimeout(() => readdLabels(), 10000)
-      setTimeout(() => readdLabels(), 20000)
-
-      const bounds = calculateBoundingBox(fields)
-      if (bounds) {
-        fieldBoundaryStore.set(bounds.toArray())
-        console.log("Stored field bounding box")
-      } else {
-        console.warn("Unable to calculate valid bounding box")
-      }
-
-      console.log("Fields loaded and layers created")
+    } catch (error) {
+      console.error("Error loading fields:", error)
     }
   }
 
@@ -394,6 +446,16 @@
 
   function handleFieldUpdate() {
     updateMapLabels()
+  }
+
+  function cleanup() {
+    isDestroyed = true
+
+    // Clear any pending timeouts
+    readdLabelsTimeouts.forEach((timeout) => clearTimeout(timeout))
+    readdLabelsTimeouts = []
+
+    console.log("MapFields cleanup completed")
   }
 
   onMount(() => {
@@ -418,6 +480,11 @@
         map.off("load", loadFields)
       }
     }
+  })
+
+  onDestroy(() => {
+    console.log("MapFields component destroying")
+    cleanup()
   })
 
   export { selectedFieldId }
