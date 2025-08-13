@@ -105,6 +105,7 @@
       })
 
       map.doubleClickZoom.disable()
+      map.touchPitch.disable()
 
       map.setMaxPitch(0)
       map.setMinPitch(0)
@@ -115,12 +116,16 @@
       if (map.loaded()) {
         mapLoaded = true
         initializeMapLocation()
+        console.log("Available handlers:", Object.keys(map))
+        map.touchPitch.disable()
 
         map.doubleClickZoom.disable()
       } else {
         map.on("load", () => {
           mapLoaded = true
           initializeMapLocation()
+          console.log("Available handlers:", Object.keys(map))
+          map.touchPitch.disable()
 
           map.doubleClickZoom.disable()
         })
