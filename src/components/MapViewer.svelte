@@ -104,6 +104,8 @@
         doubleClickZoom: false,
       })
 
+      map.doubleClickZoom.disable()
+
       map.setMaxPitch(0)
       map.setMinPitch(0)
 
@@ -113,10 +115,16 @@
       if (map.loaded()) {
         mapLoaded = true
         initializeMapLocation()
+
+        // Disable again after load
+        map.doubleClickZoom.disable()
       } else {
         map.on("load", () => {
           mapLoaded = true
           initializeMapLocation()
+
+          // Disable again after load event
+          map.doubleClickZoom.disable()
         })
       }
 
@@ -142,7 +150,6 @@
       toast.error(`Failed to initialize map: ${error.message}`)
     }
   })
-
   onDestroy(() => {
     if (map) {
       map.off()
