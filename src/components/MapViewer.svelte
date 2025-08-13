@@ -101,6 +101,7 @@
         refreshExpiredTiles: false,
         maxTileCacheSize: 100,
         attributionControl: false,
+        doubleClickZoom: false,
       })
 
       map.setMaxPitch(0)
