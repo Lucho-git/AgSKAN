@@ -7,12 +7,11 @@
     fieldBoundaryStore,
     markerBoundaryStore,
   } from "$lib/stores/homeBoundaryStore"
-  import { trailDataLoaded, vehicleDataLoaded } from "../stores/loadedStore"
-  import { selectedOperationStore } from "$lib/stores/operationStore"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
+  import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"
   import ButtonSection from "./ButtonSection.svelte"
   import MapStateSaver from "./MapStateSaver.svelte"
@@ -21,7 +20,6 @@
   import TrailTracker from "./TrailTracker.svelte"
   import MapFields from "./MapFields.svelte"
   import MapSatelliteOptions from "./MapSatelliteOptions.svelte"
-
   import TrailSynchronizer from "$lib/components/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
@@ -34,6 +32,8 @@
   export let selectedOperation
 
   let dbInstance
+  let markerManagerRef = null
+  let mapFieldsRef = null
 
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
 
@@ -80,6 +80,13 @@
     }
   }
 
+  function handleLongPress(lngLat) {
+    console.log("🔥 MapViewer: Long press detected at:", lngLat)
+    if (markerManagerRef) {
+      markerManagerRef.handleMarkerPlacement(lngLat)
+    }
+  }
+
   onMount(async () => {
     if (!browser) return
 
@@ -93,7 +100,7 @@
         fadeDuration: 300,
         refreshExpiredTiles: false,
         maxTileCacheSize: 100,
-        attributionControl: false, // Disable default attribution
+        attributionControl: false,
       })
 
       map.setMaxPitch(0)
@@ -112,9 +119,7 @@
         })
       }
 
-      // Suppress non-critical errors
       map.on("error", (e) => {
-        // Only log critical errors, suppress tile 404s and other expected errors
         if (
           e.error &&
           !e.error.message?.includes("404") &&
@@ -145,17 +150,6 @@
       mapStore.set(null)
     }
   })
-
-  let markerPlacementEvent = null
-  let markerClickEvent = null
-
-  function handleMarkerPlacement(event) {
-    markerPlacementEvent = event.detail
-  }
-
-  function handleMarkerClick(event) {
-    markerClickEvent = event.detail
-  }
 
   function handleLocateHome() {
     if (!map) return
@@ -190,27 +184,36 @@
       <button on:click={handleBackToDashboard}>Back to Dashboard</button>
     </div>
   {:else if mapInitialized}
-    <!-- Satellite Options Component -->
-    <MapSatelliteOptions {map} {mapLoaded} />
+    <!-- Event Management - handles ALL map interactions -->
+    <MapEventManager
+      {map}
+      {mapLoaded}
+      {markerManagerRef}
+      {mapFieldsRef}
+      onLongPress={handleLongPress}
+    />
 
+    <!-- Map UI Components -->
+    <MapSatelliteOptions {map} {mapLoaded} />
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
     />
     <NavigationControl />
 
+    <!-- Map Feature Components -->
     <MarkerManager
+      bind:this={markerManagerRef}
       {map}
       {mapLoaded}
-      {markerPlacementEvent}
-      {markerClickEvent}
+      coordinatedEvents={true}
     />
     <MapStateSaver {map} />
-
     <VehicleStateSynchronizer />
     <VehicleTracker {map} disableAutoZoom={initialLocation} />
-    <MapFields {map} />
+    <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <DrawingHectares {map} />
+
     {#if selectedOperation}
       <TrailSynchronizer {selectedOperation} {map} />
     {/if}
@@ -259,7 +262,6 @@
     background-color: #3182ce;
   }
 
-  /* Hide the Mapbox logo in bottom left */
   :global(.mapboxgl-ctrl-logo) {
     display: none !important;
   }

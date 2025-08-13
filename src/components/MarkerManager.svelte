@@ -18,6 +18,7 @@
 
   export let map
   export let mapLoaded = false
+  export let coordinatedEvents = false
 
   let markerActionsUnsubscribe
   let locationMarkerUnsubscribe
@@ -25,18 +26,6 @@
   let markersInitialized = false
   let iconsLoaded = false
   let iconPaths = null
-
-  // Long press variables
-  let longPressTimer = null
-  let longPressStartPosition = null
-  const longPressThreshold = 850
-  const longPressMoveThreshold = 5
-  let isLongPressing = false
-
-  // Touch tracking variables for markers
-  let touchStartPosition = null
-  let hasTouchMoved = false
-  const touchMoveThreshold = 10 // pixels
 
   const markerIcons = [
     { id: "rock", class: "custom-svg" },
@@ -181,13 +170,11 @@
     }
   }
 
-  // Simplified fallback icon generation
   async function loadFallbackIcons() {
     if (!map || iconsLoaded) return
 
     console.log("Loading fallback icons...")
 
-    // Load default marker
     if (!map.hasImage("default")) {
       const canvas = document.createElement("canvas")
       canvas.width = 35
@@ -211,7 +198,6 @@
       map.addImage("default", { width: 35, height: 35, data: imageData.data })
     }
 
-    // Generate simple fallbacks for other icons
     const iconTypes = [
       { filter: (icon) => icon.class.startsWith("ionic-"), symbol: "I" },
       { filter: (icon) => icon.class.startsWith("at-"), symbol: "◆" },
@@ -265,113 +251,6 @@
     return "default"
   }
 
-  // Unified event handlers
-  function handleMapMouseDown(e) {
-    startLongPress(e)
-  }
-
-  function handleMapTouchStart(e) {
-    if (e.originalEvent.touches.length > 1) return // Ignore multi-touch
-    startLongPress(e)
-  }
-
-  function startLongPress(e) {
-    isLongPressing = true
-    longPressStartPosition = {
-      x: e.originalEvent.clientX || e.originalEvent.touches[0].clientX,
-      y: e.originalEvent.clientY || e.originalEvent.touches[0].clientY,
-      lngLat: e.lngLat,
-    }
-
-    longPressTimer = setTimeout(() => {
-      if (isLongPressing) {
-        handleMarkerPlacement(longPressStartPosition.lngLat)
-      }
-    }, longPressThreshold)
-  }
-
-  function checkLongPressMovement(e) {
-    if (!isLongPressing || !longPressStartPosition) return
-
-    const currentX =
-      e.originalEvent.clientX || e.originalEvent.touches[0].clientX
-    const currentY =
-      e.originalEvent.clientY || e.originalEvent.touches[0].clientY
-
-    const dx = currentX - longPressStartPosition.x
-    const dy = currentY - longPressStartPosition.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    if (distance > longPressMoveThreshold) {
-      cancelLongPress()
-    }
-  }
-
-  function cancelLongPress() {
-    isLongPressing = false
-    clearTimeout(longPressTimer)
-    longPressTimer = null
-    longPressStartPosition = null
-  }
-
-  // Marker touch tracking functions
-  function handleMarkerTouchStart(e) {
-    touchStartPosition = {
-      x: e.originalEvent.touches[0].clientX,
-      y: e.originalEvent.touches[0].clientY,
-    }
-    hasTouchMoved = false
-  }
-
-  function handleMarkerTouchMove(e) {
-    if (!touchStartPosition) return
-
-    const currentX = e.originalEvent.touches[0].clientX
-    const currentY = e.originalEvent.touches[0].clientY
-
-    const dx = currentX - touchStartPosition.x
-    const dy = currentY - touchStartPosition.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    if (distance > touchMoveThreshold) {
-      hasTouchMoved = true
-    }
-  }
-
-  function handleMarkerTouchEnd(e) {
-    // Reset touch tracking after a delay
-    setTimeout(() => {
-      touchStartPosition = null
-      hasTouchMoved = false
-    }, 100)
-  }
-
-  // Unified marker selection handler
-  function handleMarkerLayerSelection(e) {
-    if (e.features.length > 0) {
-      // For click events, always proceed
-      if (e.type === "click") {
-        cancelLongPress()
-        const feature = e.features[0]
-        handleMarkerSelection({
-          id: feature.properties.id,
-          lngLat: feature.geometry.coordinates,
-        })
-        return
-      }
-
-      // For touchend events, only proceed if there was minimal movement
-      if (e.type === "touchend" && !hasTouchMoved) {
-        cancelLongPress()
-        const feature = e.features[0]
-        handleMarkerSelection({
-          id: feature.properties.id,
-          lngLat: feature.geometry.coordinates,
-        })
-      }
-    }
-  }
-
   async function initializeMarkerLayers() {
     if (!map || markersInitialized) return
 
@@ -404,28 +283,6 @@
         },
       })
     }
-
-    // Add marker interaction handlers
-    map.on("click", "markers-layer", handleMarkerLayerSelection)
-    map.on("touchstart", "markers-layer", handleMarkerTouchStart)
-    map.on("touchmove", "markers-layer", handleMarkerTouchMove)
-    map.on("touchend", "markers-layer", handleMarkerLayerSelection)
-
-    // Add hover effects
-    map.on("mouseenter", "markers-layer", () => {
-      map.getCanvas().style.cursor = "pointer"
-    })
-    map.on("mouseleave", "markers-layer", () => {
-      map.getCanvas().style.cursor = ""
-    })
-
-    // Add long press handlers for map
-    map.on("mousedown", handleMapMouseDown)
-    map.on("touchstart", handleMapTouchStart)
-    map.on("mousemove", checkLongPressMovement)
-    map.on("touchmove", checkLongPressMovement)
-    map.on("mouseup", cancelLongPress)
-    map.on("touchend", cancelLongPress)
 
     markersInitialized = true
     console.log("✅ Marker layers initialization complete")
@@ -501,10 +358,12 @@
     source.setData(data)
   }
 
-  async function handleMarkerPlacement(lngLat) {
+  // Public method called by MapViewer's layer interaction system for marker placement (long press)
+  export function handleMarkerPlacement(lngLat) {
     if (!map) return
 
-    // Remove previous temporary marker
+    console.log("Placing marker at:", lngLat)
+
     if ($selectedMarkerStore) {
       removeMarkerFromLayer($selectedMarkerStore.id)
     }
@@ -540,22 +399,41 @@
     }))
   }
 
-  function handleMarkerSelection(event) {
+  // Public method called by MapViewer's layer interaction system for marker selection (click/touch)
+  export function handleMarkerSelection(event) {
     if (!map) return
 
-    const { id, lngLat } = event
-    const coordinates = Array.isArray(lngLat)
-      ? { lng: lngLat[0], lat: lngLat[1] }
-      : lngLat
+    console.log("Marker selection called with event:", event)
 
-    updateMarkerSelection(id, true)
+    // Extract marker ID from the event
+    let markerId, coordinates
+
+    if (event.features && event.features.length > 0) {
+      // Called from layer click handler
+      const feature = event.features[0]
+      markerId = feature.properties.id
+      coordinates = feature.geometry.coordinates
+    } else if (event.id && event.lngLat) {
+      // Called from legacy format
+      markerId = event.id
+      coordinates = Array.isArray(event.lngLat)
+        ? event.lngLat
+        : [event.lngLat.lng, event.lngLat.lat]
+    } else {
+      console.warn("Invalid marker selection event format:", event)
+      return
+    }
+
+    console.log("Selecting marker:", markerId)
+
+    updateMarkerSelection(markerId, true)
     selectedMarkerStore.set({
-      id,
-      coordinates: [coordinates.lng, coordinates.lat],
+      id: markerId,
+      coordinates: coordinates,
     })
 
     map.flyTo({
-      center: [coordinates.lng, coordinates.lat],
+      center: coordinates,
       zoom: 15,
       duration: 1000,
     })
@@ -750,6 +628,11 @@
   }
 
   onMount(() => {
+    console.log(
+      "MarkerManager mounted with coordinatedEvents:",
+      coordinatedEvents,
+    )
+
     markerActionsUnsubscribe = markerActionsStore.subscribe(applyMarkerActions)
     locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
       if (timestamp) placeMarkerAtCurrentLocation()
@@ -764,27 +647,6 @@
     if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
 
-    cancelLongPress()
-
-    if (map && map.off) {
-      // Remove marker event handlers
-      map.off("click", "markers-layer", handleMarkerLayerSelection)
-      map.off("touchstart", "markers-layer", handleMarkerTouchStart)
-      map.off("touchmove", "markers-layer", handleMarkerTouchMove)
-      map.off("touchend", "markers-layer", handleMarkerLayerSelection)
-      map.off("mouseenter", "markers-layer")
-      map.off("mouseleave", "markers-layer")
-
-      // Remove long press handlers
-      map.off("mousedown", handleMapMouseDown)
-      map.off("touchstart", handleMapTouchStart)
-      map.off("mousemove", checkLongPressMovement)
-      map.off("touchmove", checkLongPressMovement)
-      map.off("mouseup", cancelLongPress)
-      map.off("touchend", cancelLongPress)
-    }
-
-    // Clear map layers and source
     if (map && map.getStyle && typeof map.getLayer === "function") {
       try {
         if (map.getLayer("markers-layer")) map.removeLayer("markers-layer")
@@ -794,7 +656,6 @@
       }
     }
 
-    // Clear stores
     confirmedMarkersStore.set([])
     removeMarkerStore.set([])
     markerActionsStore.set([])

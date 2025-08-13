@@ -1,0 +1,535 @@
+<script>
+  import { onMount, onDestroy } from "svelte"
+
+  export let map
+  export let mapLoaded = false
+  export let markerManagerRef = null
+  export let mapFieldsRef = null
+  export let onLongPress = () => {}
+
+  // Layer interaction registry with priority support
+  let layerRegistry = new Map()
+
+  // Long press state
+  let longPressTimer = null
+  let longPressStartPosition = null
+  let isDragging = false
+  const longPressThreshold = 850
+  const longPressMoveThreshold = 5
+
+  // Touch handling state
+  let touchStartCount = 0
+  let isPinching = false
+  let lastTouchTime = 0
+
+  // Layer-specific touch tracking
+  let layerTouchTracking = new Map()
+
+  // Initialize when map and refs are ready
+  $: if (mapLoaded && map && (markerManagerRef || mapFieldsRef)) {
+    initializeEventHandling()
+  }
+
+  function initializeEventHandling() {
+    console.log("🎯 MapEventManager: Initializing event handling")
+
+    // Setup map-level event listeners
+    setupMapEventListeners()
+
+    // Register child component layers
+    setTimeout(() => {
+      registerChildLayers()
+    }, 1000)
+  }
+
+  // Layer interaction registry functions with priority
+  function registerLayerInteractions(layerConfigs) {
+    layerConfigs.forEach((config) => {
+      layerRegistry.set(config.layerId, {
+        componentRef: config.componentRef,
+        handlers: config.handlers,
+        options: {
+          preventOnDrag: true,
+          touchMoveThreshold: 10,
+          priority: 0, // Default priority
+          ...config.options,
+        },
+      })
+
+      // Initialize touch tracking for this layer
+      if (config.options?.preventOnDrag) {
+        layerTouchTracking.set(config.layerId, {
+          touchStartPosition: null,
+          hasTouchMoved: false,
+        })
+      }
+
+      console.log(
+        `📍 Registered layer: ${config.layerId} with priority: ${layerRegistry.get(config.layerId).options.priority}`,
+      )
+    })
+  }
+
+  function setupLayerEvents(layerId) {
+    const config = layerRegistry.get(layerId)
+    if (!config) return
+
+    // Wait for layer to exist
+    const checkLayer = () => {
+      try {
+        if (map.getLayer && map.getLayer(layerId)) {
+          console.log(`🔗 Setting up events for layer: ${layerId}`)
+
+          // Mouse click handler - use coordinated click handler
+          if (config.handlers.onClick) {
+            map.on("click", layerId, (e) => handleCoordinatedLayerClick(e))
+          }
+
+          // Touch handlers with movement tracking if needed
+          if (config.handlers.onTouchEnd && config.options.preventOnDrag) {
+            map.on("touchstart", layerId, (e) =>
+              handleLayerTouchStart(layerId, e),
+            )
+            map.on("touchmove", layerId, (e) =>
+              handleLayerTouchMove(layerId, e),
+            )
+            map.on("touchend", layerId, (e) =>
+              handleCoordinatedLayerTouchEnd(e),
+            )
+          } else if (config.handlers.onTouchEnd) {
+            map.on("touchend", layerId, (e) =>
+              handleCoordinatedLayerTouchEnd(e),
+            )
+          }
+
+          // Hover effects
+          map.on("mouseenter", layerId, () => {
+            map.getCanvas().style.cursor = "pointer"
+          })
+          map.on("mouseleave", layerId, () => {
+            map.getCanvas().style.cursor = ""
+          })
+
+          return true
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error setting up layer ${layerId}:`, error)
+      }
+      return false
+    }
+
+    // Try immediately, then retry with timeout
+    if (!checkLayer()) {
+      setTimeout(checkLayer, 100)
+    }
+  }
+
+  // Coordinated click handler - determines which layer gets the interaction
+  function handleCoordinatedLayerClick(event) {
+    const layersAtPoint = getLayersAtPoint(event.point)
+    const selectedLayer = selectHighestPriorityLayer(layersAtPoint)
+
+    if (selectedLayer) {
+      console.log(
+        `🎯 Coordinated click - selected layer: ${selectedLayer.layerId} (priority: ${selectedLayer.priority})`,
+      )
+      handleLayerInteraction(selectedLayer.layerId, "onClick", event)
+    }
+  }
+
+  // Coordinated touch end handler
+  function handleCoordinatedLayerTouchEnd(event) {
+    // Check if any layer had touch movement that should cancel the interaction
+    let shouldCancelDueToMovement = false
+
+    for (const [layerId, tracking] of layerTouchTracking.entries()) {
+      if (tracking.hasTouchMoved) {
+        shouldCancelDueToMovement = true
+        break
+      }
+    }
+
+    if (shouldCancelDueToMovement) {
+      console.log("📱 Touch interaction cancelled due to movement")
+      resetAllLayerTouchTracking()
+      return
+    }
+
+    const layersAtPoint = getLayersAtPoint(event.point)
+    const selectedLayer = selectHighestPriorityLayer(layersAtPoint)
+
+    if (selectedLayer) {
+      console.log(
+        `📱 Coordinated touch end - selected layer: ${selectedLayer.layerId} (priority: ${selectedLayer.priority})`,
+      )
+      handleLayerInteraction(selectedLayer.layerId, "onTouchEnd", event)
+    }
+
+    resetAllLayerTouchTracking()
+  }
+
+  // Get all interactive layers at a given point
+  function getLayersAtPoint(point) {
+    const layersAtPoint = []
+
+    // Query all registered layers at this point
+    layerRegistry.forEach((config, layerId) => {
+      try {
+        if (map.getLayer(layerId)) {
+          const features = map.queryRenderedFeatures(point, {
+            layers: [layerId],
+          })
+          if (features.length > 0) {
+            layersAtPoint.push({
+              layerId,
+              priority: config.options.priority,
+              features,
+              config,
+            })
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error querying layer ${layerId}:`, error)
+      }
+    })
+
+    return layersAtPoint
+  }
+
+  // Select the layer with highest priority (highest number wins)
+  function selectHighestPriorityLayer(layersAtPoint) {
+    if (layersAtPoint.length === 0) return null
+    if (layersAtPoint.length === 1) return layersAtPoint[0]
+
+    // Sort by priority (highest first), then by registration order if priorities are equal
+    return layersAtPoint.sort((a, b) => {
+      if (b.priority !== a.priority) {
+        return b.priority - a.priority
+      }
+      // If priorities are equal, maintain registration order (first registered wins)
+      return 0
+    })[0]
+  }
+
+  // Reset touch tracking for all layers
+  function resetAllLayerTouchTracking() {
+    setTimeout(() => {
+      layerTouchTracking.forEach((tracking) => {
+        tracking.touchStartPosition = null
+        tracking.hasTouchMoved = false
+      })
+    }, 100)
+  }
+
+  // Layer touch tracking
+  function handleLayerTouchStart(layerId, e) {
+    const tracking = layerTouchTracking.get(layerId)
+    if (tracking) {
+      tracking.touchStartPosition = {
+        x: e.originalEvent.touches[0].clientX,
+        y: e.originalEvent.touches[0].clientY,
+      }
+      tracking.hasTouchMoved = false
+    }
+  }
+
+  function handleLayerTouchMove(layerId, e) {
+    const tracking = layerTouchTracking.get(layerId)
+    const config = layerRegistry.get(layerId)
+
+    if (!tracking || !tracking.touchStartPosition) return
+
+    const currentX = e.originalEvent.touches[0].clientX
+    const currentY = e.originalEvent.touches[0].clientY
+
+    const dx = currentX - tracking.touchStartPosition.x
+    const dy = currentY - tracking.touchStartPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > config.options.touchMoveThreshold) {
+      tracking.hasTouchMoved = true
+    }
+  }
+
+  // Generic layer interaction handler
+  function handleLayerInteraction(layerId, interactionType, event) {
+    const config = layerRegistry.get(layerId)
+
+    if (!config || !config.handlers[interactionType]) return
+
+    // Check for drag prevention
+    if (config.options.preventOnDrag && isDragging) {
+      console.log(`🚫 ${layerId} ${interactionType} ignored due to drag`)
+      return
+    }
+
+    // Cancel any ongoing long press
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+    longPressStartPosition = null
+
+    console.log(`✅ ${layerId} ${interactionType}:`, event)
+    config.handlers[interactionType](event)
+  }
+
+  // Touch detection functions
+  function handleDocumentTouchStart(e) {
+    touchStartCount = e.touches.length
+    if (touchStartCount > 1) {
+      isPinching = true
+    }
+  }
+
+  function handleDocumentTouchEnd(e) {
+    setTimeout(() => {
+      isPinching = false
+      touchStartCount = 0
+    }, 300)
+  }
+
+  // Long press handlers
+  function handleMouseDown(event) {
+    const target = event.originalEvent.target
+    if (target.closest(".mapboxgl-marker")) {
+      return
+    }
+
+    if (event.originalEvent.type.startsWith("touch")) {
+      const now = Date.now()
+
+      if (isPinching) return
+
+      if (
+        event.originalEvent.touches &&
+        event.originalEvent.touches.length > 1
+      ) {
+        isPinching = true
+        return
+      }
+
+      if (now - lastTouchTime < 300) {
+        isPinching = true
+        return
+      }
+
+      lastTouchTime = now
+    }
+
+    isDragging = false
+    clearTimeout(longPressTimer)
+
+    longPressStartPosition = {
+      x:
+        event.originalEvent.clientX ||
+        (event.originalEvent.touches && event.originalEvent.touches[0].clientX),
+      y:
+        event.originalEvent.clientY ||
+        (event.originalEvent.touches && event.originalEvent.touches[0].clientY),
+      isTouchEvent: event.originalEvent.type.startsWith("touch"),
+    }
+
+    longPressTimer = setTimeout(() => {
+      if (!isDragging) {
+        console.log("⏰ Long press timer fired")
+        onLongPress(event.lngLat)
+      }
+      longPressTimer = null
+    }, longPressThreshold)
+
+    if (longPressStartPosition.isTouchEvent) {
+      const touchendHandler = function (e) {
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+        longPressStartPosition = null
+        document.removeEventListener("touchend", touchendHandler)
+      }
+      document.addEventListener("touchend", touchendHandler)
+    }
+  }
+
+  function handleMapDrag(event) {
+    if (longPressStartPosition) {
+      const touchEvent = event.originalEvent.touches
+        ? event.originalEvent.touches[0]
+        : event.originalEvent
+      const dx = touchEvent.clientX - longPressStartPosition.x
+      const dy = touchEvent.clientY - longPressStartPosition.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      if (distance > longPressMoveThreshold) {
+        isDragging = true
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+        longPressStartPosition = null
+        console.log("🚫 Long press cancelled due to drag, distance:", distance)
+      }
+    }
+  }
+
+  function handleMouseUp(event) {
+    // Reset isDragging after a delay to prevent immediate layer interactions
+    setTimeout(() => {
+      isDragging = false
+    }, 150)
+
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+    longPressStartPosition = null
+  }
+
+  function setupMapEventListeners() {
+    if (!map) return
+
+    console.log("🎮 Setting up map event listeners")
+
+    // Long press handlers for map-level interactions
+    map.on("mousedown", handleMouseDown)
+    map.on("touchstart", handleMouseDown)
+    map.on("drag", handleMapDrag)
+    map.on("mouseup", handleMouseUp)
+    map.on("touchend", handleMouseUp)
+    map.on("touchcancel", handleMouseUp)
+
+    // Document-level listeners for pinch detection
+    document.addEventListener("touchstart", handleDocumentTouchStart, {
+      passive: true,
+    })
+    document.addEventListener("touchend", handleDocumentTouchEnd, {
+      passive: true,
+    })
+
+    console.log("✅ Map event listeners setup complete")
+  }
+
+  function cleanupEventListeners() {
+    if (!map) return
+
+    console.log("🧹 Cleaning up event listeners")
+
+    // Clean up map-level event listeners
+    map.off("mousedown", handleMouseDown)
+    map.off("touchstart", handleMouseDown)
+    map.off("drag", handleMapDrag)
+    map.off("mouseup", handleMouseUp)
+    map.off("touchend", handleMouseUp)
+    map.off("touchcancel", handleMouseUp)
+
+    // Remove document-level listeners
+    document.removeEventListener("touchstart", handleDocumentTouchStart)
+    document.removeEventListener("touchend", handleDocumentTouchEnd)
+
+    // Clean up layer-specific events
+    layerRegistry.forEach((config, layerId) => {
+      try {
+        map.off("click", layerId)
+        map.off("touchstart", layerId)
+        map.off("touchmove", layerId)
+        map.off("touchend", layerId)
+        map.off("mouseenter", layerId)
+        map.off("mouseleave", layerId)
+      } catch (error) {
+        // Layer might not exist, that's ok
+      }
+    })
+
+    // Clear registries
+    layerRegistry.clear()
+    layerTouchTracking.clear()
+
+    // Clear any pending timers
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+    longPressStartPosition = null
+  }
+
+  // Register child component layers
+  function registerChildLayers() {
+    console.log("📋 Registering child layers")
+
+    // Register marker layers if MarkerManager is ready (HIGH PRIORITY)
+    if (markerManagerRef) {
+      registerLayerInteractions([
+        {
+          layerId: "markers-layer",
+          componentRef: markerManagerRef,
+          handlers: {
+            onClick: (e) => {
+              if (e.features.length > 0) {
+                markerManagerRef.handleMarkerSelection(e)
+              }
+            },
+            onTouchEnd: (e) => {
+              if (e.features.length > 0) {
+                markerManagerRef.handleMarkerSelection(e)
+              }
+            },
+          },
+          options: {
+            preventOnDrag: true,
+            touchMoveThreshold: 10,
+            priority: 100, // HIGH PRIORITY - markers win over fields
+          },
+        },
+      ])
+    }
+
+    // Register field layers if MapFields is ready (LOWER PRIORITY)
+    if (mapFieldsRef) {
+      registerLayerInteractions([
+        {
+          layerId: "fields-fill",
+          componentRef: mapFieldsRef,
+          handlers: {
+            onClick: (e) => {
+              if (e.features.length > 0) {
+                mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
+              }
+            },
+            onTouchEnd: (e) => {
+              if (e.features.length > 0) {
+                mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
+              }
+            },
+          },
+          options: {
+            preventOnDrag: true,
+            touchMoveThreshold: 10,
+            priority: 10, // LOWER PRIORITY - fields are background layers
+          },
+        },
+        {
+          layerId: "fields-fill-selected",
+          componentRef: mapFieldsRef,
+          handlers: {
+            onClick: (e) => {
+              if (e.features.length > 0) {
+                mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
+              }
+            },
+            onTouchEnd: (e) => {
+              if (e.features.length > 0) {
+                mapFieldsRef.handleFieldSelection(e.features[0].properties.id)
+              }
+            },
+          },
+          options: {
+            preventOnDrag: true,
+            touchMoveThreshold: 10,
+            priority: 10, // LOWER PRIORITY - fields are background layers
+          },
+        },
+      ])
+    }
+
+    // Setup events for each registered layer
+    layerRegistry.forEach((config, layerId) => {
+      setupLayerEvents(layerId)
+    })
+  }
+
+  onDestroy(() => {
+    cleanupEventListeners()
+  })
+</script>
+
+<!-- MapEventManager is purely functional - no visual elements -->

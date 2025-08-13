@@ -9,6 +9,7 @@
   import InfoPanel from "./InfoPanel.svelte"
 
   export let map: mapboxgl.Map
+  export let coordinatedEvents = false
 
   interface Field {
     field_id?: string
@@ -24,14 +25,8 @@
     }
   }
 
-  // Track selected field and info panel state
   let selectedFieldId: number | null = null
   let showInfoPanel = false
-
-  // Touch tracking variables for fields
-  let touchStartPosition = null
-  let hasTouchMoved = false
-  const touchMoveThreshold = 10 // pixels
 
   function createLabelPoints(fields: Field[]) {
     return {
@@ -147,7 +142,6 @@
   function addLabelLayers() {
     if (!map) return
 
-    // Add field name labels layer
     map.addLayer({
       id: "fields-labels",
       type: "symbol",
@@ -186,7 +180,6 @@
       },
     })
 
-    // Add area labels layer (smaller, lighter)
     map.addLayer({
       id: "fields-labels-area",
       type: "symbol",
@@ -262,82 +255,21 @@
     map.setZoom(currentZoom)
   }
 
-  // Field touch tracking functions
-  function handleFieldTouchStart(e: mapboxgl.MapTouchEvent) {
-    touchStartPosition = {
-      x: e.originalEvent.touches[0].clientX,
-      y: e.originalEvent.touches[0].clientY,
-    }
-    hasTouchMoved = false
-  }
+  // Public method called by MapViewer's layer interaction system
+  export function handleFieldSelection(fieldId: number) {
+    console.log("Field selection called with ID:", fieldId)
 
-  function handleFieldTouchMove(e: mapboxgl.MapTouchEvent) {
-    if (!touchStartPosition) return
-
-    const currentX = e.originalEvent.touches[0].clientX
-    const currentY = e.originalEvent.touches[0].clientY
-
-    const dx = currentX - touchStartPosition.x
-    const dy = currentY - touchStartPosition.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    if (distance > touchMoveThreshold) {
-      hasTouchMoved = true
-    }
-  }
-
-  // Extract the field selection logic into a separate function
-  function processFieldSelection(
-    e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
-  ) {
-    const features = map.queryRenderedFeatures(e.point, {
-      layers: ["fields-fill", "fields-fill-selected"],
-    })
-
-    if (features.length > 0) {
-      const clickedFieldId = features[0].properties?.id
-
-      if (selectedFieldId === clickedFieldId) {
-        selectedFieldId = null
-        showInfoPanel = false
-        console.log("Field deselected")
-      } else {
-        selectedFieldId = clickedFieldId
-        showInfoPanel = false
-        console.log("Selected field ID:", selectedFieldId)
-      }
-
-      updateFieldSelection()
-    }
-  }
-
-  function handleFieldClick(
-    e: mapboxgl.MapMouseEvent | mapboxgl.MapTouchEvent,
-  ) {
-    if (!map) return
-
-    if (e.originalEvent) {
-      e.originalEvent.stopPropagation()
+    if (selectedFieldId === fieldId) {
+      selectedFieldId = null
+      showInfoPanel = false
+      console.log("Field deselected")
+    } else {
+      selectedFieldId = fieldId
+      showInfoPanel = false
+      console.log("Selected field ID:", selectedFieldId)
     }
 
-    // For click events, always proceed
-    if (e.type === "click") {
-      processFieldSelection(e)
-      return
-    }
-
-    // For touchend events, only proceed if there was minimal movement
-    if (e.type === "touchend" && !hasTouchMoved) {
-      processFieldSelection(e)
-    }
-
-    // Reset touch tracking after a delay
-    if (e.type === "touchend") {
-      setTimeout(() => {
-        touchStartPosition = null
-        hasTouchMoved = false
-      }, 100)
-    }
+    updateFieldSelection()
   }
 
   function updateFieldSelection() {
@@ -354,61 +286,6 @@
       map.setFilter("fields-fill", null)
       map.setFilter("fields-outline", null)
     }
-  }
-
-  function addClickHandlers() {
-    if (!map) return
-
-    map.on("click", "fields-fill", handleFieldClick)
-    map.on("click", "fields-fill-selected", handleFieldClick)
-
-    // Add touch handlers
-    map.on("touchstart", "fields-fill", handleFieldTouchStart)
-    map.on("touchstart", "fields-fill-selected", handleFieldTouchStart)
-    map.on("touchmove", "fields-fill", handleFieldTouchMove)
-    map.on("touchmove", "fields-fill-selected", handleFieldTouchMove)
-    map.on("touchend", "fields-fill", handleFieldClick)
-    map.on("touchend", "fields-fill-selected", handleFieldClick)
-
-    map.on("mouseenter", "fields-fill", () => {
-      if (!map) return
-      map.getCanvas().style.cursor = "pointer"
-    })
-
-    map.on("mouseleave", "fields-fill", () => {
-      if (!map) return
-      map.getCanvas().style.cursor = ""
-    })
-
-    map.on("mouseenter", "fields-fill-selected", () => {
-      if (!map) return
-      map.getCanvas().style.cursor = "pointer"
-    })
-
-    map.on("mouseleave", "fields-fill-selected", () => {
-      if (!map) return
-      map.getCanvas().style.cursor = ""
-    })
-  }
-
-  function removeClickHandlers() {
-    if (!map) return
-
-    map.off("click", "fields-fill", handleFieldClick)
-    map.off("click", "fields-fill-selected", handleFieldClick)
-
-    // Remove touch handlers
-    map.off("touchstart", "fields-fill", handleFieldTouchStart)
-    map.off("touchstart", "fields-fill-selected", handleFieldTouchStart)
-    map.off("touchmove", "fields-fill", handleFieldTouchMove)
-    map.off("touchmove", "fields-fill-selected", handleFieldTouchMove)
-    map.off("touchend", "fields-fill", handleFieldClick)
-    map.off("touchend", "fields-fill-selected", handleFieldClick)
-
-    map.off("mouseenter", "fields-fill")
-    map.off("mouseleave", "fields-fill")
-    map.off("mouseenter", "fields-fill-selected")
-    map.off("mouseleave", "fields-fill-selected")
   }
 
   function loadFields() {
@@ -443,7 +320,6 @@
         data: labelPointsGeojson,
       })
 
-      // Add layers
       map.addLayer({
         id: "fields-fill",
         type: "fill",
@@ -489,7 +365,6 @@
       })
 
       addLabelLayers()
-      addClickHandlers()
 
       setTimeout(() => readdLabels(), 10000)
       setTimeout(() => readdLabels(), 20000)
@@ -501,6 +376,8 @@
       } else {
         console.warn("Unable to calculate valid bounding box")
       }
+
+      console.log("Fields loaded and layers created")
     }
   }
 
@@ -520,7 +397,10 @@
       return
     }
 
-    console.log("MapFields component mounted")
+    console.log(
+      "MapFields component mounted with coordinatedEvents:",
+      coordinatedEvents,
+    )
 
     if (map.loaded()) {
       loadFields()
@@ -529,18 +409,8 @@
     }
 
     return () => {
-      // Add null checks to prevent errors during cleanup
       if (map) {
         map.off("load", loadFields)
-
-        // Only try to remove click handlers if map and layers still exist
-        try {
-          if (map.getLayer && map.getLayer("fields-fill")) {
-            removeClickHandlers()
-          }
-        } catch (error) {
-          console.warn("Error during cleanup:", error)
-        }
       }
     }
   })
