@@ -102,6 +102,7 @@
         maxTileCacheSize: 100,
         attributionControl: false,
         doubleClickZoom: false,
+        touchZoomRotate: false, // This should disable all touch zoom
       })
 
       map.doubleClickZoom.disable()
@@ -116,14 +117,12 @@
         mapLoaded = true
         initializeMapLocation()
 
-        // Disable again after load
         map.doubleClickZoom.disable()
       } else {
         map.on("load", () => {
           mapLoaded = true
           initializeMapLocation()
 
-          // Disable again after load event
           map.doubleClickZoom.disable()
         })
       }
