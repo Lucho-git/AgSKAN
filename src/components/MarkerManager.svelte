@@ -3,14 +3,11 @@
   import {
     selectedMarkerStore,
     confirmedMarkersStore,
-    removeMarkerStore,
-    markerActionsStore,
     locationMarkerStore,
   } from "../stores/mapStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"
-  import { profileStore } from "$lib/stores/profileStore"
 
   import { onMount, onDestroy } from "svelte"
   import { v4 as uuidv4 } from "uuid"
@@ -20,7 +17,6 @@
   export let mapLoaded = false
   export let coordinatedEvents = false
 
-  let markerActionsUnsubscribe
   let locationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
   let markersInitialized = false
@@ -358,6 +354,15 @@
     source.setData(data)
   }
 
+  function getCurrentIconClass(markerId) {
+    if (!map || !map.getSource("markers")) return "default"
+
+    const source = map.getSource("markers")
+    const data = source._data
+    const feature = data.features.find((f) => f.properties.id === markerId)
+    return feature?.properties.iconClass || "default"
+  }
+
   // Public method called by MapViewer's layer interaction system for marker placement (long press)
   export function handleMarkerPlacement(lngLat) {
     if (!map) return
@@ -447,27 +452,26 @@
   function confirmMarker() {
     if ($selectedMarkerStore) {
       const { id, coordinates } = $selectedMarkerStore
-      const source = map.getSource("markers")
-      const data = source._data
-      const feature = data.features.find((f) => f.properties.id === id)
-      const iconClass = feature?.properties.iconClass || "default"
+      const iconClass = getCurrentIconClass(id)
 
       const markerData = {
         id,
-        last_confirmed: new Date().toISOString(),
-        iconClass,
         coordinates,
+        iconClass,
+        created_at: new Date().toISOString(), // Make sure this matches what we expect
       }
 
-      const existingMarker = $confirmedMarkersStore.find((m) => m.id === id)
+      console.log("Confirming marker:", markerData) // Debug log
 
-      if (!existingMarker) {
-        confirmedMarkersStore.update((markers) => [...markers, markerData])
-      } else {
-        confirmedMarkersStore.update((markers) =>
-          markers.map((m) => (m.id === id ? markerData : m)),
-        )
-      }
+      // Simple direct update to store
+      confirmedMarkersStore.update((markers) => {
+        const existingIndex = markers.findIndex((m) => m.id === id)
+        if (existingIndex >= 0) {
+          markers[existingIndex] = markerData
+          return markers
+        }
+        return [...markers, markerData]
+      })
 
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
@@ -482,25 +486,14 @@
   function removeMarker() {
     if ($selectedMarkerStore) {
       const { id } = $selectedMarkerStore
-      const existingMarker = $confirmedMarkersStore.find((m) => m.id === id)
+
+      // Simple removal from store
+      confirmedMarkersStore.update((markers) =>
+        markers.filter((m) => m.id !== id),
+      )
 
       removeMarkerFromLayer(id)
       selectedMarkerStore.set(null)
-
-      if (existingMarker) {
-        confirmedMarkersStore.update((markers) => {
-          const updatedMarkers = markers.filter((m) => m.id !== id)
-          removeMarkerStore.update((removedMarkers) => [
-            ...removedMarkers,
-            {
-              id,
-              deletedBy: $profileStore.id,
-              last_confirmed: existingMarker.last_confirmed,
-            },
-          ])
-          return updatedMarkers
-        })
-      }
     }
 
     controlStore.update((controls) => ({
@@ -535,30 +528,15 @@
     if (!coordinates) return
 
     const id = uuidv4()
-    const feature = {
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [coordinates.longitude, coordinates.latitude],
-      },
-      properties: {
-        id,
-        icon: "default",
-        iconClass: "default",
-      },
+    const markerData = {
+      id,
+      coordinates: [coordinates.longitude, coordinates.latitude],
+      iconClass: "default",
+      created_at: new Date().toISOString(),
     }
 
-    addMarkerToLayer(feature)
-
-    confirmedMarkersStore.update((markers) => [
-      ...markers,
-      {
-        id,
-        last_confirmed: new Date().toISOString(),
-        iconClass: "default",
-        coordinates: [coordinates.longitude, coordinates.latitude],
-      },
-    ])
+    // Add to store directly
+    confirmedMarkersStore.update((markers) => [...markers, markerData])
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -569,81 +547,22 @@
     }
   }
 
-  async function applyMarkerActions(actions) {
-    if (!map || actions.length === 0) return
-
-    console.log("Applying", actions.length, "marker actions")
-    const completedActions = []
-
-    actions.forEach((action, index) => {
-      const { markerData } = action
-      const { id, marker_data, last_confirmed, iconClass } = markerData
-
-      if (action.action === "add" || action.action === "update") {
-        const { geometry } = marker_data
-        const { coordinates } = geometry
-        const icon = iconClass || "default"
-
-        const feature = {
-          type: "Feature",
-          geometry: { type: "Point", coordinates },
-          properties: {
-            id,
-            icon: getIconImageName(icon),
-            iconClass: icon,
-          },
-        }
-
-        addMarkerToLayer(feature)
-
-        if (action.action === "add") {
-          confirmedMarkersStore.update((markers) => [
-            ...markers,
-            { id, last_confirmed, iconClass: icon, coordinates },
-          ])
-        } else {
-          confirmedMarkersStore.update((markers) =>
-            markers.map((marker) =>
-              marker.id === id
-                ? { id, last_confirmed, iconClass: icon, coordinates }
-                : marker,
-            ),
-          )
-        }
-      } else if (action.action === "delete") {
-        removeMarkerFromLayer(id)
-        confirmedMarkersStore.update((markers) =>
-          markers.filter((marker) => marker.id !== id),
-        )
-      }
-
-      completedActions.push(index)
-    })
-
-    if (completedActions.length > 0) {
-      markerActionsStore.update((currentActions) =>
-        currentActions.filter((_, index) => !completedActions.includes(index)),
-      )
-    }
-  }
-
   onMount(() => {
     console.log(
       "MarkerManager mounted with coordinatedEvents:",
       coordinatedEvents,
     )
 
-    markerActionsUnsubscribe = markerActionsStore.subscribe(applyMarkerActions)
     locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
       if (timestamp) placeMarkerAtCurrentLocation()
     })
+
     confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
       if (markersInitialized && map) refreshMapMarkers()
     })
   })
 
   onDestroy(() => {
-    if (markerActionsUnsubscribe) markerActionsUnsubscribe()
     if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
 
@@ -655,10 +574,6 @@
         console.warn("Error cleaning up map layers:", error)
       }
     }
-
-    confirmedMarkersStore.set([])
-    removeMarkerStore.set([])
-    markerActionsStore.set([])
   })
 </script>
 

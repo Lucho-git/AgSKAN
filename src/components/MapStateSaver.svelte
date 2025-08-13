@@ -1,12 +1,7 @@
 <!-- MapStateSaver.svelte -->
 <script>
   import { onMount, onDestroy } from "svelte"
-  import {
-    confirmedMarkersStore,
-    removeMarkerStore,
-    markerActionsStore,
-    syncStore,
-  } from "../stores/mapStore"
+  import { confirmedMarkersStore, syncStore } from "../stores/mapStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -15,28 +10,40 @@
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
+  import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
 
-  let confirmedMarkersUnsubscribe
-  let debouncedSynchronizeMarkers
-  let synchronizationInProgress = false
+  export let map
+
   let channel
   let masterMapId
   let userId
-  let deletedByCurrentUser = false
   let userSettings
-  export let map
+  let isOnline = true
+  let pendingChanges = new Set() // Track IDs of changed markers only
+  let pendingDeletions = new Set() // Track IDs of deleted markers
+  let lastKnownState = new Map() // Track last synced state
+  let isSyncing = false
+  let debouncedSync
 
   onMount(() => {
     masterMapId = $profileStore.master_map_id
     userId = $profileStore.id
-    debouncedSynchronizeMarkers = debounce(synchronizeMarkers, 500)
+    debouncedSync = debounce(syncLocalChanges, 1000)
 
-    // Subscribe to the user settings store
+    // Subscribe to user settings
     const userSettingsUnsubscribe = userSettingsStore.subscribe((settings) => {
       userSettings = settings
     })
 
+    // Check if online
+    if (browser) {
+      isOnline = navigator.onLine
+      window.addEventListener("online", handleOnline)
+      window.addEventListener("offline", handleOffline)
+    }
+
+    // Subscribe to real-time changes from other users
     channel = supabase
       .channel("map_markers_changes")
       .on(
@@ -48,153 +55,330 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         async (payload) => {
-          // First check if it's current user's change
-          if (
-            payload.new.update_user_id === userId ||
-            (payload.new.deleted && deletedByCurrentUser)
-          ) {
-            console.log("Skipping synchronization, update made by current user")
-            return
-          }
+          // Skip if it's our own change
+          if (payload.new.update_user_id === userId) return
 
-          // Try to find user in connected profiles
-          let username = "Another user"
-          const connectedUser = $mapActivityStore.connected_profiles.find(
-            (profile) => profile.id === payload.new.update_user_id,
-          )
+          // Show notification
+          await showChangeNotification(payload)
 
-          if (connectedUser) {
-            username = connectedUser.full_name
-          } else {
-            // Only query database if user not found locally
-            const { data: user } = await supabase
-              .from("profiles")
-              .select("full_name")
-              .eq("id", payload.new.update_user_id)
-              .single()
-
-            if (user) {
-              username = user.full_name
-            }
-          }
-
-          const changeType = payload.eventType
-          const iconClass =
-            payload.new.marker_data?.properties?.icon || "unknown"
-          const coordinates = payload.new.marker_data.geometry.coordinates
-          const isDeleted = payload.new.deleted === true
-
-          showChangeToast(
-            username,
-            changeType,
-            iconClass,
-            isDeleted,
-            coordinates,
-          )
-
-          if (!synchronizationInProgress) {
-            debouncedSynchronizeMarkers()
+          // Reload markers from server
+          if (!isSyncing) {
+            loadMarkersFromServer()
           }
         },
       )
       .subscribe()
 
-    synchronizeMarkers()
+    // Initial load
+    loadMarkersFromServer()
 
-    confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
-      if (!synchronizationInProgress) {
-        debouncedSynchronizeMarkers()
+    // Watch for local changes and track what actually changed
+    const markersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
+      if (!isSyncing) {
+        trackChangedMarkers(markers)
+
+        if (isOnline) {
+          debouncedSync()
+        }
       }
     })
 
+    // Add sync method to store for manual triggers
     syncStore.update((store) => ({
       ...store,
-      synchronizeMarkers: synchronizeMarkers,
+      synchronizeMarkers: () => loadMarkersFromServer(),
     }))
+
+    return () => {
+      userSettingsUnsubscribe()
+      markersUnsubscribe()
+    }
   })
 
   onDestroy(() => {
-    console.log("Destroying MapStateSaver")
-    debouncedSynchronizeMarkers.cancel()
-
-    if (confirmedMarkersUnsubscribe) {
-      confirmedMarkersUnsubscribe()
+    if (browser) {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
     }
+    if (channel) supabase.removeChannel(channel)
+    if (debouncedSync) debouncedSync.cancel()
 
-    if (channel) {
-      supabase.removeChannel(channel)
-    }
-
-    console.log("Clearing all markers")
+    // Clear stores
     confirmedMarkersStore.set([])
-    removeMarkerStore.set([])
-    markerActionsStore.set([])
   })
 
-  function showLocalChangeToast(changeType, iconClass, isDeleted) {
-    let title = ""
-    let description = ""
+  function trackChangedMarkers(currentMarkers) {
+    // Compare current state with last known state to detect changes
+    const currentMap = new Map(currentMarkers.map((m) => [m.id, m]))
 
-    switch (changeType) {
-      case "add":
-        title = "Marker Added"
-        description = `You added a new ${iconClass} marker`
-        toast.info(title, { description })
-        break
-      case "update":
-        if (isDeleted) {
-          title = "Marker Deleted"
-          description = `You removed a ${iconClass} marker`
-          toast.warning(title, { description })
-        } else {
-          title = "Marker Updated"
-          description = `You updated a marker to ${iconClass}`
-          toast.info(title, { description })
-        }
-        break
+    // Check for new or modified markers
+    for (const [id, marker] of currentMap) {
+      const lastKnown = lastKnownState.get(id)
+
+      if (
+        !lastKnown ||
+        lastKnown.iconClass !== marker.iconClass ||
+        lastKnown.coordinates[0] !== marker.coordinates[0] ||
+        lastKnown.coordinates[1] !== marker.coordinates[1]
+      ) {
+        pendingChanges.add(id)
+        console.log(`Tracked change for marker ${id}`)
+      }
+    }
+
+    // Check for deleted markers
+    for (const [id] of lastKnownState) {
+      if (!currentMap.has(id)) {
+        pendingDeletions.add(id)
+        console.log(`Tracked deletion for marker ${id}`)
+      }
     }
   }
 
-  function showChangeToast(
-    username,
-    changeType,
-    iconClass,
-    isDeleted,
-    coordinates,
-  ) {
-    let title = ""
-    let description = ""
+  function updateLastKnownState(markers) {
+    lastKnownState.clear()
+    markers.forEach((marker) => {
+      lastKnownState.set(marker.id, {
+        iconClass: marker.iconClass,
+        coordinates: [...marker.coordinates],
+        created_at: marker.created_at,
+      })
+    })
+    pendingChanges.clear()
+    pendingDeletions.clear()
+    console.log(`Updated known state with ${markers.length} markers`)
+  }
+
+  function handleOnline() {
+    isOnline = true
+    console.log("Back online - syncing pending changes")
+    syncPendingChanges()
+  }
+
+  function handleOffline() {
+    isOnline = false
+    console.log("Gone offline - will queue changes")
+    toast.info("Gone offline - changes will be saved when reconnected")
+  }
+
+  async function loadMarkersFromServer() {
+    if (isSyncing) return
+
+    syncStore.update((store) => ({ ...store, spinning: true }))
+
+    try {
+      // Build query - keep original field selection for compatibility
+      let query = supabase
+        .from("map_markers")
+        .select("id, marker_data, last_confirmed, created_at, deleted")
+        .eq("master_map_id", masterMapId)
+        .eq("deleted", false)
+
+      // Apply date filtering if enabled
+      if (userSettings?.limitMarkersOn && userSettings?.limitMarkersDays) {
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - userSettings.limitMarkersDays)
+        query = query.gte("created_at", cutoffDate.toISOString())
+      }
+
+      const { data: markers, error } = await query
+
+      if (error) throw error
+
+      // Process markers - handle both old and new data structures
+      const processedMarkers = (markers || [])
+        .map((marker) => {
+          const coordinates = marker.marker_data?.geometry?.coordinates
+          const iconClass = marker.marker_data?.properties?.icon || "default"
+
+          if (!coordinates) {
+            console.warn("Marker missing coordinates:", marker)
+            return null
+          }
+
+          return {
+            id: marker.id,
+            coordinates: coordinates,
+            iconClass: iconClass,
+            created_at:
+              marker.last_confirmed ||
+              marker.created_at ||
+              new Date().toISOString(),
+          }
+        })
+        .filter(Boolean)
+
+      // Update local store
+      isSyncing = true
+      confirmedMarkersStore.set(processedMarkers)
+      updateLastKnownState(processedMarkers) // Update our tracking
+      calculateAndStoreBoundingBox(processedMarkers)
+      isSyncing = false
+
+      console.log(`Loaded ${processedMarkers.length} markers from server`)
+    } catch (error) {
+      console.error("Error loading markers:", error)
+      toast.error(`Failed to load markers: ${error.message}`)
+    } finally {
+      syncStore.update((store) => ({ ...store, spinning: false }))
+    }
+  }
+
+  async function syncLocalChanges() {
+    if (
+      !isOnline ||
+      isSyncing ||
+      (pendingChanges.size === 0 && pendingDeletions.size === 0)
+    )
+      return
+
+    try {
+      await syncOnlyChangedMarkers()
+      console.log("Synced local changes to server")
+    } catch (error) {
+      console.error("Sync failed:", error)
+      toast.error(
+        "Failed to sync changes - will retry when connection improves",
+      )
+    }
+  }
+
+  async function syncPendingChanges() {
+    if (pendingChanges.size === 0 && pendingDeletions.size === 0) return
+
+    try {
+      await syncOnlyChangedMarkers()
+      toast.success(
+        `Synced ${pendingChanges.size + pendingDeletions.size} offline changes`,
+      )
+    } catch (error) {
+      console.error("Failed to sync pending changes:", error)
+      toast.error("Failed to sync offline changes")
+    }
+  }
+
+  async function syncOnlyChangedMarkers() {
+    if (
+      !masterMapId ||
+      (pendingChanges.size === 0 && pendingDeletions.size === 0)
+    )
+      return
+
+    const currentMarkers = $confirmedMarkersStore
+
+    // Handle marker updates/additions
+    const changedMarkers = currentMarkers.filter((marker) =>
+      pendingChanges.has(marker.id),
+    )
+
+    console.log(
+      `Syncing ${changedMarkers.length} changed markers and ${pendingDeletions.size} deletions`,
+      {
+        changes: Array.from(pendingChanges),
+        deletions: Array.from(pendingDeletions),
+      },
+    )
+
+    // Sync marker updates/additions
+    if (changedMarkers.length > 0) {
+      const markerData = changedMarkers.map((marker) => ({
+        master_map_id: masterMapId,
+        id: marker.id,
+        marker_data: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: marker.coordinates,
+          },
+          properties: {
+            icon: marker.iconClass || "default",
+            id: marker.id,
+          },
+        },
+        last_confirmed: marker.created_at || new Date().toISOString(),
+        created_at: marker.created_at || new Date().toISOString(),
+        update_user_id: userId,
+        deleted: false,
+      }))
+
+      const { error } = await supabase
+        .from("map_markers")
+        .upsert(markerData, { onConflict: "id" })
+
+      if (error) throw error
+    }
+
+    // Sync deletions
+    if (pendingDeletions.size > 0) {
+      const deletionData = Array.from(pendingDeletions).map((markerId) => ({
+        id: markerId,
+        deleted: true,
+        deleted_at: new Date().toISOString(),
+        update_user_id: userId,
+      }))
+
+      const { error: deleteError } = await supabase
+        .from("map_markers")
+        .upsert(deletionData, { onConflict: "id" })
+
+      if (deleteError) throw deleteError
+    }
+
+    // Update our tracking after successful sync
+    updateLastKnownState(currentMarkers)
+
+    console.log(
+      `Successfully synced ${changedMarkers.length} markers and ${pendingDeletions.size} deletions`,
+    )
+  }
+
+  async function showChangeNotification(payload) {
+    const changeType = payload.eventType
+    const iconClass = payload.new.marker_data?.properties?.icon || "unknown"
+    const coordinates = payload.new.marker_data?.geometry?.coordinates
+    const isDeleted = payload.new.deleted === true
+
+    // Get username
+    let username = "Another user"
+    const connectedUser = $mapActivityStore.connected_profiles.find(
+      (profile) => profile.id === payload.new.update_user_id,
+    )
+
+    if (connectedUser) {
+      username = connectedUser.full_name
+    } else {
+      const { data: user } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", payload.new.update_user_id)
+        .single()
+
+      if (user) username = user.full_name
+    }
+
+    // Show appropriate notification
+    let title, description
     switch (changeType) {
       case "INSERT":
         title = "Marker Added"
-        description = `${username} added a new ${iconClass} marker`
-        toast.info(title, {
-          description: description,
-          action: {
-            label: "Locate",
-            onClick: () => {
-              map.flyTo({
-                center: coordinates,
-                zoom: 15,
-                duration: 1000,
-              })
-            },
-          },
-        })
+        description = `${username} added a ${iconClass} marker`
         break
       case "UPDATE":
         if (isDeleted) {
-          title = "Marker Deleted"
+          title = "Marker Removed"
           description = `${username} removed a ${iconClass} marker`
-          toast.warning(title, {
-            description: description,
-          })
         } else {
           title = "Marker Updated"
           description = `${username} updated a marker to ${iconClass}`
-          toast.info(title, {
-            description: description,
-            action: {
+        }
+        break
+    }
+
+    toast.info(title, {
+      description,
+      action:
+        coordinates && !isDeleted
+          ? {
               label: "Locate",
               onClick: () => {
                 map.flyTo({
@@ -203,358 +387,12 @@
                   duration: 1000,
                 })
               },
-            },
-          })
-        }
-        break
-    }
+            }
+          : undefined,
+    })
   }
 
-  async function synchronizeMarkers(toasttext) {
-    if (synchronizationInProgress) {
-      console.log("Synchronization already in progress. Skipping.")
-      return
-    }
-
-    synchronizationInProgress = true
-    syncStore.update((store) => ({ ...store, spinning: true }))
-
-    if (!userId) {
-      console.error("User not authenticated")
-      toast.error("User not authenticated")
-      return
-    }
-
-    try {
-      const latestMarkers = await retrieveLatestMarkersFromServer()
-      const localMarkers = $confirmedMarkersStore
-
-      let {
-        localMarkersToBeAdded,
-        localMarkersToBeUpdated,
-        localMarkersToBeDeleted,
-        serverMarkersToBeAdded,
-        serverMarkersToBeUpdated,
-        serverMarkersToBeDeleted,
-      } = compareMarkers(localMarkers, latestMarkers)
-
-      const markerActions = [
-        ...localMarkersToBeAdded.map((marker) => ({
-          action: "add",
-          markerData: marker,
-        })),
-        ...localMarkersToBeUpdated.map((marker) => ({
-          action: "update",
-          markerData: marker,
-        })),
-        ...localMarkersToBeDeleted.map((marker) => ({
-          action: "delete",
-          markerData: marker,
-        })),
-      ]
-
-      markerActionsStore.set(markerActions)
-
-      await sendLocalChangesToServer({
-        serverMarkersToBeAdded,
-        serverMarkersToBeUpdated,
-        serverMarkersToBeDeleted,
-      })
-
-      calculateAndStoreBoundingBox()
-
-      if (toasttext) {
-        toast.success(toasttext)
-      }
-    } catch (error) {
-      console.error("Error synchronizing markers:", error)
-
-      let errorTitle = "Synchronization Error"
-      let errorMessage = error.message || "Error synchronizing markers"
-
-      if (error.message === "No master map assigned") {
-        errorTitle = "Map Assignment Error"
-      }
-
-      toast.error(errorTitle, {
-        description: error.details || errorMessage,
-        action: {
-          label: "Reload",
-          onClick: () => {
-            window.location.reload()
-          },
-        },
-      })
-    }
-
-    synchronizationInProgress = false
-    syncStore.update((store) => ({ ...store, spinning: false }))
-  }
-
-  function compareMarkers(localMarkers, serverMarkers) {
-    let localMarkersToBeAdded = []
-    let localMarkersToBeUpdated = []
-    let localMarkersToBeDeleted = []
-    let serverMarkersToBeAdded = []
-    let serverMarkersToBeUpdated = []
-    let serverMarkersToBeDeleted = []
-
-    // Compare local markers with server markers
-    for (const localMarker of localMarkers) {
-      const serverMarker = serverMarkers.find(
-        (marker) => marker.id === localMarker.id,
-      )
-
-      if (serverMarker) {
-        if (serverMarker.deleted) {
-          if (
-            new Date(localMarker.last_confirmed) >
-            new Date(serverMarker.deleted_at)
-          ) {
-            // If the local modification is newer than the deletion, update the server marker
-            serverMarkersToBeUpdated.push(localMarker)
-            showLocalChangeToast("update", localMarker.iconClass, false)
-          } else {
-            // If the deletion is newer, delete the local marker
-            localMarkersToBeDeleted.push(localMarker)
-          }
-        } else if (
-          new Date(serverMarker.last_confirmed) >
-          new Date(localMarker.last_confirmed)
-        ) {
-          localMarkersToBeUpdated.push(serverMarker)
-        } else if (
-          new Date(localMarker.last_confirmed) >
-          new Date(serverMarker.last_confirmed)
-        ) {
-          serverMarkersToBeUpdated.push(localMarker)
-          showLocalChangeToast("update", localMarker.iconClass, false)
-        }
-      } else {
-        const removedMarker = $removeMarkerStore.find(
-          (marker) => marker.id === localMarker.id,
-        )
-
-        if (!removedMarker) {
-          let iconClass = localMarker.iconClass || "default"
-
-          serverMarkersToBeAdded.push({
-            ...localMarker,
-            iconClass: iconClass,
-          })
-          showLocalChangeToast("add", localMarker.iconClass, false)
-        }
-      }
-    }
-
-    // Compare server markers with local markers
-    for (const serverMarker of serverMarkers) {
-      const localMarker = localMarkers.find(
-        (marker) => marker.id === serverMarker.id,
-      )
-      const removedMarker = $removeMarkerStore.find(
-        (marker) => marker.id === serverMarker.id,
-      )
-
-      if (!localMarker && !serverMarker.deleted && !removedMarker) {
-        localMarkersToBeAdded.push(serverMarker)
-      }
-    }
-
-    // Process the removeMarkerStore
-    for (const removedMarker of $removeMarkerStore) {
-      const serverMarker = serverMarkers.find(
-        (marker) => marker.id === removedMarker.id,
-      )
-
-      if (serverMarker) {
-        // deleted by current user
-        if (removedMarker.deletedBy === userId) {
-          deletedByCurrentUser = true
-          serverMarkersToBeDeleted.push(serverMarker)
-          showLocalChangeToast("update", serverMarker.iconClass, true)
-        } else {
-          deletedByCurrentUser = false
-          localMarkersToBeDeleted.push(serverMarker)
-        }
-      }
-    }
-
-    return {
-      localMarkersToBeAdded,
-      localMarkersToBeUpdated,
-      localMarkersToBeDeleted,
-      serverMarkersToBeAdded,
-      serverMarkersToBeUpdated,
-      serverMarkersToBeDeleted,
-    }
-  }
-
-  async function sendLocalChangesToServer({
-    serverMarkersToBeAdded,
-    serverMarkersToBeUpdated,
-    serverMarkersToBeDeleted,
-  }) {
-    if (!masterMapId) {
-      throw new Error("No master map assigned")
-    }
-
-    // Process markers to be added
-    if (serverMarkersToBeAdded.length > 0) {
-      const addMarkerData = serverMarkersToBeAdded.map((marker) => {
-        const { id, last_confirmed, iconClass, coordinates } = marker
-
-        const feature = {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: coordinates,
-          },
-          properties: {
-            icon: iconClass,
-            id: id,
-          },
-        }
-
-        return {
-          master_map_id: masterMapId,
-          id: id,
-          marker_data: feature,
-          last_confirmed: last_confirmed,
-          update_user_id: userId,
-        }
-      })
-
-      const { error: addError } = await supabase
-        .from("map_markers")
-        .insert(addMarkerData)
-
-      if (addError) {
-        throw new Error("Failed to add markers to server")
-      }
-    }
-
-    // Process markers to be updated
-    if (serverMarkersToBeUpdated.length > 0) {
-      const updateMarkerData = serverMarkersToBeUpdated.map((marker) => {
-        const { id, last_confirmed, iconClass, coordinates } = marker
-
-        const feature = {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: coordinates,
-          },
-          properties: {
-            icon: iconClass,
-            id: id,
-          },
-        }
-
-        return {
-          id: id,
-          marker_data: feature,
-          last_confirmed: last_confirmed,
-          update_user_id: userId,
-        }
-      })
-
-      const { error: updateError } = await supabase
-        .from("map_markers")
-        .upsert(updateMarkerData, { onConflict: "id" })
-
-      if (updateError) {
-        throw new Error("Failed to update markers on server")
-      }
-    }
-
-    // Process markers to be deleted
-    if (serverMarkersToBeDeleted.length > 0) {
-      const deleteMarkerData = serverMarkersToBeDeleted.map((marker) => ({
-        id: marker.id,
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-      }))
-
-      const { error: deleteError } = await supabase
-        .from("map_markers")
-        .upsert(deleteMarkerData, { onConflict: "id" })
-
-      if (deleteError) {
-        throw new Error("Failed to delete markers on server")
-      }
-
-      removeMarkerStore.update((markers) =>
-        markers.filter(
-          (marker) =>
-            !serverMarkersToBeDeleted.some(
-              (deletedMarker) => deletedMarker.id === marker.id,
-            ),
-        ),
-      )
-    }
-  }
-
-  async function retrieveLatestMarkersFromServer() {
-    if (!masterMapId) {
-      throw new Error("No master map assigned")
-    }
-
-    try {
-      // Build base query
-      let query = supabase
-        .from("map_markers")
-        .select(
-          "id, marker_data, last_confirmed, deleted, deleted_at, created_at",
-        )
-        .eq("master_map_id", masterMapId)
-
-      // Apply date filtering if the limit is turned on
-      if (
-        userSettings &&
-        userSettings.limitMarkersOn &&
-        userSettings.limitMarkersDays
-      ) {
-        // Calculate cutoff date directly from limitMarkersDays for reliability
-        const cutoffDate = new Date()
-        cutoffDate.setDate(cutoffDate.getDate() - userSettings.limitMarkersDays)
-        const isoDateString = cutoffDate.toISOString()
-
-        // Apply the filter to the query
-        query = query.gte("created_at", isoDateString)
-
-        console.log(
-          `Filtering markers: Only showing markers created after ${isoDateString} (${userSettings.limitMarkersDays} days ago)`,
-        )
-      }
-
-      // Execute the query
-      const { data: latestMarkers, error: markersError } = await query
-
-      if (markersError) {
-        console.error("Error retrieving markers:", markersError)
-        throw new Error("Failed to retrieve latest markers from server")
-      }
-
-      console.log(
-        `Retrieved ${latestMarkers?.length || 0} markers that match the filter criteria`,
-      )
-
-      // Process and return the markers
-      return (latestMarkers || []).map((marker) => ({
-        ...marker,
-        iconClass: marker.marker_data.properties.icon,
-      }))
-    } catch (err) {
-      console.error("Unexpected error retrieving markers:", err)
-      throw new Error(
-        "Failed to retrieve markers: " + (err.message || "Unknown error"),
-      )
-    }
-  }
-
-  function calculateAndStoreBoundingBox() {
-    const markers = $confirmedMarkersStore
+  function calculateAndStoreBoundingBox(markers) {
     if (markers.length > 0) {
       const bounds = new LngLatBounds()
       markers.forEach(({ coordinates }) => {
