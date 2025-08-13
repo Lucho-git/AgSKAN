@@ -2,6 +2,11 @@
   import { onMount, onDestroy, setContext } from "svelte"
   import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
+  // ✅ Add MapboxDraw import, do not remove as it provides mobile touch deduplication, other options is device detection
+  //and fixing it in Eventhandler instead, although then chrome devtools won't switch properly
+  import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
+  import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
+
   import { mapStore } from "../stores/mapStore"
   import {
     fieldBoundaryStore,
@@ -35,6 +40,9 @@
   let markerManagerRef = null
   let mapFieldsRef = null
 
+  // ✅ Add event interceptor variable
+  let eventInterceptor = null
+
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
 
   let mapLoaded = false
@@ -53,6 +61,44 @@
     style: DEFAULT_SATELLITE_STYLE,
     center: [133.7751, -25.2744], // Center on Australia
     zoom: 4,
+  }
+
+  // ✅ Initialize the global event interceptor
+  function initializeEventInterceptor() {
+    if (!map || eventInterceptor) return
+
+    try {
+      eventInterceptor = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: {},
+        defaultMode: "simple_select", // Non-drawing mode
+        clickBuffer: 6,
+        touchBuffer: 6,
+        touchEnabled: true,
+        boxSelect: false,
+        translateEnabled: false,
+        rotateEnabled: false,
+      })
+
+      // Add it to the map to intercept events globally
+      map.addControl(eventInterceptor)
+      console.log("✅ Global event interceptor (MapboxDraw) added to MapViewer")
+    } catch (error) {
+      console.warn("Could not initialize global event interceptor:", error)
+    }
+  }
+
+  // ✅ Cleanup the event interceptor
+  function cleanupEventInterceptor() {
+    if (eventInterceptor && map) {
+      try {
+        map.removeControl(eventInterceptor)
+        eventInterceptor = null
+        console.log("✅ Global event interceptor removed from MapViewer")
+      } catch (error) {
+        console.warn("Error removing global event interceptor:", error)
+      }
+    }
   }
 
   function initializeMapLocation() {
@@ -122,6 +168,9 @@
         if (map.touchZoomRotate._tapDragZoom) {
           map.touchZoomRotate._tapDragZoom.disable()
         }
+
+        // ✅ Initialize event interceptor when map is loaded
+        initializeEventInterceptor()
       } else {
         map.on("load", () => {
           mapLoaded = true
@@ -133,6 +182,9 @@
           if (map.touchZoomRotate._tapDragZoom) {
             map.touchZoomRotate._tapDragZoom.disable()
           }
+
+          // ✅ Initialize event interceptor when map is loaded
+          initializeEventInterceptor()
         })
       }
 
@@ -158,7 +210,11 @@
       toast.error(`Failed to initialize map: ${error.message}`)
     }
   })
+
   onDestroy(() => {
+    // ✅ Cleanup event interceptor first
+    cleanupEventInterceptor()
+
     if (map) {
       map.off()
       map.remove()
@@ -236,6 +292,7 @@
   {/if}
 </div>
 
+<!-- Same styles as before -->
 <style>
   .map-container {
     position: absolute;

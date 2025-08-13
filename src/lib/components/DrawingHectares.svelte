@@ -3,8 +3,6 @@
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import * as turf from "@turf/turf"
   import { Ruler, Plus, X } from "lucide-svelte"
-  // ✅ Import MapboxDraw synchronously, just like the working version
-  import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
 
   export let map
   let area = { hectares: 0, squareMeters: 0 }
@@ -16,9 +14,6 @@
     points: "drawing-hectares-points",
   }
 
-  // ✅ Remove async, make it synchronous like the working version
-  let eventInterceptor = null
-
   function formatArea(areaInSquareMeters) {
     return {
       squareMeters: Math.round(areaInSquareMeters),
@@ -27,151 +22,148 @@
   }
 
   function initializeMapLayers() {
-    if (!map) return
-
-    // Add source for our drawing
-    if (!map.getSource(sourceId)) {
-      map.addSource(sourceId, {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [],
-        },
-      })
+    if (!map || !map.isStyleLoaded()) {
+      console.log("Map not ready for layer initialization")
+      return false
     }
-
-    // Add fill layer
-    if (!map.getLayer(layerIds.fill)) {
-      map.addLayer({
-        id: layerIds.fill,
-        type: "fill",
-        source: sourceId,
-        filter: ["==", "$type", "Polygon"],
-        paint: {
-          "fill-color": "#0ea5e9",
-          "fill-opacity": 0.3,
-        },
-      })
-    }
-
-    // Add line layer
-    if (!map.getLayer(layerIds.line)) {
-      map.addLayer({
-        id: layerIds.line,
-        type: "line",
-        source: sourceId,
-        filter: ["in", "$type", "LineString", "Polygon"],
-        layout: {
-          "line-cap": "round",
-          "line-join": "round",
-        },
-        paint: {
-          "line-color": "#0ea5e9",
-          "line-width": 3,
-          "line-dasharray": [2, 2],
-        },
-      })
-    }
-
-    // Add points layer
-    if (!map.getLayer(layerIds.points)) {
-      map.addLayer({
-        id: layerIds.points,
-        type: "circle",
-        source: sourceId,
-        filter: ["==", "$type", "Point"],
-        paint: {
-          "circle-radius": 6,
-          "circle-color": "#fff",
-          "circle-stroke-color": "#0ea5e9",
-          "circle-stroke-width": 2,
-        },
-      })
-    }
-  }
-
-  // ✅ Make synchronous like the working version
-  function initializeEventInterceptor() {
-    if (!map || eventInterceptor) return
 
     try {
-      eventInterceptor = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {},
-        defaultMode: "simple_select", // Non-drawing mode
-        clickBuffer: 6,
-        touchBuffer: 6,
-        touchEnabled: true,
-        boxSelect: false,
-        translateEnabled: false,
-        rotateEnabled: false,
-      })
+      // Add source for our drawing
+      if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        })
+      }
 
-      // ✅ This is the key - add it to the map to intercept events
-      map.addControl(eventInterceptor)
-      console.log("✅ Event interceptor (MapboxDraw) added")
+      // Add fill layer
+      if (!map.getLayer(layerIds.fill)) {
+        map.addLayer({
+          id: layerIds.fill,
+          type: "fill",
+          source: sourceId,
+          filter: ["==", "$type", "Polygon"],
+          paint: {
+            "fill-color": "#0ea5e9",
+            "fill-opacity": 0.3,
+          },
+        })
+      }
+
+      // Add line layer
+      if (!map.getLayer(layerIds.line)) {
+        map.addLayer({
+          id: layerIds.line,
+          type: "line",
+          source: sourceId,
+          filter: ["in", "$type", "LineString", "Polygon"],
+          layout: {
+            "line-cap": "round",
+            "line-join": "round",
+          },
+          paint: {
+            "line-color": "#0ea5e9",
+            "line-width": 3,
+            "line-dasharray": [2, 2],
+          },
+        })
+      }
+
+      // Add points layer
+      if (!map.getLayer(layerIds.points)) {
+        map.addLayer({
+          id: layerIds.points,
+          type: "circle",
+          source: sourceId,
+          filter: ["==", "$type", "Point"],
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#fff",
+            "circle-stroke-color": "#0ea5e9",
+            "circle-stroke-width": 2,
+          },
+        })
+      }
+
+      return true
     } catch (error) {
-      console.warn("Could not initialize event interceptor:", error)
+      console.error("Error initializing map layers:", error)
+      return false
     }
   }
 
   function updateMapDisplay() {
-    if (!map || !map.getSource(sourceId)) return
-
-    const features = []
-
-    // Add points
-    currentPoints.forEach((point, index) => {
-      features.push({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: point,
-        },
-        properties: {
-          index: index,
-        },
-      })
-    })
-
-    if (currentPoints.length === 2) {
-      features.push({
-        type: "Feature",
-        geometry: {
-          type: "LineString",
-          coordinates: currentPoints,
-        },
-        properties: {},
-      })
-    } else if (currentPoints.length >= 3) {
-      const polygonCoords = [...currentPoints, currentPoints[0]]
-      features.push({
-        type: "Feature",
-        geometry: {
-          type: "Polygon",
-          coordinates: [polygonCoords],
-        },
-        properties: {},
-      })
-
-      try {
-        const polygon = turf.polygon([polygonCoords])
-        area = formatArea(turf.area(polygon))
-      } catch (error) {
-        console.error("Error calculating area:", error)
-        area = { hectares: 0, squareMeters: 0 }
-      }
+    if (!map || !map.getSource || !map.getSource(sourceId)) {
+      console.log("Map source not available for update")
+      return
     }
 
-    map.getSource(sourceId).setData({
-      type: "FeatureCollection",
-      features: features,
-    })
+    try {
+      const features = []
+
+      // Add points
+      currentPoints.forEach((point, index) => {
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: point,
+          },
+          properties: {
+            index: index,
+          },
+        })
+      })
+
+      if (currentPoints.length === 2) {
+        // Show line between first two points
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: currentPoints,
+          },
+          properties: {},
+        })
+      } else if (currentPoints.length >= 3) {
+        // Show polygon
+        const polygonCoords = [...currentPoints, currentPoints[0]] // Close the polygon
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [polygonCoords],
+          },
+          properties: {},
+        })
+
+        // Calculate area
+        try {
+          const polygon = turf.polygon([polygonCoords])
+          area = formatArea(turf.area(polygon))
+        } catch (error) {
+          console.error("Error calculating area:", error)
+          area = { hectares: 0, squareMeters: 0 }
+        }
+      }
+
+      // Update the source
+      map.getSource(sourceId).setData({
+        type: "FeatureCollection",
+        features: features,
+      })
+    } catch (error) {
+      console.error("Error updating map display:", error)
+    }
   }
 
   function addPoint() {
     if (!map || !$drawingModeEnabled) return
 
+    // Get the center of the screen (where crosshair is)
     const center = map.getCenter()
     const point = [center.lng, center.lat]
 
@@ -194,58 +186,86 @@
   }
 
   function cleanupLayers() {
-    if (!map) return
-
-    Object.values(layerIds).forEach((layerId) => {
-      if (map.getLayer(layerId)) {
-        map.removeLayer(layerId)
-      }
-    })
-
-    if (map.getSource(sourceId)) {
-      map.removeSource(sourceId)
+    if (!map || !map.getLayer || !map.getSource) {
+      console.log("Map not available for cleanup")
+      return
     }
-  }
 
-  function cleanupEventInterceptor() {
-    if (eventInterceptor && map) {
+    try {
+      // Remove layers safely
+      Object.values(layerIds).forEach((layerId) => {
+        try {
+          if (map.getLayer && map.getLayer(layerId)) {
+            map.removeLayer(layerId)
+            console.log(`Removed layer: ${layerId}`)
+          }
+        } catch (error) {
+          console.warn(`Could not remove layer ${layerId}:`, error)
+        }
+      })
+
+      // Remove source safely
       try {
-        map.removeControl(eventInterceptor)
-        eventInterceptor = null
-        console.log("✅ Event interceptor removed")
+        if (map.getSource && map.getSource(sourceId)) {
+          map.removeSource(sourceId)
+          console.log(`Removed source: ${sourceId}`)
+        }
       } catch (error) {
-        console.warn("Error removing event interceptor:", error)
+        console.warn(`Could not remove source ${sourceId}:`, error)
       }
+    } catch (error) {
+      console.error("Error during cleanup:", error)
     }
   }
 
   onMount(() => {
     if (map) {
-      // ✅ Initialize event interceptor FIRST, synchronously
-      initializeEventInterceptor()
-      // Then initialize layers
-      initializeMapLayers()
+      // Wait for map to be ready before initializing
+      if (map.isStyleLoaded()) {
+        initializeMapLayers()
+      } else {
+        map.on("styledata", () => {
+          if (map.isStyleLoaded()) {
+            initializeMapLayers()
+          }
+        })
+      }
     }
   })
 
   onDestroy(() => {
+    console.log("DrawingHectares component destroying")
     cleanupLayers()
-    cleanupEventInterceptor()
   })
 
   $: if (map && $drawingModeEnabled !== undefined) {
     if ($drawingModeEnabled) {
+      // Reset state when enabling drawing mode
       resetDrawing()
-      initializeMapLayers()
+
+      // Initialize layers when ready
+      if (map.isStyleLoaded()) {
+        initializeMapLayers()
+      } else {
+        // Wait for style to load
+        const handleStyleLoad = () => {
+          if (map.isStyleLoaded()) {
+            initializeMapLayers()
+            map.off("styledata", handleStyleLoad)
+          }
+        }
+        map.on("styledata", handleStyleLoad)
+      }
+
       console.log("Drawing mode enabled")
     } else {
+      // Clean up when disabling drawing mode
       resetDrawing()
       console.log("Drawing mode disabled")
     }
   }
 </script>
 
-<!-- Rest of your template remains the same -->
 {#if $drawingModeEnabled}
   <!-- Crosshair overlay -->
   <div
