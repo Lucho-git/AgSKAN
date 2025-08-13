@@ -102,7 +102,6 @@
         maxTileCacheSize: 100,
         attributionControl: false,
         doubleClickZoom: false,
-        touchZoomRotate: false, // This should disable all touch zoom
       })
 
       map.doubleClickZoom.disable()
