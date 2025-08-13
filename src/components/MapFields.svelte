@@ -142,44 +142,7 @@
   function addLabelLayers() {
     if (!map) return
 
-    map.addLayer({
-      id: "fields-labels",
-      type: "symbol",
-      source: "label-points",
-      layout: {
-        "text-field": ["get", "name"],
-        "text-anchor": "center",
-        "symbol-sort-key": -1,
-        "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          0,
-          11,
-          8,
-          13,
-          12,
-          15,
-          28,
-          17,
-          48,
-          19,
-          96,
-          20,
-          120,
-        ],
-        "text-allow-overlap": true,
-        "text-ignore-placement": false,
-      },
-      paint: {
-        "text-color": "#ffffff",
-        "text-halo-color": "#000000",
-        "text-halo-width": 2,
-      },
-    })
-
+    // FIXED: Add area labels FIRST (they appear underneath)
     map.addLayer({
       id: "fields-labels-area",
       type: "symbol",
@@ -208,7 +171,7 @@
           20,
           90,
         ],
-        "text-allow-overlap": true,
+        "text-allow-overlap": false, // CHANGED: Don't allow overlap to prevent covering other field names
         "text-ignore-placement": false,
       },
       paint: {
@@ -216,6 +179,45 @@
         "text-halo-color": "#000000",
         "text-halo-width": 2,
         "text-opacity": 0.9,
+      },
+    })
+
+    // FIXED: Add field name labels SECOND (they appear on top)
+    map.addLayer({
+      id: "fields-labels",
+      type: "symbol",
+      source: "label-points",
+      layout: {
+        "text-field": ["get", "name"],
+        "text-anchor": "center",
+        "symbol-sort-key": 10, // CHANGED: Higher sort key to ensure field names are on top
+        "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0,
+          11,
+          8,
+          13,
+          12,
+          15,
+          28,
+          17,
+          48,
+          19,
+          96,
+          20,
+          120,
+        ],
+        "text-allow-overlap": true,
+        "text-ignore-placement": false,
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#000000",
+        "text-halo-width": 2,
       },
     })
   }
@@ -246,10 +248,13 @@
 
     const currentZoom = map.getZoom()
 
+    // FIXED: Remove layers in reverse order (names first, then areas)
+    if (map.getLayer("fields-labels")) {
+      map.removeLayer("fields-labels")
+    }
     if (map.getLayer("fields-labels-area")) {
       map.removeLayer("fields-labels-area")
     }
-    map.removeLayer("fields-labels")
 
     addLabelLayers()
     map.setZoom(currentZoom)
