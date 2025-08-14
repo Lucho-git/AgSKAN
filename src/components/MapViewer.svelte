@@ -2,8 +2,6 @@
   import { onMount, onDestroy, setContext } from "svelte"
   import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
-  // ✅ Add MapboxDraw import, do not remove as it provides mobile touch deduplication, other options is device detection
-  //and fixing it in Eventhandler instead, although then chrome devtools won't switch properly
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 
@@ -22,7 +20,6 @@
   import MapStateSaver from "./MapStateSaver.svelte"
   import VehicleTracker from "./VehicleTracker.svelte"
   import VehicleStateSynchronizer from "./VehicleStateSynchronizer.svelte"
-  import TrailTracker from "./TrailTracker.svelte"
   import MapFields from "./MapFields.svelte"
   import MapSatelliteOptions from "./MapSatelliteOptions.svelte"
   import TrailSynchronizer from "$lib/components/TrailSynchronizer.svelte"
@@ -40,9 +37,6 @@
   let markerManagerRef = null
   let mapFieldsRef = null
 
-  // ✅ Add event interceptor variable
-  let eventInterceptor = null
-
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
 
   let mapLoaded = false
@@ -52,23 +46,23 @@
   let mapInitialized = false
   let mapboxInitError = null
 
-  // ✅ Layer ordering registry
+  // ✅ Layer ordering registry with trail support
   const LAYER_ORDER = {
-    // Bottom layers (fields)
-    "fields-fill": { order: 100 },
-    "fields-fill-selected": { order: 101 },
+    // Bottom layers (fields) - 100-199
+    "fields-fill": { order: 100, category: "field-base" },
+    "fields-fill-selected": { order: 101, category: "field-base" },
 
-    // Trail layers (middle)
-    "trail-layers-start": { order: 200 }, // Marker for trail layer insertion
+    // Trail layers (middle) - 200-299
+    "trail-layers-start": { order: 200, category: "trails" },
 
-    // Field outlines and labels (above trails)
-    "fields-outline": { order: 300 },
-    "fields-outline-selected": { order: 301 },
-    "fields-labels-area": { order: 302 },
-    "fields-labels": { order: 303 },
+    // Field outlines and labels (above trails) - 300-399
+    "fields-outline": { order: 300, category: "field-decoration" },
+    "fields-outline-selected": { order: 301, category: "field-decoration" },
+    "fields-labels-area": { order: 302, category: "field-decoration" },
+    "fields-labels": { order: 303, category: "field-decoration" },
 
-    // Markers (top)
-    "markers-layer": { order: 400 },
+    // Interactive/UI layers (top) - 400+
+    "markers-layer": { order: 400, category: "interactive" },
   }
 
   // ✅ Central layer management
@@ -78,13 +72,11 @@
     const targetOrder = LAYER_ORDER[layerId]?.order || 999
 
     try {
-      // Find the layer with the next higher order that already exists
       const existingLayers = map.getStyle().layers
 
       for (const layer of existingLayers.reverse()) {
         const layerOrder = LAYER_ORDER[layer.id]?.order
         if (layerOrder && layerOrder > targetOrder) {
-          console.log(`🎯 Inserting ${layerId} before ${layer.id}`)
           return layer.id
         }
       }
@@ -92,84 +84,61 @@
       console.warn("Error getting insertion point:", error)
     }
 
-    console.log(`🎯 Adding ${layerId} on top`)
-    return undefined // Add on top
+    return undefined
   }
 
-  // ✅ Expose layer management to child components
+  // ✅ Layer management context with trail support
   setContext("map", {
     getMap: () => Promise.resolve(map),
     addLayerOrdered: (layerConfig) => {
-      if (!map || map.getLayer(layerConfig.id)) {
-        console.warn(`Layer ${layerConfig.id} already exists or map not ready`)
-        return false
-      }
+      if (!map || map.getLayer(layerConfig.id)) return false
 
       try {
         const beforeId = getInsertionPoint(layerConfig.id)
-
         if (beforeId) {
           map.addLayer(layerConfig, beforeId)
         } else {
           map.addLayer(layerConfig)
         }
-
-        console.log(`✅ Added layer ${layerConfig.id} in correct order`)
         return true
       } catch (error) {
         console.error(`Error adding layer ${layerConfig.id}:`, error)
         return false
       }
     },
-    getTrailInsertionPoint: () => {
-      // Trails should be inserted before field outlines
-      return getInsertionPoint("trail-layers-start")
+    addTrailLayerOrdered: (layerConfig) => {
+      if (!map || map.getLayer(layerConfig.id)) return false
+
+      try {
+        const layers = map.getStyle().layers
+        const insertBeforeLayer = layers.find((layer) =>
+          [
+            "fields-outline",
+            "fields-outline-selected",
+            "fields-labels-area",
+            "fields-labels",
+            "markers-layer",
+          ].includes(layer.id),
+        )
+
+        if (insertBeforeLayer) {
+          map.addLayer(layerConfig, insertBeforeLayer.id)
+        } else {
+          map.addLayer(layerConfig)
+        }
+        return true
+      } catch (error) {
+        console.error(`Error adding trail layer ${layerConfig.id}:`, error)
+        return false
+      }
     },
   })
 
   const mapOptions = {
     container: null,
     style: DEFAULT_SATELLITE_STYLE,
-    center: [133.7751, -25.2744], // Center on Australia
+    center: [133.7751, -25.2744],
     zoom: 4,
-  }
-
-  // ✅ Initialize the global event interceptor
-  function initializeEventInterceptor() {
-    if (!map || eventInterceptor) return
-
-    try {
-      eventInterceptor = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {},
-        defaultMode: "simple_select", // Non-drawing mode
-        clickBuffer: 6,
-        touchBuffer: 6,
-        touchEnabled: true,
-        boxSelect: false,
-        translateEnabled: false,
-        rotateEnabled: false,
-      })
-
-      // Add it to the map to intercept events globally
-      map.addControl(eventInterceptor)
-      console.log("✅ Global event interceptor (MapboxDraw) added to MapViewer")
-    } catch (error) {
-      console.warn("Could not initialize global event interceptor:", error)
-    }
-  }
-
-  // ✅ Cleanup the event interceptor
-  function cleanupEventInterceptor() {
-    if (eventInterceptor && map) {
-      try {
-        map.removeControl(eventInterceptor)
-        eventInterceptor = null
-        console.log("✅ Global event interceptor removed from MapViewer")
-      } catch (error) {
-        console.warn("Error removing global event interceptor:", error)
-      }
-    }
   }
 
   function initializeMapLocation() {
@@ -181,16 +150,9 @@
           [initialLocation[0], initialLocation[1]],
           [initialLocation[2], initialLocation[3]],
         ]
-        map.fitBounds(bounds, {
-          padding: 50,
-          maxZoom: 15,
-        })
+        map.fitBounds(bounds, { padding: 50, maxZoom: 15 })
       } else if (initialLocation.length === 2) {
-        map.flyTo({
-          center: initialLocation,
-          zoom: 15,
-          duration: 4000,
-        })
+        map.flyTo({ center: initialLocation, zoom: 15, duration: 4000 })
       }
     } catch (error) {
       console.error("Error initializing map location:", error)
@@ -198,7 +160,6 @@
   }
 
   function handleLongPress(lngLat) {
-    console.log("🔥 MapViewer: Long press detected at:", lngLat)
     if (markerManagerRef) {
       markerManagerRef.handleMarkerPlacement(lngLat)
     }
@@ -222,41 +183,40 @@
       })
 
       map.doubleClickZoom.disable()
-
       map.setMaxPitch(0)
       map.setMinPitch(0)
 
       mapStore.set(map)
       mapInitialized = true
 
-      if (map.loaded()) {
+      const setupMap = () => {
         mapLoaded = true
         initializeMapLocation()
 
-        map.doubleClickZoom.disable()
-
-        // Disable the tap-drag zoom gesture
+        // Disable gestures
         if (map.touchZoomRotate._tapDragZoom) {
           map.touchZoomRotate._tapDragZoom.disable()
         }
 
-        // ✅ Initialize event interceptor when map is loaded
-        initializeEventInterceptor()
-      } else {
-        map.on("load", () => {
-          mapLoaded = true
-          initializeMapLocation()
-
-          map.doubleClickZoom.disable()
-
-          // Disable the tap-drag zoom gesture
-          if (map.touchZoomRotate._tapDragZoom) {
-            map.touchZoomRotate._tapDragZoom.disable()
-          }
-
-          // ✅ Initialize event interceptor when map is loaded
-          initializeEventInterceptor()
+        // ✅ Simple MapboxDraw setup for mobile touch handling
+        const draw = new MapboxDraw({
+          displayControlsDefault: false,
+          controls: {},
+          defaultMode: "simple_select",
+          clickBuffer: 6,
+          touchBuffer: 6,
+          touchEnabled: true,
+          boxSelect: false,
+          translateEnabled: false,
+          rotateEnabled: false,
         })
+        map.addControl(draw)
+      }
+
+      if (map.loaded()) {
+        setupMap()
+      } else {
+        map.on("load", setupMap)
       }
 
       map.on("error", (e) => {
@@ -283,9 +243,6 @@
   })
 
   onDestroy(() => {
-    // ✅ Cleanup event interceptor first
-    cleanupEventInterceptor()
-
     if (map) {
       map.off()
       map.remove()
@@ -298,21 +255,13 @@
     if (!map) return
 
     if ($fieldBoundaryStore) {
-      map.fitBounds($fieldBoundaryStore, {
-        padding: 50,
-        maxZoom: 15,
-      })
+      map.fitBounds($fieldBoundaryStore, { padding: 50, maxZoom: 15 })
     } else if ($markerBoundaryStore) {
-      map.fitBounds($markerBoundaryStore, {
-        padding: 50,
-        maxZoom: 15,
-      })
+      map.fitBounds($markerBoundaryStore, { padding: 50, maxZoom: 15 })
     } else {
       toast.error(
         "Please place markers or upload field boundaries to set a home location",
-        {
-          duration: 4000,
-        },
+        { duration: 4000 },
       )
     }
   }
@@ -327,7 +276,6 @@
       <button on:click={handleBackToDashboard}>Back to Dashboard</button>
     </div>
   {:else if mapInitialized}
-    <!-- Event Management - handles ALL map interactions -->
     <MapEventManager
       {map}
       {mapLoaded}
@@ -335,16 +283,12 @@
       {mapFieldsRef}
       onLongPress={handleLongPress}
     />
-
-    <!-- Map UI Components -->
     <MapSatelliteOptions {map} {mapLoaded} />
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
     />
     <NavigationControl />
-
-    <!-- Map Feature Components -->
     <MarkerManager
       bind:this={markerManagerRef}
       {map}
@@ -356,7 +300,6 @@
     <VehicleTracker {map} disableAutoZoom={initialLocation} />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <DrawingHectares {map} />
-
     {#if selectedOperation}
       <TrailSynchronizer {selectedOperation} {map} />
     {/if}
