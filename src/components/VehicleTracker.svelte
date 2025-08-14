@@ -33,8 +33,6 @@
   // Vehicle tracking state
   let trackedVehicleId = null
   let isTrackingVehicle = false
-  // ✅ Remove timer-based updates - only use real-time updates
-  // let trackingUpdateInterval = null
   let lastTrackedPosition = null
 
   // First-person view state
@@ -42,8 +40,6 @@
   let lastTrackedHeading = null
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
-  // ✅ Remove timer interval since we're doing real-time only
-  // const TRACKING_UPDATE_INTERVAL = 500
 
   let userVehicleUnsubscribe
   let unsubscribeOtherVehiclesDataChanges
@@ -134,7 +130,7 @@
         },
       })
 
-      // ✅ Only update if we have a tracked vehicle with valid position
+      // Update camera if we have a tracked vehicle with valid position
       if (isTrackingVehicle) {
         const vehicle = getVehicleById(trackedVehicleId)
         if (vehicle) {
@@ -178,7 +174,7 @@
         },
       })
 
-      // ✅ Initial camera update only if vehicle has valid position
+      // Initial camera update if vehicle has valid position
       const parsedCoords = parseCoordinates(vehicle.coordinates)
       if (parsedCoords) {
         updateCameraForTrackedVehicle(
@@ -188,9 +184,6 @@
           vehicle.heading,
         )
       }
-
-      // ✅ Remove timer-based updates - rely only on real-time data changes
-      // trackingUpdateInterval = setInterval(updateCameraToTrackedVehicle, TRACKING_UPDATE_INTERVAL)
     }
   }
 
@@ -217,18 +210,9 @@
         duration: 1000,
       })
     }
-
-    // ✅ Remove timer cleanup since we're not using timers
-    // if (trackingUpdateInterval) {
-    //   clearInterval(trackingUpdateInterval)
-    //   trackingUpdateInterval = null
-    // }
   }
 
-  // ✅ Remove the timer-based update function
-  // function updateCameraToTrackedVehicle() { ... }
-
-  // ✅ Enhanced real-time camera update with change detection
+  // Real-time camera update with change detection
   function updateCameraForTrackedVehicle(
     vehicleId,
     longitude,
@@ -237,34 +221,23 @@
   ) {
     if (!isTrackingVehicle || trackedVehicleId !== vehicleId) return
 
-    // ✅ Check if position actually changed
+    // Check if position actually changed
     const positionChanged =
       !lastTrackedPosition ||
       lastTrackedPosition.latitude !== latitude ||
       lastTrackedPosition.longitude !== longitude
 
-    // ✅ Check if heading actually changed (for first-person mode)
+    // Check if heading actually changed (for first-person mode)
     const headingChanged =
       isFirstPersonMode &&
       heading !== null &&
       heading !== undefined &&
       heading !== lastTrackedHeading
 
-    // ✅ Only update camera if something actually changed
+    // Only update camera if something actually changed
     if (!positionChanged && !headingChanged) {
-      console.log(
-        `⏹️  No change detected for vehicle ${vehicleId} - skipping camera update`,
-      )
       return
     }
-
-    console.log(`🚀 Real-time camera update for vehicle ${vehicleId}:`, {
-      positionChanged,
-      headingChanged,
-      position: [longitude, latitude],
-      heading,
-      firstPersonMode: isFirstPersonMode,
-    })
 
     const cameraOptions = {
       center: [longitude, latitude],
@@ -279,7 +252,7 @@
 
     map.easeTo(cameraOptions)
 
-    // ✅ Update tracking state only if values actually changed
+    // Update tracking state only if values actually changed
     if (positionChanged) {
       lastTrackedPosition = { latitude, longitude }
     }
@@ -535,7 +508,7 @@
     }
   })
 
-  // ✅ Enhanced processChanges with better change detection
+  // Process real-time vehicle changes
   function processChanges(changes) {
     changes.forEach((change) => {
       const {
@@ -553,15 +526,8 @@
         .split(",")
         .map(parseFloat)
 
-      // ✅ Only update camera when tracked vehicle actually moves/rotates
+      // Update camera for tracked vehicle when it moves
       if (isTrackingVehicle && vehicle_id === trackedVehicleId) {
-        console.log(`🎯 Tracked vehicle ${vehicle_id} data changed:`, {
-          update_types,
-          position: [longitude, latitude],
-          heading,
-        })
-
-        // Only trigger camera update if position or heading actually changed
         if (
           update_types.includes("position_changed") ||
           update_types.includes("heading_changed") ||
@@ -652,7 +618,7 @@
     })
   }
 
-  // Enhanced animateMarker function with smoother animations
+  // Smooth marker animation
   function animateMarker(marker, targetLng, targetLat, targetRotation) {
     const currentLngLat = marker.getLngLat()
     const currentRotation = marker.getRotation()
@@ -743,7 +709,7 @@
     return el
   }
 
-  // ✅ Enhanced streamMarkerPosition with change detection
+  // Stream marker position with change detection
   function streamMarkerPosition(coords) {
     const { latitude, longitude, heading, speed } = coords
     currentSpeed = speed ? Math.round(speed * 3.6) : 0
@@ -758,7 +724,7 @@
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
 
-    // ✅ Only update camera if tracking current user AND position/heading changed
+    // Update camera if tracking current user and position/heading changed
     if (
       isTrackingVehicle &&
       trackedVehicleId === $userVehicleStore.vehicle_id
@@ -771,7 +737,6 @@
       const headingChanged = lastClientHeading !== updatedHeading
 
       if (positionChanged || headingChanged) {
-        console.log(`🎯 User vehicle moved - updating camera`)
         updateCameraForTrackedVehicle(
           $userVehicleStore.vehicle_id,
           longitude,

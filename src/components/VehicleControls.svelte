@@ -30,7 +30,6 @@
   let showUnifiedMenu = false
   let sortedVehicles = []
 
-  // Helper functions (keeping them all the same as before)
   function truncateName(name, maxLength = 15) {
     if (typeof window !== "undefined" && window.innerWidth < 640) {
       if (name.length > maxLength) {
@@ -93,7 +92,7 @@
     return null
   }
 
-  // ✅ FIXED: Better priority system
+  // Vehicle sorting with priority system
   function calculateSortedVehicles() {
     const allVehicles = [
       {
@@ -117,7 +116,6 @@
         return parsedCoords !== null
       })
       .sort((a, b) => {
-        // Debug logging
         const aOnline = isVehicleOnline(a)
         const bOnline = isVehicleOnline(b)
         const aTrailing = Boolean(a.is_trailing)
@@ -131,84 +129,32 @@
             ? new Date(b.last_update).getTime()
             : b.last_update || 0
 
-        console.log(`Comparing: ${a.full_name} vs ${b.full_name}`)
-        console.log(
-          `  A - Tracking: ${a.id === trackedVehicleId}, User: ${a.isCurrentUser}, Online: ${aOnline}, Trailing: ${aTrailing}, Time: ${new Date(aTime).toLocaleString()}`,
-        )
-        console.log(
-          `  B - Tracking: ${b.id === trackedVehicleId}, User: ${b.isCurrentUser}, Online: ${bOnline}, Trailing: ${bTrailing}, Time: ${new Date(bTime).toLocaleString()}`,
-        )
+        // Priority 1: Currently tracked vehicle always first
+        if (a.id === trackedVehicleId) return -1
+        if (b.id === trackedVehicleId) return 1
 
-        // PRIORITY 1: Currently tracked vehicle always first
-        if (a.id === trackedVehicleId) {
-          console.log(`  Result: A wins (actively tracking)`)
-          return -1
-        }
-        if (b.id === trackedVehicleId) {
-          console.log(`  Result: B wins (actively tracking)`)
-          return 1
-        }
+        // Priority 2: Current user comes next
+        if (a.isCurrentUser && !b.isCurrentUser) return -1
+        if (b.isCurrentUser && !a.isCurrentUser) return 1
 
-        // PRIORITY 2: Current user (You) comes next
-        if (a.isCurrentUser && !b.isCurrentUser) {
-          console.log(`  Result: A wins (current user)`)
-          return -1
-        }
-        if (b.isCurrentUser && !a.isCurrentUser) {
-          console.log(`  Result: B wins (current user)`)
-          return 1
-        }
-
-        // PRIORITY 3: Online AND trailing (actively working)
+        // Priority 3: Online AND trailing (actively working)
         const aOnlineTrailing = aOnline && aTrailing
         const bOnlineTrailing = bOnline && bTrailing
 
-        if (aOnlineTrailing && !bOnlineTrailing) {
-          console.log(`  Result: A wins (online + trailing)`)
-          return -1
-        }
-        if (bOnlineTrailing && !aOnlineTrailing) {
-          console.log(`  Result: B wins (online + trailing)`)
-          return 1
-        }
+        if (aOnlineTrailing && !bOnlineTrailing) return -1
+        if (bOnlineTrailing && !aOnlineTrailing) return 1
 
-        // PRIORITY 4: Just online (connected but not working)
-        if (aOnline && !bOnline) {
-          console.log(`  Result: A wins (online)`)
-          return -1
-        }
-        if (bOnline && !aOnline) {
-          console.log(`  Result: B wins (online)`)
-          return 1
-        }
+        // Priority 4: Just online (connected but not working)
+        if (aOnline && !bOnline) return -1
+        if (bOnline && !aOnline) return 1
 
-        // PRIORITY 5: Just trailing (might be offline but was working)
-        if (aTrailing && !bTrailing) {
-          console.log(`  Result: A wins (trailing but offline)`)
-          return -1
-        }
-        if (bTrailing && !aTrailing) {
-          console.log(`  Result: B wins (trailing but offline)`)
-          return 1
-        }
+        // Priority 5: Just trailing (might be offline but was working)
+        if (aTrailing && !bTrailing) return -1
+        if (bTrailing && !aTrailing) return 1
 
-        // PRIORITY 6: Most recently updated vehicles
-        const result = bTime - aTime
-        console.log(
-          `  Result: ${result > 0 ? "A" : "B"} wins (more recent: ${new Date(result > 0 ? aTime : bTime).toLocaleString()})`,
-        )
-        return result
+        // Priority 6: Most recently updated vehicles
+        return bTime - aTime
       })
-
-    // Debug final order
-    console.log("=== FINAL VEHICLE ORDER ===")
-    allVehicles.forEach((v, i) => {
-      const online = isVehicleOnline(v)
-      const trailing = Boolean(v.is_trailing)
-      console.log(
-        `${i + 1}. ${v.full_name} - Online: ${online}, Trailing: ${trailing}, Updated: ${formatLastUpdate(v.last_update)}`,
-      )
-    })
 
     return allVehicles
   }
@@ -216,12 +162,14 @@
   function toggleSpeedometer() {
     showSpeedometer = !showSpeedometer
   }
+
   function toggleUnifiedMenu() {
     showUnifiedMenu = !showUnifiedMenu
     if (showUnifiedMenu) {
       sortedVehicles = calculateSortedVehicles()
     }
   }
+
   function closeUnifiedMenu() {
     showUnifiedMenu = false
   }
@@ -235,19 +183,22 @@
     dispatch("startTracking", { vehicleId })
     showUnifiedMenu = false
   }
+
   function stopTrackingVehicle() {
     dispatch("stopTracking")
     showUnifiedMenu = false
   }
+
   function toggleFirstPersonMode() {
     dispatch("toggleFirstPerson")
   }
+
   function zoomToVehicle(vehicle) {
     dispatch("zoomToVehicle", { vehicle })
     showUnifiedMenu = false
   }
 
-  // NEW: Instant zoom to tracked vehicle (won't be interrupted by tracking camera)
+  // Instant zoom to tracked vehicle without interrupting tracking camera
   function zoomToTrackedVehicleInstant() {
     if (trackedVehicle) {
       dispatch("instantZoomToVehicle", { vehicle: trackedVehicle })
@@ -334,7 +285,7 @@
       : null
 </script>
 
-<!-- ✅ BUTTON MODE: Updated to match your spacing -->
+<!-- Vehicle Controls Button -->
 {#if !isTrackingVehicle && !showUnifiedMenu}
   <button
     class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
@@ -346,7 +297,7 @@
   </button>
 {/if}
 
-<!-- ✅ MENU MODE: Updated positioning to align with new button -->
+<!-- Expanded Vehicle Menu -->
 {#if showUnifiedMenu}
   <div
     class="menu-expanded fixed z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
@@ -453,7 +404,7 @@
                       {formatLastUpdate(vehicle.last_update)}
                     </p>
                   </div>
-                  <!-- ✅ FIXED: Status indicator with improved pulsing logic -->
+                  <!-- Status indicator -->
                   <div class="relative flex-shrink-0">
                     <div
                       class="h-2 w-2 rounded-full {vehicle.isCurrentUser
@@ -464,7 +415,7 @@
                             ? 'bg-blue-400'
                             : 'bg-white/40'}"
                     ></div>
-                    <!-- ✅ Only pulse if trailing AND online (or if current user) -->
+                    <!-- Pulse animation for active vehicles -->
                     {#if vehicle.isCurrentUser}
                       <div
                         class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-30"
@@ -505,7 +456,7 @@
       {/if}
     </div>
 
-    <!-- Updated Footer Logic -->
+    <!-- Footer -->
     <div
       class="border-t border-white/20 {isTrackingVehicle
         ? 'bg-green-500/10'
@@ -558,13 +509,13 @@
   </div>
 {/if}
 
-<!-- ✅ TRACKING MODE: Updated positioning to align with new button -->
+<!-- Tracking Bar -->
 {#if isTrackingVehicle && !showUnifiedMenu && trackedVehicle}
   <div
     class="tracking-bar fixed z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
     style="bottom: 6.5rem; left: 0.75rem; transform-origin: left center;"
   >
-    <!-- Users Icon Button (opens menu) -->
+    <!-- Users Icon Button -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
@@ -578,7 +529,7 @@
     <!-- Separator -->
     <div class="mx-2 h-6 w-px bg-white/20"></div>
 
-    <!-- Vehicle Info Section (instant zoom to vehicle) -->
+    <!-- Vehicle Info Section -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
@@ -643,7 +594,7 @@
   </div>
 {/if}
 
-<!-- ✅ SPEEDOMETER: Updated to match your spacing -->
+<!-- Speedometer Button -->
 <button
   class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
   style="background: {showSpeedometer
@@ -660,6 +611,7 @@
   {/if}
 </button>
 
+<!-- Speedometer Display -->
 {#if showSpeedometer}
   <div
     class="speed-fade-in fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center rounded-lg bg-black/70 px-5 py-2.5 text-white backdrop-blur"
