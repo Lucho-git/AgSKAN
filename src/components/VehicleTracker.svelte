@@ -10,21 +10,12 @@
   } from "../stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import UserMarker from "./UserMarker.svelte"
+  import VehicleControls from "./VehicleControls.svelte"
   import { unsavedTrailStore } from "../stores/trailDataStore"
   import { toast } from "svelte-sonner"
-  import { page } from "$app/stores"
   import "../styles/global.css"
-  import {
-    Gauge,
-    Users,
-    Crosshair,
-    Target,
-    ChevronDown,
-    X,
-  } from "lucide-svelte"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
-  import SVGComponents from "$lib/vehicles/index.js"
 
   export let map
   export let disableAutoZoom = false
@@ -34,8 +25,6 @@
   let lastRecordedTime = 0
   let otherVehicleMarkers = []
   let currentSpeed = 0
-  let showSpeedometer = false
-  let showVehicleList = false
   let isMobileApp = false
   let isBackground = false
   let appState = "web"
@@ -44,31 +33,23 @@
   // Vehicle tracking state
   let trackedVehicleId = null
   let isTrackingVehicle = false
-  let trackingUpdateInterval = null
+  // ✅ Remove timer-based updates - only use real-time updates
+  // let trackingUpdateInterval = null
   let lastTrackedPosition = null
 
-  // Static vehicle list that only updates when menu opens
-  let sortedVehicles = []
+  // First-person view state
+  let isFirstPersonMode = false
+  let lastTrackedHeading = null
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
-  const TRACKING_UPDATE_INTERVAL = 2000
-  const TRACKING_MOVEMENT_THRESHOLD = 0.00005
+  // ✅ Remove timer interval since we're doing real-time only
+  // const TRACKING_UPDATE_INTERVAL = 500
 
   let userVehicleUnsubscribe
   let unsubscribeOtherVehiclesDataChanges
   let lastClientCoordinates = null
   let lastClientHeading = null
   let previousVehicleMarker = null
-
-  // Helper function to truncate long names on mobile
-  function truncateName(name, maxLength = 15) {
-    if (typeof window !== "undefined" && window.innerWidth < 640) {
-      if (name.length > maxLength) {
-        return name.substring(0, maxLength - 3) + "..."
-      }
-    }
-    return name
-  }
 
   // Helper function to parse coordinates
   function parseCoordinates(coords) {
@@ -91,24 +72,6 @@
     }
 
     return null
-  }
-
-  // Helper function to determine if vehicle is online/recent
-  function isVehicleOnline(vehicle) {
-    if (!vehicle.last_update) return false
-
-    let timestampMs
-    if (typeof vehicle.last_update === "string") {
-      timestampMs = new Date(vehicle.last_update).getTime()
-    } else {
-      timestampMs = vehicle.last_update
-    }
-
-    const now = Date.now()
-    const diff = now - timestampMs
-    const fiveMinutes = 5 * 60 * 1000
-
-    return diff < fiveMinutes
   }
 
   // Function to get current vehicle data by ID
@@ -140,6 +103,61 @@
     return null
   }
 
+  // Function to toggle first-person view mode
+  function toggleFirstPersonMode() {
+    isFirstPersonMode = !isFirstPersonMode
+    lastTrackedHeading = null
+
+    if (isFirstPersonMode && !isTrackingVehicle) {
+      toast.info("Start tracking a vehicle to use first-person view", {
+        description:
+          "First-person mode follows a vehicle and rotates the camera based on their heading",
+        duration: 4000,
+      })
+      isFirstPersonMode = false
+      return
+    }
+
+    if (isFirstPersonMode) {
+      toast.success("First-person mode enabled", {
+        description: "Camera will rotate with vehicle heading",
+        action: {
+          label: "Disable",
+          onClick: () => {
+            isFirstPersonMode = false
+            map.easeTo({
+              bearing: 0,
+              duration: 1000,
+            })
+            toast.info("First-person mode disabled")
+          },
+        },
+      })
+
+      // ✅ Only update if we have a tracked vehicle with valid position
+      if (isTrackingVehicle) {
+        const vehicle = getVehicleById(trackedVehicleId)
+        if (vehicle) {
+          const parsedCoords = parseCoordinates(vehicle.coordinates)
+          if (parsedCoords) {
+            updateCameraForTrackedVehicle(
+              trackedVehicleId,
+              parsedCoords.longitude,
+              parsedCoords.latitude,
+              vehicle.heading,
+            )
+          }
+        }
+      }
+    } else {
+      toast.info("First-person mode disabled")
+      map.easeTo({
+        bearing: 0,
+        duration: 1000,
+      })
+    }
+  }
+
   // Function to start tracking a vehicle
   function startTrackingVehicle(vehicleId) {
     stopTrackingVehicle()
@@ -147,6 +165,7 @@
     trackedVehicleId = vehicleId
     isTrackingVehicle = true
     lastTrackedPosition = null
+    lastTrackedHeading = null
 
     const vehicle = getVehicleById(vehicleId)
     if (vehicle) {
@@ -159,16 +178,19 @@
         },
       })
 
-      updateCameraToTrackedVehicle()
-      trackingUpdateInterval = setInterval(
-        updateCameraToTrackedVehicle,
-        TRACKING_UPDATE_INTERVAL,
-      )
-    }
+      // ✅ Initial camera update only if vehicle has valid position
+      const parsedCoords = parseCoordinates(vehicle.coordinates)
+      if (parsedCoords) {
+        updateCameraForTrackedVehicle(
+          vehicleId,
+          parsedCoords.longitude,
+          parsedCoords.latitude,
+          vehicle.heading,
+        )
+      }
 
-    // Auto-close vehicle list when tracking starts
-    if (showVehicleList) {
-      showVehicleList = false
+      // ✅ Remove timer-based updates - rely only on real-time data changes
+      // trackingUpdateInterval = setInterval(updateCameraToTrackedVehicle, TRACKING_UPDATE_INTERVAL)
     }
   }
 
@@ -186,129 +208,87 @@
     trackedVehicleId = null
     isTrackingVehicle = false
     lastTrackedPosition = null
+    lastTrackedHeading = null
 
-    if (trackingUpdateInterval) {
-      clearInterval(trackingUpdateInterval)
-      trackingUpdateInterval = null
+    if (isFirstPersonMode) {
+      isFirstPersonMode = false
+      map.easeTo({
+        bearing: 0,
+        duration: 1000,
+      })
     }
 
-    // Auto-close vehicle list when tracking stops
-    if (showVehicleList) {
-      showVehicleList = false
-    }
+    // ✅ Remove timer cleanup since we're not using timers
+    // if (trackingUpdateInterval) {
+    //   clearInterval(trackingUpdateInterval)
+    //   trackingUpdateInterval = null
+    // }
   }
 
-  // Function to update camera to tracked vehicle position
-  function updateCameraToTrackedVehicle() {
-    if (!isTrackingVehicle || !trackedVehicleId) return
+  // ✅ Remove the timer-based update function
+  // function updateCameraToTrackedVehicle() { ... }
 
-    const vehicle = getVehicleById(trackedVehicleId)
-    if (!vehicle) {
-      stopTrackingVehicle()
+  // ✅ Enhanced real-time camera update with change detection
+  function updateCameraForTrackedVehicle(
+    vehicleId,
+    longitude,
+    latitude,
+    heading,
+  ) {
+    if (!isTrackingVehicle || trackedVehicleId !== vehicleId) return
+
+    // ✅ Check if position actually changed
+    const positionChanged =
+      !lastTrackedPosition ||
+      lastTrackedPosition.latitude !== latitude ||
+      lastTrackedPosition.longitude !== longitude
+
+    // ✅ Check if heading actually changed (for first-person mode)
+    const headingChanged =
+      isFirstPersonMode &&
+      heading !== null &&
+      heading !== undefined &&
+      heading !== lastTrackedHeading
+
+    // ✅ Only update camera if something actually changed
+    if (!positionChanged && !headingChanged) {
+      console.log(
+        `⏹️  No change detected for vehicle ${vehicleId} - skipping camera update`,
+      )
       return
     }
 
-    const parsedCoords = parseCoordinates(vehicle.coordinates)
-    if (!parsedCoords) return
+    console.log(`🚀 Real-time camera update for vehicle ${vehicleId}:`, {
+      positionChanged,
+      headingChanged,
+      position: [longitude, latitude],
+      heading,
+      firstPersonMode: isFirstPersonMode,
+    })
 
-    const { latitude, longitude } = parsedCoords
-
-    if (!lastTrackedPosition) {
-      lastTrackedPosition = { latitude, longitude }
-      map.easeTo({
-        center: [longitude, latitude],
-        duration: 1500,
-        essential: true,
-      })
-      return
+    const cameraOptions = {
+      center: [longitude, latitude],
+      duration: 600,
+      essential: true,
+      easing: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
     }
 
-    const latDiff = latitude - lastTrackedPosition.latitude
-    const lngDiff = longitude - lastTrackedPosition.longitude
-    const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff)
+    if (isFirstPersonMode && heading !== null && heading !== undefined) {
+      cameraOptions.bearing = heading
+    }
 
-    if (distance > TRACKING_MOVEMENT_THRESHOLD) {
-      map.easeTo({
-        center: [longitude, latitude],
-        duration: 1500,
-        essential: true,
-      })
+    map.easeTo(cameraOptions)
 
+    // ✅ Update tracking state only if values actually changed
+    if (positionChanged) {
       lastTrackedPosition = { latitude, longitude }
     }
-  }
-
-  // Function to handle clicking the tracking indicator
-  function handleTrackingIndicatorClick() {
-    if (!showVehicleList) {
-      toggleVehicleList()
+    if (headingChanged) {
+      lastTrackedHeading = heading
     }
   }
 
-  // Function to calculate and sort vehicles
-  function calculateSortedVehicles() {
-    const allVehicles = [
-      {
-        id: $userVehicleStore.vehicle_id,
-        full_name: "You",
-        vehicle_marker: $userVehicleStore.vehicle_marker,
-        coordinates: $userVehicleStore.coordinates,
-        heading: $userVehicleStore.heading,
-        is_trailing: $userVehicleTrailing,
-        last_update: $userVehicleStore.last_update,
-        isCurrentUser: true,
-      },
-      ...$otherVehiclesStore.map((vehicle) => ({
-        ...vehicle,
-        id: vehicle.vehicle_id,
-        isCurrentUser: false,
-      })),
-    ]
-      .filter((vehicle) => {
-        const parsedCoords = parseCoordinates(vehicle.coordinates)
-        return parsedCoords !== null
-      })
-      .sort((a, b) => {
-        if (a.id === trackedVehicleId) return -1
-        if (b.id === trackedVehicleId) return 1
-
-        if (a.isCurrentUser) return -1
-        if (b.isCurrentUser) return 1
-
-        if (a.is_trailing && !b.is_trailing) return -1
-        if (b.is_trailing && !a.is_trailing) return 1
-
-        const aOnline = isVehicleOnline(a)
-        const bOnline = isVehicleOnline(b)
-        if (aOnline && !bOnline) return -1
-        if (bOnline && !aOnline) return 1
-
-        const aTime =
-          typeof a.last_update === "string"
-            ? new Date(a.last_update).getTime()
-            : a.last_update || 0
-        const bTime =
-          typeof b.last_update === "string"
-            ? new Date(b.last_update).getTime()
-            : b.last_update || 0
-        return bTime - aTime
-      })
-
-    return allVehicles
-  }
-
-  function toggleSpeedometer() {
-    showSpeedometer = !showSpeedometer
-  }
-
-  function toggleVehicleList() {
-    showVehicleList = !showVehicleList
-
-    if (showVehicleList) {
-      sortedVehicles = calculateSortedVehicles()
-    }
-  }
-
+  // Zoom to vehicle function
   function zoomToVehicle(vehicle) {
     const parsedCoords = parseCoordinates(vehicle.coordinates)
     if (!parsedCoords) {
@@ -333,31 +313,6 @@
       : `${vehicle.full_name}'s ${getVehicleDisplayName(vehicle)}`
 
     toast.success(`Zooming to ${vehicleInfo}`)
-
-    // Auto-close vehicle list when zooming to a vehicle
-    showVehicleList = false
-  }
-
-  function formatLastUpdate(timestamp) {
-    if (!timestamp) return "Unknown"
-
-    let timestampMs
-    if (typeof timestamp === "string") {
-      timestampMs = new Date(timestamp).getTime()
-    } else {
-      timestampMs = timestamp
-    }
-
-    const now = Date.now()
-    const diff = now - timestampMs
-    const minutes = Math.floor(diff / (1000 * 60))
-    const hours = Math.floor(minutes / 60)
-    const days = Math.floor(hours / 24)
-
-    if (days > 0) return `${days}d ago`
-    if (hours > 0) return `${hours}h ago`
-    if (minutes > 0) return `${minutes}m ago`
-    return "Just now"
   }
 
   function getVehicleDisplayName(vehicle) {
@@ -399,21 +354,6 @@
     }
 
     return shortNames[vehicleType] || vehicleType
-  }
-
-  function getVehicleIcon(vehicle) {
-    const vehicleType = vehicle.vehicle_marker?.type
-    if (!vehicleType) return null
-
-    return SVGComponents[vehicleType] || SVGComponents.SimpleTractor || null
-  }
-
-  function getVehicleColor(vehicle) {
-    return (
-      vehicle.vehicle_marker?.bodyColor ||
-      vehicle.vehicle_marker?.color ||
-      "red"
-    )
   }
 
   // Function to detect if running as a mobile app
@@ -595,6 +535,7 @@
     }
   })
 
+  // ✅ Enhanced processChanges with better change detection
   function processChanges(changes) {
     changes.forEach((change) => {
       const {
@@ -611,6 +552,29 @@
         .slice(1, -1)
         .split(",")
         .map(parseFloat)
+
+      // ✅ Only update camera when tracked vehicle actually moves/rotates
+      if (isTrackingVehicle && vehicle_id === trackedVehicleId) {
+        console.log(`🎯 Tracked vehicle ${vehicle_id} data changed:`, {
+          update_types,
+          position: [longitude, latitude],
+          heading,
+        })
+
+        // Only trigger camera update if position or heading actually changed
+        if (
+          update_types.includes("position_changed") ||
+          update_types.includes("heading_changed") ||
+          update_types.includes("new_vehicle")
+        ) {
+          updateCameraForTrackedVehicle(
+            vehicle_id,
+            longitude,
+            latitude,
+            heading,
+          )
+        }
+      }
 
       const existingMarkerIndex = otherVehicleMarkers.findIndex((marker) => {
         const vehicleId = marker.getElement().getAttribute("data-vehicle-id")
@@ -688,6 +652,7 @@
     })
   }
 
+  // Enhanced animateMarker function with smoother animations
   function animateMarker(marker, targetLng, targetLat, targetRotation) {
     const currentLngLat = marker.getLngLat()
     const currentRotation = marker.getRotation()
@@ -702,7 +667,7 @@
       rotationDiff += 360
     }
 
-    const duration = 1000
+    const duration = 600
     const start = performance.now()
 
     function animate(timestamp) {
@@ -778,6 +743,7 @@
     return el
   }
 
+  // ✅ Enhanced streamMarkerPosition with change detection
   function streamMarkerPosition(coords) {
     const { latitude, longitude, heading, speed } = coords
     currentSpeed = speed ? Math.round(speed * 3.6) : 0
@@ -791,6 +757,29 @@
     }
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
+
+    // ✅ Only update camera if tracking current user AND position/heading changed
+    if (
+      isTrackingVehicle &&
+      trackedVehicleId === $userVehicleStore.vehicle_id
+    ) {
+      const positionChanged =
+        !lastClientCoordinates ||
+        lastClientCoordinates.latitude !== latitude ||
+        lastClientCoordinates.longitude !== longitude
+
+      const headingChanged = lastClientHeading !== updatedHeading
+
+      if (positionChanged || headingChanged) {
+        console.log(`🎯 User vehicle moved - updating camera`)
+        updateCameraForTrackedVehicle(
+          $userVehicleStore.vehicle_id,
+          longitude,
+          latitude,
+          updatedHeading,
+        )
+      }
+    }
 
     updateUserVehicleData(currentTime, vehicleData, updatedHeading)
   }
@@ -844,359 +833,33 @@
     }
   }
 
-  function getTrackedVehicleName(vehicle) {
-    if (!vehicle) return "Unknown"
+  // Event handlers for VehicleControls
+  function handleStartTracking(event) {
+    startTrackingVehicle(event.detail.vehicleId)
+  }
 
-    if (vehicle.isCurrentUser) {
-      return "You"
-    }
+  function handleStopTracking() {
+    stopTrackingVehicle()
+  }
 
-    return truncateName(vehicle.full_name || "Unknown", 10)
+  function handleToggleFirstPerson() {
+    toggleFirstPersonMode()
+  }
+
+  function handleZoomToVehicle(event) {
+    zoomToVehicle(event.detail.vehicle)
   }
 </script>
 
-<!-- Vehicle List Button -->
-<button
-  class="btn btn-circle fixed bottom-32 left-6 z-50 flex h-10 w-10 items-center justify-center border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-  style="background: {showVehicleList ? 'rgba(255, 255, 255, 0.9)' : ''}"
-  class:text-black={showVehicleList}
-  on:click={toggleVehicleList}
-  aria-label={showVehicleList ? "Hide vehicle list" : "Show vehicle list"}
->
-  {#if showVehicleList}
-    <ChevronDown size={20} color="black" />
-  {:else}
-    <Users size={20} />
-  {/if}
-</button>
-
-<!-- Speedometer Button -->
-<button
-  class="btn btn-circle fixed bottom-20 left-6 z-50 flex h-10 w-10 items-center justify-center border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-  style="background: {showSpeedometer ? 'rgba(255, 255, 255, 0.9)' : ''}"
-  class:text-black={showSpeedometer}
-  on:click={toggleSpeedometer}
-  aria-label={showSpeedometer ? "Hide speed" : "Show speed"}
->
-  {#if showSpeedometer}
-    <ChevronDown size={20} color="black" />
-  {:else}
-    <Gauge size={20} />
-  {/if}
-</button>
-
-<!-- Tracking Status Indicator -->
-{#if isTrackingVehicle && trackedVehicleId}
-  {@const vehicle = getVehicleById(trackedVehicleId)}
-  {#if vehicle}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div
-      class="tracking-indicator btn fixed z-50 flex h-10 cursor-pointer items-center gap-2 rounded-full border-none bg-black/70 px-3 text-white shadow-lg backdrop-blur transition-all hover:scale-105"
-      style="bottom: 8rem; left: 4.5rem; transform-origin: left center;"
-      on:click={handleTrackingIndicatorClick}
-    >
-      <!-- Vehicle Icon -->
-      <div
-        class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5"
-      >
-        {#if getVehicleIcon(vehicle)}
-          <svelte:component
-            this={getVehicleIcon(vehicle)}
-            bodyColor={getVehicleColor(vehicle)}
-            size="14px"
-          />
-        {:else}
-          <div class="h-2.5 w-2.5 rounded bg-green-300/60"></div>
-        {/if}
-      </div>
-
-      <!-- Vehicle Name -->
-      <span class="min-w-0 truncate text-sm font-medium text-green-300">
-        {getTrackedVehicleName(vehicle)}
-      </span>
-
-      <!-- Tracking Icon -->
-      <Target size={14} class="flex-shrink-0 animate-pulse text-green-300" />
-
-      <!-- Improved Stop Button - larger and more distinct -->
-      <button
-        on:click|stopPropagation={stopTrackingVehicle}
-        class="ml-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20 transition-all hover:scale-110 hover:bg-red-500/40 active:bg-red-500/60"
-        aria-label="Stop tracking"
-        title="Stop tracking"
-      >
-        <X size={14} class="text-red-300 hover:text-red-200" />
-      </button>
-    </div>
-  {/if}
-{/if}
-
-<!-- Vehicle List Modal -->
-{#if showVehicleList}
-  <div
-    class="vehicle-list-modal wider-screen fixed z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
-    style="bottom: 11rem; left: 1.5rem; width: 320px; max-width: calc(100vw - 3rem); max-height: 60vh; transform-origin: bottom left;"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between border-b border-white/20 p-4">
-      <div class="flex items-center gap-2">
-        <Users size={18} class="flex-shrink-0 text-white" />
-        <h3 class="text-base font-semibold text-white">Vehicles</h3>
-        <span
-          class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white"
-        >
-          {sortedVehicles.length}
-        </span>
-      </div>
-      <button
-        class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
-        on:click={toggleVehicleList}
-        aria-label="Close vehicle list"
-      >
-        <ChevronDown size={16} class="text-white/70" />
-      </button>
-    </div>
-
-    <!-- Vehicle List -->
-    <div class="max-h-80 overflow-y-auto">
-      {#if sortedVehicles.length === 0}
-        <div
-          class="flex flex-col items-center justify-center p-6 text-white/70"
-        >
-          <Users size={32} class="mb-2 opacity-50" />
-          <p class="text-sm">No vehicles on map</p>
-        </div>
-      {:else}
-        <div class="divide-y divide-white/10">
-          {#each sortedVehicles as vehicle (vehicle.id)}
-            <div class="flex items-stretch">
-              <!-- Main vehicle button -->
-              <button
-                class="min-w-0 flex-1 p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
-                on:click={() => zoomToVehicle(vehicle)}
-              >
-                <div class="flex items-center gap-3">
-                  <!-- Vehicle Icon -->
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 p-1"
-                  >
-                    {#if getVehicleIcon(vehicle)}
-                      <svelte:component
-                        this={getVehicleIcon(vehicle)}
-                        bodyColor={getVehicleColor(vehicle)}
-                        size="24px"
-                      />
-                    {:else}
-                      <div class="h-4 w-4 rounded bg-white/40"></div>
-                    {/if}
-                  </div>
-
-                  <!-- Vehicle Info -->
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <p
-                        class="truncate text-sm font-medium text-white"
-                        title={vehicle.full_name}
-                      >
-                        {truncateName(vehicle.full_name)}
-                        {#if vehicle.isCurrentUser}
-                          <span class="text-xs font-normal text-blue-300"
-                            >(You)</span
-                          >
-                        {/if}
-                        {#if vehicle.id === trackedVehicleId}
-                          <span class="text-xs font-normal text-green-300"
-                            >(Tracking)</span
-                          >
-                        {/if}
-                      </p>
-                      <div class="flex flex-shrink-0 items-center gap-1">
-                        {#if vehicle.is_trailing}
-                          <span
-                            class="inline-flex items-center rounded-full bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-300"
-                          >
-                            •
-                          </span>
-                        {/if}
-                        {#if isVehicleOnline(vehicle) && !vehicle.isCurrentUser}
-                          <span
-                            class="inline-flex items-center rounded-full bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-300"
-                          >
-                            Online
-                          </span>
-                        {/if}
-                      </div>
-                    </div>
-                    <div class="mt-0.5 flex items-center gap-2">
-                      <p class="truncate text-xs text-white/70">
-                        {getVehicleDisplayName(vehicle)}
-                      </p>
-                      <div
-                        class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30"
-                        style="background-color: {getVehicleColor(vehicle)}"
-                        title="Vehicle color"
-                      ></div>
-                    </div>
-                    <p class="mt-0.5 truncate text-xs text-white/50">
-                      {formatLastUpdate(vehicle.last_update)}
-                    </p>
-                  </div>
-
-                  <!-- Status Indicator -->
-                  <div class="relative flex-shrink-0">
-                    <div
-                      class="h-2 w-2 rounded-full {vehicle.isCurrentUser
-                        ? 'bg-blue-400'
-                        : vehicle.is_trailing
-                          ? 'bg-green-400'
-                          : isVehicleOnline(vehicle)
-                            ? 'bg-blue-400'
-                            : 'bg-white/40'}"
-                    ></div>
-                    {#if vehicle.is_trailing && !vehicle.isCurrentUser}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-green-400 opacity-30"
-                      ></div>
-                    {/if}
-                    {#if vehicle.isCurrentUser}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-30"
-                      ></div>
-                    {/if}
-                  </div>
-                </div>
-              </button>
-
-              <!-- Track button -->
-              <button
-                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {vehicle.id ===
-                trackedVehicleId
-                  ? 'bg-green-500/20'
-                  : ''}"
-                on:click={() =>
-                  vehicle.id === trackedVehicleId
-                    ? stopTrackingVehicle()
-                    : startTrackingVehicle(vehicle.id)}
-                aria-label={vehicle.id === trackedVehicleId
-                  ? "Stop tracking"
-                  : "Track vehicle"}
-                title={vehicle.id === trackedVehicleId
-                  ? "Stop tracking"
-                  : "Track this vehicle"}
-              >
-                {#if vehicle.id === trackedVehicleId}
-                  <X size={16} class="text-red-300" />
-                {:else}
-                  <Crosshair size={16} class="text-white/60" />
-                {/if}
-              </button>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- Footer -->
-    <div class="border-t border-white/20 p-3">
-      <p class="text-center text-xs text-white/60">
-        Tap vehicle to zoom • Tap crosshair to track
-      </p>
-    </div>
-  </div>
-{/if}
-
-<!-- Speedometer Display -->
-{#if showSpeedometer}
-  <div
-    class="speed-fade-in fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center rounded-lg bg-black/70 px-5 py-2.5 text-white backdrop-blur"
-    style="min-width: min-content"
-  >
-    <div class="text-2xl font-bold">{currentSpeed}</div>
-    <div class="text-xs opacity-80">km/h</div>
-  </div>
-{/if}
-
-<style>
-  .speed-fade-in {
-    animation: fadeIn 0.3s ease-in-out;
-  }
-
-  .vehicle-list-modal {
-    animation: bubbleExpand 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-
-  .tracking-indicator {
-    animation: expandFromLeft 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-
-  @media (min-width: 640px) {
-    .vehicle-list-modal.wider-screen {
-      width: 400px !important;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .vehicle-list-modal.wider-screen {
-      width: 450px !important;
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translate(-50%, 20px);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, 0);
-    }
-  }
-
-  @keyframes bubbleExpand {
-    0% {
-      opacity: 0;
-      transform: scale(0.1) translateY(20px);
-    }
-    60% {
-      opacity: 0.8;
-      transform: scale(1.05) translateY(-5px);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
-  }
-
-  @keyframes expandFromLeft {
-    0% {
-      opacity: 0;
-      transform: scaleX(0.1) translateX(-20px);
-    }
-    60% {
-      opacity: 0.8;
-      transform: scaleX(1.05) translateX(5px);
-    }
-    100% {
-      opacity: 1;
-      transform: scaleX(1) translateX(0);
-    }
-  }
-
-  .vehicle-list-modal ::-webkit-scrollbar {
-    width: 3px;
-  }
-
-  .vehicle-list-modal ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .vehicle-list-modal ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-  }
-
-  .vehicle-list-modal ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-  }
-</style>
+<!-- Vehicle Controls Component -->
+<VehicleControls
+  {map}
+  {currentSpeed}
+  {trackedVehicleId}
+  {isTrackingVehicle}
+  {isFirstPersonMode}
+  on:startTracking={handleStartTracking}
+  on:stopTracking={handleStopTracking}
+  on:toggleFirstPerson={handleToggleFirstPerson}
+  on:zoomToVehicle={handleZoomToVehicle}
+/>
