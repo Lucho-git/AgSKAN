@@ -147,10 +147,10 @@
     const baseWidth =
       trail.trail_width * HIGHLIGHT_CONFIG.HIGHLIGHT_WIDTH_MULTIPLIER
     const opacitySequence = [0.3, 0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4]
-    let animationFrameId: number | null = null // Add this line
+    let animationFrameId: number | null = null
 
     // Base electric glow
-    if (!map.getSource(sourceId)) return // Add this check
+    if (!map.getSource(sourceId)) return
 
     map.addLayer({
       type: "line",
@@ -273,7 +273,7 @@
     })
 
     function animate(timestamp: number) {
-      if (!isAnimating) return // Stop animation if flag is false
+      if (!isAnimating) return
 
       const newOpacityStep = parseInt(
         (timestamp / 100) % opacitySequence.length,
@@ -385,11 +385,17 @@
   })
 </script>
 
+<!-- ✅ Updated to be closer to bottom-left corner with consistent spacing -->
 <button
-  class="btn btn-circle fixed bottom-8 left-6 z-50 h-10 w-10 border-none bg-black/70 text-white backdrop-blur transition-transform hover:scale-110 hover:bg-black/80"
-  style="background: {showNavigationUI ? 'rgba(255, 255, 255, 0.9)' : ''}"
+  class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
+  style="background: {showNavigationUI
+    ? 'rgba(255, 255, 255, 0.9)'
+    : ''};bottom: 0.5rem;"
   class:text-black={showNavigationUI}
   on:click={toggleNavigationUI}
+  aria-label={showNavigationUI
+    ? "Close trail navigation"
+    : "Open trail navigation"}
 >
   {#if showNavigationUI}
     <X size={20} color="black" />
@@ -407,9 +413,10 @@
       class="flex items-center justify-between gap-x-[max(0.25rem,min(1rem,1.5vw))] p-[max(0.25rem,min(1rem,1.5vw))]"
     >
       <button
-        class="btn btn-circle h-10 w-10 shrink-0 border-none bg-white text-lg hover:bg-gray-100"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-none bg-white text-black transition-colors hover:bg-gray-100"
         on:click={handlePrevious}
         disabled={false}
+        aria-label="Previous trail"
       >
         <ArrowLeft size={20} />
       </button>
@@ -421,19 +428,21 @@
       </div>
 
       <button
-        class="btn btn-circle h-10 w-10 shrink-0 border-none bg-white text-lg hover:bg-gray-100"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-none bg-white text-black transition-colors hover:bg-gray-100"
         on:click={handleNext}
         disabled={false}
+        aria-label="Next trail"
       >
         <ArrowRight size={20} />
       </button>
 
       <button
-        class="btn btn-circle btn-error h-10 w-10 shrink-0 border-none hover:bg-error/90"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-none bg-red-500 text-white transition-colors hover:bg-red-600"
         on:click={() => {
           trailToDelete = $historicalTrailStore[currentTrailIndex]
           showDeleteModal = true
         }}
+        aria-label="Delete current trail"
       >
         <Trash2 size={20} />
       </button>

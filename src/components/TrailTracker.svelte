@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy, getContext } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import {
     userTrailStore,
     otherTrailStore,
@@ -11,9 +11,6 @@
   import * as turf from "@turf/turf"
 
   export let map
-
-  // ✅ Get the layer management context
-  const mapContext = getContext("map")
 
   let newUserTrailUnsubscribe
   let newOtherTrailUnsubscribe
@@ -131,47 +128,22 @@
       ["*", ["*", ["get", "swath"], TRAIL_MULTIPLIER], ["^", 2, 8]],
     ]
 
-    const layerConfig = {
-      type: "line",
-      source: sourceId,
-      id: layerId,
-      layout: {
-        visibility: "visible",
-      },
-      paint: {
-        "line-color": ["coalesce", ["get", "color"], "black"],
-        "line-width": zoomDependentWidth,
-        "line-opacity": opacity,
-        "line-dasharray": dashArray,
-      },
-    }
-
-    // ✅ Use ordered layer addition if available, fallback to regular addLayer
     if (!map.getLayer(layerId)) {
-      if (mapContext?.addLayerOrdered) {
-        // Let the layer ordering system handle placement
-        const success = mapContext.addLayerOrdered(layerConfig)
-        if (!success) {
-          console.warn(
-            `Failed to add trail layer ${layerId} with ordering, trying fallback`,
-          )
-          // Fallback: try to add before field outlines manually
-          const beforeId = mapContext.getTrailInsertionPoint?.()
-          if (beforeId) {
-            map.addLayer(layerConfig, beforeId)
-          } else {
-            map.addLayer(layerConfig)
-          }
-        }
-      } else {
-        // Fallback for when context is not available
-        console.warn(
-          "Layer ordering context not available, adding trail layer on top",
-        )
-        map.addLayer(layerConfig)
-      }
+      map.addLayer({
+        type: "line",
+        source: sourceId,
+        id: layerId,
+        layout: {
+          visibility: "visible",
+        },
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], "black"],
+          "line-width": zoomDependentWidth,
+          "line-opacity": opacity,
+          "line-dasharray": dashArray,
+        },
+      })
     } else {
-      // Update existing layer properties
       map.setPaintProperty(layerId, "line-color", [
         "coalesce",
         ["get", "color"],
@@ -182,8 +154,7 @@
       map.setPaintProperty(layerId, "line-dasharray", dashArray)
     }
 
-    console.log("✅ Trail layer created/updated:", {
-      layerId,
+    console.log("Layer properties set:", {
       color: map.getPaintProperty(layerId, "line-color"),
       width: map.getPaintProperty(layerId, "line-width"),
       opacity: map.getPaintProperty(layerId, "line-opacity"),
@@ -215,30 +186,17 @@
 
     createTrailSource(sourceIdCircles, circleData)
 
-    const layerConfig = {
-      id: `${sourceId}-circles`,
-      type: "circle",
-      source: sourceIdCircles,
-      paint: {
-        "circle-color": ["coalesce", ["get", "color"], "black"],
-        "circle-radius": trailConfig.circle.radius,
-        "circle-opacity": trailConfig.circle.opacity,
-      },
-    }
-
-    // ✅ Use ordered layer addition for circle layers too
     if (!map.getLayer(`${sourceId}-circles`)) {
-      if (mapContext?.addLayerOrdered) {
-        const success = mapContext.addLayerOrdered(layerConfig)
-        if (!success) {
-          console.warn(
-            `Failed to add circle layer ${sourceId}-circles with ordering, using fallback`,
-          )
-          map.addLayer(layerConfig)
-        }
-      } else {
-        map.addLayer(layerConfig)
-      }
+      map.addLayer({
+        id: `${sourceId}-circles`,
+        type: "circle",
+        source: sourceIdCircles,
+        paint: {
+          "circle-color": ["coalesce", ["get", "color"], "black"],
+          "circle-radius": trailConfig.circle.radius,
+          "circle-opacity": trailConfig.circle.opacity,
+        },
+      })
     }
   }
 

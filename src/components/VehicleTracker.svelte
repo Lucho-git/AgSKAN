@@ -304,7 +304,7 @@
 
     map.flyTo({
       center: [longitude, latitude],
-      zoom: 16,
+      zoom: 15,
       duration: 1500,
     })
 
@@ -849,6 +849,18 @@
   function handleZoomToVehicle(event) {
     zoomToVehicle(event.detail.vehicle)
   }
+
+  function handleInstantZoomToVehicle(event) {
+    const { vehicle } = event.detail
+    // Immediate zoom without animation interference
+    if (vehicle.coordinates) {
+      const coords = parseCoordinates(vehicle.coordinates)
+      if (coords) {
+        map.setCenter([coords.longitude, coords.latitude])
+        map.setZoom(15)
+      }
+    }
+  }
 </script>
 
 <!-- Vehicle Controls Component -->
@@ -862,4 +874,5 @@
   on:stopTracking={handleStopTracking}
   on:toggleFirstPerson={handleToggleFirstPerson}
   on:zoomToVehicle={handleZoomToVehicle}
+  on:instantZoomToVehicle={handleInstantZoomToVehicle}
 />
