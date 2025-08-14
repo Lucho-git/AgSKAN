@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, getContext } from "svelte"
   import { get } from "svelte/store"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
@@ -10,6 +10,9 @@
 
   export let map: mapboxgl.Map
   export let coordinatedEvents = false
+
+  // ✅ Get the layer management context
+  const mapContext = getContext("map")
 
   interface Field {
     field_id?: string
@@ -28,7 +31,6 @@
   let selectedFieldId: number | null = null
   let showInfoPanel = false
   let isDestroyed = false
-  let readdLabelsTimeouts: NodeJS.Timeout[] = []
 
   // Lightweight map check - only check what we absolutely need
   function canUseMap(): boolean {
@@ -147,11 +149,14 @@
   }
 
   function addLabelLayers() {
-    if (!map) return
+    if (!map || !mapContext?.addLayerOrdered) {
+      console.warn("Map or layer ordering context not available")
+      return
+    }
 
     try {
-      // FIXED: Add area labels FIRST (they appear underneath)
-      map.addLayer({
+      // ✅ Add area labels with proper ordering
+      mapContext.addLayerOrdered({
         id: "fields-labels-area",
         type: "symbol",
         source: "label-points",
@@ -190,8 +195,8 @@
         },
       })
 
-      // FIXED: Add field name labels SECOND (they appear on top)
-      map.addLayer({
+      // ✅ Add field name labels with proper ordering
+      mapContext.addLayerOrdered({
         id: "fields-labels",
         type: "symbol",
         source: "label-points",
@@ -228,6 +233,8 @@
           "text-halo-width": 2,
         },
       })
+
+      console.log("✅ Added field label layers with proper ordering")
     } catch (error) {
       console.error("Error adding label layers:", error)
     }
@@ -257,43 +264,7 @@
     }
   }
 
-  function readdLabels() {
-    console.log("ReadingLABELS!!", $mapFieldsStore)
-
-    // FIXED: Only check if component is destroyed, not map readiness
-    if (isDestroyed) {
-      console.log("Skipping readdLabels - component destroyed")
-      return
-    }
-
-    // FIXED: Check for basic map availability, not style loaded
-    if (!canUseMap()) {
-      console.log("Skipping readdLabels - map not available")
-      return
-    }
-
-    try {
-      const currentZoom = map.getZoom()
-
-      // FIXED: Remove layers in reverse order with safety checks
-      if (map.getLayer("fields-labels")) {
-        map.removeLayer("fields-labels")
-      }
-      if (map.getLayer("fields-labels-area")) {
-        map.removeLayer("fields-labels-area")
-      }
-
-      addLabelLayers()
-
-      if (!isDestroyed && map) {
-        map.setZoom(currentZoom)
-      }
-    } catch (error) {
-      if (!isDestroyed) {
-        console.error("Error in readdLabels:", error)
-      }
-    }
-  }
+  // ✅ Removed readdLabels function - no longer needed with proper ordering!
 
   // Public method called by MapViewer's layer interaction system
   export function handleFieldSelection(fieldId: number) {
@@ -335,7 +306,10 @@
   }
 
   function loadFields() {
-    if (!map) return
+    if (!map || !mapContext?.addLayerOrdered) {
+      console.warn("Map or layer ordering context not available")
+      return
+    }
 
     try {
       const fields: Field[] = get(mapFieldsStore)
@@ -367,7 +341,8 @@
           data: labelPointsGeojson,
         })
 
-        map.addLayer({
+        // ✅ Add layers in proper order using the centralized system
+        mapContext.addLayerOrdered({
           id: "fields-fill",
           type: "fill",
           source: "fields",
@@ -377,18 +352,7 @@
           },
         })
 
-        map.addLayer({
-          id: "fields-outline",
-          type: "line",
-          source: "fields",
-          paint: {
-            "line-color": "#bfffbf",
-            "line-opacity": 0.5,
-            "line-width": 2,
-          },
-        })
-
-        map.addLayer({
+        mapContext.addLayerOrdered({
           id: "fields-fill-selected",
           type: "fill",
           source: "fields",
@@ -399,7 +363,18 @@
           },
         })
 
-        map.addLayer({
+        mapContext.addLayerOrdered({
+          id: "fields-outline",
+          type: "line",
+          source: "fields",
+          paint: {
+            "line-color": "#bfffbf",
+            "line-opacity": 0.5,
+            "line-width": 2,
+          },
+        })
+
+        mapContext.addLayerOrdered({
           id: "fields-outline-selected",
           type: "line",
           source: "fields",
@@ -413,16 +388,7 @@
 
         addLabelLayers()
 
-        // FIXED: Store timeout IDs and check destroyed flag
-        const timeout1 = setTimeout(() => {
-          if (!isDestroyed) readdLabels()
-        }, 10000)
-        const timeout2 = setTimeout(() => {
-          if (!isDestroyed) readdLabels()
-        }, 20000)
-
-        readdLabelsTimeouts.push(timeout1, timeout2)
-
+        // ✅ No more timing hacks needed!
         const bounds = calculateBoundingBox(fields)
         if (bounds) {
           fieldBoundaryStore.set(bounds.toArray())
@@ -431,7 +397,7 @@
           console.warn("Unable to calculate valid bounding box")
         }
 
-        console.log("Fields loaded and layers created")
+        console.log("✅ Fields loaded and layers created with proper ordering")
       }
     } catch (error) {
       console.error("Error loading fields:", error)
@@ -450,11 +416,6 @@
 
   function cleanup() {
     isDestroyed = true
-
-    // Clear any pending timeouts
-    readdLabelsTimeouts.forEach((timeout) => clearTimeout(timeout))
-    readdLabelsTimeouts = []
-
     console.log("MapFields cleanup completed")
   }
 

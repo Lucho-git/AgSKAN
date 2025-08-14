@@ -52,8 +52,79 @@
   let mapInitialized = false
   let mapboxInitError = null
 
+  // ✅ Layer ordering registry
+  const LAYER_ORDER = {
+    // Bottom layers (fields)
+    "fields-fill": { order: 100 },
+    "fields-fill-selected": { order: 101 },
+
+    // Trail layers (middle)
+    "trail-layers-start": { order: 200 }, // Marker for trail layer insertion
+
+    // Field outlines and labels (above trails)
+    "fields-outline": { order: 300 },
+    "fields-outline-selected": { order: 301 },
+    "fields-labels-area": { order: 302 },
+    "fields-labels": { order: 303 },
+
+    // Markers (top)
+    "markers-layer": { order: 400 },
+  }
+
+  // ✅ Central layer management
+  function getInsertionPoint(layerId) {
+    if (!map) return undefined
+
+    const targetOrder = LAYER_ORDER[layerId]?.order || 999
+
+    try {
+      // Find the layer with the next higher order that already exists
+      const existingLayers = map.getStyle().layers
+
+      for (const layer of existingLayers.reverse()) {
+        const layerOrder = LAYER_ORDER[layer.id]?.order
+        if (layerOrder && layerOrder > targetOrder) {
+          console.log(`🎯 Inserting ${layerId} before ${layer.id}`)
+          return layer.id
+        }
+      }
+    } catch (error) {
+      console.warn("Error getting insertion point:", error)
+    }
+
+    console.log(`🎯 Adding ${layerId} on top`)
+    return undefined // Add on top
+  }
+
+  // ✅ Expose layer management to child components
   setContext("map", {
     getMap: () => Promise.resolve(map),
+    addLayerOrdered: (layerConfig) => {
+      if (!map || map.getLayer(layerConfig.id)) {
+        console.warn(`Layer ${layerConfig.id} already exists or map not ready`)
+        return false
+      }
+
+      try {
+        const beforeId = getInsertionPoint(layerConfig.id)
+
+        if (beforeId) {
+          map.addLayer(layerConfig, beforeId)
+        } else {
+          map.addLayer(layerConfig)
+        }
+
+        console.log(`✅ Added layer ${layerConfig.id} in correct order`)
+        return true
+      } catch (error) {
+        console.error(`Error adding layer ${layerConfig.id}:`, error)
+        return false
+      }
+    },
+    getTrailInsertionPoint: () => {
+      // Trails should be inserted before field outlines
+      return getInsertionPoint("trail-layers-start")
+    },
   })
 
   const mapOptions = {
@@ -292,7 +363,6 @@
   {/if}
 </div>
 
-<!-- Same styles as before -->
 <style>
   .map-container {
     position: absolute;

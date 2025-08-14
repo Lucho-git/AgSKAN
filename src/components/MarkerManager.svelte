@@ -9,13 +9,16 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"
 
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
   import IconSVG from "./IconSVG.svelte"
 
   export let map
   export let mapLoaded = false
   export let coordinatedEvents = false
+
+  // ✅ Get the layer management context
+  const mapContext = getContext("map")
 
   let locationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
@@ -260,8 +263,9 @@
       })
     }
 
+    // ✅ Use ordered layer addition
     if (!map.getLayer("markers-layer")) {
-      map.addLayer({
+      const layerConfig = {
         id: "markers-layer",
         type: "symbol",
         source: "markers",
@@ -277,7 +281,15 @@
             "center",
           ],
         },
-      })
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(layerConfig)
+        console.log("✅ Added markers-layer with proper ordering")
+      } else {
+        map.addLayer(layerConfig)
+        console.log("⚠️ Added markers-layer without ordering (fallback)")
+      }
     }
 
     markersInitialized = true
@@ -458,10 +470,10 @@
         id,
         coordinates,
         iconClass,
-        created_at: new Date().toISOString(), // Make sure this matches what we expect
+        created_at: new Date().toISOString(),
       }
 
-      console.log("Confirming marker:", markerData) // Debug log
+      console.log("Confirming marker:", markerData)
 
       // Simple direct update to store
       confirmedMarkersStore.update((markers) => {
