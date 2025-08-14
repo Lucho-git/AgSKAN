@@ -221,8 +221,7 @@
         .from("map_markers")
         .select("id, marker_data, last_confirmed, created_at, deleted")
         .eq("master_map_id", masterMapId)
-        .eq("deleted", false)
-
+        .or("deleted.is.null,deleted.eq.false")
       // Apply date filtering if enabled
       if (userSettings?.limitMarkersOn && userSettings?.limitMarkersDays) {
         const cutoffDate = new Date()
