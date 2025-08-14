@@ -148,6 +148,13 @@
 
           dispatch("fieldUpdated")
           editMode = false
+
+          // ✅ Auto-close the menu after successful save
+          setTimeout(() => {
+            showInfoPanel = false
+            dispatch("deselect")
+          }, 500) // Small delay to show the save was successful
+
           console.log("Field updated successfully")
         } else {
           console.error("Failed to update field:", result.message)
@@ -319,7 +326,9 @@
   </div>
 {/if}
 
+<!-- Keep all the existing styles unchanged -->
 <style>
+  /* All existing styles remain the same */
   .info-button-container {
     position: fixed;
     bottom: 20px;
