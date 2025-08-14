@@ -216,12 +216,13 @@
     isSyncing = true
 
     try {
-      // Build query
+      // Build query - ✅ Updated to handle both null and false values
       let query = supabase
         .from("map_markers")
         .select("id, marker_data, last_confirmed, created_at, deleted")
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
+
       // Apply date filtering if enabled
       if (userSettings?.limitMarkersOn && userSettings?.limitMarkersDays) {
         const cutoffDate = new Date()
@@ -343,7 +344,7 @@
         last_confirmed: marker.created_at || new Date().toISOString(),
         created_at: marker.created_at || new Date().toISOString(),
         update_user_id: userId,
-        deleted: false,
+        deleted: null, // ✅ Changed from false to null for non-deleted markers
       }))
 
       const { error } = await supabase
@@ -357,7 +358,7 @@
     if (pendingDeletions.size > 0) {
       const deletionData = Array.from(pendingDeletions).map((markerId) => ({
         id: markerId,
-        deleted: true,
+        deleted: true, // ✅ Keep as true for actual deletions
         deleted_at: new Date().toISOString(),
         update_user_id: userId,
       }))
