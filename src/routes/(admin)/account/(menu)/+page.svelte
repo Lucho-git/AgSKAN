@@ -7,6 +7,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import MasterMapManager from "./MasterMapManager.svelte"
+  import DashboardMenu from "./DashboardMenu.svelte"
 
   export let data
   $: ({ subscription, vehicles, isOwner } = data)
@@ -40,7 +41,7 @@
   <div>
     <!-- <h2 class="mt-2 text-2xl font-bold">Map Manager</h2> -->
 
-    <MasterMapManager />
+    <DashboardMenu />
     <div class="flex items-center space-x-4">
       <div class="space-y-2"></div>
     </div>

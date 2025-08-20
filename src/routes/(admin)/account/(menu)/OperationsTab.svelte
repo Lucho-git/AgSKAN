@@ -1,0 +1,601 @@
+<script>
+  import {
+    operationStore,
+    selectedOperationStore,
+  } from "$lib/stores/operationStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { toast } from "svelte-sonner"
+  import { operationApi } from "$lib/api/operationApi"
+  import {
+    MapPin,
+    Plus,
+    ChevronDown,
+    ChevronUp,
+    Pencil,
+    Trash2,
+    AlertTriangle,
+    Check,
+  } from "lucide-svelte"
+
+  // State
+  let isLoading = false
+  let loadingAction = null
+  let showCreateOperation = false
+  let showEditOperation = false
+  let showDeleteOperationConfirm = false
+  let expandedOperationId = null
+  let editingOperationId = null
+  let deletingOperationId = null
+  let newOperationName = ""
+  let newOperationYear = new Date().getFullYear()
+  let newOperationDescription = ""
+  let editOperationName = ""
+  let editOperationYear = new Date().getFullYear()
+  let editOperationDescription = ""
+
+  // Reactive values
+  $: currentYear = new Date().getFullYear()
+  $: yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i)
+  $: isOnlyOperation = $operationStore.length <= 1
+
+  // Helper function to close all operation submenus
+  function closeAllOperationMenus() {
+    showCreateOperation = false
+    showEditOperation = false
+    showDeleteOperationConfirm = false
+    expandedOperationId = null
+    editingOperationId = null
+    deletingOperationId = null
+  }
+
+  async function handleCreateOperation() {
+    if (!newOperationName.trim()) {
+      toast.error("Operation name is required")
+      return
+    }
+
+    const master_map_id = $operationStore[0]?.master_map_id
+    if (!master_map_id) {
+      toast.error("No map is currently selected")
+      return
+    }
+
+    isLoading = true
+    loadingAction = "create-operation"
+
+    try {
+      const result = await operationApi.addOperation(
+        master_map_id,
+        newOperationName.trim(),
+        Number(newOperationYear),
+        newOperationDescription.trim(),
+      )
+
+      if (result.success && result.operation) {
+        operationStore.update((ops) => [...ops, result.operation])
+        selectedOperationStore.set(result.operation)
+
+        if ($profileStore) {
+          profileStore.update((profile) => ({
+            ...profile,
+            selected_operation_id: result.operation.id,
+          }))
+
+          await operationApi.updateSelectedOperation(
+            $profileStore.id,
+            result.operation.id,
+          )
+        }
+
+        newOperationName = ""
+        newOperationYear = new Date().getFullYear()
+        newOperationDescription = ""
+        showCreateOperation = false
+
+        toast.success("Operation created successfully")
+      } else {
+        toast.error(`Failed to create operation: ${result.message}`)
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingAction = null
+    }
+  }
+
+  async function handleOperationSelect(operationId) {
+    const selectedOperation = $operationStore.find(
+      (op) => op.id === operationId,
+    )
+
+    if (selectedOperation && $profileStore?.id) {
+      isLoading = true
+      loadingAction = `select-${operationId}`
+
+      try {
+        const result = await operationApi.updateSelectedOperation(
+          $profileStore.id,
+          operationId,
+        )
+
+        if (!result.success) {
+          toast.error(`Failed to update selected operation: ${result.message}`)
+          return
+        }
+
+        selectedOperationStore.set(selectedOperation)
+        profileStore.update((profile) => ({
+          ...profile,
+          selected_operation_id: operationId,
+        }))
+
+        // Close the menu after successful selection
+        closeAllOperationMenus()
+
+        toast.success("Operation switched successfully")
+      } catch (error) {
+        toast.error("Failed to update selected operation")
+      } finally {
+        isLoading = false
+        loadingAction = null
+      }
+    }
+  }
+
+  async function handleUpdateOperation() {
+    if (!editOperationName.trim()) {
+      toast.error("Operation name is required")
+      return
+    }
+
+    isLoading = true
+    loadingAction = "update-operation"
+
+    const updatedOperation = {
+      id: editingOperationId,
+      name: editOperationName.trim(),
+      year: Number(editOperationYear),
+      description: editOperationDescription.trim(),
+      master_map_id: $operationStore.find((op) => op.id === editingOperationId)
+        ?.master_map_id,
+    }
+
+    try {
+      const result = await operationApi.updateOperation(editingOperationId, {
+        name: editOperationName.trim(),
+        year: Number(editOperationYear),
+        description: editOperationDescription.trim(),
+      })
+
+      if (result.success) {
+        operationStore.update((ops) =>
+          ops.map((op) =>
+            op.id === editingOperationId ? updatedOperation : op,
+          ),
+        )
+
+        if ($selectedOperationStore?.id === editingOperationId) {
+          selectedOperationStore.set(updatedOperation)
+        }
+
+        closeAllOperationMenus()
+        toast.success("Operation updated successfully")
+      } else {
+        toast.error(`Failed to update operation: ${result.message}`)
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingAction = null
+    }
+  }
+
+  async function handleDeleteOperation(operationId) {
+    if (isOnlyOperation) {
+      toast.error("Cannot delete the only operation")
+      return
+    }
+
+    isLoading = true
+    loadingAction = "delete-operation"
+
+    try {
+      const result = await operationApi.deleteOperation(operationId)
+
+      if (result.success) {
+        operationStore.update((ops) =>
+          ops.filter((op) => op.id !== operationId),
+        )
+
+        const newSelectedOperation = $operationStore.find(
+          (op) => op.id !== operationId,
+        )
+
+        if (newSelectedOperation) {
+          selectedOperationStore.set(newSelectedOperation)
+
+          if ($profileStore) {
+            await operationApi.updateSelectedOperation(
+              $profileStore.id,
+              newSelectedOperation.id,
+            )
+
+            profileStore.update((profile) => ({
+              ...profile,
+              selected_operation_id: newSelectedOperation.id,
+            }))
+          }
+        }
+
+        closeAllOperationMenus()
+        toast.success("Operation deleted successfully")
+      } else {
+        toast.error(`Failed to delete operation: ${result.message}`)
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingAction = null
+    }
+  }
+</script>
+
+<div class="space-y-6">
+  {#if $operationStore && $operationStore.length > 0}
+    <!-- Operations List -->
+    <div class="space-y-1">
+      <div class="mb-3 flex items-center justify-between">
+        <h3 class="font-semibold text-contrast-content">Operations</h3>
+        <button
+          class="flex items-center gap-2 rounded-lg bg-base-content px-3 py-1.5 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+          on:click={() => {
+            closeAllOperationMenus()
+            showCreateOperation = true
+          }}
+        >
+          <Plus class="h-3 w-3" />
+          Create
+        </button>
+      </div>
+
+      <!-- Create Operation Form - Appears at top after header -->
+      {#if showCreateOperation}
+        <div
+          class="animate-slideDown bg-base-50 mb-4 rounded-lg border border-base-300 p-4"
+        >
+          <h4 class="mb-4 font-semibold text-contrast-content">
+            Create Operation
+          </h4>
+          <div class="space-y-3">
+            <div>
+              <label class="mb-1 block text-sm text-contrast-content/60"
+                >Name</label
+              >
+              <input
+                type="text"
+                bind:value={newOperationName}
+                placeholder="Operation name"
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm text-contrast-content/60"
+                >Year</label
+              >
+              <select
+                bind:value={newOperationYear}
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+              >
+                {#each yearOptions as year}
+                  <option value={year}>{year}</option>
+                {/each}
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm text-contrast-content/60"
+                >Description</label
+              >
+              <textarea
+                bind:value={newOperationDescription}
+                placeholder="Optional description"
+                rows="2"
+                class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+              ></textarea>
+            </div>
+            <div class="flex gap-2">
+              <button
+                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                on:click={() => {
+                  closeAllOperationMenus()
+                  newOperationName = ""
+                  newOperationDescription = ""
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                on:click={handleCreateOperation}
+                disabled={isLoading || !newOperationName.trim()}
+              >
+                {isLoading ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      {#each $operationStore as operation, index}
+        <div
+          class="relative rounded-lg transition-colors {operation.id ===
+          $selectedOperationStore?.id
+            ? 'border border-primary/30 bg-primary/10'
+            : 'bg-base-200'}"
+        >
+          <!-- Operation Row - One Line -->
+          <button
+            class="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-base-300"
+            on:click={() => {
+              if (showEditOperation && editingOperationId === operation.id) {
+                closeAllOperationMenus()
+              } else if (
+                showDeleteOperationConfirm &&
+                deletingOperationId === operation.id
+              ) {
+                closeAllOperationMenus()
+              } else if (expandedOperationId === operation.id) {
+                closeAllOperationMenus()
+              } else {
+                closeAllOperationMenus()
+                expandedOperationId = operation.id
+                // Remove automatic selection - just expand the dropdown
+              }
+            }}
+          >
+            <div class="flex min-w-0 flex-1 items-center gap-3">
+              {#if operation.id === $selectedOperationStore?.id}
+                <div
+                  class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/20"
+                >
+                  <div class="h-2 w-2 rounded-full bg-primary"></div>
+                </div>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <span
+                  class="truncate text-sm font-medium {operation.id ===
+                  $selectedOperationStore?.id
+                    ? 'text-primary'
+                    : 'text-contrast-content'}"
+                >
+                  {operation.name}
+                </span>
+                <span
+                  class="ml-1.5 text-xs {operation.id ===
+                  $selectedOperationStore?.id
+                    ? 'text-primary/70'
+                    : 'text-contrast-content/60'}"
+                >
+                  ({operation.year})
+                </span>
+              </div>
+            </div>
+
+            <div class="flex flex-shrink-0 items-center gap-2">
+              {#if expandedOperationId === operation.id}
+                <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+              {:else}
+                <ChevronDown class="h-4 w-4 text-contrast-content/60" />
+              {/if}
+            </div>
+          </button>
+
+          <!-- Expanded Operation Details -->
+          {#if expandedOperationId === operation.id}
+            <div class="animate-slideDown border-t border-base-300 p-3">
+              <div class="space-y-3" on:click|stopPropagation>
+                <!-- Description -->
+                {#if operation.description}
+                  <div>
+                    <p class="text-sm text-contrast-content/60">
+                      {operation.description}
+                    </p>
+                  </div>
+                {:else}
+                  <div>
+                    <p class="text-sm italic text-contrast-content/40">
+                      No description
+                    </p>
+                  </div>
+                {/if}
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap gap-2">
+                  <!-- Select Operation Button (only show if not selected) -->
+                  {#if operation.id !== $selectedOperationStore?.id}
+                    <button
+                      class="flex items-center gap-2 rounded-lg bg-base-content px-2.5 py-1 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      on:click|stopPropagation={() =>
+                        handleOperationSelect(operation.id)}
+                      disabled={isLoading &&
+                        loadingAction === `select-${operation.id}`}
+                    >
+                      <Check class="h-3 w-3" />
+                      {isLoading && loadingAction === `select-${operation.id}`
+                        ? "..."
+                        : "Select"}
+                    </button>
+                  {/if}
+
+                  <button
+                    class="flex items-center gap-2 rounded-lg bg-base-100 px-2.5 py-1 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    on:click|stopPropagation={() => {
+                      closeAllOperationMenus()
+                      editingOperationId = operation.id
+                      editOperationName = operation.name
+                      editOperationYear = operation.year
+                      editOperationDescription = operation.description || ""
+                      showEditOperation = true
+                    }}
+                  >
+                    <Pencil class="h-3 w-3" />
+                    Edit
+                  </button>
+
+                  {#if !isOnlyOperation}
+                    <button
+                      class="flex items-center gap-2 rounded-lg bg-red-500/10 px-2.5 py-1 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20"
+                      on:click|stopPropagation={() => {
+                        closeAllOperationMenus()
+                        deletingOperationId = operation.id
+                        showDeleteOperationConfirm = true
+                      }}
+                    >
+                      <Trash2 class="h-3 w-3" />
+                      Delete
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Inline Edit Form -->
+          {#if showEditOperation && editingOperationId === operation.id}
+            <div class="animate-slideDown border-t border-base-300 p-3">
+              <div class="space-y-3" on:click|stopPropagation>
+                <h4 class="font-semibold text-contrast-content">
+                  Edit Operation
+                </h4>
+                <div>
+                  <label class="mb-1 block text-sm text-contrast-content/60"
+                    >Name</label
+                  >
+                  <input
+                    type="text"
+                    bind:value={editOperationName}
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm text-contrast-content/60"
+                    >Year</label
+                  >
+                  <select
+                    bind:value={editOperationYear}
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                  >
+                    {#each yearOptions as year}
+                      <option value={year}>{year}</option>
+                    {/each}
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm text-contrast-content/60"
+                    >Description</label
+                  >
+                  <textarea
+                    bind:value={editOperationDescription}
+                    rows="2"
+                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                  ></textarea>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    on:click={() => closeAllOperationMenus()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    on:click={handleUpdateOperation}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Inline Delete Confirmation -->
+          {#if showDeleteOperationConfirm && deletingOperationId === operation.id}
+            <div class="animate-slideDown border-t border-red-300 p-3">
+              <div class="rounded-lg bg-red-50 p-3" on:click|stopPropagation>
+                <div class="mb-3 flex items-center gap-2">
+                  <AlertTriangle class="h-4 w-4 text-red-500" />
+                  <h4 class="text-sm font-semibold text-red-700">
+                    Delete Operation
+                  </h4>
+                </div>
+                <p class="mb-3 text-sm text-red-600">
+                  Are you sure you want to delete "{operation.name}"? This
+                  action cannot be undone.
+                </p>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded bg-gray-200 py-1.5 text-sm font-medium transition-colors hover:bg-gray-300"
+                    on:click={() => closeAllOperationMenus()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded bg-red-500 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    on:click={() => handleDeleteOperation(operation.id)}
+                    disabled={isLoading}
+                  >
+                    {isLoading && loadingAction === "delete-operation"
+                      ? "Deleting..."
+                      : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <!-- No Operations -->
+    <div class="text-center">
+      <div
+        class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-500/10"
+      >
+        <MapPin class="h-8 w-8 text-purple-500" />
+      </div>
+      <h3 class="mb-2 text-lg font-semibold text-contrast-content">
+        No Operations
+      </h3>
+      <p class="mb-4 text-sm text-contrast-content/60">
+        Create your first operation to get started
+      </p>
+      <button
+        class="mx-auto flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+        on:click={() => (showCreateOperation = true)}
+      >
+        <Plus class="h-4 w-4" />
+        Create Operation
+      </button>
+    </div>
+  {/if}
+</div>
+
+<style>
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slideDown {
+    animation: slideDown 0.2s ease-out;
+  }
+</style>
