@@ -209,6 +209,111 @@
           boxSelect: false,
           translateEnabled: false,
           rotateEnabled: false,
+          // Add custom styles to fix the line-dasharray issue
+          styles: [
+            // Point style
+            {
+              id: "gl-draw-point",
+              type: "circle",
+              filter: [
+                "all",
+                ["==", "$type", "Point"],
+                ["!=", "mode", "static"],
+              ],
+              paint: {
+                "circle-radius": 5,
+                "circle-color": "#000",
+              },
+            },
+            // Line styles with proper dasharray format
+            {
+              id: "gl-draw-lines",
+              type: "line",
+              filter: [
+                "all",
+                ["==", "$type", "LineString"],
+                ["!=", "mode", "static"],
+              ],
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#000",
+                "line-width": 2,
+              },
+            },
+            {
+              id: "gl-draw-lines-cold",
+              type: "line",
+              filter: [
+                "all",
+                ["==", "$type", "LineString"],
+                ["!=", "mode", "static"],
+                ["!=", "active", "true"],
+              ],
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#000",
+                "line-width": 2,
+                "line-dasharray": ["literal", [2, 2]],
+              },
+            },
+            {
+              id: "gl-draw-lines-hot",
+              type: "line",
+              filter: [
+                "all",
+                ["==", "$type", "LineString"],
+                ["!=", "mode", "static"],
+                ["==", "active", "true"],
+              ],
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#000",
+                "line-width": 2,
+                "line-dasharray": ["literal", [1, 1]],
+              },
+            },
+            // Polygon styles
+            {
+              id: "gl-draw-polygon-fill",
+              type: "fill",
+              filter: [
+                "all",
+                ["==", "$type", "Polygon"],
+                ["!=", "mode", "static"],
+              ],
+              paint: {
+                "fill-color": "#000",
+                "fill-outline-color": "#000",
+                "fill-opacity": 0.1,
+              },
+            },
+            {
+              id: "gl-draw-polygon-stroke",
+              type: "line",
+              filter: [
+                "all",
+                ["==", "$type", "Polygon"],
+                ["!=", "mode", "static"],
+              ],
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#000",
+                "line-width": 2,
+              },
+            },
+          ],
         })
         map.addControl(draw)
       }

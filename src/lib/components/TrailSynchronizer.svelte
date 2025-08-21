@@ -473,17 +473,8 @@
       // Get trails without paths first
       const { data: trails, error: trailsError } = await supabase
         .from("trails")
-        .select(
-          `
-        id,
-        vehicle_id,
-        operation_id,
-        start_time,
-        end_time,
-        trail_color,
-        trail_width
-        `,
-        )
+        .select("*")
+
         .eq("operation_id", operation_id)
         .not("end_time", "is", null)
         .order("start_time", { ascending: true })

@@ -54,8 +54,11 @@
     ANIMATION_SPEED: 25, // Faster animation
   }
 
+  // Make currentTrail reactive to currentTrailIndex changes
+  $: currentTrail = $historicalTrailStore[currentTrailIndex] || null
+
   function getCurrentTrail(): Trail | null {
-    return $historicalTrailStore[currentTrailIndex] || null
+    return currentTrail
   }
 
   function createTractorIcon() {
@@ -516,8 +519,15 @@
 
   function closeReplayPanel() {
     showReplayPanel = false
+    showNavigationUI = false // Add this line
     stopAnimation()
     isExpanded = false
+
+    // Clean up highlights and animations when closing
+    $historicalTrailStore.forEach((t) => {
+      removeHighlight(t.id)
+      removeStartEndMarkers(t.id)
+    })
   }
 
   async function handleDeleteConfirm() {
@@ -560,14 +570,37 @@
       showReplayPanel = false
       isExpanded = false
     } else {
+      // Add comprehensive logging when opening the trail menu
+      console.log("=== OPENING TRAIL MENU ===")
+      console.log("Total trails available:", $historicalTrailStore.length)
+      console.log("Current trail index:", currentTrailIndex)
+      console.log("All trails data:", $historicalTrailStore)
+
+      // Log each trail's key information
+      $historicalTrailStore.forEach((trail, index) => {
+        console.log(`Trail ${index + 1}:`, {
+          id: trail.id,
+          created_at: trail.created_at,
+          trail_color: trail.trail_color,
+          trail_width: trail.trail_width,
+          coordinates_count: trail.path?.coordinates?.length || 0,
+          path_type: trail.path?.type,
+          first_coordinate: trail.path?.coordinates?.[0],
+          last_coordinate:
+            trail.path?.coordinates?.[trail.path?.coordinates?.length - 1],
+        })
+      })
+
       // Start selection for current trail when showing UI
       if ($historicalTrailStore.length > 0) {
         const currentTrail = $historicalTrailStore[currentTrailIndex]
+        console.log("Selected current trail:", currentTrail)
         flyToTrail(currentTrail)
         selectTrail(currentTrail)
         showReplayPanel = true // Auto-open replay panel
         isExpanded = false // Start collapsed
       }
+      console.log("=== TRAIL MENU OPENED ===")
     }
   }
 
@@ -623,6 +656,7 @@
     }
 
     const trail = $historicalTrailStore[currentTrailIndex]
+    console.log("Navigating to trail_id:", trail.id)
 
     flyToTrail(trail)
     selectTrail(trail)
@@ -649,19 +683,42 @@
     })
   }
 
-  // Calculate estimated time (stub)
+  // Format distance from meters to kilometers
+  function formatDistance(distanceInMeters: number): string {
+    if (!distanceInMeters) return "0.0 km"
+    const kilometers = distanceInMeters / 1000
+    return `${kilometers.toFixed(1)} km`
+  }
+
+  // Format hectares
+  function formatHectares(hectares: number): string {
+    if (!hectares) return "0.0"
+    return hectares.toFixed(1)
+  }
+
+  // Format percentage
+  function formatPercentage(percentage: number): string {
+    if (!percentage) return "0.0%"
+    return `${percentage.toFixed(1)}%`
+  }
+
+  // Calculate estimated time based on start and end time
   function getEstimatedTime(): string {
-    return "2h 45m" // Stub data
-  }
+    const currentTrail = getCurrentTrail()
+    if (!currentTrail?.start_time || !currentTrail?.end_time) return "N/A"
 
-  // Calculate hectares covered (stub)
-  function getHectaresCovered(): number {
-    return 12.5 // Stub data
-  }
+    const startTime = new Date(currentTrail.start_time)
+    const endTime = new Date(currentTrail.end_time)
+    const durationMs = endTime.getTime() - startTime.getTime()
 
-  // Calculate overlap area (stub)
-  function getOverlapArea(): number {
-    return 0.8 // Stub data
+    const hours = Math.floor(durationMs / (1000 * 60 * 60))
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
+    } else {
+      return `${minutes}m`
+    }
   }
 
   export const highlighterAPI = {
@@ -728,30 +785,18 @@
             <span class="trail-label">Trail {currentTrailIndex + 1}</span>
             <span class="trail-date"
               >{formatDate(
-                getCurrentTrail()?.created_at || new Date().toISOString(),
+                currentTrail?.start_time || new Date().toISOString(),
               )}</span
             >
           </div>
 
-          <!-- Start/Finish Timeline -->
-          <div class="timeline-section">
-            <div class="point-compact start">
-              <div class="point-marker">🚜</div>
-              <div class="point-info">
-                <span class="point-label">Start</span>
-                <span class="point-time">9:15 AM</span>
-              </div>
-            </div>
-
-            <div class="trail-line"></div>
-
-            <div class="point-compact end">
-              <div class="point-marker">🏁</div>
-              <div class="point-info">
-                <span class="point-label">Finish</span>
-                <span class="point-time">12:00 PM</span>
-              </div>
-            </div>
+          <!-- Trail Color and Width Info -->
+          <div class="trail-info">
+            <div
+              class="trail-color-indicator"
+              style="background-color: {currentTrail?.trail_color || '#gray'}"
+            ></div>
+            <span class="trail-width">{currentTrail?.trail_width || 0}m</span>
           </div>
 
           <!-- Delete Button -->
@@ -760,13 +805,50 @@
           </button>
         </div>
 
+        <!-- Start/Finish Timeline -->
+        <div class="timeline-section">
+          <div class="point-compact start">
+            <div class="point-marker">🚜</div>
+            <div class="point-info">
+              <span class="point-label">Start</span>
+              <span class="point-time"
+                >{currentTrail?.start_time
+                  ? new Date(currentTrail.start_time).toLocaleTimeString(
+                      "en-US",
+                      { hour: "2-digit", minute: "2-digit" },
+                    )
+                  : "N/A"}</span
+              >
+            </div>
+          </div>
+
+          <div class="trail-line"></div>
+
+          <div class="point-compact end">
+            <div class="point-marker">🏁</div>
+            <div class="point-info">
+              <span class="point-label">Finish</span>
+              <span class="point-time"
+                >{currentTrail?.end_time
+                  ? new Date(currentTrail.end_time).toLocaleTimeString(
+                      "en-US",
+                      { hour: "2-digit", minute: "2-digit" },
+                    )
+                  : "N/A"}</span
+              >
+            </div>
+          </div>
+        </div>
+
         <!-- Compact Stats Grid -->
         <div class="compact-stats">
           <div class="stat-compact">
-            <div class="stat-icon">🚜</div>
+            <div class="stat-icon">📏</div>
             <div class="stat-info">
-              <span class="stat-value">{getHectaresCovered()}</span>
-              <span class="stat-label">hectares</span>
+              <span class="stat-value"
+                >{formatDistance(currentTrail?.trail_distance || 0)}</span
+              >
+              <span class="stat-label">distance</span>
             </div>
           </div>
 
@@ -779,18 +861,25 @@
           </div>
 
           <div class="stat-compact">
-            <div class="stat-icon">🔄</div>
+            <div class="stat-icon">🚜</div>
             <div class="stat-info">
-              <span class="stat-value">{getOverlapArea()}</span>
-              <span class="stat-label">overlap</span>
+              <span class="stat-value"
+                >{formatHectares(currentTrail?.trail_hectares || 0)}</span
+              >
+              <span class="stat-label">hectares</span>
             </div>
           </div>
 
-          <div class="stat-compact">
-            <div class="stat-icon">📍</div>
+          <div class="stat-compact overlap-stat">
+            <div class="stat-icon">🔄</div>
             <div class="stat-info">
-              <span class="stat-value">GPS</span>
-              <span class="stat-label">tracked</span>
+              <span class="stat-value"
+                >{formatHectares(currentTrail?.trail_hectares_overlap || 0)} ha</span
+              >
+              <span class="stat-label"
+                >{formatPercentage(currentTrail?.trail_percentage_overlap || 0)}
+                overlap</span
+              >
             </div>
           </div>
         </div>
@@ -956,30 +1045,57 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
+  /* Trail Info (Color & Width) */
+  .trail-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .trail-color-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+  }
+
+  .trail-width {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
   /* Timeline Section */
   .timeline-section {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1;
-    min-width: 0;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
   }
 
   .point-compact {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     flex-shrink: 0;
   }
 
   .point-marker {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 12px;
     border: 1px solid rgba(255, 255, 255, 0.3);
     flex-shrink: 0;
   }
@@ -999,23 +1115,24 @@
   }
 
   .point-label {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 500;
     color: white;
     line-height: 1;
   }
 
   .point-time {
-    font-size: 8px;
+    font-size: 9px;
     color: rgba(255, 255, 255, 0.6);
     line-height: 1;
   }
 
   .trail-line {
-    height: 1px;
+    height: 2px;
     background: linear-gradient(to right, #22c55e, #ef4444);
     flex: 1;
-    margin: 0 4px;
+    margin: 0 8px;
+    border-radius: 1px;
   }
 
   /* Delete Button */
@@ -1052,28 +1169,43 @@
     align-items: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.05);
-    padding: 8px 10px;
-    border-radius: 6px;
-    border-left: 2px solid #60a5fa;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid #60a5fa;
+    transition: all 0.2s ease;
+  }
+
+  .stat-compact:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .stat-compact.overlap-stat {
+    border-left-color: #f59e0b;
   }
 
   .stat-icon {
-    font-size: 14px;
-    width: 20px;
+    font-size: 16px;
+    width: 24px;
     text-align: center;
+    flex-shrink: 0;
   }
 
   .stat-info {
     display: flex;
     flex-direction: column;
     gap: 1px;
+    min-width: 0;
   }
 
   .stat-value {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: #60a5fa;
     line-height: 1;
+  }
+
+  .overlap-stat .stat-value {
+    color: #f59e0b;
   }
 
   .stat-label {
@@ -1220,7 +1352,7 @@
     }
 
     .stat-compact {
-      padding: 6px 8px;
+      padding: 8px 10px;
     }
 
     .control-bar {
@@ -1267,17 +1399,17 @@
     }
 
     .point-marker {
-      width: 18px;
-      height: 18px;
-      font-size: 9px;
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
     }
 
     .point-label {
-      font-size: 8px;
+      font-size: 9px;
     }
 
     .point-time {
-      font-size: 7px;
+      font-size: 8px;
     }
   }
 </style>

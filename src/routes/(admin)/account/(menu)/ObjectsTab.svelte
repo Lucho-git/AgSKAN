@@ -76,32 +76,32 @@
     }
   }
 
-  // Color maps for pins - updated with black as default
+  // Updated bubble colors that provide good contrast for black icons in both light and dark themes
   const pinColorMap = {
-    access: "rgba(74, 135, 224, 0.15)",
-    entrance: "rgba(74, 135, 224, 0.15)",
-    equipment: "rgba(76, 177, 113, 0.15)",
-    machinery: "rgba(76, 177, 113, 0.15)",
-    sample: "rgba(254, 221, 100, 0.15)",
-    soil: "rgba(254, 221, 100, 0.15)",
-    issue: "rgba(231, 76, 60, 0.15)",
-    problem: "rgba(231, 76, 60, 0.15)",
-    storage: "rgba(155, 89, 182, 0.15)",
-    barn: "rgba(155, 89, 182, 0.15)",
-    default: "rgba(0, 0, 0, 0.08)", // Light black background
+    access: "rgba(219, 234, 254, 0.7)", // Light blue
+    entrance: "rgba(219, 234, 254, 0.7)",
+    equipment: "rgba(220, 252, 231, 0.7)", // Light green
+    machinery: "rgba(220, 252, 231, 0.7)",
+    sample: "rgba(254, 243, 199, 0.7)", // Light amber
+    soil: "rgba(254, 243, 199, 0.7)",
+    issue: "rgba(254, 226, 226, 0.7)", // Light red
+    problem: "rgba(254, 226, 226, 0.7)",
+    storage: "rgba(237, 233, 254, 0.7)", // Light purple
+    barn: "rgba(237, 233, 254, 0.7)",
+    default: "rgba(243, 244, 246, 0.7)", // Light gray
   }
 
   const iconColorMap = {
-    access: "rgba(74, 135, 224, 0.9)",
-    entrance: "rgba(74, 135, 224, 0.9)",
-    equipment: "rgba(76, 177, 113, 0.9)",
-    machinery: "rgba(76, 177, 113, 0.9)",
-    sample: "rgba(254, 221, 100, 0.9)",
-    soil: "rgba(254, 221, 100, 0.9)",
-    issue: "rgba(231, 76, 60, 0.9)",
-    problem: "rgba(231, 76, 60, 0.9)",
-    storage: "rgba(155, 89, 182, 0.9)",
-    barn: "rgba(155, 89, 182, 0.9)",
+    access: "rgba(0, 0, 0, 0.8)", // Black as on map
+    entrance: "rgba(0, 0, 0, 0.8)",
+    equipment: "rgba(0, 0, 0, 0.8)",
+    machinery: "rgba(0, 0, 0, 0.8)",
+    sample: "rgba(0, 0, 0, 0.8)",
+    soil: "rgba(0, 0, 0, 0.8)",
+    issue: "rgba(0, 0, 0, 0.8)",
+    problem: "rgba(0, 0, 0, 0.8)",
+    storage: "rgba(0, 0, 0, 0.8)",
+    barn: "rgba(0, 0, 0, 0.8)",
     default: "rgba(0, 0, 0, 0.8)", // Black as default
   }
 
@@ -301,9 +301,9 @@
     <div class="flex-1 overflow-hidden">
       <div class="py-4 text-center">
         <div
-          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/10"
+          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-300"
         >
-          <Car class="h-6 w-6 text-orange-500" />
+          <Car class="h-6 w-6 text-contrast-content/70" />
         </div>
         <h3 class="mb-1 text-base font-semibold text-contrast-content">
           Vehicles
@@ -392,7 +392,7 @@
             <div
               class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-8 text-center"
             >
-              <div class="mb-3 rounded-full bg-red-100 p-3">
+              <div class="mb-3 rounded-full bg-base-300 p-3">
                 <X class="h-5 w-5 text-red-500" />
               </div>
               <p class="mb-1 text-sm font-medium text-red-600">
@@ -535,9 +535,9 @@
       <!-- Trails Header -->
       <div class="py-4 text-center">
         <div
-          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/10"
+          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-300"
         >
-          <Route class="h-6 w-6 text-orange-500" />
+          <Route class="h-6 w-6 text-contrast-content/70" />
         </div>
         <h3 class="mb-1 text-base font-semibold text-contrast-content">
           Trails
