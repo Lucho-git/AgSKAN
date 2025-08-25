@@ -110,11 +110,35 @@ async function backfillTrailMetrics() {
     
     const startTime = Date.now()
 
-    // Just get all operations - don't try to be clever about filtering
-    console.log('Fetching all operations...')
+    // Get distinct operation IDs that have trails needing processing
+    console.log('Finding operations with pending trails...')
+    const { data: pendingTrails, error: pendingError } = await supabase
+        .from('trails')
+        .select('operation_id')
+        .not('path', 'is', null)
+        .is('trail_distance', null)
+
+    if (pendingError || !pendingTrails) {
+        console.log(`❌ Could not fetch pending trails: ${pendingError?.message || 'Unknown error'}`)
+        console.log('Exiting...')
+        return
+    }
+
+    // Get unique operation IDs
+    const uniqueOperationIds = [...new Set(pendingTrails.map(t => t.operation_id))]
+    
+    if (uniqueOperationIds.length === 0) {
+        console.log('🎉 No operations have trails needing processing!')
+        return
+    }
+
+    console.log(`Found ${uniqueOperationIds.length} operations with pending trails`)
+
+    // Now get the operation details for only these operations
     const { data: operations, error: operationsError } = await supabase
         .from('operations')
         .select('id, name')
+        .in('id', uniqueOperationIds)
         .order('created_at', { ascending: true })
 
     if (operationsError || !operations) {
@@ -123,7 +147,7 @@ async function backfillTrailMetrics() {
         return
     }
 
-    console.log(`Found ${operations.length} operations to check\n`)
+    console.log(`Processing ${operations.length} operations\n`)
 
     let totalTrailsProcessed = 0
     let totalTrailsSuccessful = 0

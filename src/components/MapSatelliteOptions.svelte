@@ -3,6 +3,7 @@
   import { onMount, onDestroy } from "svelte"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { X } from "lucide-svelte"
 
   export let map
   export let mapLoaded
@@ -22,6 +23,22 @@
     bing: 18.5,
     ndvi: { min: 8.5, max: 20 }, // NDVI needs to be zoomed in enough to see detail
   }
+
+  // Color scale values for the ndvi data
+  const NDVI_COLOR_SCALE = [
+    { value: -1, color: "#feffff", label: "Bare Soil" },
+    { value: -0.7, color: "#f6ff78", label: "Sparse Vegetation" },
+    { value: -0.4, color: "#feab00", label: "Low Vegetation" },
+    { value: -0.1, color: "#745201", label: "Mixed Soil/Vegetation" },
+    { value: 0.1, color: "#21fd00", label: "Moderate Vegetation" },
+    { value: 0.3, color: "#075000", label: "Dense Vegetation" },
+    { value: 0.5, color: "#1fa6ff", label: "Water Bodies" },
+    { value: 0.6, color: "#010078", label: "Deep Water" },
+    { value: 0.7, color: "#fe09fe", label: "Snow/Ice" },
+    { value: 0.8, color: "#620063", label: "Low Reflectance" },
+    { value: 0.9, color: "#f90100", label: "Urban Areas" },
+    { value: 1, color: "#590003", label: "Dense Urban" },
+  ]
 
   // Imagery source configurations - Reordered: Mapbox, Google, Bing, Esris, NDVI
   const IMAGERY_SOURCES = {
@@ -185,61 +202,55 @@
   async function addNDVILayer() {
     if (!map || !mapLoaded || ndviLayerAdded) return
 
-    // Check zoom level first
     if (!isValidZoomForNDVI()) {
       toast.error(
         `NDVI requires zoom level ${ZOOM_LIMITS.ndvi.min} or higher to see vegetation detail`,
       )
-      // Switch back to previous source
       selectedImagerySource = previousSource
       return
     }
 
-    // Show loading toast
     const loadingToast = toast.loading("Loading NDVI vegetation data...")
 
     try {
-      let sourceConfig
+      const accessToken = await getAccessToken()
 
-      if (NDVI_DATA_SOURCE === "copernicus") {
-        const accessToken = await getAccessToken()
+      // Create custom color map for NDVI
+      const colorMap = NDVI_COLOR_SCALE.map(
+        (item) => `${item.value}:${item.color}`,
+      ).join(",")
 
-        sourceConfig = {
-          type: "raster",
-          tiles: [
-            `https://sh.dataspace.copernicus.eu/ogc/wms/2cd4524e-fbeb-46fb-a3ab-34a3ca27d2cb?SERVICE=WMS&REQUEST=GetMap&LAYERS=NDVI&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&SRS=EPSG:3857&FORMAT=image/png&ACCESS_TOKEN=${accessToken}`,
-          ],
-          tileSize: 256,
-          attribution: "Copernicus Data Space / ESA",
-        }
+      const wmsUrl =
+        `https://sh.dataspace.copernicus.eu/ogc/wms/2cd4524e-fbeb-46fb-a3ab-34a3ca27d2cb` +
+        `?SERVICE=WMS&REQUEST=GetMap&LAYERS=NDVI&BBOX={bbox-epsg-3857}` +
+        `&WIDTH=256&HEIGHT=256&SRS=EPSG:3857&FORMAT=image/png` +
+        `&STYLES=&COLORSCALERANGE=-1,1&PALETTE=${encodeURIComponent(colorMap)}` +
+        `&ACCESS_TOKEN=${accessToken}`
 
-        map.addSource(NDVI_SOURCE_ID, sourceConfig)
-
-        map.addLayer({
-          id: NDVI_LAYER_ID,
-          type: "raster",
-          source: NDVI_SOURCE_ID,
-          paint: {
-            "raster-opacity": 0.8,
-          },
-        })
-
-        ndviLayerAdded = true
-
-        // Dismiss loading toast and show success
-        toast.dismiss(loadingToast)
-        toast.success(
-          "NDVI loaded! Gray = bare soil, Green/Blue/Red = increasing vegetation",
-        )
+      const sourceConfig = {
+        type: "raster",
+        tiles: [wmsUrl],
+        tileSize: 256,
+        attribution: "Copernicus Data Space / ESA",
       }
+
+      map.addSource(NDVI_SOURCE_ID, sourceConfig)
+      map.addLayer({
+        id: NDVI_LAYER_ID,
+        type: "raster",
+        source: NDVI_SOURCE_ID,
+        paint: {
+          "raster-opacity": 0.8,
+        },
+      })
+
+      ndviLayerAdded = true
+      toast.dismiss(loadingToast)
+      toast.success("NDVI loaded with custom color scale!")
     } catch (error) {
       console.error("Error adding NDVI layer:", error)
-
-      // Dismiss loading toast and show error
       toast.dismiss(loadingToast)
       toast.error(`Failed to load NDVI: ${error.message}`)
-
-      // Switch back to previous source
       selectedImagerySource = previousSource
     }
   }
@@ -454,6 +465,26 @@
     }
   }
 
+  function closeNDVI() {
+    console.log("Closing NDVI layer")
+
+    // Remove NDVI layer
+    removeNDVILayer()
+
+    // Switch back to Mapbox (or previous source if it wasn't NDVI)
+    if (previousSource === "ndvi") {
+      selectedImagerySource = "mapbox"
+    } else {
+      selectedImagerySource = previousSource
+    }
+
+    // Reset NDVI state
+    showNDVI = false
+
+    // Show feedback
+    toast.success("NDVI layer closed")
+  }
+
   onMount(() => {
     if (map) {
       map.on("style.load", handleMapStyleChange)
@@ -516,15 +547,45 @@
   </div>
 {/if}
 
+<!-- NDVI Minimal Panel -->
+{#if selectedImagerySource === "ndvi" && ndviLayerAdded}
+  <div class="ndvi-panel">
+    <div class="control-bar">
+      <!-- Color Scale Section (Centered on desktop, left on mobile) -->
+      <div class="color-scale-section">
+        <span class="scale-label scale-label-low">Low</span>
+        <div class="color-boxes">
+          {#each NDVI_COLOR_SCALE as colorItem}
+            <div
+              class="color-box"
+              style="background-color: {colorItem.color}"
+              title="{colorItem.label} ({colorItem.value})"
+            ></div>
+          {/each}
+        </div>
+        <span class="scale-label scale-label-high">High</span>
+      </div>
+
+      <!-- Close Button -->
+      <button
+        class="control-btn close-btn"
+        on:click={closeNDVI}
+        title="Close NDVI layer"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  </div>
+{/if}
+
 <style>
   .imagery-selector-container {
     position: absolute;
-    top: 92px; /* Moved down below the back button */
-    left: 16px; /* Same left margin as back button */
+    top: 92px;
+    left: 16px;
     z-index: 10;
   }
 
-  /* Same size as back button (btn-lg) */
   .imagery-selector-button {
     display: flex;
     align-items: center;
@@ -535,8 +596,8 @@
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.2s ease;
-    width: 64px; /* Same as btn-lg */
-    height: 64px; /* Same as btn-lg */
+    width: 64px;
+    height: 64px;
   }
 
   .imagery-selector-button:hover {
@@ -640,7 +701,6 @@
     margin-left: 6px;
   }
 
-  /* Special styling for NDVI option */
   .ndvi-item {
     background-color: #f0fff4;
     border-left: 4px solid #22c55e;
@@ -659,14 +719,112 @@
     color: #166534;
   }
 
-  @media (max-width: 640px) {
+  /* NDVI Minimal Panel */
+  .ndvi-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(16px);
+    color: white;
+    z-index: 1000;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .control-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(20px);
+    position: relative;
+  }
+
+  .color-scale-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .color-boxes {
+    display: flex;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .color-box {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+
+  .color-box:hover {
+    transform: scale(1.2);
+    z-index: 1;
+    position: relative;
+    border: 1px solid white;
+  }
+
+  .scale-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .scale-label-low {
+    color: #fca5a5;
+  }
+
+  .scale-label-high {
+    color: #86efac;
+  }
+
+  .control-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: absolute;
+    right: 20px;
+  }
+
+  .control-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    transform: scale(1.05);
+  }
+
+  .close-btn {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+  }
+
+  .close-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+  }
+
+  @media (max-width: 768px) {
     .imagery-selector-container {
       top: 92px;
       left: 16px;
     }
 
     .imagery-selector-button {
-      width: 64px; /* Slightly smaller on mobile */
+      width: 64px;
       height: 64px;
     }
 
@@ -694,6 +852,41 @@
     .zoom-limit-badge {
       font-size: 9px;
       padding: 1px 4px;
+    }
+
+    .control-bar {
+      justify-content: flex-start;
+      padding: 10px 16px;
+    }
+
+    .control-btn {
+      width: 32px;
+      height: 32px;
+      right: 16px;
+    }
+
+    .color-box {
+      width: 16px;
+      height: 16px;
+    }
+
+    .scale-label {
+      font-size: 10px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .color-scale-section {
+      gap: 6px;
+    }
+
+    .color-box {
+      width: 14px;
+      height: 14px;
+    }
+
+    .scale-label {
+      font-size: 9px;
     }
   }
 </style>
