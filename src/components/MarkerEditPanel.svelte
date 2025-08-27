@@ -1,6 +1,7 @@
 <script>
   import IconSVG from "./IconSVG.svelte"
   import { Edit3, Trash2, Check, Info } from "lucide-svelte"
+  import { markerApi } from "$lib/api/markerApi"
 
   export let map
   export let getCurrentIconClass
@@ -18,6 +19,7 @@
   let selectedMarkerIsNew = false
   let editingNotes = false
   let markerNotes = ""
+  let lastMarkerId = null // Track marker changes
 
   // Icon selection state
   let selectedIconForEdit = null
@@ -37,11 +39,14 @@
     isExpanded = true
   }
 
-  // Update notes when marker changes
-  $: if (currentMarker && currentMarker.text) {
-    markerNotes = currentMarker.text
-  } else {
-    markerNotes = ""
+  // FIXED: Only update notes when marker changes, not on every reactive cycle
+  $: {
+    const currentMarkerId = currentMarker?.id
+    if (currentMarkerId !== lastMarkerId) {
+      markerNotes = currentMarker?.notes || ""
+      editingNotes = false // Reset editing state when switching markers
+      lastMarkerId = currentMarkerId
+    }
   }
 
   // Reactive function for icon selection
@@ -273,13 +278,21 @@
     return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
   }
 
-  // Save marker notes (stubbed for now)
-  function saveMarkerNotes() {
-    console.log("Saving marker notes:", markerNotes)
-    editingNotes = false
+  // Save marker notes to database
+  async function saveMarkerNotes() {
+    if (!currentMarker) return
 
-    // Update the confirmed store to sync to server
-    if (currentMarker) {
+    try {
+      const result = await markerApi.updateMarkerNotes(
+        currentMarker.id,
+        markerNotes,
+      )
+
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+
+      // Update the confirmed store with the new notes
       confirmedMarkersStore.update((markers) => {
         const existingIndex = markers.findIndex(
           (m) => m.id === currentMarker.id,
@@ -287,11 +300,18 @@
         if (existingIndex >= 0) {
           markers[existingIndex] = {
             ...markers[existingIndex],
-            text: markerNotes,
+            notes: markerNotes.trim(),
+            updated_at: new Date().toISOString(),
           }
         }
         return markers
       })
+
+      editingNotes = false
+      console.log("Notes saved successfully")
+    } catch (error) {
+      console.error("Error saving notes:", error)
+      alert(`Failed to save notes: ${error.message}`)
     }
   }
 
@@ -453,9 +473,9 @@
             placeholder="Add notes about this marker..."
             class="notes-input"
             rows="3"
-            maxlength="200"
+            maxlength="500"
           ></textarea>
-          <div class="char-count">{markerNotes.length}/200</div>
+          <div class="char-count">{markerNotes.length}/500</div>
         {:else}
           <div class="notes-display">
             {markerNotes || "No notes added yet. Click edit to add notes."}
@@ -529,9 +549,14 @@
           <div class="default-marker-icon">●</div>
         {/if}
       </div>
-      <span class="marker-name"
-        >{getMarkerName(getCurrentIconClass($selectedMarkerStore.id))}</span
-      >
+      <div class="marker-text-info">
+        <span class="marker-name"
+          >{getMarkerName(getCurrentIconClass($selectedMarkerStore.id))}
+          {#if currentMarker?.notes && !selectedMarkerIsNew}
+            <span class="marker-notes-preview"> - {currentMarker.notes}</span>
+          {/if}
+        </span>
+      </div>
     </div>
 
     <!-- Action Controls -->
@@ -833,6 +858,7 @@
     align-items: center;
     gap: 12px;
     flex: 1;
+    min-width: 0; /* Allow shrinking */
   }
 
   .marker-icon-display {
@@ -853,6 +879,13 @@
     color: #3b82f6;
   }
 
+  /* Text info wrapper */
+  .marker-text-info {
+    display: flex;
+    flex: 1;
+    min-width: 0; /* Allow shrinking */
+  }
+
   .marker-name {
     font-size: 16px;
     font-weight: 600;
@@ -860,6 +893,22 @@
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
+    line-height: 1.2;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Notes preview styling - inline with marker name */
+  .marker-notes-preview {
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
   }
 
   .action-controls {
@@ -973,8 +1022,16 @@
       height: 32px;
     }
 
+    .marker-info {
+      gap: 8px;
+    }
+
     .marker-name {
       font-size: 14px;
+    }
+
+    .marker-notes-preview {
+      font-size: 10px; /* Smaller on tablet */
     }
 
     .icon-grid {
@@ -988,6 +1045,18 @@
     }
   }
 
+  @media (max-width: 640px) {
+    .marker-notes-preview {
+      font-size: 9px; /* Even smaller on mobile */
+    }
+  }
+
+  @media (max-width: 520px) {
+    .marker-notes-preview {
+      font-size: 8px; /* Very small on small mobile */
+    }
+  }
+
   @media (max-width: 480px) {
     .info-section,
     .icon-section {
@@ -995,7 +1064,7 @@
     }
 
     .marker-info {
-      gap: 8px;
+      gap: 6px;
     }
 
     .action-controls {
@@ -1016,6 +1085,10 @@
       font-size: 13px;
     }
 
+    .marker-notes-preview {
+      font-size: 7px; /* Tiny but still readable */
+    }
+
     .icon-grid {
       grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
       gap: 8px;
@@ -1024,6 +1097,17 @@
     .icon-option {
       width: 60px;
       height: 60px;
+    }
+  }
+
+  /* Very small screens */
+  @media (max-width: 360px) {
+    .marker-name {
+      font-size: 12px;
+    }
+
+    .marker-notes-preview {
+      font-size: 6px; /* Minimum readable size */
     }
   }
 </style>
