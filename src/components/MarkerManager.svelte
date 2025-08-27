@@ -1,4 +1,3 @@
-<!-- src/components/MarkerManager.svelte -->
 <script>
   import {
     selectedMarkerStore,
@@ -11,14 +10,31 @@
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
-  import IconSVG from "./IconSVG.svelte"
+  import MarkerEditPanel from "./MarkerEditPanel.svelte"
 
   export let map
   export let mapLoaded = false
   export let coordinatedEvents = false
 
-  // ✅ Get the layer management context
+  // Get the layer management context
   const mapContext = getContext("map")
+
+  // Get global selection context for unified event system
+  let globalSelectionContext = null
+  let globalSelectionState = null
+
+  // Try to get global selection context
+  function checkGlobalSelectionContext() {
+    try {
+      globalSelectionContext = getContext("globalSelection")
+      if (globalSelectionContext) {
+        globalSelectionState = globalSelectionContext.getState()
+        console.log("🎯 MarkerManager: Connected to global selection context")
+      }
+    } catch (error) {
+      // Context not available yet, that's ok
+    }
+  }
 
   let locationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
@@ -26,106 +42,70 @@
   let iconsLoaded = false
   let iconPaths = null
 
-  const markerIcons = [
-    { id: "rock", class: "custom-svg" },
-    { id: "tree13", class: "custom-svg" },
-    { id: "watertank2", class: "custom-svg" },
-    { id: "wheat2", class: "custom-svg" },
-    { id: "kangaroo", class: "custom-svg" },
-    { id: "electric_tower", class: "custom-svg" },
-    { id: "gate", class: "custom-svg" },
-    { id: "machine_pump", class: "custom-svg" },
-    { id: "recharge_icon", class: "custom-svg" },
-    { id: "repair_shop", class: "custom-svg" },
-    { id: "tractor", class: "custom-svg" },
-    { id: "silo2", class: "custom-svg" },
-    { id: "tree_stump", class: "custom-svg" },
-    { id: "workshop_icon", class: "custom-svg" },
-    { id: "pin", class: "ionic-pin" },
-    { id: "arrow-up-circle", class: "ionic-arrow-up-circle" },
-    { id: "arrow-down-circle", class: "ionic-arrow-down-circle" },
-    { id: "arrow-back-circle", class: "ionic-arrow-back-circle" },
-    { id: "arrow-forward-circle", class: "ionic-arrow-forward-circle" },
-    { id: "thumbs-down", class: "ionic-thumbs-down" },
-    { id: "thumbs-up", class: "ionic-thumbs-up" },
-    { id: "accessibility", class: "ionic-accessibility" },
-    { id: "people", class: "ionic-people" },
-    { id: "settings", class: "ionic-settings" },
-    { id: "home", class: "ionic-home" },
-    { id: "checkmark-circle", class: "ionic-checkmark-circle" },
-    { id: "close-circle", class: "ionic-close-circle" },
-    { id: "information-circle", class: "ionic-information-circle" },
-    { id: "warning", class: "ionic-warning" },
-    { id: "help-circle", class: "ionic-help-circle" },
-    { id: "ban", class: "ionic-ban" },
-    { id: "location", class: "ionic-location" },
-    { id: "lock-closed", class: "ionic-lock-closed" },
-    { id: "lock-open", class: "ionic-lock-open" },
-    { id: "trash", class: "ionic-trash" },
-    { id: "cart", class: "ionic-cart" },
-    { id: "locate", class: "ionic-locate" },
-    { id: "leaf", class: "ionic-leaf" },
-    { id: "call", class: "ionic-call" },
-    { id: "wifi", class: "ionic-wifi" },
-    { id: "radio", class: "ionic-radio" },
-    { id: "cloud-offline", class: "ionic-cloud-offline" },
-    { id: "battery-charging", class: "ionic-battery-charging" },
-    { id: "thermometer", class: "ionic-thermometer" },
-    { id: "sunny", class: "ionic-sunny" },
-    { id: "cloud", class: "ionic-cloud" },
-    { id: "thunderstorm", class: "ionic-thunderstorm" },
-    { id: "rainy", class: "ionic-rainy" },
-    { id: "water", class: "ionic-water" },
-    { id: "fast-food", class: "ionic-fast-food" },
-    { id: "restaurant", class: "ionic-restaurant" },
-    { id: "airplane", class: "ionic-airplane" },
-    { id: "trail-sign", class: "ionic-trail-sign" },
-    { id: "car", class: "ionic-car" },
-    { id: "beer", class: "ionic-beer" },
-    { id: "bonfire", class: "ionic-bonfire" },
-    { id: "boat", class: "ionic-boat" },
-    { id: "bed", class: "ionic-bed" },
-    { id: "bicycle", class: "ionic-bicycle" },
-    { id: "build", class: "ionic-build" },
-    { id: "desktop", class: "ionic-desktop" },
-    { id: "earth", class: "ionic-earth" },
-    { id: "camera", class: "ionic-camera" },
-    { id: "fish", class: "ionic-fish" },
-    { id: "flame", class: "ionic-flame" },
-    { id: "footsteps", class: "ionic-footsteps" },
-    { id: "key", class: "ionic-key" },
-    { id: "man", class: "ionic-man" },
-    { id: "paw", class: "ionic-paw" },
-    { id: "skull", class: "ionic-skull" },
-    { id: "construct", class: "ionic-construct" },
-    { id: "bus", class: "ionic-bus" },
-    { id: "subway", class: "ionic-subway" },
-    { id: "telescope", class: "ionic-telescope" },
-    { id: "construction-truck", class: "at-construction-truck" },
-    { id: "electric-car", class: "at-electric-car" },
-    { id: "gasoline", class: "at-gasoline" },
-    { id: "kg-weight", class: "at-kg-weight" },
-    { id: "carrot", class: "at-carrot" },
-    { id: "middle-finger", class: "at-middle-finger" },
-    { id: "toilet-bathroom", class: "at-toilet-bathroom" },
-    { id: "car-garage", class: "at-car-garage" },
-    { id: "electricity-home", class: "at-electricity-home" },
-    { id: "carrot-turnip-vegetable", class: "at-carrot-turnip-vegetable" },
-    { id: "wheat-harvest", class: "at-wheat-harvest" },
-    { id: "helicopter-travel", class: "at-helicopter-travel" },
-    { id: "camper-vehicle", class: "at-camper-vehicle" },
-    { id: "cargo-transport", class: "at-cargo-transport" },
-    { id: "bulldozer", class: "at-bulldozer" },
-    { id: "construction-transport", class: "at-construction-transport" },
-    { id: "crane-truck", class: "at-crane-truck" },
-    { id: "delivery-truck", class: "at-delivery-truck" },
-    { id: "liquid-transportation", class: "at-liquid-transportation" },
-    { id: "transport-truck", class: "at-transport-truck" },
-    { id: "ladder-truck", class: "at-ladder-truck" },
-  ]
+  // Periodically check for global selection context and sync
+  let contextCheckInterval = null
+
+  function syncWithGlobalSelection() {
+    checkGlobalSelectionContext()
+
+    if (globalSelectionContext) {
+      const currentState = globalSelectionContext.getState()
+
+      if (currentState.selectedType === "marker") {
+        // Marker is selected via unified system
+        if (
+          !$selectedMarkerStore ||
+          $selectedMarkerStore.id !== currentState.selectedId
+        ) {
+          // Find the marker data
+          const marker = $confirmedMarkersStore.find(
+            (m) => m.id === currentState.selectedId,
+          )
+          if (marker) {
+            selectedMarkerStore.set({
+              id: marker.id,
+              coordinates: marker.coordinates,
+            })
+            updateMarkerSelection(marker.id, true)
+            console.log(
+              "🎯 MarkerManager: Synced with global selection:",
+              marker.id,
+            )
+          }
+        }
+      } else if (
+        currentState.selectedType !== "marker" &&
+        $selectedMarkerStore
+      ) {
+        // Something else is selected, clear marker selection
+        if ($selectedMarkerStore) {
+          updateMarkerSelection($selectedMarkerStore.id, false)
+        }
+        selectedMarkerStore.set(null)
+        controlStore.update((controls) => ({
+          ...controls,
+          showMarkerMenu: false,
+        }))
+        console.log(
+          "🎯 MarkerManager: Cleared selection due to other selection",
+        )
+      }
+    }
+  }
 
   $: if (mapLoaded && map && !markersInitialized) {
     initializeMarkerLayers()
+  }
+
+  // Fixed: Center camera without zooming
+  function centerCameraOnMarker(coordinates) {
+    if (!map || !coordinates || coordinates.length !== 2) return
+
+    map.flyTo({
+      center: coordinates,
+      duration: 1000,
+      // Don't include zoom - keep current zoom level
+    })
   }
 
   // Load high-DPI PNG icons
@@ -197,13 +177,13 @@
       map.addImage("default", { width: 35, height: 35, data: imageData.data })
     }
 
-    const iconTypes = [
-      { filter: (icon) => icon.class.startsWith("ionic-"), symbol: "I" },
-      { filter: (icon) => icon.class.startsWith("at-"), symbol: "◆" },
+    const markerIcons = [
+      { filter: (icon) => icon.class?.startsWith("ionic-"), symbol: "I" },
+      { filter: (icon) => icon.class?.startsWith("at-"), symbol: "◆" },
     ]
 
-    for (const iconType of iconTypes) {
-      const icons = markerIcons.filter(iconType.filter)
+    for (const iconType of markerIcons) {
+      const icons = []
       for (const icon of icons) {
         await generateFallbackIcon(icon.class, iconType.symbol)
       }
@@ -263,7 +243,7 @@
       })
     }
 
-    // ✅ Use ordered layer addition
+    // Main marker layer
     if (!map.getLayer("markers-layer")) {
       const layerConfig = {
         id: "markers-layer",
@@ -292,6 +272,31 @@
       }
     }
 
+    // Blue selection circle
+    if (!map.getLayer("markers-selection-circle")) {
+      const selectionLayerConfig = {
+        id: "markers-selection-circle",
+        type: "circle",
+        source: "markers",
+        filter: ["==", "selected", true],
+        paint: {
+          "circle-radius": 18,
+          "circle-color": "transparent",
+          "circle-stroke-color": "#60a5fa",
+          "circle-stroke-width": 3,
+          "circle-stroke-opacity": 0.8,
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(selectionLayerConfig)
+        console.log("✅ Added markers selection circle layer")
+      } else {
+        map.addLayer(selectionLayerConfig)
+        console.log("⚠️ Added markers selection circle layer without ordering")
+      }
+    }
+
     markersInitialized = true
     console.log("✅ Marker layers initialization complete")
 
@@ -311,7 +316,7 @@
         id: marker.id,
         icon: getIconImageName(marker.iconClass),
         iconClass: marker.iconClass || "default",
-        selected: false,
+        selected: $selectedMarkerStore?.id === marker.id,
       },
     }))
 
@@ -403,6 +408,7 @@
     addMarkerToLayer(feature)
     selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
 
+    // Only zoom if setting is enabled
     if ($userSettingsStore?.zoomToPlacedMarkers) {
       map.flyTo({
         center: [lngLat.lng, lngLat.lat],
@@ -416,43 +422,37 @@
     }))
   }
 
-  // Public method called by MapViewer's layer interaction system for marker selection (click/touch)
+  // Remove camera zoom on selection
   export function handleMarkerSelection(event) {
     if (!map) return
 
-    console.log("Marker selection called with event:", event)
+    console.log("🎯 MarkerManager: Marker selection called with event:", event)
 
-    // Extract marker ID from the event
-    let markerId, coordinates
-
-    if (event.features && event.features.length > 0) {
-      // Called from layer click handler
-      const feature = event.features[0]
-      markerId = feature.properties.id
-      coordinates = feature.geometry.coordinates
-    } else if (event.id && event.lngLat) {
-      // Called from legacy format
-      markerId = event.id
-      coordinates = Array.isArray(event.lngLat)
-        ? event.lngLat
-        : [event.lngLat.lng, event.lngLat.lat]
-    } else {
-      console.warn("Invalid marker selection event format:", event)
+    // Handle deselection (empty features array)
+    if (!event.features || event.features.length === 0) {
+      console.log("🎯 MarkerManager: Deselecting marker")
+      if ($selectedMarkerStore) {
+        updateMarkerSelection($selectedMarkerStore.id, false)
+        selectedMarkerStore.set(null)
+      }
+      controlStore.update((controls) => ({
+        ...controls,
+        showMarkerMenu: false,
+      }))
       return
     }
 
-    console.log("Selecting marker:", markerId)
+    // Extract marker ID from the event
+    const feature = event.features[0]
+    const markerId = feature.properties.id
+    const coordinates = feature.geometry.coordinates
+
+    console.log("🎯 MarkerManager: Selecting marker:", markerId)
 
     updateMarkerSelection(markerId, true)
     selectedMarkerStore.set({
       id: markerId,
       coordinates: coordinates,
-    })
-
-    map.flyTo({
-      center: coordinates,
-      zoom: 15,
-      duration: 1000,
     })
 
     controlStore.update((controls) => ({
@@ -461,6 +461,7 @@
     }))
   }
 
+  // Confirm marker - exactly like original
   function confirmMarker() {
     if ($selectedMarkerStore) {
       const { id, coordinates } = $selectedMarkerStore
@@ -475,7 +476,7 @@
 
       console.log("Confirming marker:", markerData)
 
-      // Simple direct update to store
+      // Simple direct update to store - exactly like original
       confirmedMarkersStore.update((markers) => {
         const existingIndex = markers.findIndex((m) => m.id === id)
         if (existingIndex >= 0) {
@@ -495,6 +496,7 @@
     }))
   }
 
+  // Remove marker
   function removeMarker() {
     if ($selectedMarkerStore) {
       const { id } = $selectedMarkerStore
@@ -512,25 +514,6 @@
       ...controls,
       showMarkerMenu: false,
     }))
-  }
-
-  async function handleIconSelection(icon) {
-    if (!map || !$selectedMarkerStore) return
-
-    const { id } = $selectedMarkerStore
-    const source = map.getSource("markers")
-    const data = source._data
-    const feature = data.features.find((f) => f.properties.id === id)
-
-    if (feature) {
-      const newIconClass = icon.class.startsWith("custom-svg")
-        ? `custom-svg-${icon.id}`
-        : icon.class
-
-      feature.properties.icon = getIconImageName(newIconClass)
-      feature.properties.iconClass = newIconClass
-      source.setData(data)
-    }
   }
 
   async function placeMarkerAtCurrentLocation() {
@@ -559,11 +542,25 @@
     }
   }
 
+  // Cleanup function
+  function cleanup() {
+    // Clear context check interval
+    if (contextCheckInterval) {
+      clearInterval(contextCheckInterval)
+      contextCheckInterval = null
+    }
+
+    console.log("🎯 MarkerManager cleanup completed")
+  }
+
   onMount(() => {
     console.log(
       "MarkerManager mounted with coordinatedEvents:",
       coordinatedEvents,
     )
+
+    // Set up periodic sync with global selection context
+    contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
       if (timestamp) placeMarkerAtCurrentLocation()
@@ -581,95 +578,28 @@
     if (map && map.getStyle && typeof map.getLayer === "function") {
       try {
         if (map.getLayer("markers-layer")) map.removeLayer("markers-layer")
+        if (map.getLayer("markers-selection-circle"))
+          map.removeLayer("markers-selection-circle")
         if (map.getSource("markers")) map.removeSource("markers")
       } catch (error) {
         console.warn("Error cleaning up map layers:", error)
       }
     }
+
+    cleanup()
   })
 </script>
 
-<!-- Marker Menu -->
-{#if $controlStore.showMarkerMenu}
-  <div class="fixed bottom-0 left-0 right-0 z-10 mb-8 flex justify-center">
-    <div
-      class="w-11/12 overflow-hidden rounded-lg border-2 border-gray-300 bg-white bg-opacity-90 text-black shadow-lg sm:w-1/2"
-    >
-      <div class="grid grid-cols-2 bg-gray-200">
-        <button
-          class="flex items-center justify-center border-r border-gray-300 p-4 transition duration-200 hover:bg-green-300"
-          on:click={confirmMarker}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-10 w-10 text-green-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </button>
-        <button
-          class="flex items-center justify-center p-4 transition duration-200 hover:bg-red-300"
-          on:click={removeMarker}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-10 w-10"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M20 12H4"
-            />
-          </svg>
-        </button>
-      </div>
-      <div class="max-h-64 overflow-auto p-2">
-        <div class="grid-auto-flow grid-auto-columns grid gap-2">
-          {#each markerIcons as icon}
-            <button
-              class="marker-icon focus:outline-none"
-              on:click={() => handleIconSelection(icon)}
-            >
-              <div
-                class="flex transform items-center justify-center rounded-lg bg-gray-200 p-3 transition duration-200 hover:scale-125 hover:bg-gray-300"
-                style="width: 50px; height: 45px;"
-              >
-                {#if icon.class.startsWith("custom-svg")}
-                  <IconSVG icon={icon.id} size="42px" />
-                {:else if icon.class.startsWith("ionic-")}
-                  <ion-icon name={icon.id} style="font-size: 32px;"></ion-icon>
-                {:else}
-                  <i class={`${icon.class} text-3xl text-gray-700`}></i>
-                {/if}
-              </div>
-            </button>
-          {/each}
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Marker Edit Panel Component -->
+{#if $controlStore.showMarkerMenu && $selectedMarkerStore}
+  <MarkerEditPanel
+    {map}
+    {getCurrentIconClass}
+    {confirmMarker}
+    {removeMarker}
+    {centerCameraOnMarker}
+    {confirmedMarkersStore}
+    {selectedMarkerStore}
+    {getIconImageName}
+  />
 {/if}
-
-<style>
-  .marker-icon {
-    margin: 0 5px;
-    cursor: pointer;
-  }
-
-  .grid-auto-flow {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-  }
-</style>

@@ -14,6 +14,23 @@
   // ✅ Get the layer management context
   const mapContext = getContext("map")
 
+  // 🆕 NEW: Get global selection context (will be available after MapEventManager mounts)
+  let globalSelectionContext = null
+  let globalSelectionState = null
+
+  // Try to get global selection context
+  function checkGlobalSelectionContext() {
+    try {
+      globalSelectionContext = getContext("globalSelection")
+      if (globalSelectionContext) {
+        globalSelectionState = globalSelectionContext.getState()
+        console.log("🎯 MapFields: Connected to global selection context")
+      }
+    } catch (error) {
+      // Context not available yet, that's ok
+    }
+  }
+
   interface Field {
     field_id?: string
     area: number
@@ -31,6 +48,39 @@
   let selectedFieldId: number | null = null
   let showInfoPanel = false
   let isDestroyed = false
+
+  // 🆕 NEW: Periodically check for global selection context and sync
+  let contextCheckInterval = null
+
+  function syncWithGlobalSelection() {
+    checkGlobalSelectionContext()
+
+    if (globalSelectionContext) {
+      const currentState = globalSelectionContext.getState()
+
+      if (currentState.selectedType === "field") {
+        // Field is selected via unified system
+        if (selectedFieldId !== currentState.selectedId) {
+          selectedFieldId = currentState.selectedId
+          showInfoPanel = false // 🆕 CORRECTED: Don't auto-open panel, just show hover state
+          updateFieldSelection()
+          console.log(
+            "🎯 MapFields: Synced with global selection:",
+            selectedFieldId,
+          )
+        }
+      } else if (
+        currentState.selectedType !== "field" &&
+        selectedFieldId !== null
+      ) {
+        // Something else is selected, clear field selection
+        selectedFieldId = null
+        showInfoPanel = false
+        updateFieldSelection()
+        console.log("🎯 MapFields: Cleared selection due to other selection")
+      }
+    }
+  }
 
   // Lightweight map check - only check what we absolutely need
   function canUseMap(): boolean {
@@ -264,29 +314,39 @@
     }
   }
 
-  // ✅ Removed readdLabels function - no longer needed with proper ordering!
-
-  // Public method called by MapViewer's layer interaction system
+  // 🆕 CORRECTED: Public method called by unified event system
   export function handleFieldSelection(fieldId) {
-    console.log("Field selection called with ID:", fieldId)
+    console.log(
+      "🎯 MapFields: Field selection called with ID:",
+      fieldId,
+      "current selectedFieldId:",
+      selectedFieldId,
+    )
 
     if (fieldId === null) {
-      // 🆕 NEW: Explicit deselection
+      // Explicit deselection - clear everything
       selectedFieldId = null
       showInfoPanel = false
-      console.log("Field explicitly deselected")
+      console.log("🎯 MapFields: Field explicitly deselected")
     } else if (selectedFieldId === fieldId) {
-      // Clicking same field deselects it
+      // Same field clicked - deselect it
+      console.log("🎯 MapFields: Same field clicked, deselecting")
       selectedFieldId = null
       showInfoPanel = false
-      console.log("Field deselected")
+      console.log("🎯 MapFields: Field deselected (same field clicked)")
     } else {
-      // Select new field
+      // New field selected - show ONLY the hover state, NOT the full panel
+      console.log("🎯 MapFields: New field selected:", fieldId)
       selectedFieldId = fieldId
       showInfoPanel = false
-      console.log("Selected field ID:", selectedFieldId)
+      console.log(
+        "🎯 MapFields: Selected field ID:",
+        selectedFieldId,
+        "showing hover state only",
+      )
     }
 
+    // Update visual selection
     updateFieldSelection()
   }
 
@@ -299,11 +359,16 @@
         map.setFilter("fields-outline-selected", ["==", "id", selectedFieldId])
         map.setFilter("fields-fill", ["!=", "id", selectedFieldId])
         map.setFilter("fields-outline", ["!=", "id", selectedFieldId])
+        console.log(
+          "🎯 MapFields: Updated visual selection for field:",
+          selectedFieldId,
+        )
       } else {
         map.setFilter("fields-fill-selected", ["==", "id", -1])
         map.setFilter("fields-outline-selected", ["==", "id", -1])
         map.setFilter("fields-fill", null)
         map.setFilter("fields-outline", null)
+        console.log("🎯 MapFields: Cleared visual selection")
       }
     } catch (error) {
       if (!isDestroyed) {
@@ -395,7 +460,6 @@
 
         addLabelLayers()
 
-        // ✅ No more timing hacks needed!
         const bounds = calculateBoundingBox(fields)
         if (bounds) {
           fieldBoundaryStore.set(bounds.toArray())
@@ -423,6 +487,13 @@
 
   function cleanup() {
     isDestroyed = true
+
+    // Clear context check interval
+    if (contextCheckInterval) {
+      clearInterval(contextCheckInterval)
+      contextCheckInterval = null
+    }
+
     console.log("MapFields cleanup completed")
   }
 
@@ -433,9 +504,12 @@
     }
 
     console.log(
-      "MapFields component mounted with coordinatedEvents:",
+      "🎯 MapFields component mounted with coordinatedEvents:",
       coordinatedEvents,
     )
+
+    // Set up periodic sync with global selection context
+    contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     if (map.loaded()) {
       loadFields()
@@ -460,6 +534,7 @@
     selectedFieldId !== null ? $mapFieldsStore[selectedFieldId] : null
 </script>
 
+<!-- 🆕 CORRECTED: Show hover state when field is selected, but panel only when explicitly requested -->
 {#if selectedFieldId !== null && selectedField}
   <InfoPanel
     {selectedField}

@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy, setContext } from "svelte"
+  import { onMount, onDestroy, setContext, getContext } from "svelte"
   import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
@@ -36,6 +36,8 @@
   let dbInstance
   let markerManagerRef = null
   let mapFieldsRef = null
+  let vehicleTrackerRef = null
+  let mapEventManagerRef = null
 
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
 
@@ -382,10 +384,12 @@
     </div>
   {:else if mapInitialized}
     <MapEventManager
+      bind:this={mapEventManagerRef}
       {map}
       {mapLoaded}
       {markerManagerRef}
       {mapFieldsRef}
+      {vehicleTrackerRef}
       onLongPress={handleLongPress}
     />
     <MapSatelliteOptions {map} {mapLoaded} />
@@ -402,7 +406,11 @@
     />
     <MapStateSaver {map} />
     <VehicleStateSynchronizer />
-    <VehicleTracker {map} disableAutoZoom={initialLocation} />
+    <VehicleTracker
+      bind:this={vehicleTrackerRef}
+      {map}
+      disableAutoZoom={initialLocation}
+    />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <DrawingHectares {map} />
     {#if selectedOperation}

@@ -1,6 +1,5 @@
-<!-- VehicleTracker.svelte -->
 <script>
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, getContext } from "svelte"
   import * as mapboxgl from "mapbox-gl"
   import {
     userVehicleStore,
@@ -19,6 +18,23 @@
 
   export let map
   export let disableAutoZoom = false
+
+  // 🆕 NEW: Get global selection context
+  let globalSelectionContext = null
+  let globalSelectionState = null
+
+  // Try to get global selection context
+  function checkGlobalSelectionContext() {
+    try {
+      globalSelectionContext = getContext("globalSelection")
+      if (globalSelectionContext) {
+        globalSelectionState = globalSelectionContext.getState()
+        console.log("🚗 VehicleTracker: Connected to global selection context")
+      }
+    } catch (error) {
+      // Context not available yet, that's ok
+    }
+  }
 
   let geolocateControl
   let userMarker
@@ -39,6 +55,42 @@
   let isFirstPersonMode = false
   let lastTrackedHeading = null
 
+  // 🆕 NEW: Vehicle selection state
+  let selectedVehicleId = null
+
+  // 🆕 NEW: Periodically check for global selection context and sync
+  let contextCheckInterval = null
+
+  function syncWithGlobalSelection() {
+    checkGlobalSelectionContext()
+
+    if (globalSelectionContext) {
+      const currentState = globalSelectionContext.getState()
+
+      if (currentState.selectedType === "vehicle") {
+        // Vehicle is selected via unified system
+        if (selectedVehicleId !== currentState.selectedId) {
+          selectedVehicleId = currentState.selectedId
+          updateAllVehicleSelectionStates()
+          console.log(
+            "🚗 VehicleTracker: Synced with global selection:",
+            selectedVehicleId,
+          )
+        }
+      } else if (
+        currentState.selectedType !== "vehicle" &&
+        selectedVehicleId !== null
+      ) {
+        // Something else is selected, clear vehicle selection
+        selectedVehicleId = null
+        updateAllVehicleSelectionStates()
+        console.log(
+          "🚗 VehicleTracker: Cleared selection due to other selection",
+        )
+      }
+    }
+  }
+
   const LOCATION_TRACKING_INTERVAL_MIN = 30
 
   let userVehicleUnsubscribe
@@ -46,6 +98,74 @@
   let lastClientCoordinates = null
   let lastClientHeading = null
   let previousVehicleMarker = null
+
+  // 🆕 UPDATED: Public method for vehicle selection (called by MapEventManager)
+  export function handleVehicleSelection(vehicleId) {
+    console.log(
+      "🚗 VehicleTracker: Vehicle selection called with ID:",
+      vehicleId,
+      "current selectedVehicleId:",
+      selectedVehicleId,
+    )
+
+    if (vehicleId === null) {
+      // Explicit deselection
+      selectedVehicleId = null
+      console.log("🚗 VehicleTracker: Vehicle explicitly deselected")
+    } else if (selectedVehicleId === vehicleId) {
+      // Clicking same vehicle deselects it (this should be handled by MapEventManager reselection logic)
+      selectedVehicleId = null
+      console.log("🚗 VehicleTracker: Vehicle deselected (same vehicle)")
+    } else {
+      // Select new vehicle
+      selectedVehicleId = vehicleId
+      console.log("🚗 VehicleTracker: Selected vehicle ID:", selectedVehicleId)
+    }
+
+    // Update all vehicle markers to reflect selection state
+    updateAllVehicleSelectionStates()
+  }
+
+  // 🆕 UPDATED: Update all vehicle markers selection states
+  function updateAllVehicleSelectionStates() {
+    console.log(
+      "🚗 VehicleTracker: Updating all vehicle selection states, selectedVehicleId:",
+      selectedVehicleId,
+    )
+
+    // Update user marker if it exists
+    if (userMarker) {
+      const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
+      updateMarkerSelection(userMarker, isSelected)
+      console.log("🚗 Updated user marker selection:", isSelected)
+    }
+
+    // Update other vehicle markers
+    otherVehicleMarkers.forEach((marker) => {
+      const vehicleId = marker.getElement().getAttribute("data-vehicle-id")
+      const isSelected = selectedVehicleId === vehicleId
+      updateMarkerSelection(marker, isSelected)
+      console.log(`🚗 Updated vehicle ${vehicleId} selection:`, isSelected)
+    })
+  }
+
+  // 🆕 UPDATED: Update individual marker selection state
+  function updateMarkerSelection(marker, isSelected) {
+    const element = marker.getElement()
+    const markerContainer = element.querySelector(".vehicle-marker-container")
+
+    if (markerContainer) {
+      if (isSelected) {
+        markerContainer.classList.add("selected")
+        console.log("🚗 Added selected class to marker")
+      } else {
+        markerContainer.classList.remove("selected")
+        console.log("🚗 Removed selected class from marker")
+      }
+    } else {
+      console.warn("🚗 Marker container not found for selection update")
+    }
+  }
 
   // Helper function to parse coordinates
   function parseCoordinates(coords) {
@@ -437,8 +557,22 @@
     }
   }
 
+  // 🆕 NEW: Cleanup function
+  function cleanup() {
+    // Clear context check interval
+    if (contextCheckInterval) {
+      clearInterval(contextCheckInterval)
+      contextCheckInterval = null
+    }
+
+    console.log("🚗 VehicleTracker cleanup completed")
+  }
+
   onMount(() => {
     detectPlatform()
+
+    // 🆕 NEW: Set up periodic sync with global selection context
+    contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     if (isMobileApp) {
       setupBackgroundService()
@@ -506,6 +640,9 @@
     if (isMobileApp) {
       backgroundService.cleanup()
     }
+
+    // 🆕 NEW: Call cleanup function
+    cleanup()
   })
 
   // Process real-time vehicle changes
@@ -564,6 +701,10 @@
             .setRotation(heading)
             .addTo(map)
           otherVehicleMarkers[existingMarkerIndex] = newMarker
+
+          // 🆕 UPDATED: Update selection state for new marker
+          const isSelected = selectedVehicleId === vehicle_id
+          updateMarkerSelection(newMarker, isSelected)
         }
 
         if (
@@ -581,6 +722,10 @@
 
         marker.setLngLat([longitude, latitude]).setRotation(heading).addTo(map)
         otherVehicleMarkers.push(marker)
+
+        // 🆕 UPDATED: Update selection state for new marker
+        const isSelected = selectedVehicleId === vehicle_id
+        updateMarkerSelection(marker, isSelected)
       }
 
       otherVehiclesStore.update((vehicles) => {
@@ -673,7 +818,11 @@
     }
 
     userMarker = new mapboxgl.Marker({
-      element: createMarkerElement(vehicleMarker, true),
+      element: createMarkerElement(
+        vehicleMarker,
+        true,
+        $userVehicleStore.vehicle_id,
+      ),
       pitchAlignment: "map",
       rotationAlignment: "map",
     })
@@ -682,9 +831,14 @@
       const { latitude, longitude } = $userVehicleStore.coordinates
       userMarker.setLngLat([longitude, latitude]).addTo(map)
       previousVehicleMarker = { ...vehicleMarker }
+
+      // 🆕 UPDATED: Update selection state for user marker
+      const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
+      updateMarkerSelection(userMarker, isSelected)
     }
   }
 
+  // 🆕 UPDATED: Create marker element WITHOUT click handler (handled by MapEventManager)
   function createMarkerElement(
     vehicleMarker,
     isUserVehicle = false,
@@ -692,6 +846,9 @@
   ) {
     const el = document.createElement("div")
     el.setAttribute("data-vehicle-id", vehicleId)
+
+    // 🆕 REMOVED: Click handler - now handled by MapEventManager
+    // The MapEventManager will detect touches/clicks on elements with data-vehicle-id
 
     new UserMarker({
       target: el,
@@ -703,6 +860,7 @@
         vehicleColor: vehicleMarker.bodyColor,
         vehicleSwath: vehicleMarker.swath,
         showPulse: isUserVehicle,
+        isSelected: selectedVehicleId === vehicleId, // 🆕 UPDATED: Pass selection state
       },
     })
 
@@ -826,6 +984,9 @@
       }
     }
   }
+
+  // 🆕 NEW: Export selected vehicle ID for external access
+  export { selectedVehicleId }
 </script>
 
 <!-- Vehicle Controls Component -->
