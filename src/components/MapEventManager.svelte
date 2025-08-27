@@ -27,6 +27,11 @@
   // Layer-specific touch tracking
   let layerTouchTracking = new Map()
 
+  // 🆕 NEW: Map-level touch tracking for drag prevention
+  let mapLevelTouchStart = null
+  let mapLevelHasMoved = false
+  const mapLevelMoveThreshold = 10
+
   // Initialize when map and refs are ready
   $: if (mapLoaded && map && (markerManagerRef || mapFieldsRef)) {
     initializeEventHandling()
@@ -148,15 +153,19 @@
         event,
         selectedLayer,
       )
+    } else {
+      // 🆕 NEW: Handle empty space clicks
+      console.log("🌍 Click on empty space - handling deselection")
+      handleEmptySpaceClick(event)
     }
   }
 
-  // Coordinated touch end handler - FIXED
+  // Coordinated touch end handler
   function handleCoordinatedLayerTouchEnd(event) {
-    // FIXED: Check if this touch end follows a recent long press
+    // Check if this touch end follows a recent long press
     if (longPressJustCompleted) {
       console.log("🚫 Touch end ignored - follows recent long press")
-      resetAllLayerTouchTracking() // Clean up tracking
+      resetAllLayerTouchTracking()
       return
     }
 
@@ -189,9 +198,26 @@
         event,
         selectedLayer,
       )
+    } else {
+      // 🆕 NEW: Handle empty space touches
+      console.log("🌍 Touch on empty space - handling deselection")
+      handleEmptySpaceClick(event)
     }
 
     resetAllLayerTouchTracking()
+  }
+
+  // 🆕 NEW: Handle empty space clicks - deselect active elements
+  function handleEmptySpaceClick(event) {
+    console.log("🌍 Empty space interaction - deselecting active elements")
+
+    // Deselect any currently selected field (always call, let the component handle it)
+    if (mapFieldsRef) {
+      console.log("🔄 Calling field deselection due to empty space click")
+      mapFieldsRef.handleFieldSelection(null)
+    }
+
+    // 🆕 EXTENSIBLE: Add other deselections here as needed
   }
 
   // Get all interactive layers at a given point
@@ -247,6 +273,12 @@
     }, 100)
   }
 
+  // 🆕 NEW: Reset map-level touch tracking
+  function resetMapLevelTouchTracking() {
+    mapLevelTouchStart = null
+    mapLevelHasMoved = false
+  }
+
   // Layer touch tracking
   function handleLayerTouchStart(layerId, e) {
     const tracking = layerTouchTracking.get(layerId)
@@ -274,6 +306,36 @@
 
     if (distance > config.options.touchMoveThreshold) {
       tracking.hasTouchMoved = true
+    }
+  }
+
+  // 🆕 NEW: Track map-level touch start
+  function handleMapTouchStart(event) {
+    if (
+      event.originalEvent.touches &&
+      event.originalEvent.touches.length === 1
+    ) {
+      mapLevelTouchStart = {
+        x: event.originalEvent.touches[0].clientX,
+        y: event.originalEvent.touches[0].clientY,
+      }
+      mapLevelHasMoved = false
+    }
+  }
+
+  // 🆕 NEW: Track map-level touch movement
+  function handleMapTouchMove(event) {
+    if (!mapLevelTouchStart || !event.originalEvent.touches) return
+
+    const currentX = event.originalEvent.touches[0].clientX
+    const currentY = event.originalEvent.touches[0].clientY
+
+    const dx = currentX - mapLevelTouchStart.x
+    const dy = currentY - mapLevelTouchStart.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > mapLevelMoveThreshold) {
+      mapLevelHasMoved = true
     }
   }
 
@@ -453,6 +515,12 @@
     map.on("touchend", handleMouseUp)
     map.on("touchcancel", handleMouseUp)
 
+    // 🆕 UPDATED: Add map-level click handlers for empty space detection with touch tracking
+    map.on("click", handleMapClick)
+    map.on("touchstart", handleMapTouchStart)
+    map.on("touchmove", handleMapTouchMove)
+    map.on("touchend", handleMapTouchEnd)
+
     // Document-level listeners for pinch detection
     document.addEventListener("touchstart", handleDocumentTouchStart, {
       passive: true,
@@ -462,6 +530,41 @@
     })
 
     console.log("✅ Map event listeners setup complete")
+  }
+
+  // 🆕 UPDATED: Map-level click handler (fires for all clicks)
+  function handleMapClick(event) {
+    // Only handle if no layer-specific handlers have fired
+    if (longPressJustCompleted || isDragging) return
+
+    setTimeout(() => {
+      // Small delay to let layer-specific handlers fire first
+      const layersAtPoint = getLayersAtPoint(event.point)
+      if (layersAtPoint.length === 0) {
+        console.log("🌍 Map-level click on empty space (backup handler)")
+        handleEmptySpaceClick(event)
+      }
+    }, 10)
+  }
+
+  // 🆕 UPDATED: Map-level touch handler with drag prevention
+  function handleMapTouchEnd(event) {
+    // Check for conditions that should prevent the interaction
+    if (longPressJustCompleted || isDragging || mapLevelHasMoved) {
+      console.log("🚫 Map-level touch end ignored - drag/long press detected")
+      resetMapLevelTouchTracking()
+      return
+    }
+
+    setTimeout(() => {
+      // Small delay to let layer-specific handlers fire first
+      const layersAtPoint = getLayersAtPoint(event.point)
+      if (layersAtPoint.length === 0) {
+        console.log("🌍 Map-level touch on empty space (backup handler)")
+        handleEmptySpaceClick(event)
+      }
+      resetMapLevelTouchTracking()
+    }, 10)
   }
 
   function cleanupEventListeners() {
@@ -476,6 +579,12 @@
     map.off("mouseup", handleMouseUp)
     map.off("touchend", handleMouseUp)
     map.off("touchcancel", handleMouseUp)
+
+    // 🆕 UPDATED: Clean up empty space handlers including new touch tracking
+    map.off("click", handleMapClick)
+    map.off("touchstart", handleMapTouchStart)
+    map.off("touchmove", handleMapTouchMove)
+    map.off("touchend", handleMapTouchEnd)
 
     // Remove document-level listeners
     document.removeEventListener("touchstart", handleDocumentTouchStart)
@@ -498,6 +607,9 @@
     // Clear registries
     layerRegistry.clear()
     layerTouchTracking.clear()
+
+    // 🆕 NEW: Reset map-level tracking
+    resetMapLevelTouchTracking()
 
     // Clear any pending timers
     clearTimeout(longPressTimer)

@@ -267,14 +267,21 @@
   // ✅ Removed readdLabels function - no longer needed with proper ordering!
 
   // Public method called by MapViewer's layer interaction system
-  export function handleFieldSelection(fieldId: number) {
+  export function handleFieldSelection(fieldId) {
     console.log("Field selection called with ID:", fieldId)
 
-    if (selectedFieldId === fieldId) {
+    if (fieldId === null) {
+      // 🆕 NEW: Explicit deselection
+      selectedFieldId = null
+      showInfoPanel = false
+      console.log("Field explicitly deselected")
+    } else if (selectedFieldId === fieldId) {
+      // Clicking same field deselects it
       selectedFieldId = null
       showInfoPanel = false
       console.log("Field deselected")
     } else {
+      // Select new field
       selectedFieldId = fieldId
       showInfoPanel = false
       console.log("Selected field ID:", selectedFieldId)
