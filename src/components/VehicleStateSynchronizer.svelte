@@ -36,16 +36,18 @@
   }
 
   async function fetchInitialVehicleData(masterMapId, userId) {
-    console.log("______", $mapActivityStore)
+    console.log("🔍 mapActivityStore vehicle_states:", $mapActivityStore)
+    console.log(
+      "🔍 mapActivityStore connected_profiles:",
+      $mapActivityStore.connected_profiles,
+    )
 
-    // Use vehicle_states from mapActivityStore instead of querying the database
     const vehicles = $mapActivityStore.vehicle_states || []
 
-    // Get profile information for each vehicle
+    // Get profile information for each vehicle INCLUDING operation data
     const vehiclesWithProfiles = await Promise.all(
       vehicles.map(async (vehicle) => {
-        // If you need the full_name for each vehicle, you could:
-        // 1. Either find it in the connected_profiles array
+        // Find the profile with operation data
         const profile = $mapActivityStore.connected_profiles.find(
           (p) => p.id === vehicle.vehicle_id,
         )
@@ -53,6 +55,11 @@
         return {
           ...vehicle,
           full_name: profile?.full_name || "Unknown User",
+          // 🆕 Add operation information
+          selected_operation_id: profile?.selected_operation_id || null,
+          current_operation: profile?.current_operation || null,
+          operation_name: profile?.operation_name || "No operation",
+          operation_id: profile?.operation_id || null,
         }
       }),
     )
@@ -77,6 +84,13 @@
         is_trailing: serverItem.is_trailing,
         last_update: serverItem.last_update,
         full_name: serverItem.full_name || clientItem?.full_name,
+        // 🆕 ADD OPERATION DATA
+        selected_operation_id:
+          serverItem.selected_operation_id || clientItem?.selected_operation_id,
+        current_operation:
+          serverItem.current_operation || clientItem?.current_operation,
+        operation_name: serverItem.operation_name || clientItem?.operation_name,
+        operation_id: serverItem.operation_id || clientItem?.operation_id,
         update_types: [],
       }
 
@@ -93,6 +107,9 @@
           serverItem.is_trailing !== clientItem.is_trailing
         const lastUpdateChanged =
           serverItem.last_update !== clientItem.last_update
+        // 🆕 ADD OPERATION CHANGE DETECTION
+        const operationChanged =
+          serverItem.operation_name !== clientItem.operation_name
 
         if (vehicleMarkerChanged)
           change.update_types.push("vehicle_marker_changed")
@@ -101,6 +118,7 @@
         if (isTrailingChanged)
           change.update_types.push("trailing_status_changed")
         if (lastUpdateChanged) change.update_types.push("last_update_changed")
+        if (operationChanged) change.update_types.push("operation_changed")
       }
 
       return change
@@ -211,12 +229,28 @@
         .split(",")
         .map(parseFloat)
 
-      // Update the userVehicleStore with the fetched data and parsed coordinates
+      // 🆕 Get operation data for current user from mapActivityStore
+      const currentUserProfile = $mapActivityStore.connected_profiles.find(
+        (p) => p.id === userId,
+      )
+
+      console.log(
+        "🔍 Current user profile with operation data:",
+        currentUserProfile,
+      )
+
+      // Update the userVehicleStore with the fetched data, parsed coordinates, AND operation data
       userVehicleStore.update((vehicle) => {
         return {
           ...vehicle,
           ...userVehicle,
           coordinates: { latitude, longitude },
+          // 🆕 Add operation data to current user's vehicle
+          selected_operation_id:
+            currentUserProfile?.selected_operation_id || null,
+          current_operation: currentUserProfile?.current_operation || null,
+          operation_name: currentUserProfile?.operation_name || "No operation",
+          operation_id: currentUserProfile?.operation_id || null,
         }
       })
     }
@@ -242,14 +276,21 @@
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
             )
             if (existingVehicleIndex !== -1) {
-              // Vehicle already exists, update its data while preserving the full_name
+              // Vehicle already exists, update its data while preserving operation data
               vehicles[existingVehicleIndex] = {
                 ...vehicles[existingVehicleIndex],
                 ...payload.payload,
                 full_name: vehicles[existingVehicleIndex].full_name,
+                // 🆕 PRESERVE OPERATION DATA
+                selected_operation_id:
+                  vehicles[existingVehicleIndex].selected_operation_id,
+                current_operation:
+                  vehicles[existingVehicleIndex].current_operation,
+                operation_name: vehicles[existingVehicleIndex].operation_name,
+                operation_id: vehicles[existingVehicleIndex].operation_id,
               }
             } else {
-              // Vehicle doesn't exist, add it to the store
+              // Vehicle doesn't exist, add it - but it won't have operation data
               console.log("pushing new vehicle", payload.payload)
               vehicles.push(payload.payload)
             }
@@ -281,19 +322,25 @@
             // )
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
-                (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
+                (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
-                // Vehicle already exists, update its data while preserving the full_name
+                // Vehicle already exists, update its data while preserving operation data
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
-                  ...payload.new,
+                  ...payload.payload,
                   full_name: vehicles[existingVehicleIndex].full_name,
+                  selected_operation_id:
+                    vehicles[existingVehicleIndex].selected_operation_id,
+                  current_operation:
+                    vehicles[existingVehicleIndex].current_operation,
+                  operation_name: vehicles[existingVehicleIndex].operation_name,
+                  operation_id: vehicles[existingVehicleIndex].operation_id,
                 }
               } else {
-                // Vehicle doesn't exist, add it to the store
-                console.log("pushing new vehicle from DB change", payload.new)
-                vehicles.push(payload.new)
+                // Vehicle doesn't exist, add it - but it won't have operation data
+                console.log("pushing new vehicle", payload.payload)
+                vehicles.push(payload.payload)
               }
               return vehicles
             })

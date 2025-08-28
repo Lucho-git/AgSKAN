@@ -10,6 +10,7 @@
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
+  import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte" // 🆕 NEW
   import { unsavedTrailStore } from "../stores/trailDataStore"
   import { toast } from "svelte-sonner"
   import "../styles/global.css"
@@ -107,7 +108,7 @@
       "current selectedVehicleId:",
       selectedVehicleId,
     )
-
+    console.log("Other vehicle data", $otherVehiclesStore)
     if (vehicleId === null) {
       // Explicit deselection
       selectedVehicleId = null
@@ -202,6 +203,11 @@
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
+        // 🆕 ADD OPERATION DATA
+        selected_operation_id: $userVehicleStore.selected_operation_id,
+        current_operation: $userVehicleStore.current_operation,
+        operation_name: $userVehicleStore.operation_name,
+        operation_id: $userVehicleStore.operation_id,
       }
     }
 
@@ -406,6 +412,26 @@
       : `${vehicle.full_name}'s ${getVehicleDisplayName(vehicle)}`
 
     toast.success(`Zooming to ${vehicleInfo}`)
+  }
+
+  // 🆕 NEW: Helper function to center camera on vehicle (for panel)
+  function centerCameraOnVehicle(vehicle) {
+    const parsedCoords = parseCoordinates(vehicle.coordinates)
+    if (!parsedCoords) {
+      toast.error("Unable to get vehicle location")
+      return
+    }
+
+    map.easeTo({
+      center: [parsedCoords.longitude, parsedCoords.latitude],
+      duration: 1000,
+    })
+
+    const vehicleInfo = vehicle.isCurrentUser
+      ? "your location"
+      : `${vehicle.full_name}'s location`
+
+    toast.success(`Centered on ${vehicleInfo}`)
   }
 
   function getVehicleDisplayName(vehicle) {
@@ -985,7 +1011,7 @@
     }
   }
 
-  // 🆕 NEW: Export selected vehicle ID for external access
+  // Export selected vehicle ID for external access
   export { selectedVehicleId }
 </script>
 
@@ -1001,4 +1027,14 @@
   on:toggleFirstPerson={handleToggleFirstPerson}
   on:zoomToVehicle={handleZoomToVehicle}
   on:instantZoomToVehicle={handleInstantZoomToVehicle}
+/>
+
+<!-- 🆕 NEW: Vehicle Details Panel -->
+<VehicleDetailsPanel
+  {selectedVehicleId}
+  {getVehicleById}
+  {map}
+  {centerCameraOnVehicle}
+  {startTrackingVehicle}
+  {zoomToVehicle}
 />

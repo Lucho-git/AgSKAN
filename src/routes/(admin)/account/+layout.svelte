@@ -210,7 +210,7 @@
         return { profile, subscription, connected_map: null, user_settings }
       }
 
-      // Load map data if user has a connected map
+      // 🆕 UPDATED: Load map data with enhanced profile queries for operation data
       const [masterMapResult, mapActivityResult, operationsResult] =
         await Promise.all([
           supabase
@@ -227,9 +227,22 @@
               .from("trail_data")
               .select("id", { count: "exact" })
               .eq("master_map_id", profile.master_map_id),
+            // 🆕 UPDATED: Enhanced profiles query with operation data
             supabase
               .from("profiles")
-              .select("id, full_name")
+              .select(
+                `
+                id, 
+                full_name, 
+                selected_operation_id,
+                operations!profiles_selected_operation_id_fkey (
+                  id,
+                  name,
+                  description,
+                  year
+                )
+              `,
+              )
               .eq("master_map_id", profile.master_map_id),
           ]),
           supabase
@@ -239,7 +252,8 @@
         ])
 
       const masterMap = masterMapResult.data
-      const [markerCount, trailCount, connectedProfiles] = mapActivityResult
+      const [markerCount, trailCount, connectedProfilesResult] =
+        mapActivityResult
       const operations = operationsResult.data
 
       console.log("Map data loaded:", masterMap?.id)
@@ -247,6 +261,34 @@
       if (!masterMap) {
         return { profile, subscription, connected_map: null, user_settings }
       }
+
+      // 🆕 UPDATED: Process connected profiles with operation data
+      const connectedProfiles = connectedProfilesResult.data || []
+
+      // Create enhanced connected profiles with operation info
+      const connectedProfilesWithOperations = connectedProfiles.map(
+        (profile) => ({
+          id: profile.id,
+          full_name: profile.full_name,
+          selected_operation_id: profile.selected_operation_id,
+          current_operation: profile.operations
+            ? {
+                id: profile.operations.id,
+                name: profile.operations.name,
+                description: profile.operations.description,
+                year: profile.operations.year,
+              }
+            : null,
+          // For backward compatibility and easy access
+          operation_name: profile.operations?.name || "No operation",
+          operation_id: profile.operations?.id || null,
+        }),
+      )
+
+      console.log(
+        "🔍 Connected profiles with operations:",
+        connectedProfilesWithOperations,
+      )
 
       // Load additional map-related data
       const [
@@ -270,7 +312,7 @@
           .eq("master_map_id", profile.master_map_id)
           .in(
             "vehicle_id",
-            connectedProfiles.data?.map((profile) => profile.id) || [],
+            connectedProfilesWithOperations.map((profile) => profile.id) || [],
           ),
       ])
 
@@ -283,15 +325,17 @@
         is_owner: userId === masterMap.master_user_id,
       }
 
-      // Create map activity object
+      // 🆕 UPDATED: Create map activity object with enhanced connected profiles
       const map_activity = {
         marker_count: markerCount.count || 0,
         trail_count: trailCount.count || 0,
-        connected_profiles: connectedProfiles.data || [],
+        connected_profiles: connectedProfilesWithOperations, // 🆕 Now includes operation data
         vehicle_states: vehicleStatesResult.data || [],
       }
 
       const master_subscription = masterSubscriptionResult.data
+
+      console.log("🔍 Map activity with enhanced profiles:", map_activity)
 
       // Update connected map store
       connectedMapStore.set({
@@ -304,11 +348,11 @@
         is_connected: true,
       })
 
-      // Update map activity store
+      // 🆕 UPDATED: Update map activity store with enhanced data
       mapActivityStore.set({
         marker_count: map_activity.marker_count,
         trail_count: map_activity.trail_count,
-        connected_profiles: map_activity.connected_profiles,
+        connected_profiles: map_activity.connected_profiles, // 🆕 Includes operation data
         vehicle_states: map_activity.vehicle_states,
       })
 
