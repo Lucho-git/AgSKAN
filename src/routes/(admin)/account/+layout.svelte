@@ -25,6 +25,7 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore" // 🆕 NEW
 
   // Import map API
   import { mapApi } from "$lib/api/mapApi"
@@ -210,7 +211,7 @@
         return { profile, subscription, connected_map: null, user_settings }
       }
 
-      // 🆕 UPDATED: Load map data with enhanced profile queries for operation data
+      // 🆕 UPDATED: Load map data with trail hectares, field boundaries, and trail metadata
       const [masterMapResult, mapActivityResult, operationsResult] =
         await Promise.all([
           supabase
@@ -219,15 +220,53 @@
             .eq("id", profile.master_map_id)
             .single(),
           Promise.all([
+            // Map markers count
             supabase
               .from("map_markers")
               .select("id", { count: "exact" })
               .eq("master_map_id", profile.master_map_id),
+            // Trail hectares via operations join (for summary data)
             supabase
-              .from("trail_data")
-              .select("id", { count: "exact" })
-              .eq("master_map_id", profile.master_map_id),
-            // 🆕 UPDATED: Enhanced profiles query with operation data
+              .from("trails")
+              .select(
+                `
+                trail_hectares,
+                operations!inner(master_map_id)
+              `,
+              )
+              .eq("operations.master_map_id", profile.master_map_id),
+            // 🆕 NEW: Detailed trail metadata (excluding heavy geometry)
+            supabase
+              .from("trails")
+              .select(
+                `
+                id,
+                vehicle_id,
+                operation_id,
+                start_time,
+                end_time,
+                trail_color,
+                trail_width,
+                trail_distance,
+                trail_hectares,
+                trail_hectares_overlap,
+                trail_percentage_overlap,
+                operations!inner(
+                  id,
+                  name,
+                  year,
+                  master_map_id
+                )
+              `,
+              )
+              .eq("operations.master_map_id", profile.master_map_id)
+              .order("start_time", { ascending: false }), // Most recent first
+            // Field boundaries count
+            supabase
+              .from("fields")
+              .select("field_id", { count: "exact" })
+              .eq("map_id", profile.master_map_id),
+            // Enhanced profiles query with operation data
             supabase
               .from("profiles")
               .select(
@@ -252,8 +291,13 @@
         ])
 
       const masterMap = masterMapResult.data
-      const [markerCount, trailCount, connectedProfilesResult] =
-        mapActivityResult
+      const [
+        markerCount,
+        trailHectaresResult,
+        trailDetailsResult, // 🆕 NEW
+        fieldCount,
+        connectedProfilesResult,
+      ] = mapActivityResult
       const operations = operationsResult.data
 
       console.log("Map data loaded:", masterMap?.id)
@@ -262,7 +306,37 @@
         return { profile, subscription, connected_map: null, user_settings }
       }
 
-      // 🆕 UPDATED: Process connected profiles with operation data
+      // Calculate total trail hectares (for summary)
+      const totalTrailHectares =
+        trailHectaresResult.data?.reduce((sum, trail) => {
+          return sum + (parseFloat(trail.trail_hectares) || 0)
+        }, 0) || 0
+
+      // 🆕 NEW: Process trail details with operation info
+      const trailsWithOperations =
+        trailDetailsResult.data?.map((trail) => ({
+          id: trail.id,
+          vehicle_id: trail.vehicle_id,
+          operation_id: trail.operation_id,
+          start_time: trail.start_time,
+          end_time: trail.end_time,
+          trail_color: trail.trail_color || "white",
+          trail_width: trail.trail_width,
+          trail_distance: trail.trail_distance,
+          trail_hectares: trail.trail_hectares,
+          trail_hectares_overlap: trail.trail_hectares_overlap,
+          trail_percentage_overlap: trail.trail_percentage_overlap,
+          // Add operation info for easy display
+          operation_name: trail.operations?.name || "Unknown Operation",
+          operation_year: trail.operations?.year || new Date().getFullYear(),
+        })) || []
+
+      console.log("🆕 Trail hectares data:", trailHectaresResult.data)
+      console.log("🆕 Total trail hectares:", totalTrailHectares)
+      console.log("🆕 Trail details:", trailsWithOperations)
+      console.log("🆕 Field count:", fieldCount.count)
+
+      // Process connected profiles with operation data
       const connectedProfiles = connectedProfilesResult.data || []
 
       // Create enhanced connected profiles with operation info
@@ -325,17 +399,18 @@
         is_owner: userId === masterMap.master_user_id,
       }
 
-      // 🆕 UPDATED: Create map activity object with enhanced connected profiles
+      // Create map activity object with metrics
       const map_activity = {
         marker_count: markerCount.count || 0,
-        trail_count: trailCount.count || 0,
-        connected_profiles: connectedProfilesWithOperations, // 🆕 Now includes operation data
+        trail_hectares: totalTrailHectares,
+        field_count: fieldCount.count || 0,
+        connected_profiles: connectedProfilesWithOperations,
         vehicle_states: vehicleStatesResult.data || [],
       }
 
       const master_subscription = masterSubscriptionResult.data
 
-      console.log("🔍 Map activity with enhanced profiles:", map_activity)
+      console.log("🔍 Map activity with new metrics:", map_activity)
 
       // Update connected map store
       connectedMapStore.set({
@@ -348,13 +423,17 @@
         is_connected: true,
       })
 
-      // 🆕 UPDATED: Update map activity store with enhanced data
+      // Update map activity store with metrics
       mapActivityStore.set({
         marker_count: map_activity.marker_count,
-        trail_count: map_activity.trail_count,
-        connected_profiles: map_activity.connected_profiles, // 🆕 Includes operation data
+        trail_hectares: map_activity.trail_hectares,
+        field_count: map_activity.field_count,
+        connected_profiles: map_activity.connected_profiles,
         vehicle_states: map_activity.vehicle_states,
       })
+
+      // 🆕 NEW: Update trails metadata store
+      trailsMetaDataStore.set(trailsWithOperations)
 
       // Update operations stores
       if (operations?.length) {
@@ -375,6 +454,7 @@
         map_activity,
         master_subscription,
         operations,
+        trails_metadata: trailsWithOperations, // 🆕 NEW
         user_settings,
       }
     } catch (e) {

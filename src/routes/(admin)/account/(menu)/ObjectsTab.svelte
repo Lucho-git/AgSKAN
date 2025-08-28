@@ -6,6 +6,7 @@
   } from "$lib/stores/operationStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
+  import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
   import { DateTime } from "luxon"
   import {
     Car,
@@ -18,6 +19,9 @@
     X,
     Calendar,
     RefreshCw,
+    Clock,
+    Activity,
+    BarChart3,
   } from "lucide-svelte"
   import {
     getPinsFromMapId,
@@ -38,11 +42,20 @@
   let selectedPins = new Set<number>()
   let hasLoadedOnce = false
 
+  // Trail management state
+  let trailSearchQuery = ""
+  let trailSortDirection: "asc" | "desc" = "desc"
+  let selectedOperation = "all"
+
   // Pagination variables
   let itemsPerPage = 20
   let currentPage = 1
 
-  // Computed variables
+  // Trail pagination variables
+  let trailItemsPerPage = 15
+  let trailCurrentPage = 1
+
+  // Computed variables for pins
   $: filteredMarkers = markers
     .filter((marker) =>
       marker.marker_data.properties.icon
@@ -58,10 +71,114 @@
   $: paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
   $: hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
 
-  // Counts for tabs (using real data from mapActivityStore like MapInfo does)
-  $: vehicleCount = $mapActivityStore?.vehicle_states?.length || 3 // Stubbed
-  $: pinCount = $mapActivityStore?.marker_count || 0 // Real data from store like MapInfo
-  $: trailCount = $mapActivityStore?.trail_count || 15 // Real data from store
+  // Computed variables for trails
+  $: filteredTrails = $trailsMetaDataStore
+    .filter((trail) => {
+      const matchesSearch =
+        trail.operation_name
+          ?.toLowerCase()
+          .includes(trailSearchQuery.toLowerCase()) || false
+      const matchesOperation =
+        selectedOperation === "all" || trail.operation_id === selectedOperation
+      return matchesSearch && matchesOperation
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.start_time).getTime()
+      const dateB = new Date(b.start_time).getTime()
+      return trailSortDirection === "asc" ? dateA - dateB : dateB - dateA
+    })
+
+  $: paginatedTrails = filteredTrails.slice(
+    0,
+    trailCurrentPage * trailItemsPerPage,
+  )
+  $: hasMoreTrailPages =
+    filteredTrails.length > trailCurrentPage * trailItemsPerPage
+
+  // Counts for tabs (using real data from stores)
+  $: vehicleCount = $mapActivityStore?.vehicle_states?.length || 0
+  $: pinCount = $mapActivityStore?.marker_count || 0
+  $: trailCount = $trailsMetaDataStore?.length || 0
+
+  // Helper functions for trails
+  function formatHectares(hectares: number | null): string {
+    if (!hectares) return "N/A"
+    if (hectares >= 1000) {
+      return (hectares / 1000).toFixed(1) + "K ha"
+    } else if (hectares >= 100) {
+      return Math.round(hectares) + " ha"
+    } else if (hectares >= 10) {
+      return hectares.toFixed(1) + " ha"
+    } else {
+      return hectares.toFixed(2) + " ha"
+    }
+  }
+
+  function formatDistance(distance: number | null): string {
+    if (!distance) return "N/A"
+    if (distance >= 1000) {
+      return (distance / 1000).toFixed(1) + " km"
+    } else {
+      return Math.round(distance) + " m"
+    }
+  }
+
+  function formatPercentage(percentage: number | null): string {
+    if (!percentage) return "N/A"
+    return percentage.toFixed(1) + "%"
+  }
+
+  function formatTrailDate(dateString: string): string {
+    return DateTime.fromISO(dateString).toFormat("MMM dd, HH:mm")
+  }
+
+  // 🆕 UPDATED: Shorter date format for mobile
+  function formatTrailDateMobile(dateString: string): string {
+    return DateTime.fromISO(dateString).toFormat("MM/dd HH:mm")
+  }
+
+  function getTrailDuration(startTime: string, endTime: string | null): string {
+    if (!endTime) return "Active"
+
+    const start = DateTime.fromISO(startTime)
+    const end = DateTime.fromISO(endTime)
+    const duration = end.diff(start, ["hours", "minutes"])
+
+    if (duration.hours > 0) {
+      return `${Math.floor(duration.hours)}h ${Math.floor(duration.minutes)}m`
+    } else {
+      return `${Math.floor(duration.minutes)}m`
+    }
+  }
+
+  // 🆕 NEW: Shorter duration format for mobile
+  function getTrailDurationMobile(
+    startTime: string,
+    endTime: string | null,
+  ): string {
+    if (!endTime) return "Active"
+
+    const start = DateTime.fromISO(startTime)
+    const end = DateTime.fromISO(endTime)
+    const duration = end.diff(start, ["hours", "minutes"])
+
+    if (duration.hours > 0) {
+      return `${Math.floor(duration.hours)}h${Math.floor(duration.minutes)}m`
+    } else {
+      return `${Math.floor(duration.minutes)}m`
+    }
+  }
+
+  function toggleTrailSort() {
+    trailSortDirection = trailSortDirection === "asc" ? "desc" : "asc"
+    trailCurrentPage = 1
+  }
+
+  function loadMoreTrails() {
+    if (hasMoreTrailPages) {
+      trailCurrentPage++
+    }
+  }
 
   // Icon processing functions
   function getMarkerIcon(iconName: string) {
@@ -134,7 +251,7 @@
 
       markers = data || []
       hasLoadedOnce = true
-      currentPage = 1 // Reset pagination
+      currentPage = 1
     } catch (err) {
       error = err
     } finally {
@@ -177,7 +294,7 @@
 
   function toggleSort() {
     sortDirection = sortDirection === "asc" ? "desc" : "asc"
-    currentPage = 1 // Reset pagination when sorting changes
+    currentPage = 1
   }
 
   function loadMore() {
@@ -203,6 +320,13 @@
   $: if (mapObjectsView !== "pins") {
     searchQuery = ""
     clearSelection()
+  }
+
+  // Reset trail search when changing tabs
+  $: if (mapObjectsView !== "trails") {
+    trailSearchQuery = ""
+    selectedOperation = "all"
+    trailCurrentPage = 1
   }
 </script>
 
@@ -531,48 +655,300 @@
       {/if}
     </div>
   {:else if mapObjectsView === "trails"}
-    <div class="flex-1 space-y-4 overflow-hidden">
-      <!-- Trails Header -->
-      <div class="py-4 text-center">
-        <div
-          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-300"
-        >
-          <Route class="h-6 w-6 text-contrast-content/70" />
+    svelte Copy
+    <!-- Trail Management Section -->
+    <div class="flex flex-1 flex-col overflow-hidden">
+      <!-- Header - responsive sizing -->
+      <div class="flex-shrink-0 space-y-3 pb-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-contrast-content">
+              Trail Records
+            </h3>
+            <p class="max-xs:hidden text-sm text-contrast-content/60">
+              View trail history and data
+            </p>
+          </div>
         </div>
-        <h3 class="mb-1 text-base font-semibold text-contrast-content">
-          Trails
-        </h3>
-        <p class="text-sm text-contrast-content/60">
-          Trail management coming soon
+
+        <!-- Responsive controls layout -->
+        <div class="max-xs:space-y-2 space-y-3">
+          <div class="max-xs:gap-2 flex gap-3">
+            <div class="relative flex-1">
+              <Search
+                class="max-xs:h-3 max-xs:w-3 max-xs:left-2 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+              />
+              <input
+                type="text"
+                placeholder="Search trails..."
+                bind:value={trailSearchQuery}
+                class="max-xs:py-1.5 max-xs:pl-7 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 py-2 pl-10 pr-4 text-sm outline-none focus:border-base-content"
+              />
+            </div>
+
+            <button
+              class="max-xs:gap-1 max-xs:px-2 max-xs:py-1.5 flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+              on:click={toggleTrailSort}
+            >
+              {#if trailSortDirection === "asc"}
+                <SortAsc class="max-xs:h-3 max-xs:w-3 h-4 w-4" />
+              {:else}
+                <SortDesc class="max-xs:h-3 max-xs:w-3 h-4 w-4" />
+              {/if}
+              <span class="max-xs:hidden">Date</span>
+            </button>
+          </div>
+
+          <select
+            bind:value={selectedOperation}
+            class="max-xs:px-2 max-xs:py-1.5 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm outline-none focus:border-base-content"
+          >
+            <option value="all">All Operations</option>
+            {#each $operationStore as operation}
+              <option value={operation.id}
+                >{operation.name} ({operation.year})</option
+              >
+            {/each}
+          </select>
+        </div>
+
+        <p class="max-xs:text-xs text-sm text-contrast-content/60">
+          {filteredTrails.length} trails found
         </p>
       </div>
 
-      <!-- Operations List in Trails Tab -->
-      <div class="rounded-lg bg-base-200 p-4">
-        <h4 class="mb-3 text-sm font-medium text-contrast-content">
-          Available Operations
-        </h4>
-        <div class="space-y-2">
-          {#each $operationStore as operation}
+      <!-- Trails List -->
+      <div class="flex-1 overflow-y-auto">
+        <div class="max-xs:space-y-2 max-xs:pr-1 space-y-3 px-1 pr-2">
+          {#if filteredTrails.length === 0}
             <div
-              class="flex items-center justify-between rounded bg-base-100 p-3 text-sm {operation.id ===
-              $selectedOperationStore?.id
-                ? 'ring-1 ring-primary'
-                : ''}"
+              class="max-xs:py-6 flex flex-col items-center justify-center rounded-lg bg-base-200 py-8 text-center"
             >
-              <span class="text-contrast-content"
-                >{operation.name} ({operation.year})</span
+              <Route
+                class="max-xs:mb-2 max-xs:h-6 max-xs:w-6 mb-3 h-8 w-8 text-contrast-content/60"
+              />
+              <p
+                class="max-xs:text-xs text-sm font-medium text-contrast-content"
               >
-              {#if operation.id === $selectedOperationStore?.id}
-                <span
-                  class="rounded bg-primary/20 px-2 py-1 text-xs text-primary"
-                  >Active</span
-                >
-              {/if}
+                No trails found
+              </p>
+              <p class="max-xs:hidden text-sm text-contrast-content/60">
+                Try a different search or operation
+              </p>
             </div>
-          {/each}
+          {:else}
+            {#each paginatedTrails as trail (trail.id)}
+              <div
+                class="max-xs:p-3 rounded-lg bg-base-200 p-4 transition-colors hover:bg-base-300"
+              >
+                <!-- 🆕 UPDATED: Header with colored dot to the left of operation name -->
+                <div
+                  class="max-xs:mb-2 mb-3 flex items-start justify-between gap-2"
+                >
+                  <div class="min-w-0 flex-1">
+                    <!-- 🆕 UPDATED: Operation name with colored dot on the left -->
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="max-xs:h-2 max-xs:w-2 h-3 w-3 shrink-0 rounded-full border border-gray-300"
+                        style="background-color: {trail.trail_color}"
+                        title="Trail color: {trail.trail_color}"
+                      ></div>
+                      <h4
+                        class="truncate text-sm font-medium text-contrast-content"
+                      >
+                        {trail.operation_name} ({trail.operation_year})
+                      </h4>
+                    </div>
+                  </div>
+                  <div class="text-right text-xs text-contrast-content/60">
+                    <!-- Responsive date format -->
+                    <div class="max-xs:hidden">
+                      <Calendar class="mr-1 inline h-3 w-3" />
+                      {formatTrailDate(trail.start_time)}
+                    </div>
+                    <div class="max-xs:block hidden">
+                      {formatTrailDateMobile(trail.start_time)}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Responsive metrics grid -->
+                <div
+                  class="max-xs:gap-2 max-xs:text-xs grid grid-cols-2 gap-4 text-sm"
+                >
+                  <div class="max-xs:space-y-1 space-y-2">
+                    <div
+                      class="flex items-center gap-2 text-contrast-content/70"
+                    >
+                      <Activity
+                        class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0"
+                      />
+                      <span class="font-medium">Distance:</span>
+                      <span>{formatDistance(trail.trail_distance)}</span>
+                    </div>
+                    <div
+                      class="flex items-center gap-2 text-contrast-content/70"
+                    >
+                      <BarChart3
+                        class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0"
+                      />
+                      <span class="font-medium">Area:</span>
+                      <span>{formatHectares(trail.trail_hectares)}</span>
+                    </div>
+                  </div>
+                  <div class="max-xs:space-y-1 space-y-2">
+                    <div
+                      class="flex items-center gap-2 text-contrast-content/70"
+                    >
+                      <Clock class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0" />
+                      <span class="font-medium">Duration:</span>
+                      <!-- Responsive duration format -->
+                      <span class="max-xs:hidden"
+                        >{getTrailDuration(
+                          trail.start_time,
+                          trail.end_time,
+                        )}</span
+                      >
+                      <span class="max-xs:inline hidden"
+                        >{getTrailDurationMobile(
+                          trail.start_time,
+                          trail.end_time,
+                        )}</span
+                      >
+                    </div>
+                    <div
+                      class="flex items-center gap-2 text-contrast-content/70"
+                    >
+                      <Route class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0" />
+                      <span class="font-medium">Overlap:</span>
+                      <span
+                        >{formatPercentage(
+                          trail.trail_percentage_overlap,
+                        )}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Overlap details with better responsive behavior -->
+                {#if trail.trail_hectares_overlap && trail.trail_hectares_overlap > 0}
+                  <div
+                    class="max-xs:mt-2 max-xs:pt-1 mt-3 border-t border-base-300 pt-2"
+                  >
+                    <div class="text-xs text-contrast-content/60">
+                      <span class="max-xs:hidden">Overlap area: </span>
+                      <span class="max-xs:inline hidden">Overlap: </span>
+                      {formatHectares(trail.trail_hectares_overlap)}
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+
+            {#if hasMoreTrailPages}
+              <div class="max-xs:pt-2 flex justify-center pt-4">
+                <button
+                  class="max-xs:px-3 max-xs:py-1.5 max-xs:text-xs rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+                  on:click={loadMoreTrails}
+                >
+                  Load More ({filteredTrails.length - paginatedTrails.length})
+                </button>
+              </div>
+            {/if}
+          {/if}
         </div>
       </div>
     </div>
   {/if}
 </div>
+
+<style>
+  /* 🆕 BALANCED: Custom breakpoint for very small screens only */
+  @media (max-width: 449px) {
+    .max-xs\:hidden {
+      display: none;
+    }
+    .max-xs\:block {
+      display: block;
+    }
+    .max-xs\:inline {
+      display: inline;
+    }
+    .max-xs\:space-y-1 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.25rem;
+    }
+    .max-xs\:space-y-2 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.5rem;
+    }
+    .max-xs\:gap-1 {
+      gap: 0.25rem;
+    }
+    .max-xs\:gap-2 {
+      gap: 0.5rem;
+    }
+    .max-xs\:h-2 {
+      height: 0.5rem;
+    }
+    .max-xs\:w-2 {
+      width: 0.5rem;
+    }
+    .max-xs\:h-3 {
+      height: 0.75rem;
+    }
+    .max-xs\:w-3 {
+      width: 0.75rem;
+    }
+    .max-xs\:h-6 {
+      height: 1.5rem;
+    }
+    .max-xs\:w-6 {
+      width: 1.5rem;
+    }
+    .max-xs\:p-3 {
+      padding: 0.75rem;
+    }
+    .max-xs\:px-2 {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    .max-xs\:px-3 {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+    .max-xs\:py-1\.5 {
+      padding-top: 0.375rem;
+      padding-bottom: 0.375rem;
+    }
+    .max-xs\:pl-7 {
+      padding-left: 1.75rem;
+    }
+    .max-xs\:left-2 {
+      left: 0.5rem;
+    }
+    .max-xs\:text-xs {
+      font-size: 0.75rem;
+    }
+    .max-xs\:mb-2 {
+      margin-bottom: 0.5rem;
+    }
+    .max-xs\:mt-0\.5 {
+      margin-top: 0.125rem;
+    }
+    .max-xs\:mt-2 {
+      margin-top: 0.5rem;
+    }
+    .max-xs\:pt-1 {
+      padding-top: 0.25rem;
+    }
+    .max-xs\:pt-2 {
+      padding-top: 0.5rem;
+    }
+    .max-xs\:py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+    .max-xs\:pr-1 {
+      padding-right: 0.25rem;
+    }
+  }
+</style>
