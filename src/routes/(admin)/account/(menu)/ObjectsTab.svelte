@@ -47,6 +47,10 @@
   let trailSortDirection: "asc" | "desc" = "desc"
   let selectedOperation = "all"
 
+  // 🆕 NEW: Custom dropdown state
+  let showOperationDropdown = false
+  let operationDropdownRef = null
+
   // Pagination variables
   let itemsPerPage = 20
   let currentPage = 1
@@ -70,6 +74,43 @@
 
   $: paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
   $: hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
+
+  // 🆕 NEW: Computed trail counts per operation
+  $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
+    const operationId = trail.operation_id
+    if (operationId) {
+      counts[operationId] = (counts[operationId] || 0) + 1
+    }
+    return counts
+  }, {})
+
+  // 🆕 NEW: Helper function to get trail count for an operation
+  function getTrailCountForOperation(operationId: string): number {
+    return trailCountsByOperation[operationId] || 0
+  }
+
+  // 🆕 NEW: Get selected operation name for display
+  $: selectedOperationName =
+    selectedOperation === "all"
+      ? "All Operations"
+      : $operationStore.find((op) => op.id === selectedOperation)?.name +
+          " (" +
+          $operationStore.find((op) => op.id === selectedOperation)?.year +
+          ")" || "Unknown Operation"
+
+  // 🆕 NEW: Function to select an operation
+  function selectOperation(operationId: string) {
+    selectedOperation = operationId
+    showOperationDropdown = false
+    trailCurrentPage = 1
+  }
+
+  // 🆕 NEW: Click outside to close dropdown
+  function handleClickOutside(event) {
+    if (operationDropdownRef && !operationDropdownRef.contains(event.target)) {
+      showOperationDropdown = false
+    }
+  }
 
   // Computed variables for trails
   $: filteredTrails = $trailsMetaDataStore
@@ -132,7 +173,6 @@
     return DateTime.fromISO(dateString).toFormat("MMM dd, HH:mm")
   }
 
-  // 🆕 UPDATED: Shorter date format for mobile
   function formatTrailDateMobile(dateString: string): string {
     return DateTime.fromISO(dateString).toFormat("MM/dd HH:mm")
   }
@@ -151,7 +191,6 @@
     }
   }
 
-  // 🆕 NEW: Shorter duration format for mobile
   function getTrailDurationMobile(
     startTime: string,
     endTime: string | null,
@@ -328,6 +367,13 @@
     selectedOperation = "all"
     trailCurrentPage = 1
   }
+
+  onMount(() => {
+    document.addEventListener("click", handleClickOutside)
+    return () => {
+      document.removeEventListener("click", handleClickOutside)
+    }
+  })
 </script>
 
 <!-- Main container with screen height constraints -->
@@ -655,7 +701,6 @@
       {/if}
     </div>
   {:else if mapObjectsView === "trails"}
-    svelte Copy
     <!-- Trail Management Section -->
     <div class="flex flex-1 flex-col overflow-hidden">
       <!-- Header - responsive sizing -->
@@ -699,17 +744,93 @@
             </button>
           </div>
 
-          <select
-            bind:value={selectedOperation}
-            class="max-xs:px-2 max-xs:py-1.5 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm outline-none focus:border-base-content"
-          >
-            <option value="all">All Operations</option>
-            {#each $operationStore as operation}
-              <option value={operation.id}
-                >{operation.name} ({operation.year})</option
+          <!-- 🆕 NEW: Custom Operations Dropdown -->
+          <div class="relative" bind:this={operationDropdownRef}>
+            <button
+              class="max-xs:px-2 max-xs:py-1.5 max-xs:text-xs flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm outline-none transition-colors hover:bg-base-300 focus:border-base-content"
+              on:click={() => (showOperationDropdown = !showOperationDropdown)}
+            >
+              <span class="truncate text-left">
+                {selectedOperationName}
+                {#if selectedOperation === "all"}
+                  <span class="text-contrast-content/60"
+                    >({$trailsMetaDataStore.length})</span
+                  >
+                {:else}
+                  <span class="text-contrast-content/60"
+                    >({getTrailCountForOperation(selectedOperation)})</span
+                  >
+                {/if}
+              </span>
+              <svg
+                class="h-4 w-4 text-contrast-content/60 transition-transform {showOperationDropdown
+                  ? 'rotate-180'
+                  : ''}"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-            {/each}
-          </select>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                ></path>
+              </svg>
+            </button>
+
+            {#if showOperationDropdown}
+              <div
+                class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+              >
+                <!-- All Operations option -->
+                <button
+                  class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {selectedOperation ===
+                  'all'
+                    ? 'bg-primary/10 text-primary'
+                    : ''}"
+                  on:click={() => selectOperation("all")}
+                >
+                  <span class="font-medium">All Operations</span>
+                  <span
+                    class="group-hover:bg-base-400 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                    'all'
+                      ? 'bg-primary/20 text-primary'
+                      : ''}"
+                  >
+                    {$trailsMetaDataStore.length}
+                  </span>
+                </button>
+
+                <!-- Individual operations -->
+                {#each $operationStore as operation (operation.id)}
+                  {@const trailCount = getTrailCountForOperation(operation.id)}
+                  <button
+                    class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {selectedOperation ===
+                    operation.id
+                      ? 'bg-primary/10 text-primary'
+                      : ''}"
+                    on:click={() => selectOperation(operation.id)}
+                  >
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate font-medium">{operation.name}</div>
+                      <div class="text-xs text-contrast-content/60">
+                        Year: {operation.year}
+                      </div>
+                    </div>
+                    <span
+                      class="group-hover:bg-base-400 ml-2 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                      operation.id
+                        ? 'bg-primary/20 text-primary'
+                        : ''} shrink-0"
+                    >
+                      {trailCount}
+                    </span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
 
         <p class="max-xs:text-xs text-sm text-contrast-content/60">
@@ -741,12 +862,12 @@
               <div
                 class="max-xs:p-3 rounded-lg bg-base-200 p-4 transition-colors hover:bg-base-300"
               >
-                <!-- 🆕 UPDATED: Header with colored dot to the left of operation name -->
+                <!-- Header with colored dot to the left of operation name -->
                 <div
                   class="max-xs:mb-2 mb-3 flex items-start justify-between gap-2"
                 >
                   <div class="min-w-0 flex-1">
-                    <!-- 🆕 UPDATED: Operation name with colored dot on the left -->
+                    <!-- Operation name with colored dot on the left -->
                     <div class="flex items-center gap-2">
                       <div
                         class="max-xs:h-2 max-xs:w-2 h-3 w-3 shrink-0 rounded-full border border-gray-300"
@@ -863,7 +984,7 @@
 </div>
 
 <style>
-  /* 🆕 BALANCED: Custom breakpoint for very small screens only */
+  /* Custom breakpoint for very small screens only */
   @media (max-width: 449px) {
     .max-xs\:hidden {
       display: none;

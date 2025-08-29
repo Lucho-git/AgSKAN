@@ -3,6 +3,8 @@
   import { v4 as uuidv4 } from "uuid"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
+  import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
+
   import { profileStore } from "$lib/stores/profileStore"
   import {
     operationStore,
@@ -148,13 +150,23 @@
       if (result.success && result.data) {
         loadingMessage = "Setting up your workspace..."
 
-        const { mapId, mapName, connectedMap, mapActivity, operation } =
-          result.data
+        const {
+          mapId,
+          mapName,
+          connectedMap,
+          mapActivity,
+          operation,
+          trailsMetadata,
+        } = result.data
 
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
         operationStore.set([operation])
         selectedOperationStore.set(operation)
+
+        if (trailsMetadata !== undefined) {
+          trailsMetaDataStore.set(trailsMetadata)
+        }
 
         if ($profileStore) {
           profileStore.update((profile) => ({
@@ -211,10 +223,20 @@
       if (result.success && result.data) {
         loadingMessage = "Loading map data..."
 
-        const { connectedMap, mapActivity, operations, operation } = result.data
+        const {
+          connectedMap,
+          mapActivity,
+          operations,
+          operation,
+          trailsMetadata,
+        } = result.data
 
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
+
+        if (trailsMetadata) {
+          trailsMetaDataStore.set(trailsMetadata)
+        }
 
         if (operations && operations.length > 0) {
           operationStore.set(operations)

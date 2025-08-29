@@ -15,16 +15,22 @@
   import PinsDialog from "./PinsDialog.svelte"
 
   // Use new store data
-  $: mapMarkers = $mapActivityStore.marker_count
-  $: vehicles = $mapActivityStore.connected_profiles.length
-  $: trailHectares = $mapActivityStore.trail_hectares
-  $: fieldBoundaries = $mapActivityStore.field_count
+  $: mapMarkers = $mapActivityStore?.marker_count || 0
+  $: vehicles = $mapActivityStore?.connected_profiles?.length || 0
+  $: trailHectares = $mapActivityStore?.trail_hectares || 0
+  $: fieldBoundaries = $mapActivityStore?.field_count || 0
+
   $: masterSubscription = $connectedMapStore.masterSubscription
   $: loading = !$connectedMapStore || !masterSubscription
   $: isPaidSubscription = masterSubscription?.subscription !== "FREE"
 
   // Format hectares for display
   function formatHectares(hectares: number): string {
+    // 🆕 ADD: Handle undefined/null values
+    if (hectares == null || hectares === undefined) {
+      return "0 ha"
+    }
+
     if (hectares >= 1000) {
       return (hectares / 1000).toFixed(1) + "K ha"
     } else if (hectares >= 100) {
