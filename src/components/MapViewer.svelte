@@ -24,6 +24,8 @@
   import MapSatelliteOptions from "./MapSatelliteOptions.svelte"
   import TrailSynchronizer from "$lib/components/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
+  import Toolbox from "$lib/components/Toolbox.svelte" // Add this import
+
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
   import NavigationControl from "$lib/components/NavigationControl.svelte"
 

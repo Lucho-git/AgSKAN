@@ -388,7 +388,7 @@
       on:click={() => (mapObjectsView = "vehicles")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none"
+        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
         >{vehicleCount}</span
       >
       <div class="flex items-center gap-2">
@@ -417,7 +417,7 @@
       on:click={() => (mapObjectsView = "pins")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none"
+        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
         >{pinCount}</span
       >
       <div class="flex items-center gap-2">
@@ -445,7 +445,7 @@
       on:click={() => (mapObjectsView = "trails")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none"
+        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
         >{trailCount}</span
       >
       <div class="flex items-center gap-2">
@@ -727,7 +727,7 @@
                 type="text"
                 placeholder="Search trails..."
                 bind:value={trailSearchQuery}
-                class="max-xs:py-1.5 max-xs:pl-7 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 py-2 pl-10 pr-4 text-sm outline-none focus:border-base-content"
+                class="max-xs:py-1.5 max-xs:pl-7 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 py-2 pl-10 pr-4 text-sm text-contrast-content outline-none focus:border-base-content"
               />
             </div>
 
@@ -744,22 +744,29 @@
             </button>
           </div>
 
-          <!-- 🆕 NEW: Custom Operations Dropdown -->
+          <!-- 🆕 UPDATED: Improved Operations Dropdown -->
           <div class="relative" bind:this={operationDropdownRef}>
             <button
-              class="max-xs:px-2 max-xs:py-1.5 max-xs:text-xs flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm outline-none transition-colors hover:bg-base-300 focus:border-base-content"
+              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-3 text-sm outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50"
               on:click={() => (showOperationDropdown = !showOperationDropdown)}
             >
-              <span class="truncate text-left">
-                {selectedOperationName}
+              <span class="truncate text-left text-contrast-content">
                 {#if selectedOperation === "all"}
-                  <span class="text-contrast-content/60"
-                    >({$trailsMetaDataStore.length})</span
+                  All Operations
+                  <span
+                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
                   >
+                    <Route class="h-3 w-3" />
+                    {$trailsMetaDataStore.length}
+                  </span>
                 {:else}
-                  <span class="text-contrast-content/60"
-                    >({getTrailCountForOperation(selectedOperation)})</span
+                  {selectedOperationName.replace(/\s*\([^)]*\)$/, "")}
+                  <span
+                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
                   >
+                    <Route class="h-3 w-3" />
+                    {getTrailCountForOperation(selectedOperation)}
+                  </span>
                 {/if}
               </span>
               <svg
@@ -791,15 +798,22 @@
                     : ''}"
                   on:click={() => selectOperation("all")}
                 >
-                  <span class="font-medium">All Operations</span>
-                  <span
-                    class="group-hover:bg-base-400 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
-                    'all'
-                      ? 'bg-primary/20 text-primary'
-                      : ''}"
-                  >
-                    {$trailsMetaDataStore.length}
-                  </span>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium text-contrast-content">
+                      All Operations
+                    </div>
+                  </div>
+                  <div class="ml-2 flex shrink-0 items-center gap-1">
+                    <div
+                      class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                      'all'
+                        ? 'bg-primary/20 text-primary'
+                        : 'text-base-content'}"
+                    >
+                      <Route class="h-3 w-3" />
+                      <span>{$trailsMetaDataStore.length}</span>
+                    </div>
+                  </div>
                 </button>
 
                 <!-- Individual operations -->
@@ -813,19 +827,21 @@
                     on:click={() => selectOperation(operation.id)}
                   >
                     <div class="min-w-0 flex-1">
-                      <div class="truncate font-medium">{operation.name}</div>
-                      <div class="text-xs text-contrast-content/60">
-                        Year: {operation.year}
+                      <div class="truncate font-medium text-contrast-content">
+                        {operation.name} ({operation.year})
                       </div>
                     </div>
-                    <span
-                      class="group-hover:bg-base-400 ml-2 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
-                      operation.id
-                        ? 'bg-primary/20 text-primary'
-                        : ''} shrink-0"
-                    >
-                      {trailCount}
-                    </span>
+                    <div class="ml-2 flex shrink-0 items-center gap-1">
+                      <div
+                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                        operation.id
+                          ? 'bg-primary/20 text-primary'
+                          : 'text-base-content'}"
+                      >
+                        <Route class="h-3 w-3" />
+                        <span>{trailCount}</span>
+                      </div>
+                    </div>
                   </button>
                 {/each}
               </div>

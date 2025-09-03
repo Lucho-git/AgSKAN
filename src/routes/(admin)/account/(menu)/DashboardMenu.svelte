@@ -1,8 +1,9 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
   import {
     operationStore,
     selectedOperationStore,
@@ -10,6 +11,7 @@
   import { toast } from "svelte-sonner"
   import { mapApi } from "$lib/api/mapApi"
   import { operationApi } from "$lib/api/operationApi"
+  import { supabase } from "$lib/supabaseClient"
   import {
     Map,
     Plus,
@@ -29,6 +31,7 @@
     User,
     Pencil,
     Trash2,
+    AlertTriangle,
   } from "lucide-svelte"
 
   import MapManagementTab from "./MapManagementTab.svelte"
@@ -65,6 +68,14 @@
   let editOperationYear = new Date().getFullYear()
   let editOperationDescription = ""
 
+  // 🆕 NEW: Recent maps state
+  let userMaps = []
+  let recentMaps = []
+
+  // 🆕 NEW: Custom operation dropdown state
+  let showOperationDropdown = false
+  let operationDropdownRef = null
+
   // Reactive values for dashboard
   $: currentYear = new Date().getFullYear()
   $: yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i)
@@ -80,6 +91,85 @@
     showEditOperation ||
     showDeleteOperationConfirm
 
+  // 🆕 NEW: Trail count calculations
+  $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
+    const operationId = trail.operation_id
+    if (operationId) {
+      counts[operationId] = (counts[operationId] || 0) + 1
+    }
+    return counts
+  }, {})
+
+  // 🆕 NEW: Helper function to get trail count for an operation
+  function getTrailCountForOperation(operationId: string): number {
+    return trailCountsByOperation[operationId] || 0
+  }
+
+  // 🆕 NEW: Click outside to close dropdown
+  function handleClickOutside(event) {
+    if (operationDropdownRef && !operationDropdownRef.contains(event.target)) {
+      showOperationDropdown = false
+    }
+  }
+
+  // 🆕 NEW: Fetch recent maps functions
+  async function fetchUserMaps() {
+    if (!$profileStore?.id) return
+
+    const { data, error } = await supabase
+      .from("master_maps")
+      .select(
+        `
+        id, 
+        map_name, 
+        master_user_id,
+        profiles:master_user_id(full_name)
+      `,
+      )
+      .eq("master_user_id", $profileStore.id)
+
+    if (!error && data) {
+      userMaps = data.map((map) => ({
+        ...map,
+        owner_name: "You",
+      }))
+    }
+  }
+
+  async function fetchRecentMaps() {
+    if (!$profileStore?.recent_maps || $profileStore.recent_maps.length === 0)
+      return
+
+    const { data, error } = await supabase
+      .from("master_maps")
+      .select(
+        `
+        id, 
+        map_name, 
+        master_user_id,
+        profiles:master_user_id(full_name)
+      `,
+      )
+      .in("id", $profileStore.recent_maps)
+
+    if (!error && data) {
+      recentMaps = $profileStore.recent_maps
+        .map((id) => {
+          const map = data.find((m) => m.id === id)
+          return map
+            ? {
+                ...map,
+                owner_name:
+                  map.master_user_id === $profileStore.id
+                    ? "You"
+                    : map.profiles.full_name,
+              }
+            : undefined
+        })
+        .filter((map) => map !== undefined)
+    }
+  }
+
   // Helper function to close all dashboard menus
   function closeAllDashboardMenus() {
     showMapOptions = false
@@ -90,6 +180,7 @@
     showCreateOperation = false
     showEditOperation = false
     showDeleteOperationConfirm = false
+    showOperationDropdown = false // 🆕 NEW: Also close operation dropdown
   }
 
   // Dashboard map functions
@@ -162,25 +253,48 @@
       const result = await mapApi.connectToMap(trimmedMapId)
 
       if (result.success && result.data) {
-        const { connectedMap, mapActivity, operations, operation } = result.data
+        const {
+          connectedMap,
+          mapActivity,
+          operations,
+          operation,
+          trailsMetadata,
+        } = result.data
 
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
+
+        if (trailsMetadata) {
+          trailsMetaDataStore.set(trailsMetadata)
+        }
 
         if (operations && operations.length > 0) {
           operationStore.set(operations)
           selectedOperationStore.set(operation || operations[0])
         }
 
-        profileStore.update((profile) => ({
-          ...profile,
-          master_map_id: trimmedMapId,
-        }))
+        // 🆕 NEW: Update recent maps
+        if ($profileStore) {
+          profileStore.update((profile) => ({
+            ...profile,
+            master_map_id: trimmedMapId,
+            recent_maps: [
+              trimmedMapId,
+              ...(profile.recent_maps || []).filter(
+                (id) => id !== trimmedMapId,
+              ),
+            ].slice(0, 10),
+          }))
+        }
 
         toast.success("Connected to map successfully")
         activeTab = "dashboard"
         enteredMapId = ""
         closeAllDashboardMenus()
+
+        // 🆕 NEW: Refresh map lists
+        await fetchUserMaps()
+        await fetchRecentMaps()
       } else {
         toast.error(`Failed to connect to map: ${result.message}`)
       }
@@ -296,6 +410,7 @@
           selected_operation_id: operationId,
         }))
 
+        showOperationDropdown = false // 🆕 NEW: Close dropdown after selection
         toast.success("Operation switched successfully")
       } catch (error) {
         toast.error("Failed to update selected operation")
@@ -467,6 +582,16 @@
   onMount(async () => {
     if (!isConnected) {
       activeTab = "map"
+    }
+
+    // 🆕 NEW: Fetch recent maps on mount
+    await fetchUserMaps()
+    await fetchRecentMaps()
+
+    // Add click outside listener
+    document.addEventListener("click", handleClickOutside)
+    return () => {
+      document.removeEventListener("click", handleClickOutside)
     }
   })
 </script>
@@ -716,7 +841,7 @@
             </div>
           {/if}
 
-          <!-- Expandable Switch Map - Full Form -->
+          <!-- 🆕 UPDATED: Expandable Switch Map with Inline Join Button -->
           {#if showSwitchMapConfirm}
             <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
               <div class="space-y-4" on:click|stopPropagation>
@@ -727,32 +852,127 @@
                   <label class="mb-1 block text-sm text-contrast-content/60"
                     >Map ID</label
                   >
-                  <input
-                    type="text"
-                    bind:value={enteredMapId}
-                    placeholder="Enter Map ID"
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-                  />
+                  <!-- Inline input and button -->
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      bind:value={enteredMapId}
+                      placeholder="Enter Map ID"
+                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    />
+                    <button
+                      class="rounded-lg bg-base-content px-4 py-3 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      on:click={() => connectToMap(enteredMapId)}
+                      disabled={isLoading || !enteredMapId.trim()}
+                    >
+                      {isLoading && loadingAction === `connect-${enteredMapId}`
+                        ? "Joining..."
+                        : "Join"}
+                    </button>
+                  </div>
                 </div>
 
-                <div class="flex gap-2">
+                <!-- 🆕 NEW: Recent Maps Quick Access -->
+                {#if recentMaps.length > 0 || userMaps.length > 0}
+                  <div class="space-y-3">
+                    {#if recentMaps.length > 0}
+                      <div>
+                        <h5
+                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                        >
+                          <div
+                            class="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600/20"
+                          >
+                            <Clock class="h-2.5 w-2.5 text-purple-600" />
+                          </div>
+                          Recent Maps
+                        </h5>
+                        <div class="space-y-1">
+                          {#each recentMaps.slice(0, 10) as map}
+                            <button
+                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2.5 text-left transition-colors hover:bg-base-300"
+                              on:click={() => connectToMap(map.id)}
+                              disabled={isLoading}
+                            >
+                              <div
+                                class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                              >
+                                <Map class="h-3 w-3 text-blue-600" />
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div
+                                  class="truncate text-sm font-medium text-contrast-content"
+                                >
+                                  {map.map_name}
+                                </div>
+                                <div class="text-xs text-contrast-content/60">
+                                  by {map.owner_name}
+                                </div>
+                              </div>
+                              <Link2
+                                class="h-3 w-3 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                              />
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+
+                    {#if userMaps.length > 0}
+                      <div>
+                        <h5
+                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                        >
+                          <div
+                            class="flex h-4 w-4 items-center justify-center rounded-full bg-green-600/20"
+                          >
+                            <User class="h-2.5 w-2.5 text-green-600" />
+                          </div>
+                          Your Maps
+                        </h5>
+                        <div class="space-y-1">
+                          {#each userMaps.slice(0, 10) as map}
+                            <button
+                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2.5 text-left transition-colors hover:bg-base-300"
+                              on:click={() => connectToMap(map.id)}
+                              disabled={isLoading}
+                            >
+                              <div
+                                class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                              >
+                                <Map class="h-3 w-3 text-green-600" />
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div
+                                  class="truncate text-sm font-medium text-contrast-content"
+                                >
+                                  {map.map_name}
+                                </div>
+                                <div class="text-xs text-contrast-content/60">
+                                  You own this map
+                                </div>
+                              </div>
+                              <Link2
+                                class="h-3 w-3 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                              />
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+
+                <!-- Cancel button only -->
+                <div class="flex pt-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
                     on:click={() => {
                       closeAllDashboardMenus()
                       enteredMapId = ""
                     }}
                   >
                     Cancel
-                  </button>
-                  <button
-                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
-                    on:click={() => connectToMap(enteredMapId)}
-                    disabled={isLoading || !enteredMapId.trim()}
-                  >
-                    {isLoading && loadingAction === `connect-${enteredMapId}`
-                      ? "Switching..."
-                      : "Switch Map"}
                   </button>
                 </div>
               </div>
@@ -794,7 +1014,7 @@
           {/if}
         </div>
 
-        <!-- Operation Selector with Header and Dropdown -->
+        <!-- 🆕 UPDATED: Operation Selector with Custom Dropdown -->
         <div class="relative rounded-lg bg-base-200 p-4 transition-colors">
           <button
             class="mb-3 flex w-full items-center justify-between text-left"
@@ -830,24 +1050,79 @@
             </div>
           </button>
 
-          <!-- Operation selector -->
-          <div class="relative">
-            <select
-              class="w-full appearance-none rounded-lg border border-base-300 bg-base-100 p-3 pr-10 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
-              value={$selectedOperationStore?.id}
-              on:change={(e) => handleOperationSelect(e.target.value)}
+          <!-- 🆕 NEW: Custom Operation Dropdown -->
+          <div class="relative" bind:this={operationDropdownRef}>
+            <button
+              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-3 text-sm outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50"
+              on:click={() =>
+                !isLoading && (showOperationDropdown = !showOperationDropdown)}
               disabled={isLoading}
             >
-              {#each $operationStore as operation}
-                <option value={operation.id}>
-                  {operation.name} ({operation.year})
-                </option>
-              {/each}
-            </select>
-            <ChevronDown
-              class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
-            />
+              <span class="truncate text-left text-contrast-content">
+                {#if $selectedOperationStore}
+                  {$selectedOperationStore.name} ({$selectedOperationStore.year})
+                  <span
+                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
+                  >
+                    <Route class="h-3 w-3" />
+                    {getTrailCountForOperation($selectedOperationStore.id)}
+                  </span>
+                {:else}
+                  Select Operation
+                {/if}
+              </span>
+              <svg
+                class="h-4 w-4 text-contrast-content/60 transition-transform {showOperationDropdown
+                  ? 'rotate-180'
+                  : ''}"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                ></path>
+              </svg>
+            </button>
+
+            {#if showOperationDropdown}
+              <div
+                class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+              >
+                {#each $operationStore as operation (operation.id)}
+                  {@const trailCount = getTrailCountForOperation(operation.id)}
+                  <button
+                    class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {$selectedOperationStore?.id ===
+                    operation.id
+                      ? 'bg-primary/10 text-primary'
+                      : ''}"
+                    on:click={() => handleOperationSelect(operation.id)}
+                  >
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate font-medium text-contrast-content">
+                        {operation.name} ({operation.year})
+                      </div>
+                    </div>
+                    <div class="ml-2 flex shrink-0 items-center gap-1">
+                      <div
+                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {$selectedOperationStore?.id ===
+                        operation.id
+                          ? 'bg-primary/20 text-primary'
+                          : 'text-base-content'}"
+                      >
+                        <Route class="h-3 w-3" />
+                        <span>{trailCount}</span>
+                      </div>
+                    </div>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
+
           {#if $selectedOperationStore?.description}
             <p class="mt-2 text-xs text-contrast-content/60">
               {$selectedOperationStore.description}

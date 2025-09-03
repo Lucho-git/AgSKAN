@@ -172,7 +172,7 @@
           profileStore.update((profile) => ({
             ...profile,
             master_map_id: mapId,
-            recent_maps: [mapId, ...(profile.recent_maps || [])].slice(0, 10),
+            recent_maps: [mapId, ...(profile.recent_maps || [])].slice(0, 20),
             selected_operation_id: operation.id,
           }))
         }
@@ -844,7 +844,7 @@
                   Recent Maps
                 </h4>
                 <div class="space-y-2">
-                  {#each recentMaps.slice(0, 3) as map}
+                  {#each recentMaps.slice(0, 20) as map}
                     <button
                       class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-4 text-left transition-colors hover:bg-base-300"
                       on:click={() => connectToMap(map.id)}
@@ -884,7 +884,7 @@
                   Your Maps
                 </h4>
                 <div class="space-y-2">
-                  {#each userMaps.slice(0, 3) as map}
+                  {#each userMaps.slice(0, 20) as map}
                     <button
                       class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-4 text-left transition-colors hover:bg-base-300"
                       on:click={() => connectToMap(map.id)}
