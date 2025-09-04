@@ -3,17 +3,12 @@
   import { createEventDispatcher } from "svelte"
   import { mapStore, locationMarkerStore, syncStore } from "../stores/mapStore"
   import { userVehicleStore, userVehicleTrailing } from "../stores/vehicleStore"
-  import { selectedOperationStore } from "$lib/stores/operationStore"
-  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
-  import { antLineConfigStore } from "../stores/trailDataStore"
   import { controlStore, trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
-  import VehicleSelectionMenu from "./VehicleSelectionMenu.svelte"
-  import SVGComponents from "$lib/vehicles/index.js"
   import { Home, MapPin, Navigation } from "lucide-svelte"
 
   let isCircular = true
@@ -25,20 +20,6 @@
       isExpanded = true
     }, 200)
   })
-
-  let isVehicleMenuOpen = false
-  let VehicleIcon
-
-  $: {
-    if (
-      $userVehicleStore.vehicle_marker &&
-      $userVehicleStore.vehicle_marker.type
-    ) {
-      VehicleIcon =
-        SVGComponents[$userVehicleStore.vehicle_marker.type] ||
-        SVGComponents.simpleTractor
-    }
-  }
 
   const dispatch = createEventDispatcher()
 
@@ -52,67 +33,8 @@
     }
   }
 
-  function toggleVehicleMenu() {
-    isVehicleMenuOpen = !isVehicleMenuOpen
-    console.log("Set vehicleMenuVisibility to", isVehicleMenuOpen)
-    controlStore.update((store) => {
-      const updatedStore = {
-        ...store,
-        showVehicleMenu: isVehicleMenuOpen,
-      }
-      console.log("Updated controlStore:", updatedStore)
-      return updatedStore
-    })
-  }
-
-  $: isVehicleMenuOpen = $controlStore.showVehicleMenu
-
   function handleBackToDashboard() {
     dispatch("backToDashboard")
-  }
-
-  const antLineConfigModes = [
-    "noTrails",
-    "allTrails",
-    "latestTrail",
-    "userLatestTrail",
-  ]
-  let currentAntLineConfigIndex = 0
-
-  function cycleAntLineConfig() {
-    currentAntLineConfigIndex =
-      (currentAntLineConfigIndex + 1) % antLineConfigModes.length
-    const currentMode = antLineConfigModes[currentAntLineConfigIndex]
-
-    antLineConfigStore.update((config) => {
-      config.noTrails = false
-      config.allTrails = false
-      config.latestTrail = false
-      config.userLatestTrail = false
-
-      config[currentMode] = true
-
-      switch (currentMode) {
-        case "noTrails":
-          toast.info("No trail animation")
-          break
-        case "allTrails":
-          toast.info("Animating all trails")
-          break
-        case "latestTrail":
-          toast.info("Animating only latest trail")
-          break
-        case "userLatestTrail":
-          toast.info("Animating only your latest trail")
-          break
-      }
-
-      return config
-    })
-  }
-
-  function handleSync() {
-    $syncStore.synchronizeMarkers("Synchronizing with server")
   }
 
   let isExpanded = false
@@ -212,27 +134,6 @@
         <Home size={24} />
       </button>
 
-      <!-- Vehicle Selection Button -->
-      <button
-        class="menu-button btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={toggleVehicleMenu}
-      >
-        <div class="flex h-full w-full items-center justify-center">
-          {#if VehicleIcon}
-            <svelte:component
-              this={VehicleIcon}
-              bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
-              size={$userVehicleStore.vehicle_marker.size}
-              swath={$userVehicleStore.vehicle_marker.swath}
-            />
-          {:else}
-            Loading...
-          {/if}
-        </div>
-      </button>
-
       <!-- Toggle Trailing Button -->
       <button
         class="menu-button btn {isCircular
@@ -275,26 +176,6 @@
       </button>
     </div>
   </div>
-
-  {#if isVehicleMenuOpen}
-    <VehicleSelectionMenu
-      showMenu={$controlStore.showVehicleMenu}
-      currentVehicleType={$userVehicleStore.vehicle_marker.type}
-      currentVehicleSize={$userVehicleStore.vehicle_marker.size}
-      currentVehicleColor={$userVehicleStore.vehicle_marker.bodyColor}
-      currentVehicleSwath={$userVehicleStore.vehicle_marker.swath}
-      on:closeMenu={() => {
-        controlStore.update((store) => ({ ...store, showVehicleMenu: false }))
-      }}
-      on:vehicleSelected={(event) => {
-        userVehicleStore.update((vehicle) => ({
-          ...vehicle,
-          vehicle_marker: event.detail,
-        }))
-        controlStore.update((store) => ({ ...store, showVehicleMenu: false }))
-      }}
-    />
-  {/if}
 </div>
 
 <style>

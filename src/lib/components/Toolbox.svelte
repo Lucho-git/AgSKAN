@@ -11,6 +11,12 @@
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
+  // Import vehicle store and components
+  import { userVehicleStore } from "../../stores/vehicleStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import SVGComponents from "$lib/vehicles/index.js"
+  import IconSVG from "../../components/IconSVG.svelte"
+
   // Import toolbox control components
   import SatelliteControls from "$lib/components/SatelliteControls.svelte"
   import MarkerControls from "$lib/components/MarkerControls.svelte"
@@ -26,6 +32,32 @@
 
   // State for different tool panels
   let activePanel = null // 'main', 'satellite', 'marker', 'vehicle', etc.
+
+  // Get vehicle icon component from store
+  let VehicleIcon
+  $: {
+    if (
+      $userVehicleStore.vehicle_marker &&
+      $userVehicleStore.vehicle_marker.type
+    ) {
+      VehicleIcon =
+        SVGComponents[$userVehicleStore.vehicle_marker.type] ||
+        SVGComponents.simpleTractor
+    }
+  }
+
+  // Get default marker from userSettingsStore
+  function getDefaultMarker() {
+    return (
+      $userSettingsStore?.defaultMarker || {
+        id: "default",
+        class: "default",
+        name: "Default Marker",
+      }
+    )
+  }
+
+  $: defaultMarker = getDefaultMarker()
 
   function closeToolbox() {
     dispatch("close")
@@ -48,11 +80,6 @@
   }
 
   // Tool functions
-  function handleDrawingMode() {
-    dispatch("tool", { type: "drawing-mode" })
-    closeToolbox()
-  }
-
   function handleMeasurement() {
     // Toggle drawing mode for measurements
     $drawingModeEnabled = !$drawingModeEnabled
@@ -117,15 +144,40 @@
       {:else}
         <!-- Main Tool Grid -->
         <div class="tool-grid">
-          <!-- Row 1 -->
-          <button class="tool-button" on:click={showMarkerPanel}>
-            <MapPin size={24} />
-            <span>Marker</span>
+          <button class="tool-button" on:click={showVehiclePanel}>
+            <div class="vehicle-icon-container">
+              {#if VehicleIcon}
+                <svelte:component
+                  this={VehicleIcon}
+                  bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
+                  size="52px"
+                  swath={$userVehicleStore.vehicle_marker.swath}
+                />
+              {:else}
+                <Truck size={52} />
+              {/if}
+            </div>
+            <span>Select Vehicle</span>
           </button>
 
-          <button class="tool-button" on:click={handleDrawingMode}>
-            <PencilRuler size={24} />
-            <span>Draw</span>
+          <!-- Marker Button with actual default marker icon -->
+          <button class="tool-button" on:click={showMarkerPanel}>
+            <div class="marker-icon-container">
+              {#if defaultMarker.id === "default"}
+                <IconSVG icon="mapbox-marker" size="52px" />
+              {:else if defaultMarker.class === "custom-svg"}
+                <IconSVG icon={defaultMarker.id} size="52px" />
+              {:else if defaultMarker.class?.startsWith("ionic-")}
+                <ion-icon name={defaultMarker.id} style="font-size: 52px;"
+                ></ion-icon>
+              {:else if defaultMarker.class?.startsWith("at-")}
+                <i class={`${defaultMarker.class}`} style="font-size: 52px;"
+                ></i>
+              {:else}
+                <MapPin size={52} />
+              {/if}
+            </div>
+            <span>Marker</span>
           </button>
 
           <!-- Row 2 -->
@@ -134,25 +186,23 @@
             class:tool-active={$drawingModeEnabled}
             on:click={handleMeasurement}
           >
-            <Ruler size={24} />
+            <Ruler size={40} />
             <span>Measure</span>
           </button>
 
-          <button class="tool-button" on:click={showVehiclePanel}>
-            <Truck size={24} />
-            <span>Vehicle</span>
-          </button>
-
-          <!-- Row 3 -->
           <button class="tool-button" on:click={handleTrailRecording}>
-            <Navigation size={24} />
+            <Navigation size={40} />
             <span>Trails</span>
           </button>
 
+          <!-- Row 3 -->
           <button class="tool-button" on:click={showSatellitePanel}>
-            <Satellite size={24} />
+            <Satellite size={40} />
             <span>Satellite</span>
           </button>
+
+          <!-- Empty slot to maintain grid layout -->
+          <div class="tool-placeholder"></div>
         </div>
       {/if}
     </div>
@@ -240,7 +290,7 @@
   .tool-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 16px;
     padding: 20px 16px;
     align-content: start;
   }
@@ -250,16 +300,17 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 12px;
     width: 100%;
-    height: 80px;
-    padding: 12px 8px;
+    height: 120px; /* Even taller to accommodate big icons */
+    padding: 20px 12px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: rgba(255, 255, 255, 0.8);
+    overflow: visible; /* Allow icons to extend beyond button bounds */
   }
 
   .tool-button:hover {
@@ -292,6 +343,24 @@
     font-weight: 500;
     text-align: center;
     line-height: 1.2;
+    margin-top: 4px; /* Extra space from large icons */
+  }
+
+  /* Icon containers - smaller than actual icons to allow overflow */
+  .vehicle-icon-container,
+  .marker-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; /* Container smaller than 52px icon */
+    height: 40px;
+    overflow: visible; /* Allow icons to spill out */
+  }
+
+  /* Empty placeholder to maintain grid alignment */
+  .tool-placeholder {
+    height: 120px;
+    background: transparent;
   }
 
   /* Animations */
@@ -320,17 +389,46 @@
     }
 
     .tool-grid {
-      gap: 10px;
+      gap: 14px;
       padding: 16px 12px;
     }
 
     .tool-button {
-      height: 70px;
-      padding: 10px 6px;
+      height: 105px;
+      padding: 18px 10px;
+      gap: 10px;
     }
 
     .tool-button span {
       font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .vehicle-icon-container,
+    .marker-icon-container {
+      width: 32px; /* Container smaller than 42px icon */
+      height: 32px;
+    }
+
+    /* Update vehicle/marker icons for tablet */
+    .vehicle-icon-container :global(svg),
+    .vehicle-icon-container :global(ion-icon),
+    .vehicle-icon-container :global(i),
+    .marker-icon-container :global(svg),
+    .marker-icon-container :global(ion-icon),
+    .marker-icon-container :global(i) {
+      width: 42px !important;
+      height: 42px !important;
+      font-size: 42px !important;
+    }
+
+    /* Adjust other Lucide icon sizes for mobile */
+    .tool-button
+      :global(
+        svg:not(.vehicle-icon-container svg):not(.marker-icon-container svg)
+      ) {
+      width: 32px !important;
+      height: 32px !important;
     }
   }
 
@@ -340,17 +438,46 @@
     }
 
     .tool-grid {
-      gap: 8px;
+      gap: 12px;
       padding: 14px 10px;
     }
 
     .tool-button {
-      height: 65px;
-      padding: 8px 4px;
+      height: 95px;
+      padding: 16px 8px;
+      gap: 8px;
     }
 
     .tool-button span {
       font-size: 10px;
+      margin-top: 2px;
+    }
+
+    .vehicle-icon-container,
+    .marker-icon-container {
+      width: 28px; /* Container smaller than 36px icon */
+      height: 28px;
+    }
+
+    /* Update vehicle/marker icons for mobile */
+    .vehicle-icon-container :global(svg),
+    .vehicle-icon-container :global(ion-icon),
+    .vehicle-icon-container :global(i),
+    .marker-icon-container :global(svg),
+    .marker-icon-container :global(ion-icon),
+    .marker-icon-container :global(i) {
+      width: 36px !important;
+      height: 36px !important;
+      font-size: 36px !important;
+    }
+
+    /* Adjust other Lucide icon sizes for small mobile */
+    .tool-button
+      :global(
+        svg:not(.vehicle-icon-container svg):not(.marker-icon-container svg)
+      ) {
+      width: 28px !important;
+      height: 28px !important;
     }
   }
 

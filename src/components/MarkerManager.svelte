@@ -284,7 +284,7 @@
       }
     }
 
-    // Blue selection circle (exclude default markers)
+    // Blue selection circle (exclude default markers) - FIXED FILTER
     if (!map.getLayer("markers-selection-circle")) {
       const selectionLayerConfig = {
         id: "markers-selection-circle",
@@ -292,7 +292,7 @@
         source: "markers",
         filter: [
           "all",
-          ["==", "selected", true], // RESTORED: Original working filter syntax
+          ["==", ["get", "selected"], true], // FIXED: Use ["get", "selected"]
           ["!=", ["get", "iconClass"], "default"],
         ],
         paint: {
