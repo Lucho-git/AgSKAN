@@ -368,18 +368,38 @@
           otherActiveTrailStore.update((trails) => {
             return trails.map((trail) => {
               if (trail.id === trail_id) {
+                // ✅ ESSENTIAL: Normalize timestamp format
+                const normalizedTimestamp =
+                  typeof timestamp === "string"
+                    ? new Date(timestamp).getTime()
+                    : timestamp
+
+                const newCoordinate = {
+                  coordinates: {
+                    latitude: coordinate.coordinates[1],
+                    longitude: coordinate.coordinates[0],
+                  },
+                  timestamp: normalizedTimestamp,
+                }
+
+                // ✅ ESSENTIAL: Sort with consistent format
+                const updatedPath = [...trail.path, newCoordinate].sort(
+                  (a, b) => {
+                    const aTime =
+                      typeof a.timestamp === "string"
+                        ? new Date(a.timestamp).getTime()
+                        : a.timestamp
+                    const bTime =
+                      typeof b.timestamp === "string"
+                        ? new Date(b.timestamp).getTime()
+                        : b.timestamp
+                    return aTime - bTime
+                  },
+                )
+
                 return {
                   ...trail,
-                  path: [
-                    ...trail.path,
-                    {
-                      coordinates: {
-                        latitude: coordinate.coordinates[1],
-                        longitude: coordinate.coordinates[0],
-                      },
-                      timestamp,
-                    },
-                  ],
+                  path: updatedPath,
                 }
               }
               return trail
@@ -474,7 +494,6 @@
       const { data: trails, error: trailsError } = await supabase
         .from("trails")
         .select("*")
-
         .eq("operation_id", operation_id)
         .not("end_time", "is", null)
         .order("start_time", { ascending: true })
@@ -636,18 +655,34 @@
             `📍 TrailSynchronizer: Found ${activeTrails.length} other active trails`,
             activeTrails,
           )
-          const formattedTrails = activeTrails.map((trail) => ({
-            id: trail.id,
-            vehicle_id: trail.vehicle_id,
-            operation_id: trail.operation_id,
-            task_id: trail.task_id || null,
-            start_time: trail.start_time,
-            end_time: trail.end_time,
-            trail_color: trail.trail_color,
-            trail_width: trail.trail_width,
-            path: trail.trailData || [],
-            detailed_path: null,
-          }))
+
+          // ✅ ESSENTIAL: Normalize initial trail data timestamps
+          const formattedTrails = activeTrails.map((trail) => {
+            const trailData = trail.trailData || []
+
+            const normalizedTrailData = trailData.map((coord) => ({
+              ...coord,
+              timestamp:
+                typeof coord.timestamp === "string"
+                  ? new Date(coord.timestamp).getTime()
+                  : coord.timestamp,
+            }))
+
+            return {
+              id: trail.id,
+              vehicle_id: trail.vehicle_id,
+              operation_id: trail.operation_id,
+              task_id: trail.task_id || null,
+              start_time: trail.start_time,
+              end_time: trail.end_time,
+              trail_color: trail.trail_color,
+              trail_width: trail.trail_width,
+              path: normalizedTrailData.sort(
+                (a, b) => a.timestamp - b.timestamp,
+              ),
+              detailed_path: null,
+            }
+          })
 
           // Get connected profiles from mapActivityStore
           const connectedProfiles = $mapActivityStore?.connected_profiles || []

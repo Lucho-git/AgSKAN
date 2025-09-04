@@ -4,8 +4,7 @@
   import { toast } from "svelte-sonner"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
-  import { supabase } from "$lib/stores/sessionStore"
-  import { session } from "$lib/stores/sessionStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   // Preset options for days (same as MarkerFilterSettings)
   const dayOptions = [
@@ -51,7 +50,6 @@
     },
   ]
 
-  // Available imagery providers
   const imageryProviders = [
     {
       key: "google_satellite",
@@ -66,22 +64,10 @@
       icon: "solar:camera-bold-duotone",
     },
     {
-      key: "esri_clarity",
-      name: "Esri Clarity+",
-      description: "Enhanced clarity processing, may use older imagery",
-      icon: "solar:eye-bold-duotone",
-    },
-    {
       key: "esri_standard",
       name: "Esri World Imagery",
       description: "Standard high-resolution imagery",
       icon: "solar:planet-bold-duotone",
-    },
-    {
-      key: "esri_vivid",
-      name: "Esri Vivid Basemap",
-      description: "Enhanced colors for vegetation analysis",
-      icon: "solar:palette-bold-duotone",
     },
     {
       key: "ndvi",
@@ -91,14 +77,11 @@
     },
   ]
 
-  // Default options for imagery selector
   const defaultImageryOptions = [
     { key: "mapbox", name: "Mapbox Satellite" },
     { key: "google_satellite", name: "Google Satellite" },
     { key: "bing_aerial", name: "Microsoft Bing Aerial" },
-    { key: "esri_clarity", name: "Esri Clarity+" },
     { key: "esri_standard", name: "Esri World Imagery" },
-    { key: "esri_vivid", name: "Esri Vivid Basemap" },
   ]
 
   // Marker display settings
@@ -111,8 +94,6 @@
   let satelliteDropdownEnabled = false
   let enabledImageryProviders = []
   let defaultImagerySource = "mapbox"
-  let showSatelliteInput = false
-  let satelliteCode = ""
 
   // Reactive values from stores
   $: isConnected = $connectedMapStore?.id
@@ -168,37 +149,6 @@
     await saveZoomSettings()
   }
 
-  // Handle satellite dropdown toggle
-  function handleSatelliteDropdownToggle() {
-    if (satelliteDropdownEnabled) {
-      satelliteDropdownEnabled = false
-      saveSatelliteSettings()
-    } else {
-      showSatelliteInput = true
-      satelliteCode = ""
-    }
-  }
-
-  // Handle satellite code submission
-  async function handleSatelliteCodeSubmit() {
-    if (satelliteCode.toLowerCase() === "allow") {
-      satelliteDropdownEnabled = true
-      showSatelliteInput = false
-      satelliteCode = ""
-      await saveSatelliteSettings()
-      toast.success("Satellite imagery options enabled!")
-    } else {
-      toast.error("Invalid code. Please contact support for access.")
-      satelliteCode = ""
-    }
-  }
-
-  // Cancel satellite input
-  function cancelSatelliteInput() {
-    showSatelliteInput = false
-    satelliteCode = ""
-  }
-
   // Handle imagery provider checkbox changes
   async function handleImageryProviderToggle(providerKey) {
     if (enabledImageryProviders.includes(providerKey)) {
@@ -226,136 +176,70 @@
     await saveSatelliteSettings()
   }
 
-  // Save marker limit setting
+  // ✅ Updated save functions using userSettingsApi
   async function saveMarkerLimitSetting() {
     saving = true
-    const userId = $session?.user?.id
-
-    if (!userId) {
-      toast.error("User not authenticated")
-      saving = false
-      return
-    }
 
     try {
       const limitMarkersOn = selectedDays > 0
-
-      const { error } = await supabase.from("user_settings").upsert(
-        {
-          user_id: userId,
-          limit_markers: limitMarkersOn,
-          limit_markers_days: selectedDays,
-        },
-        { onConflict: "user_id" },
+      const result = await userSettingsApi.updateMarkerSettings(
+        limitMarkersOn,
+        selectedDays,
       )
 
-      if (error) {
-        console.error("Error saving marker limit settings:", error)
-        toast.error("Failed to save marker limit settings")
-        saving = false
-        return
+      if (result.success) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message || "Failed to save marker settings")
       }
-
-      const newDate = calculateDateFromDays(selectedDays)
-      userSettingsStore.update((settings) => ({
-        ...settings,
-        limitMarkersOn: limitMarkersOn,
-        limitMarkersDays: selectedDays,
-        limitMarkersDate: newDate,
-      }))
-
-      toast.success("Marker display settings updated")
-    } catch (err) {
-      console.error("Unexpected error saving marker limit settings:", err)
-      toast.error("An error occurred")
+    } catch (error) {
+      console.error("Error saving marker settings:", error)
+      toast.error("An error occurred while saving marker settings")
     } finally {
       saving = false
     }
   }
 
-  // Save zoom settings
   async function saveZoomSettings() {
     saving = true
-    const userId = $session?.user?.id
-
-    if (!userId) {
-      toast.error("User not authenticated")
-      saving = false
-      return
-    }
 
     try {
-      const { error } = await supabase.from("user_settings").upsert(
-        {
-          user_id: userId,
-          zoom_to_location_markers: zoomToLocationMarkers,
-          zoom_to_placed_markers: zoomToPlacedMarkers,
-        },
-        { onConflict: "user_id" },
+      const result = await userSettingsApi.updateZoomSettings(
+        zoomToLocationMarkers,
+        zoomToPlacedMarkers,
       )
 
-      if (error) {
-        console.error("Error saving zoom settings:", error)
-        toast.error("Failed to save zoom settings")
-        saving = false
-        return
+      if (result.success) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message || "Failed to save zoom settings")
       }
-
-      userSettingsStore.update((settings) => ({
-        ...settings,
-        zoomToLocationMarkers: zoomToLocationMarkers,
-        zoomToPlacedMarkers: zoomToPlacedMarkers,
-      }))
-
-      toast.success("Zoom settings updated")
-    } catch (err) {
-      console.error("Unexpected error saving zoom settings:", err)
-      toast.error("An error occurred")
+    } catch (error) {
+      console.error("Error saving zoom settings:", error)
+      toast.error("An error occurred while saving zoom settings")
     } finally {
       saving = false
     }
   }
 
-  // Save satellite settings
   async function saveSatelliteSettings() {
     saving = true
-    const userId = $session?.user?.id
-
-    if (!userId) {
-      toast.error("User not authenticated")
-      saving = false
-      return
-    }
 
     try {
-      const { error } = await supabase.from("user_settings").upsert(
-        {
-          user_id: userId,
-          satellite_dropdown_enabled: satelliteDropdownEnabled,
-          enabled_imagery_providers: enabledImageryProviders,
-          default_imagery_source: defaultImagerySource,
-        },
-        { onConflict: "user_id" },
+      const result = await userSettingsApi.updateSatelliteSettings(
+        satelliteDropdownEnabled,
+        enabledImageryProviders,
+        defaultImagerySource,
       )
 
-      if (error) {
-        console.error("Error saving satellite settings:", error)
-        toast.error("Failed to save satellite settings")
-        saving = false
-        return
+      if (result.success) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message || "Failed to save satellite settings")
       }
-
-      userSettingsStore.update((settings) => ({
-        ...settings,
-        satelliteDropdownEnabled: satelliteDropdownEnabled,
-        enabledImageryProviders: enabledImageryProviders,
-        defaultImagerySource: defaultImagerySource,
-      }))
-
-      toast.success("Satellite imagery settings updated")
-    } catch (err) {
-      console.error("Unexpected error saving satellite settings:", err)
-      toast.error("An error occurred")
+    } catch (error) {
+      console.error("Error saving satellite settings:", error)
+      toast.error("An error occurred while saving satellite settings")
     } finally {
       saving = false
     }
@@ -503,10 +387,10 @@
     </h3>
 
     <div class="space-y-4">
-      <!-- Satellite Dropdown Toggle -->
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
+      <!-- Show satellite options if enabled, otherwise show disabled message -->
+      {#if satelliteDropdownEnabled}
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+          <div class="space-y-4">
             <div class="flex items-start gap-3">
               <div class="rounded-lg bg-base-content/10 p-2">
                 <Icon
@@ -521,66 +405,14 @@
                   Advanced Imagery Options
                 </p>
                 <p class="text-sm text-contrast-content/60">
-                  Enable additional satellite imagery providers and NDVI
+                  Configure additional satellite imagery providers and NDVI
                   analysis
                 </p>
-                {#if satelliteDropdownEnabled}
-                  <p class="mt-1 text-xs text-success">Feature enabled</p>
-                {:else}
-                  <p class="mt-1 text-xs text-contrast-content/40">
-                    Feature disabled - requires access code
-                  </p>
-                {/if}
+                <p class="mt-1 text-xs text-success">Feature enabled</p>
               </div>
             </div>
-            <button
-              class="btn btn-sm {satelliteDropdownEnabled
-                ? 'btn-error'
-                : 'btn-primary'}"
-              on:click={handleSatelliteDropdownToggle}
-              disabled={saving}
-            >
-              {satelliteDropdownEnabled ? "Disable" : "Enable"}
-            </button>
-          </div>
 
-          <!-- Satellite Code Input -->
-          {#if showSatelliteInput}
-            <div class="rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <div class="space-y-3">
-                <p class="text-sm font-medium text-contrast-content">
-                  Enter access code to enable advanced imagery features:
-                </p>
-                <div class="flex gap-2">
-                  <input
-                    type="text"
-                    class="input input-bordered flex-1"
-                    placeholder="Enter access code"
-                    bind:value={satelliteCode}
-                    on:keydown={(e) =>
-                      e.key === "Enter" && handleSatelliteCodeSubmit()}
-                  />
-                  <button
-                    class="btn btn-primary"
-                    on:click={handleSatelliteCodeSubmit}
-                    disabled={!satelliteCode.trim()}
-                  >
-                    Submit
-                  </button>
-                  <button class="btn btn-ghost" on:click={cancelSatelliteInput}>
-                    Cancel
-                  </button>
-                </div>
-                <p class="text-xs text-contrast-content/60">
-                  Contact support if you need an access code for advanced
-                  imagery features.
-                </p>
-              </div>
-            </div>
-          {/if}
-
-          <!-- Imagery Provider Selection -->
-          {#if satelliteDropdownEnabled}
+            <!-- Imagery Provider Selection -->
             <div class="space-y-4">
               <div class="rounded-lg border border-info/20 bg-info/5 p-4">
                 <div class="flex items-start gap-3">
@@ -681,9 +513,35 @@
                 </div>
               {/if}
             </div>
-          {/if}
+          </div>
         </div>
-      </div>
+      {:else}
+        <!-- Disabled state message -->
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+          <div class="flex items-start gap-3">
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:layers-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+            <div>
+              <p class="font-medium text-contrast-content">
+                Advanced Imagery Options
+              </p>
+              <p class="text-sm text-contrast-content/60">
+                Additional satellite imagery providers and NDVI analysis are not
+                currently enabled for your account.
+              </p>
+              <p class="mt-1 text-xs text-contrast-content/40">
+                Contact support for access to advanced imagery features.
+              </p>
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 

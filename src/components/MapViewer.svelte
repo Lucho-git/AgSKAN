@@ -14,6 +14,9 @@
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
+  // Import lucide icons for the toolbox
+  import { Wrench } from "lucide-svelte"
+
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"
   import ButtonSection from "./ButtonSection.svelte"
@@ -21,13 +24,14 @@
   import VehicleTracker from "./VehicleTracker.svelte"
   import VehicleStateSynchronizer from "./VehicleStateSynchronizer.svelte"
   import MapFields from "./MapFields.svelte"
-  import MapSatelliteOptions from "./MapSatelliteOptions.svelte"
   import TrailSynchronizer from "$lib/components/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
-  import Toolbox from "$lib/components/Toolbox.svelte" // Add this import
-
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
   import NavigationControl from "$lib/components/NavigationControl.svelte"
+  import Toolbox from "$lib/components/Toolbox.svelte"
+
+  // Import persistent managers
+  import SatelliteManager from "$lib/components/SatelliteManager.svelte"
 
   import { db } from "./db.js"
 
@@ -41,6 +45,9 @@
   let vehicleTrackerRef = null
   let mapEventManagerRef = null
 
+  // Manager references
+  let satelliteManager = null
+
   const DEFAULT_SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12"
 
   let mapLoaded = false
@@ -49,6 +56,9 @@
 
   let mapInitialized = false
   let mapboxInitError = null
+
+  // ✅ Toolbox state
+  let toolboxOpen = false
 
   // ✅ Layer ordering registry with trail support
   const LAYER_ORDER = {
@@ -166,6 +176,58 @@
   function handleLongPress(lngLat) {
     if (markerManagerRef) {
       markerManagerRef.handleMarkerPlacement(lngLat)
+    }
+  }
+
+  // ✅ Toolbox functions
+  function toggleToolbox() {
+    toolboxOpen = !toolboxOpen
+  }
+
+  function closeToolbox() {
+    toolboxOpen = false
+  }
+
+  function handleToolAction(event) {
+    const { type } = event.detail
+
+    console.log("Tool action:", type)
+
+    // Handle different tool actions
+    switch (type) {
+      case "locate-home":
+        handleLocateHome()
+        break
+      case "place-marker":
+        // TODO: Implement marker placement mode
+        toast.info("Marker placement mode activated")
+        break
+      case "drawing-mode":
+        // TODO: Implement drawing mode toggle
+        toast.info("Drawing mode activated")
+        break
+      case "vehicle-controls":
+        // TODO: Open vehicle controls
+        toast.info("Vehicle controls opened")
+        break
+      case "trail-recording":
+        // TODO: Toggle trail recording
+        toast.info("Trail recording toggled")
+        break
+      case "measurement":
+        // TODO: Open measurement tools
+        toast.info("Measurement tools opened")
+        break
+      case "map-sync":
+        // TODO: Trigger map sync
+        toast.info("Map sync initiated")
+        break
+      case "settings":
+        // TODO: Open settings
+        toast.info("Settings opened")
+        break
+      default:
+        console.warn("Unknown tool action:", type)
     }
   }
 
@@ -394,11 +456,27 @@
       {vehicleTrackerRef}
       onLongPress={handleLongPress}
     />
-    <MapSatelliteOptions {map} {mapLoaded} />
+
+    <!-- ✅ Persistent Managers - Never unmount -->
+    <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
+
+    <!-- ✅ NEW: Toolbox Trigger Button -->
+    <div class="toolbox-trigger-container">
+      <button
+        class="toolbox-trigger-button"
+        class:active={toolboxOpen}
+        on:click={toggleToolbox}
+      >
+        <Wrench size={20} />
+      </button>
+    </div>
+
+    <!-- ✅ Keep existing ButtonSection for now -->
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
     />
+
     <NavigationControl />
     <MarkerManager
       bind:this={markerManagerRef}
@@ -420,6 +498,14 @@
     {/if}
   {/if}
 </div>
+
+<!-- ✅ Toolbox with manager references -->
+<Toolbox
+  {satelliteManager}
+  isOpen={toolboxOpen}
+  on:close={closeToolbox}
+  on:tool={handleToolAction}
+/>
 
 <style>
   .map-container {
@@ -461,6 +547,41 @@
 
   .error-container button:hover {
     background-color: #3182ce;
+  }
+
+  /* ✅ NEW: Toolbox Trigger Button Styles */
+  .toolbox-trigger-container {
+    position: absolute;
+    top: 92px; /* Move to where satellite button was */
+    left: 16px;
+    z-index: 10;
+  }
+
+  .toolbox-trigger-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.5);
+    border: 2px solid #000000;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    width: 64px;
+    height: 64px;
+    color: #000000;
+  }
+
+  .toolbox-trigger-button:hover {
+    background-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .toolbox-trigger-button.active {
+    background-color: #f7db5c;
+    border-color: #000000;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   }
 
   :global(.mapboxgl-ctrl-logo) {

@@ -3,6 +3,7 @@ import { supabase } from '$lib/supabaseClient';
 import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
 import { profileStore } from "$lib/stores/profileStore";
+import { userSettingsStore } from "$lib/stores/userSettingsStore";
 
 export const userSettingsApi = {
     /**
@@ -286,6 +287,242 @@ export const userSettingsApi = {
         }
     },
 
+    /**
+     * Updates marker display settings
+     */
+    async updateMarkerSettings(limitMarkers: boolean, limitMarkersDays: number) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            // Calculate the date from days
+            const limitMarkersDate = limitMarkers && limitMarkersDays > 0
+                ? (() => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - limitMarkersDays);
+                    return date.toISOString();
+                })()
+                : null;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    limit_markers: limitMarkers,
+                    limit_markers_days: limitMarkersDays,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving marker settings:", error);
+                return {
+                    success: false,
+                    message: "Failed to save marker settings",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                limitMarkersOn: limitMarkers,
+                limitMarkersDays: limitMarkersDays,
+                limitMarkersDate: limitMarkersDate,
+            }));
+
+            return {
+                success: true,
+                message: "Marker display settings updated"
+            };
+        } catch (error) {
+            console.error("Error in updateMarkerSettings:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving marker settings",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Updates zoom behavior settings
+     */
+    async updateZoomSettings(zoomToLocationMarkers: boolean, zoomToPlacedMarkers: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    zoom_to_location_markers: zoomToLocationMarkers,
+                    zoom_to_placed_markers: zoomToPlacedMarkers,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving zoom settings:", error);
+                return {
+                    success: false,
+                    message: "Failed to save zoom settings",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                zoomToLocationMarkers: zoomToLocationMarkers,
+                zoomToPlacedMarkers: zoomToPlacedMarkers,
+            }));
+
+            return {
+                success: true,
+                message: "Zoom settings updated"
+            };
+        } catch (error) {
+            console.error("Error in updateZoomSettings:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving zoom settings",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Updates satellite imagery settings
+     */
+    async updateSatelliteSettings(satelliteDropdownEnabled: boolean, enabledImageryProviders: string[], defaultImagerySource: string) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    satellite_dropdown_enabled: satelliteDropdownEnabled,
+                    enabled_imagery_providers: enabledImageryProviders,
+                    default_imagery_source: defaultImagerySource,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving satellite settings:", error);
+                return {
+                    success: false,
+                    message: "Failed to save satellite settings",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                satelliteDropdownEnabled: satelliteDropdownEnabled,
+                enabledImageryProviders: enabledImageryProviders,
+                defaultImagerySource: defaultImagerySource,
+            }));
+
+            return {
+                success: true,
+                message: "Satellite imagery settings updated"
+            };
+        } catch (error) {
+            console.error("Error in updateSatelliteSettings:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving satellite settings",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Updates just the default imagery source (for satellite manager use)
+     */
+    async updateDefaultImagerySource(defaultImagerySource: string) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save default imagery source");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    default_imagery_source: defaultImagerySource,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving default imagery source:", error);
+                return {
+                    success: false,
+                    message: "Failed to save default imagery source",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                defaultImagerySource: defaultImagerySource,
+            }));
+
+            return {
+                success: true,
+                message: "Default imagery source updated"
+            };
+        } catch (error) {
+            console.error("Error in updateDefaultImagerySource:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving default imagery source",
+                errorFields: []
+            };
+        }
+    },
 
     /**
      * Deletes the user's account
@@ -346,5 +583,4 @@ export const userSettingsApi = {
             };
         }
     },
-
 };

@@ -11,14 +11,30 @@
     Settings,
     Zap,
     Users,
+    Satellite,
   } from "lucide-svelte"
 
+  // Import toolbox control components
+  import SatelliteControls from "$lib/components/SatelliteControls.svelte"
+
   export let isOpen = false
+  export let satelliteManager = null
 
   const dispatch = createEventDispatcher()
 
+  // State for different tool panels
+  let activePanel = null // 'main', 'satellite', etc.
+
   function closeToolbox() {
     dispatch("close")
+  }
+
+  function showMainPanel() {
+    activePanel = null
+  }
+
+  function showSatellitePanel() {
+    activePanel = "satellite"
   }
 
   // Example tool functions - you'll migrate these from ButtonSection
@@ -75,54 +91,69 @@
   <div class="toolbox-panel">
     <!-- Header -->
     <div class="toolbox-header">
-      <h3>Farm Tools</h3>
+      <div class="header-content">
+        {#if activePanel === "satellite"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Satellite Options</h3>
+        {:else}
+          <h3>Toolbox</h3>
+        {/if}
+      </div>
     </div>
 
-    <!-- Tool Grid -->
-    <div class="tool-grid">
-      <!-- Row 1 -->
-      <button class="tool-button" on:click={handleLocateHome}>
-        <Home size={24} />
-        <span>Home</span>
-      </button>
+    <!-- Dynamic Content -->
+    <div class="toolbox-content">
+      {#if activePanel === "satellite"}
+        <!-- Satellite Options Panel -->
+        <SatelliteControls {satelliteManager} />
+      {:else}
+        <!-- Main Tool Grid -->
+        <div class="tool-grid">
+          <!-- Row 1 -->
+          <button class="tool-button" on:click={handleLocateHome}>
+            <Home size={24} />
+            <span>Home</span>
+          </button>
 
-      <button class="tool-button" on:click={handlePlaceMarker}>
-        <MapPin size={24} />
-        <span>Marker</span>
-      </button>
+          <button class="tool-button" on:click={handlePlaceMarker}>
+            <MapPin size={24} />
+            <span>Marker</span>
+          </button>
 
-      <!-- Row 2 -->
-      <button class="tool-button" on:click={handleDrawingMode}>
-        <PencilRuler size={24} />
-        <span>Draw</span>
-      </button>
+          <!-- Row 2 -->
+          <button class="tool-button" on:click={handleDrawingMode}>
+            <PencilRuler size={24} />
+            <span>Draw</span>
+          </button>
 
-      <button class="tool-button" on:click={handleMeasurement}>
-        <Ruler size={24} />
-        <span>Measure</span>
-      </button>
+          <button class="tool-button" on:click={handleMeasurement}>
+            <Ruler size={24} />
+            <span>Measure</span>
+          </button>
 
-      <!-- Row 3 -->
-      <button class="tool-button" on:click={handleVehicleControls}>
-        <Truck size={24} />
-        <span>Vehicle</span>
-      </button>
+          <!-- Row 3 -->
+          <button class="tool-button" on:click={handleVehicleControls}>
+            <Truck size={24} />
+            <span>Vehicle</span>
+          </button>
 
-      <button class="tool-button" on:click={handleTrailRecording}>
-        <Navigation size={24} />
-        <span>Trails</span>
-      </button>
+          <button class="tool-button" on:click={handleTrailRecording}>
+            <Navigation size={24} />
+            <span>Trails</span>
+          </button>
 
-      <!-- Row 4 -->
-      <button class="tool-button" on:click={handleMapSync}>
-        <Zap size={24} />
-        <span>Sync</span>
-      </button>
+          <!-- Row 4 -->
+          <button class="tool-button" on:click={showSatellitePanel}>
+            <Satellite size={24} />
+            <span>Satellite</span>
+          </button>
 
-      <button class="tool-button" on:click={handleSettings}>
-        <Settings size={24} />
-        <span>Settings</span>
-      </button>
+          <button class="tool-button" on:click={handleSettings}>
+            <Settings size={24} />
+            <span>Settings</span>
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -143,7 +174,7 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 240px;
+    width: 280px;
     height: 100%;
     background: rgba(0, 0, 0, 0.95);
     backdrop-filter: blur(16px);
@@ -165,11 +196,44 @@
     );
   }
 
+  .header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .back-button {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+  .back-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+
   .toolbox-header h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
     color: white;
+    flex: 1;
+  }
+
+  .toolbox-content {
+    flex: 1;
+    overflow-y: auto;
   }
 
   .tool-grid {
@@ -177,7 +241,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     padding: 20px 16px;
-    flex: 1;
     align-content: start;
   }
 
@@ -239,7 +302,7 @@
   /* Mobile Responsive */
   @media (max-width: 768px) {
     .toolbox-panel {
-      width: 220px;
+      width: 260px;
     }
 
     .tool-grid {
@@ -259,7 +322,7 @@
 
   @media (max-width: 480px) {
     .toolbox-panel {
-      width: 200px;
+      width: 240px;
     }
 
     .tool-grid {
@@ -275,5 +338,20 @@
     .tool-button span {
       font-size: 10px;
     }
+  }
+
+  /* Scrollbar styling for content area */
+  .toolbox-content::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .toolbox-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+
+  .toolbox-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
   }
 </style>

@@ -322,13 +322,13 @@
             // )
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
-                (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
+                (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id, // ✅ Fixed: use payload.new
               )
               if (existingVehicleIndex !== -1) {
                 // Vehicle already exists, update its data while preserving operation data
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
-                  ...payload.payload,
+                  ...payload.new, // ✅ Fixed: use payload.new instead of payload.payload
                   full_name: vehicles[existingVehicleIndex].full_name,
                   selected_operation_id:
                     vehicles[existingVehicleIndex].selected_operation_id,
@@ -339,8 +339,8 @@
                 }
               } else {
                 // Vehicle doesn't exist, add it - but it won't have operation data
-                console.log("pushing new vehicle", payload.payload)
-                vehicles.push(payload.payload)
+                console.log("pushing new vehicle", payload.new) // ✅ Fixed: use payload.new
+                vehicles.push(payload.new) // ✅ Fixed: use payload.new
               }
               return vehicles
             })

@@ -1,6 +1,6 @@
 <script>
-  import { toast } from "svelte-sonner"
   import { onMount, onDestroy } from "svelte"
+  import { toast } from "svelte-sonner"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { X } from "lucide-svelte"
@@ -40,7 +40,7 @@
     { value: 1, color: "#590003", label: "Dense Urban" },
   ]
 
-  // Imagery source configurations - Reordered: Mapbox, Google, Bing, Esris, NDVI
+  // Imagery source configurations
   const IMAGERY_SOURCES = {
     mapbox: {
       name: "Mapbox Satellite",
@@ -64,25 +64,11 @@
       isBing: true,
       provider: "bing",
     },
-    esri_clarity: {
-      name: "Esri Clarity+ ⭐",
-      url: `https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
-      description: "Enhanced clarity processing, may use older imagery",
-      attribution: "Esri Clarity, Maxar, Earthstar",
-      provider: "esri",
-    },
     esri_standard: {
       name: "Esri World Imagery",
       url: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${ARCGIS_API_KEY}`,
       description: "Standard high-resolution imagery",
       attribution: "Esri, Maxar, Earthstar Geographics",
-      provider: "esri",
-    },
-    esri_vivid: {
-      name: "Esri Vivid Basemap",
-      url: `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blendMode=vivid&token=${ARCGIS_API_KEY}`,
-      description: "Enhanced colors for vegetation analysis",
-      attribution: "Esri Vivid Imagery",
       provider: "esri",
     },
     ndvi: {
@@ -99,24 +85,76 @@
   const ESRI_SOURCE_ID = "esri-satellite"
   const ESRI_LAYER_ID = "esri-imagery"
 
-  // State
+  // ✅ PERSISTENT STATE - Internal to manager
   let selectedImagerySource = "mapbox"
-  let dropdownOpen = false
   let previousSource = "mapbox"
   let showNDVI = false
   let ndviLayerAdded = false
-  let isInitialized = false // Track if we've set the initial source
+  let isInitialized = false
 
-  // Filter sources based on user preferences
-  $: availableSources = Object.entries(IMAGERY_SOURCES).filter(
-    ([key, source]) => {
-      // Always show Mapbox
-      if (key === "mapbox") return true
+  // Event listeners for UI updates
+  let sourceChangeCallbacks = new Set()
+  let ndviToggleCallbacks = new Set()
 
-      // Check if this provider is enabled by the user
-      return $userSettingsStore.enabledImageryProviders?.includes(key) || false
+  // ✅ EXPOSE PUBLIC API TO PARENT
+  export const api = {
+    setSource: async (sourceKey) => {
+      const oldSource = selectedImagerySource
+      selectedImagerySource = sourceKey
+
+      try {
+        if (sourceKey === "ndvi") {
+          await addNDVILayer()
+        } else {
+          removeNDVILayer()
+          await updateImagerySource()
+        }
+
+        // Notify UI components
+        sourceChangeCallbacks.forEach((cb) => cb(sourceKey, oldSource))
+        toast.success(`Switched to ${IMAGERY_SOURCES[sourceKey].name}`)
+        return sourceKey
+      } catch (error) {
+        selectedImagerySource = oldSource // Rollback
+        toast.error(`Failed to switch to ${IMAGERY_SOURCES[sourceKey].name}`)
+        throw error
+      }
     },
-  )
+
+    getCurrentSource: () => selectedImagerySource,
+
+    toggleNDVI: async () => {
+      if (ndviLayerAdded && showNDVI) {
+        closeNDVI()
+      } else {
+        await api.setSource("ndvi")
+      }
+
+      ndviToggleCallbacks.forEach((cb) => cb(showNDVI))
+      return showNDVI
+    },
+
+    isNDVIActive: () => showNDVI && ndviLayerAdded,
+
+    getState: () => ({
+      selectedImagerySource,
+      previousSource,
+      showNDVI,
+      ndviLayerAdded,
+      isInitialized,
+    }),
+
+    // Event subscription methods
+    onSourceChange: (callback) => {
+      sourceChangeCallbacks.add(callback)
+      return () => sourceChangeCallbacks.delete(callback)
+    },
+
+    onNDVIToggle: (callback) => {
+      ndviToggleCallbacks.add(callback)
+      return () => ndviToggleCallbacks.delete(callback)
+    },
+  }
 
   // Watch for when map becomes loaded and apply default source
   $: if (
@@ -130,6 +168,18 @@
 
   function initializeDefaultSource() {
     const defaultSource = $userSettingsStore.defaultImagerySource
+
+    // Filter sources based on user preferences
+    const availableSources = Object.entries(IMAGERY_SOURCES).filter(
+      ([key, source]) => {
+        // Always show Mapbox
+        if (key === "mapbox") return true
+        // Check if this provider is enabled by the user
+        return (
+          $userSettingsStore.enabledImageryProviders?.includes(key) || false
+        )
+      },
+    )
 
     // Check if the default source is available
     const isAvailable = availableSources.some(([key]) => key === defaultSource)
@@ -203,11 +253,9 @@
     if (!map || !mapLoaded || ndviLayerAdded) return
 
     if (!isValidZoomForNDVI()) {
-      toast.error(
+      throw new Error(
         `NDVI requires zoom level ${ZOOM_LIMITS.ndvi.min} or higher to see vegetation detail`,
       )
-      selectedImagerySource = previousSource
-      return
     }
 
     const loadingToast = toast.loading("Loading NDVI vegetation data...")
@@ -245,13 +293,13 @@
       })
 
       ndviLayerAdded = true
+      showNDVI = true
       toast.dismiss(loadingToast)
       toast.success("NDVI loaded with custom color scale!")
     } catch (error) {
       console.error("Error adding NDVI layer:", error)
       toast.dismiss(loadingToast)
-      toast.error(`Failed to load NDVI: ${error.message}`)
-      selectedImagerySource = previousSource
+      throw error
     }
   }
 
@@ -266,6 +314,7 @@
         map.removeSource(NDVI_SOURCE_ID)
       }
       ndviLayerAdded = false
+      showNDVI = false
     } catch (error) {
       console.error("Error removing NDVI layer:", error)
     }
@@ -297,7 +346,7 @@
     }
   }
 
-  function updateImagerySource() {
+  async function updateImagerySource() {
     if (!map || !mapLoaded) return
 
     console.log("Updating imagery source to:", selectedImagerySource)
@@ -310,7 +359,7 @@
     // Handle NDVI selection
     if (selectedImagerySource === "ndvi") {
       showNDVI = true
-      addNDVILayer()
+      await addNDVILayer()
       return
     }
 
@@ -386,7 +435,7 @@
         }
       }
 
-      // Add the raster layer
+      // Add the raster layer (removed esri_vivid specific styling)
       map.addLayer(
         {
           id: ESRI_LAYER_ID,
@@ -395,9 +444,7 @@
           paint: {
             "raster-opacity": 1,
             "raster-fade-duration": 300,
-            "raster-contrast": selectedImagerySource === "esri_vivid" ? 0.2 : 0,
-            "raster-saturation":
-              selectedImagerySource === "esri_vivid" ? 0.2 : 0,
+            // Removed esri_vivid specific contrast and saturation
           },
         },
         firstLabelLayerId,
@@ -408,15 +455,6 @@
       // Fallback to Mapbox on error
       selectedImagerySource = "mapbox"
     }
-  }
-
-  function selectImagerySource(sourceKey) {
-    console.log("User selected imagery source:", sourceKey)
-    previousSource = selectedImagerySource
-    selectedImagerySource = sourceKey
-    dropdownOpen = false
-
-    updateImagerySource()
   }
 
   // Handle map style changes
@@ -434,13 +472,6 @@
         updateImagerySource()
       }
     }, 100)
-  }
-
-  // Click outside to close dropdown
-  function handleClickOutside(event) {
-    if (!event.target.closest(".imagery-selector-container")) {
-      dropdownOpen = false
-    }
   }
 
   // Monitor zoom changes for NDVI
@@ -481,6 +512,9 @@
     // Reset NDVI state
     showNDVI = false
 
+    // Notify callbacks
+    sourceChangeCallbacks.forEach((cb) => cb(selectedImagerySource, "ndvi"))
+
     // Show feedback
     toast.success("NDVI layer closed")
   }
@@ -490,7 +524,6 @@
       map.on("style.load", handleMapStyleChange)
       map.on("zoomend", handleZoomChange)
     }
-    document.addEventListener("click", handleClickOutside)
   })
 
   onDestroy(() => {
@@ -498,60 +531,21 @@
       map.off("style.load", handleMapStyleChange)
       map.off("zoomend", handleZoomChange)
     }
-    document.removeEventListener("click", handleClickOutside)
 
-    // Reset initialization flag for next time
-    isInitialized = false
+    // Clean up callbacks
+    sourceChangeCallbacks.clear()
+    ndviToggleCallbacks.clear()
+
+    // DON'T reset initialization flag - let it persist
+    // isInitialized = false
   })
 </script>
 
-<!-- Only show if satellite dropdown is enabled -->
-{#if $userSettingsStore.satelliteDropdownEnabled}
-  <div class="imagery-selector-container">
-    <button
-      class="imagery-selector-button"
-      class:dropdown-open={dropdownOpen}
-      on:click|stopPropagation={() => (dropdownOpen = !dropdownOpen)}
-    >
-      <span class="selector-icon">🛰️</span>
-    </button>
-
-    {#if dropdownOpen}
-      <div class="imagery-dropdown">
-        {#each availableSources as [key, source]}
-          <button
-            class="dropdown-item"
-            class:selected={selectedImagerySource === key}
-            class:ndvi-item={source.isNDVI}
-            on:click={() => selectImagerySource(key)}
-          >
-            <div class="dropdown-item-name">
-              {source.name}
-              {#if ZOOM_LIMITS[source.provider]}
-                {#if typeof ZOOM_LIMITS[source.provider] === "object"}
-                  <span class="zoom-limit-badge"
-                    >Min: {ZOOM_LIMITS[source.provider].min}</span
-                  >
-                {:else}
-                  <span class="zoom-limit-badge"
-                    >Max: {ZOOM_LIMITS[source.provider]}</span
-                  >
-                {/if}
-              {/if}
-            </div>
-            <div class="dropdown-item-description">{source.description}</div>
-          </button>
-        {/each}
-      </div>
-    {/if}
-  </div>
-{/if}
-
-<!-- NDVI Minimal Panel -->
+<!-- ✅ INDEPENDENT NDVI Bottom Overlay Panel - Always at document level -->
 {#if selectedImagerySource === "ndvi" && ndviLayerAdded}
-  <div class="ndvi-panel">
-    <div class="control-bar">
-      <!-- Color Scale Section (Centered on desktop, left on mobile) -->
+  <div class="ndvi-bottom-panel">
+    <div class="ndvi-control-bar">
+      <!-- Color Scale Section -->
       <div class="color-scale-section">
         <span class="scale-label scale-label-low">Low</span>
         <div class="color-boxes">
@@ -579,148 +573,8 @@
 {/if}
 
 <style>
-  .imagery-selector-container {
-    position: absolute;
-    top: 92px;
-    left: 16px;
-    z-index: 10;
-  }
-
-  .imagery-selector-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(255, 255, 255, 0.5);
-    border: 2px solid #000000;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease;
-    width: 64px;
-    height: 64px;
-  }
-
-  .imagery-selector-button:hover {
-    background-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-    transform: translateY(-1px);
-  }
-
-  .imagery-selector-button.dropdown-open {
-    background-color: #f7db5c;
-    border-color: #000000;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-  }
-
-  .selector-icon {
-    font-size: 20px;
-    line-height: 1;
-  }
-
-  .imagery-dropdown {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    min-width: 320px;
-    max-height: 400px;
-    overflow-y: auto;
-  }
-
-  .dropdown-item {
-    display: block;
-    width: 100%;
-    padding: 12px 16px;
-    text-align: left;
-    background: white;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .dropdown-item:last-child {
-    border-bottom: none;
-  }
-
-  .dropdown-item:hover {
-    background-color: #f7fafc;
-  }
-
-  .dropdown-item.selected {
-    background-color: #ebf8ff;
-    position: relative;
-  }
-
-  .dropdown-item.selected::before {
-    content: "✓";
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #4299e1;
-    font-weight: bold;
-  }
-
-  .dropdown-item.selected .dropdown-item-name {
-    margin-left: 20px;
-  }
-
-  .dropdown-item.selected .dropdown-item-description {
-    margin-left: 20px;
-  }
-
-  .dropdown-item-name {
-    font-weight: 600;
-    font-size: 14px;
-    color: #2d3748;
-    margin-bottom: 3px;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .dropdown-item-description {
-    font-size: 12px;
-    color: #718096;
-    line-height: 1.3;
-  }
-
-  .zoom-limit-badge {
-    background-color: #fed7aa;
-    color: #9a3412;
-    font-size: 10px;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 8px;
-    margin-left: 6px;
-  }
-
-  .ndvi-item {
-    background-color: #f0fff4;
-    border-left: 4px solid #22c55e;
-  }
-
-  .ndvi-item:hover {
-    background-color: #dcfce7;
-  }
-
-  .ndvi-item.selected {
-    background-color: #bbf7d0;
-  }
-
-  .ndvi-item .zoom-limit-badge {
-    background-color: #bbf7d0;
-    color: #166534;
-  }
-
-  /* NDVI Minimal Panel */
-  .ndvi-panel {
+  /* ✅ INDEPENDENT NDVI Bottom Overlay Panel */
+  .ndvi-bottom-panel {
     position: fixed;
     bottom: 0;
     left: 0;
@@ -728,11 +582,12 @@
     background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(16px);
     color: white;
-    z-index: 1000;
+    z-index: 999; /* Lower than toolbox so it doesn't interfere */
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto; /* Ensure it's interactive */
   }
 
-  .control-bar {
+  .ndvi-control-bar {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -817,44 +672,9 @@
     color: #ef4444;
   }
 
+  /* Mobile Responsive */
   @media (max-width: 768px) {
-    .imagery-selector-container {
-      top: 92px;
-      left: 16px;
-    }
-
-    .imagery-selector-button {
-      width: 64px;
-      height: 64px;
-    }
-
-    .selector-icon {
-      font-size: 18px;
-    }
-
-    .imagery-dropdown {
-      min-width: 280px;
-      max-height: 300px;
-    }
-
-    .dropdown-item {
-      padding: 10px 14px;
-    }
-
-    .dropdown-item-name {
-      font-size: 13px;
-    }
-
-    .dropdown-item-description {
-      font-size: 11px;
-    }
-
-    .zoom-limit-badge {
-      font-size: 9px;
-      padding: 1px 4px;
-    }
-
-    .control-bar {
+    .ndvi-control-bar {
       justify-content: flex-start;
       padding: 10px 16px;
     }
