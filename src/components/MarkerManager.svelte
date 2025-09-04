@@ -23,6 +23,17 @@
   let globalSelectionContext = null
   let globalSelectionState = null
 
+  // Helper function to get default marker from store
+  function getDefaultMarker() {
+    return (
+      $userSettingsStore?.defaultMarker || {
+        id: "default",
+        class: "default",
+        name: "Default Marker",
+      }
+    )
+  }
+
   // Try to get global selection context
   function checkGlobalSelectionContext() {
     try {
@@ -216,6 +227,7 @@
     map.addImage(iconKey, { width: 35, height: 35, data: imageData.data })
   }
 
+  // RESTORED: Original working getIconImageName function
   function getIconImageName(iconClass) {
     if (!iconClass || iconClass === "default") return "default"
 
@@ -257,7 +269,7 @@
           "icon-anchor": [
             "case",
             ["==", ["get", "icon"], "default"],
-            "bottom",
+            "center",
             "center",
           ],
         },
@@ -272,13 +284,17 @@
       }
     }
 
-    // Blue selection circle
+    // Blue selection circle (exclude default markers)
     if (!map.getLayer("markers-selection-circle")) {
       const selectionLayerConfig = {
         id: "markers-selection-circle",
         type: "circle",
         source: "markers",
-        filter: ["==", "selected", true],
+        filter: [
+          "all",
+          ["==", "selected", true], // RESTORED: Original working filter syntax
+          ["!=", ["get", "iconClass"], "default"],
+        ],
         paint: {
           "circle-radius": 18,
           "circle-color": "transparent",
@@ -390,6 +406,31 @@
       removeMarkerFromLayer($selectedMarkerStore.id)
     }
 
+    // Get default marker from userSettingsStore
+    const defaultMarker = getDefaultMarker()
+    console.log("🎯 Using default marker:", defaultMarker)
+
+    // Convert the default marker to proper iconClass format for storage
+    let iconClass, iconImageName
+
+    if (defaultMarker.class === "default") {
+      iconClass = "default"
+      iconImageName = "default"
+    } else if (defaultMarker.class === "custom-svg") {
+      iconClass = `custom-svg-${defaultMarker.id}` // Store as custom-svg-rock, etc.
+      iconImageName = `custom-svg-${defaultMarker.id}` // Map image name
+    } else {
+      iconClass = defaultMarker.class // ionic-pin, at-carrot, etc.
+      iconImageName = defaultMarker.class
+    }
+
+    console.log(
+      "🔧 Converted iconClass:",
+      iconClass,
+      "iconImageName:",
+      iconImageName,
+    )
+
     const id = uuidv4()
     const feature = {
       type: "Feature",
@@ -399,11 +440,13 @@
       },
       properties: {
         id,
-        icon: "default",
-        iconClass: "default",
+        icon: iconImageName,
+        iconClass: iconClass,
         selected: true,
       },
     }
+
+    console.log("📍 Feature being added:", feature)
 
     addMarkerToLayer(feature)
     selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
@@ -522,11 +565,29 @@
     const coordinates = $locationMarkerStore
     if (!coordinates) return
 
+    // Get default marker from userSettingsStore
+    const defaultMarker = getDefaultMarker()
+    console.log(
+      "🎯 Using default marker for location placement:",
+      defaultMarker,
+    )
+
+    // Convert the default marker to proper iconClass format for storage
+    let iconClass
+
+    if (defaultMarker.class === "default") {
+      iconClass = "default"
+    } else if (defaultMarker.class === "custom-svg") {
+      iconClass = `custom-svg-${defaultMarker.id}` // Store as custom-svg-rock, etc.
+    } else {
+      iconClass = defaultMarker.class // ionic-pin, at-carrot, etc.
+    }
+
     const id = uuidv4()
     const markerData = {
       id,
       coordinates: [coordinates.longitude, coordinates.latitude],
-      iconClass: "default",
+      iconClass: iconClass,
       created_at: new Date().toISOString(),
     }
 

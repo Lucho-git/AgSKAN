@@ -188,6 +188,7 @@
             user_settings.enabled_imagery_providers ?? [],
           defaultImagerySource:
             user_settings.default_imagery_source ?? "mapbox",
+          defaultMarker: user_settings.default_marker,
         })
       } else {
         // If no user settings exist, use defaults

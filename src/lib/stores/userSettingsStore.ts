@@ -11,7 +11,12 @@ const defaultSettings = {
     zoomToPlacedMarkers: true, // Auto-zoom to manually placed markers
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys
-    defaultImagerySource: 'mapbox' // Default imagery source when loading map
+    defaultImagerySource: 'mapbox', // Default imagery source when loading map
+    defaultMarker: {
+        "id": "default",
+        "name": "Default Marker",
+        "class": "default"
+    }
 };
 
 export const userSettingsStore = writable(defaultSettings);

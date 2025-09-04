@@ -61,10 +61,7 @@
     const currentIconClass = getCurrentIconClass($selectedMarkerStore?.id)
 
     if (!currentIconClass || currentIconClass === "default") {
-      return (
-        icon.class === "default" ||
-        (icon.class === "ionic" && icon.id === "pin")
-      )
+      return icon.id === "default" && icon.class === "default"
     }
 
     if (currentIconClass.startsWith("custom-svg-")) {
@@ -79,6 +76,7 @@
 
   // Marker icons data
   const markerIcons = [
+    { id: "default", class: "default", name: "Default Marker" },
     { id: "rock", class: "custom-svg", name: "Rock" },
     { id: "tree13", class: "custom-svg", name: "Tree" },
     { id: "watertank2", class: "custom-svg", name: "Water Tank" },
@@ -334,9 +332,12 @@
     const feature = data.features.find((f) => f.properties.id === id)
 
     if (feature) {
-      const newIconClass = icon.class.startsWith("custom-svg")
-        ? `custom-svg-${icon.id}`
-        : icon.class
+      const newIconClass =
+        icon.id === "default"
+          ? "default"
+          : icon.class.startsWith("custom-svg")
+            ? `custom-svg-${icon.id}`
+            : icon.class
 
       feature.properties.icon = getIconImageName(newIconClass)
       feature.properties.iconClass = newIconClass
@@ -359,9 +360,12 @@
   function confirmIconChange() {
     if (!selectedIconForEdit || !$selectedMarkerStore) return
 
-    const newIconClass = selectedIconForEdit.class.startsWith("custom-svg")
-      ? `custom-svg-${selectedIconForEdit.id}`
-      : selectedIconForEdit.class
+    const newIconClass =
+      selectedIconForEdit.id === "default"
+        ? "default"
+        : selectedIconForEdit.class.startsWith("custom-svg")
+          ? `custom-svg-${selectedIconForEdit.id}`
+          : selectedIconForEdit.class
 
     // Update the confirmed store to sync to server
     confirmedMarkersStore.update((markers) => {
@@ -510,7 +514,9 @@
               class:selected={getIsIconSelected(icon)}
               on:click={() => handleIconPreview(icon)}
             >
-              {#if icon.class.startsWith("custom-svg")}
+              {#if icon.id === "default"}
+                <IconSVG icon="mapbox-marker" size="28px" />
+              {:else if icon.class.startsWith("custom-svg")}
                 <IconSVG icon={icon.id} size="28px" />
               {:else if icon.class.startsWith("ionic-")}
                 <ion-icon name={icon.id} style="font-size: 28px;"></ion-icon>
@@ -529,7 +535,9 @@
     <!-- Marker Info -->
     <div class="marker-info">
       <div class="marker-icon-display">
-        {#if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("custom-svg")}
+        {#if getCurrentIconClass($selectedMarkerStore.id) === "default"}
+          <IconSVG icon="mapbox-marker" size="24px" />
+        {:else if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("custom-svg")}
           <IconSVG
             icon={getCurrentIconClass($selectedMarkerStore.id)?.replace(
               "custom-svg-",
@@ -546,7 +554,7 @@
             style="font-size: 24px;"
           ></ion-icon>
         {:else}
-          <div class="default-marker-icon">●</div>
+          <IconSVG icon="mapbox-marker" size="24px" />
         {/if}
       </div>
       <div class="marker-text-info">
@@ -872,11 +880,6 @@
     border: 2px solid rgba(255, 255, 255, 0.2);
     color: #60a5fa;
     flex-shrink: 0;
-  }
-
-  .default-marker-icon {
-    font-size: 24px;
-    color: #3b82f6;
   }
 
   /* Text info wrapper */

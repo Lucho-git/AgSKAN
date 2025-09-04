@@ -7,18 +7,14 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   import { antLineConfigStore } from "../stores/trailDataStore"
-  import {
-    controlStore,
-    trailingButtonPressed,
-    drawingModeEnabled,
-  } from "$lib/stores/controlStore"
+  import { controlStore, trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import VehicleSelectionMenu from "./VehicleSelectionMenu.svelte"
   import SVGComponents from "$lib/vehicles/index.js"
-  import { Home, PencilRuler, PenOff, MapPin, Navigation } from "lucide-svelte"
+  import { Home, MapPin, Navigation } from "lucide-svelte"
 
   let isCircular = true
 
@@ -137,10 +133,6 @@
   function handleLocateHome() {
     dispatch("locateHome")
   }
-
-  function toggleDrawingMode() {
-    $drawingModeEnabled = !$drawingModeEnabled
-  }
 </script>
 
 <div>
@@ -200,20 +192,6 @@
         ? 'scale-100 opacity-90'
         : 'h-50 scale-0 overflow-hidden opacity-0'}"
     >
-      <!-- Drawing Mode Toggle Button -->
-      <button
-        class="menu-button btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-        on:click={toggleDrawingMode}
-      >
-        {#if $drawingModeEnabled}
-          <PenOff size={24} />
-        {:else}
-          <PencilRuler size={24} />
-        {/if}
-      </button>
-
       <!-- InstantLocationMarker Button -->
       <button
         class="menu-button btn {isCircular

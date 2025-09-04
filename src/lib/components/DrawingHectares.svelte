@@ -1,3 +1,4 @@
+<!-- src/lib/components/DrawingHectares.svelte -->
 <script>
   import { onMount, onDestroy } from "svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"

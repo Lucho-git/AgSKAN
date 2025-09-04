@@ -1,29 +1,31 @@
+<!-- src/lib/components/Toolbox.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
   import {
-    Home,
     MapPin,
     PencilRuler,
     Navigation,
     Truck,
     Ruler,
-    Palette,
-    Settings,
-    Zap,
-    Users,
     Satellite,
   } from "lucide-svelte"
+  import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   // Import toolbox control components
   import SatelliteControls from "$lib/components/SatelliteControls.svelte"
+  import MarkerControls from "$lib/components/MarkerControls.svelte"
+  import VehicleControls from "$lib/components/VehicleControls.svelte"
 
   export let isOpen = false
   export let satelliteManager = null
+  export let currentVehicleType = "Tractor"
+  export let currentVehicleColor = "Green"
+  export let currentVehicleSwath = 12
 
   const dispatch = createEventDispatcher()
 
   // State for different tool panels
-  let activePanel = null // 'main', 'satellite', etc.
+  let activePanel = null // 'main', 'satellite', 'marker', 'vehicle', etc.
 
   function closeToolbox() {
     dispatch("close")
@@ -37,44 +39,32 @@
     activePanel = "satellite"
   }
 
-  // Example tool functions - you'll migrate these from ButtonSection
-  function handleLocateHome() {
-    dispatch("tool", { type: "locate-home" })
-    closeToolbox()
+  function showMarkerPanel() {
+    activePanel = "marker"
   }
 
-  function handlePlaceMarker() {
-    dispatch("tool", { type: "place-marker" })
-    closeToolbox()
+  function showVehiclePanel() {
+    activePanel = "vehicle"
   }
 
+  // Tool functions
   function handleDrawingMode() {
     dispatch("tool", { type: "drawing-mode" })
     closeToolbox()
   }
 
-  function handleVehicleControls() {
-    dispatch("tool", { type: "vehicle-controls" })
+  function handleMeasurement() {
+    // Toggle drawing mode for measurements
+    $drawingModeEnabled = !$drawingModeEnabled
     closeToolbox()
+  }
+
+  function handleVehicleControls() {
+    showVehiclePanel()
   }
 
   function handleTrailRecording() {
     dispatch("tool", { type: "trail-recording" })
-    closeToolbox()
-  }
-
-  function handleMeasurement() {
-    dispatch("tool", { type: "measurement" })
-    closeToolbox()
-  }
-
-  function handleSettings() {
-    dispatch("tool", { type: "settings" })
-    closeToolbox()
-  }
-
-  function handleMapSync() {
-    dispatch("tool", { type: "map-sync" })
     closeToolbox()
   }
 </script>
@@ -95,6 +85,12 @@
         {#if activePanel === "satellite"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Satellite Options</h3>
+        {:else if activePanel === "marker"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Marker Tools</h3>
+        {:else if activePanel === "vehicle"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Vehicle Setup</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -106,51 +102,56 @@
       {#if activePanel === "satellite"}
         <!-- Satellite Options Panel -->
         <SatelliteControls {satelliteManager} />
+      {:else if activePanel === "marker"}
+        <!-- Marker Panel -->
+        <MarkerControls on:close={closeToolbox} />
+      {:else if activePanel === "vehicle"}
+        <!-- Vehicle Panel -->
+        <VehicleControls
+          on:vehicleUpdated={(e) => dispatch("vehicleUpdated", e.detail)}
+          on:close={closeToolbox}
+          {currentVehicleType}
+          {currentVehicleColor}
+          {currentVehicleSwath}
+        />
       {:else}
         <!-- Main Tool Grid -->
         <div class="tool-grid">
           <!-- Row 1 -->
-          <button class="tool-button" on:click={handleLocateHome}>
-            <Home size={24} />
-            <span>Home</span>
-          </button>
-
-          <button class="tool-button" on:click={handlePlaceMarker}>
+          <button class="tool-button" on:click={showMarkerPanel}>
             <MapPin size={24} />
             <span>Marker</span>
           </button>
 
-          <!-- Row 2 -->
           <button class="tool-button" on:click={handleDrawingMode}>
             <PencilRuler size={24} />
             <span>Draw</span>
           </button>
 
-          <button class="tool-button" on:click={handleMeasurement}>
+          <!-- Row 2 -->
+          <button
+            class="tool-button"
+            class:tool-active={$drawingModeEnabled}
+            on:click={handleMeasurement}
+          >
             <Ruler size={24} />
             <span>Measure</span>
           </button>
 
-          <!-- Row 3 -->
-          <button class="tool-button" on:click={handleVehicleControls}>
+          <button class="tool-button" on:click={showVehiclePanel}>
             <Truck size={24} />
             <span>Vehicle</span>
           </button>
 
+          <!-- Row 3 -->
           <button class="tool-button" on:click={handleTrailRecording}>
             <Navigation size={24} />
             <span>Trails</span>
           </button>
 
-          <!-- Row 4 -->
           <button class="tool-button" on:click={showSatellitePanel}>
             <Satellite size={24} />
             <span>Satellite</span>
-          </button>
-
-          <button class="tool-button" on:click={handleSettings}>
-            <Settings size={24} />
-            <span>Settings</span>
           </button>
         </div>
       {/if}
@@ -271,6 +272,19 @@
 
   .tool-button:active {
     transform: translateY(0);
+  }
+
+  /* Active state for measure button */
+  .tool-button.tool-active {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+    color: #60a5fa;
+  }
+
+  .tool-button.tool-active:hover {
+    background: rgba(96, 165, 250, 0.3);
+    border-color: rgba(96, 165, 250, 0.5);
+    color: #60a5fa;
   }
 
   .tool-button span {

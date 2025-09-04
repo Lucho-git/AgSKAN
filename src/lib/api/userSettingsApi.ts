@@ -524,6 +524,59 @@ export const userSettingsApi = {
         }
     },
 
+
+    async updateDefaultMarker(marker: { id: string; class: string; name: string }) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save default marker");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    default_marker: marker,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving default marker:", error);
+                return {
+                    success: false,
+                    message: "Failed to save default marker",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                defaultMarker: marker,
+            }));
+
+            return {
+                success: true,
+                message: "Default marker updated"
+            };
+        } catch (error) {
+            console.error("Error in updateDefaultMarker:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving default marker",
+                errorFields: []
+            };
+        }
+    },
+
+
     /**
      * Deletes the user's account
      */
