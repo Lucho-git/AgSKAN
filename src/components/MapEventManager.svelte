@@ -199,38 +199,46 @@
   // 🆕 UPDATED: Check for map layers at point with proper priority order
   async function checkMapLayersAtPoint(point) {
     try {
-      // 🆕 UPDATED: Check markers FIRST (priority 100)
-      const markerFeatures = map.queryRenderedFeatures(point, {
-        layers: ["markers-layer"],
-      })
+      // 🆕 UPDATED: Check markers FIRST (priority 100) - but only if layer exists
+      if (map.getLayer("markers-layer")) {
+        const markerFeatures = map.queryRenderedFeatures(point, {
+          layers: ["markers-layer"],
+        })
 
-      if (markerFeatures.length > 0) {
-        const markerId = markerFeatures[0]?.properties?.id
-        if (markerId !== undefined) {
-          console.log("🎯 Found marker with priority 100:", markerId)
-          return {
-            type: "marker",
-            id: markerId,
-            features: markerFeatures,
-            priority: 100,
+        if (markerFeatures.length > 0) {
+          const markerId = markerFeatures[0]?.properties?.id
+          if (markerId !== undefined) {
+            console.log("🎯 Found marker with priority 100:", markerId)
+            return {
+              type: "marker",
+              id: markerId,
+              features: markerFeatures,
+              priority: 100,
+            }
           }
         }
       }
 
-      // 🆕 UPDATED: Check fields SECOND (priority 10)
-      const fieldFeatures = map.queryRenderedFeatures(point, {
-        layers: ["fields-fill", "fields-fill-selected"],
-      })
+      // 🆕 UPDATED: Check fields SECOND (priority 10) - but only if layers exist
+      const fieldLayers = ["fields-fill", "fields-fill-selected"].filter(
+        (layerId) => map.getLayer(layerId),
+      )
 
-      if (fieldFeatures.length > 0) {
-        const fieldId = fieldFeatures[0]?.properties?.id
-        if (fieldId !== undefined) {
-          console.log("🎯 Found field with priority 10:", fieldId)
-          return {
-            type: "field",
-            id: fieldId,
-            features: fieldFeatures,
-            priority: 10,
+      if (fieldLayers.length > 0) {
+        const fieldFeatures = map.queryRenderedFeatures(point, {
+          layers: fieldLayers,
+        })
+
+        if (fieldFeatures.length > 0) {
+          const fieldId = fieldFeatures[0]?.properties?.id
+          if (fieldId !== undefined) {
+            console.log("🎯 Found field with priority 10:", fieldId)
+            return {
+              type: "field",
+              id: fieldId,
+              features: fieldFeatures,
+              priority: 10,
+            }
           }
         }
       }

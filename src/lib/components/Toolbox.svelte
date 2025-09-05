@@ -42,7 +42,7 @@
     ) {
       VehicleIcon =
         SVGComponents[$userVehicleStore.vehicle_marker.type] ||
-        SVGComponents.simpleTractor
+        SVGComponents.Pointer
     }
   }
 

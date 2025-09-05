@@ -8,9 +8,9 @@ function createUserVehicleStore() {
     last_update: null,
     is_trailing: false,
     vehicle_marker: {
-      type: "SimpleTractor",
-      color: "red",
-      size: "25px",
+      type: "Pointer",
+      color: "Yellow",
+      size: "45px",
       swath: 12,
       path: () => vehicleComponents.SimpleTractor,
     },

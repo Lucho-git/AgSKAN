@@ -1,5 +1,5 @@
 <!-- VehicleStateSynchronizer.svelte -->
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { supabase } from "../lib/supabaseClient"
   import {
@@ -222,45 +222,69 @@
 
     // First fetch the user's own vehicle data
     const userVehicle = await fetchUserVehicleData(userId)
+
+    // ✅ ALWAYS update the store, even for new users
+    let parsedCoordinates = null
+    let vehicleData = null
+
     if (userVehicle) {
-      // Parse the coordinates string into latitude and longitude values
-      const [longitude, latitude] = userVehicle.coordinates
-        .slice(1, -1)
-        .split(",")
-        .map(parseFloat)
-
-      // 🆕 Get operation data for current user from mapActivityStore
-      const currentUserProfile = $mapActivityStore.connected_profiles.find(
-        (p) => p.id === userId,
-      )
-
-      console.log(
-        "🔍 Current user profile with operation data:",
-        currentUserProfile,
-      )
-
-      // Update the userVehicleStore with the fetched data, parsed coordinates, AND operation data
-      userVehicleStore.update((vehicle) => {
-        return {
-          ...vehicle,
-          ...userVehicle,
-          coordinates: { latitude, longitude },
-          // 🆕 Add operation data to current user's vehicle
-          selected_operation_id:
-            currentUserProfile?.selected_operation_id || null,
-          current_operation: currentUserProfile?.current_operation || null,
-          operation_name: currentUserProfile?.operation_name || "No operation",
-          operation_id: currentUserProfile?.operation_id || null,
-        }
-      })
+      // Existing user - parse their coordinates
+      if (userVehicle.coordinates) {
+        const [longitude, latitude] = userVehicle.coordinates
+          .slice(1, -1)
+          .split(",")
+          .map(parseFloat)
+        parsedCoordinates = { latitude, longitude }
+      }
+      vehicleData = userVehicle
+    } else {
+      // ✅ New user - create default vehicle data
+      vehicleData = {
+        vehicle_id: userId,
+        coordinates: null,
+        last_update: null,
+        heading: null,
+        is_trailing: false,
+        vehicle_marker: {
+          type: "Pointer",
+          bodyColor: "Yellow",
+          size: 45,
+          swath: 4,
+        },
+        master_map_id: masterMapId,
+      }
     }
+
+    // 🆕 Get operation data for current user from mapActivityStore
+    const currentUserProfile = $mapActivityStore.connected_profiles.find(
+      (p) => p.id === userId,
+    )
+
+    console.log(
+      "🔍 Current user profile with operation data:",
+      currentUserProfile,
+    )
+
+    // ✅ ALWAYS update the userVehicleStore
+    userVehicleStore.update((vehicle) => {
+      return {
+        ...vehicle,
+        ...vehicleData,
+        coordinates: parsedCoordinates, // null for new users, parsed for existing
+        // 🆕 Add operation data to current user's vehicle
+        selected_operation_id:
+          currentUserProfile?.selected_operation_id || null,
+        current_operation: currentUserProfile?.current_operation || null,
+        operation_name: currentUserProfile?.operation_name || "No operation",
+        operation_id: currentUserProfile?.operation_id || null,
+      }
+    })
 
     // Then fetch initial vehicle data from the server
     const initialVehicles = await fetchInitialVehicleData(masterMapId, userId)
     console.log("Initial vehicle data:", initialVehicles)
     serverOtherVehiclesData.set(initialVehicles)
 
-    // Compare the serverOtherVehiclesData with the otherVehiclesStore and store the changes
     const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
     otherVehiclesDataChanges.set(changes)
 

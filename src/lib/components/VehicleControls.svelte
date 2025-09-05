@@ -25,39 +25,39 @@
   // Active sub-panel state
   let activeSubPanel = null // null, 'vehicles', 'colors', 'swath'
 
-  // Complete vehicle data from original
+  // Complete vehicle data with PROPER default sizes
   const vehicles = [
-    { type: "FourWheelDriveTractor", bodyColor: "green", size: 60, swath: 4 },
-    { type: "TowBetweenSeeder", bodyColor: "red", size: 60, swath: 12 },
-    { type: "TowBehindSeeder", bodyColor: "red", size: 60, swath: 12 },
-    { type: "TowBehindSeederTracks", bodyColor: "red", size: 60, swath: 12 },
-    { type: "TowBehindBoomspray", bodyColor: "red", size: 60, swath: 36 },
-    { type: "SelfPropelledBoomspray", bodyColor: "red", size: 60, swath: 36 },
-    { type: "ThreePointBoomspray", bodyColor: "red", size: 60, swath: 36 },
-    { type: "FarmUte", bodyColor: "red", size: 60, swath: 4 },
-    { type: "FrontWheelChaserBin", bodyColor: "red", size: 60, swath: 12 },
-    { type: "FourWheelDriveChaserBin", bodyColor: "red", size: 60, swath: 12 },
-    { type: "HeaderDuals", bodyColor: "red", size: 60, swath: 12 },
-    { type: "HeaderSingles", bodyColor: "red", size: 60, swath: 12 },
-    { type: "HeaderTracks", bodyColor: "red", size: 60, swath: 12 },
-    { type: "SelfPropelledSwather", bodyColor: "red", size: 60, swath: 12 },
-    { type: "Spreader", bodyColor: "red", size: 60, swath: 12 },
+    { type: "FourWheelDriveTractor", bodyColor: "green", size: 30, swath: 4 },
+    { type: "TowBetweenSeeder", bodyColor: "red", size: 80, swath: 12 },
+    { type: "TowBehindSeeder", bodyColor: "red", size: 80, swath: 12 },
+    { type: "TowBehindSeederTracks", bodyColor: "red", size: 80, swath: 12 },
+    { type: "TowBehindBoomspray", bodyColor: "red", size: 80, swath: 36 },
+    { type: "SelfPropelledBoomspray", bodyColor: "red", size: 45, swath: 36 },
+    { type: "ThreePointBoomspray", bodyColor: "red", size: 45, swath: 36 },
+    { type: "FarmUte", bodyColor: "red", size: 40, swath: 4 },
+    { type: "FrontWheelChaserBin", bodyColor: "red", size: 70, swath: 12 },
+    { type: "FourWheelDriveChaserBin", bodyColor: "red", size: 70, swath: 12 },
+    { type: "HeaderDuals", bodyColor: "red", size: 50, swath: 12 },
+    { type: "HeaderSingles", bodyColor: "red", size: 50, swath: 12 },
+    { type: "HeaderTracks", bodyColor: "red", size: 50, swath: 12 },
+    { type: "SelfPropelledSwather", bodyColor: "red", size: 50, swath: 12 },
+    { type: "Spreader", bodyColor: "red", size: 80, swath: 12 },
     { type: "Truck", bodyColor: "red", size: 60, swath: 4 },
     { type: "CabOverTruck", bodyColor: "red", size: 60, swath: 4 },
-    { type: "CabOverRoadTrain", bodyColor: "red", size: 60, swath: 4 },
-    { type: "Baler", bodyColor: "red", size: 60, swath: 12 },
+    { type: "CabOverRoadTrain", bodyColor: "red", size: 100, swath: 4 },
+    { type: "Baler", bodyColor: "red", size: 80, swath: 12 },
     { type: "Mower", bodyColor: "red", size: 60, swath: 12 },
     { type: "SelfPropelledMower", bodyColor: "red", size: 60, swath: 12 },
-    { type: "Telehandler", bodyColor: "red", size: 60, swath: 12 },
-    { type: "Loader", bodyColor: "red", size: 60, swath: 4 },
-    { type: "SimpleTractor", bodyColor: "red", size: 60, swath: 4 },
-    { type: "Pointer", bodyColor: "green", size: 60, swath: 4 },
+    { type: "Telehandler", bodyColor: "red", size: 70, swath: 12 },
+    { type: "Loader", bodyColor: "red", size: 50, swath: 4 },
+    { type: "SimpleTractor", bodyColor: "red", size: 45, swath: 4 },
+    { type: "Pointer", bodyColor: "green", size: 45, swath: 4 },
     { type: "CombineHarvester", bodyColor: "yellow", size: 60, swath: 12 },
-    { type: "Excavator", bodyColor: "orange", size: 60, swath: 4 },
-    { type: "Tractor", bodyColor: "green", size: 60, swath: 4 },
+    { type: "Excavator", bodyColor: "orange", size: 70, swath: 4 },
+    { type: "Tractor", bodyColor: "green", size: 45, swath: 4 },
     { type: "WheelLoader", bodyColor: "yellow", size: 60, swath: 4 },
-    { type: "WorkCar", bodyColor: "red", size: 60, swath: 4 },
-    { type: "Airplane", bodyColor: "blue", size: 60, swath: 50 },
+    { type: "WorkCar", bodyColor: "red", size: 45, swath: 4 },
+    { type: "Airplane", bodyColor: "blue", size: 85, swath: 50 },
   ]
 
   // Use the exact same color array as your original component - simple strings
@@ -132,9 +132,25 @@
     tempSwath = value
   }
 
+  // FIXED: Get proper default size for vehicle type
+  function getDefaultSizeForVehicle(vehicleType) {
+    const vehicle = vehicles.find((v) => v.type === vehicleType)
+    return vehicle ? vehicle.size : 120 // Fallback to reasonable default
+  }
+
   // Main confirm function that updates the store and closes menu
   function confirmVehicleSelection() {
-    // Update the vehicle store exactly like in ButtonSection
+    const defaultSize = getDefaultSizeForVehicle(selectedVehicle)
+
+    // ALWAYS use vehicle-specific default size (ignore existing size)
+    const finalSize = defaultSize
+
+    console.log(`🚜 Vehicle size logic:`)
+    console.log(`  - Selected vehicle: ${selectedVehicle}`)
+    console.log(`  - Default size for vehicle: ${defaultSize}`)
+    console.log(`  - Final size (always default): ${finalSize}`)
+
+    // Update the vehicle store
     userVehicleStore.update((vehicle) => ({
       ...vehicle,
       vehicle_marker: {
@@ -142,14 +158,13 @@
         type: selectedVehicle,
         bodyColor: selectedColor,
         swath: selectedSwath,
-        // Keep existing size or set default
-        size: vehicle.vehicle_marker?.size || 60,
+        size: finalSize, // Always uses the vehicle-specific default
       },
     }))
 
     // Show success message
     toast.success(
-      `Vehicle updated: ${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m`,
+      `Vehicle updated: ${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m • ${finalSize}px`,
     )
 
     // Close the toolbox by dispatching close event to parent
@@ -215,6 +230,7 @@
   }
 </script>
 
+<!-- Rest of the component remains exactly the same -->
 <div class="vehicle-controls">
   {#if activeSubPanel === null}
     <!-- Main Vehicle Panel -->
