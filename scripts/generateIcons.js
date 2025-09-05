@@ -23,7 +23,9 @@ const customSvgIcons = [
   "silo2",
   "tree_stump",
   "workshop_icon",
-  "mapbox-marker"  
+  "mapbox-marker",
+    "mapbox-marker-selected", 
+  "mapbox-marker-outlined"  
 ]
 
 const ionicIcons = [
@@ -505,26 +507,64 @@ async function generateHighDpiPngIcons() {
   let successCount = 0
   let failureCount = 0
   
-  // Generate default marker (now using Mapbox marker)
-  console.log('\n📍 Generating default marker (Mapbox pin)...')
-  try {
-    const defaultMapboxPath = await generateCustomPng(
-      'mapbox-marker', 
-      symbols, 
-      allDefs, 
-      globalDefsContent, 
-      globalStyleContent, 
-      iconsDir
-    )
-    iconPaths['default'] = defaultMapboxPath
-    console.log('  ✅ Default marker set to Mapbox pin style')
-    successCount++
-  } catch (error) {
-    console.warn('  ⚠️  Mapbox marker failed, generating fallback...')
-    const fallbackPath = await generateDefaultPng(iconsDir)
-    iconPaths['default'] = fallbackPath
-    successCount++
-  }
+// Generate default marker variations
+console.log('\n📍 Generating default marker variations...')
+
+// Original blue marker
+try {
+  const defaultMapboxPath = await generateCustomPng(
+    'mapbox-marker', 
+    symbols, 
+    allDefs, 
+    globalDefsContent, 
+    globalStyleContent, 
+    iconsDir
+  )
+  iconPaths['default'] = defaultMapboxPath
+  console.log('  ✅ Default marker (blue teardrop)')
+  successCount++
+} catch (error) {
+  console.warn('  ⚠️  Mapbox marker failed, generating fallback...')
+  const fallbackPath = await generateDefaultPng(iconsDir)
+  iconPaths['default'] = fallbackPath
+  successCount++
+}
+
+// Selected version (red with blue border)
+try {
+  const selectedMapboxPath = await generateCustomPng(
+    'mapbox-marker-selected', 
+    symbols, 
+    allDefs, 
+    globalDefsContent, 
+    globalStyleContent, 
+    iconsDir
+  )
+  iconPaths['default-selected'] = selectedMapboxPath
+  console.log('  ✅ Selected marker (red with blue border)')
+  successCount++
+} catch (error) {
+  console.error(`  ❌ Failed to generate selected marker:`, error.message)
+  failureCount++
+}
+
+// Outlined version (white with blue border)
+try {
+  const outlinedMapboxPath = await generateCustomPng(
+    'mapbox-marker-outlined', 
+    symbols, 
+    allDefs, 
+    globalDefsContent, 
+    globalStyleContent, 
+    iconsDir
+  )
+  iconPaths['default-outlined'] = outlinedMapboxPath
+  console.log('  ✅ Outlined marker (white with blue border)')
+  successCount++
+} catch (error) {
+  console.error(`  ❌ Failed to generate outlined marker:`, error.message)
+  failureCount++
+}
   
   // Generate fallback icon (blue circle) separately
   console.log('\n🔵 Generating fallback marker...')

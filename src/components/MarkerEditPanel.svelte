@@ -74,7 +74,7 @@
     return icon.class === currentIconClass
   }
 
-  // Marker icons data
+  // Marker icons data - Removed outlined marker option
   const markerIcons = [
     { id: "default", class: "default", name: "Default Marker" },
     { id: "rock", class: "custom-svg", name: "Rock" },
@@ -313,7 +313,7 @@
     }
   }
 
-  // Handle icon selection with immediate visual feedback
+  // Handle icon selection with immediate visual feedback - Reverted
   function handleIconPreview(icon) {
     if (!$selectedMarkerStore) return
 
@@ -391,7 +391,7 @@
     isExpanded = false
   }
 
-  // Revert icon change
+  // Revert icon change - Reverted
   function revertIconChange() {
     if (!originalIconClass || !$selectedMarkerStore) return
 

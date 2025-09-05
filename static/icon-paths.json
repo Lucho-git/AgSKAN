@@ -1,5 +1,7 @@
 {
   "default": "icons/mapbox-marker-3x.png",
+  "default-selected": "icons/mapbox-marker-selected-3x.png",
+  "default-outlined": "icons/mapbox-marker-outlined-3x.png",
   "fallback": "icons/fallback-3x.png",
   "custom-svg-rock": "icons/rock-3x.png",
   "custom-svg-tree13": "icons/tree13-3x.png",
@@ -16,6 +18,8 @@
   "custom-svg-tree_stump": "icons/tree_stump-3x.png",
   "custom-svg-workshop_icon": "icons/workshop_icon-3x.png",
   "custom-svg-mapbox-marker": "icons/mapbox-marker-3x.png",
+  "custom-svg-mapbox-marker-selected": "icons/mapbox-marker-selected-3x.png",
+  "custom-svg-mapbox-marker-outlined": "icons/mapbox-marker-outlined-3x.png",
   "ionic-pin": "icons/pin-ionic-3x.png",
   "ionic-arrow-up-circle": "icons/arrow-up-circle-ionic-3x.png",
   "ionic-arrow-down-circle": "icons/arrow-down-circle-ionic-3x.png",

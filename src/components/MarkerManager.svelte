@@ -119,6 +119,17 @@
     })
   }
 
+  // Quick camera center for new marker placement
+  function quickCenterOnMarker(coordinates) {
+    if (!map || !coordinates || coordinates.length !== 2) return
+
+    map.flyTo({
+      center: coordinates,
+      duration: 800, // Slightly faster than normal centering
+      // Don't include zoom - keep current zoom level
+    })
+  }
+
   // Load high-DPI PNG icons
   async function loadHighDpiIcons() {
     if (!map || iconsLoaded || iconPaths) return
@@ -227,7 +238,7 @@
     map.addImage(iconKey, { width: 35, height: 35, data: imageData.data })
   }
 
-  // RESTORED: Original working getIconImageName function
+  // Reverted: Simple getIconImageName function without selection support
   function getIconImageName(iconClass) {
     if (!iconClass || iconClass === "default") return "default"
 
@@ -284,7 +295,7 @@
       }
     }
 
-    // Blue selection circle (exclude default markers) - FIXED FILTER
+    // Blue selection circle - exclude new/unconfirmed markers
     if (!map.getLayer("markers-selection-circle")) {
       const selectionLayerConfig = {
         id: "markers-selection-circle",
@@ -292,8 +303,8 @@
         source: "markers",
         filter: [
           "all",
-          ["==", ["get", "selected"], true], // FIXED: Use ["get", "selected"]
-          ["!=", ["get", "iconClass"], "default"],
+          ["==", ["get", "selected"], true],
+          ["==", ["get", "confirmed"], true], // Only show circle for confirmed markers
         ],
         paint: {
           "circle-radius": 18,
@@ -333,6 +344,7 @@
         icon: getIconImageName(marker.iconClass),
         iconClass: marker.iconClass || "default",
         selected: $selectedMarkerStore?.id === marker.id,
+        confirmed: true, // Mark confirmed markers
       },
     }))
 
@@ -443,6 +455,7 @@
         icon: iconImageName,
         iconClass: iconClass,
         selected: true,
+        confirmed: false, // Mark as unconfirmed to prevent circle showing
       },
     }
 
@@ -451,13 +464,8 @@
     addMarkerToLayer(feature)
     selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
 
-    // Only zoom if setting is enabled
-    if ($userSettingsStore?.zoomToPlacedMarkers) {
-      map.flyTo({
-        center: [lngLat.lng, lngLat.lat],
-        duration: 1000,
-      })
-    }
+    // Always do a quick camera center on new marker placement
+    quickCenterOnMarker([lngLat.lng, lngLat.lat])
 
     controlStore.update((controls) => ({
       ...controls,
@@ -504,7 +512,7 @@
     }))
   }
 
-  // Confirm marker - exactly like original
+  // Confirm marker - mark as confirmed so circle will show on future selections
   function confirmMarker() {
     if ($selectedMarkerStore) {
       const { id, coordinates } = $selectedMarkerStore

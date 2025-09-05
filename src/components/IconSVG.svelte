@@ -3,6 +3,7 @@
   export let icon = ""
   export let size = "24px"
   export let color = "currentColor"
+  export let selected = false // Add selected prop
 </script>
 
 <symbol id="mapbox-marker" viewBox="0 0 27 41">
@@ -50,6 +51,146 @@
       <circle fill="#000000" opacity="0.25" cx="5.5" cy="5.5" r="5.4999962"
       ></circle>
       <circle fill="#FFFFFF" cx="5.5" cy="5.5" r="5.4999962"></circle>
+    </g>
+  </g>
+</symbol>
+
+<symbol id="mapbox-marker-selected" viewBox="0 0 31 45">
+  <g fill-rule="nonzero">
+    <!-- Larger shadow for selected version -->
+    <g transform="translate(3.0, 32.0)" fill="#000000">
+      <ellipse
+        opacity="0.06"
+        cx="12.5"
+        cy="6.80029008"
+        rx="12.5"
+        ry="6.25002273"
+      ></ellipse>
+      <ellipse
+        opacity="0.06"
+        cx="12.5"
+        cy="6.80029008"
+        rx="11.5"
+        ry="5.77275007"
+      ></ellipse>
+      <ellipse
+        opacity="0.06"
+        cx="12.5"
+        cy="6.80029008"
+        rx="10.5"
+        ry="5.29549936"
+      ></ellipse>
+      <ellipse opacity="0.06" cx="12.5" cy="6.80029008" rx="9.5" ry="4.81822308"
+      ></ellipse>
+      <ellipse opacity="0.06" cx="12.5" cy="6.80029008" rx="8.5" ry="4.34094679"
+      ></ellipse>
+      <ellipse opacity="0.06" cx="12.5" cy="6.80029008" rx="7.5" ry="3.86367051"
+      ></ellipse>
+      <ellipse opacity="0.06" cx="12.5" cy="6.80029008" rx="6.5" ry="3.38636864"
+      ></ellipse>
+    </g>
+
+    <!-- Selection border (outer stroke) -->
+    <g fill="none" stroke="#60a5fa" stroke-width="3" opacity="0.9">
+      <path
+        d="M29,15.5 C29,21.574644 21.750001,30.000002 15.75,38.000002 C15.016665,39.000004 13.483335,39.000004 12.75,38.000002 C6.2499993,30.000002 -1,22.222562 -1,15.5 C-1,7.0441559 5.5441559,0.5 13.5,0.5 C21.455844,0.5 29,7.0441559 29,15.5 Z"
+      ></path>
+    </g>
+
+    <!-- Main teardrop shape - slightly larger -->
+    <g fill="#ef4444" transform="translate(2, 2)">
+      <path
+        d="M27,13.5 C27,19.074644 20.250001,27.000002 14.75,34.500002 C14.016665,35.500004 12.983335,35.500004 12.25,34.500002 C6.7499993,27.000002 0,19.222562 0,13.5 C0,6.0441559 6.0441559,0 13.5,0 C20.955844,0 27,6.0441559 27,13.5 Z"
+      ></path>
+    </g>
+
+    <!-- Shadow/border effect -->
+    <g opacity="0.25" fill="#000000" transform="translate(2, 2)">
+      <path
+        d="M13.5,0 C6.0441559,0 0,6.0441559 0,13.5 C0,19.222562 6.7499993,27 12.25,34.5 C13,35.522727 14.016664,35.500004 14.75,34.5 C20.250001,27 27,19.074644 27,13.5 C27,6.0441559 20.955844,0 13.5,0 Z M13.5,1 C20.415404,1 26,6.584596 26,13.5 C26,15.898657 24.495584,19.181431 22.220703,22.738281 C19.945823,26.295132 16.705119,30.142167 13.943359,33.908203 C13.743445,34.180814 13.612715,34.322738 13.5,34.441406 C13.387285,34.322738 13.256555,34.180814 13.056641,33.908203 C10.284481,30.127985 7.4148684,26.314159 5.015625,22.773438 C2.6163816,19.232715 1,15.953538 1,13.5 C1,6.584596 6.584596,1 13.5,1 Z"
+      ></path>
+    </g>
+
+    <g transform="translate(8.0, 10.0)">
+      <circle fill="#000000" opacity="0.25" cx="5.5" cy="5.5" r="5.4999962"
+      ></circle>
+      <circle fill="#FFFFFF" cx="5.5" cy="5.5" r="5.4999962"></circle>
+    </g>
+  </g>
+</symbol>
+
+<symbol id="mapbox-marker-outlined" viewBox="0 0 31 45">
+  <g fill-rule="nonzero">
+    <!-- Shadow -->
+    <g transform="translate(3.0, 32.0)" fill="#000000">
+      <ellipse
+        opacity="0.04"
+        cx="12.5"
+        cy="6.80029008"
+        rx="12.5"
+        ry="6.25002273"
+      ></ellipse>
+      <ellipse
+        opacity="0.04"
+        cx="12.5"
+        cy="6.80029008"
+        rx="11.5"
+        ry="5.77275007"
+      ></ellipse>
+      <ellipse
+        opacity="0.04"
+        cx="12.5"
+        cy="6.80029008"
+        rx="10.5"
+        ry="5.29549936"
+      ></ellipse>
+      <ellipse opacity="0.04" cx="12.5" cy="6.80029008" rx="9.5" ry="4.81822308"
+      ></ellipse>
+      <ellipse opacity="0.04" cx="12.5" cy="6.80029008" rx="8.5" ry="4.34094679"
+      ></ellipse>
+      <ellipse opacity="0.04" cx="12.5" cy="6.80029008" rx="7.5" ry="3.86367051"
+      ></ellipse>
+      <ellipse opacity="0.04" cx="12.5" cy="6.80029008" rx="6.5" ry="3.38636864"
+      ></ellipse>
+    </g>
+
+    <!-- Blue outline border -->
+    <g
+      fill="none"
+      stroke="#60a5fa"
+      stroke-width="4"
+      opacity="1.0"
+      transform="translate(2, 2)"
+    >
+      <path
+        d="M27,13.5 C27,19.074644 20.250001,27.000002 14.75,34.500002 C14.016665,35.500004 12.983335,35.500004 12.25,34.500002 C6.7499993,27.000002 0,19.222562 0,13.5 C0,6.0441559 6.0441559,0 13.5,0 C20.955844,0 27,6.0441559 27,13.5 Z"
+      ></path>
+    </g>
+
+    <!-- Main teardrop shape - white fill for outline effect -->
+    <g fill="#FFFFFF" transform="translate(2, 2)">
+      <path
+        d="M27,13.5 C27,19.074644 20.250001,27.000002 14.75,34.500002 C14.016665,35.500004 12.983335,35.500004 12.25,34.500002 C6.7499993,27.000002 0,19.222562 0,13.5 C0,6.0441559 6.0441559,0 13.5,0 C20.955844,0 27,6.0441559 27,13.5 Z"
+      ></path>
+    </g>
+
+    <!-- Inner border -->
+    <g
+      opacity="0.15"
+      fill="none"
+      stroke="#000000"
+      stroke-width="1"
+      transform="translate(2, 2)"
+    >
+      <path
+        d="M13.5,1 C20.415404,1 26,6.584596 26,13.5 C26,15.898657 24.495584,19.181431 22.220703,22.738281 C19.945823,26.295132 16.705119,30.142167 13.943359,33.908203 C13.743445,34.180814 13.612715,34.322738 13.5,34.441406 C13.387285,34.322738 13.256555,34.180814 13.056641,33.908203 C10.284481,30.127985 7.4148684,26.314159 5.015625,22.773438 C2.6163816,19.232715 1,15.953538 1,13.5 C1,6.584596 6.584596,1 13.5,1 Z"
+      ></path>
+    </g>
+
+    <g transform="translate(8.0, 10.0)">
+      <circle fill="#000000" opacity="0.25" cx="5.5" cy="5.5" r="5.4999962"
+      ></circle>
+      <circle fill="#60a5fa" cx="5.5" cy="5.5" r="5.4999962"></circle>
     </g>
   </g>
 </symbol>
