@@ -1,6 +1,6 @@
 <script>
   import IconSVG from "./IconSVG.svelte"
-  import { Edit3, Trash2, Check, Info } from "lucide-svelte"
+  import { Edit3, Trash2, Check, Info, FileText } from "lucide-svelte"
   import { markerApi } from "$lib/api/markerApi"
 
   export let map
@@ -21,6 +21,10 @@
   let markerNotes = ""
   let lastMarkerId = null // Track marker changes
 
+  // New marker notes state
+  let newMarkerNotes = "" // Notes for new markers before confirmation
+  let showNotesForNewMarker = false
+
   // Icon selection state
   let selectedIconForEdit = null
   let pendingIconChange = false
@@ -32,11 +36,13 @@
     : null
   $: selectedMarkerIsNew = $selectedMarkerStore && !currentMarker
 
-  // Auto-open edit menu for new markers
+  // Auto-open edit menu for new markers and reset new marker notes
   $: if (selectedMarkerIsNew && !showEditMenu) {
     showEditMenu = true
     showInfoPanel = false
     isExpanded = true
+    newMarkerNotes = "" // Reset notes for new marker
+    showNotesForNewMarker = false // Start with notes section collapsed
   }
 
   // FIXED: Only update notes when marker changes, not on every reactive cycle
@@ -74,7 +80,7 @@
     return icon.class === currentIconClass
   }
 
-  // Marker icons data - Removed outlined marker option
+  // Marker icons data
   const markerIcons = [
     { id: "default", class: "default", name: "Default Marker" },
     { id: "rock", class: "custom-svg", name: "Rock" },
@@ -253,6 +259,8 @@
     selectedIconForEdit = null
     pendingIconChange = false
     originalIconClass = null
+    newMarkerNotes = ""
+    showNotesForNewMarker = false
   }
 
   // Format creation date
@@ -313,7 +321,7 @@
     }
   }
 
-  // Handle icon selection with immediate visual feedback - Reverted
+  // Handle icon selection with immediate visual feedback
   function handleIconPreview(icon) {
     if (!$selectedMarkerStore) return
 
@@ -345,15 +353,63 @@
     }
   }
 
-  // Confirm marker (handles both new markers and icon changes)
+  // Confirm marker (handles both new markers and icon changes) - Updated to include notes
   function handleConfirmMarker() {
     if (selectedMarkerIsNew) {
-      // For new markers, confirm the marker itself
-      confirmMarker()
+      // For new markers, confirm the marker itself with notes
+      confirmMarkerWithNotes()
     } else if (pendingIconChange && selectedIconForEdit) {
       // For existing markers, just confirm the icon change
       confirmIconChange()
     }
+  }
+
+  // New function to confirm marker with notes - FIXED: Clear selection properly
+  function confirmMarkerWithNotes() {
+    if (!$selectedMarkerStore) return
+
+    const { id, coordinates } = $selectedMarkerStore
+    const iconClass = getCurrentIconClass(id)
+
+    const markerData = {
+      id,
+      coordinates,
+      iconClass,
+      notes: newMarkerNotes.trim() || undefined, // Only include notes if they exist
+      created_at: new Date().toISOString(),
+    }
+
+    console.log("Confirming new marker with notes:", markerData)
+
+    // Update the confirmed store
+    confirmedMarkersStore.update((markers) => {
+      const existingIndex = markers.findIndex((m) => m.id === id)
+      if (existingIndex >= 0) {
+        markers[existingIndex] = markerData
+        return markers
+      }
+      return [...markers, markerData]
+    })
+
+    // FIXED: Update the map marker to remove selection state immediately
+    if (map && map.getSource("markers")) {
+      const source = map.getSource("markers")
+      const data = source._data
+      const feature = data.features.find((f) => f.properties.id === id)
+
+      if (feature) {
+        feature.properties.selected = false
+        feature.properties.confirmed = true
+        source.setData(data)
+      }
+    }
+
+    // Reset states
+    newMarkerNotes = ""
+    showNotesForNewMarker = false
+    selectedMarkerStore.set(null)
+    showEditMenu = false
+    isExpanded = false
   }
 
   // Confirm icon change and sync to server
@@ -391,7 +447,7 @@
     isExpanded = false
   }
 
-  // Revert icon change - Reverted
+  // Revert icon change
   function revertIconChange() {
     if (!originalIconClass || !$selectedMarkerStore) return
 
@@ -423,6 +479,11 @@
     showInfoPanel = !showInfoPanel
     showEditMenu = false
     isExpanded = showInfoPanel
+  }
+
+  // Toggle notes section for new markers
+  function toggleNotesForNewMarker() {
+    showNotesForNewMarker = !showNotesForNewMarker
   }
 </script>
 
@@ -496,15 +557,45 @@
         <span class="section-title">
           {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Choose Icon"}
         </span>
-        {#if pendingIconChange || selectedMarkerIsNew}
-          <div class="icon-actions">
+        <div class="icon-actions">
+          {#if selectedMarkerIsNew}
+            <!-- Notes button for new markers -->
+            <button
+              class="notes-toggle-btn"
+              class:active={showNotesForNewMarker}
+              on:click={toggleNotesForNewMarker}
+            >
+              <FileText size={16} />
+              <span class="btn-text">Notes</span>
+            </button>
+          {/if}
+          {#if pendingIconChange || selectedMarkerIsNew}
             <button class="confirm-icon-btn" on:click={handleConfirmMarker}>
               <Check size={16} />
-              {selectedMarkerIsNew ? "Confirm Marker" : "Confirm"}
+              <span class="btn-text"
+                >{selectedMarkerIsNew ? "Confirm" : "Confirm"}</span
+              >
             </button>
-          </div>
-        {/if}
+          {/if}
+        </div>
       </div>
+
+      <!-- Notes Section for New Markers -->
+      {#if selectedMarkerIsNew && showNotesForNewMarker}
+        <div class="new-marker-notes-section">
+          <div class="notes-header">
+            <span class="notes-label">📝 Add Notes (Optional)</span>
+          </div>
+          <textarea
+            bind:value={newMarkerNotes}
+            placeholder="Add notes about this marker..."
+            class="notes-input"
+            rows="3"
+            maxlength="500"
+          ></textarea>
+          <div class="char-count">{newMarkerNotes.length}/500</div>
+        </div>
+      {/if}
 
       <div class="icon-grid-container">
         <div class="icon-grid">
@@ -560,7 +651,9 @@
       <div class="marker-text-info">
         <span class="marker-name"
           >{getMarkerName(getCurrentIconClass($selectedMarkerStore.id))}
-          {#if currentMarker?.notes && !selectedMarkerIsNew}
+          {#if selectedMarkerIsNew && newMarkerNotes}
+            <span class="marker-notes-preview"> - {newMarkerNotes}</span>
+          {:else if currentMarker?.notes && !selectedMarkerIsNew}
             <span class="marker-notes-preview"> - {currentMarker.notes}</span>
           {/if}
         </span>
@@ -692,8 +785,9 @@
   }
 
   /* Notes Section */
-  .notes-section {
-    margin-bottom: 12px;
+  .notes-section,
+  .new-marker-notes-section {
+    margin-bottom: 16px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
@@ -787,6 +881,28 @@
     display: flex;
     gap: 8px;
     align-items: center;
+  }
+
+  .notes-toggle-btn {
+    background: rgba(96, 165, 250, 0.2);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .notes-toggle-btn:hover,
+  .notes-toggle-btn.active {
+    background: rgba(96, 165, 250, 0.3);
+    color: white;
+    transform: scale(1.05);
   }
 
   .confirm-icon-btn {
@@ -982,28 +1098,7 @@
     color: white;
   }
 
-  /* Scrollbar Styling */
-  .info-section::-webkit-scrollbar,
-  .icon-section::-webkit-scrollbar,
-  .icon-grid-container::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  .info-section::-webkit-scrollbar-track,
-  .icon-section::-webkit-scrollbar-track,
-  .icon-grid-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-  }
-
-  .info-section::-webkit-scrollbar-thumb,
-  .icon-section::-webkit-scrollbar-thumb,
-  .icon-grid-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-  }
-
-  /* Mobile Responsiveness */
+  /* Mobile Responsiveness - Progressive text hiding */
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
@@ -1034,7 +1129,7 @@
     }
 
     .marker-notes-preview {
-      font-size: 10px; /* Smaller on tablet */
+      font-size: 10px;
     }
 
     .icon-grid {
@@ -1046,17 +1141,36 @@
       width: 70px;
       height: 70px;
     }
+
+    .section-title {
+      font-size: 14px;
+    }
   }
 
   @media (max-width: 640px) {
     .marker-notes-preview {
-      font-size: 9px; /* Even smaller on mobile */
+      font-size: 9px;
     }
   }
 
   @media (max-width: 520px) {
     .marker-notes-preview {
-      font-size: 8px; /* Very small on small mobile */
+      font-size: 8px;
+    }
+
+    /* Hide button text on smaller screens */
+    .btn-text {
+      display: none;
+    }
+
+    .notes-toggle-btn,
+    .confirm-icon-btn {
+      padding: 6px 8px;
+      gap: 0;
+    }
+
+    .section-title {
+      font-size: 13px;
     }
   }
 
@@ -1089,7 +1203,7 @@
     }
 
     .marker-notes-preview {
-      font-size: 7px; /* Tiny but still readable */
+      font-size: 7px;
     }
 
     .icon-grid {
@@ -1101,6 +1215,10 @@
       width: 60px;
       height: 60px;
     }
+
+    .section-title {
+      font-size: 12px;
+    }
   }
 
   /* Very small screens */
@@ -1110,7 +1228,32 @@
     }
 
     .marker-notes-preview {
-      font-size: 6px; /* Minimum readable size */
+      font-size: 6px;
     }
+
+    .section-title {
+      font-size: 11px;
+    }
+  }
+
+  /* Scrollbar Styling */
+  .info-section::-webkit-scrollbar,
+  .icon-section::-webkit-scrollbar,
+  .icon-grid-container::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .info-section::-webkit-scrollbar-track,
+  .icon-section::-webkit-scrollbar-track,
+  .icon-grid-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+
+  .info-section::-webkit-scrollbar-thumb,
+  .icon-section::-webkit-scrollbar-thumb,
+  .icon-grid-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
   }
 </style>
