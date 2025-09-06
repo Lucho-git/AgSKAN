@@ -627,14 +627,14 @@
     <div class="marker-info">
       <div class="marker-icon-display">
         {#if getCurrentIconClass($selectedMarkerStore.id) === "default"}
-          <IconSVG icon="mapbox-marker" size="24px" />
+          <IconSVG icon="mapbox-marker" size="28px" />
         {:else if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("custom-svg")}
           <IconSVG
             icon={getCurrentIconClass($selectedMarkerStore.id)?.replace(
               "custom-svg-",
               "",
             )}
-            size="24px"
+            size="28px"
           />
         {:else if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("ionic-")}
           <ion-icon
@@ -642,10 +642,10 @@
               "ionic-",
               "",
             )}
-            style="font-size: 24px;"
+            style="font-size: 28px;"
           ></ion-icon>
         {:else}
-          <IconSVG icon="mapbox-marker" size="24px" />
+          <IconSVG icon="mapbox-marker" size="28px" />
         {/if}
       </div>
       <div class="marker-text-info">
@@ -665,7 +665,7 @@
       {#if selectedMarkerIsNew}
         <!-- New marker - show confirm button -->
         <button class="control-btn confirm-btn" on:click={handleConfirmMarker}>
-          <Check size={18} />
+          <Check size={20} />
         </button>
       {:else}
         <!-- Existing marker - show edit, info, delete buttons -->
@@ -674,7 +674,7 @@
           class:active={showEditMenu && isExpanded}
           on:click={handleEditClick}
         >
-          <Edit3 size={18} />
+          <Edit3 size={20} />
         </button>
 
         <button
@@ -682,12 +682,12 @@
           class:active={showInfoPanel && isExpanded}
           on:click={handleInfoClick}
         >
-          <Info size={18} />
+          <Info size={20} />
         </button>
       {/if}
 
       <button class="control-btn delete-btn" on:click={removeMarker}>
-        <Trash2 size={18} />
+        <Trash2 size={20} />
       </button>
     </div>
   </div>
@@ -966,28 +966,29 @@
     transform: scale(1.05);
   }
 
-  /* Control Bar (Always Visible) */
+  /* Control Bar (Always Visible) - Made Bigger and More Touch-Friendly */
   .control-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
+    padding: 18px 24px; /* Increased from 12px 20px */
     background: rgba(0, 0, 0, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
+    min-height: 72px; /* Ensure minimum height */
   }
 
   .marker-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px; /* Increased from 12px */
     flex: 1;
     min-width: 0; /* Allow shrinking */
   }
 
   .marker-icon-display {
-    width: 36px;
-    height: 36px;
+    width: 48px; /* Increased from 36px */
+    height: 48px; /* Increased from 36px */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1006,7 +1007,7 @@
   }
 
   .marker-name {
-    font-size: 16px;
+    font-size: 18px; /* Increased from 16px */
     font-weight: 600;
     color: white;
     text-overflow: ellipsis;
@@ -1019,7 +1020,7 @@
 
   /* Notes preview styling - inline with marker name */
   .marker-notes-preview {
-    font-size: 12px;
+    font-size: 14px; /* Increased from 12px */
     font-weight: 400;
     color: rgba(255, 255, 255, 0.6);
     font-style: italic;
@@ -1032,7 +1033,7 @@
 
   .action-controls {
     display: flex;
-    gap: 8px;
+    gap: 12px; /* Increased from 8px */
     align-items: center;
   }
 
@@ -1040,20 +1041,30 @@
     background: rgba(255, 255, 255, 0.1);
     border: none;
     border-radius: 50%;
-    width: 36px;
-    height: 36px;
+    width: 48px; /* Increased from 36px */
+    height: 48px; /* Increased from 36px */
     display: flex;
     align-items: center;
     justify-content: center;
     color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
     transition: all 0.2s ease;
+    /* Enhanced touch targets */
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .control-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: white;
     transform: scale(1.05);
+  }
+
+  /* Enhanced touch feedback */
+  .control-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
   }
 
   .confirm-btn {
@@ -1098,7 +1109,7 @@
     color: white;
   }
 
-  /* Mobile Responsiveness - Progressive text hiding */
+  /* Mobile Responsiveness - Progressive text hiding with larger touch targets */
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
@@ -1107,29 +1118,30 @@
     }
 
     .control-bar {
-      padding: 10px 16px;
+      padding: 16px 20px; /* Still larger than before */
+      min-height: 68px;
     }
 
     .control-btn {
-      width: 32px;
-      height: 32px;
+      width: 44px; /* Slightly smaller but still bigger than original */
+      height: 44px;
     }
 
     .marker-icon-display {
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
     }
 
     .marker-info {
-      gap: 8px;
+      gap: 12px;
     }
 
     .marker-name {
-      font-size: 14px;
+      font-size: 16px;
     }
 
     .marker-notes-preview {
-      font-size: 10px;
+      font-size: 12px;
     }
 
     .icon-grid {
@@ -1149,13 +1161,13 @@
 
   @media (max-width: 640px) {
     .marker-notes-preview {
-      font-size: 9px;
+      font-size: 11px;
     }
   }
 
   @media (max-width: 520px) {
     .marker-notes-preview {
-      font-size: 8px;
+      font-size: 10px;
     }
 
     /* Hide button text on smaller screens */
@@ -1172,6 +1184,25 @@
     .section-title {
       font-size: 13px;
     }
+
+    .control-bar {
+      padding: 14px 16px;
+      min-height: 64px;
+    }
+
+    .control-btn {
+      width: 40px; /* Minimum comfortable touch size */
+      height: 40px;
+    }
+
+    .marker-icon-display {
+      width: 40px;
+      height: 40px;
+    }
+
+    .action-controls {
+      gap: 10px;
+    }
   }
 
   @media (max-width: 480px) {
@@ -1181,29 +1212,15 @@
     }
 
     .marker-info {
-      gap: 6px;
-    }
-
-    .action-controls {
-      gap: 6px;
-    }
-
-    .control-btn {
-      width: 30px;
-      height: 30px;
-    }
-
-    .marker-icon-display {
-      width: 28px;
-      height: 28px;
+      gap: 10px;
     }
 
     .marker-name {
-      font-size: 13px;
+      font-size: 15px;
     }
 
     .marker-notes-preview {
-      font-size: 7px;
+      font-size: 9px;
     }
 
     .icon-grid {
@@ -1219,20 +1236,33 @@
     .section-title {
       font-size: 12px;
     }
+
+    .control-bar {
+      padding: 12px 14px;
+      min-height: 60px;
+    }
   }
 
   /* Very small screens */
   @media (max-width: 360px) {
     .marker-name {
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .marker-notes-preview {
-      font-size: 6px;
+      font-size: 8px;
     }
 
     .section-title {
       font-size: 11px;
+    }
+
+    .marker-info {
+      gap: 8px;
+    }
+
+    .action-controls {
+      gap: 8px;
     }
   }
 
