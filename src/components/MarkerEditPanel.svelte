@@ -474,8 +474,12 @@
     isExpanded = showEditMenu
   }
 
-  // Handle info button click - don't center camera per user request
+  // Handle info button click - RESTORED: Center camera on info click
   function handleInfoClick() {
+    if ($selectedMarkerStore?.coordinates) {
+      centerCameraOnMarker($selectedMarkerStore.coordinates)
+    }
+
     showInfoPanel = !showInfoPanel
     showEditMenu = false
     isExpanded = showInfoPanel
@@ -523,11 +527,13 @@
               class="edit-notes-btn"
               on:click={() => (editingNotes = true)}
             >
-              <Edit3 size={14} />
+              <Edit3 size={16} />
+              <span class="btn-text">Edit</span>
             </button>
           {:else}
             <button class="save-notes-btn" on:click={saveMarkerNotes}>
-              <Check size={14} />
+              <Check size={16} />
+              <span class="btn-text">Save</span>
             </button>
           {/if}
         </div>
@@ -537,7 +543,7 @@
             bind:value={markerNotes}
             placeholder="Add notes about this marker..."
             class="notes-input"
-            rows="3"
+            rows="4"
             maxlength="500"
           ></textarea>
           <div class="char-count">{markerNotes.length}/500</div>
@@ -590,7 +596,7 @@
             bind:value={newMarkerNotes}
             placeholder="Add notes about this marker..."
             class="notes-input"
-            rows="3"
+            rows="4"
             maxlength="500"
           ></textarea>
           <div class="char-count">{newMarkerNotes.length}/500</div>
@@ -708,11 +714,11 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Info Section (Only visible when expanded) */
+  /* Info Section (Only visible when expanded) - REVERTED Desktop sizes, BIGGER Mobile */
   .info-section,
   .icon-section {
-    padding: 16px 20px 0;
-    max-height: 40vh;
+    padding: 16px 20px 0; /* Reverted to original desktop padding */
+    max-height: 35vh; /* SMALLER than original 40vh to avoid blocking markers */
     overflow-y: auto;
     background: linear-gradient(
       to bottom,
@@ -734,32 +740,32 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 16px; /* Reverted */
+    padding-bottom: 12px; /* Reverted */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .marker-title {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 2px; /* Reverted */
   }
 
   .marker-label {
-    font-size: 16px;
+    font-size: 16px; /* Reverted */
     font-weight: 600;
     color: white;
   }
 
   .marker-date {
-    font-size: 12px;
+    font-size: 12px; /* Reverted */
     color: rgba(255, 255, 255, 0.6);
   }
 
   /* Coordinates Section */
   .coordinates-section {
-    margin-bottom: 16px;
-    padding: 12px;
+    margin-bottom: 16px; /* Reverted */
+    padding: 12px; /* Reverted */
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     border-left: 3px solid #60a5fa;
@@ -768,27 +774,27 @@
   .coord-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 4px; /* Reverted */
   }
 
   .coord-label {
-    font-size: 12px;
+    font-size: 12px; /* Reverted */
     color: rgba(255, 255, 255, 0.6);
     font-weight: 500;
   }
 
   .coord-value {
-    font-size: 13px;
+    font-size: 13px; /* Reverted */
     font-weight: 600;
     color: #60a5fa;
     font-family: monospace;
   }
 
-  /* Notes Section */
+  /* Notes Section - KEPT Enhanced buttons but reverted spacing */
   .notes-section,
   .new-marker-notes-section {
-    margin-bottom: 16px;
-    padding: 12px;
+    margin-bottom: 16px; /* Reverted */
+    padding: 12px; /* Reverted */
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     border-left: 3px solid #22c55e;
@@ -798,24 +804,34 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 8px; /* Reverted */
   }
 
   .notes-label {
-    font-size: 12px;
+    font-size: 12px; /* Reverted */
     color: rgba(255, 255, 255, 0.6);
     font-weight: 500;
   }
 
+  /* Enhanced notes buttons - KEPT the improvements */
   .edit-notes-btn,
   .save-notes-btn {
     background: rgba(34, 197, 94, 0.2);
     border: none;
-    border-radius: 4px;
-    padding: 4px 6px;
+    border-radius: 6px;
+    padding: 8px 12px; /* KEPT bigger padding */
     color: #22c55e;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    /* Enhanced touch targets */
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .edit-notes-btn:hover,
@@ -824,16 +840,22 @@
     transform: scale(1.05);
   }
 
+  .edit-notes-btn:active,
+  .save-notes-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+
   .notes-input {
     width: 100%;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 6px; /* Reverted */
+    padding: 8px 12px; /* Reverted */
     color: white;
-    font-size: 14px;
+    font-size: 14px; /* Reverted */
     resize: vertical;
-    min-height: 60px;
+    min-height: 60px; /* Reverted */
   }
 
   .notes-input:focus {
@@ -848,16 +870,16 @@
 
   .char-count {
     text-align: right;
-    font-size: 11px;
+    font-size: 11px; /* Reverted */
     color: rgba(255, 255, 255, 0.4);
-    margin-top: 4px;
+    margin-top: 4px; /* Reverted */
   }
 
   .notes-display {
-    font-size: 14px;
+    font-size: 14px; /* Reverted */
     color: rgba(255, 255, 255, 0.8);
-    line-height: 1.4;
-    min-height: 20px;
+    line-height: 1.4; /* Reverted */
+    min-height: 20px; /* Reverted */
     font-style: italic;
   }
 
@@ -866,8 +888,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 16px; /* Reverted */
+    padding-bottom: 12px; /* Reverted */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
@@ -927,7 +949,7 @@
   }
 
   .icon-grid-container {
-    max-height: 30vh;
+    max-height: 30vh; /* Reverted */
     overflow-y: auto;
   }
 
@@ -966,29 +988,29 @@
     transform: scale(1.05);
   }
 
-  /* Control Bar (Always Visible) - Made Bigger and More Touch-Friendly */
+  /* Control Bar (Always Visible) - KEPT Mobile improvements */
   .control-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 18px 24px; /* Increased from 12px 20px */
+    padding: 18px 24px; /* KEPT bigger padding */
     background: rgba(0, 0, 0, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
-    min-height: 72px; /* Ensure minimum height */
+    min-height: 72px; /* KEPT minimum height */
   }
 
   .marker-info {
     display: flex;
     align-items: center;
-    gap: 16px; /* Increased from 12px */
+    gap: 16px; /* KEPT bigger gap */
     flex: 1;
     min-width: 0; /* Allow shrinking */
   }
 
   .marker-icon-display {
-    width: 48px; /* Increased from 36px */
-    height: 48px; /* Increased from 36px */
+    width: 48px; /* KEPT bigger size */
+    height: 48px; /* KEPT bigger size */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1007,7 +1029,7 @@
   }
 
   .marker-name {
-    font-size: 18px; /* Increased from 16px */
+    font-size: 18px; /* KEPT bigger font */
     font-weight: 600;
     color: white;
     text-overflow: ellipsis;
@@ -1020,7 +1042,7 @@
 
   /* Notes preview styling - inline with marker name */
   .marker-notes-preview {
-    font-size: 14px; /* Increased from 12px */
+    font-size: 14px; /* KEPT bigger font */
     font-weight: 400;
     color: rgba(255, 255, 255, 0.6);
     font-style: italic;
@@ -1033,7 +1055,7 @@
 
   .action-controls {
     display: flex;
-    gap: 12px; /* Increased from 8px */
+    gap: 12px; /* KEPT bigger gap */
     align-items: center;
   }
 
@@ -1041,8 +1063,8 @@
     background: rgba(255, 255, 255, 0.1);
     border: none;
     border-radius: 50%;
-    width: 48px; /* Increased from 36px */
-    height: 48px; /* Increased from 36px */
+    width: 48px; /* KEPT bigger buttons */
+    height: 48px; /* KEPT bigger buttons */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1109,12 +1131,12 @@
     color: white;
   }
 
-  /* Mobile Responsiveness - Progressive text hiding with larger touch targets */
+  /* Mobile Responsiveness - ENHANCED for mobile while keeping desktop compact */
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
-      max-height: 35vh;
-      padding: 12px 16px 0;
+      max-height: 50vh; /* BIGGER on mobile */
+      padding: 16px 20px 0; /* KEPT mobile padding */
     }
 
     .control-bar {
@@ -1157,6 +1179,10 @@
     .section-title {
       font-size: 14px;
     }
+
+    .icon-grid-container {
+      max-height: 35vh; /* BIGGER on mobile */
+    }
   }
 
   @media (max-width: 640px) {
@@ -1170,9 +1196,14 @@
       font-size: 10px;
     }
 
-    /* Hide button text on smaller screens */
+    /* Hide button text on smaller screens except notes buttons */
     .btn-text {
       display: none;
+    }
+
+    .edit-notes-btn .btn-text,
+    .save-notes-btn .btn-text {
+      display: inline; /* Keep text for notes buttons */
     }
 
     .notes-toggle-btn,
@@ -1203,12 +1234,17 @@
     .action-controls {
       gap: 10px;
     }
+
+    .info-section,
+    .icon-section {
+      max-height: 45vh; /* BIGGER on smaller mobile */
+    }
   }
 
   @media (max-width: 480px) {
     .info-section,
     .icon-section {
-      max-height: 30vh;
+      max-height: 40vh; /* BIGGER on small mobile */
     }
 
     .marker-info {
@@ -1240,6 +1276,18 @@
     .control-bar {
       padding: 12px 14px;
       min-height: 60px;
+    }
+
+    /* Hide button text for notes buttons too on very small screens */
+    .edit-notes-btn .btn-text,
+    .save-notes-btn .btn-text {
+      display: none;
+    }
+
+    .edit-notes-btn,
+    .save-notes-btn {
+      padding: 6px 8px;
+      gap: 0;
     }
   }
 
