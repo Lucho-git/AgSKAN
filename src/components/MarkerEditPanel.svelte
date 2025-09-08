@@ -508,17 +508,7 @@
         </div>
       </div>
 
-      <!-- Coordinates Section -->
-      <div class="coordinates-section">
-        <div class="coord-item">
-          <span class="coord-label">📍 Location</span>
-          <span class="coord-value"
-            >{formatCoordinates($selectedMarkerStore?.coordinates)}</span
-          >
-        </div>
-      </div>
-
-      <!-- Notes Section -->
+      <!-- Notes Section - MOVED UP -->
       <div class="notes-section">
         <div class="notes-header">
           <span class="notes-label">📝 Notes</span>
@@ -552,6 +542,16 @@
             {markerNotes || "No notes added yet. Click edit to add notes."}
           </div>
         {/if}
+      </div>
+
+      <!-- Coordinates Section - MOVED BELOW NOTES -->
+      <div class="coordinates-section">
+        <div class="coord-item">
+          <span class="coord-label">📍 Location</span>
+          <span class="coord-value"
+            >{formatCoordinates($selectedMarkerStore?.coordinates)}</span
+          >
+        </div>
       </div>
     </div>
   {/if}
@@ -762,9 +762,9 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
-  /* Coordinates Section */
+  /* Coordinates Section - MOVED BELOW NOTES */
   .coordinates-section {
-    margin-bottom: 16px; /* Reverted */
+    margin-bottom: 12px; /* Reduced since it's now last */
     padding: 12px; /* Reverted */
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
