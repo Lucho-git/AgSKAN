@@ -1,3 +1,6 @@
+<!-- src/lib/components/TrailView.svelte -->
+<svelte:options accessors={true} />
+
 <script lang="ts">
   import type { Map } from "mapbox-gl"
   import TrailManager from "$lib/components/TrailManager.svelte"
@@ -8,7 +11,8 @@
   let trailManagerAPI
   let highlighterAPI
 
-  export { trailManagerAPI, highlighterAPI }
+  // Simple export - no need for complex renaming
+  export { highlighterAPI }
 </script>
 
 <TrailManager

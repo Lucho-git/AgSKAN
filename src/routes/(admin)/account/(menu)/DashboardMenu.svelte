@@ -287,7 +287,7 @@
           }))
         }
 
-        toast.success("Connected to map successfully")
+        toast.success("Connected to map")
         activeTab = "dashboard"
         enteredMapId = ""
         closeAllDashboardMenus()
@@ -411,7 +411,7 @@
         }))
 
         showOperationDropdown = false // 🆕 NEW: Close dropdown after selection
-        toast.success("Operation switched successfully")
+        toast.success("Operation switched")
       } catch (error) {
         toast.error("Failed to update selected operation")
       } finally {
@@ -465,7 +465,7 @@
         newOperationDescription = ""
         showCreateOperation = false
 
-        toast.success("Operation created successfully")
+        toast.success("Operation created")
       } else {
         toast.error(`Failed to create operation: ${result.message}`)
       }
@@ -512,7 +512,7 @@
         )
         selectedOperationStore.set(updatedOperation)
         showEditOperation = false
-        toast.success("Operation updated successfully")
+        toast.success("Operation updated")
       } else {
         toast.error(`Failed to update operation: ${result.message}`)
       }
@@ -564,7 +564,7 @@
         }
 
         showDeleteOperationConfirm = false
-        toast.success("Operation deleted successfully")
+        toast.success("Operation deleted")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
       }

@@ -65,7 +65,7 @@
           $selectedOperationStore,
         )
 
-        toast.success("Successfully updated selected operation")
+        toast.success("Updated operation")
       } catch (error) {
         console.error("Error updating selected operation:", error)
         toast.error("Failed to update selected operation")

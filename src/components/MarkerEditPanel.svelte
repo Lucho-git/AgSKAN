@@ -314,7 +314,7 @@
       })
 
       editingNotes = false
-      console.log("Notes saved successfully")
+      console.log("Notes saved")
     } catch (error) {
       console.error("Error saving notes:", error)
       alert(`Failed to save notes: ${error.message}`)

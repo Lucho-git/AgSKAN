@@ -186,7 +186,7 @@
           await new Promise((resolve) => setTimeout(resolve, remainingTime))
         }
 
-        toast.success("Map created successfully")
+        toast.success("Map created ")
         await fetchUserMaps()
         await fetchRecentMaps()
 
@@ -257,7 +257,7 @@
           await new Promise((resolve) => setTimeout(resolve, remainingTime))
         }
 
-        toast.success("Connected to map successfully")
+        toast.success("Connected to map")
         await fetchUserMaps()
         await fetchRecentMaps()
 
@@ -297,7 +297,7 @@
           map_name: newMapNameInput.trim(),
         }))
         isRenaming = false
-        toast.success("Map renamed successfully")
+        toast.success("Map renamed")
       } else {
         toast.error(`Failed to rename map: ${result.message}`)
       }
@@ -346,7 +346,7 @@
         operationStore.set([])
         selectedOperationStore.set(null)
 
-        toast.success("Map deleted successfully")
+        toast.success("Map deleted")
         showDeleteConfirm = false
         confirmationInput = ""
         await fetchUserMaps()

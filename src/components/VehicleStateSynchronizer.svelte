@@ -207,7 +207,7 @@
     if (error) {
       console.error("Error updating vehicle state in database:", error)
     } else {
-      console.log("Database updated successfully")
+      console.log("Database updated")
       lastDatabaseUpdate = currentTime
     }
 

@@ -128,7 +128,7 @@
         trails.filter((t) => t.id !== trailId),
       )
 
-      toast.success("Trail deleted successfully")
+      toast.success("Trail deleted")
       return true
     } catch (error) {
       console.error("Error deleting trail:", error)

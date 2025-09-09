@@ -110,7 +110,7 @@
 
         dispatch("fieldUpdated")
         editingTotalArea = false
-        console.log("Total area updated successfully")
+        console.log("Total area updated")
       } else {
         console.error("Failed to update area:", result.message)
         alert("Failed to update area: " + result.message)
@@ -173,7 +173,7 @@
 
         dispatch("fieldUpdated")
         editingSubAreas = false
-        console.log("Sub areas updated successfully")
+        console.log("Sub areas updated")
       } else {
         console.error("Failed to update sub areas:", result.message)
         alert("Failed to update sub areas: " + result.message)

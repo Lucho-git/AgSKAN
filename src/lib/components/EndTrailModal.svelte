@@ -83,7 +83,7 @@
         throw new Error(result.message || "Failed to delete trail")
       }
 
-      toast.success("Trail deleted successfully")
+      toast.success("Trail deleted")
 
       // Reset all states
       currentTrailStore.set(null)
@@ -223,8 +223,8 @@
       // Add to historical trail store
       historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
-      toast.success("Trail closed successfully")
-      console.log("Trail closed successfully:", result)
+      toast.success("Trail closed")
+      console.log("Trail closed:", result)
 
       // Clear unsaved coordinates
       unsavedCoordinatesStore.clear()

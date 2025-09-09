@@ -4,7 +4,7 @@
   import {
     MapPin,
     PencilRuler,
-    Navigation,
+    Route,
     Truck,
     Ruler,
     Satellite,
@@ -21,6 +21,7 @@
   import SatelliteControls from "$lib/components/SatelliteControls.svelte"
   import MarkerControls from "$lib/components/MarkerControls.svelte"
   import VehicleControls from "$lib/components/VehicleControls.svelte"
+  import TrailControls from "$lib/components/TrailControls.svelte"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -28,10 +29,13 @@
   export let currentVehicleColor = "Green"
   export let currentVehicleSwath = 12
 
+  // Trail-related props
+  export let trailReplayAPI = null
+
   const dispatch = createEventDispatcher()
 
   // State for different tool panels
-  let activePanel = null // 'main', 'satellite', 'marker', 'vehicle', etc.
+  let activePanel = null // 'main', 'satellite', 'marker', 'vehicle', 'trail', etc.
 
   // Get vehicle icon component from store
   let VehicleIcon
@@ -79,6 +83,10 @@
     activePanel = "vehicle"
   }
 
+  function showTrailPanel() {
+    activePanel = "trail"
+  }
+
   // Tool functions
   function handleMeasurement() {
     // Toggle drawing mode for measurements
@@ -86,13 +94,16 @@
     closeToolbox()
   }
 
+  function handleSwitchToVehicle() {
+    showVehiclePanel()
+  }
+
   function handleVehicleControls() {
     showVehiclePanel()
   }
 
-  function handleTrailRecording() {
-    dispatch("tool", { type: "trail-recording" })
-    closeToolbox()
+  function handleTrailControls() {
+    showTrailPanel()
   }
 </script>
 
@@ -118,6 +129,9 @@
         {:else if activePanel === "vehicle"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Vehicle Setup</h3>
+        {:else if activePanel === "trail"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Trail Recording</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -141,6 +155,17 @@
           {currentVehicleColor}
           {currentVehicleSwath}
         />
+      {:else if activePanel === "trail"}
+        <!-- Trail Panel -->
+        <TrailControls
+          {trailReplayAPI}
+          {currentVehicleType}
+          {currentVehicleColor}
+          {currentVehicleSwath}
+          on:openTrailViewer={() => dispatch("openTrailViewer")}
+          on:switchToVehicle={handleSwitchToVehicle}
+          on:close={closeToolbox}
+        />
       {:else}
         <!-- Main Tool Grid -->
         <div class="tool-grid">
@@ -150,11 +175,11 @@
                 <svelte:component
                   this={VehicleIcon}
                   bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
-                  size="52px"
+                  size="48px"
                   swath={$userVehicleStore.vehicle_marker.swath}
                 />
               {:else}
-                <Truck size={52} />
+                <Truck size={48} />
               {/if}
             </div>
             <span>Select Vehicle</span>
@@ -164,17 +189,17 @@
           <button class="tool-button" on:click={showMarkerPanel}>
             <div class="marker-icon-container">
               {#if defaultMarker.id === "default"}
-                <IconSVG icon="mapbox-marker" size="52px" />
+                <IconSVG icon="mapbox-marker" size="48px" />
               {:else if defaultMarker.class === "custom-svg"}
-                <IconSVG icon={defaultMarker.id} size="52px" />
+                <IconSVG icon={defaultMarker.id} size="48px" />
               {:else if defaultMarker.class?.startsWith("ionic-")}
-                <ion-icon name={defaultMarker.id} style="font-size: 52px;"
+                <ion-icon name={defaultMarker.id} style="font-size: 48px;"
                 ></ion-icon>
               {:else if defaultMarker.class?.startsWith("at-")}
-                <i class={`${defaultMarker.class}`} style="font-size: 52px;"
+                <i class={`${defaultMarker.class}`} style="font-size: 48px;"
                 ></i>
               {:else}
-                <MapPin size={52} />
+                <MapPin size={48} />
               {/if}
             </div>
             <span>Marker</span>
@@ -186,18 +211,19 @@
             class:tool-active={$drawingModeEnabled}
             on:click={handleMeasurement}
           >
-            <Ruler size={40} />
+            <Ruler size={36} />
             <span>Measure</span>
           </button>
 
-          <button class="tool-button" on:click={handleTrailRecording}>
-            <Navigation size={40} />
+          <!-- Trail button with Route icon -->
+          <button class="tool-button" on:click={handleTrailControls}>
+            <Route size={36} />
             <span>Trails</span>
           </button>
 
           <!-- Row 3 -->
           <button class="tool-button" on:click={showSatellitePanel}>
-            <Satellite size={40} />
+            <Satellite size={36} />
             <span>Satellite</span>
           </button>
 
@@ -290,8 +316,8 @@
   .tool-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    padding: 20px 16px;
+    gap: 14px;
+    padding: 18px 14px;
     align-content: start;
   }
 
@@ -300,17 +326,17 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
-    height: 120px; /* Even taller to accommodate big icons */
-    padding: 20px 12px;
+    height: 110px;
+    padding: 16px 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: rgba(255, 255, 255, 0.8);
-    overflow: visible; /* Allow icons to extend beyond button bounds */
+    overflow: visible;
   }
 
   .tool-button:hover {
@@ -343,23 +369,23 @@
     font-weight: 500;
     text-align: center;
     line-height: 1.2;
-    margin-top: 4px; /* Extra space from large icons */
+    margin-top: 2px;
   }
 
-  /* Icon containers - smaller than actual icons to allow overflow */
+  /* Icon containers - consistent sizing */
   .vehicle-icon-container,
   .marker-icon-container {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px; /* Container smaller than 52px icon */
-    height: 40px;
-    overflow: visible; /* Allow icons to spill out */
+    width: 36px;
+    height: 36px;
+    overflow: visible;
   }
 
   /* Empty placeholder to maintain grid alignment */
   .tool-placeholder {
-    height: 120px;
+    height: 110px;
     background: transparent;
   }
 
@@ -382,53 +408,53 @@
     }
   }
 
-  /* Mobile Responsive */
+  /* Consistent responsive design across all screen sizes */
   @media (max-width: 768px) {
     .toolbox-panel {
       width: 260px;
     }
 
     .tool-grid {
-      gap: 14px;
+      gap: 12px;
       padding: 16px 12px;
     }
 
     .tool-button {
-      height: 105px;
-      padding: 18px 10px;
-      gap: 10px;
+      height: 100px;
+      padding: 14px 8px;
+      gap: 8px;
     }
 
     .tool-button span {
       font-size: 11px;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .vehicle-icon-container,
     .marker-icon-container {
-      width: 32px; /* Container smaller than 42px icon */
+      width: 32px;
       height: 32px;
     }
 
-    /* Update vehicle/marker icons for tablet */
+    /* Adjust icon sizes for mobile */
     .vehicle-icon-container :global(svg),
     .vehicle-icon-container :global(ion-icon),
     .vehicle-icon-container :global(i),
     .marker-icon-container :global(svg),
     .marker-icon-container :global(ion-icon),
     .marker-icon-container :global(i) {
-      width: 42px !important;
-      height: 42px !important;
-      font-size: 42px !important;
+      width: 40px !important;
+      height: 40px !important;
+      font-size: 40px !important;
     }
 
-    /* Adjust other Lucide icon sizes for mobile */
+    /* Adjust other Lucide icon sizes */
     .tool-button
       :global(
         svg:not(.vehicle-icon-container svg):not(.marker-icon-container svg)
       ) {
-      width: 32px !important;
-      height: 32px !important;
+      width: 30px !important;
+      height: 30px !important;
     }
   }
 
@@ -438,46 +464,45 @@
     }
 
     .tool-grid {
-      gap: 12px;
+      gap: 10px;
       padding: 14px 10px;
     }
 
     .tool-button {
-      height: 95px;
-      padding: 16px 8px;
-      gap: 8px;
+      height: 90px;
+      padding: 12px 6px;
+      gap: 6px;
     }
 
     .tool-button span {
       font-size: 10px;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .vehicle-icon-container,
     .marker-icon-container {
-      width: 28px; /* Container smaller than 36px icon */
+      width: 28px;
       height: 28px;
     }
 
-    /* Update vehicle/marker icons for mobile */
+    /* Smaller icons for small mobile */
     .vehicle-icon-container :global(svg),
     .vehicle-icon-container :global(ion-icon),
     .vehicle-icon-container :global(i),
     .marker-icon-container :global(svg),
     .marker-icon-container :global(ion-icon),
     .marker-icon-container :global(i) {
-      width: 36px !important;
-      height: 36px !important;
-      font-size: 36px !important;
+      width: 34px !important;
+      height: 34px !important;
+      font-size: 34px !important;
     }
 
-    /* Adjust other Lucide icon sizes for small mobile */
     .tool-button
       :global(
         svg:not(.vehicle-icon-container svg):not(.marker-icon-container svg)
       ) {
-      width: 28px !important;
-      height: 28px !important;
+      width: 26px !important;
+      height: 26px !important;
     }
   }
 

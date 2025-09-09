@@ -374,7 +374,7 @@
     updateLastKnownState($confirmedMarkersStore)
 
     console.log(
-      `✅ Successfully synced ${changedMarkers.length} markers and ${pendingDeletions.size} deletions`,
+      `✅ Synced ${changedMarkers.length} markers and ${pendingDeletions.size} deletions`,
     )
   }
 

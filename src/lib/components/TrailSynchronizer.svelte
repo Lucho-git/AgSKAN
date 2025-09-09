@@ -761,7 +761,6 @@
       }
 
       console.log("✅ TrailSynchronizer: New trail created successfully")
-      toast.success("New trail created successfully")
       currentTrailStore.set({
         ...result.trail,
         start_time: result.trail.start_time,

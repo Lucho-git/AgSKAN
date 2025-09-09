@@ -233,7 +233,7 @@ async function processAndCloseTrail(trail_id: string) {
         throw new Error(`Failed to close trail: ${result.error.message}`);
     }
 
-    return { deleted: false, closed: true, message: "Trail closed successfully" };
+    return { deleted: false, closed: true, message: "Trail closed" };
 }
 
 /**
@@ -744,7 +744,7 @@ export const trailsApi = {
                 throw new Error(`Failed to delete trail: ${deleteTrailError.message}`);
             }
 
-            return { success: true, message: "Trail deleted successfully" };
+            return { success: true, message: "Trail deleted" };
 
         } catch (error) {
             console.error("Error in deleteTrail:", error);

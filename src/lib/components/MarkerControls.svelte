@@ -209,7 +209,7 @@
       })
 
       if (result.success) {
-        console.log("🎯 Default marker updated successfully!")
+        console.log("🎯 Default marker updated!")
         console.log("Selected marker:", marker)
         console.log("Updated userSettingsStore:", $userSettingsStore)
 

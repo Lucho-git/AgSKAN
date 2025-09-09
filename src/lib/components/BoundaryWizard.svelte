@@ -181,7 +181,7 @@
       editingName.trim() || paddocks[currentIndex].name
     paddocks = [...paddocks] // Trigger reactivity
     isEditing = false
-    toast.success("Field name saved successfully")
+    toast.success("Field name saved")
   }
 
   function cancelEditing() {
@@ -199,7 +199,7 @@
     }))
 
     processingAction = null
-    toast.success("All fields approved successfully")
+    toast.success("All fields approved")
   }
 
   // REAL API FUNCTIONALITY - Updated to match the working version

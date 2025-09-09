@@ -103,7 +103,7 @@
           ...store,
           map_name: newMapNameInput.trim(),
         }))
-        toast.success("Map renamed successfully")
+        toast.success("Map renamed")
       } else {
         toast.error(`Failed to rename map: ${result.message}`)
       }
@@ -128,7 +128,7 @@
           showSettingsModal: false,
         }))
         toast.success("Disconnected from map", {
-          description: "You have successfully left the map",
+          description: "You have left the map",
         })
         goto("/account")
       } else {

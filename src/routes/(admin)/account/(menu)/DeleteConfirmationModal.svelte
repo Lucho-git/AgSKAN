@@ -57,7 +57,7 @@
       if (result.success) {
         updateStores()
         closeModals()
-        toast.success("Map deleted successfully")
+        toast.success("Map deleted")
         goto("/account")
       } else {
         toast.error(`Failed to delete map: ${result.message}`)

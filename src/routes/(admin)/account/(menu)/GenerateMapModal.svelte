@@ -58,7 +58,7 @@
           }))
         }
 
-        toast.success("Map created successfully", {
+        toast.success("Map created", {
           description: "You have been connected to your new map",
         })
 

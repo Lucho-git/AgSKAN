@@ -92,7 +92,7 @@
         newOperationDescription = ""
         showCreateOperation = false
 
-        toast.success("Operation created successfully")
+        toast.success("Operation created")
       } else {
         toast.error(`Failed to create operation: ${result.message}`)
       }
@@ -133,7 +133,7 @@
         // Close the menu after successful selection
         closeAllOperationMenus()
 
-        toast.success("Operation switched successfully")
+        toast.success("Operation switched")
       } catch (error) {
         toast.error("Failed to update selected operation")
       } finally {
@@ -180,7 +180,7 @@
         }
 
         closeAllOperationMenus()
-        toast.success("Operation updated successfully")
+        toast.success("Operation updated")
       } else {
         toast.error(`Failed to update operation: ${result.message}`)
       }
@@ -230,7 +230,7 @@
         }
 
         closeAllOperationMenus()
-        toast.success("Operation deleted successfully")
+        toast.success("Operation deleted")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
       }

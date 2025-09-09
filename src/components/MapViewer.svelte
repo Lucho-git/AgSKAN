@@ -1,3 +1,4 @@
+<!-- src\components\MapViewer.svelte -->
 <script>
   import { onMount, onDestroy, setContext, getContext } from "svelte"
   import mapboxgl from "mapbox-gl"
@@ -10,6 +11,7 @@
     fieldBoundaryStore,
     markerBoundaryStore,
   } from "$lib/stores/homeBoundaryStore"
+  import { userVehicleStore } from "../stores/vehicleStore"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
@@ -44,6 +46,7 @@
   let mapFieldsRef = null
   let vehicleTrackerRef = null
   let mapEventManagerRef = null
+  let trailHighlighter = null
 
   // Manager references
   let satelliteManager = null
@@ -57,10 +60,16 @@
   let mapInitialized = false
   let mapboxInitError = null
 
-  // ✅ Toolbox state
+  // Toolbox state
   let toolboxOpen = false
 
-  // ✅ Layer ordering registry with trail support
+  // Current vehicle state for toolbox
+  $: currentVehicleType = $userVehicleStore.vehicle_marker?.type || "Tractor"
+  $: currentVehicleColor =
+    $userVehicleStore.vehicle_marker?.bodyColor || "#22c55e"
+  $: currentVehicleSwath = $userVehicleStore.vehicle_marker?.swath || 12
+
+  // Layer ordering registry with trail support
   const LAYER_ORDER = {
     // Bottom layers (fields) - 100-199
     "fields-fill": { order: 100, category: "field-base" },
@@ -79,7 +88,7 @@
     "markers-layer": { order: 400, category: "interactive" },
   }
 
-  // ✅ Central layer management
+  // Central layer management
   function getInsertionPoint(layerId) {
     if (!map) return undefined
 
@@ -101,7 +110,7 @@
     return undefined
   }
 
-  // ✅ Layer management context with trail support
+  // Layer management context with trail support
   setContext("map", {
     getMap: () => Promise.resolve(map),
     addLayerOrdered: (layerConfig) => {
@@ -179,13 +188,29 @@
     }
   }
 
-  // ✅ Toolbox functions
+  // Toolbox functions
   function toggleToolbox() {
     toolboxOpen = !toolboxOpen
   }
 
   function closeToolbox() {
     toolboxOpen = false
+  }
+
+  // Handle vehicle updates from toolbox
+  function handleVehicleUpdate(event) {
+    const { type, color, swath } = event.detail
+    // The VehicleStateSynchronizer will handle the actual updates
+    console.log("Vehicle updated:", { type, color, swath })
+  }
+
+  // Handle trail viewer opening
+  function handleOpenTrailViewer() {
+    if (trailHighlighter?.highlighterAPI?.toggleNavigationUI) {
+      trailHighlighter.highlighterAPI.toggleNavigationUI()
+    } else {
+      toast.error("Trail viewer not available")
+    }
   }
 
   function handleToolAction(event) {
@@ -264,7 +289,7 @@
           map.touchZoomRotate._tapDragZoom.disable()
         }
 
-        // ✅ Simple MapboxDraw setup for mobile touch handling
+        // Simple MapboxDraw setup for mobile touch handling
         const draw = new MapboxDraw({
           displayControlsDefault: false,
           controls: {},
@@ -457,10 +482,10 @@
       onLongPress={handleLongPress}
     />
 
-    <!-- ✅ Persistent Managers - Never unmount -->
+    <!-- Persistent Managers - Never unmount -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
-    <!-- ✅ NEW: Toolbox Trigger Button -->
+    <!-- Toolbox Trigger Button -->
     <div class="toolbox-trigger-container">
       <button
         class="toolbox-trigger-button"
@@ -471,7 +496,7 @@
       </button>
     </div>
 
-    <!-- ✅ Keep existing ButtonSection for now -->
+    <!-- Keep existing ButtonSection for now -->
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
@@ -493,18 +518,28 @@
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <DrawingHectares {map} />
+
+    <!-- Trail View with clean API access -->
+    <TrailView bind:this={trailHighlighter} {map} />
+
     {#if selectedOperation}
       <TrailSynchronizer {selectedOperation} {map} />
     {/if}
   {/if}
 </div>
 
-<!-- ✅ Toolbox with manager references -->
+<!-- Toolbox with direct API access -->
 <Toolbox
   {satelliteManager}
+  trailReplayAPI={trailHighlighter?.highlighterAPI}
+  {currentVehicleType}
+  {currentVehicleColor}
+  {currentVehicleSwath}
   isOpen={toolboxOpen}
   on:close={closeToolbox}
   on:tool={handleToolAction}
+  on:vehicleUpdated={handleVehicleUpdate}
+  on:openTrailViewer={handleOpenTrailViewer}
 />
 
 <style>
@@ -549,10 +584,10 @@
     background-color: #3182ce;
   }
 
-  /* ✅ NEW: Toolbox Trigger Button Styles */
+  /* Toolbox Trigger Button Styles */
   .toolbox-trigger-container {
     position: absolute;
-    top: 92px; /* Move to where satellite button was */
+    top: 92px;
     left: 16px;
     z-index: 10;
   }

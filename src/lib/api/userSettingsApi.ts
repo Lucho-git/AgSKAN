@@ -172,8 +172,8 @@ export const userSettingsApi = {
                 };
             }
 
-            toast.success("Password updated successfully");
-            return { success: true, message: "Password updated successfully" };
+            toast.success("Password updated");
+            return { success: true, message: "Password updated" };
         } catch (error) {
             console.error("Error in updatePassword:", error);
             return {

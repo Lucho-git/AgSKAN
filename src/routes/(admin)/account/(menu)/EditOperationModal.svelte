@@ -89,7 +89,7 @@
         // Close the modal
         closeModal()
 
-        toast.success("Operation updated successfully")
+        toast.success("Operation updated")
       } else {
         toast.error(`Failed to update operation: ${result.message}`)
       }
@@ -141,7 +141,7 @@
         closeModal()
         showDeleteConfirmation = false
 
-        toast.success("Operation deleted successfully")
+        toast.success("Operation deleted")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
       }

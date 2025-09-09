@@ -1,3 +1,5 @@
+<!-- src/lib/components/TrailHighlighter.svelte -->
+
 <script lang="ts">
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
@@ -7,13 +9,9 @@
   import { toast } from "svelte-sonner"
   import {
     X,
-    Route,
-    ArrowLeft,
-    ArrowRight,
     Trash2,
     Play,
     Square,
-    MoreHorizontal,
     ChevronUp,
     ChevronDown,
     SkipBack,
@@ -39,7 +37,7 @@
   let showDeleteModal = false
   let showDropdownMenu = false
   let showReplayPanel = false
-  let isExpanded = false // Changed from isMinimized to isExpanded
+  let isExpanded = false
   let trailToDelete: Trail | null = null
   let isPlayingAnimation = false
   let animationIntervalId: number | null = null
@@ -51,7 +49,7 @@
     FLIGHT_DURATION: 2000,
     HIGHLIGHT_WIDTH_MULTIPLIER: 1.2,
     MAX_FLIGHT_ZOOM: 19,
-    ANIMATION_SPEED: 25, // Faster animation
+    ANIMATION_SPEED: 25,
   }
 
   // Make currentTrail reactive to currentTrailIndex changes
@@ -176,7 +174,7 @@
     )
 
     map.fitBounds(bounds, {
-      padding: 100, // More padding to ensure full trail is visible
+      padding: 100,
       duration: HIGHLIGHT_CONFIG.FLIGHT_DURATION,
       maxZoom: HIGHLIGHT_CONFIG.MAX_FLIGHT_ZOOM,
     })
@@ -188,18 +186,13 @@
       return
     }
 
-    // Don't auto-collapse when animation starts - let user control visibility
-    // isExpanded = false
-
     // Handle different path formats
     let coordinates: [number, number][]
 
     if (trail.path && typeof trail.path === "object") {
       if ("type" in trail.path && trail.path.type === "LineString") {
-        // trail.path is a LineString object
         coordinates = trail.path.coordinates
       } else if (Array.isArray(trail.path)) {
-        // trail.path is an array of TrailCoordinate objects
         const sortedCoords = [...trail.path].sort(
           (a, b) => a.timestamp - b.timestamp,
         )
@@ -301,7 +294,7 @@
 
         currentPointIndex++
       }, HIGHLIGHT_CONFIG.ANIMATION_SPEED)
-    }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200) // Wait for camera movement + small buffer
+    }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200)
   }
 
   function stopAnimation() {
@@ -321,7 +314,6 @@
 
     const currentTrail = getCurrentTrail()
     if (currentTrail && map && map.getStyle()) {
-      // Add map check here
       // Remove animation layers
       const animationSourceId = `animation-source-${currentTrail.id}`
       const animationLayerId = `animation-layer-${currentTrail.id}`
@@ -483,7 +475,7 @@
       paint: {
         "line-color": "white",
         "line-width": calculateZoomDependentWidth(baseWidth, 1.4),
-        "line-opacity": 0.6, // Reduced opacity
+        "line-opacity": 0.6,
       },
       layout: {
         "line-cap": "round",
@@ -500,7 +492,7 @@
       paint: {
         "line-color": trail.trail_color,
         "line-width": calculateZoomDependentWidth(baseWidth, 1.1),
-        "line-opacity": 0.9, // Slightly reduced from full opacity
+        "line-opacity": 0.9,
       },
       layout: {
         "line-cap": "round",
@@ -519,7 +511,7 @@
 
   function closeReplayPanel() {
     showReplayPanel = false
-    showNavigationUI = false // Add this line
+    showNavigationUI = false
     stopAnimation()
     isExpanded = false
 
@@ -570,37 +562,14 @@
       showReplayPanel = false
       isExpanded = false
     } else {
-      // Add comprehensive logging when opening the trail menu
-      console.log("=== OPENING TRAIL MENU ===")
-      console.log("Total trails available:", $historicalTrailStore.length)
-      console.log("Current trail index:", currentTrailIndex)
-      console.log("All trails data:", $historicalTrailStore)
-
-      // Log each trail's key information
-      $historicalTrailStore.forEach((trail, index) => {
-        console.log(`Trail ${index + 1}:`, {
-          id: trail.id,
-          created_at: trail.created_at,
-          trail_color: trail.trail_color,
-          trail_width: trail.trail_width,
-          coordinates_count: trail.path?.coordinates?.length || 0,
-          path_type: trail.path?.type,
-          first_coordinate: trail.path?.coordinates?.[0],
-          last_coordinate:
-            trail.path?.coordinates?.[trail.path?.coordinates?.length - 1],
-        })
-      })
-
       // Start selection for current trail when showing UI
       if ($historicalTrailStore.length > 0) {
         const currentTrail = $historicalTrailStore[currentTrailIndex]
-        console.log("Selected current trail:", currentTrail)
         flyToTrail(currentTrail)
         selectTrail(currentTrail)
-        showReplayPanel = true // Auto-open replay panel
-        isExpanded = false // Start collapsed
+        showReplayPanel = true
+        isExpanded = false
       }
-      console.log("=== TRAIL MENU OPENED ===")
     }
   }
 
@@ -730,12 +699,12 @@
     navigateToTrail,
     animateTrailCreation,
     stopAnimation,
+    toggleNavigationUI,
   }
 
   onMount(() => {
     const cleanup = () => {
       if (map && map.getStyle()) {
-        // Add map check here too
         stopAnimation()
       } else {
         // Just clean up non-map resources if map is already destroyed
@@ -754,26 +723,7 @@
   })
 </script>
 
-<!-- Main navigation button -->
-<button
-  class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-  style="background: {showNavigationUI
-    ? 'rgba(255, 255, 255, 0.9)'
-    : ''};bottom: 0.5rem;"
-  class:text-black={showNavigationUI}
-  on:click={toggleNavigationUI}
-  aria-label={showNavigationUI
-    ? "Close trail navigation"
-    : "Open trail navigation"}
->
-  {#if showNavigationUI}
-    <X size={20} color="black" />
-  {:else}
-    <Route size={20} />
-  {/if}
-</button>
-
-<!-- Trail Replay Panel -->
+<!-- Trail Replay Panel - Only shows when opened via toolbox -->
 {#if showReplayPanel}
   <div class="trail-panel" class:expanded={isExpanded}>
     <!-- Expandable Info Section -->

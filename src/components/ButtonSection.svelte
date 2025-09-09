@@ -29,7 +29,6 @@
     if (!$userVehicleTrailing) {
       toast.info("Initiating trail recording...")
     } else {
-      toast.info("Preparing to end trail recording...")
     }
   }
 

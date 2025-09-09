@@ -121,7 +121,7 @@
           }))
         }
 
-        toast.success("Map created successfully")
+        toast.success("Map created")
         activeTab = "dashboard"
         newMapName = ""
         generatedMapId = uuidv4()
@@ -228,7 +228,7 @@
           master_map_id: trimmedMapId,
         }))
 
-        toast.success("Connected to map successfully")
+        toast.success("Connected to map")
         activeTab = "dashboard"
         enteredMapId = ""
         showJoinForm = false
@@ -346,7 +346,7 @@
           map_name: newMapNameInput.trim(),
         }))
         isRenaming = false
-        toast.success("Map renamed successfully")
+        toast.success("Map renamed")
       } else {
         toast.error(`Failed to rename map: ${result.message}`)
       }
@@ -395,7 +395,7 @@
         operationStore.set([])
         selectedOperationStore.set(null)
 
-        toast.success("Map deleted successfully")
+        toast.success("Map deleted")
         activeTab = "map"
         showDeleteConfirm = false
         confirmationInput = ""
@@ -535,7 +535,7 @@
         newOperationDescription = ""
         showCreateOperation = false
 
-        toast.success("Operation created successfully")
+        toast.success("Operation created")
       } else {
         toast.error(`Failed to create operation: ${result.message}`)
       }
@@ -573,7 +573,7 @@
           selected_operation_id: operationId,
         }))
 
-        toast.success("Operation switched successfully")
+        toast.success("Operation switched")
       } catch (error) {
         toast.error("Failed to update selected operation")
       } finally {
@@ -681,7 +681,7 @@
         }
 
         closeAllOperationMenus()
-        toast.success("Operation updated successfully")
+        toast.success("Operation updated")
       } else {
         toast.error(`Failed to update operation: ${result.message}`)
       }
@@ -731,7 +731,7 @@
         }
 
         closeAllOperationMenus()
-        toast.success("Operation deleted successfully")
+        toast.success("Operation deleted")
       } else {
         toast.error(`Failed to delete operation: ${result.message}`)
       }

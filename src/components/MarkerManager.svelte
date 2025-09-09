@@ -164,7 +164,7 @@
 
       await Promise.allSettled(loadPromises)
       iconsLoaded = true
-      console.log("🎯 All high-DPI PNG icons loaded successfully!")
+      console.log("🎯 All high-DPI PNG icons loaded!")
     } catch (error) {
       console.error("❌ Error loading high-DPI icons:", error)
       await loadFallbackIcons()

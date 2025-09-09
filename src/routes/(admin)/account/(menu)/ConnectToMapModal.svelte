@@ -141,7 +141,7 @@
           showConnectModal: false,
         }))
 
-        toast.success("Connected to map successfully")
+        toast.success("Connected to map")
       } else {
         toast.error(`Failed to connect to map: ${result.message}`)
       }

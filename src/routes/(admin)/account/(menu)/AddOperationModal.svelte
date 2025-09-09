@@ -98,7 +98,7 @@
         // Close the modal
         closeModal()
 
-        toast.success("Operation added successfully")
+        toast.success("Operation added")
       } else {
         toast.error(`Failed to add operation: ${result.message}`)
       }

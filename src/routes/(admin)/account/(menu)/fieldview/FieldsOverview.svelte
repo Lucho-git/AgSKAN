@@ -196,7 +196,7 @@
               : field,
           ),
         )
-        toast.success("Field updated successfully")
+        toast.success("Field updated")
         closeEditModal()
       } else {
         throw new Error(result.message || "Failed to update field")
@@ -220,7 +220,7 @@
         fieldStore.update((fields) =>
           fields.filter((field) => field.field_id !== fieldToDelete.field_id),
         )
-        toast.success(`Field "${fieldToDelete.name}" deleted successfully`)
+        toast.success(`Field "${fieldToDelete.name}" deleted`)
         closeDeleteModal()
       } else {
         throw new Error(result.message || "Failed to delete field")
