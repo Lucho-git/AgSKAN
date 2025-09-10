@@ -57,6 +57,7 @@
   let animationIntervalId: number | null = null
   let tractorMarker: mapboxgl.Marker | null = null
   let isSliderActive = false
+  let wasPlayingBeforeDrag = false // Track if we were playing before slider drag
   let progressContainer: HTMLElement
 
   // Centralized animation state
@@ -74,7 +75,7 @@
 
   const HIGHLIGHT_CONFIG = {
     TRAIL_HIGHLIGHT_DELAY: 3000,
-    FLIGHT_DURATION: 2000,
+    FLIGHT_DURATION: 800, // Reduced from 2000ms for faster camera movement
     HIGHLIGHT_WIDTH_MULTIPLIER: 1.2,
     MAX_FLIGHT_ZOOM: 19,
     ANIMATION_SPEED: 25,
@@ -271,6 +272,7 @@
   function fitTrailBounds(
     coordinates: [number, number][],
     considerMenu = false,
+    fastTransition = false,
   ) {
     if (coordinates.length === 0) return
 
@@ -286,6 +288,11 @@
       bottomPadding = getMenuHeight() + 50
     }
 
+    // Use faster duration for trail switching
+    const duration = fastTransition
+      ? HIGHLIGHT_CONFIG.FLIGHT_DURATION / 2
+      : HIGHLIGHT_CONFIG.FLIGHT_DURATION
+
     map.fitBounds(bounds, {
       padding: {
         top: 100,
@@ -293,7 +300,7 @@
         left: 100,
         right: 100,
       },
-      duration: HIGHLIGHT_CONFIG.FLIGHT_DURATION,
+      duration: duration,
       maxZoom: HIGHLIGHT_CONFIG.MAX_FLIGHT_ZOOM,
     })
   }
@@ -324,24 +331,34 @@
     seekToProgress(progress)
 
     // Start playing from new position
-    if (!animationState.isPlaying) {
+    if (!animationState.isPlaying && !isSliderActive) {
       startAnimation()
     }
   }
 
   function handleSliderStart() {
     if (!animationState.isReady) return
+
     isSliderActive = true
+    wasPlayingBeforeDrag = animationState.isPlaying
+
+    // Pause animation if it's currently playing
+    if (animationState.isPlaying) {
+      pauseAnimation()
+    }
   }
 
   function handleSliderEnd() {
     if (!animationState.isReady) return
+
     isSliderActive = false
 
-    // If we were playing, continue playing from new position
-    if (animationState.isPlaying) {
+    // Resume playing if we were playing before the drag started
+    if (wasPlayingBeforeDrag) {
       startAnimation()
     }
+
+    wasPlayingBeforeDrag = false
   }
 
   function startAnimation() {
@@ -627,10 +644,10 @@
       isExpanded = true
       // Wait for expansion animation to complete before fitting bounds
       setTimeout(() => {
-        fitTrailBounds(animationState.coordinates, true)
+        fitTrailBounds(animationState.coordinates, true, true) // Use fast transition
       }, 300)
     } else {
-      fitTrailBounds(animationState.coordinates, true)
+      fitTrailBounds(animationState.coordinates, true, true) // Use fast transition
     }
 
     // Reset animation state for new playback
@@ -639,10 +656,10 @@
     animationState.isComplete = false
     animationState.isPaused = false
 
-    // Start animation after camera movement
+    // Start animation after camera movement - reduced delay due to faster camera
     setTimeout(() => {
       startAnimation()
-    }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200)
+    }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100) // Reduced from 200
   }
 
   function stopAnimation() {
@@ -946,7 +963,7 @@
     }
 
     if (coordinates.length > 0) {
-      fitTrailBounds(coordinates, true)
+      fitTrailBounds(coordinates, true, true) // Use fast transition for trail switching
     }
   }
 
@@ -991,8 +1008,9 @@
     flyToTrail(trail)
     selectTrail(trail)
 
+    // Reduced wait time due to faster camera movement
     await new Promise((resolve) =>
-      setTimeout(resolve, HIGHLIGHT_CONFIG.FLIGHT_DURATION),
+      setTimeout(resolve, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100),
     )
   }
 
@@ -1062,13 +1080,13 @@
     if (trail) {
       flyToTrail(trail)
       selectTrail(trail)
-      // Wait for trail to be ready, then start animation
+      // Wait for trail to be ready, then start animation - reduced delay
       const checkReady = setInterval(() => {
         if (animationState.isReady && animationState.trailId === trail.id) {
           clearInterval(checkReady)
           setTimeout(() => {
             animateTrailCreation(trail)
-          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 500)
+          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200) // Reduced delay
         }
       }, 100)
     }
@@ -1083,7 +1101,7 @@
   ) {
     setTimeout(() => {
       if (currentTrail && animationState.coordinates.length > 0) {
-        fitTrailBounds(animationState.coordinates, true)
+        fitTrailBounds(animationState.coordinates, true, false) // Don't use fast transition for expansion
       }
     }, 300) // Wait for expansion animation
   }
