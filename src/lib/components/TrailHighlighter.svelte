@@ -59,6 +59,8 @@
   let isSliderActive = false
   let wasPlayingBeforeDrag = false // Track if we were playing before slider drag
   let progressContainer: HTMLElement
+  let hasInitiallyFittedBounds = false // Track if we've done initial camera fit
+  let pendingBoundsFit = false // Track if we need to fit bounds after expansion
 
   // Centralized animation state
   let animationState: AnimationState = {
@@ -89,6 +91,23 @@
     initializeTrailAnimation(currentTrail)
   }
 
+  // Watch for expansion changes and handle pending bounds fitting
+  $: if (
+    isExpanded &&
+    pendingBoundsFit &&
+    currentTrail &&
+    animationState.isReady
+  ) {
+    // Wait for expansion animation to complete before fitting bounds
+    setTimeout(() => {
+      if (currentTrail && animationState.coordinates.length > 0) {
+        fitTrailBounds(animationState.coordinates, true, false)
+        hasInitiallyFittedBounds = true
+        pendingBoundsFit = false
+      }
+    }, 350) // Wait for expansion animation (300ms) + small buffer
+  }
+
   function getCurrentTrail(): Trail | null {
     return currentTrail
   }
@@ -96,6 +115,10 @@
   function initializeTrailAnimation(trail: Trail) {
     // Stop any existing animation
     stopAnimation()
+
+    // Reset bounds fitting flags for new trail
+    hasInitiallyFittedBounds = false
+    pendingBoundsFit = false
 
     // Reset animation state for new trail
     animationState = {
@@ -263,7 +286,7 @@
     let height = 76 // Control bar height with padding
 
     if (isExpanded) {
-      height += window.innerHeight * 0.5 // 50vh max height
+      height += window.innerHeight * 0.3 // 50vh max height
     }
 
     return Math.min(height, window.innerHeight * 0.6) // Cap at 60vh
@@ -367,9 +390,14 @@
       return
     }
 
-    // Auto-expand when starting animation
+    // Auto-expand when starting animation and mark that we need bounds fitting
     if (!isExpanded) {
       isExpanded = true
+      pendingBoundsFit = true // Mark that we need to fit bounds after expansion
+    } else if (!hasInitiallyFittedBounds) {
+      // If already expanded but haven't fitted bounds yet, do it now
+      fitTrailBounds(animationState.coordinates, true, false)
+      hasInitiallyFittedBounds = true
     }
 
     // Clear any existing animation
@@ -642,12 +670,11 @@
     // Auto-expand when starting animation
     if (!isExpanded) {
       isExpanded = true
-      // Wait for expansion animation to complete before fitting bounds
-      setTimeout(() => {
-        fitTrailBounds(animationState.coordinates, true, true) // Use fast transition
-      }, 300)
+      // Set pending bounds fit and let the reactive statement handle it after expansion
+      pendingBoundsFit = true
     } else {
       fitTrailBounds(animationState.coordinates, true, true) // Use fast transition
+      hasInitiallyFittedBounds = true // Mark that we've done initial fit
     }
 
     // Reset animation state for new playback
@@ -656,10 +683,13 @@
     animationState.isComplete = false
     animationState.isPaused = false
 
-    // Start animation after camera movement - reduced delay due to faster camera
+    // Start animation after camera movement - account for expansion delay if needed
+    const delay = !hasInitiallyFittedBounds
+      ? HIGHLIGHT_CONFIG.FLIGHT_DURATION + 350
+      : HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100
     setTimeout(() => {
       startAnimation()
-    }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100) // Reduced from 200
+    }, delay)
   }
 
   function stopAnimation() {
@@ -667,6 +697,10 @@
       clearInterval(animationIntervalId)
       animationIntervalId = null
     }
+
+    // Reset bounds fitting flags
+    hasInitiallyFittedBounds = false
+    pendingBoundsFit = false
 
     // Safely remove tractor marker
     if (tractorMarker) {
@@ -1090,20 +1124,6 @@
         }
       }, 100)
     }
-  }
-
-  // Watch for expansion changes to update camera bounds
-  $: if (
-    isExpanded !== undefined &&
-    currentTrail &&
-    showReplayPanel &&
-    animationState.isReady
-  ) {
-    setTimeout(() => {
-      if (currentTrail && animationState.coordinates.length > 0) {
-        fitTrailBounds(animationState.coordinates, true, false) // Don't use fast transition for expansion
-      }
-    }, 300) // Wait for expansion animation
   }
 
   export const highlighterAPI = {
