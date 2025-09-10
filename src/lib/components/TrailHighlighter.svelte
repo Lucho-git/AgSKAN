@@ -12,10 +12,12 @@
     Trash2,
     Play,
     Square,
+    Pause,
     ChevronUp,
     ChevronDown,
     SkipBack,
     SkipForward,
+    Loader2,
   } from "lucide-svelte"
 
   interface TrailIdentifiers {
@@ -24,6 +26,19 @@
     highlightLayerId: string
     highlightBackgroundLayerId: string
   }
+
+  interface AnimationState {
+    trailId: string
+    coordinates: [number, number][]
+    currentIndex: number
+    progress: number
+    isPlaying: boolean
+    isPaused: boolean
+    isComplete: boolean
+    isLoading: boolean
+    isReady: boolean
+  }
+
   export let calculateZoomDependentWidth: (
     width: number,
     multiplier: number,
@@ -39,10 +54,23 @@
   let showReplayPanel = false
   let isExpanded = false
   let trailToDelete: Trail | null = null
-  let isPlayingAnimation = false
   let animationIntervalId: number | null = null
-  let animationComplete = false
   let tractorMarker: mapboxgl.Marker | null = null
+  let isSliderActive = false
+  let progressContainer: HTMLElement
+
+  // Centralized animation state
+  let animationState: AnimationState = {
+    trailId: "",
+    coordinates: [],
+    currentIndex: 0,
+    progress: 0,
+    isPlaying: false,
+    isPaused: false,
+    isComplete: false,
+    isLoading: false,
+    isReady: false,
+  }
 
   const HIGHLIGHT_CONFIG = {
     TRAIL_HIGHLIGHT_DELAY: 3000,
@@ -55,8 +83,73 @@
   // Make currentTrail reactive to currentTrailIndex changes
   $: currentTrail = $historicalTrailStore[currentTrailIndex] || null
 
+  // Watch for trail changes and reset animation state
+  $: if (currentTrail) {
+    initializeTrailAnimation(currentTrail)
+  }
+
   function getCurrentTrail(): Trail | null {
     return currentTrail
+  }
+
+  function initializeTrailAnimation(trail: Trail) {
+    // Stop any existing animation
+    stopAnimation()
+
+    // Reset animation state for new trail
+    animationState = {
+      trailId: trail.id,
+      coordinates: [],
+      currentIndex: 0,
+      progress: 0,
+      isPlaying: false,
+      isPaused: false,
+      isComplete: false,
+      isLoading: true,
+      isReady: false,
+    }
+
+    // Process trail coordinates
+    setTimeout(() => {
+      try {
+        let coordinates: [number, number][] = []
+
+        if (trail.path && typeof trail.path === "object") {
+          if ("type" in trail.path && trail.path.type === "LineString") {
+            coordinates = trail.path.coordinates
+          } else if (Array.isArray(trail.path)) {
+            const sortedCoords = [...trail.path].sort(
+              (a, b) => a.timestamp - b.timestamp,
+            )
+            coordinates = sortedCoords.map((coord) => [
+              coord.coordinates.longitude,
+              coord.coordinates.latitude,
+            ])
+          }
+        }
+
+        if (coordinates.length === 0) {
+          console.error("No valid coordinates found for trail:", trail.id)
+          animationState.isLoading = false
+          return
+        }
+
+        // Update animation state with processed coordinates
+        animationState = {
+          ...animationState,
+          coordinates,
+          isLoading: false,
+          isReady: true,
+        }
+
+        console.log(
+          `Trail ${trail.id} initialized with ${coordinates.length} coordinates`,
+        )
+      } catch (error) {
+        console.error("Error initializing trail animation:", error)
+        animationState.isLoading = false
+      }
+    }, 50) // Small delay to ensure UI update
   }
 
   function createTractorIcon() {
@@ -163,7 +256,22 @@
     return animationSourceId
   }
 
-  function fitTrailBounds(coordinates: [number, number][]) {
+  function getMenuHeight(): number {
+    if (!showReplayPanel) return 0
+
+    let height = 76 // Control bar height with padding
+
+    if (isExpanded) {
+      height += window.innerHeight * 0.5 // 50vh max height
+    }
+
+    return Math.min(height, window.innerHeight * 0.6) // Cap at 60vh
+  }
+
+  function fitTrailBounds(
+    coordinates: [number, number][],
+    considerMenu = false,
+  ) {
     if (coordinates.length === 0) return
 
     const bounds = coordinates.reduce(
@@ -173,127 +281,367 @@
       new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]),
     )
 
+    let bottomPadding = 100
+    if (considerMenu && showReplayPanel) {
+      bottomPadding = getMenuHeight() + 50
+    }
+
     map.fitBounds(bounds, {
-      padding: 100,
+      padding: {
+        top: 100,
+        bottom: bottomPadding,
+        left: 100,
+        right: 100,
+      },
       duration: HIGHLIGHT_CONFIG.FLIGHT_DURATION,
       maxZoom: HIGHLIGHT_CONFIG.MAX_FLIGHT_ZOOM,
     })
   }
 
-  function animateTrailCreation(trail: Trail) {
-    if (isPlayingAnimation) {
-      stopAnimation()
+  function updateAnimationProgress() {
+    if (!animationState.isReady || animationState.coordinates.length === 0)
+      return
+
+    const totalSteps = animationState.coordinates.length - 1
+    if (totalSteps > 0) {
+      const progress = animationState.currentIndex / totalSteps
+      animationState.progress = Math.min(1, Math.max(0, progress))
+    }
+  }
+
+  function handleProgressClick(event: MouseEvent) {
+    if (
+      !progressContainer ||
+      !animationState.isReady ||
+      animationState.isLoading
+    )
+      return
+
+    const rect = progressContainer.getBoundingClientRect()
+    const clickX = event.clientX - rect.left
+    const progress = Math.max(0, Math.min(1, clickX / rect.width))
+
+    seekToProgress(progress)
+
+    // Start playing from new position
+    if (!animationState.isPlaying) {
+      startAnimation()
+    }
+  }
+
+  function handleSliderStart() {
+    if (!animationState.isReady) return
+    isSliderActive = true
+  }
+
+  function handleSliderEnd() {
+    if (!animationState.isReady) return
+    isSliderActive = false
+
+    // If we were playing, continue playing from new position
+    if (animationState.isPlaying) {
+      startAnimation()
+    }
+  }
+
+  function startAnimation() {
+    if (!animationState.isReady || animationState.coordinates.length === 0) {
+      console.warn("Cannot start animation: trail not ready")
       return
     }
 
-    // Handle different path formats
-    let coordinates: [number, number][]
-
-    if (trail.path && typeof trail.path === "object") {
-      if ("type" in trail.path && trail.path.type === "LineString") {
-        coordinates = trail.path.coordinates
-      } else if (Array.isArray(trail.path)) {
-        const sortedCoords = [...trail.path].sort(
-          (a, b) => a.timestamp - b.timestamp,
-        )
-        coordinates = sortedCoords.map((coord) => [
-          coord.coordinates.longitude,
-          coord.coordinates.latitude,
-        ])
-      } else {
-        console.error("Unknown trail.path format:", trail.path)
-        toast.error("Trail has invalid coordinate format")
-        return
-      }
-    } else {
-      console.error("trail.path is not valid:", trail.path)
-      toast.error("Trail has no valid path data")
-      return
+    // Auto-expand when starting animation
+    if (!isExpanded) {
+      isExpanded = true
     }
 
-    if (coordinates.length === 0) {
-      toast.error("Trail has no coordinates to animate")
-      return
+    // Clear any existing animation
+    if (animationIntervalId) {
+      clearInterval(animationIntervalId)
+      animationIntervalId = null
     }
 
-    isPlayingAnimation = true
-    animationComplete = false
+    // Update state
+    animationState.isPlaying = true
+    animationState.isPaused = false
+    animationState.isComplete = false
+
+    const trail = getCurrentTrail()
+    if (!trail) return
+
+    // Ensure animation sources exist
     const animationSourceId = createAnimationSource(trail)
     const animationBorderSourceId = `animation-border-source-${trail.id}`
-    let currentPointIndex = 0
 
-    // Hide the original trail during animation
+    // Hide original trail
     const { layerId } = generateTrailIds(trail.id)
     if (map.getLayer(layerId)) {
       map.setLayoutProperty(layerId, "visibility", "none")
     }
 
-    // Create tractor marker
-    tractorMarker = new mapboxgl.Marker({
-      element: createTractorIcon(),
-      anchor: "center",
-    })
-      .setLngLat(coordinates[0])
-      .addTo(map)
+    // Safely remove existing tractor marker
+    if (tractorMarker) {
+      try {
+        tractorMarker.remove()
+      } catch (error) {
+        console.warn("Error removing tractor marker:", error)
+      }
+      tractorMarker = null
+    }
 
-    // Zoom out to fit the entire trail first
-    fitTrailBounds(coordinates)
+    // Create new tractor marker with validation
+    const startIndex = Math.min(
+      animationState.currentIndex,
+      animationState.coordinates.length - 1,
+    )
+    if (startIndex >= 0 && startIndex < animationState.coordinates.length) {
+      tractorMarker = new mapboxgl.Marker({
+        element: createTractorIcon(),
+        anchor: "center",
+      })
+        .setLngLat(animationState.coordinates[startIndex])
+        .addTo(map)
+    }
 
-    // Wait for the camera movement to complete before starting animation
+    // Update initial display
+    updateAnimationDisplay()
+
+    // Start animation loop
+    animationIntervalId = setInterval(() => {
+      if (
+        animationState.currentIndex >=
+        animationState.coordinates.length - 1
+      ) {
+        // Animation completed
+        completeAnimation()
+        return
+      }
+
+      if (!animationState.isPlaying) {
+        // Animation was paused
+        return
+      }
+
+      animationState.currentIndex++
+      updateAnimationDisplay()
+      updateAnimationProgress()
+    }, HIGHLIGHT_CONFIG.ANIMATION_SPEED)
+  }
+
+  function pauseAnimation() {
+    if (!animationState.isReady) return
+
+    animationState.isPlaying = false
+    animationState.isPaused = true
+
+    if (animationIntervalId) {
+      clearInterval(animationIntervalId)
+      animationIntervalId = null
+    }
+  }
+
+  function resumeAnimation() {
+    if (!animationState.isReady || !animationState.isPaused) return
+
+    animationState.isPlaying = true
+    animationState.isPaused = false
+
+    startAnimation()
+  }
+
+  function completeAnimation() {
+    if (animationIntervalId) {
+      clearInterval(animationIntervalId)
+      animationIntervalId = null
+    }
+
+    animationState.isPlaying = false
+    animationState.isPaused = false
+    animationState.isComplete = true
+    animationState.progress = 1
+    animationState.currentIndex = animationState.coordinates.length - 1
+
+    // Safely remove tractor marker when animation completes
+    if (tractorMarker) {
+      try {
+        tractorMarker.remove()
+      } catch (error) {
+        console.warn("Error removing tractor marker on completion:", error)
+      }
+      tractorMarker = null
+    }
+
+    console.log(`Animation completed for trail ${animationState.trailId}`)
+  }
+
+  function updateAnimationDisplay() {
+    if (!animationState.isReady || animationState.coordinates.length === 0)
+      return
+
+    const trail = getCurrentTrail()
+    if (!trail || trail.id !== animationState.trailId) return
+
+    const animationSourceId = `animation-source-${trail.id}`
+    const animationBorderSourceId = `animation-border-source-${trail.id}`
+
+    // Update animation display
+    const currentCoordinates = animationState.coordinates.slice(
+      0,
+      animationState.currentIndex + 1,
+    )
+    const source = map.getSource(animationSourceId) as mapboxgl.GeoJSONSource
+    const borderSource = map.getSource(
+      animationBorderSourceId,
+    ) as mapboxgl.GeoJSONSource
+
+    const geoJsonData = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: currentCoordinates,
+      },
+    }
+
+    if (source) {
+      source.setData(geoJsonData)
+    }
+    if (borderSource) {
+      borderSource.setData(geoJsonData)
+    }
+
+    // Safely move tractor marker with validation
+    if (
+      tractorMarker &&
+      animationState.currentIndex >= 0 &&
+      animationState.currentIndex < animationState.coordinates.length
+    ) {
+      try {
+        tractorMarker.setLngLat(
+          animationState.coordinates[animationState.currentIndex],
+        )
+      } catch (error) {
+        console.warn("Error updating tractor marker position:", error)
+        // Remove broken marker
+        tractorMarker.remove()
+        tractorMarker = null
+      }
+    }
+  }
+
+  function seekToProgress(targetProgress: number) {
+    if (!animationState.isReady || animationState.coordinates.length === 0)
+      return
+
+    const targetIndex = Math.floor(
+      targetProgress * (animationState.coordinates.length - 1),
+    )
+    animationState.currentIndex = targetIndex
+    animationState.progress = targetProgress
+
+    // Update completion state
+    if (targetProgress >= 1) {
+      animationState.isComplete = true
+      animationState.isPlaying = false
+      animationState.isPaused = false
+    } else {
+      animationState.isComplete = false
+    }
+
+    const trail = getCurrentTrail()
+    if (!trail || trail.id !== animationState.trailId) return
+
+    // Ensure animation sources exist
+    const animationSourceId = `animation-source-${trail.id}`
+    if (!map.getSource(animationSourceId)) {
+      createAnimationSource(trail)
+    }
+
+    // Safely create or move tractor marker with validation
+    if (
+      !tractorMarker &&
+      targetIndex >= 0 &&
+      targetIndex < animationState.coordinates.length
+    ) {
+      try {
+        tractorMarker = new mapboxgl.Marker({
+          element: createTractorIcon(),
+          anchor: "center",
+        })
+          .setLngLat(animationState.coordinates[targetIndex])
+          .addTo(map)
+      } catch (error) {
+        console.warn("Error creating tractor marker:", error)
+      }
+    } else if (
+      tractorMarker &&
+      targetIndex >= 0 &&
+      targetIndex < animationState.coordinates.length
+    ) {
+      try {
+        tractorMarker.setLngLat(animationState.coordinates[targetIndex])
+      } catch (error) {
+        console.warn("Error moving tractor marker:", error)
+        // Remove broken marker
+        tractorMarker.remove()
+        tractorMarker = null
+      }
+    }
+
+    // Update display
+    updateAnimationDisplay()
+  }
+
+  function togglePlayPause() {
+    if (!animationState.isReady || animationState.isLoading) {
+      console.warn("Trail not ready for playback")
+      return
+    }
+
+    if (animationState.isPlaying) {
+      pauseAnimation()
+    } else if (animationState.isPaused) {
+      resumeAnimation()
+    } else if (animationState.isComplete) {
+      // Restart from beginning
+      animationState.currentIndex = 0
+      animationState.progress = 0
+      animationState.isComplete = false
+      startAnimation()
+    } else {
+      // Start from current position
+      startAnimation()
+    }
+  }
+
+  function animateTrailCreation(trail: Trail) {
+    console.log(`Starting animation for trail ${trail.id}`)
+
+    if (!animationState.isReady || animationState.trailId !== trail.id) {
+      console.warn("Trail not ready for animation")
+      return
+    }
+
+    // Auto-expand when starting animation
+    if (!isExpanded) {
+      isExpanded = true
+      // Wait for expansion animation to complete before fitting bounds
+      setTimeout(() => {
+        fitTrailBounds(animationState.coordinates, true)
+      }, 300)
+    } else {
+      fitTrailBounds(animationState.coordinates, true)
+    }
+
+    // Reset animation state for new playback
+    animationState.currentIndex = 0
+    animationState.progress = 0
+    animationState.isComplete = false
+    animationState.isPaused = false
+
+    // Start animation after camera movement
     setTimeout(() => {
-      animationIntervalId = setInterval(() => {
-        if (currentPointIndex >= coordinates.length) {
-          // Animation completed - stop interval but keep overlay visible
-          if (animationIntervalId) {
-            clearInterval(animationIntervalId)
-            animationIntervalId = null
-          }
-          isPlayingAnimation = false
-          animationComplete = true
-
-          // Remove tractor marker when animation completes
-          if (tractorMarker) {
-            tractorMarker.remove()
-            tractorMarker = null
-          }
-
-          return
-        }
-
-        // Get coordinates up to current point
-        const currentCoordinates = coordinates.slice(0, currentPointIndex + 1)
-
-        // Update both the border and main animation sources
-        const source = map.getSource(
-          animationSourceId,
-        ) as mapboxgl.GeoJSONSource
-        const borderSource = map.getSource(
-          animationBorderSourceId,
-        ) as mapboxgl.GeoJSONSource
-
-        const geoJsonData = {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: currentCoordinates,
-          },
-        }
-
-        if (source) {
-          source.setData(geoJsonData)
-        }
-        if (borderSource) {
-          borderSource.setData(geoJsonData)
-        }
-
-        // Move tractor marker to current position
-        if (tractorMarker && currentPointIndex < coordinates.length) {
-          tractorMarker.setLngLat(coordinates[currentPointIndex])
-        }
-
-        currentPointIndex++
-      }, HIGHLIGHT_CONFIG.ANIMATION_SPEED)
+      startAnimation()
     }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200)
   }
 
@@ -303,12 +651,13 @@
       animationIntervalId = null
     }
 
-    isPlayingAnimation = false
-    animationComplete = false
-
-    // Remove tractor marker
+    // Safely remove tractor marker
     if (tractorMarker) {
-      tractorMarker.remove()
+      try {
+        tractorMarker.remove()
+      } catch (error) {
+        console.warn("Error removing tractor marker:", error)
+      }
       tractorMarker = null
     }
 
@@ -321,24 +670,37 @@
       const animationBorderLayerId = `animation-border-layer-${currentTrail.id}`
 
       // Remove all animation layers and sources
-      if (map.getLayer(animationLayerId)) {
-        map.removeLayer(animationLayerId)
-      }
-      if (map.getSource(animationSourceId)) {
-        map.removeSource(animationSourceId)
-      }
-      if (map.getLayer(animationBorderLayerId)) {
-        map.removeLayer(animationBorderLayerId)
-      }
-      if (map.getSource(animationBorderSourceId)) {
-        map.removeSource(animationBorderSourceId)
-      }
+      try {
+        if (map.getLayer(animationLayerId)) {
+          map.removeLayer(animationLayerId)
+        }
+        if (map.getSource(animationSourceId)) {
+          map.removeSource(animationSourceId)
+        }
+        if (map.getLayer(animationBorderLayerId)) {
+          map.removeLayer(animationBorderLayerId)
+        }
+        if (map.getSource(animationBorderSourceId)) {
+          map.removeSource(animationBorderSourceId)
+        }
 
-      // Show the original trail again
-      const { layerId } = generateTrailIds(currentTrail.id)
-      if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, "visibility", "visible")
+        // Show the original trail again
+        const { layerId } = generateTrailIds(currentTrail.id)
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "visible")
+        }
+      } catch (error) {
+        console.warn("Error cleaning up animation layers:", error)
       }
+    }
+
+    // Reset animation state
+    if (animationState.trailId === currentTrail?.id) {
+      animationState.isPlaying = false
+      animationState.isPaused = false
+      animationState.isComplete = false
+      animationState.currentIndex = 0
+      animationState.progress = 0
     }
   }
 
@@ -358,24 +720,25 @@
       map.removeSource(markersSourceId)
     }
 
-    // Get trail coordinates
-    let coordinates: [number, number][]
-    if (trail.path && typeof trail.path === "object") {
-      if ("type" in trail.path && trail.path.type === "LineString") {
-        coordinates = trail.path.coordinates
-      } else if (Array.isArray(trail.path)) {
-        const sortedCoords = [...trail.path].sort(
-          (a, b) => a.timestamp - b.timestamp,
-        )
-        coordinates = sortedCoords.map((coord) => [
-          coord.coordinates.longitude,
-          coord.coordinates.latitude,
-        ])
-      } else {
-        return
-      }
+    // Use coordinates from animation state if available and matching
+    let coordinates: [number, number][] = []
+    if (animationState.isReady && animationState.trailId === trail.id) {
+      coordinates = animationState.coordinates
     } else {
-      return
+      // Fallback to processing from trail data
+      if (trail.path && typeof trail.path === "object") {
+        if ("type" in trail.path && trail.path.type === "LineString") {
+          coordinates = trail.path.coordinates
+        } else if (Array.isArray(trail.path)) {
+          const sortedCoords = [...trail.path].sort(
+            (a, b) => a.timestamp - b.timestamp,
+          )
+          coordinates = sortedCoords.map((coord) => [
+            coord.coordinates.longitude,
+            coord.coordinates.latitude,
+          ])
+        }
+      }
     }
 
     if (coordinates.length < 2) return
@@ -568,25 +931,23 @@
         flyToTrail(currentTrail)
         selectTrail(currentTrail)
         showReplayPanel = true
-        isExpanded = false
+        isExpanded = false // Start in minimal state
       }
     }
   }
 
   function flyToTrail(trail: Trail) {
-    const coordinates = trail.path.coordinates
-    const bounds = coordinates.reduce(
-      (bounds, coord) => {
-        return bounds.extend(coord)
-      },
-      new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]),
-    )
+    // Use coordinates from animation state if available
+    let coordinates: [number, number][] = []
+    if (animationState.isReady && animationState.trailId === trail.id) {
+      coordinates = animationState.coordinates
+    } else if (trail.path && trail.path.coordinates) {
+      coordinates = trail.path.coordinates
+    }
 
-    map.fitBounds(bounds, {
-      padding: 50,
-      duration: HIGHLIGHT_CONFIG.FLIGHT_DURATION,
-      maxZoom: HIGHLIGHT_CONFIG.MAX_FLIGHT_ZOOM,
-    })
+    if (coordinates.length > 0) {
+      fitTrailBounds(coordinates, true)
+    }
   }
 
   function removeHighlight(trailId: string) {
@@ -690,6 +1051,43 @@
     }
   }
 
+  // Function to handle clicking on a trail (from external calls)
+  function playTrail(trailIndex: number) {
+    currentTrailIndex = trailIndex
+    showReplayPanel = true
+    showNavigationUI = true
+    isExpanded = false // Start in minimal state, will expand when animation starts
+
+    const trail = $historicalTrailStore[currentTrailIndex]
+    if (trail) {
+      flyToTrail(trail)
+      selectTrail(trail)
+      // Wait for trail to be ready, then start animation
+      const checkReady = setInterval(() => {
+        if (animationState.isReady && animationState.trailId === trail.id) {
+          clearInterval(checkReady)
+          setTimeout(() => {
+            animateTrailCreation(trail)
+          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 500)
+        }
+      }, 100)
+    }
+  }
+
+  // Watch for expansion changes to update camera bounds
+  $: if (
+    isExpanded !== undefined &&
+    currentTrail &&
+    showReplayPanel &&
+    animationState.isReady
+  ) {
+    setTimeout(() => {
+      if (currentTrail && animationState.coordinates.length > 0) {
+        fitTrailBounds(animationState.coordinates, true)
+      }
+    }, 300) // Wait for expansion animation
+  }
+
   export const highlighterAPI = {
     selectTrail,
     removeHighlight,
@@ -700,6 +1098,7 @@
     animateTrailCreation,
     stopAnimation,
     toggleNavigationUI,
+    playTrail,
   }
 
   onMount(() => {
@@ -713,7 +1112,11 @@
           animationIntervalId = null
         }
         if (tractorMarker) {
-          tractorMarker.remove()
+          try {
+            tractorMarker.remove()
+          } catch (error) {
+            console.warn("Error removing tractor marker on cleanup:", error)
+          }
           tractorMarker = null
         }
       }
@@ -755,7 +1158,7 @@
           </button>
         </div>
 
-        <!-- Start/Finish Timeline -->
+        <!-- Start/Finish Timeline with Integrated Progress Bar -->
         <div class="timeline-section">
           <div class="point-compact start">
             <div class="point-marker">🚜</div>
@@ -772,7 +1175,50 @@
             </div>
           </div>
 
-          <div class="trail-line"></div>
+          <!-- Integrated Progress Bar (replaces the trail-line) -->
+          {#if animationState.isReady}
+            <div
+              class="trail-progress-container"
+              bind:this={progressContainer}
+              on:click={handleProgressClick}
+              on:keydown={() => {}}
+              role="slider"
+              tabindex="0"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={Math.round(animationState.progress * 100)}
+            >
+              <div class="trail-progress-track">
+                <div
+                  class="trail-progress-fill"
+                  style="width: {animationState.progress * 100}%"
+                ></div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.001"
+                  bind:value={animationState.progress}
+                  on:mousedown={handleSliderStart}
+                  on:mouseup={handleSliderEnd}
+                  on:touchstart={handleSliderStart}
+                  on:touchend={handleSliderEnd}
+                  on:input={(e) => {
+                    if (isSliderActive) {
+                      const newProgress = parseFloat(e.target.value)
+                      animationState.progress = newProgress
+                      seekToProgress(newProgress)
+                    }
+                  }}
+                  class="trail-progress-slider"
+                  disabled={!animationState.isReady}
+                />
+              </div>
+            </div>
+          {:else}
+            <!-- Fallback static line when trail is loading -->
+            <div class="trail-line-static"></div>
+          {/if}
 
           <div class="point-compact end">
             <div class="point-marker">🏁</div>
@@ -867,23 +1313,21 @@
       <div class="play-control">
         <button
           class="play-btn"
-          class:playing={isPlayingAnimation}
-          class:completed={animationComplete}
-          on:click={() => {
-            const currentTrail = getCurrentTrail()
-            if (currentTrail) {
-              if (animationComplete || isPlayingAnimation) {
-                stopAnimation()
-              } else {
-                animateTrailCreation(currentTrail)
-              }
-            }
-          }}
+          class:playing={animationState.isPlaying}
+          class:paused={animationState.isPaused}
+          class:completed={animationState.isComplete}
+          class:loading={animationState.isLoading}
+          disabled={animationState.isLoading || !animationState.isReady}
+          on:click={togglePlayPause}
         >
-          {#if isPlayingAnimation}
-            <Square size={20} />
-          {:else if animationComplete}
-            <X size={20} />
+          {#if animationState.isLoading}
+            <Loader2 size={20} class="animate-spin" />
+          {:else if animationState.isPlaying}
+            <Pause size={20} />
+          {:else if animationState.isPaused}
+            <Play size={20} />
+          {:else if animationState.isComplete}
+            <Play size={20} />
           {:else}
             <Play size={20} />
           {/if}
@@ -892,7 +1336,11 @@
 
       <!-- Action Controls -->
       <div class="action-controls">
-        <button class="control-btn" on:click={() => (isExpanded = !isExpanded)}>
+        <button
+          class="control-btn"
+          on:click={() => (isExpanded = !isExpanded)}
+          disabled={animationState.isLoading}
+        >
           {#if isExpanded}
             <ChevronDown size={18} />
           {:else}
@@ -950,7 +1398,7 @@
   /* Info Section (Only visible when expanded) */
   .info-section {
     padding: 16px 20px 0;
-    max-height: 30vh;
+    max-height: 50vh;
     overflow-y: auto;
     background: linear-gradient(
       to bottom,
@@ -1020,7 +1468,7 @@
     border-radius: 4px;
   }
 
-  /* Timeline Section */
+  /* Timeline Section with Integrated Progress Bar */
   .timeline-section {
     display: flex;
     align-items: center;
@@ -1077,12 +1525,98 @@
     line-height: 1;
   }
 
-  .trail-line {
-    height: 2px;
+  /* Static Trail Line (fallback) */
+  .trail-line-static {
+    height: 3px;
     background: linear-gradient(to right, #22c55e, #ef4444);
     flex: 1;
     margin: 0 8px;
-    border-radius: 1px;
+    border-radius: 2px;
+    opacity: 0.6;
+  }
+
+  /* Integrated Progress Bar */
+  .trail-progress-container {
+    flex: 1;
+    margin: 0 8px;
+    cursor: pointer;
+    padding: 8px 0;
+    position: relative;
+  }
+
+  .trail-progress-track {
+    position: relative;
+    height: 6px;
+    background: linear-gradient(
+      to right,
+      rgba(34, 197, 94, 0.2),
+      rgba(239, 68, 68, 0.2)
+    );
+    border-radius: 3px;
+    overflow: visible;
+  }
+
+  .trail-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(to right, #22c55e, #ef4444);
+    border-radius: 3px;
+    transition: width 0.05s ease;
+    pointer-events: none;
+  }
+
+  .trail-progress-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+  }
+
+  .trail-progress-slider:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .trail-progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #22c55e;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .trail-progress-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .trail-progress-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #22c55e;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .trail-progress-slider::-moz-range-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
   }
 
   /* Delete Button */
@@ -1111,7 +1645,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 16px;
   }
 
   .stat-compact {
@@ -1252,9 +1786,15 @@
     transition: all 0.2s ease;
   }
 
-  .play-btn:hover {
+  .play-btn:hover:not(:disabled) {
     background: rgba(34, 197, 94, 0.3);
     transform: scale(1.1);
+  }
+
+  .play-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
   }
 
   .play-btn.playing {
@@ -1262,17 +1802,45 @@
     color: #eab308;
   }
 
-  .play-btn.playing:hover {
+  .play-btn.playing:hover:not(:disabled) {
     background: rgba(234, 179, 8, 0.3);
   }
 
-  .play-btn.completed {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+  .play-btn.paused {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
   }
 
-  .play-btn.completed:hover {
-    background: rgba(239, 68, 68, 0.3);
+  .play-btn.paused:hover:not(:disabled) {
+    background: rgba(59, 130, 246, 0.3);
+  }
+
+  .play-btn.completed {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+  }
+
+  .play-btn.completed:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.3);
+  }
+
+  .play-btn.loading {
+    background: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+  }
+
+  /* Loading Animation */
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
   }
 
   /* Scrollbar Styling */
@@ -1292,7 +1860,7 @@
   /* Mobile Responsiveness */
   @media (max-width: 768px) {
     .info-section {
-      max-height: 25vh;
+      max-height: 40vh;
       padding: 12px 16px 0;
     }
 
@@ -1328,11 +1896,25 @@
       width: 28px;
       height: 28px;
     }
+
+    .trail-progress-container {
+      padding: 6px 0;
+    }
+
+    .trail-progress-slider::-webkit-slider-thumb {
+      width: 14px;
+      height: 14px;
+    }
+
+    .trail-progress-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+    }
   }
 
   @media (max-width: 480px) {
     .info-section {
-      max-height: 20vh;
+      max-height: 35vh;
     }
 
     .trail-header {
@@ -1340,7 +1922,7 @@
     }
 
     .compact-stats {
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
 
     .nav-controls,
