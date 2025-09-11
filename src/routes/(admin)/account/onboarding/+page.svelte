@@ -25,6 +25,7 @@
       Icon: Users,
       description:
         "Create and oversee farm operations, manage team members, and analyze performance metrics",
+      mobileDescription: "Oversee operations and manage teams",
       accentColor: "#17a34a", // Green (emerald-500)
       hoverColor: "rgb(16 185 129)", // emerald-500
       gradientBg: "bg-gradient-to-br from-base-200 to-base-300/50",
@@ -39,6 +40,7 @@
       Icon: Tractor,
       description:
         "Execute field operations, track progress, and submit reports from the field",
+      mobileDescription: "Execute operations and track progress",
       accentColor: "#3B82F6", // Blue (blue-500)
       hoverColor: "rgb(59 130 246)", // blue-500
       gradientBg: "bg-gradient-to-br to-base-100 from-base-300/50",
@@ -88,43 +90,43 @@
 
 <svelte:head>
   <title>Choose Your Role - AgSKAN</title>
-  <meta
-    name="description"
-    content="Select your role to begin your agricultural management experience"
-  />
+  <meta name="description" content="Select your role to begin" />
 </svelte:head>
 
 <div
   class="relative min-h-screen overflow-hidden bg-gradient-to-b from-base-100 to-base-200"
 >
-  <!-- Decorative Elements -->
+  <!-- Decorative Elements - hidden on mobile for cleaner look -->
   <div
-    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
+    class="pointer-events-none absolute -right-20 top-20 hidden h-64 w-64 rounded-full bg-base-content/5 blur-3xl md:block"
   ></div>
   <div
-    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
+    class="pointer-events-none absolute -left-20 bottom-20 hidden h-80 w-80 rounded-full bg-base-content/5 blur-3xl md:block"
   ></div>
 
   <!-- Main content -->
   <main
-    class="container relative z-10 mx-auto flex flex-col items-center px-6 py-16"
+    class="container relative z-10 mx-auto flex flex-col items-center px-4 py-8 md:px-6 md:py-16"
   >
-    <div class="mb-12 w-full max-w-4xl">
-      <div class="mb-14 text-center">
+    <div class="mb-6 w-full max-w-4xl md:mb-12">
+      <!-- Compact header for mobile -->
+      <div class="mb-6 text-center md:mb-14">
         <h2
-          class="relative mb-4 inline-block text-4xl font-bold text-contrast-content md:text-5xl"
+          class="relative mb-2 inline-block text-2xl font-bold text-contrast-content md:mb-4 md:text-4xl lg:text-5xl"
         >
           Welcome to
           <span class="ml-2 text-base-content"> AgSKAN </span>
         </h2>
-        <p class="mx-auto max-w-2xl text-lg text-contrast-content/60">
-          Select your role to begin your agricultural management experience
+        <p
+          class="mx-auto max-w-2xl text-base text-contrast-content/60 md:text-lg"
+        >
+          Select your role to begin
         </p>
       </div>
 
       <!-- Error Alert -->
       {#if formError}
-        <div class="alert alert-error mb-6">
+        <div class="alert alert-error mb-4 md:mb-6">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-6 w-6 shrink-0 stroke-current"
@@ -142,9 +144,9 @@
         </div>
       {/if}
 
-      <!-- Role selection cards -->
+      <!-- Role selection cards - more compact on mobile -->
       <div
-        class="perspective-[1000px] relative mb-12 grid grid-cols-1 gap-8 md:grid-cols-2"
+        class="perspective-[1000px] relative mb-6 grid grid-cols-1 gap-4 md:mb-12 md:grid-cols-2 md:gap-8"
       >
         {#each roles as role}
           <div
@@ -165,25 +167,25 @@
             role="button"
             tabindex="0"
           >
-            <!-- Top border - instant change, no transitions -->
+            <!-- Top border -->
             <div
               class="top-border h-0 w-full
                      {selectedRole === role.id
                 ? ''
                 : 'border-t border-base-300'}"
               style={selectedRole === null || selectedRole === role.id
-                ? `border-top: 6px solid ${role.accentColor};`
+                ? `border-top: 4px md:border-top-width-6 solid ${role.accentColor};`
                 : ""}
             ></div>
 
             <div
               class="absolute inset-0 bg-gradient-to-b from-transparent to-base-200/40 opacity-0 transition-opacity group-hover:opacity-100"
             ></div>
-            <div class="relative z-10 p-8">
-              <div class="mb-6 flex items-start justify-between">
-                <!-- Icon container - instant color change with role-specific hover -->
+            <div class="relative z-10 p-4 md:p-8">
+              <div class="mb-4 flex items-start justify-between md:mb-6">
+                <!-- Icon container -->
                 <div
-                  class="rounded-xl p-4 transition-colors duration-200"
+                  class="rounded-lg p-2 transition-colors duration-200 md:rounded-xl md:p-4"
                   style={selectedRole === role.id
                     ? `background-color: ${role.accentColor}20; color: ${role.accentColor};`
                     : ""}
@@ -196,14 +198,14 @@
                 >
                   <svelte:component
                     this={role.Icon}
-                    size={32}
-                    class="transition-transform group-hover:scale-110"
+                    size={24}
+                    class="transition-transform group-hover:scale-110 md:h-8 md:w-8"
                   />
                 </div>
 
-                <!-- Checkmark circle - instant background change with role-specific hover -->
+                <!-- Checkmark circle -->
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full"
+                  class="flex h-5 w-5 items-center justify-center rounded-full md:h-6 md:w-6"
                   style={selectedRole === role.id
                     ? `background-color: ${role.accentColor}; color: #ffffff;`
                     : ""}
@@ -217,8 +219,9 @@
                   {#if selectedRole === role.id}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
+                      width="12"
+                      height="12"
+                      class="md:h-3.5 md:w-3.5"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -232,9 +235,9 @@
                 </div>
               </div>
 
-              <!-- Title - instant color change with role-specific hover -->
+              <!-- Title -->
               <h3
-                class="mb-3 text-2xl font-bold"
+                class="mb-2 text-lg font-bold md:mb-3 md:text-2xl"
                 style={selectedRole === role.id
                   ? `color: ${role.accentColor};`
                   : ""}
@@ -249,14 +252,19 @@
               >
                 {role.title}
               </h3>
-              <p class="mb-8 text-sm text-contrast-content/60">
-                {role.description}
+
+              <!-- Description - shorter on mobile -->
+              <p
+                class="mb-4 text-xs text-contrast-content/60 md:mb-8 md:text-sm"
+              >
+                <span class="md:hidden">{role.mobileDescription}</span>
+                <span class="hidden md:block">{role.description}</span>
               </p>
 
-              <div class="grid grid-cols-2 gap-4">
+              <!-- Features - only show on larger screens -->
+              <div class="hidden grid-cols-2 gap-4 md:grid">
                 {#each role.features as feature}
                   <div class="flex items-center gap-2">
-                    <!-- Feature icons - instant color change with role-specific hover -->
                     <div
                       style={selectedRole === role.id
                         ? `color: ${role.accentColor};`
@@ -285,10 +293,10 @@
         {/each}
       </div>
 
-      <!-- Continue Button -->
+      <!-- Continue Button - more compact on mobile -->
       <div class="flex flex-col items-center">
         <button
-          class="group flex items-center justify-center gap-2 rounded-lg px-8 py-4 text-base font-semibold transition-all duration-200
+          class="group flex w-full max-w-xs items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 md:w-auto md:max-w-none md:px-8 md:py-4 md:text-base
             {selectedRole
             ? 'transform bg-base-content text-base-100 shadow-lg shadow-base-content/20 hover:scale-105 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/30'
             : 'cursor-not-allowed bg-base-300 text-contrast-content/40'}"
@@ -296,26 +304,29 @@
           on:click={handleSubmit}
         >
           {#if loading}
-            <span class="loading loading-spinner"></span>
+            <span class="loading loading-spinner loading-sm md:loading-md"
+            ></span>
           {:else}
             <span
               >Continue as {selectedRole === "manager"
-                ? "Farm Manager"
+                ? "Manager"
                 : selectedRole === "operator"
-                  ? "Field Operator"
+                  ? "Operator"
                   : "..."}</span
             >
             <ArrowRight
-              size={18}
-              class="transition-transform duration-200 {selectedRole
+              size={16}
+              class="md:w-4.5 md:h-4.5 transition-transform duration-200 {selectedRole
                 ? 'group-hover:translate-x-1'
                 : ''}"
             />
           {/if}
         </button>
 
-        <p class="mt-4 text-xs text-contrast-content/40">
-          You can change your role later in account settings
+        <p
+          class="mt-2 px-4 text-center text-xs text-contrast-content/40 md:mt-4"
+        >
+          You can change your role later in settings
         </p>
       </div>
     </div>
