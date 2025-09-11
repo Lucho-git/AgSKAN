@@ -27,7 +27,7 @@
 
   // Complete vehicle data with PROPER default sizes
   const vehicles = [
-    { type: "FourWheelDriveTractor", bodyColor: "green", size: 30, swath: 4 },
+    { type: "FourWheelDriveTractor", bodyColor: "green", size: 35, swath: 4 },
     { type: "TowBetweenSeeder", bodyColor: "red", size: 80, swath: 12 },
     { type: "TowBehindSeeder", bodyColor: "red", size: 80, swath: 12 },
     { type: "TowBehindSeederTracks", bodyColor: "red", size: 80, swath: 12 },
