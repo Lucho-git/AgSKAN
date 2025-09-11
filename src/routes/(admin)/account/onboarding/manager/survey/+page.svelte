@@ -473,61 +473,58 @@
 
 <!-- Loading state -->
 {#if !dataLoaded}
-  <div class="flex justify-center py-8">
+  <div class="flex justify-center py-6">
     <div class="flex items-center gap-3 text-contrast-content/60">
       <span class="loading loading-spinner loading-sm"></span>
-      <span>Loading survey...</span>
+      <span class="text-sm">Loading survey...</span>
     </div>
   </div>
 {:else}
-  <!-- Header -->
-  <div class="mb-10 text-center">
-    <h2 class="mb-3 text-4xl font-bold text-contrast-content">
+  <!-- Header - compact for single page view -->
+  <div class="mb-4 px-4 text-center md:mb-6">
+    <h2 class="mb-2 text-2xl font-bold text-contrast-content md:text-3xl">
       Quick <span class="text-base-content">Survey</span>
-      <span class="text-lg font-medium text-contrast-content/60"
-        >({currentStep}/5)</span
-      >
+      <span class="text-sm font-medium text-contrast-content/60 md:text-base">
+        ({currentStep}/5)
+      </span>
     </h2>
-    <p class="mx-auto max-w-md text-contrast-content/60">
-      As a small startup dedicated to agricultural innovation, your feedback is
-      invaluable to us. Your insights directly shape our development and help us
-      build tools that truly serve your farming needs.
+    <p class="mx-auto max-w-md px-2 text-sm text-contrast-content/60">
+      Your feedback helps us build tools that truly serve your farming needs.
     </p>
 
-    <!-- Skip survey link -->
+    <!-- Skip survey link - compact -->
     <button
       on:click={handleSkipSurvey}
-      class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
+      class="group mx-auto mt-2 flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow md:mt-3"
     >
-      <span>Skip survey and continue to map setup</span>
+      <span class="hidden sm:inline">Skip survey and continue to map setup</span
+      >
+      <span class="sm:hidden">Skip to map setup</span>
       <ArrowRight
-        size={14}
+        size={12}
         class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
       />
     </button>
   </div>
 
-  <!-- Form Card -->
+  <!-- Form Card - compact -->
   <div
-    class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="relative mx-4 mx-auto max-w-lg overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
   >
     <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
+    <div class="h-1 w-full bg-base-content"></div>
 
-    <form on:submit|preventDefault={handleNextStep} class="p-8 md:p-10">
+    <form on:submit|preventDefault={handleNextStep} class="p-4 md:p-6">
       <!-- Step 1: Referral, Role and Hectares -->
       {#if currentStep === 1}
-        <div class="mb-2 text-xs text-info">Showing Step 1</div>
-        <div class="grid gap-8">
+        <div class="grid gap-4 md:gap-5">
           <!-- How did you hear about us -->
           <div class="space-y-2">
             <label
-              class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-                <MessageCircle size={16} />
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
+                <MessageCircle size={14} />
               </div>
               How did you hear about us?
               {#if surveyData.referralSource && hasExistingData}
@@ -539,17 +536,16 @@
               {/if}
             </label>
             <div
-              class="mb-4 rounded-lg border-l-2 border-base-content/30 bg-base-200/70 p-3 text-sm text-contrast-content/60"
+              class="mb-2 rounded-lg border-l-2 border-base-content/30 bg-base-200/70 p-2 text-xs text-contrast-content/60"
             >
-              This information helps us understand where our community is coming
-              from and supports our growth efforts
+              This helps us understand where our community is coming from
             </div>
             <div
               class="relative transition-all duration-300 {errors.referralSource
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div class="grid grid-cols-2 gap-2">
                 {#each REFERRAL_OPTIONS as option}
                   <label class="cursor-pointer">
                     <input
@@ -561,7 +557,7 @@
                       class="sr-only"
                     />
                     <div
-                      class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                      class="block w-full rounded-lg border p-2 text-center text-xs transition-all
                       {surveyData.referralSource === option.id
                         ? 'border-base-content bg-base-content/20 text-base-content'
                         : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
@@ -573,7 +569,7 @@
               </div>
 
               {#if surveyData.referralSource === "other"}
-                <div class="mt-4">
+                <div class="mt-2">
                   <input
                     type="text"
                     placeholder="Please specify..."
@@ -582,11 +578,11 @@
                       handleInputChange("otherReferralSource", e.target.value)}
                     class="w-full border bg-base-200 {errors.otherReferralSource
                       ? 'border-error'
-                      : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                      : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
                   />
                   {#if errors.otherReferralSource}
                     <p
-                      class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                      class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                     >
                       <span class="inline-block h-1 w-1 rounded-full bg-error"
                       ></span>
@@ -598,7 +594,7 @@
 
               {#if errors.referralSource}
                 <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -611,10 +607,10 @@
           <!-- Role in operation -->
           <div class="space-y-2">
             <label
-              class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-                <Users size={16} />
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
+                <Users size={14} />
               </div>
               What is your role in the operation?
               {#if surveyData.role && hasExistingData}
@@ -630,7 +626,7 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div class="grid grid-cols-2 gap-2">
                 {#each ROLE_OPTIONS as option}
                   <label class="cursor-pointer">
                     <input
@@ -641,7 +637,7 @@
                       class="sr-only"
                     />
                     <div
-                      class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                      class="block w-full rounded-lg border p-2 text-center text-xs transition-all
                       {surveyData.role === option.id
                         ? 'border-base-content bg-base-content/20 text-base-content'
                         : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
@@ -653,7 +649,7 @@
               </div>
 
               {#if surveyData.role === "other"}
-                <div class="mt-4">
+                <div class="mt-2">
                   <input
                     type="text"
                     placeholder="Please specify your role..."
@@ -662,11 +658,11 @@
                       handleInputChange("otherRole", e.target.value)}
                     class="w-full border bg-base-200 {errors.otherRole
                       ? 'border-error'
-                      : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                      : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
                   />
                   {#if errors.otherRole}
                     <p
-                      class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                      class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                     >
                       <span class="inline-block h-1 w-1 rounded-full bg-error"
                       ></span>
@@ -678,7 +674,7 @@
 
               {#if errors.role}
                 <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -691,10 +687,10 @@
           <!-- Hectares -->
           <div class="space-y-2">
             <label
-              class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-                <Grid3x3 size={16} />
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
+                <Grid3x3 size={14} />
               </div>
               How many hectares do you work over?
               {#if surveyData.hectares && hasExistingData}
@@ -710,7 +706,7 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div class="grid grid-cols-2 gap-2">
                 {#each HECTARES_OPTIONS as option}
                   <label class="cursor-pointer">
                     <input
@@ -721,7 +717,7 @@
                       class="sr-only"
                     />
                     <div
-                      class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                      class="block w-full rounded-lg border p-2 text-center text-xs transition-all
                       {surveyData.hectares === option.id
                         ? 'border-base-content bg-base-content/20 text-base-content'
                         : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
@@ -734,7 +730,7 @@
 
               {#if errors.hectares}
                 <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -748,17 +744,16 @@
 
       <!-- Step 2: Device Preferences -->
       {#if currentStep === 2}
-        <div class="mb-2 text-xs text-info">Showing Step 2</div>
-        <div class="grid gap-8">
+        <div class="grid gap-4 md:gap-5">
           <div class="space-y-2">
             <label
-              class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -781,7 +776,10 @@
                   /></svg
                 >
               </div>
-              Which device(s) would you prefer to run our software on?
+              <span class="hidden sm:inline"
+                >Which device(s) would you prefer to run our software on?</span
+              >
+              <span class="sm:hidden">Preferred device?</span>
               {#if surveyData.devicePreference && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -796,7 +794,7 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="grid grid-cols-1 gap-3">
+              <div class="grid grid-cols-1 gap-2">
                 {#each ["ios-phone", "ios-tablet", "android-phone", "android-tablet", "desktop", "any"] as device}
                   {@const labels = {
                     "ios-phone": "iOS Phone",
@@ -816,7 +814,7 @@
                       class="sr-only"
                     />
                     <div
-                      class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                      class="block w-full rounded-lg border p-2.5 text-center text-xs transition-all
                       {surveyData.devicePreference === device
                         ? 'border-base-content bg-base-content/20 text-base-content'
                         : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
@@ -829,7 +827,7 @@
 
               {#if errors.devicePreference}
                 <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -843,17 +841,16 @@
 
       <!-- Step 3: Feature Interest Rating -->
       {#if currentStep === 3}
-        <div class="mb-2 text-xs text-info">Showing Step 3</div>
-        <div class="grid gap-8">
+        <div class="grid gap-4 md:gap-5">
           <div class="space-y-2">
             <label
-              class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -865,7 +862,10 @@
                   /><path d="M2 12l10 5 10-5" /></svg
                 >
               </div>
-              Which of our features are you most interested in?
+              <span class="hidden sm:inline"
+                >Which of our features are you most interested in?</span
+              >
+              <span class="sm:hidden">Most interested features?</span>
               {#if surveyData.featureInterests.length > 0 && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -875,8 +875,8 @@
               {/if}
             </label>
 
-            <div class="mb-5 text-center text-sm text-contrast-content/60">
-              Up to 3.
+            <div class="mb-2 text-center text-xs text-contrast-content/60">
+              Select up to 3
             </div>
 
             <div
@@ -884,7 +884,7 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="grid grid-cols-1 gap-3">
+              <div class="grid grid-cols-1 gap-2">
                 {#each FEATURE_OPTIONS as option}
                   {@const isSelected = surveyData.featureInterests.includes(
                     option.id,
@@ -898,7 +898,7 @@
                     }}
                     role="button"
                     tabindex="0"
-                    class="flex cursor-pointer items-center justify-center rounded-lg p-4 text-sm transition-all
+                    class="flex cursor-pointer items-center justify-center rounded-lg p-2.5 text-xs transition-all
                       {isSelected
                       ? 'border border-base-content bg-base-content/20 text-base-content'
                       : 'border border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}
@@ -913,7 +913,7 @@
 
               {#if errors.featureInterests}
                 <p
-                  class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                  class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -927,17 +927,16 @@
 
       <!-- Step 4: Future Features -->
       {#if currentStep === 4}
-        <div class="mb-2 text-xs text-info">Showing Step 4</div>
-        <div class="grid gap-8">
+        <div class="grid gap-4 md:gap-5">
           <div class="space-y-2">
             <label
-              class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -949,7 +948,10 @@
                   ></polygon></svg
                 >
               </div>
-              Rate your interest in future features.
+              <span class="hidden sm:inline"
+                >Rate your interest in future features.</span
+              >
+              <span class="sm:hidden">Rate future features</span>
               {#if surveyData.pathRecreateInterest && surveyData.pathOptimizationInterest && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -964,21 +966,23 @@
                 ? 'animate-shake'
                 : ''}"
             >
-              <div class="space-y-10">
+              <div class="space-y-4 md:space-y-5">
                 <!-- First Feature -->
-                <div class="rounded-xl border border-base-300 bg-base-200 p-6">
+                <div
+                  class="rounded-lg border border-base-300 bg-base-200 p-3 md:p-4"
+                >
                   <h3
-                    class="mb-2 text-center text-xl font-bold text-base-content"
+                    class="mb-1 text-center text-base font-bold text-base-content md:text-lg"
                   >
                     {FUTURE_FEATURES[0].title}
                   </h3>
-                  <p class="mb-6 text-center text-contrast-content/80">
+                  <p class="mb-3 text-center text-xs text-contrast-content/80">
                     {FUTURE_FEATURES[0].description}
                   </p>
 
-                  <div class="flex flex-wrap justify-center gap-3">
+                  <div class="flex flex-col justify-center gap-2 sm:flex-row">
                     {#each INTEREST_LEVELS as level}
-                      <div class="relative min-w-[100px] max-w-[150px] flex-1">
+                      <div class="relative max-w-xs flex-1">
                         <label class="cursor-pointer">
                           <input
                             type="radio"
@@ -992,7 +996,7 @@
                             class="sr-only"
                           />
                           <div
-                            class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                            class="block w-full rounded-lg border p-2 text-center text-xs transition-all
                             {surveyData.pathRecreateInterest === level.id
                               ? 'border-base-content bg-base-content/20 text-base-content'
                               : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-base-content/40'}"
@@ -1006,19 +1010,21 @@
                 </div>
 
                 <!-- Second Feature -->
-                <div class="rounded-xl border border-base-300 bg-base-200 p-6">
+                <div
+                  class="rounded-lg border border-base-300 bg-base-200 p-3 md:p-4"
+                >
                   <h3
-                    class="mb-2 text-center text-xl font-bold text-base-content"
+                    class="mb-1 text-center text-base font-bold text-base-content md:text-lg"
                   >
                     {FUTURE_FEATURES[1].title}
                   </h3>
-                  <p class="mb-6 text-center text-contrast-content/80">
+                  <p class="mb-3 text-center text-xs text-contrast-content/80">
                     {FUTURE_FEATURES[1].description}
                   </p>
 
-                  <div class="flex flex-wrap justify-center gap-3">
+                  <div class="flex flex-col justify-center gap-2 sm:flex-row">
                     {#each INTEREST_LEVELS as level}
-                      <div class="relative min-w-[100px] max-w-[150px] flex-1">
+                      <div class="relative max-w-xs flex-1">
                         <label class="cursor-pointer">
                           <input
                             type="radio"
@@ -1032,7 +1038,7 @@
                             class="sr-only"
                           />
                           <div
-                            class="block w-full rounded-lg border p-3 text-center text-sm transition-all
+                            class="block w-full rounded-lg border p-2 text-center text-xs transition-all
                             {surveyData.pathOptimizationInterest === level.id
                               ? 'border-base-content bg-base-content/20 text-base-content'
                               : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-base-content/40'}"
@@ -1048,7 +1054,7 @@
 
               {#if errors.featureInterestRating}
                 <p
-                  class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-error"
+                  class="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-error"
                 >
                   <span class="inline-block h-1 w-1 rounded-full bg-error"
                   ></span>
@@ -1062,17 +1068,16 @@
 
       <!-- Step 5: Enterprise Goals -->
       {#if currentStep === 5}
-        <div class="mb-2 text-xs text-info">Showing Step 5</div>
-        <div class="grid gap-8">
-          <div class="space-y-6">
+        <div class="grid gap-4 md:gap-5">
+          <div class="space-y-3 md:space-y-4">
             <label
-              class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
             >
-              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1082,7 +1087,11 @@
                   ><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg
                 >
               </div>
-              What are the primary goals of your enterprise in the next 5 years?
+              <span class="hidden sm:inline"
+                >What are the primary goals of your enterprise in the next 5
+                years?</span
+              >
+              <span class="sm:hidden">Primary goals (5 years)?</span>
               {#if surveyData.enterpriseGoals.length > 0 && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -1092,7 +1101,7 @@
               {/if}
             </label>
 
-            <div class="grid grid-cols-1 gap-3">
+            <div class="grid grid-cols-1 gap-2">
               <!-- Enterprise Goals Options -->
               {#each [{ id: "expand-land", label: "Expand land holdings" }, { id: "increase-production", label: "Increase production on land already owned" }, { id: "reduce-labor", label: "Reduce labour requirements for my operation" }, { id: "more-tech", label: "Introduce more technology" }] as goal}
                 <div
@@ -1104,7 +1113,7 @@
                   }}
                   role="button"
                   tabindex="0"
-                  class="flex cursor-pointer items-center justify-center rounded-lg border p-4 text-sm transition-all
+                  class="flex cursor-pointer items-center justify-center rounded-lg border p-2.5 text-xs transition-all
                     {surveyData.enterpriseGoals.includes(goal.id)
                     ? 'border-base-content bg-base-content/20 text-base-content'
                     : 'border-base-300 bg-base-200 text-contrast-content/80 hover:border-base-content/40'}"
@@ -1114,15 +1123,15 @@
               {/each}
             </div>
 
-            <div class="mt-8">
+            <div class="mt-4 md:mt-5">
               <label
-                class="mb-4 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+                class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
               >
-                <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+                <div class="rounded-md bg-base-200 p-1 text-base-content">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="14"
+                    height="14"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1134,10 +1143,14 @@
                     /><path d="M12 8h.01" /></svg
                   >
                 </div>
-                How interested are you in adopting new technologies to increase productivity?
+                <span class="hidden sm:inline"
+                  >How interested are you in adopting new technologies to
+                  increase productivity?</span
+                >
+                <span class="sm:hidden">Interest in new tech?</span>
               </label>
 
-              <div class="px-2">
+              <div class="px-1">
                 <input
                   type="range"
                   min="0"
@@ -1147,7 +1160,7 @@
                 />
 
                 <div
-                  class="mt-2 flex justify-between text-sm text-contrast-content/60"
+                  class="mt-1.5 flex justify-between text-xs text-contrast-content/60"
                 >
                   <span>Not Interested</span>
                   <span>Very Interested</span>
@@ -1158,15 +1171,15 @@
         </div>
       {/if}
 
-      <!-- Navigation Buttons -->
-      <div class="mt-10 flex items-center justify-between gap-4">
+      <!-- Navigation Buttons - compact -->
+      <div class="mt-4 flex items-center justify-between gap-3 md:mt-5">
         {#if currentStep > 1}
           <button
             type="button"
             on:click={handlePreviousStep}
-            class="flex items-center gap-2 rounded-xl border border-transparent bg-transparent px-4 py-2 text-sm font-medium text-contrast-content/60 transition-all hover:border-base-content/20 hover:bg-base-content/5 hover:text-base-content"
+            class="flex items-center gap-2 rounded-lg border border-transparent bg-transparent px-3 py-2 text-sm font-medium text-contrast-content/60 transition-all hover:border-base-content/20 hover:bg-base-content/5 hover:text-base-content"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
             <span>Back</span>
           </button>
         {:else}
@@ -1176,20 +1189,16 @@
         <button
           type="submit"
           disabled={isSaving}
-          class="flex transform items-center justify-center gap-2 rounded-xl bg-base-content px-8 py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+          class="flex transform items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 md:px-6"
         >
           {#if isSaving}
             <span class="loading loading-spinner loading-sm"></span>
           {/if}
-          <span
-            >{currentStep < 5
-              ? "Next"
-              : hasExistingData
-                ? "Update Responses"
-                : "Finish"}</span
-          >
+          <span>
+            {currentStep < 5 ? "Next" : hasExistingData ? "Update" : "Finish"}
+          </span>
           <ArrowRight
-            size={18}
+            size={14}
             class="transition-transform group-hover:translate-x-1"
           />
         </button>
@@ -1198,48 +1207,46 @@
   </div>
 {/if}
 
-<!-- Thank You Modal -->
+<!-- Thank You Modal - compact -->
 {#if showThankYou}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
   >
     <div
       bind:this={modalRef}
-      class="animate-fadeIn w-full max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl"
+      class="animate-fadeIn w-full max-w-sm overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
     >
-      <div
-        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-      ></div>
+      <div class="h-1 w-full bg-base-content"></div>
 
-      <div class="relative p-6">
+      <div class="relative p-4">
         <button
           on:click={handleThankYouClose}
-          class="absolute right-3 top-3 rounded-full p-2 text-base-content/40 transition-colors hover:bg-base-200 hover:text-base-content"
+          class="absolute right-2 top-2 rounded-full p-1.5 text-base-content/40 transition-colors hover:bg-base-200 hover:text-base-content"
           aria-label="Close"
         >
-          <X size={20} />
+          <X size={16} />
         </button>
 
-        <div class="flex flex-col items-center py-6 text-center">
+        <div class="flex flex-col items-center py-3 text-center">
           <div
-            class="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-base-content/20"
+            class="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-content/20"
           >
-            <CircleCheck size={40} class="text-base-content" />
+            <CircleCheck size={24} class="text-base-content" />
           </div>
 
-          <h3 class="mb-3 text-2xl font-bold text-contrast-content">
+          <h3 class="mb-2 text-lg font-bold text-contrast-content">
             {hasExistingData ? "Responses Updated!" : "Thank You!"}
           </h3>
-          <p class="mb-6 max-w-xs text-contrast-content/60">
+          <p class="mb-4 max-w-xs px-2 text-sm text-contrast-content/60">
             {hasExistingData
               ? "Your survey responses have been updated successfully."
-              : "Your survey responses have been submitted successfully. We appreciate your valuable feedback which helps us improve AgSKAN."}
+              : "Your feedback helps us improve AgSKAN for farmers like you."}
           </p>
 
-          <div class="w-full border-t border-base-300/40 pt-4">
+          <div class="w-full border-t border-base-300/40 pt-3">
             <button
               on:click={handleThankYouClose}
-              class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
+              class="flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
             >
               Continue to Map Setup
             </button>
@@ -1250,7 +1257,6 @@
   </div>
 {/if}
 
-<!-- Your existing styles -->
 <style>
   @keyframes shake {
     0%,

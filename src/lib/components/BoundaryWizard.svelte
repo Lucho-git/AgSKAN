@@ -368,12 +368,11 @@
   }
 </script>
 
-<!-- Rest of the template remains the same... -->
 <svelte:window on:keydown={handleGlobalKeydown} />
 
 {#if loading}
-  <!-- Loading State -->
-  <div class="flex flex-col items-center justify-center py-16">
+  <!-- Loading State - compact -->
+  <div class="flex flex-col items-center justify-center py-12">
     <div class="text-center">
       <div class="loading loading-spinner loading-lg mb-4"></div>
       <h3 class="mb-2 text-xl font-semibold">Processing Boundary File</h3>
@@ -381,8 +380,8 @@
     </div>
   </div>
 {:else if error}
-  <!-- Error State -->
-  <div class="flex flex-col items-center justify-center py-16">
+  <!-- Error State - compact -->
+  <div class="flex flex-col items-center justify-center py-12">
     <div class="max-w-md text-center">
       <div class="mb-4 text-error">
         <X size={48} class="mx-auto" />
@@ -395,27 +394,27 @@
     </div>
   </div>
 {:else}
-  <!-- Boundary Wizard Content - Mobile Optimized -->
-  <div class="space-y-6 md:space-y-8">
-    <!-- Page Title -->
+  <!-- Boundary Wizard Content - compact -->
+  <div class="space-y-4 px-4 py-4 md:space-y-6 md:px-6 md:py-6">
+    <!-- Page Title - compact -->
     <div class="text-center">
-      <h2 class="mb-3 text-2xl font-bold md:text-4xl">
+      <h2 class="mb-2 text-xl font-bold md:text-3xl">
         Review <span class="text-base-content">Field Boundaries</span>
       </h2>
-      <p class="text-sm text-contrast-content/60 md:text-base">
+      <p class="text-sm text-contrast-content/60">
         Review, rename and approve the field boundaries uploaded from your file
       </p>
     </div>
 
-    <!-- Overall Progress -->
-    <div class="mb-6 md:mb-10">
+    <!-- Overall Progress - compact -->
+    <div class="mb-4 md:mb-6">
       <div class="mb-2 flex items-center justify-between">
         <span class="text-sm font-medium text-contrast-content"
           >Review Progress</span
         >
-        <span class="text-sm font-medium text-contrast-content"
-          >{Math.round(progressPercentage)}%</span
-        >
+        <span class="text-sm font-medium text-contrast-content">
+          {Math.round(progressPercentage)}%
+        </span>
       </div>
       <div class="h-2 w-full overflow-hidden rounded-full bg-base-200">
         <div
@@ -425,34 +424,32 @@
       </div>
     </div>
 
-    <!-- Enhanced Field Card -->
+    <!-- Enhanced Field Card - compact -->
     <div
       class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
     >
       <!-- Top accent line -->
-      <div
-        class="h-1 w-full bg-gradient-to-r from-base-content/60 via-base-content to-base-content/60"
-      ></div>
+      <div class="h-1 w-full bg-base-content"></div>
 
-      <!-- Card Header -->
+      <!-- Card Header - compact -->
       <div class="border-b border-base-300">
-        <div class="flex items-center justify-between p-4 md:p-6">
+        <div class="flex items-center justify-between p-3 md:p-4">
           <button
             on:click={handleBackToUpload}
             class="flex items-center gap-2 text-contrast-content/60 transition-colors hover:text-base-content"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} />
             <span class="text-sm font-medium">Back to Upload</span>
           </button>
           <div class="flex items-center">
             <div
-              class="flex items-center justify-center rounded-full bg-base-content/10 px-3 py-1.5 md:px-4 md:py-2"
+              class="flex items-center justify-center rounded-full bg-base-content/10 px-3 py-1.5"
             >
-              <h3 class="text-sm font-medium md:text-base">
+              <h3 class="text-sm font-medium">
                 <span class="font-bold text-base-content"
                   >Field {currentIndex + 1}</span
                 >
-                <span class="mx-1 text-contrast-content/60 md:mx-2">/</span>
+                <span class="mx-1 text-contrast-content/60">/</span>
                 <span class="text-contrast-content/60">{paddocks.length}</span>
               </h3>
             </div>
@@ -460,41 +457,39 @@
         </div>
       </div>
 
-      <div class="p-4 md:p-8">
-        <!-- Field Name Section -->
-        <div class="mb-6 md:mb-8">
+      <div class="p-4 md:p-6">
+        <!-- Field Name Section - compact -->
+        <div class="mb-4 md:mb-6">
           {#if isEditing}
             <!-- Edit Mode -->
-            <div class="flex items-center gap-2 md:gap-3">
+            <div class="flex items-center gap-2">
               <input
                 bind:this={editInput}
                 bind:value={editingName}
                 type="text"
-                class="flex-1 rounded-lg border border-base-content bg-base-200 px-3 py-2 text-base text-contrast-content transition-all focus:outline-none focus:ring-2 focus:ring-base-content/50 md:px-4 md:py-3 md:text-lg"
+                class="flex-1 rounded-lg border border-base-content bg-base-200 px-3 py-2 text-sm text-contrast-content transition-all focus:outline-none focus:ring-2 focus:ring-base-content/50"
                 placeholder="Enter field name"
                 on:keydown={handleEditKeydown}
               />
               <button
                 on:click={saveEdit}
-                class="flex items-center justify-center rounded-lg bg-base-content p-2 text-base-100 shadow-md transition-colors hover:bg-base-content/80 md:p-3"
+                class="flex items-center justify-center rounded-lg bg-base-content p-2 text-base-100 shadow-md transition-colors hover:bg-base-content/80"
                 title="Save name"
               >
-                <Save size={18} class="md:hidden" />
-                <Save size={20} class="hidden md:block" />
+                <Save size={16} />
               </button>
               <button
                 on:click={cancelEditing}
-                class="flex items-center justify-center rounded-lg bg-base-200 p-2 text-contrast-content transition-colors hover:bg-base-300 md:p-3"
+                class="flex items-center justify-center rounded-lg bg-base-200 p-2 text-contrast-content transition-colors hover:bg-base-300"
                 title="Cancel"
               >
-                <X size={18} class="md:hidden" />
-                <X size={20} class="hidden md:block" />
+                <X size={16} />
               </button>
             </div>
           {:else}
             <!-- Display Mode -->
             <div
-              class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
             >
               <div
                 class="group flex cursor-pointer items-center gap-2"
@@ -509,46 +504,41 @@
                 tabindex="0"
                 title="Click to edit field name"
               >
-                <h3 class="text-xl font-bold text-contrast-content md:text-2xl">
+                <h3 class="text-lg font-bold text-contrast-content md:text-xl">
                   {currentPaddockName}
                 </h3>
                 <div class="flex items-center gap-1.5">
                   <button
-                    class="rounded-md bg-base-200 p-1 opacity-40 transition-all hover:bg-base-300 group-hover:opacity-100 md:p-1.5"
+                    class="rounded-md bg-base-200 p-1 opacity-40 transition-all hover:bg-base-300 group-hover:opacity-100"
                   >
                     <Pencil
                       size={14}
-                      class="text-contrast-content/60 group-hover:text-base-content md:hidden"
-                    />
-                    <Pencil
-                      size={16}
-                      class="hidden text-contrast-content/60 group-hover:text-base-content md:block"
+                      class="text-contrast-content/60 group-hover:text-base-content"
                     />
                   </button>
                   <span
                     class="hidden text-xs text-contrast-content/60 transition-colors group-hover:text-base-content sm:inline"
-                    >Edit name</span
                   >
+                    Edit name
+                  </span>
                 </div>
               </div>
 
-              <!-- Status and Info - Mobile Responsive -->
+              <!-- Status and Info - compact -->
               <div class="flex flex-wrap items-center gap-2">
                 {#if paddocks[currentIndex]?.status === "accepted" || paddocks[currentIndex]?.status === "rejected"}
                   <div
-                    class="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium md:gap-1.5 md:px-3 md:text-sm {paddocks[
+                    class="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium {paddocks[
                       currentIndex
                     ]?.status === 'accepted'
                       ? 'bg-green-500/10 text-green-600'
                       : 'bg-red-500/10 text-red-600'}"
                   >
                     {#if paddocks[currentIndex]?.status === "accepted"}
-                      <Check size={12} class="md:hidden" />
-                      <Check size={14} class="hidden md:block" />
+                      <Check size={12} />
                       <span>Approved</span>
                     {:else}
-                      <X size={12} class="md:hidden" />
-                      <X size={14} class="hidden md:block" />
+                      <X size={12} />
                       <span>Rejected</span>
                     {/if}
                   </div>
@@ -569,13 +559,13 @@
           {/if}
         </div>
 
-        <!-- Map Container with Field Name and Hectares Display -->
+        <!-- Map Container - compact -->
         <div
-          class="mb-6 overflow-hidden rounded-xl border border-base-300 p-2 md:mb-8 md:p-4"
+          class="mb-4 overflow-hidden rounded-xl border border-base-300 p-2 md:mb-6"
         >
           <div class="relative overflow-hidden rounded-lg">
             <div
-              class="flex h-72 items-center justify-center overflow-hidden bg-transparent sm:h-80 md:h-96"
+              class="flex h-64 items-center justify-center overflow-hidden bg-transparent sm:h-72 md:h-80"
             >
               {#each paddocks as paddock, index}
                 <div
@@ -591,7 +581,7 @@
                       bind:this={mapRefs[index]}
                       geojson={paddock.boundary}
                       width={800}
-                      height={384}
+                      height={320}
                       bind:areaHectares={paddock.area}
                     />
                   </div>
@@ -601,16 +591,14 @@
 
             <!-- Field Name Display - Top Center -->
             <div
-              class="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm md:top-4 md:px-4 md:py-2 md:text-base"
+              class="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm"
             >
-              <span class="font-medium">
-                {currentPaddockName}
-              </span>
+              <span class="font-medium">{currentPaddockName}</span>
             </div>
 
             <!-- Hectares Display - Bottom Center -->
             <div
-              class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm md:bottom-4 md:px-4 md:py-2 md:text-base"
+              class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm"
             >
               <span class="font-medium">
                 {paddocks[currentIndex]?.area?.toFixed(2) ?? "Calculating..."} hectares
@@ -619,20 +607,19 @@
           </div>
         </div>
 
-        <!-- Navigation and Action Controls -->
-        <div class="space-y-6 md:space-y-8">
-          <!-- Previous/Next Buttons - Moved Above Approve/Reject -->
+        <!-- Navigation and Action Controls - compact -->
+        <div class="space-y-4 md:space-y-6">
+          <!-- Previous/Next Buttons -->
           <div class="flex items-center justify-between">
             <button
               on:click={handlePrevious}
               disabled={currentIndex === 0}
-              class="flex items-center gap-1 rounded-lg px-4 py-2 text-sm transition-all md:gap-2 md:px-6 md:py-3 md:text-base {currentIndex ===
+              class="flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-all {currentIndex ===
               0
                 ? 'cursor-not-allowed bg-base-200 text-contrast-content/40'
                 : 'bg-base-200 text-contrast-content hover:bg-base-300'}"
             >
-              <ChevronLeft size={16} class="md:hidden" />
-              <ChevronLeft size={18} class="hidden md:block" />
+              <ChevronLeft size={16} />
               <span class="hidden sm:inline">Previous</span>
               <span class="sm:hidden">Prev</span>
             </button>
@@ -652,49 +639,46 @@
             <button
               on:click={handleNext}
               disabled={currentIndex === paddocks.length - 1}
-              class="flex items-center gap-1 rounded-lg px-4 py-2 text-sm transition-all md:gap-2 md:px-6 md:py-3 md:text-base {currentIndex ===
+              class="flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-all {currentIndex ===
               paddocks.length - 1
                 ? 'cursor-not-allowed bg-base-200 text-contrast-content/40'
                 : 'bg-base-200 text-contrast-content hover:bg-base-300'}"
             >
               <span class="hidden sm:inline">Next</span>
               <span class="sm:hidden">Next</span>
-              <ChevronRight size={16} class="md:hidden" />
-              <ChevronRight size={18} class="hidden md:block" />
+              <ChevronRight size={16} />
             </button>
           </div>
 
-          <!-- Approve/Reject Buttons -->
-          <div class="flex items-center justify-center gap-4 md:gap-6">
+          <!-- Approve/Reject Buttons - compact -->
+          <div class="flex items-center justify-center gap-3 md:gap-4">
             <button
               on:click={handleReject}
-              class="flex max-w-xs flex-1 items-center justify-center gap-2 rounded-lg border-2 border-red-500 py-3 text-base font-medium text-red-500 transition-all hover:bg-red-500/10 md:py-4 md:text-lg"
+              class="flex max-w-xs flex-1 items-center justify-center gap-2 rounded-lg border-2 border-red-500 py-2.5 text-sm font-medium text-red-500 transition-all hover:bg-red-500/10"
             >
-              <X size={18} class="md:hidden" />
-              <X size={20} class="hidden md:block" />
+              <X size={16} />
               <span>Reject</span>
             </button>
 
             <button
               on:click={handleApprove}
-              class="flex max-w-xs flex-1 items-center justify-center gap-2 rounded-lg border-2 border-green-500 py-3 text-base font-medium text-green-500 transition-all hover:bg-green-500/10 md:py-4 md:text-lg"
+              class="flex max-w-xs flex-1 items-center justify-center gap-2 rounded-lg border-2 border-green-500 py-2.5 text-sm font-medium text-green-500 transition-all hover:bg-green-500/10"
             >
-              <Check size={18} class="md:hidden" />
-              <Check size={20} class="hidden md:block" />
+              <Check size={16} />
               <span>Approve</span>
             </button>
           </div>
 
-          <!-- Enhanced Dots -->
+          <!-- Enhanced Dots - compact -->
           <div class="flex justify-center">
             <div
-              class="grid gap-2 md:gap-3"
+              class="grid gap-2"
               style="grid-template-columns: repeat({dotsPerRow}, 1fr); max-width: 100%;"
             >
               {#each paddocks as _, index (index)}
                 <button
                   on:click={() => handleDotClick(index)}
-                  class="h-2.5 w-2.5 rounded-full transition-all md:h-3 md:w-3 {getPaddockDotClass(
+                  class="h-2.5 w-2.5 rounded-full transition-all {getPaddockDotClass(
                     index,
                     currentIndex,
                     paddocks,
@@ -715,14 +699,14 @@
             </div>
           </div>
 
-          <!-- Final Actions -->
+          <!-- Final Actions - compact -->
           <div
-            class="flex flex-col items-center justify-center gap-4 border-t border-base-300 pt-6 sm:flex-row md:gap-6 md:pt-8"
+            class="flex flex-col items-center justify-center gap-3 border-t border-base-300 pt-4 sm:flex-row md:pt-6"
           >
             <button
               on:click={handleAcceptAll}
               disabled={processingAction !== null}
-              class="flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-medium transition-all sm:w-auto md:px-8 md:text-base {processingAction ===
+              class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:w-auto {processingAction ===
               'acceptAll'
                 ? 'bg-base-content/80 text-base-100 shadow-lg'
                 : 'bg-base-content text-base-100 shadow-lg hover:bg-base-content/80'}"
@@ -730,8 +714,7 @@
               {#if processingAction === "acceptAll"}
                 <span class="loading loading-spinner loading-sm"></span>
               {:else}
-                <Check size={16} class="md:hidden" />
-                <Check size={18} class="hidden md:block" />
+                <Check size={16} />
               {/if}
               <span>Accept All</span>
             </button>
@@ -739,7 +722,7 @@
             <button
               on:click={handleLoadPaddocks}
               disabled={!allPaddocksReviewed || processingAction !== null}
-              class="flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-medium transition-all sm:w-auto md:px-8 md:text-base {allPaddocksReviewed &&
+              class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:w-auto {allPaddocksReviewed &&
               processingAction === null
                 ? 'bg-green-500 text-white shadow-lg hover:bg-green-600'
                 : 'cursor-not-allowed bg-base-200 text-contrast-content/40'}"
@@ -747,15 +730,14 @@
               {#if processingAction === "load"}
                 <span class="loading loading-spinner loading-sm"></span>
               {:else}
-                <ArrowUp size={16} class="md:hidden" />
-                <ArrowUp size={18} class="hidden md:block" />
+                <ArrowUp size={16} />
               {/if}
               <span>Load Fields</span>
             </button>
           </div>
 
           {#if !allPaddocksReviewed}
-            <div class="text-center text-xs text-red-500 md:text-sm">
+            <div class="text-center text-xs text-red-500">
               Please approve or reject all fields before loading
             </div>
           {/if}

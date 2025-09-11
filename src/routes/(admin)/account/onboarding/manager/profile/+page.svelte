@@ -155,31 +155,31 @@
   <meta name="description" content="Tell us about your farm operation" />
 </svelte:head>
 
-<!-- Header -->
-<div class="mb-10 text-center">
-  <h2 class="mb-3 text-4xl font-bold text-contrast-content">
+<!-- Header - compact for single page view -->
+<div class="mb-4 px-4 text-center md:mb-6">
+  <h2 class="mb-2 text-2xl font-bold text-contrast-content md:text-3xl">
     Your <span class="text-base-content">Farm Details</span>
   </h2>
-  <p class="mx-auto max-w-md text-contrast-content/60">
-    Help us understand your operation better to customize your experience
+  <p class="mx-auto max-w-md text-sm text-contrast-content/60">
+    Help us understand your operation better
   </p>
 </div>
 
 <!-- Loading state while fetching data -->
 {#if !dataLoaded}
-  <div class="flex justify-center py-8">
+  <div class="flex justify-center py-6">
     <div class="flex items-center gap-3 text-contrast-content/60">
       <span class="loading loading-spinner loading-sm"></span>
-      <span>Loading your information...</span>
+      <span class="text-sm">Loading your information...</span>
     </div>
   </div>
 {:else}
-  <!-- Error Alert -->
+  <!-- Error Alert - compact -->
   {#if formError}
-    <div class="alert alert-error mb-6">
+    <div class="alert alert-error mx-4 mb-3 md:mb-4">
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        class="h-6 w-6 shrink-0 stroke-current"
+        class="h-5 w-5 shrink-0 stroke-current"
         fill="none"
         viewBox="0 0 24 24"
       >
@@ -190,28 +190,26 @@
           d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
         />
       </svg>
-      <span>{formError}</span>
+      <span class="text-sm">{formError}</span>
     </div>
   {/if}
 
-  <!-- Form Card -->
+  <!-- Form Card - compact -->
   <div
-    class="relative overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="relative mx-4 mx-auto max-w-lg overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
   >
     <!-- Card header decoration -->
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
+    <div class="h-1 w-full bg-base-content"></div>
 
-    <form on:submit|preventDefault={handleSubmit} class="p-8 md:p-10">
-      <div class="grid gap-8">
-        <!-- Full Name -->
+    <form on:submit|preventDefault={handleSubmit} class="p-4 md:p-6">
+      <div class="grid gap-4 md:gap-5">
+        <!-- Full Name - compact -->
         <div class="space-y-2">
           <label
-            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+            class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-              <User size={16} />
+            <div class="rounded-md bg-base-200 p-1 text-base-content">
+              <User size={14} />
             </div>
             Full Name
             {#if formData.fullName && hasExistingData}
@@ -234,13 +232,11 @@
               on:input={(e) => handleInputChange("fullName", e.target.value)}
               class="w-full border bg-base-200 {errors.fullName
                 ? 'border-error'
-                : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content md:p-3"
               required
             />
             {#if errors.fullName}
-              <p
-                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
-              >
+              <p class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error">
                 <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
                 {errors.fullName}
               </p>
@@ -248,15 +244,16 @@
           </div>
         </div>
 
-        <!-- Company Name -->
+        <!-- Company Name - compact -->
         <div class="space-y-2">
           <label
-            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+            class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-              <Building2 size={16} />
+            <div class="rounded-md bg-base-200 p-1 text-base-content">
+              <Building2 size={14} />
             </div>
-            Company/Farm Name
+            <span class="hidden sm:inline">Company/Farm Name</span>
+            <span class="sm:hidden">Farm Name</span>
             {#if formData.companyName && hasExistingData}
               <span
                 class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -272,18 +269,16 @@
           >
             <input
               type="text"
-              placeholder="Enter your company or farm name"
+              placeholder="Enter your farm name"
               bind:value={formData.companyName}
               on:input={(e) => handleInputChange("companyName", e.target.value)}
               class="w-full border bg-base-200 {errors.companyName
                 ? 'border-error'
-                : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content md:p-3"
               required
             />
             {#if errors.companyName}
-              <p
-                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
-              >
+              <p class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error">
                 <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
                 {errors.companyName}
               </p>
@@ -291,13 +286,13 @@
           </div>
         </div>
 
-        <!-- Mobile Number -->
+        <!-- Mobile Number - compact -->
         <div class="space-y-2">
           <label
-            class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+            class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
           >
-            <div class="rounded-md bg-base-200 p-1.5 text-base-content">
-              <Phone size={16} />
+            <div class="rounded-md bg-base-200 p-1 text-base-content">
+              <Phone size={14} />
             </div>
             Mobile Number
             {#if formData.mobileNumber && hasExistingData}
@@ -321,13 +316,11 @@
                 handleInputChange("mobileNumber", e.target.value)}
               class="w-full border bg-base-200 {errors.mobileNumber
                 ? 'border-error'
-                : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content"
+                : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content md:p-3"
               required
             />
             {#if errors.mobileNumber}
-              <p
-                class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
-              >
+              <p class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error">
                 <span class="inline-block h-1 w-1 rounded-full bg-error"></span>
                 {errors.mobileNumber}
               </p>
@@ -335,9 +328,9 @@
           </div>
         </div>
 
-        <!-- Agree to Contact -->
-        <div class="flex items-start gap-3">
-          <div class="flex h-6 items-center pt-1">
+        <!-- Agree to Contact - compact -->
+        <div class="flex items-start gap-2">
+          <div class="flex h-5 items-center">
             <label class="cursor-pointer">
               <input
                 type="checkbox"
@@ -347,57 +340,52 @@
                 class="sr-only"
               />
               <div
-                class="flex h-5 w-5 items-center justify-center rounded-md transition-all
+                class="flex h-4 w-4 items-center justify-center rounded transition-all
                 {formData.agreeToContact
                   ? 'bg-base-content text-base-100'
                   : 'border border-base-300 bg-base-200 hover:border-base-content/50'}"
               >
                 {#if formData.agreeToContact}
-                  <Check size={14} />
+                  <Check size={12} />
                 {/if}
               </div>
             </label>
           </div>
           <label
             for="agreeToContact"
-            class="cursor-pointer text-sm text-contrast-content"
+            class="cursor-pointer text-xs leading-relaxed text-contrast-content"
           >
             I agree to be contacted by the AgSKAN team for setup assistance and
-            important updates about my farm management system
+            important updates
           </label>
         </div>
       </div>
 
-      <!-- Form Actions -->
-      <div class="mt-10 flex flex-col items-center">
+      <!-- Form Actions - compact -->
+      <div class="mt-4 flex flex-col items-center md:mt-5">
         <button
           type="submit"
           disabled={!isFormValid || loading}
-          class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-4 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {#if loading}
-            <span class="loading loading-spinner"></span>
+            <span class="loading loading-spinner loading-sm"></span>
           {:else}
-            <span
-              >{hasExistingData
-                ? "Update & Continue"
-                : "Continue to Survey"}</span
-            >
+            <span>
+              {hasExistingData ? "Update & Continue" : "Continue"}
+            </span>
             <ArrowRight
-              size={18}
+              size={16}
               class="transition-transform group-hover:translate-x-1"
             />
           {/if}
         </button>
 
         <div
-          class="mt-6 flex items-center gap-2 text-xs text-contrast-content/40"
+          class="mt-3 flex items-center gap-2 px-2 text-center text-xs text-contrast-content/40"
         >
-          <Shield size={14} />
-          <span
-            >Your information is securely stored and never shared with third
-            parties</span
-          >
+          <Shield size={12} class="flex-shrink-0" />
+          <span>Your information is securely stored and never shared</span>
         </div>
       </div>
     </form>

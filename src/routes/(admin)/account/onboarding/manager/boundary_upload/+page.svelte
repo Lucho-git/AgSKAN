@@ -439,7 +439,6 @@
   // Wizard event handlers
   function handleFieldsLoaded(event) {
     const { paddocks } = event.detail
-    toast.success(`${paddocks.length} field(s) loaded successfully!`)
 
     // Navigate to next step after delay
     setTimeout(() => {
@@ -509,12 +508,12 @@
 </svelte:head>
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
-  <!-- Decorative Background Elements -->
+  <!-- Decorative Background Elements - hidden on mobile -->
   <div
-    class="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full bg-base-content/5 blur-3xl"
+    class="pointer-events-none absolute -right-20 top-20 hidden h-64 w-64 rounded-full bg-base-content/5 blur-3xl md:block"
   ></div>
   <div
-    class="pointer-events-none absolute -left-20 bottom-20 h-80 w-80 rounded-full bg-base-content/5 blur-3xl"
+    class="pointer-events-none absolute -left-20 bottom-20 hidden h-80 w-80 rounded-full bg-base-content/5 blur-3xl md:block"
   ></div>
 
   <div class="relative z-10">
@@ -530,43 +529,45 @@
       </div>
     {:else}
       <!-- Upload Interface with slide transition -->
-      <div class="animate-boundary-slideInLeft">
-        <!-- Header -->
-        <div class="mb-8 text-center">
-          <h2 class="mb-3 text-3xl font-bold md:text-4xl">
+      <div class="animate-boundary-slideInLeft px-4 py-4 md:px-6 md:py-6">
+        <!-- Header - compact for single page view -->
+        <div class="mb-4 text-center md:mb-6">
+          <h2 class="mb-2 text-xl font-bold md:text-2xl lg:text-3xl">
             <span class="text-base-content">Upload</span> Paddock Boundaries
           </h2>
-          <p class="mx-auto max-w-3xl text-contrast-content/60">
-            Upload your paddock boundary files for processing. No files yet?
-            Skip this step and return to upload later when available.
+          <p class="mx-auto max-w-2xl px-2 text-sm text-contrast-content/60">
+            Upload your paddock boundary files for processing.
           </p>
         </div>
 
-        <!-- Skip Button - Moved to Top -->
-        <div class="mb-6 flex justify-center">
+        <!-- Skip Button - compact -->
+        <div class="mb-3 flex justify-center md:mb-4">
           <button
             on:click={handleSkip}
-            class="group flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
+            class="group flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow md:px-4 md:py-2 md:text-sm"
           >
-            <span>Skip for now</span>
+            <span class="hidden sm:inline">Skip for now</span>
+            <span class="sm:hidden">Skip</span>
             <ArrowRight
-              size={14}
+              size={12}
               class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
             />
           </button>
         </div>
 
-        <!-- Upload Card -->
+        <!-- Upload Card - compact -->
         <div
-          class="animate-boundary-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+          class="animate-boundary-fadeIn relative mx-auto max-w-2xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
         >
           <!-- Decorative accent -->
-          <div class="absolute left-0 top-0 h-1 w-full bg-base-content"></div>
+          <div
+            class="absolute left-0 top-0 h-0.5 w-full bg-base-content md:h-1"
+          ></div>
 
-          <div class="p-6 md:p-8">
-            <!-- File Drop Area - All states embedded here -->
+          <div class="p-4 md:p-6">
+            <!-- File Drop Area - compact all states -->
             <div
-              class="group relative mb-8 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-10 transition-all
+              class="group relative mb-4 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed p-4 transition-all md:mb-6 md:p-6
                 {isDragging
                 ? 'scale-[0.99] border-base-content bg-base-content/10 shadow-inner'
                 : hasError
@@ -598,7 +599,7 @@
             >
               <!-- Subtle background effect -->
               <div
-                class="absolute inset-0 bg-gradient-to-tr from-base-content/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+                class="absolute inset-0 bg-base-content/5 opacity-0 transition-opacity group-hover:opacity-100"
               ></div>
 
               <input
@@ -611,101 +612,114 @@
               />
 
               {#if hasSuccess}
-                <!-- SUCCESS STATE - Embedded in upload area -->
+                <!-- SUCCESS STATE - compact -->
                 <div
-                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-4"
+                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-3"
                 >
                   <div
-                    class="animate-boundary-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+                    class="animate-boundary-successPulse flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10 md:h-16 md:w-16"
                   >
                     <div
-                      class="animate-boundary-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+                      class="animate-boundary-checkScale flex h-10 w-10 items-center justify-center rounded-full bg-green-500 md:h-14 md:w-14"
                     >
                       <Check
-                        size={28}
-                        class="animate-boundary-checkDraw stroke-[3] text-white"
+                        size={20}
+                        class="animate-boundary-checkDraw stroke-[3] text-white md:h-6 md:w-6"
                       />
                     </div>
                   </div>
-                  <h3 class="text-xl font-bold text-contrast-content">
-                    File Uploaded Successfully!
+                  <h3
+                    class="text-lg font-bold text-contrast-content md:text-xl"
+                  >
+                    File Uploaded
                   </h3>
                   <p
-                    class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+                    class="max-w-xs truncate rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-center text-xs text-green-400 md:text-sm"
                   >
                     {uploadedFile?.name}
                   </p>
                   <p
-                    class="animate-boundary-delayedFadeIn text-sm text-contrast-content/60"
+                    class="animate-boundary-delayedFadeIn text-center text-xs text-contrast-content/60 md:text-sm"
                   >
-                    Loading boundary review wizard...
+                    <span class="hidden sm:inline"
+                      >Loading boundary review wizard...</span
+                    >
+                    <span class="sm:hidden">Loading wizard...</span>
                   </p>
                 </div>
               {:else if isProcessing}
-                <!-- LOADING STATE - Embedded in upload area -->
+                <!-- LOADING STATE - compact -->
                 <div
-                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-4"
+                  class="animate-boundary-scaleIn relative z-10 flex flex-col items-center gap-3"
                 >
                   {#if uploadStatus === "loading"}
                     <div
-                      class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+                      class="relative mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 md:h-16 md:w-16"
                     >
                       <div
                         class="animate-boundary-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
                       ></div>
                       <Cloud
-                        size={28}
-                        class="animate-boundary-pulse text-blue-400"
+                        size={20}
+                        class="animate-boundary-pulse text-blue-400 md:h-6 md:w-6"
                       />
                     </div>
-                    <p class="text-lg font-medium text-contrast-content">
+                    <p
+                      class="text-base font-medium text-contrast-content md:text-lg"
+                    >
                       Uploading file...
                     </p>
                   {:else}
                     <div
-                      class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-info/20"
+                      class="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-info/20 md:h-16 md:w-16"
                     >
                       <div
                         class="loading loading-spinner loading-md text-info"
                       ></div>
                     </div>
-                    <p class="text-lg font-medium text-contrast-content">
+                    <p
+                      class="text-base font-medium text-contrast-content md:text-lg"
+                    >
                       {uploadStatus === "validating"
                         ? "Validating file..."
                         : "Processing file..."}
                     </p>
                   {/if}
                   <p
-                    class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
+                    class="max-w-xs truncate rounded-full bg-base-200 px-3 py-1 text-center text-xs text-contrast-content/60 md:text-sm"
                   >
                     Processing {uploadedFile?.name}
                   </p>
                   {#if fileInfo && uploadStatus === "processing"}
                     <p
-                      class="animate-boundary-delayedFadeIn text-sm text-success"
+                      class="animate-boundary-delayedFadeIn px-2 text-center text-xs text-success md:text-sm"
                     >
                       ✓ {fileInfo}
                     </p>
                   {/if}
                 </div>
               {:else if hasError}
-                <!-- ERROR STATE - Embedded in upload area -->
+                <!-- ERROR STATE - compact -->
                 <div
-                  class="animate-boundary-scaleIn relative z-10 flex max-w-lg flex-col items-center"
+                  class="animate-boundary-scaleIn relative z-10 flex max-w-sm flex-col items-center px-2"
                 >
                   <div
-                    class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
+                    class="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-error/20 md:h-16 md:w-16"
                   >
-                    <AlertCircle size={32} class="text-error" />
+                    <AlertCircle size={20} class="text-error md:h-6 md:w-6" />
                   </div>
-                  <p class="mb-2 text-lg font-medium text-error">
+                  <p
+                    class="mb-2 text-center text-base font-medium text-error md:text-lg"
+                  >
                     File Not Compatible
                   </p>
-                  <p class="mb-6 text-center text-sm text-error">
+                  <p
+                    class="mb-4 px-2 text-center text-xs text-error md:text-sm"
+                  >
                     {uploadError}
                   </p>
 
-                  <div class="flex w-full flex-col gap-3">
+                  <div class="flex w-full flex-col gap-2">
                     <button
                       on:click={(e) => {
                         e.stopPropagation()
@@ -723,10 +737,11 @@
                           e.stopPropagation()
                           contactSupport()
                         }}
-                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info transition-all hover:bg-info/20"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-info/10 px-2 py-2 text-xs text-info transition-all hover:bg-info/20"
                       >
-                        <Mail size={14} />
-                        <span>Contact Support</span>
+                        <Mail size={12} />
+                        <span class="hidden sm:inline">Contact Support</span>
+                        <span class="sm:hidden">Support</span>
                       </button>
 
                       <button
@@ -734,49 +749,61 @@
                           e.stopPropagation()
                           handleSkip()
                         }}
-                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content/10 px-3 py-2 text-sm text-contrast-content transition-all hover:bg-base-content/20"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content/10 px-2 py-2 text-xs text-contrast-content transition-all hover:bg-base-content/20"
                       >
-                        <ArrowRight size={14} />
-                        <span>Skip for Now</span>
+                        <ArrowRight size={12} />
+                        <span class="hidden sm:inline">Skip for Now</span>
+                        <span class="sm:hidden">Skip</span>
                       </button>
                     </div>
                   </div>
                 </div>
               {:else}
-                <!-- DEFAULT UPLOAD STATE - Embedded in upload area -->
+                <!-- DEFAULT UPLOAD STATE - compact -->
                 <div class="relative z-10 flex flex-col items-center">
                   <div
-                    class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
+                    class="relative mb-3 transition-transform duration-300 group-hover:scale-110 md:mb-4"
                   >
-                    <div class="flex items-center justify-center space-x-6">
-                      <Cloud class="animate-boundary-pulse h-8 w-8 text-info" />
+                    <div class="flex items-center justify-center space-x-4">
+                      <Cloud
+                        class="animate-boundary-pulse h-6 w-6 text-info md:h-8 md:w-8"
+                      />
                       <div class="relative">
                         <File
-                          class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
+                          class="h-8 w-8 text-base-content transition-all group-hover:rotate-6 md:h-12 md:w-12"
                         />
                         <div
                           class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
                         ></div>
                       </div>
-                      <Cloud class="animate-boundary-pulse h-8 w-8 text-info" />
+                      <Cloud
+                        class="animate-boundary-pulse h-6 w-6 text-info md:h-8 md:w-8"
+                      />
                     </div>
                     <div
-                      class="animate-boundary-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
+                      class="animate-boundary-spin-slow absolute -inset-6 rounded-full border border-dashed border-info/30 opacity-50 md:-inset-8"
                     ></div>
                   </div>
-                  <p class="mb-3 text-xl font-semibold text-contrast-content">
-                    Click to upload or drag and drop
+                  <p
+                    class="mb-2 px-2 text-center text-base font-semibold text-contrast-content md:text-lg"
+                  >
+                    <span class="hidden sm:inline"
+                      >Click to upload or drag and drop</span
+                    >
+                    <span class="sm:hidden">Tap to upload files</span>
                   </p>
-                  <p class="mb-2 text-center text-sm text-contrast-content/60">
+                  <p
+                    class="mb-2 px-2 text-center text-xs text-contrast-content/60 md:text-sm"
+                  >
                     ZIP, ISOXML or KML files (Max 50mb)
                   </p>
                   <div
-                    class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-xs text-info/70"
+                    class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-2 py-1 text-xs text-info/70"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -794,17 +821,17 @@
               {/if}
             </div>
 
-            <!-- Requirements Section -->
+            <!-- Requirements Section - compact -->
             <div
-              class="-mx-4 mb-8 rounded-lg bg-gradient-to-r from-base-200/80 to-transparent p-6"
+              class="-mx-2 mb-4 rounded-lg bg-base-200/80 p-3 md:mb-6 md:p-4"
             >
               <h3
-                class="mb-5 flex items-center gap-2 font-bold text-contrast-content"
+                class="mb-2 flex items-center gap-2 text-sm font-bold text-contrast-content md:mb-3"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -820,15 +847,15 @@
                 </svg>
                 File Upload Requirements
               </h3>
-              <ul class="space-y-4">
-                <li class="flex items-start gap-3">
+              <ul class="space-y-2 md:space-y-3">
+                <li class="flex items-start gap-2">
                   <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
+                    class="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -839,19 +866,24 @@
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                   </div>
-                  <span class="text-sm text-contrast-content/80">
-                    Zipped Shapefiles, KML files and ISOXML files are all
-                    accepted
+                  <span class="text-xs text-contrast-content/80">
+                    <span class="hidden sm:inline"
+                      >Zipped Shapefiles, KML files and ISOXML files are all
+                      accepted</span
+                    >
+                    <span class="sm:hidden"
+                      >ZIP, KML and ISOXML files accepted</span
+                    >
                   </span>
                 </li>
-                <li class="flex items-start gap-3">
+                <li class="flex items-start gap-2">
                   <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
+                    class="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -862,35 +894,17 @@
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                   </div>
-                  <span class="text-sm text-contrast-content/80">
-                    Shapefile ZIP must contain .dbf, .shx and .shp files
-                  </span>
-                </li>
-                <li class="flex items-start gap-3">
-                  <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-200 text-base-content"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
+                  <span class="text-xs text-contrast-content/80">
+                    <span class="hidden sm:inline"
+                      >Shapefile ZIP must contain .dbf, .shx and .shp files</span
                     >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  </div>
-                  <span class="text-sm text-contrast-content/80">
-                    Multiple ZIP files or an ISOXML can be contained in a single
-                    ZIP file
+                    <span class="sm:hidden"
+                      >Shapefile ZIP needs .dbf, .shx, .shp files</span
+                    >
                   </span>
                 </li>
                 <li
-                  class="flex cursor-pointer items-start gap-3 text-info transition-colors hover:text-info/80"
+                  class="flex cursor-pointer items-start gap-2 text-info transition-colors hover:text-info/80"
                   on:click={downloadExample}
                   on:keydown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -901,29 +915,34 @@
                   tabindex="0"
                 >
                   <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-info/20 text-info"
+                    class="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-info/20 text-info"
                   >
-                    <Download size={12} />
+                    <Download size={10} />
                   </div>
-                  <span class="text-sm">Download Example Paddock File</span>
+                  <span class="text-xs">
+                    <span class="hidden sm:inline"
+                      >Download Example Paddock File</span
+                    >
+                    <span class="sm:hidden">Download Example File</span>
+                  </span>
                 </li>
               </ul>
             </div>
 
-            <!-- Supported Types Section -->
-            <div class="mb-8">
-              <h3 class="mb-4 font-bold text-contrast-content">
+            <!-- Supported Types Section - compact -->
+            <div class="mb-4">
+              <h3 class="mb-2 text-sm font-bold text-contrast-content">
                 Supported Polygon Types
               </h3>
-              <ul class="space-y-3">
-                <li class="flex items-start gap-3">
+              <ul class="space-y-2">
+                <li class="flex items-start gap-2">
                   <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
+                    class="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-success/20 text-success"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -934,16 +953,16 @@
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                   </div>
-                  <span class="text-sm text-contrast-content/80">Polygon</span>
+                  <span class="text-xs text-contrast-content/80">Polygon</span>
                 </li>
-                <li class="flex items-start gap-3">
+                <li class="flex items-start gap-2">
                   <div
-                    class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-success/20 text-success"
+                    class="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-success/20 text-success"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
+                      width="10"
+                      height="10"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -954,7 +973,7 @@
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                   </div>
-                  <span class="text-sm text-contrast-content/80"
+                  <span class="text-xs text-contrast-content/80"
                     >Multipolygon</span
                   >
                 </li>

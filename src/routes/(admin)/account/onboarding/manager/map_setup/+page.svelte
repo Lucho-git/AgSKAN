@@ -266,10 +266,6 @@
     }
   }
 
-  function handleSkip() {
-    goto("/account/onboarding/manager/team_invite")
-  }
-
   function handleContinueNow() {
     goto("/account/onboarding/manager/boundary_upload")
   }
@@ -285,91 +281,79 @@
   <meta name="description" content="Set up your farm mapping interface" />
 </svelte:head>
 
-<!-- Header -->
-<div class="mb-12 text-center">
-  <h2 class="mb-3 text-4xl font-bold text-contrast-content">
+<!-- Header - compact for single page view -->
+<div class="mb-4 px-4 text-center md:mb-6">
+  <h2 class="mb-2 text-2xl font-bold text-contrast-content md:text-3xl">
     Farm <span class="text-base-content">Map Setup</span>
   </h2>
-  <p class="mx-auto max-w-md text-contrast-content/60">
+  <p class="mx-auto max-w-md px-2 text-sm text-contrast-content/60">
     {hasConnectedMap
       ? "You're already connected to a map"
-      : "Set up your interactive farm map to visualize and manage field operations"}
+      : "Set up your interactive farm map to manage field operations"}
   </p>
-
-  <button
-    on:click={handleSkip}
-    class="group mx-auto mt-4 flex items-center gap-2 rounded-md border border-base-content/10 bg-base-200 px-4 py-2 text-sm text-contrast-content/60 shadow-sm transition-all duration-300 hover:border-base-content/50 hover:bg-base-content/5 hover:text-base-content hover:shadow"
-    disabled={isLoading || isDisconnecting}
-  >
-    <span>Skip for now</span>
-    <ArrowRight
-      size={14}
-      class="text-base-content/40 transition-all group-hover:translate-x-0.5 group-hover:text-base-content"
-    />
-  </button>
 </div>
 
 {#if !dataLoaded}
-  <div class="flex justify-center py-8">
+  <div class="flex justify-center py-6">
     <div class="flex items-center gap-3 text-contrast-content/60">
       <span class="loading loading-spinner loading-sm"></span>
-      <span>Loading your maps...</span>
+      <span class="text-sm">Loading your maps...</span>
     </div>
   </div>
 {:else if hasConnectedMap}
   <!-- Already connected - with disconnect option -->
   <div
-    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-4 mx-auto max-w-sm overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl md:max-w-lg"
   >
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
-    <div class="p-8">
-      <div class="mb-6 flex flex-col items-center text-center">
+    <div class="h-1 w-full bg-base-content"></div>
+    <div class="p-4 md:p-6">
+      <div class="mb-4 flex flex-col items-center text-center md:mb-5">
         <div
-          class="animate-setup-successPulse mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          class="animate-setup-successPulse mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10 md:h-16 md:w-16"
         >
           <div
-            class="animate-setup-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+            class="animate-setup-checkScale flex h-10 w-10 items-center justify-center rounded-full bg-green-500 md:h-14 md:w-14"
           >
             <Check
-              size={28}
-              class="animate-setup-checkDraw stroke-[3] text-white"
+              size={20}
+              class="animate-setup-checkDraw stroke-[3] text-white md:h-6 md:w-6"
             />
           </div>
         </div>
-        <h3 class="mb-2 text-xl font-bold text-contrast-content">
-          Already Connected to Map
+        <h3 class="mb-2 text-lg font-bold text-contrast-content md:text-xl">
+          Map Setup Complete
         </h3>
-        <p class="mb-4 text-sm text-contrast-content/60">
-          You're currently connected to your map
+        <p class="mb-3 text-xs text-contrast-content/60 md:text-sm">
+          You're connected to your farm map
         </p>
 
         <!-- Connected Map Info with Disconnect Button -->
-        <div class="relative mb-6 w-full rounded-xl bg-base-200 p-4">
-          <div class="mb-2 flex items-center gap-3">
-            <div class="rounded-md bg-base-content/20 p-2 text-base-content">
-              <Map size={16} />
+        <div class="relative mb-4 w-full rounded-lg bg-base-200 p-3">
+          <div class="mb-2 flex items-center gap-2">
+            <div class="rounded-md bg-base-content/20 p-1.5 text-base-content">
+              <Map size={14} />
             </div>
-            <span class="pr-8 font-semibold text-contrast-content">
+            <span class="pr-6 text-sm font-semibold text-contrast-content">
               {$connectedMapStore.map_name}
             </span>
           </div>
-          <p class="text-sm text-contrast-content/60">
-            Map ID: {$connectedMapStore.id}
+          <p class="text-xs text-contrast-content/60">
+            <span class="hidden sm:inline"
+              >Map ID:
+            </span>{$connectedMapStore.id}
           </p>
 
           <!-- Disconnect Button -->
           <button
             on:click={handleDisconnectMap}
             disabled={isDisconnecting}
-            class="absolute right-3 top-3 rounded-full bg-base-content/10 p-1.5 text-base-content/60 transition-all duration-200 hover:bg-base-content/20 hover:text-base-content disabled:opacity-50"
+            class="absolute right-2 top-2 rounded-full bg-base-content/10 p-1 text-base-content/60 transition-all duration-200 hover:bg-base-content/20 hover:text-base-content disabled:opacity-50"
             title="Disconnect from this map"
           >
             {#if isDisconnecting}
               <span class="loading loading-spinner loading-xs"></span>
             {:else}
-              <X size={14} />
+              <X size={12} />
             {/if}
           </button>
         </div>
@@ -378,38 +362,37 @@
       <button
         on:click={handleContinueNow}
         disabled={isDisconnecting}
-        class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:opacity-50 disabled:hover:translate-y-0"
+        class="flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:opacity-50 disabled:hover:translate-y-0"
       >
-        <span>Continue to Boundary Upload</span>
-        <ArrowRight size={18} />
+        <span class="hidden sm:inline">Continue to Boundary Upload</span>
+        <span class="sm:hidden">Continue</span>
+        <ArrowRight size={16} />
       </button>
     </div>
   </div>
 {:else if userMaps.length > 0}
   <!-- Existing Maps - Success animations play HERE -->
   <div
-    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-4 mx-auto max-w-sm overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl md:max-w-lg"
   >
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
-    <div class="p-8">
-      <div class="mb-6 flex flex-col items-center text-center">
-        <div class="mb-4 rounded-full bg-base-content/20 p-4 text-base-content">
-          <Map size={32} />
+    <div class="h-1 w-full bg-base-content"></div>
+    <div class="p-4 md:p-6">
+      <div class="mb-4 flex flex-col items-center text-center md:mb-5">
+        <div class="mb-3 rounded-full bg-base-content/20 p-3 text-base-content">
+          <Map size={24} class="md:h-7 md:w-7" />
         </div>
-        <h3 class="mb-2 text-xl font-bold text-contrast-content">
+        <h3 class="mb-2 text-lg font-bold text-contrast-content md:text-xl">
           Your Existing Maps
         </h3>
-        <p class="text-sm text-contrast-content/60">
+        <p class="text-xs text-contrast-content/60 md:text-sm">
           Select one of your existing maps to continue
         </p>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-2 md:space-y-3">
         {#each userMaps as map, index}
           <div
-            class="flex w-full items-center justify-between rounded-xl border-2 p-4 transition-all {connectMapStatus[
+            class="flex w-full items-center justify-between rounded-lg border-2 p-3 transition-all {connectMapStatus[
               map.id
             ] === 'success'
               ? 'border-success/30 bg-success/5 shadow-md shadow-success/10'
@@ -434,60 +417,70 @@
               <div class="animate-setup-scaleIn flex flex-col items-start">
                 <div class="flex items-center gap-2">
                   <div
-                    class="animate-setup-successPulse flex h-4 w-4 items-center justify-center rounded-full bg-green-500/20"
+                    class="animate-setup-successPulse flex h-3 w-3 items-center justify-center rounded-full bg-green-500/20 md:h-4 md:w-4"
                   >
                     <div
-                      class="animate-setup-checkScale flex h-3 w-3 items-center justify-center rounded-full bg-green-500"
+                      class="animate-setup-checkScale flex h-2 w-2 items-center justify-center rounded-full bg-green-500 md:h-3 md:w-3"
                     >
                       <Check
-                        size={10}
-                        class="animate-setup-checkDraw stroke-[3] text-white"
+                        size={8}
+                        class="animate-setup-checkDraw stroke-[3] text-white md:h-2.5 md:w-2.5"
                       />
                     </div>
                   </div>
-                  <span class="font-medium text-contrast-content"
-                    >{map.map_name}</span
-                  >
+                  <span class="text-sm font-medium text-contrast-content">
+                    {map.map_name}
+                  </span>
                 </div>
                 <span
-                  class="animate-setup-delayedFadeIn ml-6 text-xs text-green-600"
+                  class="animate-setup-delayedFadeIn ml-5 text-xs text-green-600"
                   >Connected successfully!</span
                 >
               </div>
-              <span class="text-xs text-green-600">Redirecting...</span>
+              <span class="text-xs text-green-600">
+                <span class="hidden sm:inline">Redirecting...</span>
+                <span class="sm:hidden">✓</span>
+              </span>
             {:else if connectMapStatus[map.id] === "loading"}
               <div class="animate-setup-scaleIn flex flex-col items-start">
                 <div class="flex items-center gap-2">
                   <div
-                    class="relative flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/20"
+                    class="relative flex h-3 w-3 items-center justify-center rounded-full bg-blue-500/20 md:h-4 md:w-4"
                   >
                     <div
                       class="animate-setup-spin absolute inset-0 rounded-full border border-blue-400/30 border-t-blue-400"
                     ></div>
-                    <Cloud size={8} class="animate-setup-pulse text-blue-400" />
+                    <Cloud
+                      size={6}
+                      class="animate-setup-pulse text-blue-400 md:h-2 md:w-2"
+                    />
                   </div>
-                  <span class="font-medium text-contrast-content"
-                    >{map.map_name}</span
-                  >
+                  <span class="text-sm font-medium text-contrast-content">
+                    {map.map_name}
+                  </span>
                 </div>
-                <span class="animate-setup-delayedFadeIn ml-6 text-xs text-info"
-                  >Connecting to map...</span
+                <span
+                  class="animate-setup-delayedFadeIn ml-5 text-xs text-info"
                 >
+                  Connecting...
+                </span>
               </div>
               <span class="loading loading-spinner loading-sm"></span>
             {:else}
               <div class="flex flex-col items-start">
                 <div class="flex items-center gap-2">
-                  <Map size={16} class="text-base-content" />
-                  <span class="font-medium text-contrast-content"
-                    >{map.map_name}</span
-                  >
+                  <Map size={14} class="text-base-content" />
+                  <span class="text-sm font-medium text-contrast-content">
+                    {map.map_name}
+                  </span>
                 </div>
                 <span class="text-xs text-contrast-content/60">
-                  Created {new Date(map.created_at).toLocaleDateString()}
+                  <span class="hidden sm:inline">Created </span>{new Date(
+                    map.created_at,
+                  ).toLocaleDateString()}
                 </span>
               </div>
-              <Link2 size={18} class="text-base-content" />
+              <Link2 size={16} class="text-base-content" />
             {/if}
           </div>
         {/each}
@@ -497,88 +490,96 @@
 {:else}
   <!-- Create Map - Success animations play HERE -->
   <div
-    class="animate-setup-fadeIn relative mx-auto max-w-md overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+    class="animate-setup-fadeIn relative mx-4 mx-auto max-w-sm overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl md:max-w-lg"
   >
-    <div
-      class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-    ></div>
-    <div class="p-8 transition-all duration-500 ease-in-out">
+    <div class="h-1 w-full bg-base-content"></div>
+    <div class="p-4 transition-all duration-500 ease-in-out md:p-6">
       {#if createMapStatus === "success"}
         <!-- SUCCESS IN THIS COMPONENT -->
-        <div class="animate-setup-scaleIn flex flex-col items-center gap-4">
+        <div
+          class="animate-setup-scaleIn flex flex-col items-center gap-3 md:gap-4"
+        >
           <div
-            class="animate-setup-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+            class="animate-setup-successPulse flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10 md:h-16 md:w-16"
           >
             <div
-              class="animate-setup-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+              class="animate-setup-checkScale flex h-10 w-10 items-center justify-center rounded-full bg-green-500 md:h-14 md:w-14"
             >
               <Check
-                size={28}
-                class="animate-setup-checkDraw stroke-[3] text-white"
+                size={20}
+                class="animate-setup-checkDraw stroke-[3] text-white md:h-6 md:w-6"
               />
             </div>
           </div>
-          <h3 class="text-xl font-bold text-contrast-content">
+          <h3 class="text-lg font-bold text-contrast-content md:text-xl">
             Map Created Successfully!
           </h3>
           <p
-            class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-400"
+            class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400 md:text-sm"
           >
             {mapName}
           </p>
           <p
-            class="animate-setup-delayedFadeIn text-sm text-contrast-content/60"
+            class="animate-setup-delayedFadeIn text-xs text-contrast-content/60 md:text-sm"
           >
-            Redirecting to boundary upload...
+            <span class="hidden sm:inline"
+              >Redirecting to boundary upload...</span
+            >
+            <span class="sm:hidden">Redirecting...</span>
           </p>
         </div>
       {:else if createMapStatus === "loading"}
         <!-- LOADING IN THIS COMPONENT -->
-        <div class="animate-setup-scaleIn flex flex-col items-center gap-4">
+        <div
+          class="animate-setup-scaleIn flex flex-col items-center gap-3 md:gap-4"
+        >
           <div
-            class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+            class="relative mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 md:h-16 md:w-16"
           >
             <div
               class="animate-setup-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
             ></div>
-            <Cloud size={28} class="animate-setup-pulse text-blue-400" />
+            <Cloud
+              size={20}
+              class="animate-setup-pulse text-blue-400 md:h-6 md:w-6"
+            />
           </div>
-          <p class="text-lg font-medium text-contrast-content">
+          <p class="text-base font-medium text-contrast-content md:text-lg">
             Creating map...
           </p>
           <p
-            class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
+            class="rounded-full bg-base-200 px-3 py-1 text-xs text-contrast-content/60 md:text-sm"
           >
             Setting up {mapName}
           </p>
         </div>
       {:else if isCreatingMap}
         <!-- FORM STATE -->
-        <div class="animate-setup-expandUp space-y-6">
+        <div class="animate-setup-expandUp space-y-4 md:space-y-5">
           <div class="flex flex-col items-center">
-            <div class="mb-4 flex items-center gap-3">
-              <div class="rounded-md bg-base-200 p-2 text-base-content">
-                <Map size={20} />
+            <div class="mb-3 flex items-center gap-2">
+              <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+                <Map size={16} />
               </div>
-              <h3 class="text-xl font-bold text-contrast-content">
+              <h3 class="text-lg font-bold text-contrast-content md:text-xl">
                 Create New Map
               </h3>
             </div>
-            <div class="mx-auto mb-4 w-full max-w-xs">
+            <div class="mx-auto mb-3 w-full max-w-xs">
               <div
-                class="animate-setup-slideIn rounded-full bg-info/20 px-4 py-2 text-center font-mono text-sm text-info"
+                class="animate-setup-slideIn rounded-full bg-info/20 px-3 py-1.5 text-center font-mono text-xs text-info"
               >
                 {mapCode}
               </div>
             </div>
           </div>
 
-          <form on:submit={handleSubmitMap} class="space-y-6">
+          <form on:submit={handleSubmitMap} class="space-y-4">
             <div class="space-y-2">
               <label
-                class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+                class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
               >
-                <div class="rounded-md bg-base-200 p-1.5 text-base-content">
+                <div class="rounded-md bg-base-200 p-1 text-base-content">
                   <Layers size={14} />
                 </div>
                 Map Name
@@ -596,12 +597,12 @@
                   disabled={isLoading}
                   class="w-full border bg-base-200 {error
                     ? 'border-error'
-                    : 'border-base-300 focus:border-base-content'} rounded-xl p-4 text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content disabled:opacity-50"
+                    : 'border-base-300 focus:border-base-content'} rounded-lg p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:outline-none focus:ring-1 focus:ring-base-content disabled:opacity-50"
                   autofocus
                 />
                 {#if error}
                   <p
-                    class="ml-1 mt-1.5 flex items-center gap-1.5 text-xs text-error"
+                    class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-error"
                   >
                     <span class="inline-block h-1 w-1 rounded-full bg-error"
                     ></span>
@@ -614,42 +615,45 @@
             <button
               type="submit"
               disabled={isLoading}
-              class="flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              class="flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
             >
               <span>Create Map</span>
-              <ArrowRight size={16} />
+              <ArrowRight size={14} />
             </button>
           </form>
 
           <div
-            class="flex items-center justify-center gap-2 border-t border-base-300 pt-4 text-xs text-contrast-content/60"
+            class="flex items-center justify-center gap-2 border-t border-base-300 pt-3 text-xs text-contrast-content/60"
           >
-            <Settings size={12} />
-            <span>Advanced settings available after creation</span>
+            <Settings size={10} />
+            <span class="hidden sm:inline"
+              >Advanced settings available after creation</span
+            >
+            <span class="sm:hidden">Advanced settings available later</span>
           </div>
         </div>
       {:else}
         <!-- INITIAL BUTTON STATE -->
         <div class="flex flex-col items-center text-center">
           <div
-            class="mb-4 rounded-full bg-base-content/20 p-4 text-base-content transition-all duration-300 hover:scale-110"
+            class="mb-3 rounded-full bg-base-content/20 p-3 text-base-content transition-all duration-300 hover:scale-110"
           >
-            <Map size={32} />
+            <Map size={24} class="md:h-7 md:w-7" />
           </div>
-          <h3 class="mb-2 text-xl font-bold text-contrast-content">
+          <h3 class="mb-2 text-lg font-bold text-contrast-content md:text-xl">
             Create Your First Map
           </h3>
-          <p class="mb-6 text-sm text-contrast-content/60">
+          <p class="mb-4 px-2 text-xs text-contrast-content/60 md:text-sm">
             Start by creating a map for your farm operations
           </p>
           <button
             on:click={handleCreateMap}
-            class="group flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content py-3 font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
+            class="group flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90"
           >
-            <Map size={18} class="transition-transform group-hover:scale-110" />
+            <Map size={16} class="transition-transform group-hover:scale-110" />
             <span>Create New Map</span>
             <ArrowRight
-              size={16}
+              size={14}
               class="transition-transform group-hover:translate-x-1"
             />
           </button>

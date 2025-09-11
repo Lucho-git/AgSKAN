@@ -94,107 +94,114 @@
   <meta name="description" content="Invite team members to your farm map" />
 </svelte:head>
 
-<!-- Header -->
-<div class="mb-12 text-center">
-  <h2 class="mb-3 text-4xl font-bold text-contrast-content">
+<!-- Header - compact for single page view -->
+<div class="mb-4 px-4 text-center md:mb-6">
+  <h2 class="mb-2 text-2xl font-bold text-contrast-content md:text-3xl">
     Invite Your <span class="text-base-content">Team</span>
   </h2>
-  <p class="mx-auto max-w-md text-contrast-content/60">
+  <p class="mx-auto max-w-md text-sm text-contrast-content/60 md:text-base">
     Share your farm map with operators and team members
   </p>
 </div>
 
-<!-- Team Invite Card -->
+<!-- Team Invite Card - compact sizing -->
 <div
-  class="animate-team-invite-fadeIn relative mx-auto max-w-xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+  class="animate-team-invite-fadeIn relative mx-auto max-w-sm overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl md:max-w-lg"
 >
   <!-- Card header decoration -->
-  <div
-    class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-  ></div>
+  <div class="h-1 w-full bg-base-content"></div>
 
-  <div class="p-8 transition-all duration-500 ease-in-out">
+  <div class="p-4 transition-all duration-500 ease-in-out md:p-6">
     {#if completionStatus === "success"}
-      <!-- SUCCESS STATE -->
+      <!-- SUCCESS STATE - compact -->
       <div
-        class="animate-team-invite-scaleIn flex flex-col items-center gap-6 py-8"
+        class="animate-team-invite-scaleIn flex flex-col items-center gap-3 py-4 md:gap-4 md:py-6"
       >
         <div
-          class="animate-team-invite-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+          class="animate-team-invite-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10 md:h-20 md:w-20"
         >
           <div
-            class="animate-team-invite-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
+            class="animate-team-invite-checkScale md:h-18 md:w-18 flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
           >
             <Check
-              size={40}
-              class="animate-team-invite-checkDraw stroke-[3] text-white"
+              size={28}
+              class="animate-team-invite-checkDraw stroke-[3] text-white md:h-9 md:w-9"
             />
           </div>
         </div>
         <div class="text-center">
-          <h3 class="mb-2 text-2xl font-bold text-contrast-content">
+          <h3 class="mb-2 text-xl font-bold text-contrast-content md:text-2xl">
             Setup Complete! 🎉
           </h3>
-          <p class="mb-4 text-contrast-content/60">
+          <p class="mb-3 px-2 text-sm text-contrast-content/60 md:text-base">
             Your AgSKAN farm management system is ready
           </p>
           <div class="space-y-2">
             <p
-              class="inline-block rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400"
+              class="inline-block rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs text-green-400 md:text-sm"
             >
               Welcome to your dashboard
             </p>
           </div>
         </div>
         <p
-          class="animate-team-invite-delayedFadeIn text-sm text-contrast-content/60"
+          class="animate-team-invite-delayedFadeIn text-xs text-contrast-content/60 md:text-sm"
         >
           Redirecting to dashboard...
         </p>
       </div>
     {:else if completionStatus === "loading"}
-      <!-- LOADING STATE -->
+      <!-- LOADING STATE - compact -->
       <div
-        class="animate-team-invite-scaleIn flex flex-col items-center gap-6 py-8"
+        class="animate-team-invite-scaleIn flex flex-col items-center gap-3 py-4 md:gap-4 md:py-6"
       >
         <div
-          class="relative flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20"
+          class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20 md:h-20 md:w-20"
         >
           <div
             class="animate-team-invite-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={40} class="animate-team-invite-pulse text-blue-400" />
+          <Cloud
+            size={28}
+            class="animate-team-invite-pulse text-blue-400 md:h-9 md:w-9"
+          />
         </div>
         <div class="text-center">
-          <p class="mb-2 text-xl font-medium text-contrast-content">
+          <p class="mb-2 text-lg font-medium text-contrast-content md:text-xl">
             Completing setup...
           </p>
           <p
-            class="rounded-full bg-base-200 px-4 py-2 text-sm text-contrast-content/60"
+            class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60 md:text-sm"
           >
-            Finalizing your farm management system
+            <span class="hidden sm:inline"
+              >Finalizing your farm management system</span
+            >
+            <span class="sm:hidden">Finalizing setup</span>
           </p>
         </div>
       </div>
     {:else}
-      <!-- FORM STATE -->
+      <!-- FORM STATE - compact -->
       <div class="animate-team-invite-formEntry">
         <!-- Icon -->
-        <div class="mb-8 flex justify-center">
+        <div class="mb-4 flex justify-center md:mb-5">
           <div
-            class="flex h-24 w-24 items-center justify-center rounded-full bg-base-content/10 transition-all duration-300 hover:scale-110"
+            class="flex h-16 w-16 items-center justify-center rounded-full bg-base-content/10 transition-all duration-300 hover:scale-110 md:h-20 md:w-20"
           >
-            <Users size={48} class="text-base-content" />
+            <Users size={32} class="text-base-content md:h-10 md:w-10" />
           </div>
         </div>
 
-        <h3 class="mb-8 text-center text-2xl font-bold text-base-content">
+        <h3
+          class="mb-4 text-center text-xl font-bold text-base-content md:mb-5 md:text-2xl"
+        >
           Join AgSKAN Map
         </h3>
 
-        <!-- Map ID Section -->
-        <div class="mb-6">
-          <label class="mb-2 block font-medium text-contrast-content"
+        <!-- Map ID Section - compact -->
+        <div class="mb-3 md:mb-4">
+          <label
+            class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
             >Map ID</label
           >
           <div class="flex">
@@ -202,24 +209,28 @@
               type="text"
               value={mapId}
               readonly
-              class="flex-1 rounded-l-xl border border-base-300 bg-base-200 px-4 py-3 text-contrast-content focus:border-base-content/40 focus:outline-none"
+              class="flex-1 rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
             />
             <button
               on:click={handleCopyMapId}
-              class="rounded-r-xl bg-base-content px-4 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+              class="rounded-r-lg bg-base-content px-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
               disabled={completionStatus}
             >
-              <ClipboardCopy size={20} />
+              <ClipboardCopy size={16} />
             </button>
           </div>
-          <p class="mt-2 text-sm text-contrast-content/60">
-            Share this ID with other users to join your map
+          <p class="mt-1.5 text-xs text-contrast-content/60">
+            <span class="hidden sm:inline"
+              >Share this ID with other users to join your map</span
+            >
+            <span class="sm:hidden">Share this ID with team members</span>
           </p>
         </div>
 
-        <!-- Share Link Section -->
-        <div class="mb-10">
-          <label class="mb-2 block font-medium text-contrast-content"
+        <!-- Share Link Section - compact -->
+        <div class="mb-5 md:mb-6">
+          <label
+            class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
             >Share Link</label
           >
           <div class="flex">
@@ -227,39 +238,43 @@
               type="text"
               value={shareLink}
               readonly
-              class="flex-1 truncate rounded-l-xl border border-base-300 bg-base-200 px-4 py-3 text-contrast-content focus:border-base-content/40 focus:outline-none"
+              class="flex-1 truncate rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
             />
             <button
               on:click={handleCopyLink}
-              class="rounded-r-xl bg-base-content px-4 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+              class="rounded-r-lg bg-base-content px-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
               disabled={completionStatus}
             >
-              <Link2 size={20} />
+              <Link2 size={16} />
             </button>
           </div>
-          <p class="mt-2 text-sm text-contrast-content/60">
-            Share this link for direct access to your map
+          <p class="mt-1.5 text-xs text-contrast-content/60">
+            <span class="hidden sm:inline"
+              >Share this link for direct access to your map</span
+            >
+            <span class="sm:hidden">Share this link for direct access</span>
           </p>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="flex gap-4">
+        <!-- Action Buttons - compact horizontal layout for all screens -->
+        <div class="flex gap-3">
           <button
             on:click={handleShare}
             disabled={completionStatus}
-            class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-base-300 bg-base-200 px-4 py-3 font-medium text-contrast-content transition-all hover:border-base-content/40 hover:bg-base-content/5 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex flex-1 items-center justify-center gap-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2.5 text-sm font-medium text-contrast-content transition-all hover:border-base-content/40 hover:bg-base-content/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Share2 size={18} />
+            <Share2 size={16} />
             <span>Share</span>
           </button>
 
           <button
             on:click={handleComplete}
             disabled={completionStatus}
-            class="flex flex-1 transform items-center justify-center gap-2 rounded-xl bg-base-content px-4 py-3 font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:scale-105 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            class="flex flex-1 transform items-center justify-center gap-2 rounded-lg bg-base-content px-3 py-2.5 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:scale-105 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
-            <span>Complete Setup</span>
-            <ArrowRight size={18} />
+            <span class="hidden sm:inline">Complete Setup</span>
+            <span class="sm:hidden">Complete</span>
+            <ArrowRight size={16} />
           </button>
         </div>
       </div>

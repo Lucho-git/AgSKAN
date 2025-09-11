@@ -32,7 +32,7 @@
   // Default vehicle configuration
   const defaultVehicle = {
     type: "Tractor",
-    bodyColor: "Green",
+    bodyColor: "Yellow",
     swath: 4,
     size: 45,
   }
@@ -312,7 +312,7 @@
           ? "Finalizing your setup..."
           : setupMode === "completion"
             ? "Complete your operator setup"
-            : "Configure your primary vehicle (optional)"}
+            : "Configure your primary vehicle"}
     </p>
   </div>
 
