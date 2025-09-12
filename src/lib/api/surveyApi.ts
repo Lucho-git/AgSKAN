@@ -10,9 +10,10 @@ interface SurveyAnswers {
     devicePreference: string
     featureInterests: string[]
     pathRecreateInterest: string
-    pathOptimizationInterest: string
+    sprayRecordsInterest: string  // Updated from pathOptimizationInterest
     enterpriseGoals: string[]
     technologyInterest: number
+    platformSuggestions?: string  // New optional field
 }
 
 export const surveyApi = {
@@ -78,13 +79,21 @@ export const surveyApi = {
                         answers.pathRecreateInterest = value.answer
                         break
                     case 'path_optimization_interest':
-                        answers.pathOptimizationInterest = value.answer
+                        // Handle legacy field name for backward compatibility
+                        answers.sprayRecordsInterest = value.answer
+                        break
+                    case 'spray_records_interest':
+                        // Handle new field name
+                        answers.sprayRecordsInterest = value.answer
                         break
                     case 'enterprise_goals':
                         answers.enterpriseGoals = value.answer || []
                         break
                     case 'technology_interest':
                         answers.technologyInterest = value.answer
+                        break
+                    case 'platform_suggestions':
+                        answers.platformSuggestions = value.answer
                         break
                 }
             })
@@ -121,7 +130,7 @@ export const surveyApi = {
                         }
                     }),
                     role: {
-                        question: "What is your role in the operation?",
+                        question: "How would you best describe yourself?", // Updated question text
                         answer: surveyAnswers.role
                     },
                     ...(surveyAnswers.otherRole && {
@@ -131,7 +140,7 @@ export const surveyApi = {
                         }
                     }),
                     hectares: {
-                        question: "How many hectares do you work over?",
+                        question: "What is the size of your farm?", // Updated question text
                         answer: surveyAnswers.hectares
                     },
                     device_preference: {
@@ -146,9 +155,9 @@ export const surveyApi = {
                         question: "Rate your interest in Path Recreate feature",
                         answer: surveyAnswers.pathRecreateInterest
                     },
-                    path_optimization_interest: {
-                        question: "Rate your interest in Path Optimization feature",
-                        answer: surveyAnswers.pathOptimizationInterest
+                    spray_records_interest: { // Updated field name and question
+                        question: "Rate your interest in Spray Records feature",
+                        answer: surveyAnswers.sprayRecordsInterest
                     },
                     enterprise_goals: {
                         question: "What are the primary goals of your enterprise in the next 5 years?",
@@ -157,7 +166,13 @@ export const surveyApi = {
                     technology_interest: {
                         question: "How interested are you in adopting new technologies to increase productivity?",
                         answer: surveyAnswers.technologyInterest
-                    }
+                    },
+                    ...(surveyAnswers.platformSuggestions && { // Only include if provided
+                        platform_suggestions: {
+                            question: "What features would you like to see in our platform?",
+                            answer: surveyAnswers.platformSuggestions
+                        }
+                    })
                 }
             }
 
