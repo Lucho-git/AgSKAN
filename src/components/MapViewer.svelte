@@ -608,7 +608,7 @@
   }
 
   .toolbox-trigger-button:hover {
-    background-color: rgba(255, 255, 255, 1);
+    background-color: #f7db5c;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
     transform: translateY(-1px);
   }
