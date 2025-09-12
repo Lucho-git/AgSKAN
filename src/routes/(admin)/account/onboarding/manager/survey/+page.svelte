@@ -42,9 +42,10 @@
     devicePreference: "",
     featureInterests: [] as string[],
     pathRecreateInterest: "",
-    pathOptimizationInterest: "",
+    sprayRecordsInterest: "",
     enterpriseGoals: [] as string[],
     technologyInterest: 50,
+    platformSuggestions: "",
   }
 
   let errors = {
@@ -99,17 +100,17 @@
     { id: "owner", label: "Owner" },
     { id: "manager", label: "Manager" },
     { id: "operator", label: "Operator" },
-    { id: "shareholder", label: "Shareholder" },
+    { id: "contractor", label: "Contractor" },
     { id: "agronomist", label: "Agronomist" },
     { id: "other", label: "Other" },
   ]
 
   const HECTARES_OPTIONS = [
-    { id: "0-500", label: "0-500" },
-    { id: "500-1000", label: "500-1000" },
-    { id: "1000-3000", label: "1000-3000" },
-    { id: "3000-5000", label: "3000-5000" },
-    { id: "5000+", label: "5000+" },
+    { id: "0-500", label: "0-500 hectares" },
+    { id: "500-1000", label: "500-1000 hectares" },
+    { id: "1000-3000", label: "1000-3000 hectares" },
+    { id: "3000-5000", label: "3000-5000 hectares" },
+    { id: "5000+", label: "5000+ hectares" },
     { id: "na", label: "N/A" },
   ]
 
@@ -128,6 +129,7 @@
     },
     { id: "navigation", label: "Assisted Navigation", icon: Navigation },
     { id: "data-storage", label: "Data storage platform", icon: Database },
+    { id: "agronomic-data", label: "View agronomic data", icon: Globe },
   ]
 
   const INTEREST_LEVELS = [
@@ -144,10 +146,10 @@
         "Recreate historical paths so new operators can travel the exact same route an experienced operator has taken.",
     },
     {
-      id: "path-optimization",
-      title: "Path Optimization",
+      id: "spray-records",
+      title: "Spray Records",
       description:
-        "Live turning instructions and visual overlay for operators to always be following the most efficient path.",
+        "Easy automated recording of spray records for compliance based on your location (which paddocks you're spraying) and timing/weather according to your farm plan.",
     },
   ]
 
@@ -236,7 +238,7 @@
           ? "Please specify your role"
           : "",
       hectares: !surveyData.hectares
-        ? "Please select the hectares you work over"
+        ? "Please select the size of your farm"
         : "",
       devicePreference: "",
       featureInterests: "",
@@ -295,7 +297,7 @@
 
   function validateStep4() {
     const bothFeaturesRated =
-      surveyData.pathRecreateInterest && surveyData.pathOptimizationInterest
+      surveyData.pathRecreateInterest && surveyData.sprayRecordsInterest
 
     const newErrors = {
       referralSource: "",
@@ -612,7 +614,7 @@
               <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <Users size={14} />
               </div>
-              What is your role in the operation?
+              How would you best describe yourself?
               {#if surveyData.role && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -684,7 +686,7 @@
             </div>
           </div>
 
-          <!-- Hectares -->
+          <!-- Farm Size -->
           <div class="space-y-2">
             <label
               class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
@@ -692,7 +694,7 @@
               <div class="rounded-md bg-base-200 p-1 text-base-content">
                 <Grid3x3 size={14} />
               </div>
-              How many hectares do you work over?
+              What is the size of your farm?
               {#if surveyData.hectares && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
@@ -795,14 +797,11 @@
                 : ''}"
             >
               <div class="grid grid-cols-1 gap-2">
-                {#each ["ios-phone", "ios-tablet", "android-phone", "android-tablet", "desktop", "any"] as device}
+                {#each ["ios", "android", "open-to-suggestions"] as device}
                   {@const labels = {
-                    "ios-phone": "iOS Phone",
-                    "ios-tablet": "iOS Tablet",
-                    "android-phone": "Android Phone",
-                    "android-tablet": "Android Tablet",
-                    desktop: "Desktop (Stationary)",
-                    any: "Open to whatever works best",
+                    ios: "iOS",
+                    android: "Android",
+                    "open-to-suggestions": "Open to suggestions",
                   }}
                   <label class="cursor-pointer">
                     <input
@@ -925,7 +924,7 @@
         </div>
       {/if}
 
-      <!-- Step 4: Future Features -->
+      <!-- Step 4: Future Features and Platform Suggestions -->
       {#if currentStep === 4}
         <div class="grid gap-4 md:gap-5">
           <div class="space-y-2">
@@ -952,7 +951,7 @@
                 >Rate your interest in future features.</span
               >
               <span class="sm:hidden">Rate future features</span>
-              {#if surveyData.pathRecreateInterest && surveyData.pathOptimizationInterest && hasExistingData}
+              {#if surveyData.pathRecreateInterest && surveyData.sprayRecordsInterest && hasExistingData}
                 <span
                   class="rounded-full bg-success/20 px-2 py-0.5 text-xs text-success"
                 >
@@ -1028,18 +1027,18 @@
                         <label class="cursor-pointer">
                           <input
                             type="radio"
-                            bind:group={surveyData.pathOptimizationInterest}
+                            bind:group={surveyData.sprayRecordsInterest}
                             value={level.id}
                             on:change={() =>
                               handleInterestLevelChange(
-                                "pathOptimization",
+                                "sprayRecords",
                                 level.id,
                               )}
                             class="sr-only"
                           />
                           <div
                             class="block w-full rounded-lg border p-2 text-center text-xs transition-all
-                            {surveyData.pathOptimizationInterest === level.id
+                            {surveyData.sprayRecordsInterest === level.id
                               ? 'border-base-content bg-base-content/20 text-base-content'
                               : 'border-base-300 bg-base-100 text-contrast-content/80 hover:border-base-content/40'}"
                           >
@@ -1062,6 +1061,51 @@
                 </p>
               {/if}
             </div>
+          </div>
+
+          <!-- Platform Suggestions Field -->
+          <div class="mt-4 space-y-2">
+            <label
+              class="flex items-center gap-2 text-sm font-medium text-contrast-content/80"
+            >
+              <div class="rounded-md bg-base-200 p-1 text-base-content">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 20h9" />
+                  <path
+                    d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+                  />
+                </svg>
+              </div>
+              <span class="hidden sm:inline"
+                >What features would you like to see in our platform? (Optional)</span
+              >
+              <span class="sm:hidden">Feature suggestions? (Optional)</span>
+            </label>
+
+            <div class="mb-2 text-xs text-contrast-content/60">
+              Help us build the perfect farming platform. Share ideas for
+              mapping tools, record-keeping features, or data visualizations
+              that would benefit your operation.
+            </div>
+
+            <textarea
+              bind:value={surveyData.platformSuggestions}
+              on:input={(e) =>
+                handleInputChange("platformSuggestions", e.target.value)}
+              placeholder="Example: Agronomic visualisations, weather viewing, generating data reports, enriched operator tracking..."
+              rows="3"
+              class="w-full resize-none rounded-lg border border-base-300 bg-base-200 p-2.5 text-sm text-contrast-content transition-colors placeholder:text-contrast-content/50 focus:border-base-content focus:outline-none focus:ring-1 focus:ring-base-content"
+            ></textarea>
           </div>
         </div>
       {/if}
@@ -1207,7 +1251,7 @@
   </div>
 {/if}
 
-<!-- Thank You Modal - compact -->
+<!-- Thank You Modal - updated without X button -->
 {#if showThankYou}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -1219,14 +1263,6 @@
       <div class="h-1 w-full bg-base-content"></div>
 
       <div class="relative p-4">
-        <button
-          on:click={handleThankYouClose}
-          class="absolute right-2 top-2 rounded-full p-1.5 text-base-content/40 transition-colors hover:bg-base-200 hover:text-base-content"
-          aria-label="Close"
-        >
-          <X size={16} />
-        </button>
-
         <div class="flex flex-col items-center py-3 text-center">
           <div
             class="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-content/20"
