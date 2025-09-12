@@ -131,7 +131,7 @@
         </div>
         <div class="text-center">
           <h3 class="mb-2 text-xl font-bold text-contrast-content md:text-2xl">
-            Setup Complete! 🎉
+            Setup Complete!
           </h3>
           <p class="mb-3 px-2 text-sm text-contrast-content/60 md:text-base">
             Your AgSKAN farm management system is ready

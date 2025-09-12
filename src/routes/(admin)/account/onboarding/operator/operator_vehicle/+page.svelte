@@ -682,7 +682,7 @@
             </div>
             <div class="text-center">
               <h3 class="mb-2 text-2xl font-bold text-contrast-content">
-                Setup Complete! 🚜
+                Setup Complete!
               </h3>
               <p class="mb-4 text-contrast-content/60">
                 Your operator account is ready for field operations

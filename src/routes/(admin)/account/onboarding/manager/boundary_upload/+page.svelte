@@ -508,14 +508,6 @@
 </svelte:head>
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
-  <!-- Decorative Background Elements - hidden on mobile -->
-  <div
-    class="pointer-events-none absolute -right-20 top-20 hidden h-64 w-64 rounded-full bg-base-content/5 blur-3xl md:block"
-  ></div>
-  <div
-    class="pointer-events-none absolute -left-20 bottom-20 hidden h-80 w-80 rounded-full bg-base-content/5 blur-3xl md:block"
-  ></div>
-
   <div class="relative z-10">
     {#if showWizard}
       <!-- Embedded Boundary Wizard with slide transition -->

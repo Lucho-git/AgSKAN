@@ -426,7 +426,7 @@
 
     <!-- Enhanced Field Card - compact -->
     <div
-      class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
+      class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-md"
     >
       <!-- Top accent line -->
       <div class="h-1 w-full bg-base-content"></div>
@@ -591,14 +591,14 @@
 
             <!-- Field Name Display - Top Center -->
             <div
-              class="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm"
+              class="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg"
             >
               <span class="font-medium">{currentPaddockName}</span>
             </div>
 
             <!-- Hectares Display - Bottom Center -->
             <div
-              class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm"
+              class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white shadow-lg"
             >
               <span class="font-medium">
                 {paddocks[currentIndex]?.area?.toFixed(2) ?? "Calculating..."} hectares
@@ -708,8 +708,8 @@
               disabled={processingAction !== null}
               class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:w-auto {processingAction ===
               'acceptAll'
-                ? 'bg-base-content/80 text-base-100 shadow-lg'
-                : 'bg-base-content text-base-100 shadow-lg hover:bg-base-content/80'}"
+                ? 'bg-base-content/80 text-base-100'
+                : 'bg-base-content text-base-100 hover:bg-base-content/80'}"
             >
               {#if processingAction === "acceptAll"}
                 <span class="loading loading-spinner loading-sm"></span>
@@ -724,7 +724,7 @@
               disabled={!allPaddocksReviewed || processingAction !== null}
               class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:w-auto {allPaddocksReviewed &&
               processingAction === null
-                ? 'bg-green-500 text-white shadow-lg hover:bg-green-600'
+                ? 'bg-green-500 text-white hover:bg-green-600'
                 : 'cursor-not-allowed bg-base-200 text-contrast-content/40'}"
             >
               {#if processingAction === "load"}
