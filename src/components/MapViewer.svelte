@@ -16,8 +16,8 @@
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
-  // Import lucide icons for the toolbox
-  import { Wrench } from "lucide-svelte"
+  // Import lucide icons for the toolbox - changed from Wrench to Menu
+  import { Menu } from "lucide-svelte"
 
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"
@@ -492,7 +492,7 @@
         class:active={toolboxOpen}
         on:click={toggleToolbox}
       >
-        <Wrench size={20} />
+        <Menu size={28} />
       </button>
     </div>
 
