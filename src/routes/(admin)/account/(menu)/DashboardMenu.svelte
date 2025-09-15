@@ -193,7 +193,8 @@
     }
   }
 
-  function handleMapOptionsClick() {
+  function handleMapOptionsClick(event) {
+    event.stopPropagation()
     if (isMapMenuOpen) {
       closeAllDashboardMenus()
     } else {
@@ -355,7 +356,8 @@
     }
   }
 
-  function handleOperationOptionsClick() {
+  function handleOperationOptionsClick(event) {
+    event.stopPropagation()
     if (isOperationMenuOpen) {
       closeAllDashboardMenus()
     } else {
@@ -704,44 +706,49 @@
 
   <!-- Tab Content -->
   <div
-    class="mb-6 min-h-[32rem] rounded-xl border border-base-300 bg-base-100 p-6 shadow-lg"
+    class="mb-6 min-h-[32rem] rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg sm:p-6"
   >
     {#if activeTab === "dashboard" && isConnected}
       <!-- Dashboard Tab Content -->
-      <div class="space-y-6">
-        <!-- Map Info Header - Full Width -->
-        <div class="relative rounded-lg bg-base-200 p-4 transition-colors">
+      <div class="space-y-4 sm:space-y-6">
+        <!-- Map Info Header - Fixed Width for Settings Button -->
+        <div
+          class="relative rounded-lg bg-base-200 p-3 transition-colors sm:p-4"
+        >
           <button
-            class="flex w-full items-center justify-between text-left"
+            class="flex w-full items-center gap-3 text-left"
             on:click={handleMapPanelClick}
           >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-600/20"
-              >
-                <Map class="h-5 w-5 text-green-600" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <h2 class="truncate font-semibold text-contrast-content">
-                  {$connectedMapStore.map_name}
-                </h2>
-                <p class="truncate text-sm text-contrast-content/60">
-                  Owned by {$connectedMapStore.owner}
-                </p>
-              </div>
+            <div
+              class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-600/20 sm:h-10 sm:w-10"
+            >
+              <Map class="h-4 w-4 text-green-600 sm:h-5 sm:w-5" />
             </div>
-
-            <!-- Options Button -->
-            <div class="flex gap-2">
+            <div class="min-w-0 flex-1">
+              <h2
+                class="truncate text-sm font-semibold text-contrast-content sm:text-base"
+              >
+                {$connectedMapStore.map_name}
+              </h2>
+              <p class="truncate text-xs text-contrast-content/60 sm:text-sm">
+                Owned by {$connectedMapStore.owner}
+              </p>
+            </div>
+            <!-- Fixed width container for settings button -->
+            <div class="flex w-8 justify-end sm:w-10">
               <button
-                class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                on:click|stopPropagation={handleMapOptionsClick}
+                class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100 sm:h-8 sm:w-8"
+                on:click={handleMapOptionsClick}
                 title="Map options"
               >
                 {#if isMapMenuOpen}
-                  <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                  <ChevronUp
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
                 {:else}
-                  <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                  <MoreVertical
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
                 {/if}
               </button>
             </div>
@@ -750,60 +757,60 @@
           <!-- Options Menu Dropdown -->
           {#if showMapOptions}
             <div
-              class="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+              class="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg sm:w-48"
             >
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={openLaunchMapConfirm}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
                 >
-                  <Globe class="h-3 w-3 text-green-600" />
+                  <Globe class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3" />
                 </div>
                 Launch Map
               </button>
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={copyMapId}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
                 >
-                  <Copy class="h-3 w-3 text-blue-600" />
+                  <Copy class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
                 </div>
                 Copy Map ID
               </button>
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={copyMapLink}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
                 >
-                  <Link class="h-3 w-3 text-green-600" />
+                  <Link class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3" />
                 </div>
                 Copy Map Link
               </button>
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={openSwitchMapConfirm}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600/20 sm:h-6 sm:w-6"
                 >
-                  <Link2 class="h-3 w-3 text-purple-600" />
+                  <Link2 class="h-2.5 w-2.5 text-purple-600 sm:h-3 sm:w-3" />
                 </div>
                 Switch Map
               </button>
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={openLeaveMapConfirm}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-orange-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-orange-600/20 sm:h-6 sm:w-6"
                 >
-                  <LogOut class="h-3 w-3 text-orange-600" />
+                  <LogOut class="h-2.5 w-2.5 text-orange-600 sm:h-3 sm:w-3" />
                 </div>
                 Leave Map
               </button>
@@ -812,26 +819,30 @@
 
           <!-- Expandable Launch Map Confirmation -->
           {#if showLaunchMapConfirm}
-            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
-              <div class="space-y-4" on:click|stopPropagation>
+            <div
+              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
-                  <h4 class="mb-2 font-semibold text-contrast-content">
+                  <h4
+                    class="mb-2 text-sm font-semibold text-contrast-content sm:text-base"
+                  >
                     Launch Interactive Map
                   </h4>
-                  <p class="text-sm text-contrast-content/60">
+                  <p class="text-xs text-contrast-content/60 sm:text-sm">
                     This will open the interactive map viewer in a new window
                     where you can view and edit map data.
                   </p>
                 </div>
                 <div class="flex gap-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => closeAllDashboardMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
                     on:click={handleLaunchMap}
                   >
                     Launch Map
@@ -841,27 +852,32 @@
             </div>
           {/if}
 
-          <!-- 🆕 UPDATED: Expandable Switch Map with Inline Join Button -->
+          <!-- Expandable Switch Map with Inline Join Button -->
           {#if showSwitchMapConfirm}
-            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
-              <div class="space-y-4" on:click|stopPropagation>
+            <div
+              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
-                  <h4 class="mb-2 font-semibold text-contrast-content">
+                  <h4
+                    class="mb-2 text-sm font-semibold text-contrast-content sm:text-base"
+                  >
                     Switch to Another Map
                   </h4>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Map ID</label
                   >
-                  <!-- Inline input and button -->
-                  <div class="flex gap-2">
+                  <!-- Inline input and button - Stack on mobile -->
+                  <div class="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
                       bind:value={enteredMapId}
                       placeholder="Enter Map ID"
-                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-3 sm:text-sm"
                     />
                     <button
-                      class="rounded-lg bg-base-content px-4 py-3 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="rounded-lg bg-base-content px-4 py-2.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-3 sm:text-sm"
                       on:click={() => connectToMap(enteredMapId)}
                       disabled={isLoading || !enteredMapId.trim()}
                     >
@@ -872,36 +888,40 @@
                   </div>
                 </div>
 
-                <!-- 🆕 NEW: Recent Maps Quick Access -->
+                <!-- Recent Maps Quick Access -->
                 {#if recentMaps.length > 0 || userMaps.length > 0}
                   <div class="space-y-3">
                     {#if recentMaps.length > 0}
                       <div>
                         <h5
-                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                          class="mb-2 flex items-center gap-2 text-xs font-medium text-contrast-content sm:text-sm"
                         >
                           <div
-                            class="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600/20"
+                            class="flex h-3 w-3 items-center justify-center rounded-full bg-purple-600/20 sm:h-4 sm:w-4"
                           >
-                            <Clock class="h-2.5 w-2.5 text-purple-600" />
+                            <Clock
+                              class="h-2 w-2 text-purple-600 sm:h-2.5 sm:w-2.5"
+                            />
                           </div>
                           Recent Maps
                         </h5>
                         <div class="space-y-1">
-                          {#each recentMaps.slice(0, 10) as map}
+                          {#each recentMaps.slice(0, 5) as map}
                             <button
-                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2.5 text-left transition-colors hover:bg-base-300"
+                              class="group flex w-full items-center gap-2 rounded-lg border border-base-300 bg-base-100 p-2 text-left transition-colors hover:bg-base-300 sm:gap-3 sm:p-2.5"
                               on:click={() => connectToMap(map.id)}
                               disabled={isLoading}
                             >
                               <div
-                                class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                                class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
                               >
-                                <Map class="h-3 w-3 text-blue-600" />
+                                <Map
+                                  class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
+                                />
                               </div>
                               <div class="min-w-0 flex-1">
                                 <div
-                                  class="truncate text-sm font-medium text-contrast-content"
+                                  class="truncate text-xs font-medium text-contrast-content sm:text-sm"
                                 >
                                   {map.map_name}
                                 </div>
@@ -921,30 +941,34 @@
                     {#if userMaps.length > 0}
                       <div>
                         <h5
-                          class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                          class="mb-2 flex items-center gap-2 text-xs font-medium text-contrast-content sm:text-sm"
                         >
                           <div
-                            class="flex h-4 w-4 items-center justify-center rounded-full bg-green-600/20"
+                            class="flex h-3 w-3 items-center justify-center rounded-full bg-green-600/20 sm:h-4 sm:w-4"
                           >
-                            <User class="h-2.5 w-2.5 text-green-600" />
+                            <User
+                              class="h-2 w-2 text-green-600 sm:h-2.5 sm:w-2.5"
+                            />
                           </div>
                           Your Maps
                         </h5>
                         <div class="space-y-1">
-                          {#each userMaps.slice(0, 10) as map}
+                          {#each userMaps.slice(0, 5) as map}
                             <button
-                              class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2.5 text-left transition-colors hover:bg-base-300"
+                              class="group flex w-full items-center gap-2 rounded-lg border border-base-300 bg-base-100 p-2 text-left transition-colors hover:bg-base-300 sm:gap-3 sm:p-2.5"
                               on:click={() => connectToMap(map.id)}
                               disabled={isLoading}
                             >
                               <div
-                                class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                                class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
                               >
-                                <Map class="h-3 w-3 text-green-600" />
+                                <Map
+                                  class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3"
+                                />
                               </div>
                               <div class="min-w-0 flex-1">
                                 <div
-                                  class="truncate text-sm font-medium text-contrast-content"
+                                  class="truncate text-xs font-medium text-contrast-content sm:text-sm"
                                 >
                                   {map.map_name}
                                 </div>
@@ -966,7 +990,7 @@
                 <!-- Cancel button only -->
                 <div class="flex pt-2">
                   <button
-                    class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => {
                       closeAllDashboardMenus()
                       enteredMapId = ""
@@ -981,26 +1005,30 @@
 
           <!-- Expandable Leave Map Confirmation -->
           {#if showLeaveMapConfirm}
-            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
-              <div class="space-y-4" on:click|stopPropagation>
+            <div
+              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
-                  <h4 class="mb-2 font-semibold text-contrast-content">
+                  <h4
+                    class="mb-2 text-sm font-semibold text-contrast-content sm:text-base"
+                  >
                     Leave Map
                   </h4>
-                  <p class="text-sm text-contrast-content/60">
+                  <p class="text-xs text-contrast-content/60 sm:text-sm">
                     Are you sure you want to disconnect from "{$connectedMapStore.map_name}"?
                     You can reconnect later using the Map ID.
                   </p>
                 </div>
                 <div class="flex gap-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => closeAllDashboardMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded-lg bg-orange-500 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex-1 rounded-lg bg-orange-500 py-2 text-xs font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                     on:click={handleDisconnectFromMap}
                     disabled={isLoading}
                   >
@@ -1014,46 +1042,50 @@
           {/if}
         </div>
 
-        <!-- 🆕 UPDATED: Operation Selector with Custom Dropdown -->
-        <div class="relative rounded-lg bg-base-200 p-4 transition-colors">
-          <button
-            class="mb-3 flex w-full items-center justify-between text-left"
-            on:click={handleOperationPanelClick}
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600/20"
-              >
-                <MapPin class="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-contrast-content">Operation</h3>
-                <p class="text-sm text-contrast-content/60">
-                  Select active operation
-                </p>
-              </div>
+        <!-- Operation Selector with Fixed Width for Settings Button -->
+        <div
+          class="relative rounded-lg bg-base-200 p-3 transition-colors sm:p-4"
+        >
+          <div class="mb-3 flex items-center gap-3">
+            <div
+              class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 sm:h-10 sm:w-10"
+            >
+              <MapPin class="h-4 w-4 text-purple-600 sm:h-5 sm:w-5" />
             </div>
-
-            <!-- Options Button -->
-            <div class="flex gap-2">
+            <div class="min-w-0 flex-1">
+              <h3
+                class="text-sm font-semibold text-contrast-content sm:text-base"
+              >
+                Operation
+              </h3>
+              <p class="text-xs text-contrast-content/60 sm:text-sm">
+                Select active operation
+              </p>
+            </div>
+            <!-- Fixed width container for settings button -->
+            <div class="flex w-8 justify-end sm:w-10">
               <button
-                class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
-                on:click|stopPropagation={handleOperationOptionsClick}
+                class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100 sm:h-8 sm:w-8"
+                on:click={handleOperationOptionsClick}
                 title="Operation options"
               >
                 {#if isOperationMenuOpen}
-                  <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                  <ChevronUp
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
                 {:else}
-                  <MoreVertical class="h-4 w-4 text-contrast-content/60" />
+                  <MoreVertical
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
                 {/if}
               </button>
             </div>
-          </button>
+          </div>
 
-          <!-- 🆕 NEW: Custom Operation Dropdown -->
+          <!-- Custom Operation Dropdown -->
           <div class="relative" bind:this={operationDropdownRef}>
             <button
-              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-3 text-sm outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50"
+              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-2.5 text-xs outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50 sm:py-3 sm:text-sm"
               on:click={() =>
                 !isLoading && (showOperationDropdown = !showOperationDropdown)}
               disabled={isLoading}
@@ -1062,9 +1094,9 @@
                 {#if $selectedOperationStore}
                   {$selectedOperationStore.name} ({$selectedOperationStore.year})
                   <span
-                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
+                    class="ml-1 inline-flex items-center gap-1 rounded-full bg-base-200 px-1.5 py-0.5 text-xs text-base-content sm:ml-2 sm:px-2"
                   >
-                    <Route class="h-3 w-3" />
+                    <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                     {getTrailCountForOperation($selectedOperationStore.id)}
                   </span>
                 {:else}
@@ -1072,7 +1104,7 @@
                 {/if}
               </span>
               <svg
-                class="h-4 w-4 text-contrast-content/60 transition-transform {showOperationDropdown
+                class="h-3 w-3 text-contrast-content/60 transition-transform sm:h-4 sm:w-4 {showOperationDropdown
                   ? 'rotate-180'
                   : ''}"
                 fill="none"
@@ -1090,7 +1122,7 @@
 
             {#if showOperationDropdown}
               <div
-                class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+                class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg sm:max-h-60"
               >
                 {#each $operationStore as operation (operation.id)}
                   {@const trailCount = getTrailCountForOperation(operation.id)}
@@ -1102,18 +1134,20 @@
                     on:click={() => handleOperationSelect(operation.id)}
                   >
                     <div class="min-w-0 flex-1">
-                      <div class="truncate font-medium text-contrast-content">
+                      <div
+                        class="truncate text-xs font-medium text-contrast-content sm:text-sm"
+                      >
                         {operation.name} ({operation.year})
                       </div>
                     </div>
                     <div class="ml-2 flex shrink-0 items-center gap-1">
                       <div
-                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {$selectedOperationStore?.id ===
+                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-1.5 py-1 text-xs {$selectedOperationStore?.id ===
                         operation.id
                           ? 'bg-primary/20 text-primary'
-                          : 'text-base-content'}"
+                          : 'text-base-content'} sm:px-2"
                       >
-                        <Route class="h-3 w-3" />
+                        <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         <span>{trailCount}</span>
                       </div>
                     </div>
@@ -1124,7 +1158,7 @@
           </div>
 
           {#if $selectedOperationStore?.description}
-            <p class="mt-2 text-xs text-contrast-content/60">
+            <p class="mt-2 text-xs text-contrast-content/60 sm:text-sm">
               {$selectedOperationStore.description}
             </p>
           {/if}
@@ -1132,39 +1166,39 @@
           <!-- Options Menu Dropdown -->
           {#if showOperationOptions}
             <div
-              class="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+              class="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg sm:w-48"
             >
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={openCreateOperationFromOptions}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
                 >
-                  <Plus class="h-3 w-3 text-green-600" />
+                  <Plus class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3" />
                 </div>
                 Add Operation
               </button>
               <button
-                class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click|stopPropagation={prepareEditOperation}
               >
                 <div
-                  class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
                 >
-                  <Pencil class="h-3 w-3 text-blue-600" />
+                  <Pencil class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
                 </div>
                 Edit Operation
               </button>
               {#if !isOnlyOperation}
                 <button
-                  class="flex w-full items-center gap-3 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-200"
+                  class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                   on:click|stopPropagation={openDeleteOperationConfirm}
                 >
                   <div
-                    class="flex h-6 w-6 items-center justify-center rounded-full bg-red-600/20"
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
                   >
-                    <Trash2 class="h-3 w-3 text-red-600" />
+                    <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
                   </div>
                   Delete Operation
                 </button>
@@ -1174,31 +1208,37 @@
 
           <!-- Expandable Create Operation Section -->
           {#if showCreateOperation}
-            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
-              <div class="mb-4 flex items-center justify-between">
-                <h4 class="font-semibold text-contrast-content">
+            <div
+              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="mb-3 flex items-center justify-between sm:mb-4">
+                <h4
+                  class="text-sm font-semibold text-contrast-content sm:text-base"
+                >
                   Create Operation
                 </h4>
               </div>
               <div class="space-y-3" on:click|stopPropagation>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Name</label
                   >
                   <input
                     type="text"
                     bind:value={newOperationName}
                     placeholder="Operation name"
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Year</label
                   >
                   <select
                     bind:value={newOperationYear}
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   >
                     {#each yearOptions as year}
                       <option value={year}>{year}</option>
@@ -1206,19 +1246,20 @@
                   </select>
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Description</label
                   >
                   <textarea
                     bind:value={newOperationDescription}
                     placeholder="Optional description"
                     rows="2"
-                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   ></textarea>
                 </div>
                 <div class="flex gap-2 pt-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => {
                       closeAllDashboardMenus()
                       newOperationName = ""
@@ -1228,7 +1269,7 @@
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                     on:click={handleCreateOperation}
                     disabled={isLoading || !newOperationName.trim()}
                   >
@@ -1241,30 +1282,36 @@
 
           <!-- Expandable Edit Operation Section -->
           {#if showEditOperation}
-            <div class="animate-slideDown mt-4 border-t border-base-300 pt-4">
-              <div class="mb-4 flex items-center justify-between">
-                <h4 class="font-semibold text-contrast-content">
+            <div
+              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="mb-3 flex items-center justify-between sm:mb-4">
+                <h4
+                  class="text-sm font-semibold text-contrast-content sm:text-base"
+                >
                   Edit Operation
                 </h4>
               </div>
               <div class="space-y-3" on:click|stopPropagation>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Name</label
                   >
                   <input
                     type="text"
                     bind:value={editOperationName}
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Year</label
                   >
                   <select
                     bind:value={editOperationYear}
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   >
                     {#each yearOptions as year}
                       <option value={year}>{year}</option>
@@ -1272,24 +1319,25 @@
                   </select>
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Description</label
                   >
                   <textarea
                     bind:value={editOperationDescription}
                     rows="2"
-                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   ></textarea>
                 </div>
                 <div class="flex gap-2 pt-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => closeAllDashboardMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
                     on:click={handleUpdateOperation}
                     disabled={isLoading}
                   >
@@ -1302,25 +1350,32 @@
 
           <!-- Expandable Delete Operation Confirmation -->
           {#if showDeleteOperationConfirm}
-            <div class="animate-slideDown mt-4 border-t border-red-300 pt-4">
-              <div class="rounded-lg bg-red-50 p-4" on:click|stopPropagation>
+            <div
+              class="animate-slideDown mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div
+                class="rounded-lg bg-red-50 p-3 sm:p-4"
+                on:click|stopPropagation
+              >
                 <div class="mb-3 flex items-center gap-2">
-                  <AlertTriangle class="h-5 w-5 text-red-500" />
-                  <h4 class="font-semibold text-red-700">Delete Operation</h4>
+                  <AlertTriangle class="h-4 w-4 text-red-500 sm:h-5 sm:w-5" />
+                  <h4 class="text-sm font-semibold text-red-700 sm:text-base">
+                    Delete Operation
+                  </h4>
                 </div>
-                <p class="mb-3 text-sm text-red-600">
+                <p class="mb-3 text-xs text-red-600 sm:text-sm">
                   Are you sure you want to delete "{$selectedOperationStore.name}"?
                   This action cannot be undone.
                 </p>
                 <div class="flex gap-2">
                   <button
-                    class="flex-1 rounded bg-gray-200 py-2 text-sm font-medium transition-colors hover:bg-gray-300"
+                    class="flex-1 rounded bg-gray-200 py-2 text-xs font-medium transition-colors hover:bg-gray-300 sm:text-sm"
                     on:click={() => closeAllDashboardMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded bg-red-500 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex-1 rounded bg-red-500 py-2 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                     on:click={handleDeleteOperation}
                     disabled={isLoading}
                   >
