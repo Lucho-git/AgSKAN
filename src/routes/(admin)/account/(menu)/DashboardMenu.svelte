@@ -906,7 +906,7 @@
                           Recent Maps
                         </h5>
                         <div class="space-y-1">
-                          {#each recentMaps.slice(0, 5) as map}
+                          {#each recentMaps.slice(0, 10) as map}
                             <button
                               class="group flex w-full items-center gap-2 rounded-lg border border-base-300 bg-base-100 p-2 text-left transition-colors hover:bg-base-300 sm:gap-3 sm:p-2.5"
                               on:click={() => connectToMap(map.id)}

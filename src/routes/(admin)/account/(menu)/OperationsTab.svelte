@@ -243,14 +243,16 @@
   }
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 sm:space-y-6">
   {#if $operationStore && $operationStore.length > 0}
     <!-- Operations List -->
     <div class="space-y-1">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="font-semibold text-contrast-content">Operations</h3>
+        <h3 class="text-sm font-semibold text-contrast-content sm:text-base">
+          Operations
+        </h3>
         <button
-          class="flex items-center gap-2 rounded-lg bg-base-content px-3 py-1.5 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+          class="flex items-center gap-2 rounded-lg bg-base-content px-2.5 py-1.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:px-3 sm:text-sm"
           on:click={() => {
             closeAllOperationMenus()
             showCreateOperation = true
@@ -264,30 +266,34 @@
       <!-- Create Operation Form - Appears at top after header -->
       {#if showCreateOperation}
         <div
-          class="animate-slideDown bg-base-50 mb-4 rounded-lg border border-base-300 p-4"
+          class="animate-slideDown bg-base-50 mb-3 rounded-lg border border-base-300 p-3 sm:mb-4 sm:p-4"
         >
-          <h4 class="mb-4 font-semibold text-contrast-content">
+          <h4
+            class="mb-3 text-sm font-semibold text-contrast-content sm:mb-4 sm:text-base"
+          >
             Create Operation
           </h4>
           <div class="space-y-3">
             <div>
-              <label class="mb-1 block text-sm text-contrast-content/60"
+              <label
+                class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                 >Name</label
               >
               <input
                 type="text"
                 bind:value={newOperationName}
                 placeholder="Operation name"
-                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
               />
             </div>
             <div>
-              <label class="mb-1 block text-sm text-contrast-content/60"
+              <label
+                class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                 >Year</label
               >
               <select
                 bind:value={newOperationYear}
-                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
               >
                 {#each yearOptions as year}
                   <option value={year}>{year}</option>
@@ -295,19 +301,20 @@
               </select>
             </div>
             <div>
-              <label class="mb-1 block text-sm text-contrast-content/60"
+              <label
+                class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                 >Description</label
               >
               <textarea
                 bind:value={newOperationDescription}
                 placeholder="Optional description"
                 rows="2"
-                class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
               ></textarea>
             </div>
             <div class="flex gap-2">
               <button
-                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                 on:click={() => {
                   closeAllOperationMenus()
                   newOperationName = ""
@@ -317,7 +324,7 @@
                 Cancel
               </button>
               <button
-                class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                 on:click={handleCreateOperation}
                 disabled={isLoading || !newOperationName.trim()}
               >
@@ -337,7 +344,7 @@
         >
           <!-- Operation Row - One Line -->
           <button
-            class="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-base-300"
+            class="flex w-full items-center gap-3 p-2.5 text-left transition-colors hover:bg-base-300 sm:p-3"
             on:click={() => {
               if (showEditOperation && editingOperationId === operation.id) {
                 closeAllOperationMenus()
@@ -355,57 +362,66 @@
               }
             }}
           >
-            <div class="flex min-w-0 flex-1 items-center gap-3">
-              {#if operation.id === $selectedOperationStore?.id}
+            {#if operation.id === $selectedOperationStore?.id}
+              <div
+                class="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/20 sm:h-5 sm:w-5"
+              >
                 <div
-                  class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/20"
-                >
-                  <div class="h-2 w-2 rounded-full bg-primary"></div>
-                </div>
-              {/if}
-              <div class="min-w-0 flex-1">
-                <span
-                  class="truncate text-sm font-medium {operation.id ===
-                  $selectedOperationStore?.id
-                    ? 'text-primary'
-                    : 'text-contrast-content'}"
-                >
-                  {operation.name}
-                </span>
-                <span
-                  class="ml-1.5 text-xs {operation.id ===
-                  $selectedOperationStore?.id
-                    ? 'text-primary/70'
-                    : 'text-contrast-content/60'}"
-                >
-                  ({operation.year})
-                </span>
+                  class="h-1.5 w-1.5 rounded-full bg-primary sm:h-2 sm:w-2"
+                ></div>
               </div>
+            {/if}
+            <div class="min-w-0 flex-1">
+              <span
+                class="truncate text-xs font-medium sm:text-sm {operation.id ===
+                $selectedOperationStore?.id
+                  ? 'text-primary'
+                  : 'text-contrast-content'}"
+              >
+                {operation.name}
+              </span>
+              <span
+                class="ml-1 text-xs {operation.id ===
+                $selectedOperationStore?.id
+                  ? 'text-primary/70'
+                  : 'text-contrast-content/60'}"
+              >
+                ({operation.year})
+              </span>
             </div>
 
-            <div class="flex flex-shrink-0 items-center gap-2">
+            <!-- Fixed width container for chevron -->
+            <div class="flex w-5 justify-end sm:w-6">
               {#if expandedOperationId === operation.id}
-                <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                <ChevronUp
+                  class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                />
               {:else}
-                <ChevronDown class="h-4 w-4 text-contrast-content/60" />
+                <ChevronDown
+                  class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                />
               {/if}
             </div>
           </button>
 
           <!-- Expanded Operation Details -->
           {#if expandedOperationId === operation.id}
-            <div class="animate-slideDown border-t border-base-300 p-3">
+            <div
+              class="animate-slideDown border-t border-base-300 p-2.5 sm:p-3"
+            >
               <div class="space-y-3" on:click|stopPropagation>
                 <!-- Description -->
                 {#if operation.description}
                   <div>
-                    <p class="text-sm text-contrast-content/60">
+                    <p class="text-xs text-contrast-content/60 sm:text-sm">
                       {operation.description}
                     </p>
                   </div>
                 {:else}
                   <div>
-                    <p class="text-sm italic text-contrast-content/40">
+                    <p
+                      class="text-xs italic text-contrast-content/40 sm:text-sm"
+                    >
                       No description
                     </p>
                   </div>
@@ -416,13 +432,13 @@
                   <!-- Select Operation Button (only show if not selected) -->
                   {#if operation.id !== $selectedOperationStore?.id}
                     <button
-                      class="flex items-center gap-2 rounded-lg bg-base-content px-2.5 py-1 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="flex items-center gap-1.5 rounded-lg bg-base-content px-2 py-1.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-2.5"
                       on:click|stopPropagation={() =>
                         handleOperationSelect(operation.id)}
                       disabled={isLoading &&
                         loadingAction === `select-${operation.id}`}
                     >
-                      <Check class="h-3 w-3" />
+                      <Check class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                       {isLoading && loadingAction === `select-${operation.id}`
                         ? "..."
                         : "Select"}
@@ -430,7 +446,7 @@
                   {/if}
 
                   <button
-                    class="flex items-center gap-2 rounded-lg bg-base-100 px-2.5 py-1 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex items-center gap-1.5 rounded-lg bg-base-100 px-2 py-1.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:gap-2 sm:px-2.5"
                     on:click|stopPropagation={() => {
                       closeAllOperationMenus()
                       editingOperationId = operation.id
@@ -440,20 +456,20 @@
                       showEditOperation = true
                     }}
                   >
-                    <Pencil class="h-3 w-3" />
+                    <Pencil class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                     Edit
                   </button>
 
                   {#if !isOnlyOperation}
                     <button
-                      class="flex items-center gap-2 rounded-lg bg-red-500/10 px-2.5 py-1 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/20"
+                      class="flex items-center gap-1.5 rounded-lg bg-red-500/10 px-2 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 sm:gap-2 sm:px-2.5"
                       on:click|stopPropagation={() => {
                         closeAllOperationMenus()
                         deletingOperationId = operation.id
                         showDeleteOperationConfirm = true
                       }}
                     >
-                      <Trash2 class="h-3 w-3" />
+                      <Trash2 class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                       Delete
                     </button>
                   {/if}
@@ -464,28 +480,34 @@
 
           <!-- Inline Edit Form -->
           {#if showEditOperation && editingOperationId === operation.id}
-            <div class="animate-slideDown border-t border-base-300 p-3">
+            <div
+              class="animate-slideDown border-t border-base-300 p-2.5 sm:p-3"
+            >
               <div class="space-y-3" on:click|stopPropagation>
-                <h4 class="font-semibold text-contrast-content">
+                <h4
+                  class="text-sm font-semibold text-contrast-content sm:text-base"
+                >
                   Edit Operation
                 </h4>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Name</label
                   >
                   <input
                     type="text"
                     bind:value={editOperationName}
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Year</label
                   >
                   <select
                     bind:value={editOperationYear}
-                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   >
                     {#each yearOptions as year}
                       <option value={year}>{year}</option>
@@ -493,24 +515,25 @@
                   </select>
                 </div>
                 <div>
-                  <label class="mb-1 block text-sm text-contrast-content/60"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Description</label
                   >
                   <textarea
                     bind:value={editOperationDescription}
                     rows="2"
-                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                    class="w-full resize-none rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
                   ></textarea>
                 </div>
                 <div class="flex gap-2">
                   <button
-                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
                     on:click={() => closeAllOperationMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                    class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
                     on:click={handleUpdateOperation}
                     disabled={isLoading}
                   >
@@ -523,27 +546,30 @@
 
           <!-- Inline Delete Confirmation -->
           {#if showDeleteOperationConfirm && deletingOperationId === operation.id}
-            <div class="animate-slideDown border-t border-red-300 p-3">
-              <div class="rounded-lg bg-red-50 p-3" on:click|stopPropagation>
-                <div class="mb-3 flex items-center gap-2">
-                  <AlertTriangle class="h-4 w-4 text-red-500" />
-                  <h4 class="text-sm font-semibold text-red-700">
+            <div class="animate-slideDown border-t border-red-300 p-2.5 sm:p-3">
+              <div
+                class="rounded-lg bg-red-50 p-2.5 sm:p-3"
+                on:click|stopPropagation
+              >
+                <div class="mb-2 flex items-center gap-2 sm:mb-3">
+                  <AlertTriangle class="h-3 w-3 text-red-500 sm:h-4 sm:w-4" />
+                  <h4 class="text-xs font-semibold text-red-700 sm:text-sm">
                     Delete Operation
                   </h4>
                 </div>
-                <p class="mb-3 text-sm text-red-600">
+                <p class="mb-2 text-xs text-red-600 sm:mb-3 sm:text-sm">
                   Are you sure you want to delete "{operation.name}"? This
                   action cannot be undone.
                 </p>
                 <div class="flex gap-2">
                   <button
-                    class="flex-1 rounded bg-gray-200 py-1.5 text-sm font-medium transition-colors hover:bg-gray-300"
+                    class="flex-1 rounded bg-gray-200 py-1.5 text-xs font-medium transition-colors hover:bg-gray-300 sm:text-sm"
                     on:click={() => closeAllOperationMenus()}
                   >
                     Cancel
                   </button>
                   <button
-                    class="flex-1 rounded bg-red-500 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex-1 rounded bg-red-500 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                     on:click={() => handleDeleteOperation(operation.id)}
                     disabled={isLoading}
                   >
@@ -562,21 +588,21 @@
     <!-- No Operations -->
     <div class="text-center">
       <div
-        class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-500/10"
+        class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/10 sm:mb-4 sm:h-16 sm:w-16"
       >
-        <MapPin class="h-8 w-8 text-purple-500" />
+        <MapPin class="h-6 w-6 text-purple-500 sm:h-8 sm:w-8" />
       </div>
-      <h3 class="mb-2 text-lg font-semibold text-contrast-content">
+      <h3 class="mb-2 text-base font-semibold text-contrast-content sm:text-lg">
         No Operations
       </h3>
-      <p class="mb-4 text-sm text-contrast-content/60">
+      <p class="mb-3 text-xs text-contrast-content/60 sm:mb-4 sm:text-sm">
         Create your first operation to get started
       </p>
       <button
-        class="mx-auto flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 font-medium text-base-100 transition-colors hover:bg-base-content/90"
+        class="mx-auto flex items-center gap-2 rounded-lg bg-base-content px-3 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:px-4"
         on:click={() => (showCreateOperation = true)}
       >
-        <Plus class="h-4 w-4" />
+        <Plus class="h-3 w-3 sm:h-4 sm:w-4" />
         Create Operation
       </button>
     </div>

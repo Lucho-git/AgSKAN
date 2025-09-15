@@ -47,7 +47,7 @@
   let trailSortDirection: "asc" | "desc" = "desc"
   let selectedOperation = "all"
 
-  // 🆕 NEW: Custom dropdown state
+  // Custom dropdown state
   let showOperationDropdown = false
   let operationDropdownRef = null
 
@@ -75,7 +75,7 @@
   $: paginatedMarkers = filteredMarkers.slice(0, currentPage * itemsPerPage)
   $: hasMorePages = filteredMarkers.length > currentPage * itemsPerPage
 
-  // 🆕 NEW: Computed trail counts per operation
+  // Computed trail counts per operation
   $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
     const operationId = trail.operation_id
     if (operationId) {
@@ -84,12 +84,12 @@
     return counts
   }, {})
 
-  // 🆕 NEW: Helper function to get trail count for an operation
+  // Helper function to get trail count for an operation
   function getTrailCountForOperation(operationId: string): number {
     return trailCountsByOperation[operationId] || 0
   }
 
-  // 🆕 NEW: Get selected operation name for display
+  // Get selected operation name for display
   $: selectedOperationName =
     selectedOperation === "all"
       ? "All Operations"
@@ -98,14 +98,14 @@
           $operationStore.find((op) => op.id === selectedOperation)?.year +
           ")" || "Unknown Operation"
 
-  // 🆕 NEW: Function to select an operation
+  // Function to select an operation
   function selectOperation(operationId: string) {
     selectedOperation = operationId
     showOperationDropdown = false
     trailCurrentPage = 1
   }
 
-  // 🆕 NEW: Click outside to close dropdown
+  // Click outside to close dropdown
   function handleClickOutside(event) {
     if (operationDropdownRef && !operationDropdownRef.contains(event.target)) {
       showOperationDropdown = false
@@ -232,7 +232,7 @@
     }
   }
 
-  // Updated bubble colors that provide good contrast for black icons in both light and dark themes
+  // Updated bubble colors for better mobile contrast
   const pinColorMap = {
     access: "rgba(219, 234, 254, 0.7)", // Light blue
     entrance: "rgba(219, 234, 254, 0.7)",
@@ -248,7 +248,7 @@
   }
 
   const iconColorMap = {
-    access: "rgba(0, 0, 0, 0.8)", // Black as on map
+    access: "rgba(0, 0, 0, 0.8)", // Black for mobile contrast
     entrance: "rgba(0, 0, 0, 0.8)",
     equipment: "rgba(0, 0, 0, 0.8)",
     machinery: "rgba(0, 0, 0, 0.8)",
@@ -258,7 +258,7 @@
     problem: "rgba(0, 0, 0, 0.8)",
     storage: "rgba(0, 0, 0, 0.8)",
     barn: "rgba(0, 0, 0, 0.8)",
-    default: "rgba(0, 0, 0, 0.8)", // Black as default
+    default: "rgba(0, 0, 0, 0.8)",
   }
 
   function getPinColor(iconName: string) {
@@ -376,30 +376,32 @@
   })
 </script>
 
-<!-- Main container with screen height constraints -->
-<div class="flex h-full max-h-[67vh] flex-col space-y-4 overflow-hidden">
-  <!-- Sub-navigation with numbers on top and reduced spacing -->
+<!-- Main container with mobile-first design -->
+<div
+  class="flex h-full max-h-[67vh] flex-col space-y-3 overflow-hidden sm:space-y-4"
+>
+  <!-- Sub-navigation with mobile-first sizing -->
   <div class="grid flex-shrink-0 grid-cols-3 border-b border-base-300">
     <button
-      class="flex flex-col items-center gap-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors {mapObjectsView ===
+      class="flex flex-col items-center gap-1 border-b-2 px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm {mapObjectsView ===
       'vehicles'
         ? 'border-primary text-primary'
         : 'border-transparent text-contrast-content/60 hover:text-contrast-content'}"
       on:click={() => (mapObjectsView = "vehicles")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
+        class="rounded bg-base-300 px-1.5 py-0.5 text-xs font-semibold leading-none text-base-content sm:px-2 sm:py-1 sm:text-sm"
         >{vehicleCount}</span
       >
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 sm:gap-2">
         <div
-          class="flex h-5 w-5 items-center justify-center rounded-full {mapObjectsView ===
+          class="flex h-4 w-4 items-center justify-center rounded-full sm:h-5 sm:w-5 {mapObjectsView ===
           'vehicles'
             ? 'bg-primary/20'
             : 'bg-base-300'}"
         >
           <Car
-            class="h-3 w-3 {mapObjectsView === 'vehicles'
+            class="h-2.5 w-2.5 sm:h-3 sm:w-3 {mapObjectsView === 'vehicles'
               ? 'text-primary'
               : 'text-contrast-content/60'}"
           />
@@ -410,25 +412,25 @@
     </button>
 
     <button
-      class="flex flex-col items-center gap-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors {mapObjectsView ===
+      class="flex flex-col items-center gap-1 border-b-2 px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm {mapObjectsView ===
       'pins'
         ? 'border-primary text-primary'
         : 'border-transparent text-contrast-content/60 hover:text-contrast-content'}"
       on:click={() => (mapObjectsView = "pins")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
+        class="rounded bg-base-300 px-1.5 py-0.5 text-xs font-semibold leading-none text-base-content sm:px-2 sm:py-1 sm:text-sm"
         >{pinCount}</span
       >
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 sm:gap-2">
         <div
-          class="flex h-5 w-5 items-center justify-center rounded-full {mapObjectsView ===
+          class="flex h-4 w-4 items-center justify-center rounded-full sm:h-5 sm:w-5 {mapObjectsView ===
           'pins'
             ? 'bg-primary/20'
             : 'bg-base-300'}"
         >
           <MapPin
-            class="h-3 w-3 {mapObjectsView === 'pins'
+            class="h-2.5 w-2.5 sm:h-3 sm:w-3 {mapObjectsView === 'pins'
               ? 'text-primary'
               : 'text-contrast-content/60'}"
           />
@@ -438,25 +440,25 @@
     </button>
 
     <button
-      class="flex flex-col items-center gap-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors {mapObjectsView ===
+      class="flex flex-col items-center gap-1 border-b-2 px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm {mapObjectsView ===
       'trails'
         ? 'border-primary text-primary'
         : 'border-transparent text-contrast-content/60 hover:text-contrast-content'}"
       on:click={() => (mapObjectsView = "trails")}
     >
       <span
-        class="rounded bg-base-300 px-2 py-1 text-sm font-semibold leading-none text-base-content"
+        class="rounded bg-base-300 px-1.5 py-0.5 text-xs font-semibold leading-none text-base-content sm:px-2 sm:py-1 sm:text-sm"
         >{trailCount}</span
       >
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 sm:gap-2">
         <div
-          class="flex h-5 w-5 items-center justify-center rounded-full {mapObjectsView ===
+          class="flex h-4 w-4 items-center justify-center rounded-full sm:h-5 sm:w-5 {mapObjectsView ===
           'trails'
             ? 'bg-primary/20'
             : 'bg-base-300'}"
         >
           <Route
-            class="h-3 w-3 {mapObjectsView === 'trails'
+            class="h-2.5 w-2.5 sm:h-3 sm:w-3 {mapObjectsView === 'trails'
               ? 'text-primary'
               : 'text-contrast-content/60'}"
           />
@@ -469,66 +471,74 @@
   <!-- Content based on selected sub-menu -->
   {#if mapObjectsView === "vehicles"}
     <div class="flex-1 overflow-hidden">
-      <div class="py-4 text-center">
+      <div class="py-3 text-center sm:py-4">
         <div
-          class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-base-300"
+          class="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-base-300 sm:mb-3 sm:h-12 sm:w-12"
         >
-          <Car class="h-6 w-6 text-contrast-content/70" />
+          <Car class="h-5 w-5 text-contrast-content/70 sm:h-6 sm:w-6" />
         </div>
-        <h3 class="mb-1 text-base font-semibold text-contrast-content">
+        <h3
+          class="mb-1 text-sm font-semibold text-contrast-content sm:text-base"
+        >
           Vehicles
         </h3>
-        <p class="text-sm text-contrast-content/60">
+        <p class="text-xs text-contrast-content/60 sm:text-sm">
           Vehicle management coming soon
         </p>
       </div>
     </div>
   {:else if mapObjectsView === "pins"}
-    <!-- Pin Management Section with container-relative sticky menu -->
+    <!-- Pin Management Section with mobile-first layout -->
     <div class="relative flex flex-1 flex-col overflow-hidden">
-      <!-- Header and controls - fixed at top -->
-      <div class="flex-shrink-0 space-y-3 pb-3">
+      <!-- Header and controls - mobile-first spacing -->
+      <div class="flex-shrink-0 space-y-2 pb-2 sm:space-y-3 sm:pb-3">
         <!-- Header with refresh button -->
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-base font-semibold text-contrast-content">
+            <h3
+              class="text-sm font-semibold text-contrast-content sm:text-base"
+            >
               Map Pins
             </h3>
-            <p class="text-sm text-contrast-content/60">View and manage pins</p>
+            <p class="text-xs text-contrast-content/60 sm:text-sm">
+              View and manage pins
+            </p>
           </div>
           <button
-            class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+            class="flex items-center gap-1.5 rounded-lg bg-base-200 px-2.5 py-1.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
             on:click={loadPins}
             disabled={loading}
           >
-            <RefreshCw class="h-4 w-4 {loading ? 'animate-spin' : ''}" />
+            <RefreshCw
+              class="h-3 w-3 sm:h-4 sm:w-4 {loading ? 'animate-spin' : ''}"
+            />
             <span class="hidden sm:inline">Refresh</span>
           </button>
         </div>
 
         <!-- Search and filter section -->
-        <div class="flex gap-3">
+        <div class="flex gap-2 sm:gap-3">
           <div class="relative flex-1">
             <div
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-contrast-content/60"
+              class="absolute left-2 top-1/2 -translate-y-1/2 text-contrast-content/60 sm:left-3"
             >
-              <Search class="h-4 w-4" />
+              <Search class="h-3 w-3 sm:h-4 sm:w-4" />
             </div>
             <input
               type="text"
               placeholder="Search pins..."
               bind:value={searchQuery}
-              class="w-full rounded-lg border border-base-300 bg-base-200 py-2 pl-10 pr-4 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+              class="w-full rounded-lg border border-base-300 bg-base-200 py-1.5 pl-7 pr-3 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:py-2 sm:pl-10 sm:pr-4 sm:text-sm"
             />
           </div>
           <button
-            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+            class="flex items-center gap-1.5 rounded-lg border border-base-300 bg-base-200 px-2.5 py-1.5 text-xs text-contrast-content transition-colors hover:bg-base-300 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
             on:click={toggleSort}
           >
             {#if sortDirection === "asc"}
-              <SortAsc class="h-4 w-4" />
+              <SortAsc class="h-3 w-3 sm:h-4 sm:w-4" />
             {:else}
-              <SortDesc class="h-4 w-4" />
+              <SortDesc class="h-3 w-3 sm:h-4 sm:w-4" />
             {/if}
             <span class="hidden sm:inline">Date</span>
           </button>
@@ -536,7 +546,7 @@
 
         <!-- Pins count -->
         <div>
-          <p class="text-sm text-contrast-content/60">
+          <p class="text-xs text-contrast-content/60 sm:text-sm">
             {filteredMarkers.length} pins found
           </p>
         </div>
@@ -544,48 +554,60 @@
 
       <!-- Scrollable pins list -->
       <div
-        class="flex-1 overflow-y-auto {selectedPins.size > 0 ? 'pb-16' : ''}"
+        class="flex-1 overflow-y-auto {selectedPins.size > 0
+          ? 'pb-14 sm:pb-16'
+          : ''}"
       >
-        <div class="space-y-2 px-1 pr-2 pt-1">
+        <div
+          class="space-y-1.5 px-0.5 pr-1 pt-0.5 sm:space-y-2 sm:px-1 sm:pr-2 sm:pt-1"
+        >
           {#if loading}
             <div
-              class="flex items-center justify-center rounded-lg bg-base-200 py-8"
+              class="flex items-center justify-center rounded-lg bg-base-200 py-6 sm:py-8"
             >
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 sm:gap-3">
                 <RefreshCw
-                  class="h-5 w-5 animate-spin text-contrast-content/60"
+                  class="h-4 w-4 animate-spin text-contrast-content/60 sm:h-5 sm:w-5"
                 />
-                <span class="text-sm text-contrast-content/60">Loading...</span>
+                <span class="text-xs text-contrast-content/60 sm:text-sm"
+                  >Loading...</span
+                >
               </div>
             </div>
           {:else if error}
             <div
-              class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-8 text-center"
+              class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-6 text-center sm:py-8"
             >
-              <div class="mb-3 rounded-full bg-base-300 p-3">
-                <X class="h-5 w-5 text-red-500" />
+              <div class="mb-2 rounded-full bg-base-300 p-2 sm:mb-3 sm:p-3">
+                <X class="h-4 w-4 text-red-500 sm:h-5 sm:w-5" />
               </div>
-              <p class="mb-1 text-sm font-medium text-red-600">
+              <p class="mb-1 text-xs font-medium text-red-600 sm:text-sm">
                 Failed to load
               </p>
-              <p class="text-sm text-contrast-content/60">Try again</p>
+              <p class="text-xs text-contrast-content/60 sm:text-sm">
+                Try again
+              </p>
             </div>
           {:else if filteredMarkers.length === 0}
             <div
-              class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-8 text-center"
+              class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-6 text-center sm:py-8"
             >
-              <div class="mb-3 rounded-full bg-base-300 p-3">
-                <MapPin class="h-5 w-5 text-contrast-content/60" />
+              <div class="mb-2 rounded-full bg-base-300 p-2 sm:mb-3 sm:p-3">
+                <MapPin
+                  class="h-4 w-4 text-contrast-content/60 sm:h-5 sm:w-5"
+                />
               </div>
-              <p class="mb-1 text-sm font-medium text-contrast-content">
+              <p
+                class="mb-1 text-xs font-medium text-contrast-content sm:text-sm"
+              >
                 No pins found
               </p>
-              <p class="text-sm text-contrast-content/60">
+              <p class="text-xs text-contrast-content/60 sm:text-sm">
                 Add pins to your map
               </p>
             </div>
           {:else}
-            <div class="space-y-2">
+            <div class="space-y-1.5 sm:space-y-2">
               {#each paginatedMarkers as marker (marker.id)}
                 {@const pinColor = getPinColor(
                   marker.marker_data.properties.icon,
@@ -598,14 +620,14 @@
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <!-- svelte-ignore a11y-no-static-element-interactions -->
                 <div
-                  class="flex cursor-pointer items-center gap-3 rounded-lg bg-base-200 p-3 transition-colors {isSelected
+                  class="flex cursor-pointer items-center gap-2.5 rounded-lg bg-base-200 p-2.5 transition-colors sm:gap-3 sm:p-3 {isSelected
                     ? 'ring-1 ring-primary ring-opacity-50'
                     : 'hover:bg-base-300'}"
                   on:click={() => togglePin(marker.id)}
                 >
                   <!-- Icon -->
                   <div
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-9 sm:w-9"
                     style="background-color: {pinColor};"
                   >
                     {#if getMarkerIcon(marker.marker_data.properties.icon).type === "svg"}
@@ -614,49 +636,57 @@
                           icon={getMarkerIcon(
                             marker.marker_data.properties.icon,
                           ).name}
-                          size="18px"
+                          size="16px"
+                          class="sm:text-lg"
                         />
                       </div>
                     {:else if getMarkerIcon(marker.marker_data.properties.icon).type === "ionic"}
                       <ion-icon
                         name={getMarkerIcon(marker.marker_data.properties.icon)
                           .name}
-                        style="font-size: 18px; color: {iconColor};"
+                        style="font-size: 16px; color: {iconColor};"
+                        class="sm:text-lg"
                       />
                     {:else}
-                      <MapPin size={18} style="color: {iconColor};" />
+                      <MapPin
+                        size={16}
+                        style="color: {iconColor};"
+                        class="sm:size-5"
+                      />
                     {/if}
                   </div>
 
                   <!-- Content -->
                   <div class="min-w-0 flex-1">
                     <h4
-                      class="truncate text-sm font-medium text-contrast-content"
+                      class="truncate text-xs font-medium text-contrast-content sm:text-sm"
                     >
                       {marker.marker_data.properties.icon}
                     </h4>
                     <div
-                      class="mt-1 flex items-center gap-1 text-xs text-contrast-content/60"
+                      class="mt-0.5 flex items-center gap-1 text-xs text-contrast-content/60 sm:mt-1"
                     >
-                      <Calendar class="h-3 w-3" />
+                      <Calendar class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                       {formatDate(marker.updated_at)}
                     </div>
                   </div>
 
-                  <!-- Checkbox -->
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    class="checkbox-primary checkbox checkbox-sm pointer-events-none"
-                    tabindex="-1"
-                  />
+                  <!-- Checkbox - Fixed width container -->
+                  <div class="flex w-5 justify-end sm:w-6">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      class="checkbox-primary checkbox pointer-events-none h-4 w-4 sm:h-5 sm:w-5"
+                      tabindex="-1"
+                    />
+                  </div>
                 </div>
               {/each}
 
               {#if hasMorePages}
-                <div class="flex justify-center pt-4">
+                <div class="flex justify-center pt-3 sm:pt-4">
                   <button
-                    class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+                    class="rounded-lg border border-base-300 bg-base-200 px-3 py-1.5 text-xs text-contrast-content transition-colors hover:bg-base-300 sm:px-4 sm:py-2 sm:text-sm"
                     on:click={loadMore}
                   >
                     Load More ({filteredMarkers.length -
@@ -672,27 +702,29 @@
       <!-- Container-bottom sticky menu for bulk actions -->
       {#if selectedPins.size > 0}
         <div
-          class="absolute bottom-0 left-0 right-0 border-t border-base-300 bg-base-100 p-3 shadow-lg"
+          class="absolute bottom-0 left-0 right-0 border-t border-base-300 bg-base-100 p-2.5 shadow-lg sm:p-3"
         >
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-contrast-content">
+              <span
+                class="text-xs font-medium text-contrast-content sm:text-sm"
+              >
                 {selectedPins.size} selected
               </span>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
               <button
-                class="hover:bg-base-400 flex items-center gap-2 rounded-lg bg-base-300 px-3 py-2 text-sm text-contrast-content transition-colors"
+                class="hover:bg-base-400 flex items-center gap-1.5 rounded-lg bg-base-300 px-2.5 py-1.5 text-xs text-contrast-content transition-colors sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 on:click={clearSelection}
               >
-                <X class="h-4 w-4" />
+                <X class="h-3 w-3 sm:h-4 sm:w-4" />
                 Clear
               </button>
               <button
-                class="flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm text-white transition-colors hover:bg-red-600"
+                class="flex items-center gap-1.5 rounded-lg bg-red-500 px-2.5 py-1.5 text-xs text-white transition-colors hover:bg-red-600 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 on:click={handleBulkDelete}
               >
-                <Trash2 class="h-4 w-4" />
+                <Trash2 class="h-3 w-3 sm:h-4 sm:w-4" />
                 Delete
               </button>
             </div>
@@ -703,74 +735,78 @@
   {:else if mapObjectsView === "trails"}
     <!-- Trail Management Section -->
     <div class="flex flex-1 flex-col overflow-hidden">
-      <!-- Header - responsive sizing -->
-      <div class="flex-shrink-0 space-y-3 pb-3">
+      <!-- Header - mobile-first responsive sizing -->
+      <div class="flex-shrink-0 space-y-2 pb-2 sm:space-y-3 sm:pb-3">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-base font-semibold text-contrast-content">
+            <h3
+              class="text-sm font-semibold text-contrast-content sm:text-base"
+            >
               Trail Records
             </h3>
-            <p class="max-xs:hidden text-sm text-contrast-content/60">
+            <p
+              class="hidden text-xs text-contrast-content/60 sm:block sm:text-sm"
+            >
               View trail history and data
             </p>
           </div>
         </div>
 
-        <!-- Responsive controls layout -->
-        <div class="max-xs:space-y-2 space-y-3">
-          <div class="max-xs:gap-2 flex gap-3">
+        <!-- Controls layout -->
+        <div class="space-y-2 sm:space-y-3">
+          <div class="flex gap-2 sm:gap-3">
             <div class="relative flex-1">
               <Search
-                class="max-xs:h-3 max-xs:w-3 max-xs:left-2 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/60"
+                class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-contrast-content/60 sm:left-3 sm:h-4 sm:w-4"
               />
               <input
                 type="text"
                 placeholder="Search trails..."
                 bind:value={trailSearchQuery}
-                class="max-xs:py-1.5 max-xs:pl-7 max-xs:text-xs w-full rounded-lg border border-base-300 bg-base-200 py-2 pl-10 pr-4 text-sm text-contrast-content outline-none focus:border-base-content"
+                class="w-full rounded-lg border border-base-300 bg-base-200 py-1.5 pl-7 pr-3 text-xs text-contrast-content outline-none focus:border-base-content sm:py-2 sm:pl-10 sm:pr-4 sm:text-sm"
               />
             </div>
 
             <button
-              class="max-xs:gap-1 max-xs:px-2 max-xs:py-1.5 flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+              class="flex items-center gap-1 rounded-lg border border-base-300 bg-base-200 px-2 py-1.5 text-xs text-contrast-content transition-colors hover:bg-base-300 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
               on:click={toggleTrailSort}
             >
               {#if trailSortDirection === "asc"}
-                <SortAsc class="max-xs:h-3 max-xs:w-3 h-4 w-4" />
+                <SortAsc class="h-3 w-3 sm:h-4 sm:w-4" />
               {:else}
-                <SortDesc class="max-xs:h-3 max-xs:w-3 h-4 w-4" />
+                <SortDesc class="h-3 w-3 sm:h-4 sm:w-4" />
               {/if}
-              <span class="max-xs:hidden">Date</span>
+              <span class="hidden sm:inline">Date</span>
             </button>
           </div>
 
-          <!-- 🆕 UPDATED: Improved Operations Dropdown -->
+          <!-- Operations Dropdown -->
           <div class="relative" bind:this={operationDropdownRef}>
             <button
-              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-3 py-3 text-sm outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50"
+              class="hover:bg-base-50 flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-2.5 py-2.5 text-xs outline-none transition-colors focus:border-base-content disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:py-3 sm:text-sm"
               on:click={() => (showOperationDropdown = !showOperationDropdown)}
             >
               <span class="truncate text-left text-contrast-content">
                 {#if selectedOperation === "all"}
                   All Operations
                   <span
-                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
+                    class="ml-1.5 inline-flex items-center gap-1 rounded-full bg-base-200 px-1.5 py-0.5 text-xs text-base-content sm:ml-2 sm:px-2"
                   >
-                    <Route class="h-3 w-3" />
+                    <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                     {$trailsMetaDataStore.length}
                   </span>
                 {:else}
                   {selectedOperationName.replace(/\s*\([^)]*\)$/, "")}
                   <span
-                    class="ml-2 inline-flex items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content"
+                    class="ml-1.5 inline-flex items-center gap-1 rounded-full bg-base-200 px-1.5 py-0.5 text-xs text-base-content sm:ml-2 sm:px-2"
                   >
-                    <Route class="h-3 w-3" />
+                    <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                     {getTrailCountForOperation(selectedOperation)}
                   </span>
                 {/if}
               </span>
               <svg
-                class="h-4 w-4 text-contrast-content/60 transition-transform {showOperationDropdown
+                class="h-3 w-3 text-contrast-content/60 transition-transform sm:h-4 sm:w-4 {showOperationDropdown
                   ? 'rotate-180'
                   : ''}"
                 fill="none"
@@ -788,29 +824,31 @@
 
             {#if showOperationDropdown}
               <div
-                class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+                class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg sm:max-h-60"
               >
                 <!-- All Operations option -->
                 <button
-                  class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {selectedOperation ===
+                  class="group flex w-full items-center justify-between px-2.5 py-2 text-left transition-colors hover:bg-base-200 sm:px-3 {selectedOperation ===
                   'all'
                     ? 'bg-primary/10 text-primary'
                     : ''}"
                   on:click={() => selectOperation("all")}
                 >
                   <div class="min-w-0 flex-1">
-                    <div class="truncate font-medium text-contrast-content">
+                    <div
+                      class="truncate text-xs font-medium text-contrast-content sm:text-sm"
+                    >
                       All Operations
                     </div>
                   </div>
                   <div class="ml-2 flex shrink-0 items-center gap-1">
                     <div
-                      class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                      class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-1.5 py-1 text-xs {selectedOperation ===
                       'all'
                         ? 'bg-primary/20 text-primary'
-                        : 'text-base-content'}"
+                        : 'text-base-content'} sm:px-2"
                     >
-                      <Route class="h-3 w-3" />
+                      <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                       <span>{$trailsMetaDataStore.length}</span>
                     </div>
                   </div>
@@ -820,25 +858,27 @@
                 {#each $operationStore as operation (operation.id)}
                   {@const trailCount = getTrailCountForOperation(operation.id)}
                   <button
-                    class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {selectedOperation ===
+                    class="group flex w-full items-center justify-between px-2.5 py-2 text-left transition-colors hover:bg-base-200 sm:px-3 {selectedOperation ===
                     operation.id
                       ? 'bg-primary/10 text-primary'
                       : ''}"
                     on:click={() => selectOperation(operation.id)}
                   >
                     <div class="min-w-0 flex-1">
-                      <div class="truncate font-medium text-contrast-content">
+                      <div
+                        class="truncate text-xs font-medium text-contrast-content sm:text-sm"
+                      >
                         {operation.name} ({operation.year})
                       </div>
                     </div>
                     <div class="ml-2 flex shrink-0 items-center gap-1">
                       <div
-                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-2 py-1 text-xs {selectedOperation ===
+                        class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-1.5 py-1 text-xs {selectedOperation ===
                         operation.id
                           ? 'bg-primary/20 text-primary'
-                          : 'text-base-content'}"
+                          : 'text-base-content'} sm:px-2"
                       >
-                        <Route class="h-3 w-3" />
+                        <Route class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         <span>{trailCount}</span>
                       </div>
                     </div>
@@ -849,49 +889,49 @@
           </div>
         </div>
 
-        <p class="max-xs:text-xs text-sm text-contrast-content/60">
+        <p class="text-xs text-contrast-content/60 sm:text-sm">
           {filteredTrails.length} trails found
         </p>
       </div>
 
       <!-- Trails List -->
       <div class="flex-1 overflow-y-auto">
-        <div class="max-xs:space-y-2 max-xs:pr-1 space-y-3 px-1 pr-2">
+        <div class="space-y-1.5 px-0.5 pr-1 sm:space-y-2 sm:px-1 sm:pr-2">
           {#if filteredTrails.length === 0}
             <div
-              class="max-xs:py-6 flex flex-col items-center justify-center rounded-lg bg-base-200 py-8 text-center"
+              class="flex flex-col items-center justify-center rounded-lg bg-base-200 py-6 text-center sm:py-8"
             >
               <Route
-                class="max-xs:mb-2 max-xs:h-6 max-xs:w-6 mb-3 h-8 w-8 text-contrast-content/60"
+                class="mb-2 h-5 w-5 text-contrast-content/60 sm:mb-3 sm:h-8 sm:w-8"
               />
-              <p
-                class="max-xs:text-xs text-sm font-medium text-contrast-content"
-              >
+              <p class="text-xs font-medium text-contrast-content sm:text-sm">
                 No trails found
               </p>
-              <p class="max-xs:hidden text-sm text-contrast-content/60">
+              <p
+                class="hidden text-xs text-contrast-content/60 sm:block sm:text-sm"
+              >
                 Try a different search or operation
               </p>
             </div>
           {:else}
             {#each paginatedTrails as trail (trail.id)}
               <div
-                class="max-xs:p-3 rounded-lg bg-base-200 p-4 transition-colors hover:bg-base-300"
+                class="rounded-lg bg-base-200 p-2.5 transition-colors hover:bg-base-300 sm:p-3"
               >
-                <!-- Header with colored dot to the left of operation name -->
+                <!-- Header with colored dot and operation name -->
                 <div
-                  class="max-xs:mb-2 mb-3 flex items-start justify-between gap-2"
+                  class="mb-2 flex items-start justify-between gap-2 sm:mb-3"
                 >
                   <div class="min-w-0 flex-1">
                     <!-- Operation name with colored dot on the left -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5 sm:gap-2">
                       <div
-                        class="max-xs:h-2 max-xs:w-2 h-3 w-3 shrink-0 rounded-full border border-gray-300"
+                        class="h-2 w-2 shrink-0 rounded-full border border-gray-300 sm:h-3 sm:w-3"
                         style="background-color: {trail.trail_color}"
                         title="Trail color: {trail.trail_color}"
                       ></div>
                       <h4
-                        class="truncate text-sm font-medium text-contrast-content"
+                        class="truncate text-xs font-medium text-contrast-content sm:text-sm"
                       >
                         {trail.operation_name} ({trail.operation_year})
                       </h4>
@@ -899,54 +939,48 @@
                   </div>
                   <div class="text-right text-xs text-contrast-content/60">
                     <!-- Responsive date format -->
-                    <div class="max-xs:hidden">
+                    <div class="hidden sm:block">
                       <Calendar class="mr-1 inline h-3 w-3" />
                       {formatTrailDate(trail.start_time)}
                     </div>
-                    <div class="max-xs:block hidden">
+                    <div class="block sm:hidden">
                       {formatTrailDateMobile(trail.start_time)}
                     </div>
                   </div>
                 </div>
 
                 <!-- Responsive metrics grid -->
-                <div
-                  class="max-xs:gap-2 max-xs:text-xs grid grid-cols-2 gap-4 text-sm"
-                >
-                  <div class="max-xs:space-y-1 space-y-2">
+                <div class="grid grid-cols-2 gap-2 text-xs sm:gap-3 sm:text-sm">
+                  <div class="space-y-1 sm:space-y-2">
                     <div
-                      class="flex items-center gap-2 text-contrast-content/70"
+                      class="flex items-center gap-1.5 text-contrast-content/70 sm:gap-2"
                     >
-                      <Activity
-                        class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0"
-                      />
+                      <Activity class="h-3 w-3 shrink-0 sm:h-4 sm:w-4" />
                       <span class="font-medium">Distance:</span>
                       <span>{formatDistance(trail.trail_distance)}</span>
                     </div>
                     <div
-                      class="flex items-center gap-2 text-contrast-content/70"
+                      class="flex items-center gap-1.5 text-contrast-content/70 sm:gap-2"
                     >
-                      <BarChart3
-                        class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0"
-                      />
+                      <BarChart3 class="h-3 w-3 shrink-0 sm:h-4 sm:w-4" />
                       <span class="font-medium">Area:</span>
                       <span>{formatHectares(trail.trail_hectares)}</span>
                     </div>
                   </div>
-                  <div class="max-xs:space-y-1 space-y-2">
+                  <div class="space-y-1 sm:space-y-2">
                     <div
-                      class="flex items-center gap-2 text-contrast-content/70"
+                      class="flex items-center gap-1.5 text-contrast-content/70 sm:gap-2"
                     >
-                      <Clock class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0" />
+                      <Clock class="h-3 w-3 shrink-0 sm:h-4 sm:w-4" />
                       <span class="font-medium">Duration:</span>
                       <!-- Responsive duration format -->
-                      <span class="max-xs:hidden"
+                      <span class="hidden sm:inline"
                         >{getTrailDuration(
                           trail.start_time,
                           trail.end_time,
                         )}</span
                       >
-                      <span class="max-xs:inline hidden"
+                      <span class="inline sm:hidden"
                         >{getTrailDurationMobile(
                           trail.start_time,
                           trail.end_time,
@@ -954,9 +988,9 @@
                       >
                     </div>
                     <div
-                      class="flex items-center gap-2 text-contrast-content/70"
+                      class="flex items-center gap-1.5 text-contrast-content/70 sm:gap-2"
                     >
-                      <Route class="max-xs:h-3 max-xs:w-3 h-4 w-4 shrink-0" />
+                      <Route class="h-3 w-3 shrink-0 sm:h-4 sm:w-4" />
                       <span class="font-medium">Overlap:</span>
                       <span
                         >{formatPercentage(
@@ -969,12 +1003,10 @@
 
                 <!-- Overlap details with better responsive behavior -->
                 {#if trail.trail_hectares_overlap && trail.trail_hectares_overlap > 0}
-                  <div
-                    class="max-xs:mt-2 max-xs:pt-1 mt-3 border-t border-base-300 pt-2"
-                  >
+                  <div class="mt-2 border-t border-base-300 pt-1 sm:pt-2">
                     <div class="text-xs text-contrast-content/60">
-                      <span class="max-xs:hidden">Overlap area: </span>
-                      <span class="max-xs:inline hidden">Overlap: </span>
+                      <span class="hidden sm:inline">Overlap area: </span>
+                      <span class="inline sm:hidden">Overlap: </span>
                       {formatHectares(trail.trail_hectares_overlap)}
                     </div>
                   </div>
@@ -983,9 +1015,9 @@
             {/each}
 
             {#if hasMoreTrailPages}
-              <div class="max-xs:pt-2 flex justify-center pt-4">
+              <div class="flex justify-center pt-2 sm:pt-4">
                 <button
-                  class="max-xs:px-3 max-xs:py-1.5 max-xs:text-xs rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm text-contrast-content transition-colors hover:bg-base-300"
+                  class="rounded-lg border border-base-300 bg-base-200 px-3 py-1.5 text-xs text-contrast-content transition-colors hover:bg-base-300 sm:px-4 sm:py-2 sm:text-sm"
                   on:click={loadMoreTrails}
                 >
                   Load More ({filteredTrails.length - paginatedTrails.length})
@@ -998,94 +1030,3 @@
     </div>
   {/if}
 </div>
-
-<style>
-  /* Custom breakpoint for very small screens only */
-  @media (max-width: 449px) {
-    .max-xs\:hidden {
-      display: none;
-    }
-    .max-xs\:block {
-      display: block;
-    }
-    .max-xs\:inline {
-      display: inline;
-    }
-    .max-xs\:space-y-1 > :not([hidden]) ~ :not([hidden]) {
-      margin-top: 0.25rem;
-    }
-    .max-xs\:space-y-2 > :not([hidden]) ~ :not([hidden]) {
-      margin-top: 0.5rem;
-    }
-    .max-xs\:gap-1 {
-      gap: 0.25rem;
-    }
-    .max-xs\:gap-2 {
-      gap: 0.5rem;
-    }
-    .max-xs\:h-2 {
-      height: 0.5rem;
-    }
-    .max-xs\:w-2 {
-      width: 0.5rem;
-    }
-    .max-xs\:h-3 {
-      height: 0.75rem;
-    }
-    .max-xs\:w-3 {
-      width: 0.75rem;
-    }
-    .max-xs\:h-6 {
-      height: 1.5rem;
-    }
-    .max-xs\:w-6 {
-      width: 1.5rem;
-    }
-    .max-xs\:p-3 {
-      padding: 0.75rem;
-    }
-    .max-xs\:px-2 {
-      padding-left: 0.5rem;
-      padding-right: 0.5rem;
-    }
-    .max-xs\:px-3 {
-      padding-left: 0.75rem;
-      padding-right: 0.75rem;
-    }
-    .max-xs\:py-1\.5 {
-      padding-top: 0.375rem;
-      padding-bottom: 0.375rem;
-    }
-    .max-xs\:pl-7 {
-      padding-left: 1.75rem;
-    }
-    .max-xs\:left-2 {
-      left: 0.5rem;
-    }
-    .max-xs\:text-xs {
-      font-size: 0.75rem;
-    }
-    .max-xs\:mb-2 {
-      margin-bottom: 0.5rem;
-    }
-    .max-xs\:mt-0\.5 {
-      margin-top: 0.125rem;
-    }
-    .max-xs\:mt-2 {
-      margin-top: 0.5rem;
-    }
-    .max-xs\:pt-1 {
-      padding-top: 0.25rem;
-    }
-    .max-xs\:pt-2 {
-      padding-top: 0.5rem;
-    }
-    .max-xs\:py-6 {
-      padding-top: 1.5rem;
-      padding-bottom: 1.5rem;
-    }
-    .max-xs\:pr-1 {
-      padding-right: 0.25rem;
-    }
-  }
-</style>

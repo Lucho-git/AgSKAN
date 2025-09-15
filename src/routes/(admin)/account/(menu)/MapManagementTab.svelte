@@ -407,27 +407,27 @@
   })
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 sm:space-y-6">
   {#if isLoading}
     <!-- Loading State with Animation -->
     <div
       in:fade={{ duration: 300 }}
-      class="flex h-96 w-full items-center justify-center"
+      class="flex h-80 w-full items-center justify-center sm:h-96"
     >
-      <div class="flex flex-col items-center gap-6">
+      <div class="flex flex-col items-center gap-4 sm:gap-6">
         <div
-          class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+          class="relative flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 sm:h-16 sm:w-16"
         >
           <div
             class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={32} class="animate-pulse text-blue-400" />
+          <Cloud size={24} class="animate-pulse text-blue-400 sm:size-8" />
         </div>
         <div class="text-center">
-          <h2 class="text-xl font-medium text-contrast-content">
+          <h2 class="text-lg font-medium text-contrast-content sm:text-xl">
             {loadingMessage || "Processing..."}
           </h2>
-          <p class="mt-2 text-sm text-contrast-content/60">
+          <p class="mt-1 text-xs text-contrast-content/60 sm:mt-2 sm:text-sm">
             Please wait while we set things up
           </p>
         </div>
@@ -440,44 +440,50 @@
         <!-- Not Connected - Show Join/Create Options -->
         <div class="text-center">
           <div
-            class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10"
+            class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 sm:mb-4 sm:h-16 sm:w-16"
           >
-            <Map class="h-8 w-8 text-blue-500" />
+            <Map class="h-6 w-6 text-blue-500 sm:h-8 sm:w-8" />
           </div>
-          <h3 class="mb-2 text-lg font-semibold text-contrast-content">
+          <h3
+            class="mb-2 text-base font-semibold text-contrast-content sm:text-lg"
+          >
             Get Started with Maps
           </h3>
-          <p class="mb-6 text-sm text-contrast-content/60">
+          <p class="mb-4 text-xs text-contrast-content/60 sm:mb-6 sm:text-sm">
             Create a new map or join an existing one
           </p>
 
           <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <button
-              class="group flex items-center justify-center gap-3 rounded-lg bg-base-content px-6 py-4 text-base-100 transition-colors hover:bg-base-content/90"
+              class="group flex items-center justify-center gap-3 rounded-lg bg-base-content px-4 py-3 text-base-100 transition-colors hover:bg-base-content/90 sm:px-6 sm:py-4"
               on:click={goToCreateView}
             >
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-base-100/20"
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-base-100/20 sm:h-8 sm:w-8"
               >
-                <Plus class="h-5 w-5" />
+                <Plus class="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div class="text-left">
-                <div class="font-semibold">Create Map</div>
-                <div class="text-sm opacity-80">Start a new farm map</div>
+                <div class="text-sm font-semibold sm:text-base">Create Map</div>
+                <div class="text-xs opacity-80 sm:text-sm">
+                  Start a new farm map
+                </div>
               </div>
             </button>
             <button
-              class="group flex items-center justify-center gap-3 rounded-lg bg-base-200 px-6 py-4 text-contrast-content transition-colors hover:bg-base-300"
+              class="group flex items-center justify-center gap-3 rounded-lg bg-base-200 px-4 py-3 text-contrast-content transition-colors hover:bg-base-300 sm:px-6 sm:py-4"
               on:click={goToJoinView}
             >
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-base-100"
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-base-100 sm:h-8 sm:w-8"
               >
-                <Search class="h-5 w-5 text-contrast-content/60" />
+                <Search
+                  class="h-4 w-4 text-contrast-content/60 sm:h-5 sm:w-5"
+                />
               </div>
               <div class="text-left">
-                <div class="font-semibold">Join Map</div>
-                <div class="text-sm text-contrast-content/60">
+                <div class="text-sm font-semibold sm:text-base">Join Map</div>
+                <div class="text-xs text-contrast-content/60 sm:text-sm">
                   Connect to existing map
                 </div>
               </div>
@@ -486,73 +492,78 @@
         </div>
       {:else}
         <!-- Connected - Show Map Options -->
-        <div class="space-y-4">
+        <div class="space-y-3 sm:space-y-4">
           <!-- Map Info Card -->
-          <div class="rounded-lg bg-base-200 p-4">
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20"
-                >
-                  <Map class="h-5 w-5 text-green-500" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <h2 class="truncate font-semibold text-contrast-content">
-                    {$connectedMapStore.map_name}
-                  </h2>
-                  <p class="truncate text-sm text-contrast-content/60">
-                    Owned by {$connectedMapStore.owner}
-                  </p>
-                </div>
+          <div class="rounded-lg bg-base-200 p-3 sm:p-4">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 sm:h-10 sm:w-10"
+              >
+                <Map class="h-4 w-4 text-green-500 sm:h-5 sm:w-5" />
               </div>
-              {#if isRenaming}
-                <div class="flex gap-2">
-                  <input
-                    type="text"
-                    bind:value={newMapNameInput}
-                    class="rounded border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-base-content"
-                  />
-                  <button
-                    class="rounded bg-green-500 p-1.5 text-white hover:bg-green-600"
-                    on:click={handleRenameMap}
-                  >
-                    <Save class="h-3 w-3" />
-                  </button>
-                  <button
-                    class="hover:bg-base-400 rounded bg-base-300 p-1.5"
-                    on:click={() => (isRenaming = false)}
-                  >
-                    <X class="h-3 w-3" />
-                  </button>
-                </div>
-              {:else if isOwner}
-                <button
-                  class="rounded-lg bg-base-100 p-1.5 transition-colors hover:bg-base-300"
-                  on:click={() => {
-                    isRenaming = true
-                    newMapNameInput = $connectedMapStore.map_name
-                  }}
+              <div class="min-w-0 flex-1">
+                <h2
+                  class="truncate text-sm font-semibold text-contrast-content sm:text-base"
                 >
-                  <Edit3 class="h-3 w-3" />
-                </button>
-              {/if}
+                  {$connectedMapStore.map_name}
+                </h2>
+                <p class="truncate text-xs text-contrast-content/60 sm:text-sm">
+                  Owned by {$connectedMapStore.owner}
+                </p>
+              </div>
+              <!-- Fixed width container for settings button -->
+              <div class="flex w-8 justify-end sm:w-10">
+                {#if isRenaming}
+                  <div class="flex gap-1 sm:gap-2">
+                    <input
+                      type="text"
+                      bind:value={newMapNameInput}
+                      class="w-20 rounded border border-base-300 bg-base-100 px-2 py-1 text-xs outline-none focus:border-base-content sm:w-24 sm:text-sm"
+                    />
+                    <button
+                      class="rounded bg-green-500 p-1 text-white hover:bg-green-600 sm:p-1.5"
+                      on:click={handleRenameMap}
+                    >
+                      <Save class="h-3 w-3" />
+                    </button>
+                    <button
+                      class="hover:bg-base-400 rounded bg-base-300 p-1 sm:p-1.5"
+                      on:click={() => (isRenaming = false)}
+                    >
+                      <X class="h-3 w-3" />
+                    </button>
+                  </div>
+                {:else if isOwner}
+                  <button
+                    class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100 transition-colors hover:bg-base-300 sm:h-8 sm:w-8"
+                    on:click={() => {
+                      isRenaming = true
+                      newMapNameInput = $connectedMapStore.map_name
+                    }}
+                  >
+                    <Edit3 class="h-3 w-3" />
+                  </button>
+                {/if}
+              </div>
             </div>
           </div>
 
           <!-- Map Actions -->
-          <div class="space-y-3">
+          <div class="space-y-2 sm:space-y-3">
             <!-- Create New Map Button -->
             <button
-              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-4 text-left transition-colors hover:bg-base-300"
+              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-3 text-left transition-colors hover:bg-base-300 sm:p-4"
               on:click={goToCreateView}
             >
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/20"
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/20 sm:h-8 sm:w-8"
               >
-                <Plus class="h-4 w-4 text-blue-500" />
+                <Plus class="h-3 w-3 text-blue-500 sm:h-4 sm:w-4" />
               </div>
               <div>
-                <div class="text-sm font-medium text-contrast-content">
+                <div
+                  class="text-xs font-medium text-contrast-content sm:text-sm"
+                >
                   Create New Map
                 </div>
                 <div class="text-xs text-contrast-content/60">
@@ -563,16 +574,18 @@
 
             <!-- Switch Map Button -->
             <button
-              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-4 text-left transition-colors hover:bg-base-300"
+              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-3 text-left transition-colors hover:bg-base-300 sm:p-4"
               on:click={goToJoinView}
             >
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/20"
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/20 sm:h-8 sm:w-8"
               >
-                <Link2 class="h-4 w-4 text-purple-500" />
+                <Link2 class="h-3 w-3 text-purple-500 sm:h-4 sm:w-4" />
               </div>
               <div>
-                <div class="text-sm font-medium text-contrast-content">
+                <div
+                  class="text-xs font-medium text-contrast-content sm:text-sm"
+                >
                   Switch Map
                 </div>
                 <div class="text-xs text-contrast-content/60">
@@ -583,17 +596,19 @@
 
             <!-- Leave Map Button -->
             <button
-              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-4 text-left transition-colors hover:bg-base-300"
+              class="flex w-full items-center gap-3 rounded-lg bg-base-200 p-3 text-left transition-colors hover:bg-base-300 sm:p-4"
               on:click={handleDisconnectFromMap}
               disabled={isLoading}
             >
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/20"
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500/20 sm:h-8 sm:w-8"
               >
-                <LogOut class="h-4 w-4 text-orange-500" />
+                <LogOut class="h-3 w-3 text-orange-500 sm:h-4 sm:w-4" />
               </div>
               <div>
-                <div class="text-sm font-medium text-contrast-content">
+                <div
+                  class="text-xs font-medium text-contrast-content sm:text-sm"
+                >
                   Leave Map
                 </div>
                 <div class="text-xs text-contrast-content/60">
@@ -604,31 +619,36 @@
 
             <!-- Delete Map Button -->
             {#if isOwner}
-              <div class="rounded-lg bg-base-200 p-4 transition-colors">
+              <div class="rounded-lg bg-base-200 p-3 transition-colors sm:p-4">
                 <button
-                  class="flex w-full items-center justify-between text-left"
+                  class="flex w-full items-center gap-3 text-left"
                   on:click={() => (showDeleteConfirm = !showDeleteConfirm)}
                 >
-                  <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-7 w-7 items-center justify-center rounded-full bg-red-500/20 sm:h-8 sm:w-8"
+                  >
+                    <Trash2 class="h-3 w-3 text-red-500 sm:h-4 sm:w-4" />
+                  </div>
+                  <div class="min-w-0 flex-1">
                     <div
-                      class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/20"
+                      class="text-xs font-medium text-contrast-content sm:text-sm"
                     >
-                      <Trash2 class="h-4 w-4 text-red-500" />
+                      Delete Map
                     </div>
-                    <div>
-                      <div class="text-sm font-medium text-contrast-content">
-                        Delete Map
-                      </div>
-                      <div class="text-xs text-contrast-content/60">
-                        Permanently remove
-                      </div>
+                    <div class="text-xs text-contrast-content/60">
+                      Permanently remove
                     </div>
                   </div>
-                  <div class="flex items-center">
+                  <!-- Fixed width container for chevron -->
+                  <div class="flex w-6 justify-end">
                     {#if showDeleteConfirm}
-                      <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+                      <ChevronUp
+                        class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                      />
                     {:else}
-                      <ChevronDown class="h-4 w-4 text-contrast-content/60" />
+                      <ChevronDown
+                        class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                      />
                     {/if}
                   </div>
                 </button>
@@ -636,37 +656,45 @@
                 <!-- Delete Confirmation -->
                 {#if showDeleteConfirm}
                   <div
-                    class="animate-slideDown mt-4 border-t border-red-300 pt-4"
+                    class="animate-slideDown mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
                   >
-                    <div class="rounded-lg bg-red-50 p-4">
-                      <div class="mb-3 flex items-center gap-2">
-                        <AlertTriangle class="h-5 w-5 text-red-500" />
-                        <h4 class="font-semibold text-red-700">
+                    <div class="rounded-lg bg-red-50 p-3 sm:p-4">
+                      <div class="mb-2 flex items-center gap-2 sm:mb-3">
+                        <AlertTriangle
+                          class="h-4 w-4 text-red-500 sm:h-5 sm:w-5"
+                        />
+                        <h4
+                          class="text-sm font-semibold text-red-700 sm:text-base"
+                        >
                           Delete Map Permanently
                         </h4>
                       </div>
-                      <p class="mb-3 text-sm text-red-600">
+                      <p class="mb-2 text-xs text-red-600 sm:mb-3 sm:text-sm">
                         This will permanently delete <strong
                           >{$connectedMapStore.map_name}</strong
                         > and all associated data.
                       </p>
-                      <div class="mb-3">
-                        <label class="mb-1 block text-sm text-red-600">
+                      <div class="mb-2 sm:mb-3">
+                        <label
+                          class="mb-1 block text-xs text-red-600 sm:text-sm"
+                        >
                           Type the first 8 characters of the Map ID to confirm:
                         </label>
-                        <code class="mb-2 block font-mono text-xs text-red-500">
+                        <code
+                          class="mb-1 block font-mono text-xs text-red-500 sm:mb-2"
+                        >
                           {$connectedMapStore.id.slice(0, 8)}
                         </code>
                         <input
                           type="text"
                           bind:value={confirmationInput}
                           placeholder="Enter confirmation code"
-                          class="w-full rounded border border-red-300 bg-white p-2 text-sm outline-none focus:border-red-500"
+                          class="w-full rounded border border-red-300 bg-white p-2 text-xs outline-none focus:border-red-500 sm:text-sm"
                         />
                       </div>
                       <div class="flex gap-2">
                         <button
-                          class="flex-1 rounded bg-gray-200 py-2 text-sm font-medium transition-colors hover:bg-gray-300"
+                          class="flex-1 rounded bg-gray-200 py-2 text-xs font-medium transition-colors hover:bg-gray-300 sm:text-sm"
                           on:click={() => {
                             showDeleteConfirm = false
                             confirmationInput = ""
@@ -675,7 +703,7 @@
                           Cancel
                         </button>
                         <button
-                          class="flex-1 rounded bg-red-500 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          class="flex-1 rounded bg-red-500 py-2 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                           on:click={handleDeleteMap}
                           disabled={isLoading ||
                             confirmationInput.toLowerCase() !==
@@ -698,31 +726,33 @@
   {:else if currentView === "create"}
     <!-- Create Map View -->
     <div>
-      <div class="space-y-6">
+      <div class="space-y-4 sm:space-y-6">
         <!-- Header with Back Button -->
         <div class="flex items-center gap-3">
           <button
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300 sm:h-10 sm:w-10"
             on:click={goToMainView}
           >
-            <ArrowLeft class="h-4 w-4 text-contrast-content" />
+            <ArrowLeft class="h-3 w-3 text-contrast-content sm:h-4 sm:w-4" />
           </button>
           <div>
-            <h3 class="text-lg font-semibold text-contrast-content">
+            <h3
+              class="text-base font-semibold text-contrast-content sm:text-lg"
+            >
               Create New Map
             </h3>
-            <p class="text-sm text-contrast-content/60">
+            <p class="text-xs text-contrast-content/60 sm:text-sm">
               Set up a new farm operations map
             </p>
           </div>
         </div>
 
         <!-- Create Form -->
-        <div class="rounded-lg bg-base-200 p-6">
-          <div class="space-y-6">
+        <div class="rounded-lg bg-base-200 p-4 sm:p-6">
+          <div class="space-y-4 sm:space-y-6">
             <div>
               <label
-                class="mb-2 block text-sm font-medium text-contrast-content"
+                class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
               >
                 Map Name
               </label>
@@ -730,19 +760,23 @@
                 type="text"
                 bind:value={newMapName}
                 placeholder="e.g. North Field Operations"
-                class="w-full rounded-lg border border-base-300 bg-base-100 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-3 sm:text-sm"
                 autofocus
               />
             </div>
 
             <div>
               <label
-                class="mb-2 block text-sm font-medium text-contrast-content"
+                class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
               >
                 Map ID (Auto-generated)
               </label>
-              <div class="rounded-lg border border-base-300 bg-base-100 p-3">
-                <code class="font-mono text-sm text-contrast-content/80">
+              <div
+                class="rounded-lg border border-base-300 bg-base-100 p-2.5 sm:p-3"
+              >
+                <code
+                  class="font-mono text-xs text-contrast-content/80 sm:text-sm"
+                >
                   {generatedMapId}
                 </code>
               </div>
@@ -751,15 +785,15 @@
               </p>
             </div>
 
-            <div class="flex gap-3">
+            <div class="flex flex-col gap-2 sm:flex-row sm:gap-3">
               <button
-                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-3 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:py-3 sm:text-sm"
                 on:click={goToMainView}
               >
                 Cancel
               </button>
               <button
-                class="flex-1 rounded-lg bg-base-content py-3 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex-1 rounded-lg bg-base-content py-2.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3 sm:text-sm"
                 on:click={handleCreateMap}
                 disabled={!newMapName.trim()}
               >
@@ -773,31 +807,33 @@
   {:else if currentView === "join"}
     <!-- Join Map View -->
     <div>
-      <div class="space-y-6">
+      <div class="space-y-4 sm:space-y-6">
         <!-- Header with Back Button -->
         <div class="flex items-center gap-3">
           <button
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300 sm:h-10 sm:w-10"
             on:click={goToMainView}
           >
-            <ArrowLeft class="h-4 w-4 text-contrast-content" />
+            <ArrowLeft class="h-3 w-3 text-contrast-content sm:h-4 sm:w-4" />
           </button>
           <div>
-            <h3 class="text-lg font-semibold text-contrast-content">
+            <h3
+              class="text-base font-semibold text-contrast-content sm:text-lg"
+            >
               Join Map
             </h3>
-            <p class="text-sm text-contrast-content/60">
+            <p class="text-xs text-contrast-content/60 sm:text-sm">
               Connect to an existing map
             </p>
           </div>
         </div>
 
         <!-- Join Form -->
-        <div class="rounded-lg bg-base-200 p-6">
-          <div class="space-y-6">
+        <div class="rounded-lg bg-base-200 p-4 sm:p-6">
+          <div class="space-y-4 sm:space-y-6">
             <div>
               <label
-                class="mb-2 block text-sm font-medium text-contrast-content"
+                class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
               >
                 Map ID
               </label>
@@ -805,20 +841,20 @@
                 type="text"
                 bind:value={enteredMapId}
                 placeholder="Enter the map ID you want to join"
-                class="w-full rounded-lg border border-base-300 bg-base-100 p-3 text-contrast-content outline-none transition-colors focus:border-base-content"
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-3 sm:text-sm"
                 autofocus
               />
             </div>
 
-            <div class="flex gap-3">
+            <div class="flex flex-col gap-2 sm:flex-row sm:gap-3">
               <button
-                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-3 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:py-3 sm:text-sm"
                 on:click={goToMainView}
               >
                 Cancel
               </button>
               <button
-                class="flex-1 rounded-lg bg-base-content py-3 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex-1 rounded-lg bg-base-content py-2.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3 sm:text-sm"
                 on:click={() => connectToMap(enteredMapId)}
                 disabled={!enteredMapId.trim()}
               >
@@ -830,40 +866,42 @@
 
         <!-- Quick Access Lists -->
         {#if recentMaps.length > 0 || userMaps.length > 0}
-          <div class="space-y-4">
+          <div class="space-y-3 sm:space-y-4">
             {#if recentMaps.length > 0}
               <div>
                 <h4
-                  class="mb-3 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                  class="mb-2 flex items-center gap-2 text-xs font-medium text-contrast-content sm:mb-3 sm:text-sm"
                 >
                   <div
-                    class="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600/20"
+                    class="flex h-3 w-3 items-center justify-center rounded-full bg-purple-600/20 sm:h-4 sm:w-4"
                   >
-                    <Clock class="h-2.5 w-2.5 text-purple-600" />
+                    <Clock class="h-2 w-2 text-purple-600 sm:h-2.5 sm:w-2.5" />
                   </div>
                   Recent Maps
                 </h4>
-                <div class="space-y-2">
-                  {#each recentMaps.slice(0, 20) as map}
+                <div class="space-y-1 sm:space-y-2">
+                  {#each recentMaps as map}
                     <button
-                      class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-4 text-left transition-colors hover:bg-base-300"
+                      class="group flex w-full items-center gap-2 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300 sm:gap-3 sm:p-4"
                       on:click={() => connectToMap(map.id)}
                     >
                       <div
-                        class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20"
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/20 sm:h-8 sm:w-8"
                       >
-                        <Map class="h-4 w-4 text-blue-600" />
+                        <Map class="h-3 w-3 text-blue-600 sm:h-4 sm:w-4" />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <div class="truncate font-medium text-contrast-content">
+                        <div
+                          class="truncate text-xs font-medium text-contrast-content sm:text-sm"
+                        >
                           {map.map_name}
                         </div>
-                        <div class="text-sm text-contrast-content/60">
+                        <div class="text-xs text-contrast-content/60">
                           by {map.owner_name}
                         </div>
                       </div>
                       <Link2
-                        class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                        class="h-3 w-3 text-contrast-content/60 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4"
                       />
                     </button>
                   {/each}
@@ -874,36 +912,38 @@
             {#if userMaps.length > 0}
               <div>
                 <h4
-                  class="mb-3 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                  class="mb-2 flex items-center gap-2 text-xs font-medium text-contrast-content sm:mb-3 sm:text-sm"
                 >
                   <div
-                    class="flex h-4 w-4 items-center justify-center rounded-full bg-green-600/20"
+                    class="flex h-3 w-3 items-center justify-center rounded-full bg-green-600/20 sm:h-4 sm:w-4"
                   >
-                    <User class="h-2.5 w-2.5 text-green-600" />
+                    <User class="h-2 w-2 text-green-600 sm:h-2.5 sm:w-2.5" />
                   </div>
                   Your Maps
                 </h4>
-                <div class="space-y-2">
-                  {#each userMaps.slice(0, 20) as map}
+                <div class="space-y-1 sm:space-y-2">
+                  {#each userMaps as map}
                     <button
-                      class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-4 text-left transition-colors hover:bg-base-300"
+                      class="group flex w-full items-center gap-2 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300 sm:gap-3 sm:p-4"
                       on:click={() => connectToMap(map.id)}
                     >
                       <div
-                        class="flex h-8 w-8 items-center justify-center rounded-full bg-green-600/20"
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-green-600/20 sm:h-8 sm:w-8"
                       >
-                        <Map class="h-4 w-4 text-green-600" />
+                        <Map class="h-3 w-3 text-green-600 sm:h-4 sm:w-4" />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <div class="truncate font-medium text-contrast-content">
+                        <div
+                          class="truncate text-xs font-medium text-contrast-content sm:text-sm"
+                        >
                           {map.map_name}
                         </div>
-                        <div class="text-sm text-contrast-content/60">
+                        <div class="text-xs text-contrast-content/60">
                           You own this map
                         </div>
                       </div>
                       <Link2
-                        class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                        class="h-3 w-3 text-contrast-content/60 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4"
                       />
                     </button>
                   {/each}
