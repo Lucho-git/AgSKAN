@@ -15,7 +15,7 @@
     profileCreated: false,
     redirectTo: "",
     isDeepLink: false,
-    isRecovery: false, // NEW: Track if this is a recovery flow
+    isRecovery: false,
   }
 
   async function createOrUpdateProfile(sessionData) {
@@ -137,9 +137,17 @@
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const queryParams = new URLSearchParams(window.location.search)
 
-      // NEW: Check if this is a recovery flow before setting redirect
-      const isRecoveryFlow = queryParams.get("type") === "recovery"
+      // FIXED: Check for recovery type in BOTH query params AND hash params
+      const isRecoveryFlow =
+        queryParams.get("type") === "recovery" ||
+        hashParams.get("type") === "recovery"
       debugInfo.isRecovery = isRecoveryFlow
+
+      console.log("Recovery check:", {
+        queryType: queryParams.get("type"),
+        hashType: hashParams.get("type"),
+        isRecoveryFlow,
+      })
 
       // FIXED: Properly handle the next parameter to avoid encoding issues
       let nextParam = queryParams.get("next") || "/account"
@@ -165,7 +173,7 @@
         nextParam = "/account"
       }
 
-      // NEW: Override redirect for recovery flows
+      // FIXED: Override redirect for recovery flows
       if (isRecoveryFlow) {
         nextParam = "/reset-password"
         console.log("Recovery flow detected, redirecting to password reset")
@@ -222,7 +230,7 @@
           })
         }
       }
-      // OAuth login will return a hash fragment
+      // FIXED: Handle hash fragment (including recovery with hash)
       else if (window.location.hash) {
         console.log("Processing hash fragment")
         const accessToken = hashParams.get("access_token")
@@ -247,6 +255,25 @@
             // Create or update profile
             debugInfo.profileCreated = await createOrUpdateProfile(data.session)
             console.log("Profile creation result:", debugInfo.profileCreated)
+
+            // FIXED: Show appropriate toast based on recovery type
+            if (isRecoveryFlow) {
+              toast.success("Recovery link verified!", {
+                description: "Please set your new password.",
+                duration: 4000,
+              })
+            } else {
+              const userName =
+                data.session.user.user_metadata?.full_name ||
+                data.session.user.user_metadata?.name ||
+                data.session.user.email?.split("@")[0] ||
+                "User"
+
+              toast.success(`Welcome back, ${userName}!`, {
+                description: "You have been automatically signed in.",
+                duration: 4000,
+              })
+            }
           }
         }
       }
@@ -274,7 +301,7 @@
           debugInfo.profileCreated = await createOrUpdateProfile(data.session)
           console.log("Profile creation result:", debugInfo.profileCreated)
 
-          // NEW: Show appropriate toast for recovery vs signup
+          // Show appropriate toast for recovery vs signup
           if (queryParams.get("type") === "recovery") {
             toast.success("Email verified successfully!", {
               description: "Please set your new password.",
@@ -325,6 +352,7 @@
   })
 </script>
 
+<!-- Rest of your template stays the same -->
 <svelte:head>
   <title>Authentication</title>
 </svelte:head>
