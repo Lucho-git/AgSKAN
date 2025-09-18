@@ -15,6 +15,7 @@
     profileCreated: false,
     redirectTo: "",
     isDeepLink: false,
+    isRecovery: false, // NEW: Track if this is a recovery flow
   }
 
   async function createOrUpdateProfile(sessionData) {
@@ -136,6 +137,10 @@
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const queryParams = new URLSearchParams(window.location.search)
 
+      // NEW: Check if this is a recovery flow before setting redirect
+      const isRecoveryFlow = queryParams.get("type") === "recovery"
+      debugInfo.isRecovery = isRecoveryFlow
+
       // FIXED: Properly handle the next parameter to avoid encoding issues
       let nextParam = queryParams.get("next") || "/account"
 
@@ -160,6 +165,12 @@
         nextParam = "/account"
       }
 
+      // NEW: Override redirect for recovery flows
+      if (isRecoveryFlow) {
+        nextParam = "/reset-password"
+        console.log("Recovery flow detected, redirecting to password reset")
+      }
+
       debugInfo.redirectTo = nextParam
 
       // ADDED: Check if this is a deep link flow (tokens in query params)
@@ -172,6 +183,7 @@
         query: queryParams.toString(),
         redirectTo: debugInfo.redirectTo,
         isDeepLink: debugInfo.isDeepLink,
+        isRecovery: debugInfo.isRecovery,
       })
 
       let sessionResult = null
@@ -243,7 +255,10 @@
         queryParams.get("type") === "recovery" ||
         queryParams.get("type") === "signup"
       ) {
-        console.log("Processing code exchange")
+        console.log(
+          "Processing code exchange for type:",
+          queryParams.get("type"),
+        )
         const { data, error: codeError } =
           await supabase.auth.exchangeCodeForSession(queryParams.get("code"))
 
@@ -258,6 +273,25 @@
           // Create or update profile
           debugInfo.profileCreated = await createOrUpdateProfile(data.session)
           console.log("Profile creation result:", debugInfo.profileCreated)
+
+          // NEW: Show appropriate toast for recovery vs signup
+          if (queryParams.get("type") === "recovery") {
+            toast.success("Email verified successfully!", {
+              description: "Please set your new password.",
+              duration: 4000,
+            })
+          } else {
+            const userName =
+              data.session.user.user_metadata?.full_name ||
+              data.session.user.user_metadata?.name ||
+              data.session.user.email?.split("@")[0] ||
+              "User"
+
+            toast.success(`Welcome, ${userName}!`, {
+              description: "Your account has been created successfully.",
+              duration: 4000,
+            })
+          }
         }
       }
 
@@ -299,9 +333,11 @@
   <div class="flex h-screen items-center justify-center">
     <div class="text-center">
       <h2 class="mb-4 text-xl font-semibold">
-        {debugInfo.isDeepLink
-          ? "Authenticating via deep link..."
-          : "Completing authentication..."}
+        {debugInfo.isRecovery
+          ? "Verifying recovery link..."
+          : debugInfo.isDeepLink
+            ? "Authenticating via deep link..."
+            : "Completing authentication..."}
       </h2>
       <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
 
@@ -315,6 +351,7 @@
         </p>
         <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
         <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
+        <p>Is Recovery: {debugInfo.isRecovery ? "Yes" : "No"}</p>
       </div>
     </div>
   </div>
@@ -339,6 +376,7 @@
         </p>
         <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
         <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
+        <p>Is Recovery: {debugInfo.isRecovery ? "Yes" : "No"}</p>
       </div>
     </div>
   </div>
