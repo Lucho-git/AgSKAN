@@ -76,8 +76,6 @@
     const newTheme = isDarkMode ? "skanthemedark" : "skantheme"
     document.documentElement.setAttribute("data-theme", newTheme)
     localStorage.setItem("theme", newTheme)
-
-    toast.success(`Switched to ${isDarkMode ? "dark" : "light"} mode`)
   }
 
   onMount(() => {
