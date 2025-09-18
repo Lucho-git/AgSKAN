@@ -65,12 +65,12 @@
 </svelte:head>
 
 <div class="container mx-auto max-w-md px-4 py-8">
-  <h1 class="mb-6 text-2xl font-bold">Forgot Password</h1>
+  <h1 class="mb-6 text-2xl font-bold text-contrast-content">Forgot Password</h1>
 
   {#if showSpamWarning}
     <!-- Spam Warning Notice - Only shown after email submission -->
     <div
-      class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800"
+      class="mb-6 rounded-lg border border-warning bg-warning/10 p-4 text-warning"
     >
       <div class="flex items-start">
         <svg
@@ -87,7 +87,7 @@
         </svg>
         <div>
           <p class="font-medium">Important: Check your spam folder</p>
-          <p class="mt-1 text-sm">
+          <p class="mt-1 text-sm text-warning/80">
             Many of our password reset emails are being flagged as spam. If you
             don't see the email in your inbox, please check your spam or junk
             folder.
@@ -109,7 +109,13 @@
     bind:this={authComponent}
   />
 
-  <div class="mt-4 text-slate-800">
-    Remember your password? <a class="underline" href="/login">Sign in</a>.
+  <div class="mt-4 text-contrast-content">
+    Remember your password?
+    <a
+      class="text-primary underline transition-colors hover:text-primary/80"
+      href="/login"
+    >
+      Sign in
+    </a>.
   </div>
 </div>
