@@ -3,6 +3,7 @@
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { supabase } from "$lib/stores/sessionStore"
   import { page } from "$app/stores"
+  import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
 
   // Security state
@@ -61,30 +62,7 @@
         general: "",
       }
 
-      // Current password validation
-      if (formPassword.current && formPassword.current.length < 1) {
-        passwordErrors.current = "Current password is required"
-      }
-
-      // New password validation
-      if (formPassword.new) {
-        if (formPassword.new.length < 8) {
-          passwordErrors.new = "Password must be at least 8 characters long"
-        } else if (!/(?=.*[a-z])/.test(formPassword.new)) {
-          passwordErrors.new =
-            "Password must contain at least one lowercase letter"
-        } else if (!/(?=.*[A-Z])/.test(formPassword.new)) {
-          passwordErrors.new =
-            "Password must contain at least one uppercase letter"
-        } else if (!/(?=.*\d)/.test(formPassword.new)) {
-          passwordErrors.new = "Password must contain at least one number"
-        } else if (formPassword.new === formPassword.current) {
-          passwordErrors.new =
-            "New password must be different from current password"
-        }
-      }
-
-      // Confirm password validation
+      // Confirm password validation - only check if passwords match
       if (formPassword.confirm && formPassword.new) {
         if (formPassword.new !== formPassword.confirm) {
           passwordErrors.confirm = "Passwords do not match"
@@ -97,8 +75,6 @@
   $: emailFormValid =
     !emailError && formEmail && formEmail !== $session?.user?.email
   $: passwordFormValid =
-    !passwordErrors.current &&
-    !passwordErrors.new &&
     !passwordErrors.confirm &&
     formPassword.current &&
     formPassword.new &&
@@ -138,17 +114,36 @@
     if (!emailFormValid) return
 
     try {
-      const result = await userSettingsApi.updateEmail(formEmail)
+      // Direct update without verification
+      const { data, error } = await supabase.auth.updateUser({
+        email: formEmail,
+      })
 
-      if (result.success) {
-        editingEmail = false
-        emailError = ""
-      } else {
-        emailError = result.error || "Failed to update email address"
+      if (error) throw error
+
+      // Update was successful
+      editingEmail = false
+      emailError = ""
+
+      // Show success message
+      toast.success("Email updated successfully!", {
+        description: "Your email has been changed.",
+        duration: 4000,
+      })
+
+      // Update the session store to reflect the new email
+      if (data.user) {
+        session.update((currentSession) => ({
+          ...currentSession,
+          user: {
+            ...currentSession.user,
+            email: data.user.email,
+          },
+        }))
       }
     } catch (error) {
       console.error("Error updating email:", error)
-      emailError = "An unexpected error occurred"
+      emailError = error.message || "Failed to update email address"
     }
   }
 
@@ -406,18 +401,14 @@
               <input
                 type="text"
                 bind:value={formPassword.current}
-                class="w-full rounded-lg border {passwordErrors.current
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Enter current password"
               />
             {:else}
               <input
                 type="password"
                 bind:value={formPassword.current}
-                class="w-full rounded-lg border {passwordErrors.current
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Enter current password"
               />
             {/if}
@@ -435,16 +426,6 @@
               />
             </button>
           </div>
-          {#if passwordErrors.current}
-            <p class="mt-1 flex items-center gap-1 text-sm text-error">
-              <Icon
-                icon="solar:info-circle-bold-duotone"
-                width="16"
-                height="16"
-              />
-              {passwordErrors.current}
-            </p>
-          {/if}
         </div>
 
         <!-- New Password -->
@@ -457,18 +438,14 @@
               <input
                 type="text"
                 bind:value={formPassword.new}
-                class="w-full rounded-lg border {passwordErrors.new
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Enter new password"
               />
             {:else}
               <input
                 type="password"
                 bind:value={formPassword.new}
-                class="w-full rounded-lg border {passwordErrors.new
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Enter new password"
               />
             {/if}
@@ -486,16 +463,6 @@
               />
             </button>
           </div>
-          {#if passwordErrors.new}
-            <p class="mt-1 flex items-center gap-1 text-sm text-error">
-              <Icon
-                icon="solar:info-circle-bold-duotone"
-                width="16"
-                height="16"
-              />
-              {passwordErrors.new}
-            </p>
-          {/if}
         </div>
 
         <!-- Confirm New Password -->
