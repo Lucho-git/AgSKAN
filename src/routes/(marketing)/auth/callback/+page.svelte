@@ -136,8 +136,31 @@
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const queryParams = new URLSearchParams(window.location.search)
 
-      // Get next URL from query params or use default
-      debugInfo.redirectTo = queryParams.get("next") || "/account"
+      // FIXED: Properly handle the next parameter to avoid encoding issues
+      let nextParam = queryParams.get("next") || "/account"
+
+      // Clean up any malformed encoding and ensure proper format
+      if (nextParam.includes("%")) {
+        // If it contains % but doesn't start with /, it might be malformed
+        try {
+          nextParam = decodeURIComponent(nextParam)
+        } catch (e) {
+          console.warn("Failed to decode next parameter:", nextParam)
+          nextParam = "/account" // fallback
+        }
+      }
+
+      // Ensure it starts with /
+      if (!nextParam.startsWith("/")) {
+        nextParam = "/" + nextParam.replace(/^%*/, "") // Remove any leading % characters
+      }
+
+      // Additional safety check for the specific corruption we saw
+      if (nextParam.includes("�") || nextParam.includes("%EF%BF%BD")) {
+        nextParam = "/account"
+      }
+
+      debugInfo.redirectTo = nextParam
 
       // ADDED: Check if this is a deep link flow (tokens in query params)
       const deepLinkAccessToken = queryParams.get("access_token")
