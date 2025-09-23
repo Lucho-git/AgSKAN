@@ -46,18 +46,28 @@
     </div>
   </div>
 
-  <!-- Control buttons - bottom center as allocated -->
+  <!-- Status display -->
+  <div class="status-indicator">
+    <div class="status-text">Position crosshair to place marker</div>
+  </div>
+
+  <!-- Control buttons - bottom center -->
   <div class="button-container">
-    <div class="mobile-button-container">
-      <!-- Single main button -->
-      <button class="main-action-btn" on:click={placeMarkerAtCrosshair}>
+    <div class="button-group">
+      <!-- Main place marker button -->
+      <button class="place-marker-btn" on:click={placeMarkerAtCrosshair}>
         <Plus class="h-6 w-6" />
         <span class="btn-label">Place</span>
+      </button>
+
+      <!-- Cancel button (always available) -->
+      <button class="cancel-btn" on:click={cancelPlacement}>
+        <X class="h-5 w-5" />
       </button>
     </div>
   </div>
 
-  <!-- Instructions at very bottom -->
+  <!-- Bottom instructions -->
   <div class="bottom-instructions">
     Move map to position crosshair, then tap + to place marker
   </div>
@@ -121,6 +131,27 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
+  /* Status indicator */
+  .status-indicator {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 16px;
+    text-align: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  .status-text {
+    font-size: 11px;
+    opacity: 0.9;
+    font-weight: 500;
+  }
+
   /* Button container - bottom center */
   .button-container {
     position: fixed;
@@ -130,45 +161,68 @@
     z-index: 10;
   }
 
-  .mobile-button-container {
+  .button-group {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 12px;
   }
 
-  .main-action-btn {
+  .place-marker-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    background: #22c55e;
+    background: #0ea5e9;
     color: white;
     border: none;
     border-radius: 20px;
     padding: 16px 24px;
-    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
     transition: all 0.2s ease;
     min-width: 80px;
     cursor: pointer;
   }
 
-  .main-action-btn:hover {
-    background: #16a34a;
-    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.5);
+  .place-marker-btn:hover {
+    background: #0284c7;
+    box-shadow: 0 8px 24px rgba(14, 165, 233, 0.5);
     transform: translateY(-2px);
   }
 
-  .main-action-btn:active {
+  .place-marker-btn:active {
     transform: translateY(0) scale(0.95);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.6);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.6);
   }
 
   .btn-label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-top: 2px;
+  }
+
+  .cancel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .cancel-btn:hover {
+    background: #dc2626;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  }
+
+  .cancel-btn:active {
+    transform: scale(0.95);
   }
 
   /* Bottom instructions */
@@ -194,17 +248,26 @@
       bottom: 4rem;
     }
 
-    .main-action-btn {
+    .place-marker-btn {
       padding: 14px 20px;
       min-width: 70px;
     }
 
-    .main-action-btn .h-6 {
+    .place-marker-btn .h-6 {
       width: 1.25rem;
       height: 1.25rem;
     }
 
     .btn-label {
+      font-size: 9px;
+    }
+
+    .cancel-btn {
+      width: 44px;
+      height: 44px;
+    }
+
+    .status-text {
       font-size: 10px;
     }
 
@@ -219,18 +282,26 @@
       bottom: 3.5rem;
     }
 
-    .main-action-btn {
+    .place-marker-btn {
       padding: 12px 18px;
       min-width: 60px;
       border-radius: 16px;
     }
 
-    .main-action-btn .h-6 {
-      width: 1rem;
-      height: 1rem;
+    .btn-label {
+      font-size: 8px;
     }
 
-    .btn-label {
+    .cancel-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    .status-indicator {
+      padding: 8px 12px;
+    }
+
+    .status-text {
       font-size: 9px;
     }
 
@@ -265,7 +336,7 @@
       bottom: 3rem;
     }
 
-    .main-action-btn {
+    .place-marker-btn {
       padding: 10px 16px;
       min-width: 55px;
     }
@@ -279,6 +350,10 @@
 
     .bottom-instructions {
       bottom: 0.5rem;
+    }
+
+    .status-indicator {
+      top: 0.5rem;
     }
   }
 
