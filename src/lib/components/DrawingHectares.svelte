@@ -168,7 +168,8 @@
     const center = map.getCenter()
     const point = [center.lng, center.lat]
 
-    currentPoints.push(point)
+    // Use assignment instead of push to trigger reactivity
+    currentPoints = [...currentPoints, point]
     console.log("Added point:", point, "Total points:", currentPoints.length)
 
     updateMapDisplay()
@@ -181,7 +182,7 @@
   }
 
   function resetDrawing() {
-    currentPoints = []
+    currentPoints = [] // Reassignment instead of mutation
     area = { hectares: 0, squareMeters: 0 }
     updateMapDisplay()
   }
@@ -269,118 +270,80 @@
 
 {#if $drawingModeEnabled}
   <!-- Crosshair overlay -->
-  <div
-    class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
-  >
+  <div class="crosshair-overlay">
     <div class="crosshair">
       <!-- Horizontal line -->
-      <div class="absolute h-0.5 w-8 bg-white shadow-lg"></div>
+      <div class="crosshair-line horizontal"></div>
       <!-- Vertical line -->
-      <div class="absolute h-8 w-0.5 bg-white shadow-lg"></div>
+      <div class="crosshair-line vertical"></div>
       <!-- Center dot -->
-      <div class="absolute h-2 w-2 rounded-full bg-white shadow-lg"></div>
+      <div class="crosshair-center"></div>
     </div>
   </div>
 
-  <!-- Info panel -->
-  <div class="absolute left-1/2 top-3 z-10 -translate-x-1/2 transform">
-    <div
-      class="relative min-w-[200px] rounded-lg border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm"
-    >
-      <button
-        class="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm hover:bg-gray-50"
-        on:click={cancelDrawing}
-      >
-        <X class="h-3 w-3" />
-      </button>
-
-      <div class="flex flex-col items-center gap-3">
-        <div
-          class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-gray-600"
-        >
-          <Ruler class="h-4 w-4" />
-          <span>Area Measurement</span>
-        </div>
-
-        {#if currentPoints.length === 0}
-          <div class="text-center">
-            <div class="mb-2 text-sm text-gray-600">
-              Position crosshair and tap + to start
-            </div>
-            <div class="text-xs text-gray-500">
-              Need at least 3 points to create an area
-            </div>
-          </div>
-        {:else if currentPoints.length < 3}
-          <div class="text-center">
-            <div class="text-sm text-gray-600">
-              Point {currentPoints.length} placed
-            </div>
-            <div class="text-xs text-gray-500">
-              {3 - currentPoints.length} more point{3 - currentPoints.length !==
-              1
-                ? "s"
-                : ""} needed
-            </div>
-          </div>
-        {:else}
-          <div class="flex flex-col items-center">
-            <div
-              class="flex items-baseline gap-1 text-2xl font-bold text-gray-800"
-            >
-              {area.hectares}
-              <span class="text-xs font-normal">ha</span>
-            </div>
-            <div class="mb-2 text-xs text-gray-500">
-              {area.squareMeters.toLocaleString()} m²
-            </div>
-            <div class="text-xs text-gray-600">
-              {currentPoints.length} points placed
-            </div>
-          </div>
-        {/if}
+  <!-- Mobile-first status display -->
+  {#if currentPoints.length >= 3}
+    <div class="area-display">
+      <div class="area-value">
+        {area.hectares}<span class="area-unit">ha</span>
+      </div>
+      <div class="area-detail">
+        {area.squareMeters.toLocaleString()} m² • {currentPoints.length} points
       </div>
     </div>
-  </div>
+  {:else}
+    <div class="progress-indicator">
+      <div class="progress-dots">
+        {#each Array(3) as _, i}
+          <div
+            class="progress-dot"
+            class:active={i < currentPoints.length}
+          ></div>
+        {/each}
+      </div>
+      <div class="progress-text">
+        {currentPoints.length}/3 points • {3 - currentPoints.length} more needed
+      </div>
+    </div>
+  {/if}
 
-  <!-- Control buttons -->
-  <div class="absolute bottom-20 left-1/2 z-10 -translate-x-1/2 transform">
-    <div class="relative flex items-center justify-center">
-      <!-- Add Point Button (always centered) -->
-      <button
-        class="flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-all duration-150 hover:bg-blue-600 active:scale-95"
-        on:click={addPoint}
-      >
+  <!-- Control buttons - bottom center -->
+  <div class="button-container">
+    <div class="button-group">
+      <!-- Main add point button -->
+      <button class="add-point-btn" on:click={addPoint}>
         <Plus class="h-6 w-6" />
+        <span class="btn-label">Add Point</span>
       </button>
 
-      <!-- Close Button (appears to the right, doesn't affect + button position) -->
-      {#if currentPoints.length > 0}
-        <button
-          class="absolute left-full ml-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-lg transition-all duration-150 hover:bg-red-600 active:scale-95"
-          on:click={cancelDrawing}
-        >
-          <X class="h-5 w-5" />
-        </button>
-      {/if}
+      <!-- Cancel button (always available) -->
+      <button class="cancel-btn" on:click={cancelDrawing}>
+        <X class="h-5 w-5" />
+      </button>
     </div>
   </div>
 
-  <!-- Instructions -->
-  <div class="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 transform">
-    <div class="rounded-lg bg-black/75 px-3 py-2 text-xs text-white">
-      {#if currentPoints.length === 0}
-        Move map to position crosshair, then tap + to place points
-      {:else if currentPoints.length < 3}
-        Continue placing points to form a shape
-      {:else}
-        Keep adding points or tap × to close drawing mode
-      {/if}
-    </div>
+  <!-- Bottom instructions -->
+  <div class="bottom-instructions">
+    Move map to position crosshair, then tap + to place points
   </div>
 {/if}
 
 <style>
+  /* Crosshair overlay */
+  .crosshair-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .crosshair {
     position: relative;
     width: 2rem;
@@ -390,28 +353,331 @@
     justify-content: center;
   }
 
-  .crosshair > div {
+  .crosshair-line {
     position: absolute;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
-  .crosshair > div:nth-child(1) {
-    /* Horizontal line */
+  .crosshair-line.horizontal {
+    width: 2rem;
+    height: 2px;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
   }
 
-  .crosshair > div:nth-child(2) {
-    /* Vertical line */
+  .crosshair-line.vertical {
+    width: 2px;
+    height: 2rem;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
   }
 
-  .crosshair > div:nth-child(3) {
-    /* Center dot */
+  .crosshair-center {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Mobile-first area display */
+  .area-display {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 16px;
+    text-align: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  .area-value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    color: #0ea5e9;
+  }
+
+  .area-unit {
+    font-size: 14px;
+    font-weight: 500;
+    margin-left: 2px;
+  }
+
+  .area-detail {
+    font-size: 11px;
+    opacity: 0.8;
+    margin-top: 4px;
+  }
+
+  /* Progress indicator for initial points */
+  .progress-indicator {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 16px;
+    text-align: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  .progress-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .progress-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .progress-dot.active {
+    background: #0ea5e9;
+    transform: scale(1.2);
+  }
+
+  .progress-text {
+    font-size: 11px;
+    opacity: 0.9;
+  }
+
+  /* Button container - bottom center */
+  .button-container {
+    position: fixed;
+    bottom: 5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+
+  .button-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .add-point-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: #0ea5e9;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 16px 24px;
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+    transition: all 0.2s ease;
+    min-width: 80px;
+    cursor: pointer;
+  }
+
+  .add-point-btn:hover {
+    background: #0284c7;
+    box-shadow: 0 8px 24px rgba(14, 165, 233, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .add-point-btn:active {
+    transform: translateY(0) scale(0.95);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.6);
+  }
+
+  .btn-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .cancel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .cancel-btn:hover {
+    background: #dc2626;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  }
+
+  .cancel-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* Bottom instructions */
+  .bottom-instructions {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    text-align: center;
+    z-index: 10;
+    max-width: 90%;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Mobile responsive adjustments */
+  @media (max-width: 768px) {
+    .button-container {
+      bottom: 4rem;
+    }
+
+    .add-point-btn {
+      padding: 14px 20px;
+      min-width: 70px;
+    }
+
+    .add-point-btn .h-6 {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    .btn-label {
+      font-size: 9px;
+    }
+
+    .cancel-btn {
+      width: 44px;
+      height: 44px;
+    }
+
+    .area-value {
+      font-size: 20px;
+    }
+
+    .area-unit {
+      font-size: 12px;
+    }
+
+    .area-detail {
+      font-size: 10px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .button-container {
+      bottom: 3.5rem;
+    }
+
+    .add-point-btn {
+      padding: 12px 18px;
+      min-width: 60px;
+      border-radius: 16px;
+    }
+
+    .btn-label {
+      font-size: 8px;
+    }
+
+    .cancel-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    .area-display,
+    .progress-indicator {
+      padding: 10px 16px;
+    }
+
+    .area-value {
+      font-size: 18px;
+    }
+
+    .progress-text,
+    .bottom-instructions {
+      font-size: 10px;
+    }
+  }
+
+  /* Very small screens */
+  @media (max-width: 360px) {
+    .crosshair {
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+
+    .crosshair-line.horizontal {
+      width: 1.5rem;
+    }
+
+    .crosshair-line.vertical {
+      height: 1.5rem;
+    }
+
+    .crosshair-center {
+      width: 6px;
+      height: 6px;
+    }
+
+    .button-container {
+      bottom: 3rem;
+    }
+
+    .add-point-btn {
+      padding: 10px 16px;
+      min-width: 55px;
+    }
+  }
+
+  /* Landscape mobile optimization */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .button-container {
+      bottom: 2rem;
+    }
+
+    .bottom-instructions {
+      bottom: 0.5rem;
+    }
+
+    .area-display,
+    .progress-indicator {
+      top: 0.5rem;
+    }
+  }
+
+  /* Handle safe areas for modern mobile devices */
+  @supports (padding: max(0px)) {
+    .button-container {
+      bottom: max(5rem, env(safe-area-inset-bottom) + 3rem);
+    }
+
+    .bottom-instructions {
+      bottom: max(1rem, env(safe-area-inset-bottom) + 0.5rem);
+    }
   }
 </style>
