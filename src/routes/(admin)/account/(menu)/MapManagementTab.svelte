@@ -419,9 +419,9 @@
           class="relative flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 sm:h-16 sm:w-16"
         >
           <div
-            class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
+            class="map-loading-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
           ></div>
-          <Cloud size={24} class="animate-pulse text-blue-400 sm:size-8" />
+          <Cloud size={24} class="map-loading-pulse text-blue-400 sm:size-8" />
         </div>
         <div class="text-center">
           <h2 class="text-lg font-medium text-contrast-content sm:text-xl">
@@ -656,7 +656,7 @@
                 <!-- Delete Confirmation -->
                 {#if showDeleteConfirm}
                   <div
-                    class="animate-slideDown mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
+                    class="map-slide-down mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
                   >
                     <div class="rounded-lg bg-red-50 p-3 sm:p-4">
                       <div class="mb-2 flex items-center gap-2 sm:mb-3">
@@ -958,7 +958,7 @@
 </div>
 
 <style>
-  @keyframes slideDown {
+  @keyframes mapSlideDown {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -969,7 +969,34 @@
     }
   }
 
-  .animate-slideDown {
-    animation: slideDown 0.2s ease-out;
+  @keyframes mapLoadingSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes mapLoadingPulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .map-slide-down {
+    animation: mapSlideDown 0.2s ease-out;
+  }
+
+  .map-loading-spin {
+    animation: mapLoadingSpin 1s linear infinite;
+  }
+
+  .map-loading-pulse {
+    animation: mapLoadingPulse 2s ease-in-out infinite;
   }
 </style>

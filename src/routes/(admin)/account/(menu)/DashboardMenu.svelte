@@ -820,7 +820,7 @@
           <!-- Expandable Launch Map Confirmation -->
           {#if showLaunchMapConfirm}
             <div
-              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
@@ -855,7 +855,7 @@
           <!-- Expandable Switch Map with Inline Join Button -->
           {#if showSwitchMapConfirm}
             <div
-              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
@@ -1006,7 +1006,7 @@
           <!-- Expandable Leave Map Confirmation -->
           {#if showLeaveMapConfirm}
             <div
-              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
                 <div>
@@ -1209,7 +1209,7 @@
           <!-- Expandable Create Operation Section -->
           {#if showCreateOperation}
             <div
-              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div class="mb-3 flex items-center justify-between sm:mb-4">
                 <h4
@@ -1283,7 +1283,7 @@
           <!-- Expandable Edit Operation Section -->
           {#if showEditOperation}
             <div
-              class="animate-slideDown mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div class="mb-3 flex items-center justify-between sm:mb-4">
                 <h4
@@ -1351,7 +1351,7 @@
           <!-- Expandable Delete Operation Confirmation -->
           {#if showDeleteOperationConfirm}
             <div
-              class="animate-slideDown mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
+              class="dashboard-slide-down mt-3 border-t border-red-300 pt-3 sm:mt-4 sm:pt-4"
             >
               <div
                 class="rounded-lg bg-red-50 p-3 sm:p-4"
@@ -1400,7 +1400,7 @@
 </div>
 
 <style>
-  @keyframes slideDown {
+  @keyframes dashboardSlideDown {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -1411,7 +1411,7 @@
     }
   }
 
-  .animate-slideDown {
-    animation: slideDown 0.2s ease-out;
+  .dashboard-slide-down {
+    animation: dashboardSlideDown 0.2s ease-out;
   }
 </style>
