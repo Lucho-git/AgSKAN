@@ -31,6 +31,7 @@
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
   import NavigationControl from "$lib/components/NavigationControl.svelte"
   import Toolbox from "$lib/components/Toolbox.svelte"
+  import CrosshairMarkerPlacement from "$lib/components/CrosshairMarkerPlacement.svelte" // ADD THIS IMPORT
 
   // Import persistent managers
   import SatelliteManager from "$lib/components/SatelliteManager.svelte"
@@ -509,6 +510,10 @@
       {mapLoaded}
       coordinatedEvents={true}
     />
+
+    <!-- ADD THE CROSSHAIR MARKER PLACEMENT COMPONENT HERE -->
+    <CrosshairMarkerPlacement {map} {markerManagerRef} />
+
     <MapStateSaver {map} />
     <VehicleStateSynchronizer />
     <VehicleTracker

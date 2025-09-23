@@ -12,3 +12,4 @@ export const trailingButtonPressed = writable()
 export const crispVisibility = writable(false)
 
 export const drawingModeEnabled = writable(false)
+export const markerPlacementModeEnabled = writable(false) // Add this line

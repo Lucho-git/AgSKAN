@@ -6,14 +6,15 @@
   import IconSVG from "../../components/IconSVG.svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { markerPlacementModeEnabled } from "$lib/stores/controlStore" // ADD THIS IMPORT
 
   const dispatch = createEventDispatcher()
 
   // Active sub-panel state
   let activeSubPanel = null // null, 'markers'
 
-  // Marker placement state
-  let markerPlacementMode = false
+  // Marker placement state - now reactive to store
+  $: markerPlacementMode = $markerPlacementModeEnabled // CHANGE THIS LINE
 
   // All marker icons data
   const allMarkerIcons = [
@@ -228,10 +229,14 @@
     hideSubPanel()
   }
 
+  // REPLACE THE ENTIRE activateMarkerPlacement FUNCTION
   function activateMarkerPlacement() {
-    toast.info("Coming Soon", {
-      description: "Crosshair marker placement is in development",
-    })
+    // Toggle the store state
+    markerPlacementModeEnabled.set(!$markerPlacementModeEnabled)
+
+    if ($markerPlacementModeEnabled) {
+      dispatch("close") // Close the toolbox
+    }
   }
 
   // Lazy loading on scroll
@@ -383,7 +388,7 @@
   {/if}
 </div>
 
-<!-- Same CSS as before -->
+<!-- Keep all your existing styles exactly the same -->
 <style>
   .marker-controls {
     padding: 16px;
