@@ -302,13 +302,7 @@
                   </span>
                 {/if}
               </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span
-                  class="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full {getStatusColor(
-                    profile,
-                    vehicle,
-                  )} {online && isCurrentUser ? 'animate-pulse' : ''}"
-                ></span>
+              <div class="mt-0.5 flex items-center">
                 <span
                   class="truncate text-xs font-medium {online
                     ? 'text-green-600'
