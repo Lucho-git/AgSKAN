@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import { DateTime } from "luxon"
   import InviteModal from "./InviteModal.svelte"
   import { toast } from "svelte-sonner"
@@ -37,6 +37,9 @@
   let kickingUser = null
   let openMenuId = null
   let cardRefs = {}
+  let currentTime = DateTime.utc()
+  let timeUpdateInterval
+  let forceUpdate = 0
 
   $: currentUserId = $profileStore.id
   $: is_owner = $connectedMapStore.is_owner
@@ -64,24 +67,38 @@
     return 0
   })
 
+  // Reactive status map that updates when currentTime or vehicle_states change
+  $: statusMap = (() => {
+    // Reference forceUpdate to trigger recalculation
+    const _ = forceUpdate
+
+    return $mapActivityStore.vehicle_states.reduce((acc, vehicle) => {
+      const updateTime = DateTime.fromISO(vehicle.last_update, { zone: "utc" })
+      const diffMinutes = currentTime.diff(updateTime, "minutes").minutes
+      const isOnline = diffMinutes <= 10
+
+      acc[vehicle.vehicle_id] = {
+        isOnline,
+        lastSeenText: updateTime.toRelative({ base: currentTime }),
+      }
+      return acc
+    }, {})
+  })()
+
   onMount(() => {
     loading = false
+    // Update current time every 30 seconds to refresh relative times
+    timeUpdateInterval = setInterval(() => {
+      currentTime = DateTime.utc()
+      forceUpdate++
+    }, 30000)
   })
 
-  function getTimeSinceLastUpdate(lastUpdate) {
-    const updateTime = DateTime.fromISO(lastUpdate, { zone: "utc" })
-    const now = DateTime.utc()
-    const timeDifference = updateTime.toRelative({ base: now })
-    return timeDifference
-  }
-
-  function isOnline(lastUpdate) {
-    if (!lastUpdate) return false
-    const updateTime = DateTime.fromISO(lastUpdate, { zone: "utc" })
-    const now = DateTime.utc()
-    const diffMinutes = now.diff(updateTime, "minutes").minutes
-    return diffMinutes <= 10
-  }
+  onDestroy(() => {
+    if (timeUpdateInterval) {
+      clearInterval(timeUpdateInterval)
+    }
+  })
 
   function getVehicleIcon(type: string) {
     return VehicleIcons[type] || VehicleIcons.SimpleTractor
@@ -213,21 +230,6 @@
   function closeAllMenus() {
     openMenuId = null
   }
-
-  function getStatusColor(profile, vehicle) {
-    if (!vehicle) return "bg-gray-400"
-    return isOnline(vehicle.last_update) ? "bg-green-500" : "bg-gray-400"
-  }
-
-  function getStatusText(profile, vehicle) {
-    if (!vehicle) return "Offline"
-
-    if (isOnline(vehicle.last_update)) {
-      return "Online"
-    } else {
-      return `Last seen ${getTimeSinceLastUpdate(vehicle.last_update)}`
-    }
-  }
 </script>
 
 <!-- Team Members section -->
@@ -244,12 +246,27 @@
   </div>
 
   <div class="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3">
-    {#each sortedProfiles as profile}
+    {#each sortedProfiles as profile (profile.id)}
       {@const vehicle = $mapActivityStore.vehicle_states.find(
         (v) => v.vehicle_id === profile.id,
       )}
       {@const isCurrentUser = is_user(profile.id)}
-      {@const online = vehicle ? isOnline(vehicle.last_update) : false}
+      {@const status = statusMap[profile.id]}
+      {@const online = isCurrentUser || (status?.isOnline ?? false)}
+      {@const statusText = isCurrentUser
+        ? "Online"
+        : !status
+          ? "Offline"
+          : status.isOnline
+            ? "Online"
+            : `Last seen ${status.lastSeenText}`}
+      {@const statusColor = isCurrentUser
+        ? "bg-green-500"
+        : !status
+          ? "bg-gray-400"
+          : status.isOnline
+            ? "bg-green-500"
+            : "bg-gray-400"}
 
       <!-- Team member card wrapper -->
       <div class="relative" bind:this={cardRefs[profile.id]}>
@@ -280,10 +297,9 @@
               </div>
               <!-- Status indicator -->
               <div
-                class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-base-100 {getStatusColor(
-                  profile,
-                  vehicle,
-                )} {online && isCurrentUser ? 'animate-pulse' : ''}"
+                class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-base-100 {statusColor} {isCurrentUser
+                  ? 'animate-pulse'
+                  : ''}"
               ></div>
             </div>
 
@@ -308,7 +324,7 @@
                     ? 'text-green-600'
                     : 'text-gray-400'}"
                 >
-                  {getStatusText(profile, vehicle)}
+                  {statusText}
                 </span>
               </div>
             </div>
