@@ -318,17 +318,17 @@
                 <div class="flex flex-shrink-0 items-center gap-1">
                   {#if isCurrentUser}
                     <span
-                      class="rounded bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                      class="flex h-5 items-center rounded bg-blue-600 px-1.5 text-xs font-medium text-white"
                     >
                       You
                     </span>
                   {/if}
                   {#if isOwner}
                     <span
-                      class="flex items-center gap-0.5 rounded bg-green-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                      class="flex h-5 items-center justify-center rounded bg-green-600 px-1.5 text-xs font-medium text-white"
                       title="Map Owner"
                     >
-                      <Crown size={11} />
+                      <Crown size={12} />
                     </span>
                   {/if}
                 </div>
