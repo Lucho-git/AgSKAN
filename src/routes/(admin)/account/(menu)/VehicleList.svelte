@@ -20,6 +20,7 @@
     UserX,
     MoreVertical,
     ChevronUp,
+    Crown,
   } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
 
@@ -35,7 +36,6 @@
     "17b52843-6511-4a9c-8be9-2c710a98e91a",
   ]
 
-  let loading = true
   let disconnectingFromMap = false
   let kickingUser = null
   let openMenuId = null
@@ -46,9 +46,11 @@
 
   $: currentUserId = $profileStore.id
   $: is_owner = $connectedMapStore.is_owner
+  $: map_owner_id = $connectedMapStore.master_user_id
   $: is_support_team = SUPPORT_TEAM_IDS.includes(currentUserId)
   $: has_kick_permission = is_owner || is_support_team
   $: is_user = (profileId) => profileId === currentUserId
+  $: is_map_owner = (profileId) => profileId === map_owner_id
 
   $: sortedProfiles = $mapActivityStore.connected_profiles.sort((a, b) => {
     if (a.id === currentUserId) return -1
@@ -89,7 +91,6 @@
   })()
 
   onMount(() => {
-    loading = false
     // Update current time every 30 seconds to refresh relative times
     timeUpdateInterval = setInterval(() => {
       currentTime = DateTime.utc()
@@ -254,6 +255,7 @@
         (v) => v.vehicle_id === profile.id,
       )}
       {@const isCurrentUser = is_user(profile.id)}
+      {@const isOwner = is_map_owner(profile.id)}
       {@const status = statusMap[profile.id]}
       {@const online = isCurrentUser || (status?.isOnline ?? false)}
       {@const statusText = isCurrentUser
@@ -307,19 +309,29 @@
             </div>
 
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
                 <span
                   class="truncate text-sm font-semibold text-contrast-content md:text-base"
                 >
                   {profile.full_name}
                 </span>
-                {#if isCurrentUser}
-                  <span
-                    class="flex-shrink-0 rounded bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white"
-                  >
-                    You
-                  </span>
-                {/if}
+                <div class="flex flex-shrink-0 items-center gap-1">
+                  {#if isCurrentUser}
+                    <span
+                      class="rounded bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                    >
+                      You
+                    </span>
+                  {/if}
+                  {#if isOwner}
+                    <span
+                      class="flex items-center gap-0.5 rounded bg-green-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                      title="Map Owner"
+                    >
+                      <Crown size={11} />
+                    </span>
+                  {/if}
+                </div>
               </div>
               <div class="mt-0.5 flex items-center">
                 <span
@@ -374,7 +386,7 @@
                 <span>{vehicle ? "Find on Map" : "Offline"}</span>
               </button>
 
-              {#if has_kick_permission}
+              {#if has_kick_permission && !isOwner}
                 <button
                   type="button"
                   class="flex w-full items-center gap-2 rounded-b-lg border-t border-base-300 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
