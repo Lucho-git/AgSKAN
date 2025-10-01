@@ -14,6 +14,8 @@
     Palette,
     Ruler,
   } from "lucide-svelte"
+  import { currentTrailStore } from "$lib/stores/currentTrailStore"
+  import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -59,12 +61,109 @@
     return `${diffDays}d ago`
   }
 
-  // Format trailing duration
-  function formatTrailingDuration(vehicle) {
-    if (!vehicle?.is_trailing) return "Not trailing"
+  // Helper function to calculate duration from a path
+  function calculateDurationFromPath(path) {
+    console.log("📊 calculateDurationFromPath called with path:", path)
 
-    // Stub for now - would need trailing start time
-    return "2h 15m" // TODO: Calculate from actual trailing start time
+    if (!path || path.length === 0) {
+      console.log("❌ Path is null or empty")
+      return "- -"
+    }
+
+    console.log(`📊 Path has ${path.length} points`)
+
+    const firstPoint = path[0]
+    const lastPoint = path[path.length - 1]
+
+    console.log("📊 First point:", firstPoint)
+    console.log("📊 Last point:", lastPoint)
+
+    if (!firstPoint?.timestamp || !lastPoint?.timestamp) {
+      console.log("❌ Missing timestamp in first or last point")
+      return "- -"
+    }
+
+    const startTime =
+      typeof firstPoint.timestamp === "string"
+        ? new Date(firstPoint.timestamp).getTime()
+        : firstPoint.timestamp
+    const endTime =
+      typeof lastPoint.timestamp === "string"
+        ? new Date(lastPoint.timestamp).getTime()
+        : lastPoint.timestamp
+
+    console.log("📊 Start time (ms):", startTime, "End time (ms):", endTime)
+
+    const diffMs = endTime - startTime
+    console.log("📊 Duration (ms):", diffMs)
+
+    const totalMinutes = Math.floor(diffMs / 60000)
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+
+    console.log(`📊 Calculated duration: ${hours}h ${minutes}m`)
+
+    if (hours === 0) return `${minutes}m`
+    if (hours < 24) return `${hours}h ${minutes}m`
+
+    const days = Math.floor(hours / 24)
+    const remainingHours = hours % 24
+    return `${days}d ${remainingHours}h`
+  }
+
+  // Format trailing duration - calculate from active trail's first and last point
+  function formatTrailingDuration(vehicle) {
+    console.log("🕐 formatTrailingDuration called for vehicle:", vehicle)
+
+    if (!vehicle?.is_trailing) {
+      console.log("❌ Vehicle is not trailing")
+      return "Not trailing"
+    }
+
+    console.log("✅ Vehicle is trailing, checking trail data...")
+
+    // For current user, get duration from their active trail
+    if (vehicle.isCurrentUser) {
+      console.log("👤 This is the current user")
+      console.log("📊 Current trail store value:", $currentTrailStore)
+
+      if ($currentTrailStore?.path?.length > 0) {
+        console.log(
+          `✅ Found current user trail with ${$currentTrailStore.path.length} points`,
+        )
+        return calculateDurationFromPath($currentTrailStore.path)
+      } else {
+        console.log("❌ No path data in currentTrailStore")
+        console.log("currentTrailStore.path:", $currentTrailStore?.path)
+      }
+    } else {
+      // For other vehicles, check otherActiveTrailStore
+      console.log("👥 This is another vehicle, vehicle.id:", vehicle.id)
+      console.log("📊 Other active trail store:", $otherActiveTrailStore)
+
+      const otherTrail = $otherActiveTrailStore?.find((t) => {
+        console.log(
+          `🔍 Checking trail ${t.id} with vehicle_id ${t.vehicle_id} against ${vehicle.id}`,
+        )
+        return t.vehicle_id === vehicle.id
+      })
+
+      if (otherTrail) {
+        console.log("✅ Found matching trail:", otherTrail)
+        console.log(`Trail has ${otherTrail.path?.length || 0} points`)
+
+        if (otherTrail.path?.length > 0) {
+          return calculateDurationFromPath(otherTrail.path)
+        } else {
+          console.log("❌ Trail found but no path data")
+        }
+      } else {
+        console.log("❌ No matching trail found in otherActiveTrailStore")
+      }
+    }
+
+    console.log("⚠️ Returning '- -' (no valid trail data found)")
+    return "- -"
   }
 
   // Calculate speed with empty dashes fallback
@@ -402,7 +501,6 @@
   </div>
 {/if}
 
-<!-- Same styles as before -->
 <style>
   /* All the existing styles remain the same */
   /* Main Vehicle Panel */
