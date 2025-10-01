@@ -985,8 +985,8 @@
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
-      max-height: 42vh; /* Mobile height - adjust this value as needed */
-      min-height: 42vh; /* Force consistent height between tabs */
+      max-height: 35.4vh; /* Mobile height - adjust this value as needed */
+      min-height: 35.4vh; /* Force consistent height between tabs */
       padding: 16px 20px 0;
     }
 
@@ -1032,7 +1032,7 @@
     }
 
     .icon-grid-container {
-      max-height: 28vh; /* Mobile icon grid height - adjust this value as needed */
+      max-height: 26.8vh; /* Mobile icon grid height - adjust this value as needed */
     }
 
     /* Hide button text on mobile */
