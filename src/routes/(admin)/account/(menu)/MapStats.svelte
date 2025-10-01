@@ -22,11 +22,9 @@
 
   $: masterSubscription = $connectedMapStore.masterSubscription
   $: loading = !$connectedMapStore || !masterSubscription
-  $: isPaidSubscription = masterSubscription?.subscription !== "FREE"
 
   // Format hectares for display
   function formatHectares(hectares: number): string {
-    // 🆕 ADD: Handle undefined/null values
     if (hectares == null || hectares === undefined) {
       return "0 ha"
     }
@@ -51,9 +49,6 @@
     return num.toString()
   }
 
-  // Subscription limits
-  let markerLimit = 100
-  let fieldBoundariesMax = 10
   let yourMapId = $connectedMapStore.id
   let pinsDialogOpen = false
 
@@ -114,17 +109,15 @@
 {:else}
   <!-- Mobile Layout -->
   <div class="mb-8 grid grid-cols-2 gap-4 md:hidden">
-    <!-- 🆕 UPDATED: Vehicles Card - removed button wrapper and view details -->
+    <!-- Vehicles Card -->
     <div
       class="group relative rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-green-500/50 hover:shadow-lg"
     >
-      <!-- Background gradient overlay -->
       <div
         class="absolute inset-0 rounded-2xl bg-gradient-to-br from-green-500/5 via-transparent to-green-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       ></div>
 
       <div class="relative z-10">
-        <!-- Icon Section -->
         <div class="mb-3 flex items-center justify-center">
           <div
             class="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-green-500/20"
@@ -133,7 +126,6 @@
           </div>
         </div>
 
-        <!-- Content -->
         <div class="text-center">
           <h3
             class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-green-500"
@@ -157,13 +149,11 @@
       <div
         class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/50 hover:shadow-lg"
       >
-        <!-- Background gradient overlay -->
         <div
           class="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/5 via-transparent to-blue-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         ></div>
 
         <div class="relative z-10">
-          <!-- Icon Section -->
           <div class="mb-3 flex items-center justify-center">
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-blue-500/20"
@@ -172,7 +162,6 @@
             </div>
           </div>
 
-          <!-- Content -->
           <div class="text-center">
             <h3
               class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-blue-500"
@@ -183,21 +172,9 @@
               <span class="text-base font-bold text-base-content"
                 >{mapMarkers}</span
               >
-              {#if !isPaidSubscription}
-                <span class="ml-1 text-base text-contrast-content"
-                  >/ {markerLimit}</span
-                >
-              {/if}
             </div>
-            <p class="mb-3 text-xs text-contrast-content">
-              {#if isPaidSubscription}
-                Unlimited
-              {:else}
-                {markerLimit - mapMarkers} available
-              {/if}
-            </p>
+            <p class="mb-3 text-xs text-contrast-content">Total pins</p>
 
-            <!-- Expandable indicator -->
             <div
               class="flex items-center justify-center gap-2 font-medium text-blue-500"
             >
@@ -212,17 +189,15 @@
       </div>
     </button>
 
-    <!-- 🆕 UPDATED: Trail Hectares Card - removed cursor-pointer class and view details -->
+    <!-- Trail Hectares Card -->
     <div
       class="group relative rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/50 hover:shadow-lg"
     >
-      <!-- Background gradient overlay -->
       <div
         class="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-transparent to-indigo-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       ></div>
 
       <div class="relative z-10">
-        <!-- Icon Section -->
         <div class="mb-3 flex items-center justify-center">
           <div
             class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-500/20"
@@ -231,7 +206,6 @@
           </div>
         </div>
 
-        <!-- Content -->
         <div class="text-center">
           <h3
             class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-indigo-500"
@@ -253,13 +227,11 @@
       <div
         class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
       >
-        <!-- Background gradient overlay -->
         <div
           class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         ></div>
 
         <div class="relative z-10">
-          <!-- Icon Section -->
           <div class="mb-3 flex items-center justify-center">
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
@@ -268,7 +240,6 @@
             </div>
           </div>
 
-          <!-- Content -->
           <div class="text-center">
             <h3
               class="mb-2 text-sm font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
@@ -279,21 +250,9 @@
               <span class="text-base font-bold text-base-content"
                 >{fieldBoundaries}</span
               >
-              {#if !isPaidSubscription}
-                <span class="ml-1 text-base text-contrast-content"
-                  >/ {fieldBoundariesMax}</span
-                >
-              {/if}
             </div>
-            <p class="mb-3 text-xs text-contrast-content">
-              {#if isPaidSubscription}
-                Unlimited
-              {:else}
-                {fieldBoundariesMax - fieldBoundaries} remaining
-              {/if}
-            </p>
+            <p class="mb-3 text-xs text-contrast-content">Total fields</p>
 
-            <!-- Expandable indicator -->
             <div
               class="flex items-center justify-center gap-2 font-medium text-sky-500"
             >
@@ -329,17 +288,15 @@
       </div>
 
       <div class="grid grid-cols-4 gap-6">
-        <!-- 🆕 UPDATED: Vehicles Card - removed view details -->
+        <!-- Vehicles Card -->
         <div
           class="group relative rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-green-500/50 hover:shadow-lg"
         >
-          <!-- Background gradient overlay -->
           <div
             class="absolute inset-0 rounded-2xl bg-gradient-to-br from-green-500/5 via-transparent to-green-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           ></div>
 
           <div class="relative z-10">
-            <!-- Icon Section -->
             <div class="mb-4 flex items-center justify-center">
               <div
                 class="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-green-500/20"
@@ -348,7 +305,6 @@
               </div>
             </div>
 
-            <!-- Content -->
             <div class="text-center">
               <h3
                 class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-green-500"
@@ -373,13 +329,11 @@
           <div
             class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/50 hover:shadow-lg"
           >
-            <!-- Background gradient overlay -->
             <div
               class="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/5 via-transparent to-blue-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             ></div>
 
             <div class="relative z-10">
-              <!-- Icon Section -->
               <div class="mb-4 flex items-center justify-center">
                 <div
                   class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-blue-500/20"
@@ -388,7 +342,6 @@
                 </div>
               </div>
 
-              <!-- Content -->
               <div class="text-center">
                 <h3
                   class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-blue-500"
@@ -399,21 +352,9 @@
                   <span class="text-lg font-bold text-base-content"
                     >{mapMarkers}</span
                   >
-                  {#if !isPaidSubscription}
-                    <span class="ml-1 text-lg text-contrast-content"
-                      >/ {markerLimit}</span
-                    >
-                  {/if}
                 </div>
-                <p class="mb-4 text-sm text-contrast-content">
-                  {#if isPaidSubscription}
-                    Unlimited
-                  {:else}
-                    {markerLimit - mapMarkers} available
-                  {/if}
-                </p>
+                <p class="mb-4 text-sm text-contrast-content">Total pins</p>
 
-                <!-- Expandable indicator -->
                 <div
                   class="flex items-center justify-center gap-2 font-medium text-blue-500"
                 >
@@ -428,17 +369,15 @@
           </div>
         </button>
 
-        <!-- 🆕 UPDATED: Trail Hectares Card - removed view details -->
+        <!-- Trail Hectares Card -->
         <div
           class="group relative rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/50 hover:shadow-lg"
         >
-          <!-- Background gradient overlay -->
           <div
             class="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-transparent to-indigo-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           ></div>
 
           <div class="relative z-10">
-            <!-- Icon Section -->
             <div class="mb-4 flex items-center justify-center">
               <div
                 class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-500/20"
@@ -447,7 +386,6 @@
               </div>
             </div>
 
-            <!-- Content -->
             <div class="text-center">
               <h3
                 class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-indigo-500"
@@ -469,13 +407,11 @@
           <div
             class="group relative cursor-pointer rounded-2xl border border-base-300 bg-base-100 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-lg"
           >
-            <!-- Background gradient overlay -->
             <div
               class="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-500/5 via-transparent to-sky-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             ></div>
 
             <div class="relative z-10">
-              <!-- Icon Section -->
               <div class="mb-4 flex items-center justify-center">
                 <div
                   class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/10 transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20"
@@ -484,7 +420,6 @@
                 </div>
               </div>
 
-              <!-- Content -->
               <div class="text-center">
                 <h3
                   class="mb-2 text-base font-semibold text-contrast-content transition-colors duration-300 group-hover:text-sky-500"
@@ -495,21 +430,9 @@
                   <span class="text-lg font-bold text-base-content"
                     >{fieldBoundaries}</span
                   >
-                  {#if !isPaidSubscription}
-                    <span class="ml-1 text-lg text-contrast-content"
-                      >/ {fieldBoundariesMax}</span
-                    >
-                  {/if}
                 </div>
-                <p class="mb-4 text-sm text-contrast-content">
-                  {#if isPaidSubscription}
-                    Unlimited
-                  {:else}
-                    {fieldBoundariesMax - fieldBoundaries} remaining
-                  {/if}
-                </p>
+                <p class="mb-4 text-sm text-contrast-content">Total fields</p>
 
-                <!-- Expandable indicator -->
                 <div
                   class="flex items-center justify-center gap-2 font-medium text-sky-500"
                 >
@@ -528,11 +451,5 @@
   </div>
 
   <!-- PinsDialog -->
-  <PinsDialog
-    bind:open={pinsDialogOpen}
-    mapId={yourMapId}
-    {mapMarkers}
-    {isPaidSubscription}
-    {markerLimit}
-  />
+  <PinsDialog bind:open={pinsDialogOpen} mapId={yourMapId} {mapMarkers} />
 {/if}
