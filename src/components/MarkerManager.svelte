@@ -11,6 +11,7 @@
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
+  import { getIconImageName as getIconImageNameUtil } from "$lib/data/markerDefinitions"
 
   export let map
   export let mapLoaded = false
@@ -199,58 +200,13 @@
       map.addImage("default", { width: 35, height: 35, data: imageData.data })
     }
 
-    const markerIcons = [
-      { filter: (icon) => icon.class?.startsWith("ionic-"), symbol: "I" },
-      { filter: (icon) => icon.class?.startsWith("at-"), symbol: "◆" },
-    ]
-
-    for (const iconType of markerIcons) {
-      const icons = []
-      for (const icon of icons) {
-        await generateFallbackIcon(icon.class, iconType.symbol)
-      }
-    }
-
     iconsLoaded = true
     console.log("Fallback icon loading completed")
   }
 
-  async function generateFallbackIcon(iconKey, symbol) {
-    if (map.hasImage(iconKey)) return
-
-    const canvas = document.createElement("canvas")
-    canvas.width = 35
-    canvas.height = 35
-    const ctx = canvas.getContext("2d")
-
-    ctx.fillStyle = "rgba(211, 211, 211, 0.9)"
-    ctx.beginPath()
-    ctx.arc(17.5, 17.5, 17.5, 0, 2 * Math.PI)
-    ctx.fill()
-
-    ctx.fillStyle = "black"
-    ctx.font = "bold 16px Arial"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-    ctx.fillText(symbol, 17.5, 17.5)
-
-    const imageData = ctx.getImageData(0, 0, 35, 35)
-    map.addImage(iconKey, { width: 35, height: 35, data: imageData.data })
-  }
-
-  // Reverted: Simple getIconImageName function without selection support
+  // Use the unified getIconImageName function
   function getIconImageName(iconClass) {
-    if (!iconClass || iconClass === "default") return "default"
-
-    if (
-      iconClass.startsWith("custom-svg-") ||
-      iconClass.startsWith("ionic-") ||
-      iconClass.startsWith("at-")
-    ) {
-      return iconClass
-    }
-
-    return "default"
+    return getIconImageNameUtil(iconClass)
   }
 
   async function initializeMarkerLayers() {

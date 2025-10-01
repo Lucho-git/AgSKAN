@@ -6,7 +6,8 @@
   import IconSVG from "../../components/IconSVG.svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
-  import { markerPlacementModeEnabled } from "$lib/stores/controlStore" // ADD THIS IMPORT
+  import { markerPlacementModeEnabled } from "$lib/stores/controlStore"
+  import { getActiveMarkers, getAllMarkers } from "$lib/data/markerDefinitions"
 
   const dispatch = createEventDispatcher()
 
@@ -14,156 +15,10 @@
   let activeSubPanel = null // null, 'markers'
 
   // Marker placement state - now reactive to store
-  $: markerPlacementMode = $markerPlacementModeEnabled // CHANGE THIS LINE
+  $: markerPlacementMode = $markerPlacementModeEnabled
 
-  // All marker icons data
-  const allMarkerIcons = [
-    { id: "default", class: "default", name: "Default Marker" },
-
-    { id: "rock", class: "custom-svg", name: "Rock" },
-    { id: "tree13", class: "custom-svg", name: "Tree" },
-    { id: "watertank2", class: "custom-svg", name: "Water Tank" },
-    { id: "wheat2", class: "custom-svg", name: "Wheat" },
-    { id: "kangaroo", class: "custom-svg", name: "Kangaroo" },
-    { id: "electric_tower", class: "custom-svg", name: "Power Tower" },
-    { id: "gate", class: "custom-svg", name: "Gate" },
-    { id: "machine_pump", class: "custom-svg", name: "Pump" },
-    { id: "recharge_icon", class: "custom-svg", name: "Charging" },
-    { id: "repair_shop", class: "custom-svg", name: "Repair Shop" },
-    { id: "tractor", class: "custom-svg", name: "Tractor" },
-    { id: "silo2", class: "custom-svg", name: "Silo" },
-    { id: "tree_stump", class: "custom-svg", name: "Tree Stump" },
-    { id: "workshop_icon", class: "custom-svg", name: "Workshop" },
-    { id: "pin", class: "ionic-pin", name: "Pin" },
-    { id: "arrow-up-circle", class: "ionic-arrow-up-circle", name: "Arrow Up" },
-    {
-      id: "arrow-down-circle",
-      class: "ionic-arrow-down-circle",
-      name: "Arrow Down",
-    },
-    {
-      id: "arrow-back-circle",
-      class: "ionic-arrow-back-circle",
-      name: "Arrow Back",
-    },
-    {
-      id: "arrow-forward-circle",
-      class: "ionic-arrow-forward-circle",
-      name: "Arrow Forward",
-    },
-    { id: "thumbs-down", class: "ionic-thumbs-down", name: "Thumbs Down" },
-    { id: "thumbs-up", class: "ionic-thumbs-up", name: "Thumbs Up" },
-    {
-      id: "accessibility",
-      class: "ionic-accessibility",
-      name: "Accessibility",
-    },
-    { id: "people", class: "ionic-people", name: "People" },
-    { id: "settings", class: "ionic-settings", name: "Settings" },
-    { id: "home", class: "ionic-home", name: "Home" },
-    {
-      id: "checkmark-circle",
-      class: "ionic-checkmark-circle",
-      name: "Success",
-    },
-    { id: "close-circle", class: "ionic-close-circle", name: "Error" },
-    {
-      id: "information-circle",
-      class: "ionic-information-circle",
-      name: "Info",
-    },
-    { id: "warning", class: "ionic-warning", name: "Warning" },
-    { id: "help-circle", class: "ionic-help-circle", name: "Help" },
-    { id: "ban", class: "ionic-ban", name: "Ban" },
-    { id: "location", class: "ionic-location", name: "Location" },
-    { id: "lock-closed", class: "ionic-lock-closed", name: "Locked" },
-    { id: "lock-open", class: "ionic-lock-open", name: "Unlocked" },
-    { id: "trash", class: "ionic-trash", name: "Trash" },
-    { id: "cart", class: "ionic-cart", name: "Cart" },
-    { id: "locate", class: "ionic-locate", name: "GPS" },
-    { id: "leaf", class: "ionic-leaf", name: "Leaf" },
-    { id: "call", class: "ionic-call", name: "Phone" },
-    { id: "wifi", class: "ionic-wifi", name: "WiFi" },
-    { id: "radio", class: "ionic-radio", name: "Radio" },
-    { id: "cloud-offline", class: "ionic-cloud-offline", name: "Offline" },
-    {
-      id: "battery-charging",
-      class: "ionic-battery-charging",
-      name: "Charging",
-    },
-    { id: "thermometer", class: "ionic-thermometer", name: "Temperature" },
-    { id: "sunny", class: "ionic-sunny", name: "Sunny" },
-    { id: "cloud", class: "ionic-cloud", name: "Cloud" },
-    { id: "thunderstorm", class: "ionic-thunderstorm", name: "Storm" },
-    { id: "rainy", class: "ionic-rainy", name: "Rain" },
-    { id: "water", class: "ionic-water", name: "Water" },
-    { id: "fast-food", class: "ionic-fast-food", name: "Food" },
-    { id: "restaurant", class: "ionic-restaurant", name: "Restaurant" },
-    { id: "airplane", class: "ionic-airplane", name: "Airplane" },
-    { id: "trail-sign", class: "ionic-trail-sign", name: "Trail" },
-    { id: "car", class: "ionic-car", name: "Car" },
-    { id: "beer", class: "ionic-beer", name: "Beer" },
-    { id: "bonfire", class: "ionic-bonfire", name: "Fire" },
-    { id: "boat", class: "ionic-boat", name: "Boat" },
-    { id: "bed", class: "ionic-bed", name: "Bed" },
-    { id: "bicycle", class: "ionic-bicycle", name: "Bicycle" },
-    { id: "build", class: "ionic-build", name: "Build" },
-    { id: "desktop", class: "ionic-desktop", name: "Computer" },
-    { id: "earth", class: "ionic-earth", name: "Earth" },
-    { id: "camera", class: "ionic-camera", name: "Camera" },
-    { id: "fish", class: "ionic-fish", name: "Fish" },
-    { id: "flame", class: "ionic-flame", name: "Flame" },
-    { id: "footsteps", class: "ionic-footsteps", name: "Footsteps" },
-    { id: "key", class: "ionic-key", name: "Key" },
-    { id: "man", class: "ionic-man", name: "Person" },
-    { id: "paw", class: "ionic-paw", name: "Animal" },
-    { id: "skull", class: "ionic-skull", name: "Danger" },
-    { id: "construct", class: "ionic-construct", name: "Construction" },
-    { id: "bus", class: "ionic-bus", name: "Bus" },
-    { id: "subway", class: "ionic-subway", name: "Subway" },
-    { id: "telescope", class: "ionic-telescope", name: "Telescope" },
-    {
-      id: "construction-truck",
-      class: "at-construction-truck",
-      name: "Construction",
-    },
-    { id: "electric-car", class: "at-electric-car", name: "Electric Car" },
-    { id: "gasoline", class: "at-gasoline", name: "Fuel" },
-    { id: "kg-weight", class: "at-kg-weight", name: "Weight" },
-    { id: "carrot", class: "at-carrot", name: "Carrot" },
-    { id: "middle-finger", class: "at-middle-finger", name: "Rude" },
-    { id: "toilet-bathroom", class: "at-toilet-bathroom", name: "Toilet" },
-    { id: "car-garage", class: "at-car-garage", name: "Garage" },
-    { id: "electricity-home", class: "at-electricity-home", name: "Power" },
-    {
-      id: "carrot-turnip-vegetable",
-      class: "at-carrot-turnip-vegetable",
-      name: "Vegetables",
-    },
-    { id: "wheat-harvest", class: "at-wheat-harvest", name: "Harvest" },
-    {
-      id: "helicopter-travel",
-      class: "at-helicopter-travel",
-      name: "Helicopter",
-    },
-    { id: "camper-vehicle", class: "at-camper-vehicle", name: "Camper" },
-    { id: "cargo-transport", class: "at-cargo-transport", name: "Cargo" },
-    { id: "bulldozer", class: "at-bulldozer", name: "Bulldozer" },
-    {
-      id: "construction-transport",
-      class: "at-construction-transport",
-      name: "Transport",
-    },
-    { id: "crane-truck", class: "at-crane-truck", name: "Crane" },
-    { id: "delivery-truck", class: "at-delivery-truck", name: "Delivery" },
-    {
-      id: "liquid-transportation",
-      class: "at-liquid-transportation",
-      name: "Liquid",
-    },
-    { id: "transport-truck", class: "at-transport-truck", name: "Truck" },
-    { id: "ladder-truck", class: "at-ladder-truck", name: "Ladder Truck" },
-  ]
+  // Use unified marker definitions - ONLY ACTIVE markers for selection
+  const allMarkerIcons = getActiveMarkers()
 
   // Lazy loading state
   let visibleMarkers = allMarkerIcons.slice(0, 20)
@@ -171,11 +26,14 @@
   let scrollContainer
 
   // Default marker selection - get from userSettingsStore or fallback to default
-  $: selectedMarker = $userSettingsStore?.defaultMarker // Use camelCase
+  // Need to check against ALL markers (including deprecated) for backward compatibility
+  $: selectedMarker = $userSettingsStore?.defaultMarker
     ? (() => {
         const storeMarker = $userSettingsStore.defaultMarker
+        // First try to find in ALL markers (includes deprecated)
+        const allMarkers = getAllMarkers()
         return (
-          allMarkerIcons.find(
+          allMarkers.find(
             (icon) =>
               icon.id === storeMarker.id && icon.class === storeMarker.class,
           ) || allMarkerIcons.find((icon) => icon.id === "default")
@@ -198,7 +56,6 @@
   async function selectMarker(marker) {
     selectedMarker = marker
 
-    // Log the current store state first
     console.log("📊 Current userSettingsStore:", $userSettingsStore)
 
     try {
@@ -229,7 +86,6 @@
     hideSubPanel()
   }
 
-  // REPLACE THE ENTIRE activateMarkerPlacement FUNCTION
   function activateMarkerPlacement() {
     // Toggle the store state
     markerPlacementModeEnabled.set(!$markerPlacementModeEnabled)
@@ -349,7 +205,8 @@
           {#each visibleMarkers as marker}
             <button
               class="marker-option"
-              class:selected={selectedMarker?.id === marker.id}
+              class:selected={selectedMarker?.id === marker.id &&
+                selectedMarker?.class === marker.class}
               on:click={() => selectMarker(marker)}
             >
               <div class="marker-icon-small">
@@ -388,7 +245,6 @@
   {/if}
 </div>
 
-<!-- Keep all your existing styles exactly the same -->
 <style>
   .marker-controls {
     padding: 16px;
