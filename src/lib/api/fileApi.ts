@@ -184,7 +184,18 @@ export const fileApi = {
     },
 
     // Update field function
-    async updateField(fieldId: string, name: string, area?: number, polygonAreas?: { individual_areas: number[], total_area: number }) {
+    // Update the updateField function in fileApi.ts
+    async updateField(
+        fieldId: string,
+        updates: {
+            name?: string,
+            area?: number,
+            polygonAreas?: { individual_areas: number[], total_area: number },
+            icon?: string,
+            color?: string,
+            field_type?: string
+        }
+    ) {
         try {
             const { data: session } = await supabase.auth.getSession();
             if (!session?.session?.user) {
@@ -193,7 +204,7 @@ export const fileApi = {
 
             const userId = session.session.user.id;
 
-            // First, check if the field belongs to the user's master map
+            // Get user's master map ID
             const { data: profileData, error: profileError } = await supabase
                 .from("profiles")
                 .select("master_map_id")
@@ -209,17 +220,24 @@ export const fileApi = {
                 throw new Error("No master map associated with user");
             }
 
-            // Prepare update data with conditional fields
-            const updateData: Record<string, any> = { name };
+            // Prepare update data
+            const updateData: Record<string, any> = {};
 
-            // If polygon areas are provided, use their cumulative total as the area
-            if (polygonAreas && polygonAreas.individual_areas && polygonAreas.individual_areas.length > 0) {
-                const calculatedTotalArea = polygonAreas.individual_areas.reduce((sum, area) => sum + area, 0);
-                updateData['area'] = calculatedTotalArea;
-                updateData['polygon_areas'] = polygonAreas;
-            } else if (area !== undefined) {
-                // Fallback to provided area if no polygon areas
-                updateData['area'] = area;
+            if (updates.name !== undefined) updateData.name = updates.name;
+            if (updates.icon !== undefined) updateData.icon = updates.icon;
+            if (updates.color !== undefined) updateData.color = updates.color;
+            if (updates.field_type !== undefined) updateData.field_type = updates.field_type;
+
+            // Handle polygon areas
+            if (updates.polygonAreas?.individual_areas?.length > 0) {
+                const calculatedTotalArea = updates.polygonAreas.individual_areas.reduce(
+                    (sum, area) => sum + area,
+                    0
+                );
+                updateData.area = calculatedTotalArea;
+                updateData.polygon_areas = updates.polygonAreas;
+            } else if (updates.area !== undefined) {
+                updateData.area = updates.area;
             }
 
             // Update the field
@@ -444,5 +462,8 @@ export const fileApi = {
             return { fields: [], error: error.message };
         }
     }
+
+
+
 
 };

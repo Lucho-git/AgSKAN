@@ -1,6 +1,14 @@
 <script>
   import IconSVG from "./IconSVG.svelte"
-  import { Edit3, Trash2, Check, Info, FileText, Copy } from "lucide-svelte"
+  import {
+    Edit3,
+    Trash2,
+    Check,
+    Info,
+    FileText,
+    Copy,
+    Plus,
+  } from "lucide-svelte"
   import { markerApi } from "$lib/api/markerApi"
   import {
     getAllMarkers,
@@ -27,6 +35,10 @@
   let markerNotes = ""
   let showNotesSection = false
   let originalNotes = "" // Track original notes to detect changes
+
+  // Notes editing in info panel
+  let editingNotesInInfo = false
+  let infoNotesValue = ""
 
   // Icon selection state
   let selectedIconForEdit = null
@@ -59,6 +71,8 @@
     if (currentMarkerId !== lastMarkerId) {
       markerNotes = currentMarker?.notes || ""
       originalNotes = currentMarker?.notes || ""
+      infoNotesValue = currentMarker?.notes || ""
+      editingNotesInInfo = false
       lastMarkerId = currentMarkerId
     }
   }
@@ -122,6 +136,8 @@
     originalNotes = ""
     showNotesSection = false
     previewIconClass = null
+    editingNotesInInfo = false
+    infoNotesValue = ""
   }
 
   // Format creation date
@@ -159,6 +175,55 @@
     } catch (err) {
       console.error("Failed to copy coordinates:", err)
     }
+  }
+
+  // Start editing notes in info panel
+  function startEditingInfoNotes() {
+    infoNotesValue = currentMarker?.notes || ""
+    editingNotesInInfo = true
+  }
+
+  // Save notes from info panel
+  async function saveInfoNotes() {
+    if (!currentMarker) return
+
+    try {
+      const result = await markerApi.updateMarkerNotes(
+        currentMarker.id,
+        infoNotesValue,
+      )
+
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+
+      // Update the confirmed store
+      confirmedMarkersStore.update((markers) => {
+        const existingIndex = markers.findIndex(
+          (m) => m.id === currentMarker.id,
+        )
+        if (existingIndex >= 0) {
+          markers[existingIndex] = {
+            ...markers[existingIndex],
+            notes: infoNotesValue.trim() || undefined,
+            updated_at: new Date().toISOString(),
+          }
+        }
+        return markers
+      })
+
+      editingNotesInInfo = false
+      originalNotes = infoNotesValue.trim()
+    } catch (error) {
+      console.error("Error saving notes:", error)
+      alert(`Failed to save notes: ${error.message}`)
+    }
+  }
+
+  // Cancel editing notes in info panel
+  function cancelEditingInfoNotes() {
+    editingNotesInInfo = false
+    infoNotesValue = currentMarker?.notes || ""
   }
 
   // Handle icon selection with preview
@@ -356,6 +421,7 @@
     showInfoPanel = !showInfoPanel
     showEditMenu = false
     isExpanded = showInfoPanel
+    editingNotesInInfo = false
   }
 
   // Toggle notes section
@@ -381,6 +447,56 @@
         </div>
       </div>
 
+      <!-- Notes Section - Above Coordinates -->
+      {#if editingNotesInInfo}
+        <!-- Editing notes -->
+        <div class="notes-edit-section-info">
+          <div class="notes-header-info">
+            <span class="notes-label">📝 Edit Notes</span>
+            <div class="notes-actions">
+              <button class="notes-action-btn save" on:click={saveInfoNotes}>
+                <Check size={14} />
+              </button>
+              <button
+                class="notes-action-btn cancel"
+                on:click={cancelEditingInfoNotes}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+          <textarea
+            bind:value={infoNotesValue}
+            placeholder="Add notes about this marker..."
+            class="notes-input-info"
+            rows="3"
+            maxlength="500"
+          ></textarea>
+        </div>
+      {:else if currentMarker?.notes}
+        <!-- Display notes with edit button -->
+        <div class="notes-display-section">
+          <div class="notes-display-header">
+            <span class="notes-label">📝 Notes</span>
+            <button class="edit-notes-btn" on:click={startEditingInfoNotes}>
+              <Edit3 size={14} />
+            </button>
+          </div>
+          <div class="notes-display-content">
+            {currentMarker.notes}
+          </div>
+        </div>
+      {:else}
+        <!-- Add notes button -->
+        <div class="add-notes-section">
+          <button class="add-notes-btn" on:click={startEditingInfoNotes}>
+            <Plus size={16} />
+            <FileText size={16} />
+            <span>Add Notes</span>
+          </button>
+        </div>
+      {/if}
+
       <!-- Coordinates Section with Copy Button -->
       <div class="coordinates-section">
         <div class="coord-item">
@@ -399,18 +515,6 @@
           >
         </div>
       </div>
-
-      <!-- Notes Display (read-only) -->
-      {#if currentMarker?.notes}
-        <div class="notes-display-section">
-          <div class="notes-display-header">
-            <span class="notes-label">📝 Notes</span>
-          </div>
-          <div class="notes-display-content">
-            {currentMarker.notes}
-          </div>
-        </div>
-      {/if}
     </div>
   {/if}
 
@@ -515,14 +619,25 @@
       </button>
 
       <div class="marker-text-info">
-        <span class="marker-name"
-          >{getMarkerName(displayIconClass)}
-          {#if markerNotes && showEditMenu}
-            <span class="marker-notes-preview"> - {markerNotes}</span>
-          {:else if currentMarker?.notes && !showEditMenu}
-            <span class="marker-notes-preview"> - {currentMarker.notes}</span>
-          {/if}
+        <span class="marker-name">
+          {getMarkerName(displayIconClass)}
         </span>
+        <!-- Notes preview - desktop: inline, mobile: underneath -->
+        {#if markerNotes && showEditMenu}
+          <span class="marker-notes-preview marker-notes-desktop">
+            - {markerNotes}</span
+          >
+          <span class="marker-notes-preview marker-notes-mobile"
+            >{markerNotes}</span
+          >
+        {:else if currentMarker?.notes && !showEditMenu}
+          <span class="marker-notes-preview marker-notes-desktop">
+            - {currentMarker.notes}</span
+          >
+          <span class="marker-notes-preview marker-notes-mobile"
+            >{currentMarker.notes}</span
+          >
+        {/if}
       </div>
     </div>
 
@@ -629,6 +744,159 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
+  /* Add Notes Button */
+  .add-notes-section {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+  }
+
+  .add-notes-btn {
+    width: 100%;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px dashed rgba(34, 197, 94, 0.4);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #22c55e;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .add-notes-btn:hover {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: #22c55e;
+    transform: scale(1.01);
+  }
+
+  /* Notes Display Section (Info tab - read only) */
+  .notes-display-section {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid #22c55e;
+  }
+
+  .notes-display-header {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .notes-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+
+  .edit-notes-btn {
+    background: rgba(96, 165, 250, 0.2);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .edit-notes-btn:hover {
+    background: rgba(96, 165, 250, 0.3);
+    transform: scale(1.05);
+  }
+
+  .notes-display-content {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+
+  /* Notes Edit Section in Info Panel */
+  .notes-edit-section-info {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid #22c55e;
+  }
+
+  .notes-header-info {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .notes-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .notes-action-btn {
+    background: rgba(96, 165, 250, 0.2);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+  }
+
+  .notes-action-btn.save {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+  }
+
+  .notes-action-btn.save:hover {
+    background: rgba(34, 197, 94, 0.3);
+  }
+
+  .notes-action-btn.cancel {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+
+  .notes-action-btn.cancel:hover {
+    background: rgba(239, 68, 68, 0.3);
+  }
+
+  .notes-input-info {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: white;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 50px;
+    line-height: 1.4;
+  }
+
+  .notes-input-info:focus {
+    outline: none;
+    border-color: #22c55e;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .notes-input-info::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
   /* Coordinates Section */
   .coordinates-section {
     flex-shrink: 0;
@@ -684,33 +952,6 @@
     font-weight: 600;
     color: #60a5fa;
     font-family: monospace;
-  }
-
-  /* Notes Display Section (Info tab - read only) */
-  .notes-display-section {
-    flex-shrink: 0;
-    margin-bottom: 12px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    border-left: 3px solid #22c55e;
-  }
-
-  .notes-display-header {
-    margin-bottom: 8px;
-  }
-
-  .notes-label {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    font-weight: 500;
-  }
-
-  .notes-display-content {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
-    line-height: 1.4;
-    white-space: pre-wrap;
   }
 
   /* Notes Edit Section (Edit tab - editable) - COMPACT */
@@ -940,8 +1181,10 @@
 
   .marker-text-info {
     display: flex;
+    flex-direction: column;
     flex: 1;
     min-width: 0;
+    gap: 2px;
   }
 
   .marker-name {
@@ -952,8 +1195,6 @@
     overflow: hidden;
     white-space: nowrap;
     line-height: 1.2;
-    flex: 1;
-    min-width: 0;
   }
 
   .marker-notes-preview {
@@ -964,8 +1205,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex-shrink: 1;
-    min-width: 0;
+  }
+
+  /* Desktop: notes inline with title */
+  .marker-notes-mobile {
+    display: none;
   }
 
   .action-controls {
@@ -1069,8 +1313,16 @@
       font-size: 16px;
     }
 
-    .marker-notes-preview {
-      font-size: 12px;
+    /* Mobile: show notes underneath on separate line */
+    .marker-notes-desktop {
+      display: none;
+    }
+
+    .marker-notes-mobile {
+      display: block;
+      font-size: 11px;
+      line-height: 1.3;
+      margin-top: 2px;
     }
 
     .icon-grid {
@@ -1103,7 +1355,7 @@
       font-size: 14px;
     }
 
-    .marker-notes-preview {
+    .marker-notes-mobile {
       font-size: 10px;
     }
 

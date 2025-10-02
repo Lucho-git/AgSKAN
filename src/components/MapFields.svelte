@@ -11,14 +11,27 @@
   export let map: mapboxgl.Map
   export let coordinatedEvents = false
 
-  // ✅ Get the layer management context
   const mapContext = getContext("map")
 
-  // 🆕 NEW: Get global selection context (will be available after MapEventManager mounts)
   let globalSelectionContext = null
   let globalSelectionState = null
 
-  // Try to get global selection context
+  // 🆕 Helper function to get fill and outline colors based on field color
+  function getFieldColors(fieldColor: string | null | undefined) {
+    // If color is null, undefined, or explicitly "default", use the classic two-color scheme
+    if (!fieldColor || fieldColor === "default") {
+      return {
+        fillColor: "#0080ff",
+        outlineColor: "#bfffbf",
+      }
+    }
+    // Otherwise, use the same color for both fill and outline
+    return {
+      fillColor: fieldColor,
+      outlineColor: fieldColor,
+    }
+  }
+
   function checkGlobalSelectionContext() {
     try {
       globalSelectionContext = getContext("globalSelection")
@@ -39,6 +52,9 @@
       coordinates: number[][][] | number[][][][]
     }
     name: string
+    icon?: string
+    color?: string
+    field_type?: string
     polygon_areas?: {
       individual_areas: number[]
       total_area: number
@@ -49,7 +65,6 @@
   let showInfoPanel = false
   let isDestroyed = false
 
-  // 🆕 NEW: Periodically check for global selection context and sync
   let contextCheckInterval = null
 
   function syncWithGlobalSelection() {
@@ -59,10 +74,9 @@
       const currentState = globalSelectionContext.getState()
 
       if (currentState.selectedType === "field") {
-        // Field is selected via unified system
         if (selectedFieldId !== currentState.selectedId) {
           selectedFieldId = currentState.selectedId
-          showInfoPanel = false // 🆕 CORRECTED: Don't auto-open panel, just show hover state
+          showInfoPanel = false
           updateFieldSelection()
           console.log(
             "🎯 MapFields: Synced with global selection:",
@@ -73,7 +87,6 @@
         currentState.selectedType !== "field" &&
         selectedFieldId !== null
       ) {
-        // Something else is selected, clear field selection
         selectedFieldId = null
         showInfoPanel = false
         updateFieldSelection()
@@ -82,7 +95,6 @@
     }
   }
 
-  // Lightweight map check - only check what we absolutely need
   function canUseMap(): boolean {
     return !isDestroyed && map && map.getLayer && map.getSource
   }
@@ -114,6 +126,7 @@
                     id: index,
                     name: field.name,
                     area: Math.round(field.area * 10) / 10,
+                    icon: field.icon || "🌾",
                   },
                 },
               ]
@@ -143,6 +156,7 @@
                       id: index,
                       name: field.name,
                       area: Math.round(polygonArea * 10) / 10,
+                      icon: field.icon || "🌾",
                     },
                   }
                 },
@@ -205,7 +219,6 @@
     }
 
     try {
-      // ✅ Add area labels with proper ordering
       mapContext.addLayerOrdered({
         id: "fields-labels-area",
         type: "symbol",
@@ -245,7 +258,6 @@
         },
       })
 
-      // ✅ Add field name labels with proper ordering
       mapContext.addLayerOrdered({
         id: "fields-labels",
         type: "symbol",
@@ -314,7 +326,43 @@
     }
   }
 
-  // 🆕 CORRECTED: Public method called by unified event system
+  function updateMapColors() {
+    console.log("Updating map colors with latest field data")
+
+    if (!canUseMap()) return
+
+    try {
+      const fields: Field[] = get(mapFieldsStore)
+
+      // 🆕 Update the GeoJSON data with separate fill and outline colors
+      const fieldsGeojson = {
+        type: "FeatureCollection",
+        features: fields.map((field, index) => {
+          const colors = getFieldColors(field.color)
+          return {
+            type: "Feature",
+            geometry: field.boundary,
+            properties: {
+              id: index,
+              area: Math.round(field.area * 10) / 10,
+              name: field.name,
+              fillColor: colors.fillColor,
+              outlineColor: colors.outlineColor,
+            },
+          }
+        }),
+      }
+
+      const fieldsSource = map.getSource("fields") as mapboxgl.GeoJSONSource
+      if (fieldsSource) {
+        fieldsSource.setData(fieldsGeojson)
+        console.log("✅ Updated field colors on map")
+      }
+    } catch (error) {
+      console.error("Error updating map colors:", error)
+    }
+  }
+
   export function handleFieldSelection(fieldId) {
     console.log(
       "🎯 MapFields: Field selection called with ID:",
@@ -324,18 +372,15 @@
     )
 
     if (fieldId === null) {
-      // Explicit deselection - clear everything
       selectedFieldId = null
       showInfoPanel = false
       console.log("🎯 MapFields: Field explicitly deselected")
     } else if (selectedFieldId === fieldId) {
-      // Same field clicked - deselect it
       console.log("🎯 MapFields: Same field clicked, deselecting")
       selectedFieldId = null
       showInfoPanel = false
       console.log("🎯 MapFields: Field deselected (same field clicked)")
     } else {
-      // New field selected - show ONLY the hover state, NOT the full panel
       console.log("🎯 MapFields: New field selected:", fieldId)
       selectedFieldId = fieldId
       showInfoPanel = false
@@ -346,7 +391,6 @@
       )
     }
 
-    // Update visual selection
     updateFieldSelection()
   }
 
@@ -388,17 +432,23 @@
       console.log("Loading fields from", $mapFieldsStore)
 
       if (fields.length > 0) {
+        // 🆕 Create GeoJSON with separate fill and outline colors
         const fieldsGeojson = {
           type: "FeatureCollection",
-          features: fields.map((field, index) => ({
-            type: "Feature",
-            geometry: field.boundary,
-            properties: {
-              id: index,
-              area: Math.round(field.area * 10) / 10,
-              name: field.name,
-            },
-          })),
+          features: fields.map((field, index) => {
+            const colors = getFieldColors(field.color)
+            return {
+              type: "Feature",
+              geometry: field.boundary,
+              properties: {
+                id: index,
+                area: Math.round(field.area * 10) / 10,
+                name: field.name,
+                fillColor: colors.fillColor,
+                outlineColor: colors.outlineColor,
+              },
+            }
+          }),
         }
 
         const labelPointsGeojson = createLabelPoints(fields)
@@ -413,39 +463,42 @@
           data: labelPointsGeojson,
         })
 
-        // ✅ Add layers in proper order using the centralized system
+        // 🆕 Field fill - normal state (uses fillColor from properties)
         mapContext.addLayerOrdered({
           id: "fields-fill",
           type: "fill",
           source: "fields",
           paint: {
-            "fill-color": "#0080ff",
+            "fill-color": ["get", "fillColor"],
             "fill-opacity": 0.2,
           },
         })
 
+        // 🆕 Field fill - selected state (uses fillColor from properties, higher opacity)
         mapContext.addLayerOrdered({
           id: "fields-fill-selected",
           type: "fill",
           source: "fields",
           filter: ["==", "id", -1],
           paint: {
-            "fill-color": "#0056b3",
+            "fill-color": ["get", "fillColor"],
             "fill-opacity": 0.5,
           },
         })
 
+        // 🆕 Field outline - normal state (uses outlineColor from properties)
         mapContext.addLayerOrdered({
           id: "fields-outline",
           type: "line",
           source: "fields",
           paint: {
-            "line-color": "#bfffbf",
-            "line-opacity": 0.5,
+            "line-color": ["get", "outlineColor"],
+            "line-opacity": 0.95,
             "line-width": 2,
           },
         })
 
+        // Field outline - selected state (always white)
         mapContext.addLayerOrdered({
           id: "fields-outline-selected",
           type: "line",
@@ -483,12 +536,12 @@
 
   function handleFieldUpdate() {
     updateMapLabels()
+    updateMapColors()
   }
 
   function cleanup() {
     isDestroyed = true
 
-    // Clear context check interval
     if (contextCheckInterval) {
       clearInterval(contextCheckInterval)
       contextCheckInterval = null
@@ -508,7 +561,6 @@
       coordinatedEvents,
     )
 
-    // Set up periodic sync with global selection context
     contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     if (map.loaded()) {
@@ -534,7 +586,6 @@
     selectedFieldId !== null ? $mapFieldsStore[selectedFieldId] : null
 </script>
 
-<!-- 🆕 CORRECTED: Show hover state when field is selected, but panel only when explicitly requested -->
 {#if selectedFieldId !== null && selectedField}
   <InfoPanel
     {selectedField}
