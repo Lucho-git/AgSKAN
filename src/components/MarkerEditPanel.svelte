@@ -802,6 +802,7 @@
   .icon-grid-container {
     max-height: 27.2vh; /* Desktop height - works perfectly */
     overflow-y: auto;
+    padding-top: 2px; /* ADDED: Padding to prevent cutoff at top */
   }
 
   .icon-grid {
