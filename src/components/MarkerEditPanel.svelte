@@ -1,6 +1,6 @@
 <script>
   import IconSVG from "./IconSVG.svelte"
-  import { Edit3, Trash2, Check, Info, FileText } from "lucide-svelte"
+  import { Edit3, Trash2, Check, Info, FileText, Copy } from "lucide-svelte"
   import { markerApi } from "$lib/api/markerApi"
   import {
     getAllMarkers,
@@ -16,48 +16,60 @@
   export let selectedMarkerStore
   export let getIconImageName
 
-  // UI State - matching trail highlighter pattern
+  // UI State
   let showEditMenu = false
   let showInfoPanel = false
   let isExpanded = false
   let selectedMarkerIsNew = false
-  let editingNotes = false
-  let markerNotes = ""
-  let lastMarkerId = null // Track marker changes
+  let lastMarkerId = null
 
-  // New marker notes state
-  let newMarkerNotes = "" // Notes for new markers before confirmation
-  let showNotesForNewMarker = false
+  // Unified notes state (works for both new and existing markers)
+  let markerNotes = ""
+  let showNotesSection = false
+  let originalNotes = "" // Track original notes to detect changes
 
   // Icon selection state
   let selectedIconForEdit = null
   let pendingIconChange = false
   let originalIconClass = null
 
-  // Get current marker data - check if it exists in confirmed store
+  // Preview icon state for bottom bar
+  let previewIconClass = null
+
+  // Get current marker data
   $: currentMarker = $selectedMarkerStore
     ? $confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id)
     : null
   $: selectedMarkerIsNew = $selectedMarkerStore && !currentMarker
 
-  // Auto-open edit menu for new markers and reset new marker notes
+  // Auto-open edit menu for new markers
   $: if (selectedMarkerIsNew && !showEditMenu) {
     showEditMenu = true
     showInfoPanel = false
     isExpanded = true
-    newMarkerNotes = "" // Reset notes for new marker
-    showNotesForNewMarker = false // Start with notes section collapsed
+    markerNotes = "" // Reset notes for new marker
+    originalNotes = ""
+    showNotesSection = false // Start with notes collapsed
+    previewIconClass = null
   }
 
-  // FIXED: Only update notes when marker changes, not on every reactive cycle
+  // Update notes when switching markers
   $: {
     const currentMarkerId = currentMarker?.id
     if (currentMarkerId !== lastMarkerId) {
       markerNotes = currentMarker?.notes || ""
-      editingNotes = false // Reset editing state when switching markers
+      originalNotes = currentMarker?.notes || ""
       lastMarkerId = currentMarkerId
     }
   }
+
+  // Check if there are pending changes (icon OR notes)
+  $: hasChanges =
+    pendingIconChange || markerNotes.trim() !== originalNotes.trim()
+
+  // Get the icon class to display (preview or current)
+  $: displayIconClass =
+    previewIconClass || getCurrentIconClass($selectedMarkerStore?.id)
 
   // Reactive function for icon selection
   $: getIsIconSelected = (icon) => {
@@ -84,13 +96,11 @@
     return icon.class === currentIconClass
   }
 
-  // Use unified marker definitions - ALL markers for backward compatibility
+  // Use unified marker definitions
   const allMarkerIcons = getAllMarkers()
-
-  // Filter to only show active markers in the selection UI
   $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
 
-  // Get marker name using the unified system
+  // Get marker name (using preview if available)
   function getMarkerName(iconClass) {
     const marker = findMarkerByIconClass(iconClass)
     return marker?.name || "Marker"
@@ -98,7 +108,6 @@
 
   // Close all panels
   function closeAllPanels() {
-    // If there are pending changes, revert them
     if (pendingIconChange && originalIconClass && $selectedMarkerStore) {
       revertIconChange()
     }
@@ -106,12 +115,13 @@
     showEditMenu = false
     showInfoPanel = false
     isExpanded = false
-    editingNotes = false
     selectedIconForEdit = null
     pendingIconChange = false
     originalIconClass = null
-    newMarkerNotes = ""
-    showNotesForNewMarker = false
+    markerNotes = ""
+    originalNotes = ""
+    showNotesSection = false
+    previewIconClass = null
   }
 
   // Format creation date
@@ -128,55 +138,33 @@
     })
   }
 
-  // Format coordinates for display
+  // Format coordinates
   function formatCoordinates(coordinates) {
     if (!coordinates || coordinates.length !== 2) return "N/A"
     const [lng, lat] = coordinates
     return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
   }
 
-  // Save marker notes to database
-  async function saveMarkerNotes() {
-    if (!currentMarker) return
+  // Copy coordinates to clipboard
+  async function copyCoordinates() {
+    if (!$selectedMarkerStore?.coordinates) return
+
+    const [lng, lat] = $selectedMarkerStore.coordinates
+    const coordText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 
     try {
-      const result = await markerApi.updateMarkerNotes(
-        currentMarker.id,
-        markerNotes,
-      )
-
-      if (!result.success) {
-        throw new Error(result.message)
-      }
-
-      // Update the confirmed store with the new notes
-      confirmedMarkersStore.update((markers) => {
-        const existingIndex = markers.findIndex(
-          (m) => m.id === currentMarker.id,
-        )
-        if (existingIndex >= 0) {
-          markers[existingIndex] = {
-            ...markers[existingIndex],
-            notes: markerNotes.trim(),
-            updated_at: new Date().toISOString(),
-          }
-        }
-        return markers
-      })
-
-      editingNotes = false
-      console.log("Notes saved")
-    } catch (error) {
-      console.error("Error saving notes:", error)
-      alert(`Failed to save notes: ${error.message}`)
+      await navigator.clipboard.writeText(coordText)
+      // Optional: Show a brief success indicator
+      console.log("Coordinates copied:", coordText)
+    } catch (err) {
+      console.error("Failed to copy coordinates:", err)
     }
   }
 
-  // Handle icon selection with immediate visual feedback
+  // Handle icon selection with preview
   function handleIconPreview(icon) {
     if (!$selectedMarkerStore) return
 
-    // Store original icon class if this is the first change
     if (!pendingIconChange) {
       originalIconClass = getCurrentIconClass($selectedMarkerStore.id)
       pendingIconChange = true
@@ -184,7 +172,14 @@
 
     selectedIconForEdit = icon
 
-    // Immediately update the icon on the map for preview
+    // Update preview for bottom bar
+    previewIconClass =
+      icon.id === "default"
+        ? "default"
+        : icon.class.startsWith("custom-svg")
+          ? `custom-svg-${icon.id}`
+          : icon.class
+
     const { id } = $selectedMarkerStore
     const source = map.getSource("markers")
     const data = source._data
@@ -204,19 +199,17 @@
     }
   }
 
-  // Confirm marker (handles both new markers and icon changes) - Updated to include notes
+  // Confirm changes (works for both new markers and icon/notes changes)
   function handleConfirmMarker() {
     if (selectedMarkerIsNew) {
-      // For new markers, confirm the marker itself with notes
-      confirmMarkerWithNotes()
-    } else if (pendingIconChange && selectedIconForEdit) {
-      // For existing markers, just confirm the icon change
-      confirmIconChange()
+      confirmNewMarker()
+    } else {
+      confirmChanges()
     }
   }
 
-  // New function to confirm marker with notes - FIXED: Clear selection properly
-  function confirmMarkerWithNotes() {
+  // Confirm new marker with notes
+  function confirmNewMarker() {
     if (!$selectedMarkerStore) return
 
     const { id, coordinates } = $selectedMarkerStore
@@ -226,13 +219,10 @@
       id,
       coordinates,
       iconClass,
-      notes: newMarkerNotes.trim() || undefined, // Only include notes if they exist
+      notes: markerNotes.trim() || undefined,
       created_at: new Date().toISOString(),
     }
 
-    console.log("Confirming new marker with notes:", markerData)
-
-    // Update the confirmed store
     confirmedMarkersStore.update((markers) => {
       const existingIndex = markers.findIndex((m) => m.id === id)
       if (existingIndex >= 0) {
@@ -242,7 +232,6 @@
       return [...markers, markerData]
     })
 
-    // FIXED: Update the map marker to remove selection state immediately
     if (map && map.getSource("markers")) {
       const source = map.getSource("markers")
       const data = source._data
@@ -255,26 +244,48 @@
       }
     }
 
-    // Reset states
-    newMarkerNotes = ""
-    showNotesForNewMarker = false
+    markerNotes = ""
+    originalNotes = ""
+    showNotesSection = false
     selectedMarkerStore.set(null)
     showEditMenu = false
     isExpanded = false
+    previewIconClass = null
   }
 
-  // Confirm icon change and sync to server
-  function confirmIconChange() {
-    if (!selectedIconForEdit || !$selectedMarkerStore) return
+  // Confirm changes to existing marker (icon and/or notes)
+  async function confirmChanges() {
+    if (!$selectedMarkerStore || !currentMarker) return
 
-    const newIconClass =
-      selectedIconForEdit.id === "default"
+    const newIconClass = selectedIconForEdit
+      ? selectedIconForEdit.id === "default"
         ? "default"
         : selectedIconForEdit.class.startsWith("custom-svg")
           ? `custom-svg-${selectedIconForEdit.id}`
           : selectedIconForEdit.class
+      : currentMarker.iconClass
 
-    // Update the confirmed store to sync to server
+    const notesChanged = markerNotes.trim() !== originalNotes.trim()
+
+    // Save notes if changed
+    if (notesChanged) {
+      try {
+        const result = await markerApi.updateMarkerNotes(
+          currentMarker.id,
+          markerNotes,
+        )
+
+        if (!result.success) {
+          throw new Error(result.message)
+        }
+      } catch (error) {
+        console.error("Error saving notes:", error)
+        alert(`Failed to save notes: ${error.message}`)
+        return
+      }
+    }
+
+    // Update the confirmed store
     confirmedMarkersStore.update((markers) => {
       const existingIndex = markers.findIndex(
         (m) => m.id === $selectedMarkerStore.id,
@@ -283,19 +294,21 @@
         markers[existingIndex] = {
           ...markers[existingIndex],
           iconClass: newIconClass,
+          notes: markerNotes.trim() || undefined,
+          updated_at: new Date().toISOString(),
         }
       }
       return markers
     })
 
-    console.log("Confirmed icon change and synced to server:", newIconClass)
-
-    // Reset selection state
     selectedIconForEdit = null
     pendingIconChange = false
     originalIconClass = null
+    originalNotes = markerNotes.trim()
     showEditMenu = false
     isExpanded = false
+    showNotesSection = false
+    previewIconClass = null
   }
 
   // Revert icon change
@@ -312,20 +325,29 @@
       feature.properties.iconClass = originalIconClass
       source.setData(data)
     }
+
+    previewIconClass = null
   }
 
-  // Handle edit button click - only center camera, don't zoom
-  function handleEditClick() {
+  // Handle icon circle click to open edit menu
+  function handleIconClick() {
     if ($selectedMarkerStore?.coordinates) {
       centerCameraOnMarker($selectedMarkerStore.coordinates)
+    }
+
+    // Load current notes when opening edit menu for existing marker
+    if (!selectedMarkerIsNew) {
+      markerNotes = currentMarker?.notes || ""
+      originalNotes = currentMarker?.notes || ""
     }
 
     showEditMenu = !showEditMenu
     showInfoPanel = false
     isExpanded = showEditMenu
+    showNotesSection = false
   }
 
-  // Handle info button click - RESTORED: Center camera on info click
+  // Handle info button click
   function handleInfoClick() {
     if ($selectedMarkerStore?.coordinates) {
       centerCameraOnMarker($selectedMarkerStore.coordinates)
@@ -336,15 +358,15 @@
     isExpanded = showInfoPanel
   }
 
-  // Toggle notes section for new markers
-  function toggleNotesForNewMarker() {
-    showNotesForNewMarker = !showNotesForNewMarker
+  // Toggle notes section
+  function toggleNotesSection() {
+    showNotesSection = !showNotesSection
   }
 </script>
 
-<!-- Marker Panel - Trail Highlighter Style -->
+<!-- Marker Panel -->
 <div class="marker-panel" class:expanded={isExpanded}>
-  <!-- Info Section (Only visible when expanded) -->
+  <!-- Info Section (metadata only - no notes) -->
   {#if isExpanded && showInfoPanel && !selectedMarkerIsNew}
     <div class="info-section">
       <!-- Marker Header -->
@@ -359,101 +381,81 @@
         </div>
       </div>
 
-      <!-- Notes Section - MOVED UP -->
-      <div class="notes-section">
-        <div class="notes-header">
-          <span class="notes-label">📝 Notes</span>
-          {#if !editingNotes}
-            <button
-              class="edit-notes-btn"
-              on:click={() => (editingNotes = true)}
-            >
-              <Edit3 size={16} />
-              <span class="btn-text">Edit</span>
-            </button>
-          {:else}
-            <button class="save-notes-btn" on:click={saveMarkerNotes}>
-              <Check size={16} />
-              <span class="btn-text">Save</span>
-            </button>
-          {/if}
-        </div>
-
-        {#if editingNotes}
-          <textarea
-            bind:value={markerNotes}
-            placeholder="Add notes about this marker..."
-            class="notes-input"
-            rows="4"
-            maxlength="500"
-          ></textarea>
-          <div class="char-count">{markerNotes.length}/500</div>
-        {:else}
-          <div class="notes-display">
-            {markerNotes || "No notes added yet. Click edit to add notes."}
-          </div>
-        {/if}
-      </div>
-
-      <!-- Coordinates Section - MOVED BELOW NOTES -->
+      <!-- Coordinates Section with Copy Button -->
       <div class="coordinates-section">
         <div class="coord-item">
-          <span class="coord-label">📍 Location</span>
+          <div class="coord-header">
+            <span class="coord-label">📍 Location</span>
+            <button
+              class="copy-btn"
+              on:click={copyCoordinates}
+              title="Copy coordinates"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
           <span class="coord-value"
             >{formatCoordinates($selectedMarkerStore?.coordinates)}</span
           >
         </div>
       </div>
+
+      <!-- Notes Display (read-only) -->
+      {#if currentMarker?.notes}
+        <div class="notes-display-section">
+          <div class="notes-display-header">
+            <span class="notes-label">📝 Notes</span>
+          </div>
+          <div class="notes-display-content">
+            {currentMarker.notes}
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
-  <!-- Icon Selection Section (Visible when expanded and editing OR when marker is new) -->
-  {#if isExpanded && (showEditMenu || selectedMarkerIsNew)}
+  <!-- Unified Edit Section (works for both new and existing markers) -->
+  {#if isExpanded && showEditMenu}
     <div class="icon-section">
       <div class="icon-section-header">
         <span class="section-title">
-          {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Choose Icon"}
+          {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Edit Marker"}
         </span>
         <div class="icon-actions">
-          {#if selectedMarkerIsNew}
-            <!-- Notes button for new markers -->
-            <button
-              class="notes-toggle-btn"
-              class:active={showNotesForNewMarker}
-              on:click={toggleNotesForNewMarker}
-            >
-              <FileText size={16} />
-              <span class="btn-text">Notes</span>
-            </button>
-          {/if}
-          {#if pendingIconChange || selectedMarkerIsNew}
+          <!-- Notes toggle button (for both new and existing) -->
+          <button
+            class="notes-toggle-btn"
+            class:active={showNotesSection}
+            on:click={toggleNotesSection}
+          >
+            <FileText size={16} />
+            <span class="btn-text">Notes</span>
+          </button>
+
+          <!-- Confirm button (shown when changes are pending) -->
+          {#if hasChanges || selectedMarkerIsNew}
             <button class="confirm-icon-btn" on:click={handleConfirmMarker}>
               <Check size={16} />
-              <span class="btn-text"
-                >{selectedMarkerIsNew ? "Confirm" : "Confirm"}</span
-              >
+              <span class="btn-text">Confirm</span>
             </button>
           {/if}
         </div>
       </div>
 
-      <!-- Notes Section for New Markers -->
-      {#if selectedMarkerIsNew && showNotesForNewMarker}
-        <div class="new-marker-notes-section">
-          <div class="notes-header">
-            <span class="notes-label">📝 Add Notes (Optional)</span>
-          </div>
+      <!-- Unified Notes Section (works for both new and existing) -->
+      {#if showNotesSection}
+        <div class="notes-edit-section">
           <textarea
-            bind:value={newMarkerNotes}
+            bind:value={markerNotes}
             placeholder="Add notes about this marker..."
             class="notes-input"
-            rows="4"
+            rows="3"
             maxlength="500"
           ></textarea>
-          <div class="char-count">{newMarkerNotes.length}/500</div>
         </div>
       {/if}
 
+      <!-- Icon Grid -->
       <div class="icon-grid-container">
         <div class="icon-grid">
           {#each selectableMarkers as icon}
@@ -478,39 +480,46 @@
     </div>
   {/if}
 
-  <!-- Control Bar (Always Visible) -->
+  <!-- Control Bar -->
   <div class="control-bar">
     <!-- Marker Info -->
     <div class="marker-info">
-      <div class="marker-icon-display">
-        {#if getCurrentIconClass($selectedMarkerStore.id) === "default"}
+      <!-- Clickable Icon Display with Edit Badge -->
+      <button
+        class="marker-icon-display"
+        class:active={showEditMenu && isExpanded}
+        on:click={handleIconClick}
+      >
+        {#if displayIconClass === "default"}
           <IconSVG icon="mapbox-marker" size="28px" />
-        {:else if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("custom-svg")}
+        {:else if displayIconClass?.startsWith("custom-svg")}
           <IconSVG
-            icon={getCurrentIconClass($selectedMarkerStore.id)?.replace(
-              "custom-svg-",
-              "",
-            )}
+            icon={displayIconClass?.replace("custom-svg-", "")}
             size="28px"
           />
-        {:else if getCurrentIconClass($selectedMarkerStore.id)?.startsWith("ionic-")}
+        {:else if displayIconClass?.startsWith("ionic-")}
           <ion-icon
-            name={getCurrentIconClass($selectedMarkerStore.id)?.replace(
-              "ionic-",
-              "",
-            )}
+            name={displayIconClass?.replace("ionic-", "")}
             style="font-size: 28px;"
           ></ion-icon>
         {:else}
           <IconSVG icon="mapbox-marker" size="28px" />
         {/if}
-      </div>
+
+        <!-- Edit Badge Overlay (only show for existing markers) -->
+        {#if !selectedMarkerIsNew}
+          <div class="edit-badge">
+            <Edit3 size={12} />
+          </div>
+        {/if}
+      </button>
+
       <div class="marker-text-info">
         <span class="marker-name"
-          >{getMarkerName(getCurrentIconClass($selectedMarkerStore.id))}
-          {#if selectedMarkerIsNew && newMarkerNotes}
-            <span class="marker-notes-preview"> - {newMarkerNotes}</span>
-          {:else if currentMarker?.notes && !selectedMarkerIsNew}
+          >{getMarkerName(displayIconClass)}
+          {#if markerNotes && showEditMenu}
+            <span class="marker-notes-preview"> - {markerNotes}</span>
+          {:else if currentMarker?.notes && !showEditMenu}
             <span class="marker-notes-preview"> - {currentMarker.notes}</span>
           {/if}
         </span>
@@ -525,15 +534,7 @@
           <Check size={20} />
         </button>
       {:else}
-        <!-- Existing marker - show edit, info, delete buttons -->
-        <button
-          class="control-btn edit-btn"
-          class:active={showEditMenu && isExpanded}
-          on:click={handleEditClick}
-        >
-          <Edit3 size={20} />
-        </button>
-
+        <!-- Existing marker - show info and delete buttons (edit removed) -->
         <button
           class="control-btn info-btn"
           class:active={showInfoPanel && isExpanded}
@@ -551,7 +552,7 @@
 </div>
 
 <style>
-  /* Main Marker Panel - Trail Highlighter Style */
+  /* Main Marker Panel */
   .marker-panel {
     position: fixed;
     bottom: 0;
@@ -565,13 +566,13 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Info Section & Icon Section - Use flexbox for clean layout */
+  /* Info Section & Icon Section */
   .info-section,
   .icon-section {
     display: flex;
     flex-direction: column;
-    max-height: 35vh; /* Single value to control overall panel height */
-    min-height: 35vh; /* FIXED: Keep heights equal between tabs */
+    max-height: 35vh;
+    min-height: 35vh;
     background: linear-gradient(
       to bottom,
       rgba(0, 0, 0, 0.9),
@@ -588,20 +589,21 @@
     transform: translateY(0);
   }
 
-  /* Info section content - scrollable */
+  /* Info section - scrollable */
   .info-section {
-    padding: 16px 20px 0; /* FIXED: Match icon-section padding */
+    padding: 16px 20px 0;
     overflow-y: auto;
   }
 
-  /* Icon section - uses flex to manage space */
+  /* Icon section - flex managed */
   .icon-section {
     padding: 16px 20px 0;
-    overflow: hidden; /* Prevent parent scroll */
+    overflow: hidden;
   }
 
+  /* Marker Header */
   .marker-header {
-    flex-shrink: 0; /* Don't shrink header */
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -629,7 +631,7 @@
 
   /* Coordinates Section */
   .coordinates-section {
-    flex-shrink: 0; /* Don't shrink */
+    flex-shrink: 0;
     margin-bottom: 12px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.05);
@@ -643,10 +645,38 @@
     gap: 4px;
   }
 
+  .coord-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
   .coord-label {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.6);
     font-weight: 500;
+  }
+
+  .copy-btn {
+    background: rgba(96, 165, 250, 0.2);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .copy-btn:hover {
+    background: rgba(96, 165, 250, 0.3);
+    transform: scale(1.05);
+  }
+
+  .copy-btn:active {
+    transform: scale(0.95);
   }
 
   .coord-value {
@@ -656,21 +686,17 @@
     font-family: monospace;
   }
 
-  /* Notes Section */
-  .notes-section,
-  .new-marker-notes-section {
-    flex-shrink: 0; /* Don't shrink */
-    margin-bottom: 16px;
+  /* Notes Display Section (Info tab - read only) */
+  .notes-display-section {
+    flex-shrink: 0;
+    margin-bottom: 12px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     border-left: 3px solid #22c55e;
   }
 
-  .notes-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .notes-display-header {
     margin-bottom: 8px;
   }
 
@@ -680,35 +706,21 @@
     font-weight: 500;
   }
 
-  .edit-notes-btn,
-  .save-notes-btn {
-    background: rgba(34, 197, 94, 0.2);
-    border: none;
-    border-radius: 6px;
-    padding: 8px 12px;
-    color: #22c55e;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
+  .notes-display-content {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+    white-space: pre-wrap;
   }
 
-  .edit-notes-btn:hover,
-  .save-notes-btn:hover {
-    background: rgba(34, 197, 94, 0.3);
-    transform: scale(1.05);
-  }
-
-  .edit-notes-btn:active,
-  .save-notes-btn:active {
-    transform: scale(0.95);
-    transition: transform 0.1s ease;
+  /* Notes Edit Section (Edit tab - editable) - COMPACT */
+  .notes-edit-section {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid #22c55e;
   }
 
   .notes-input {
@@ -716,11 +728,12 @@
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 8px 10px;
     color: white;
-    font-size: 14px;
+    font-size: 13px;
     resize: vertical;
-    min-height: 60px;
+    min-height: 50px;
+    line-height: 1.4;
   }
 
   .notes-input:focus {
@@ -733,24 +746,9 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
-  .char-count {
-    text-align: right;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 4px;
-  }
-
-  .notes-display {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
-    line-height: 1.4;
-    min-height: 20px;
-    font-style: italic;
-  }
-
   /* Icon Section Header */
   .icon-section-header {
-    flex-shrink: 0; /* Don't shrink header */
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -814,10 +812,10 @@
     transform: scale(1.05);
   }
 
-  /* Icon Grid Container - Takes remaining space */
+  /* Icon Grid Container */
   .icon-grid-container {
-    flex: 1; /* Takes all available space */
-    min-height: 0; /* Important for flex scrolling */
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 8px 2px 0 2px;
   }
@@ -877,7 +875,9 @@
     min-width: 0;
   }
 
+  /* Clickable Icon Display with Gradient Border */
   .marker-icon-display {
+    position: relative;
     width: 48px;
     height: 48px;
     display: flex;
@@ -885,9 +885,57 @@
     justify-content: center;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid transparent;
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.9)),
+      linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     color: #60a5fa;
     flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .marker-icon-display:hover {
+    background-image:
+      linear-gradient(rgba(96, 165, 250, 0.2), rgba(96, 165, 250, 0.2)),
+      linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+    transform: scale(1.05);
+    filter: brightness(1.2);
+  }
+
+  .marker-icon-display.active {
+    background-image:
+      linear-gradient(rgba(96, 165, 250, 0.3), rgba(96, 165, 250, 0.3)),
+      linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+    color: white;
+  }
+
+  /* Edit Badge - Emerald green with pencil */
+  .edit-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 22px;
+    height: 22px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 2px solid rgba(0, 0, 0, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
+  }
+
+  .marker-icon-display:hover .edit-badge {
+    transform: scale(1.2) rotate(-12deg);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.7);
   }
 
   .marker-text-info {
@@ -964,17 +1012,6 @@
     color: white;
   }
 
-  .edit-btn {
-    background: rgba(96, 165, 250, 0.2);
-    color: #60a5fa;
-  }
-
-  .edit-btn:hover,
-  .edit-btn.active {
-    background: rgba(96, 165, 250, 0.3);
-    color: white;
-  }
-
   .info-btn {
     background: rgba(34, 197, 94, 0.2);
     color: #22c55e;
@@ -996,12 +1033,12 @@
     color: white;
   }
 
-  /* Mobile - Just adjust the one max-height value */
+  /* Mobile */
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
-      max-height: 35.5vh; /* Single value to adjust for mobile */
-      min-height: 35.5vh; /* FIXED: Keep heights equal on mobile too */
+      max-height: 35.5vh;
+      min-height: 35.5vh;
     }
 
     .control-bar {
@@ -1017,6 +1054,11 @@
     .marker-icon-display {
       width: 44px;
       height: 44px;
+    }
+
+    .edit-badge {
+      width: 20px;
+      height: 20px;
     }
 
     .marker-info {
