@@ -569,8 +569,8 @@
   .info-section,
   .icon-section {
     padding: 16px 20px 0;
-    max-height: 35vh; /* Desktop height */
-    min-height: 35vh; /* Force consistent height between tabs */
+    max-height: 35.7vh; /* Desktop height */
+    min-height: 35.7vh; /* Force consistent height between tabs */
     overflow-y: auto;
     background: linear-gradient(
       to bottom,
@@ -800,9 +800,10 @@
   }
 
   .icon-grid-container {
-    max-height: 27.2vh; /* Desktop height - works perfectly */
+    max-height: 25.4vh; /* Desktop height - works perfectly */
     overflow-y: auto;
     padding-top: 2px; /* ADDED: Padding to prevent cutoff at top */
+    padding-left: 2px;
   }
 
   .icon-grid {
@@ -1033,7 +1034,7 @@
     }
 
     .icon-grid-container {
-      max-height: 26.8vh; /* Mobile icon grid height - adjust this value as needed */
+      max-height: 25.6vh; /* Mobile icon grid height - adjust this value as needed */
     }
 
     /* Hide button text on mobile */
