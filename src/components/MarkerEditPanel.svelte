@@ -565,13 +565,13 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Info Section (Only visible when expanded) - NORMALIZED heights across all sections */
+  /* Info Section & Icon Section - Use flexbox for clean layout */
   .info-section,
   .icon-section {
-    padding: 16px 20px 0;
-    max-height: 35.7vh; /* Desktop height */
-    min-height: 35.7vh; /* Force consistent height between tabs */
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    max-height: 35vh; /* Single value to control overall panel height */
+    min-height: 35vh; /* FIXED: Keep heights equal between tabs */
     background: linear-gradient(
       to bottom,
       rgba(0, 0, 0, 0.9),
@@ -588,7 +588,20 @@
     transform: translateY(0);
   }
 
+  /* Info section content - scrollable */
+  .info-section {
+    padding: 16px 20px 0; /* FIXED: Match icon-section padding */
+    overflow-y: auto;
+  }
+
+  /* Icon section - uses flex to manage space */
+  .icon-section {
+    padding: 16px 20px 0;
+    overflow: hidden; /* Prevent parent scroll */
+  }
+
   .marker-header {
+    flex-shrink: 0; /* Don't shrink header */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -614,8 +627,9 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
-  /* Coordinates Section - MOVED BELOW NOTES */
+  /* Coordinates Section */
   .coordinates-section {
+    flex-shrink: 0; /* Don't shrink */
     margin-bottom: 12px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.05);
@@ -642,9 +656,10 @@
     font-family: monospace;
   }
 
-  /* Notes Section - KEPT Enhanced buttons but reverted spacing */
+  /* Notes Section */
   .notes-section,
   .new-marker-notes-section {
+    flex-shrink: 0; /* Don't shrink */
     margin-bottom: 16px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.05);
@@ -665,7 +680,6 @@
     font-weight: 500;
   }
 
-  /* Enhanced notes buttons - KEPT the improvements */
   .edit-notes-btn,
   .save-notes-btn {
     background: rgba(34, 197, 94, 0.2);
@@ -734,8 +748,9 @@
     font-style: italic;
   }
 
-  /* Icon Section */
+  /* Icon Section Header */
   .icon-section-header {
+    flex-shrink: 0; /* Don't shrink header */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -799,18 +814,19 @@
     transform: scale(1.05);
   }
 
+  /* Icon Grid Container - Takes remaining space */
   .icon-grid-container {
-    max-height: 25.4vh; /* Desktop height - works perfectly */
+    flex: 1; /* Takes all available space */
+    min-height: 0; /* Important for flex scrolling */
     overflow-y: auto;
-    padding-top: 2px; /* ADDED: Padding to prevent cutoff at top */
-    padding-left: 2px;
+    padding: 8px 2px 0 2px;
   }
 
   .icon-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
     gap: 12px;
-    margin-bottom: 16px;
+    padding-bottom: 16px;
   }
 
   .icon-option {
@@ -841,7 +857,7 @@
     transform: scale(1.05);
   }
 
-  /* Control Bar (Always Visible) - Desktop */
+  /* Control Bar */
   .control-bar {
     display: flex;
     justify-content: space-between;
@@ -874,7 +890,6 @@
     flex-shrink: 0;
   }
 
-  /* Text info wrapper */
   .marker-text-info {
     display: flex;
     flex: 1;
@@ -893,7 +908,6 @@
     min-width: 0;
   }
 
-  /* Notes preview styling - inline with marker name */
   .marker-notes-preview {
     font-size: 14px;
     font-weight: 400;
@@ -935,7 +949,6 @@
     transform: scale(1.05);
   }
 
-  /* Enhanced touch feedback */
   .control-btn:active {
     transform: scale(0.95);
     transition: transform 0.1s ease;
@@ -983,13 +996,12 @@
     color: white;
   }
 
-  /* Mobile View - Single breakpoint at 768px */
+  /* Mobile - Just adjust the one max-height value */
   @media (max-width: 768px) {
     .info-section,
     .icon-section {
-      max-height: 35.4vh; /* Mobile height - adjust this value as needed */
-      min-height: 35.4vh; /* Force consistent height between tabs */
-      padding: 16px 20px 0;
+      max-height: 35.5vh; /* Single value to adjust for mobile */
+      min-height: 35.5vh; /* FIXED: Keep heights equal on mobile too */
     }
 
     .control-bar {
@@ -1033,11 +1045,6 @@
       font-size: 14px;
     }
 
-    .icon-grid-container {
-      max-height: 25.6vh; /* Mobile icon grid height - adjust this value as needed */
-    }
-
-    /* Hide button text on mobile */
     .btn-text {
       display: none;
     }
@@ -1049,7 +1056,6 @@
     }
   }
 
-  /* Very small screens - minor adjustments */
   @media (max-width: 360px) {
     .marker-name {
       font-size: 14px;
@@ -1074,20 +1080,17 @@
 
   /* Scrollbar Styling */
   .info-section::-webkit-scrollbar,
-  .icon-section::-webkit-scrollbar,
   .icon-grid-container::-webkit-scrollbar {
     width: 4px;
   }
 
   .info-section::-webkit-scrollbar-track,
-  .icon-section::-webkit-scrollbar-track,
   .icon-grid-container::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
   }
 
   .info-section::-webkit-scrollbar-thumb,
-  .icon-section::-webkit-scrollbar-thumb,
   .icon-grid-container::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
