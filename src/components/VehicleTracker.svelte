@@ -151,17 +151,18 @@
     })
   }
 
-  // 🆕 UPDATED: Update individual marker selection state
   function updateMarkerSelection(marker, isSelected) {
     const element = marker.getElement()
-    const markerContainer = element.querySelector(".vehicle-marker-container")
+    const markerContainer = element.querySelector(
+      ".fm-vehicle-marker-container",
+    ) // ✅ Changed
 
     if (markerContainer) {
       if (isSelected) {
-        markerContainer.classList.add("selected")
+        markerContainer.classList.add("fm-vehicle-selected") // ✅ Changed
         console.log("🚗 Added selected class to marker")
       } else {
-        markerContainer.classList.remove("selected")
+        markerContainer.classList.remove("fm-vehicle-selected") // ✅ Changed
         console.log("🚗 Removed selected class from marker")
       }
     } else {
