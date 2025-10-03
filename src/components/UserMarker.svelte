@@ -10,13 +10,16 @@
   export let vehicleColor = "yellow"
   export let vehicleSwath = 12
   export let showPulse = true
-  export let isSelected = false // 🆕 NEW: Selection state prop
+  export let isSelected = false
 
   $: vehicle = SVGComponents[userVehicle] || SVGComponents.tractor
 </script>
 
-<div class="vehicle-marker-container" class:selected={isSelected}>
-  <div class="user-marker" style="position: relative; display: inline-block;">
+<div class="fm-vehicle-marker-container" class:fm-vehicle-selected={isSelected}>
+  <div
+    class="fm-user-marker"
+    style="position: relative; display: inline-block;"
+  >
     <svelte:component
       this={vehicle}
       bodyColor={vehicleColor}
@@ -25,7 +28,7 @@
     />
     {#if showPulse}
       <div
-        class="pulse-circle animate-pulse"
+        class="fm-pulse-circle fm-animate-pulse"
         style="
             width: {pulseSize};
             height: {pulseSize};
@@ -44,14 +47,14 @@
 </div>
 
 <style>
-  .vehicle-marker-container {
+  .fm-vehicle-marker-container {
     position: relative;
     transition: all 0.3s ease;
     border-radius: 50%;
   }
 
-  /* 🆕 NEW: Selection border styling */
-  .vehicle-marker-container.selected {
+  /* Selection border styling */
+  .fm-vehicle-marker-container.fm-vehicle-selected {
     border: 3px solid #ffffff;
     box-shadow:
       0 0 0 2px #007bff,
@@ -59,10 +62,10 @@
       0 0 25px rgba(0, 123, 255, 0.3);
     background: rgba(0, 123, 255, 0.1);
     padding: 6px;
-    animation: selected-pulse 2s infinite ease-in-out;
+    animation: fmVehicleSelectedPulse 2s infinite ease-in-out;
   }
 
-  .vehicle-marker-container.selected::before {
+  .fm-vehicle-marker-container.fm-vehicle-selected::before {
     content: "";
     position: absolute;
     top: -8px;
@@ -72,12 +75,12 @@
     border: 2px solid #007bff;
     border-radius: 50%;
     opacity: 0.8;
-    animation: selection-ring-pulse 2s infinite;
+    animation: fmVehicleSelectionRingPulse 2s infinite;
     z-index: -1;
   }
 
-  /* 🆕 NEW: Selection animations */
-  @keyframes selected-pulse {
+  /* Selection animations */
+  @keyframes fmVehicleSelectedPulse {
     0% {
       box-shadow:
         0 0 0 2px #007bff,
@@ -98,7 +101,7 @@
     }
   }
 
-  @keyframes selection-ring-pulse {
+  @keyframes fmVehicleSelectionRingPulse {
     0% {
       opacity: 1;
       transform: scale(1);
@@ -113,18 +116,17 @@
     }
   }
 
-  .user-marker {
-    /* Your existing styles */
+  .fm-user-marker {
     position: relative;
     z-index: 1;
   }
 
   /* Ensure the pulse animation doesn't interfere with selection */
-  .vehicle-marker-container.selected .pulse-circle {
+  .fm-vehicle-marker-container.fm-vehicle-selected .fm-pulse-circle {
     z-index: -1;
   }
 
-  @keyframes pulse {
+  @keyframes fmVehicleBasicPulse {
     0%,
     100% {
       opacity: 1;
@@ -134,7 +136,7 @@
     }
   }
 
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  .fm-animate-pulse {
+    animation: fmVehicleBasicPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 </style>
