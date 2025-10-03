@@ -48,6 +48,7 @@
   let vehicleTrackerRef = null
   let mapEventManagerRef = null
   let trailHighlighter = null
+  let toolboxRef = null
 
   // Manager references
   let satelliteManager = null
@@ -211,6 +212,15 @@
       trailHighlighter.highlighterAPI.toggleNavigationUI()
     } else {
       toast.error("Trail viewer not available")
+    }
+  }
+
+  function handleOpenVehicleControls() {
+    console.log("🚗 Opening vehicle controls from vehicle panel icon click")
+    toolboxOpen = true
+    // Use the toolbox reference to switch to vehicle panel
+    if (toolboxRef) {
+      toolboxRef.switchToVehiclePanel()
     }
   }
 
@@ -520,6 +530,7 @@
       bind:this={vehicleTrackerRef}
       {map}
       disableAutoZoom={initialLocation}
+      onOpenVehicleControls={handleOpenVehicleControls}
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <DrawingHectares {map} />
@@ -535,6 +546,7 @@
 
 <!-- Toolbox with direct API access -->
 <Toolbox
+  bind:this={toolboxRef}
   {satelliteManager}
   trailReplayAPI={trailHighlighter?.highlighterAPI}
   {currentVehicleType}

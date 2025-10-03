@@ -19,6 +19,7 @@
 
   export let map
   export let disableAutoZoom = false
+  export let onOpenVehicleControls = null
 
   // 🆕 NEW: Get global selection context
   let globalSelectionContext = null
@@ -1037,4 +1038,5 @@
   {centerCameraOnVehicle}
   {startTrackingVehicle}
   {zoomToVehicle}
+  {onOpenVehicleControls}
 />

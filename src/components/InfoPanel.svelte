@@ -62,7 +62,7 @@
   // Available colors for fields (reduced to 8)
   const fieldColors = [
     {
-      hex: "#0080ff",
+      hex: "default", // 🆕 Changed from "#0080ff" to "default"
       name: "Default",
       isDefault: true,
       fillColor: "#0080ff",
@@ -321,21 +321,32 @@
           <div class="icon-color-display">
             <div
               class="field-icon-preview"
-              style="background: {selectedField.color ||
-                '#22c55e'}20; border-color: {selectedField.color || '#22c55e'};"
+              style="background: {selectedField.color === 'default'
+                ? '#0080ff'
+                : selectedField.color || '#0080ff'}20; 
+         border-color: {selectedField.color === 'default'
+                ? '#bfffbf'
+                : selectedField.color || '#0080ff'};"
             >
               <span class="icon-preview-emoji"
                 >{selectedField.icon || "🌾"}</span
               >
             </div>
+
+            <!-- And in the color swatch display: -->
             <div class="color-info">
               <span class="color-label">Field Color</span>
               <div class="color-swatch-display">
                 <div
                   class="color-swatch-small"
-                  style="background: {selectedField.color || '#22c55e'};"
+                  style="background: {selectedField.color === 'default'
+                    ? 'linear-gradient(135deg, #0080ff 0%, #bfffbf 100%)'
+                    : selectedField.color || '#22c55e'};"
                 ></div>
-                <span class="color-hex">{selectedField.color || "#22c55e"}</span
+                <span class="color-hex"
+                  >{selectedField.color === "default"
+                    ? "Default"
+                    : selectedField.color || "#22c55e"}</span
                 >
               </div>
             </div>
@@ -532,10 +543,17 @@
                     on:click={() => selectColor(color.hex)}
                     title={color.name}
                   >
-                    <div
-                      class="color-swatch"
-                      style="background: {color.hex};"
-                    ></div>
+                    {#if color.isDefault}
+                      <div
+                        class="color-swatch"
+                        style="background: linear-gradient(135deg, {color.fillColor} 0%, {color.outlineColor} 100%);"
+                      ></div>
+                    {:else}
+                      <div
+                        class="color-swatch"
+                        style="background: {color.hex};"
+                      ></div>
+                    {/if}
                     <span class="color-name">{color.name}</span>
                     {#if editedColor === color.hex}
                       <div class="color-check">

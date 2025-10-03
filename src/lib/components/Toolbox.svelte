@@ -83,6 +83,11 @@
     activePanel = "vehicle"
   }
 
+  export function switchToVehiclePanel() {
+    console.log("🔧 Toolbox: Switching to vehicle panel")
+    activePanel = "vehicle"
+  }
+
   function showTrailPanel() {
     activePanel = "trail"
   }

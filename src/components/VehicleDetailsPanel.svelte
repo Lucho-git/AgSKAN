@@ -1,8 +1,6 @@
 <script>
   import {
     Edit3,
-    Trash2,
-    Check,
     Info,
     Navigation,
     Clock,
@@ -16,6 +14,8 @@
   } from "lucide-svelte"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
+  import { userVehicleStore } from "../stores/vehicleStore"
+  import SVGComponents from "$lib/vehicles/index.js"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -23,6 +23,7 @@
   export let centerCameraOnVehicle = null
   export let startTrackingVehicle = null
   export let zoomToVehicle = null
+  export let onOpenVehicleControls = null
 
   // UI State
   let showInfoPanel = false
@@ -34,7 +35,43 @@
     : null
   $: isCurrentUser = currentVehicle?.isCurrentUser || false
 
-  // 🆕 NEW: Print vehicle data when selected
+  // 🆕 Reactive vehicle icon component - updates when userVehicleStore changes
+  let VehicleIcon
+  $: {
+    // For current user, watch the store for reactive updates
+    if (isCurrentUser && $userVehicleStore?.vehicle_marker?.type) {
+      VehicleIcon =
+        SVGComponents[$userVehicleStore.vehicle_marker.type] ||
+        SVGComponents.Pointer
+    } else if (currentVehicle?.vehicle_marker?.type) {
+      // For other vehicles, use the currentVehicle data
+      VehicleIcon =
+        SVGComponents[currentVehicle.vehicle_marker.type] ||
+        SVGComponents.Pointer
+    } else {
+      VehicleIcon = null
+    }
+  }
+
+  // 🆕 Reactive vehicle properties - update when userVehicleStore changes
+  $: vehicleBodyColor = isCurrentUser
+    ? $userVehicleStore?.vehicle_marker?.bodyColor || "Green"
+    : currentVehicle?.vehicle_marker?.bodyColor || "Green"
+
+  $: vehicleSwath = isCurrentUser
+    ? $userVehicleStore?.vehicle_marker?.swath || 12
+    : currentVehicle?.vehicle_marker?.swath || 12
+
+  // 🆕 NEW: Reactive vehicle type for display
+  $: vehicleType = isCurrentUser
+    ? $userVehicleStore?.vehicle_marker?.type || "Tractor"
+    : currentVehicle?.vehicle_marker?.type || "Tractor"
+
+  // 🆕 NEW: Reactive vehicle marker for info panel
+  $: vehicleMarkerData = isCurrentUser
+    ? $userVehicleStore?.vehicle_marker
+    : currentVehicle?.vehicle_marker
+
   $: if (currentVehicle) {
     console.log("🚗 Selected Vehicle Data:", currentVehicle)
   }
@@ -61,27 +98,13 @@
     return `${diffDays}d ago`
   }
 
-  // Helper function to calculate duration from a path
   function calculateDurationFromPath(path) {
-    console.log("📊 calculateDurationFromPath called with path:", path)
-
-    if (!path || path.length === 0) {
-      console.log("❌ Path is null or empty")
-      return "- -"
-    }
-
-    console.log(`📊 Path has ${path.length} points`)
+    if (!path || path.length === 0) return "- -"
 
     const firstPoint = path[0]
     const lastPoint = path[path.length - 1]
 
-    console.log("📊 First point:", firstPoint)
-    console.log("📊 Last point:", lastPoint)
-
-    if (!firstPoint?.timestamp || !lastPoint?.timestamp) {
-      console.log("❌ Missing timestamp in first or last point")
-      return "- -"
-    }
+    if (!firstPoint?.timestamp || !lastPoint?.timestamp) return "- -"
 
     const startTime =
       typeof firstPoint.timestamp === "string"
@@ -92,16 +115,10 @@
         ? new Date(lastPoint.timestamp).getTime()
         : lastPoint.timestamp
 
-    console.log("📊 Start time (ms):", startTime, "End time (ms):", endTime)
-
     const diffMs = endTime - startTime
-    console.log("📊 Duration (ms):", diffMs)
-
     const totalMinutes = Math.floor(diffMs / 60000)
     const hours = Math.floor(totalMinutes / 60)
     const minutes = totalMinutes % 60
-
-    console.log(`📊 Calculated duration: ${hours}h ${minutes}m`)
 
     if (hours === 0) return `${minutes}m`
     if (hours < 24) return `${hours}h ${minutes}m`
@@ -111,81 +128,39 @@
     return `${days}d ${remainingHours}h`
   }
 
-  // Format trailing duration - calculate from active trail's first and last point
   function formatTrailingDuration(vehicle) {
-    console.log("🕐 formatTrailingDuration called for vehicle:", vehicle)
+    if (!vehicle?.is_trailing) return "Not trailing"
 
-    if (!vehicle?.is_trailing) {
-      console.log("❌ Vehicle is not trailing")
-      return "Not trailing"
-    }
-
-    console.log("✅ Vehicle is trailing, checking trail data...")
-
-    // For current user, get duration from their active trail
     if (vehicle.isCurrentUser) {
-      console.log("👤 This is the current user")
-      console.log("📊 Current trail store value:", $currentTrailStore)
-
       if ($currentTrailStore?.path?.length > 0) {
-        console.log(
-          `✅ Found current user trail with ${$currentTrailStore.path.length} points`,
-        )
         return calculateDurationFromPath($currentTrailStore.path)
-      } else {
-        console.log("❌ No path data in currentTrailStore")
-        console.log("currentTrailStore.path:", $currentTrailStore?.path)
       }
     } else {
-      // For other vehicles, check otherActiveTrailStore
-      console.log("👥 This is another vehicle, vehicle.id:", vehicle.id)
-      console.log("📊 Other active trail store:", $otherActiveTrailStore)
-
-      const otherTrail = $otherActiveTrailStore?.find((t) => {
-        console.log(
-          `🔍 Checking trail ${t.id} with vehicle_id ${t.vehicle_id} against ${vehicle.id}`,
-        )
-        return t.vehicle_id === vehicle.id
-      })
-
-      if (otherTrail) {
-        console.log("✅ Found matching trail:", otherTrail)
-        console.log(`Trail has ${otherTrail.path?.length || 0} points`)
-
-        if (otherTrail.path?.length > 0) {
-          return calculateDurationFromPath(otherTrail.path)
-        } else {
-          console.log("❌ Trail found but no path data")
-        }
-      } else {
-        console.log("❌ No matching trail found in otherActiveTrailStore")
+      const otherTrail = $otherActiveTrailStore?.find(
+        (t) => t.vehicle_id === vehicle.id,
+      )
+      if (otherTrail?.path?.length > 0) {
+        return calculateDurationFromPath(otherTrail.path)
       }
     }
 
-    console.log("⚠️ Returning '- -' (no valid trail data found)")
     return "- -"
   }
 
-  // Calculate speed with empty dashes fallback
   function calculateSpeed(vehicle) {
-    // TODO: Calculate from coordinate history
-    // For now, return empty dashes if no speed data available
-    return "- -" // Show dashes when speed is unavailable
+    return "- -"
   }
 
-  // Get trail swath
-  function getTrailSwath(vehicle) {
-    if (!vehicle?.vehicle_marker?.swath) return "N/A"
-    return `${vehicle.vehicle_marker.swath}m`
+  function getTrailSwath() {
+    if (!vehicleMarkerData?.swath) return "N/A"
+    return `${vehicleMarkerData.swath}m`
   }
 
-  // Get trail color with display name
-  function getTrailColor(vehicle) {
-    if (!vehicle?.vehicle_marker?.bodyColor) return "Default"
+  function getTrailColor() {
+    if (!vehicleMarkerData?.bodyColor) return "Default"
 
-    const color = vehicle.vehicle_marker.bodyColor
+    const color = vehicleMarkerData.bodyColor
 
-    // Map common color names to more readable versions
     const colorMap = {
       HotPink: "Hot Pink",
       LightGreen: "Light Green",
@@ -210,13 +185,11 @@
     return colorMap[color] || color
   }
 
-  // Get actual color value for display
-  function getTrailColorValue(vehicle) {
-    if (!vehicle?.vehicle_marker?.bodyColor) return "#6b7280"
+  function getTrailColorValue() {
+    if (!vehicleMarkerData?.bodyColor) return "#6b7280"
 
-    const color = vehicle.vehicle_marker.bodyColor
+    const color = vehicleMarkerData.bodyColor
 
-    // Map color names to hex values for visual display
     const colorValues = {
       HotPink: "#ff69b4",
       LightGreen: "#90ee90",
@@ -241,7 +214,6 @@
     return colorValues[color] || color
   }
 
-  // 🆕 UPDATED: Get vehicle status with last seen integrated
   function getVehicleStatus(vehicle) {
     if (!vehicle) return "Unknown"
 
@@ -252,11 +224,9 @@
     if (diffMins < 5) return "Online"
     if (diffMins < 30) return "Recently active"
 
-    // 🆕 NEW: Return last seen time instead of "Offline"
     return formatLastSeen(vehicle.last_update)
   }
 
-  // 🆕 UPDATED: Get status color (now handles last seen times)
   function getStatusColor(status) {
     switch (status) {
       case "Online":
@@ -266,22 +236,17 @@
       case "Unknown":
         return "#6b7280"
       default:
-        // 🆕 NEW: All other statuses (last seen times) get offline color
         return "#ef4444"
     }
   }
 
-  // Get operation name
   function getCurrentOperation(vehicle) {
     if (!vehicle) return "No operation"
     return vehicle.operation_name || "No operation"
   }
 
-  // Get vehicle display name
-  function getVehicleDisplayName(vehicle) {
-    if (!vehicle?.vehicle_marker) return "Unknown Vehicle"
-
-    const vehicleType = vehicle.vehicle_marker.type || "Vehicle"
+  function getVehicleDisplayName() {
+    if (!vehicleType) return "Unknown Vehicle"
 
     const shortNames = {
       FourWheelDriveTractor: "FWD Tractor",
@@ -321,20 +286,23 @@
     return shortNames[vehicleType] || vehicleType
   }
 
-  // Handle info button click - toggle expanded panel
+  function handleIconClick() {
+    if (isCurrentUser && onOpenVehicleControls) {
+      onOpenVehicleControls()
+    }
+  }
+
   function handleInfoClick() {
     showInfoPanel = !showInfoPanel
     isExpanded = showInfoPanel
   }
 
-  // Combined locate and zoom function
   function handleLocateAndZoom() {
     if (currentVehicle && zoomToVehicle) {
       zoomToVehicle(currentVehicle)
     }
   }
 
-  // Handle start tracking
   function handleStartTracking() {
     if (currentVehicle && startTrackingVehicle) {
       startTrackingVehicle(currentVehicle.id)
@@ -347,122 +315,148 @@
   <div class="vehicle-panel" class:expanded={isExpanded}>
     <!-- Info Section (Only visible when expanded) -->
     {#if isExpanded && showInfoPanel}
-      <div class="info-section">
-        <!-- Vehicle Header -->
-        <div class="vehicle-header">
-          <div class="vehicle-title">
-            <span class="vehicle-label"
-              >{currentVehicle.full_name || "Unknown Operator"}</span
-            >
-            <span class="vehicle-type"
-              >{getVehicleDisplayName(currentVehicle)}</span
-            >
-          </div>
-          <div
-            class="vehicle-status"
-            style="color: {getStatusColor(getVehicleStatus(currentVehicle))}"
-          >
-            {getVehicleStatus(currentVehicle)}
-          </div>
-        </div>
-
-        <!-- Status Grid -->
-        <div class="status-grid">
-          <!-- Speed -->
-          <div class="status-item">
-            <div class="status-icon">
-              <Zap size={16} />
-            </div>
-            <div class="status-content">
-              <span class="status-label">Speed</span>
-              <span class="status-value">{calculateSpeed(currentVehicle)}</span>
-            </div>
-          </div>
-
-          <!-- Operation -->
-          <div class="status-item">
-            <div class="status-icon">
-              <Truck size={16} />
-            </div>
-            <div class="status-content">
-              <span class="status-label">Operation</span>
-              <span class="status-value"
-                >{getCurrentOperation(currentVehicle)}</span
+      {#key `${vehicleType}-${vehicleBodyColor}-${vehicleSwath}`}
+        <div class="info-section">
+          <!-- Vehicle Header -->
+          <div class="vehicle-header">
+            <div class="vehicle-title">
+              <span class="vehicle-label"
+                >{currentVehicle.full_name || "Unknown Operator"}</span
               >
+              <span class="vehicle-type">{getVehicleDisplayName()}</span>
+            </div>
+            <div
+              class="vehicle-status"
+              style="color: {getStatusColor(getVehicleStatus(currentVehicle))}"
+            >
+              {getVehicleStatus(currentVehicle)}
             </div>
           </div>
 
-          <!-- Trail Swath -->
-          <div class="status-item">
-            <div class="status-icon">
-              <Ruler size={16} />
-            </div>
-            <div class="status-content">
-              <span class="status-label">Trail Swath</span>
-              <span class="status-value">{getTrailSwath(currentVehicle)}</span>
-            </div>
-          </div>
-
-          <!-- Trail Color -->
-          <div class="status-item">
-            <div class="status-icon">
-              <Palette size={16} />
-            </div>
-            <div class="status-content">
-              <span class="status-label">Trail Color</span>
-              <div class="trail-color-display">
-                <div
-                  class="color-swatch"
-                  style="background-color: {getTrailColorValue(currentVehicle)}"
-                ></div>
-                <span class="status-value">{getTrailColor(currentVehicle)}</span
-                >
-              </div>
-            </div>
-          </div>
-
-          <!-- 🆕 UPDATED: Only show trailing duration if currently trailing -->
-          {#if currentVehicle.is_trailing}
+          <!-- Status Grid -->
+          <div class="status-grid">
+            <!-- Speed -->
             <div class="status-item">
               <div class="status-icon">
-                <Clock size={16} />
+                <Zap size={16} />
               </div>
               <div class="status-content">
-                <span class="status-label">Trailing for</span>
+                <span class="status-label">Speed</span>
                 <span class="status-value"
-                  >{formatTrailingDuration(currentVehicle)}</span
+                  >{calculateSpeed(currentVehicle)}</span
                 >
+              </div>
+            </div>
+
+            <!-- Operation -->
+            <div class="status-item">
+              <div class="status-icon">
+                <Truck size={16} />
+              </div>
+              <div class="status-content">
+                <span class="status-label">Operation</span>
+                <span class="status-value"
+                  >{getCurrentOperation(currentVehicle)}</span
+                >
+              </div>
+            </div>
+
+            <!-- Trail Swath -->
+            <div class="status-item">
+              <div class="status-icon">
+                <Ruler size={16} />
+              </div>
+              <div class="status-content">
+                <span class="status-label">Trail Swath</span>
+                <span class="status-value">{getTrailSwath()}</span>
+              </div>
+            </div>
+
+            <!-- Trail Color -->
+            <div class="status-item">
+              <div class="status-icon">
+                <Palette size={16} />
+              </div>
+              <div class="status-content">
+                <span class="status-label">Trail Color</span>
+                <div class="trail-color-display">
+                  <div
+                    class="color-swatch"
+                    style="background-color: {getTrailColorValue()}"
+                  ></div>
+                  <span class="status-value">{getTrailColor()}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Trailing duration (if trailing) -->
+            {#if currentVehicle.is_trailing}
+              <div class="status-item">
+                <div class="status-icon">
+                  <Clock size={16} />
+                </div>
+                <div class="status-content">
+                  <span class="status-label">Trailing for</span>
+                  <span class="status-value"
+                    >{formatTrailingDuration(currentVehicle)}</span
+                  >
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Trailing Status (if applicable) -->
+          {#if currentVehicle.is_trailing}
+            <div class="trailing-section">
+              <div class="trailing-indicator">
+                <Navigation size={14} />
+                <span>Currently trailing</span>
               </div>
             </div>
           {/if}
         </div>
-
-        <!-- Trailing Status (if applicable) -->
-        {#if currentVehicle.is_trailing}
-          <div class="trailing-section">
-            <div class="trailing-indicator">
-              <Navigation size={14} />
-              <span>Currently trailing</span>
-            </div>
-          </div>
-        {/if}
-      </div>
+      {/key}
     {/if}
 
     <!-- Control Bar (Always Visible) -->
     <div class="control-bar">
       <!-- Vehicle Info -->
       <div class="vehicle-info">
-        <div class="vehicle-icon-display">
-          <User size={20} />
-        </div>
+        <!-- Clickable Vehicle Icon Display -->
+        <button
+          class="vehicle-icon-display"
+          class:clickable={isCurrentUser}
+          on:click={handleIconClick}
+          disabled={!isCurrentUser}
+        >
+          {#if VehicleIcon}
+            {#key `${vehicleBodyColor}-${vehicleSwath}`}
+              <svelte:component
+                this={VehicleIcon}
+                bodyColor={vehicleBodyColor}
+                size="24px"
+                swath={vehicleSwath}
+              />
+            {/key}
+          {:else}
+            <User size={20} />
+          {/if}
+
+          <!-- Edit Badge (only show for current user) -->
+          {#if isCurrentUser}
+            <div class="edit-badge">
+              <Edit3 size={12} />
+            </div>
+          {/if}
+        </button>
+
         <div class="vehicle-text-info">
           <span class="vehicle-name">
             {isCurrentUser
               ? "You"
               : currentVehicle.full_name || "Unknown Operator"}
             <span class="vehicle-type-preview">
-              - {getVehicleDisplayName(currentVehicle)}</span
+              - {getVehicleDisplayName()}</span
             >
           </span>
         </div>
@@ -476,7 +470,7 @@
           on:click={handleInfoClick}
           title="Toggle vehicle details"
         >
-          <Info size={18} />
+          <Info size={20} />
         </button>
 
         <button
@@ -484,25 +478,23 @@
           on:click={handleLocateAndZoom}
           title="Locate and zoom to vehicle"
         >
-          <Locate size={18} />
+          <Locate size={20} />
         </button>
 
-        {#if !isCurrentUser}
-          <button
-            class="control-btn track-btn"
-            on:click={handleStartTracking}
-            title="Start tracking vehicle"
-          >
-            <Navigation size={18} />
-          </button>
-        {/if}
+        <!-- 🆕 UPDATED: Track button now shows for all vehicles (including current user) -->
+        <button
+          class="control-btn track-btn"
+          on:click={handleStartTracking}
+          title="Start tracking vehicle"
+        >
+          <Navigation size={20} />
+        </button>
       </div>
     </div>
   </div>
 {/if}
 
 <style>
-  /* All the existing styles remain the same */
   /* Main Vehicle Panel */
   .vehicle-panel {
     position: fixed;
@@ -655,31 +647,75 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
+    padding: 18px 24px;
     background: rgba(0, 0, 0, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
+    min-height: 72px;
   }
 
   .vehicle-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     flex: 1;
     min-width: 0;
   }
 
+  /* Blue circle border around vehicle icon */
   .vehicle-icon-display {
-    width: 36px;
-    height: 36px;
+    position: relative;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.9);
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    color: #60a5fa;
+    border: 3px solid #60a5fa;
     flex-shrink: 0;
+    transition: all 0.3s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+  }
+
+  .vehicle-icon-display.clickable {
+    cursor: pointer;
+  }
+
+  .vehicle-icon-display.clickable:hover {
+    transform: scale(1.05);
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.3);
+  }
+
+  .vehicle-icon-display:disabled {
+    cursor: default;
+  }
+
+  /* Edit Badge */
+  .edit-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 22px;
+    height: 22px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 2px solid rgba(0, 0, 0, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
+  }
+
+  .vehicle-icon-display.clickable:hover .edit-badge {
+    transform: scale(1.2) rotate(-12deg);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.7);
   }
 
   .vehicle-text-info {
@@ -689,7 +725,7 @@
   }
 
   .vehicle-name {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     color: white;
     text-overflow: ellipsis;
@@ -701,7 +737,7 @@
   }
 
   .vehicle-type-preview {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
     color: rgba(255, 255, 255, 0.6);
     font-style: italic;
@@ -714,7 +750,7 @@
 
   .action-controls {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     align-items: center;
   }
 
@@ -722,20 +758,28 @@
     background: rgba(255, 255, 255, 0.1);
     border: none;
     border-radius: 50%;
-    width: 36px;
-    height: 36px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
     transition: all 0.2s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .control-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: white;
     transform: scale(1.05);
+  }
+
+  .control-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
   }
 
   .info-btn {
@@ -777,29 +821,36 @@
     }
 
     .control-bar {
-      padding: 10px 16px;
+      padding: 16px 20px;
+      min-height: 68px;
     }
 
     .control-btn {
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
     }
 
     .vehicle-icon-display {
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
+      border-width: 2px;
+    }
+
+    .edit-badge {
+      width: 20px;
+      height: 20px;
     }
 
     .vehicle-info {
-      gap: 8px;
+      gap: 12px;
     }
 
     .vehicle-name {
-      font-size: 14px;
+      font-size: 16px;
     }
 
     .vehicle-type-preview {
-      font-size: 10px;
+      font-size: 11px;
     }
 
     .status-grid {
@@ -808,52 +859,13 @@
     }
   }
 
-  @media (max-width: 640px) {
-    .vehicle-type-preview {
-      font-size: 9px;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .info-section {
-      max-height: 30vh;
-    }
-
-    .vehicle-info {
-      gap: 6px;
-    }
-
-    .action-controls {
-      gap: 6px;
-    }
-
-    .control-btn {
-      width: 30px;
-      height: 30px;
-    }
-
-    .vehicle-icon-display {
-      width: 28px;
-      height: 28px;
-    }
-
-    .vehicle-name {
-      font-size: 13px;
-    }
-
-    .vehicle-type-preview {
-      font-size: 8px;
-    }
-  }
-
-  /* Very small screens */
   @media (max-width: 360px) {
     .vehicle-name {
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .vehicle-type-preview {
-      font-size: 7px;
+      font-size: 10px;
     }
   }
 
