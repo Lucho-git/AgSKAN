@@ -12,7 +12,6 @@
     Settings,
     Palette,
     Maximize2,
-    Sparkles,
   } from "lucide-svelte"
 
   export let selectedField: any
@@ -26,12 +25,11 @@
   let showEditMenu = false
   let isExpanded = false
   let lastFieldId = null
-  let activeTab = "details" // details, icon, color, area
+  let activeTab = "details" // details, color, area
 
   // Edit state - all fields
   let editedName = ""
   let editedFieldType = ""
-  let editedIcon = ""
   let editedColor = ""
   let editedTotalArea = 0
   let editedSubAreas: number[] = []
@@ -39,7 +37,6 @@
   // Original values for change detection
   let originalName = ""
   let originalFieldType = ""
-  let originalIcon = ""
   let originalColor = ""
   let originalTotalArea = 0
   let originalSubAreas: number[] = []
@@ -47,22 +44,13 @@
   // Saving state
   let isSaving = false
 
-  // Available icons for fields (only plant emojis)
-  const fieldIcons = [
-    { emoji: "🌾", name: "Wheat" },
-    { emoji: "🌱", name: "Seedling" },
-    { emoji: "🌻", name: "Sunflower" },
-    { emoji: "🌽", name: "Corn" },
-    { emoji: "🥕", name: "Carrot" },
-    { emoji: "🍅", name: "Tomato" },
-    { emoji: "🌳", name: "Tree" },
-    { emoji: "🌲", name: "Pine" },
-  ]
+  // 🆕 Fixed default wheat emoji
+  const DEFAULT_FIELD_ICON = "🌾"
 
   // Available colors for fields (reduced to 8)
   const fieldColors = [
     {
-      hex: "default", // 🆕 Changed from "#0080ff" to "default"
+      hex: "default",
       name: "Default",
       isDefault: true,
       fillColor: "#0080ff",
@@ -77,6 +65,20 @@
     { hex: "#c27219", name: "Brown" },
   ]
 
+  // 🆕 Helper function to get color name from hex
+  function getColorName(hex: string): string {
+    const color = fieldColors.find((c) => c.hex === hex)
+    return color ? color.name : hex
+  }
+
+  // 🆕 Helper function to get fill color
+  function getFillColor(hex: string): string {
+    if (hex === "default") {
+      return "#0080ff"
+    }
+    return hex
+  }
+
   // Check if field has multiple areas
   $: hasMultipleAreas =
     selectedField?.polygon_areas?.individual_areas &&
@@ -85,7 +87,6 @@
   // Check for changes in each category
   $: hasNameChanges = editedName !== originalName
   $: hasFieldTypeChanges = editedFieldType !== originalFieldType
-  $: hasIconChanges = editedIcon !== originalIcon
   $: hasColorChanges = editedColor !== originalColor
   $: hasAreaChanges = hasMultipleAreas
     ? JSON.stringify(editedSubAreas) !== JSON.stringify(originalSubAreas)
@@ -93,17 +94,12 @@
 
   // Check which tabs have changes (for visual indicators)
   $: detailsHasChanges = hasNameChanges || hasFieldTypeChanges
-  $: iconHasChanges = hasIconChanges
   $: colorHasChanges = hasColorChanges
   $: areaHasChanges = hasAreaChanges
 
   // Overall changes check
   $: hasAnyChanges =
-    hasNameChanges ||
-    hasFieldTypeChanges ||
-    hasIconChanges ||
-    hasColorChanges ||
-    hasAreaChanges
+    hasNameChanges || hasFieldTypeChanges || hasColorChanges || hasAreaChanges
 
   // Reset state when field changes
   $: {
@@ -123,8 +119,7 @@
     // Reset all edited values to current field values
     editedName = selectedField?.name || ""
     editedFieldType = selectedField?.field_type || ""
-    editedIcon = selectedField?.icon || "🌾"
-    editedColor = selectedField?.color || "#22c55e"
+    editedColor = selectedField?.color || "default"
     editedTotalArea = selectedField?.area || 0
     editedSubAreas = selectedField?.polygon_areas?.individual_areas
       ? [...selectedField.polygon_areas.individual_areas]
@@ -133,7 +128,6 @@
     // Save originals
     originalName = editedName
     originalFieldType = editedFieldType
-    originalIcon = editedIcon
     originalColor = editedColor
     originalTotalArea = editedTotalArea
     originalSubAreas = [...editedSubAreas]
@@ -166,13 +160,12 @@
   function cancelAllChanges() {
     editedName = originalName
     editedFieldType = originalFieldType
-    editedIcon = originalIcon
     editedColor = originalColor
     editedTotalArea = originalTotalArea
     editedSubAreas = [...originalSubAreas]
   }
 
-  // Save all changes (local only for now)
+  // Save all changes
   async function saveAllChanges() {
     if (!selectedField || isSaving) return
 
@@ -184,7 +177,6 @@
 
       if (hasNameChanges) updates.name = editedName
       if (hasFieldTypeChanges) updates.field_type = editedFieldType
-      if (hasIconChanges) updates.icon = editedIcon
       if (hasColorChanges) updates.color = editedColor
 
       if (hasAreaChanges) {
@@ -201,7 +193,7 @@
         }
       }
 
-      // 🆕 Save to database if field has field_id
+      // Save to database if field has field_id
       if (selectedField.field_id) {
         const result = await fileApi.updateField(
           selectedField.field_id,
@@ -243,7 +235,6 @@
       // Update originals
       originalName = editedName
       originalFieldType = editedFieldType
-      originalIcon = editedIcon
       originalColor = editedColor
       originalTotalArea = editedTotalArea
       originalSubAreas = [...editedSubAreas]
@@ -259,11 +250,6 @@
     } finally {
       isSaving = false
     }
-  }
-
-  // Select icon
-  function selectIcon(emoji: string) {
-    editedIcon = emoji
   }
 
   // Select color
@@ -312,7 +298,7 @@
         </div>
       </div>
 
-      <!-- Field Icon & Color Display -->
+      <!-- 🆕 Field Icon & Color Display with filled circle -->
       <div class="appearance-display-section">
         <div class="appearance-display-header">
           <span class="appearance-label">🎨 Appearance</span>
@@ -321,32 +307,25 @@
           <div class="icon-color-display">
             <div
               class="field-icon-preview"
-              style="background: {selectedField.color === 'default'
-                ? '#0080ff'
-                : selectedField.color || '#0080ff'}20; 
-         border-color: {selectedField.color === 'default'
-                ? '#bfffbf'
-                : selectedField.color || '#0080ff'};"
+              style="background: {getFillColor(
+                selectedField.color || 'default',
+              )};"
             >
-              <span class="icon-preview-emoji"
-                >{selectedField.icon || "🌾"}</span
-              >
+              <span class="icon-preview-emoji">{DEFAULT_FIELD_ICON}</span>
             </div>
 
-            <!-- And in the color swatch display: -->
             <div class="color-info">
               <span class="color-label">Field Color</span>
               <div class="color-swatch-display">
                 <div
                   class="color-swatch-small"
-                  style="background: {selectedField.color === 'default'
-                    ? 'linear-gradient(135deg, #0080ff 0%, #bfffbf 100%)'
-                    : selectedField.color || '#22c55e'};"
+                  style="background: {getFillColor(
+                    selectedField.color || 'default',
+                  )};"
                 ></div>
+                <!-- 🆕 Show color name instead of hex -->
                 <span class="color-hex"
-                  >{selectedField.color === "default"
-                    ? "Default"
-                    : selectedField.color || "#22c55e"}</span
+                  >{getColorName(selectedField.color || "default")}</span
                 >
               </div>
             </div>
@@ -419,7 +398,7 @@
         </div>
       </div>
 
-      <!-- Tab Bar -->
+      <!-- 🆕 Tab Bar (removed Icon tab) -->
       <div class="tab-bar">
         <button
           class="tab-button"
@@ -430,18 +409,6 @@
           <Settings size={16} />
           <span class="tab-text">Details</span>
           {#if detailsHasChanges}
-            <span class="change-indicator">•</span>
-          {/if}
-        </button>
-        <button
-          class="tab-button"
-          class:active={activeTab === "icon"}
-          class:has-changes={iconHasChanges}
-          on:click={() => switchTab("icon")}
-        >
-          <Sparkles size={16} />
-          <span class="tab-text">Icon</span>
-          {#if iconHasChanges}
             <span class="change-indicator">•</span>
           {/if}
         </button>
@@ -503,29 +470,6 @@
             {#if hasNameChanges || hasFieldTypeChanges}
               <p class="edit-hint">Ctrl+Enter to save, Esc to cancel</p>
             {/if}
-          </div>
-        {/if}
-
-        <!-- Icon Tab -->
-        {#if activeTab === "icon"}
-          <div class="tab-panel icon-tab">
-            <!-- Icon Selection -->
-            <div class="selection-section">
-              <label class="selection-label">Select Icon</label>
-              <div class="icon-grid">
-                {#each fieldIcons as icon}
-                  <button
-                    class="icon-option"
-                    class:selected={editedIcon === icon.emoji}
-                    on:click={() => selectIcon(icon.emoji)}
-                    title={icon.name}
-                  >
-                    <span class="icon-emoji">{icon.emoji}</span>
-                    <span class="icon-name">{icon.name}</span>
-                  </button>
-                {/each}
-              </div>
-            </div>
           </div>
         {/if}
 
@@ -630,24 +574,16 @@
   <div class="control-bar">
     <!-- Field Info -->
     <div class="field-info">
-      <!-- Clickable Icon Display - updates in real-time -->
+      <!-- 🆕 Clickable Icon Display - filled circle with wheat emoji -->
       <button
         class="field-icon-display"
         class:active={showEditMenu && isExpanded}
         on:click={handleIconClick}
-        style="background-image: 
-          linear-gradient(rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.9)),
-          linear-gradient(135deg, {showEditMenu
-          ? editedColor
-          : selectedField.color || '#22c55e'} 0%, {showEditMenu
-          ? editedColor
-          : selectedField.color || '#22c55e'}dd 50%, {showEditMenu
-          ? editedColor
-          : selectedField.color || '#22c55e'}aa 100%);"
+        style="background: {getFillColor(
+          showEditMenu ? editedColor : selectedField.color || 'default',
+        )};"
       >
-        <span class="field-icon"
-          >{showEditMenu ? editedIcon : selectedField.icon || "🌾"}</span
-        >
+        <span class="field-icon">{DEFAULT_FIELD_ICON}</span>
 
         <!-- Edit Badge (always show) -->
         <div class="edit-badge">
@@ -757,7 +693,7 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
-  /* Appearance Display Section */
+  /* 🆕 Appearance Display Section - filled circle */
   .appearance-display-section {
     flex-shrink: 0;
     margin-bottom: 12px;
@@ -789,18 +725,20 @@
     gap: 12px;
   }
 
+  /* 🆕 Field icon preview with filled background */
   .field-icon-preview {
     width: 56px;
     height: 56px;
-    border-radius: 12px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid;
+    border: none;
   }
 
   .icon-preview-emoji {
     font-size: 32px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
 
   .color-info {
@@ -829,7 +767,7 @@
 
   .color-hex {
     font-size: 12px;
-    font-family: monospace;
+    font-weight: 500;
     color: rgba(255, 255, 255, 0.8);
   }
 
@@ -1161,49 +1099,6 @@
     font-weight: 600;
   }
 
-  .icon-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 10px;
-  }
-
-  .icon-option {
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid transparent;
-    border-radius: 8px;
-    padding: 12px 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-
-  .icon-option:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.05);
-  }
-
-  .icon-option.selected {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: #22c55e;
-    transform: scale(1.05);
-  }
-
-  .icon-emoji {
-    font-size: 32px;
-  }
-
-  .icon-name {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.7);
-    text-align: center;
-    font-weight: 500;
-  }
-
   .color-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -1395,7 +1290,7 @@
     min-width: 0;
   }
 
-  /* Clickable Icon Display with Dynamic Gradient Border */
+  /* 🆕 Clickable Icon Display with filled circle background */
   .field-icon-display {
     position: relative;
     width: 48px;
@@ -1403,30 +1298,30 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    border: 2px solid transparent;
-    background-origin: border-box;
-    background-clip: padding-box, border-box;
+    border: none;
     flex-shrink: 0;
     cursor: pointer;
     transition: all 0.3s ease;
     touch-action: manipulation;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   .field-icon {
     font-size: 24px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
 
   .field-icon-display:hover {
     transform: scale(1.05);
-    filter: brightness(1.2);
+    filter: brightness(1.1);
   }
 
   .field-icon-display.active {
-    filter: brightness(1.3);
+    filter: brightness(1.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   }
 
   /* Edit Badge - Emerald green with pencil */
@@ -1590,16 +1485,8 @@
       font-size: 11px;
     }
 
-    .icon-grid {
-      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-    }
-
     .color-grid {
       grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    }
-
-    .icon-emoji {
-      font-size: 28px;
     }
   }
 

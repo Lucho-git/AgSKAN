@@ -470,7 +470,7 @@
           source: "fields",
           paint: {
             "fill-color": ["get", "fillColor"],
-            "fill-opacity": 0.2,
+            "fill-opacity": 0.1,
           },
         })
 
@@ -482,7 +482,7 @@
           filter: ["==", "id", -1],
           paint: {
             "fill-color": ["get", "fillColor"],
-            "fill-opacity": 0.5,
+            "fill-opacity": 0.3,
           },
         })
 
