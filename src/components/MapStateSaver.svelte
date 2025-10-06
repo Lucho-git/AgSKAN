@@ -24,7 +24,7 @@
   let pendingDeletions = new Set()
   let lastKnownState = new Map()
   let isSyncing = false
-  let isInitialized = false // ✅ Track initialization state
+  let isInitialized = false
   let debouncedSync
   let markersUnsubscribe
 
@@ -60,15 +60,17 @@
           // Skip if it's our own change
           if (payload.new?.update_user_id === userId) return
 
-          console.log("🔄 Received real-time change:", payload.eventType)
+          console.log(
+            "🔄 Received real-time change:",
+            payload.eventType,
+            payload,
+          )
+
+          // ✅ Handle the change immediately using payload data
+          handleRealtimeMarkerChange(payload)
 
           // Show notification
           await showChangeNotification(payload)
-
-          // Reload markers from server
-          if (!isSyncing) {
-            loadMarkersFromServer()
-          }
         },
       )
       .subscribe()
@@ -90,6 +92,73 @@
       if (markersUnsubscribe) markersUnsubscribe()
     }
   })
+
+  // ✅ NEW: Handle real-time marker changes directly from payload
+  function handleRealtimeMarkerChange(payload) {
+    const { eventType, new: newData, old: oldData } = payload
+
+    if (eventType === "DELETE" || newData?.deleted === true) {
+      // Remove marker
+      confirmedMarkersStore.update((markers) =>
+        markers.filter((m) => m.id !== (newData?.id || oldData?.id)),
+      )
+
+      // Remove from tracking
+      const markerId = newData?.id || oldData?.id
+      if (markerId) {
+        lastKnownState.delete(markerId)
+      }
+
+      console.log("🗑️ Removed marker from realtime event")
+      return
+    }
+
+    if (eventType === "INSERT" || eventType === "UPDATE") {
+      const coordinates = newData.marker_data?.geometry?.coordinates
+      const iconClass = newData.marker_data?.properties?.icon || "default"
+
+      if (!coordinates) {
+        console.warn("⚠️ Realtime marker missing coordinates")
+        return
+      }
+
+      const processedMarker = {
+        id: newData.id,
+        coordinates: coordinates,
+        iconClass: iconClass,
+        notes: newData.notes, // ✅ Notes included from realtime payload
+        created_at: newData.last_confirmed || newData.created_at,
+        updated_at: newData.updated_at,
+      }
+
+      confirmedMarkersStore.update((markers) => {
+        const existingIndex = markers.findIndex((m) => m.id === newData.id)
+
+        if (existingIndex >= 0) {
+          // Update existing marker
+          markers[existingIndex] = processedMarker
+          console.log("✏️ Updated marker from realtime event:", newData.id)
+        } else {
+          // Add new marker
+          markers.push(processedMarker)
+          console.log("➕ Added marker from realtime event:", newData.id)
+        }
+
+        return markers
+      })
+
+      // Update our tracking
+      lastKnownState.set(newData.id, {
+        iconClass: processedMarker.iconClass,
+        coordinates: [...processedMarker.coordinates],
+        notes: processedMarker.notes,
+        created_at: processedMarker.created_at,
+      })
+
+      // Recalculate bounding box
+      calculateAndStoreBoundingBox($confirmedMarkersStore)
+    }
+  }
 
   // ✅ Separate function to setup change tracking after initialization
   function setupChangeTracking() {
@@ -121,12 +190,10 @@
     if (channel) supabase.removeChannel(channel)
     if (debouncedSync) debouncedSync.cancel()
     if (markersUnsubscribe) markersUnsubscribe()
-
-    // ✅ DON'T clear the store - let it persist!
-    // confirmedMarkersStore.set([])  // ❌ REMOVED - This was deleting markers!
   })
 
   function trackChangedMarkers(currentMarkers) {
+    // ✅ Don't track changes until we're initialized
     if (!isInitialized) {
       console.log("⏸️ Skipping change tracking - not initialized yet")
       return
@@ -150,14 +217,14 @@
         lastKnown.iconClass !== marker.iconClass ||
         lastKnown.coordinates[0] !== marker.coordinates[0] ||
         lastKnown.coordinates[1] !== marker.coordinates[1] ||
-        lastKnown.notes !== marker.notes // ✅ ADD THIS - track note changes
+        lastKnown.notes !== marker.notes // ✅ Track note changes
       ) {
         pendingChanges.add(id)
         console.log(`✏️ Tracked change for marker ${id}`)
       }
     }
 
-    // Only check for deletions if we have a baseline
+    // ✅ Only check for deletions if we have a baseline
     if (lastKnownState.size > 0) {
       for (const [id] of lastKnownState) {
         if (!currentMap.has(id)) {
@@ -175,12 +242,13 @@
         iconClass: marker.iconClass,
         coordinates: [...marker.coordinates],
         created_at: marker.created_at,
-        notes: marker.notes, // ✅ ADD THIS
+        notes: marker.notes, // ✅ Include notes in tracking
       })
     })
     pendingChanges.clear()
     pendingDeletions.clear()
 
+    // ✅ Mark as initialized after first successful load
     if (!isInitialized) {
       isInitialized = true
       console.log(
@@ -216,13 +284,12 @@
     isSyncing = true
 
     try {
-      // ✅ ADD notes, updated_at to the select
+      // ✅ Include notes and updated_at in the select
       let query = supabase
         .from("map_markers")
         .select(
           "id, marker_data, notes, last_confirmed, created_at, updated_at, deleted",
         )
-        //                        ^^^^^ ADD THIS
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
 
@@ -252,12 +319,12 @@
             id: marker.id,
             coordinates: coordinates,
             iconClass: iconClass,
-            notes: marker.notes, // ✅ ADD THIS
+            notes: marker.notes, // ✅ Include notes
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
               new Date().toISOString(),
-            updated_at: marker.updated_at, // ✅ ADD THIS (optional but good to have)
+            updated_at: marker.updated_at, // ✅ Include updated_at
           }
         })
         .filter(Boolean)
@@ -346,10 +413,12 @@
             id: marker.id,
           },
         },
+        notes: marker.notes || null, // ✅ Include notes in sync
         last_confirmed: marker.created_at || new Date().toISOString(),
         created_at: marker.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(), // ✅ Update timestamp
         update_user_id: userId,
-        deleted: null, // ✅ Changed from false to null for non-deleted markers
+        deleted: null,
       }))
 
       const { error } = await supabase
@@ -363,7 +432,7 @@
     if (pendingDeletions.size > 0) {
       const deletionData = Array.from(pendingDeletions).map((markerId) => ({
         id: markerId,
-        deleted: true, // ✅ Keep as true for actual deletions
+        deleted: true,
         deleted_at: new Date().toISOString(),
         update_user_id: userId,
       }))
