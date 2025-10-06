@@ -127,7 +127,6 @@
   })
 
   function trackChangedMarkers(currentMarkers) {
-    // ✅ Don't track changes until we're initialized
     if (!isInitialized) {
       console.log("⏸️ Skipping change tracking - not initialized yet")
       return
@@ -150,14 +149,15 @@
         !lastKnown ||
         lastKnown.iconClass !== marker.iconClass ||
         lastKnown.coordinates[0] !== marker.coordinates[0] ||
-        lastKnown.coordinates[1] !== marker.coordinates[1]
+        lastKnown.coordinates[1] !== marker.coordinates[1] ||
+        lastKnown.notes !== marker.notes // ✅ ADD THIS - track note changes
       ) {
         pendingChanges.add(id)
         console.log(`✏️ Tracked change for marker ${id}`)
       }
     }
 
-    // ✅ Only check for deletions if we have a baseline
+    // Only check for deletions if we have a baseline
     if (lastKnownState.size > 0) {
       for (const [id] of lastKnownState) {
         if (!currentMap.has(id)) {
@@ -175,12 +175,12 @@
         iconClass: marker.iconClass,
         coordinates: [...marker.coordinates],
         created_at: marker.created_at,
+        notes: marker.notes, // ✅ ADD THIS
       })
     })
     pendingChanges.clear()
     pendingDeletions.clear()
 
-    // ✅ Mark as initialized after first successful load
     if (!isInitialized) {
       isInitialized = true
       console.log(
@@ -216,10 +216,13 @@
     isSyncing = true
 
     try {
-      // Build query - ✅ Updated to handle both null and false values
+      // ✅ ADD notes, updated_at to the select
       let query = supabase
         .from("map_markers")
-        .select("id, marker_data, last_confirmed, created_at, deleted")
+        .select(
+          "id, marker_data, notes, last_confirmed, created_at, updated_at, deleted",
+        )
+        //                        ^^^^^ ADD THIS
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
 
@@ -249,10 +252,12 @@
             id: marker.id,
             coordinates: coordinates,
             iconClass: iconClass,
+            notes: marker.notes, // ✅ ADD THIS
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
               new Date().toISOString(),
+            updated_at: marker.updated_at, // ✅ ADD THIS (optional but good to have)
           }
         })
         .filter(Boolean)
