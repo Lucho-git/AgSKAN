@@ -114,9 +114,9 @@
           </div>
 
           <!-- Compact Platform Buttons -->
-          <div class="space-y-2 pt-2">
+          <div class="flex w-full flex-col gap-2 pt-2">
             <button
-              class="group flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
+              class="group flex w-4/5 items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
               on:click={() => goto("/login?tab=sign_up")}
             >
               <div class="flex items-center gap-3">
@@ -126,7 +126,7 @@
                   <Globe size={16} class="text-white" />
                 </div>
                 <p class="text-sm font-semibold text-contrast-content">
-                  Web Version
+                  Continue on Web
                 </p>
               </div>
               <ArrowRight
@@ -139,7 +139,7 @@
               href="https://apps.apple.com/us/app/agskan/id6746783538"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
+              class="group flex w-4/5 items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
             >
               <div class="flex items-center gap-3">
                 <div
@@ -169,7 +169,7 @@
               href="https://play.google.com/store/apps/details?id=com.skanfarming"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
+              class="group flex w-4/5 items-center justify-between rounded-lg border border-base-300 bg-base-200 px-4 py-3 transition-all duration-300 hover:bg-base-300 hover:shadow-md"
             >
               <div class="flex items-center gap-3">
                 <div
