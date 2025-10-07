@@ -17,18 +17,18 @@
       description:
         "See your operators and gear live in the paddock. No more guessing, no more radio chatter -- just clear visibility from any phone or tablet.",
       hasVideo: true,
-      videoUrl: "/content/landing/OperatorTracking.mp4",
+      videoUrl: "/content/landing/MachinesMoving.mp4",
       imageUrl:
         "https://images.unsplash.com/photo-1548266652-99cf27701ced?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
     {
       icon: Sprout,
-      title: "Seeding Assist",
-      subtitle: "Stop Overlap. Hit Every Strip.",
+      title: "Path Recreate",
+      subtitle: "Review, Learn, and Improve Field Performance",
       description:
-        "Live trails show exactly where the sprayer's been, so your planter doesn't miss a beat. Fewer skips. Tighter passes. Better coverage.",
-      hasVideo: false,
-      imageUrl: "/content/landing/SeedingOverview.png",
+        "Animate completed coverage to see exactly how operators performed. Track distance traveled, hectares covered, and overlap stats -- a powerful educational tool for training and improvement.",
+      hasVideo: true,
+      videoUrl: "/content/landing/PathRecreateClip.mp4",
       fallbackImageUrl:
         "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
@@ -38,8 +38,8 @@
       subtitle: "Put Every Operator on the Same Page",
       description:
         "Upload or draw your paddocks in seconds. Every team member sees the same live boundary -- no confusion, no crossed wires.",
-      hasVideo: false,
-      imageUrl: "/content/landing/FieldUpload.png",
+      hasVideo: true,
+      videoUrl: "/content/landing/FieldUploadClip.mp4",
       fallbackImageUrl:
         "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
@@ -50,7 +50,8 @@
       description:
         "Drop pins for rocks, stumps, or wet patches with one tap. Everyone sees it, instantly -- no more gear damage or delays.",
       hasVideo: true,
-      videoUrl: "/content/landing/DroppingPins.mp4",
+      videoUrl: "/content/landing/PinDrop.mp4",
+      customFit: true,
       imageUrl:
         "https://images.unsplash.com/photo-1609252509102-aa73ff8eab1a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
@@ -108,23 +109,47 @@
           >
             <!-- Background Image/Video -->
             <div
-              class="absolute inset-0 transition-transform duration-700 group-hover:scale-105"
+              class="absolute inset-0 transition-transform duration-700 {feature.customFit
+                ? ''
+                : 'group-hover:scale-105'}"
             >
               {#if feature.hasVideo}
-                <video
-                  bind:this={videoRefs[index]}
-                  class="h-full w-full object-cover"
-                  muted
-                  loop
-                  playsinline
-                  preload="metadata"
-                  on:error={() => {
-                    feature.hasVideo = false
-                  }}
-                >
-                  <source src={feature.videoUrl} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+                {#if feature.customFit}
+                  <div
+                    class="flex h-full w-full items-center justify-center bg-black"
+                  >
+                    <video
+                      bind:this={videoRefs[index]}
+                      class="max-h-full max-w-full"
+                      style="width: 100%; height: 100%; object-fit: contain;"
+                      muted
+                      loop
+                      playsinline
+                      preload="metadata"
+                      on:error={() => {
+                        feature.hasVideo = false
+                      }}
+                    >
+                      <source src={feature.videoUrl} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                {:else}
+                  <video
+                    bind:this={videoRefs[index]}
+                    class="h-full w-full object-cover"
+                    muted
+                    loop
+                    playsinline
+                    preload="metadata"
+                    on:error={() => {
+                      feature.hasVideo = false
+                    }}
+                  >
+                    <source src={feature.videoUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                {/if}
               {:else}
                 <img
                   src={feature.imageUrl}

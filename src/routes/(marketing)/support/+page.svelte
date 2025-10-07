@@ -43,7 +43,7 @@
       title: "How to Create a Map",
       content:
         "Assuming you have signed up the first step is to create a map that everyone can join.",
-      videoId: "4IV4gJP3nbk",
+      videoId: "SnbBcs5dbCI",
     },
     {
       id: "create-operation",
@@ -51,7 +51,7 @@
       title: "How to Create an Operation",
       content:
         "Once you have a map, create an operation specific to the task you will be completing on the farm.",
-      videoId: "dgaJDRirYK0",
+      videoId: "Mg3_RQhHLkM",
     },
     {
       id: "authorize-users",
@@ -59,7 +59,7 @@
       title: "How to Authorise Users",
       content:
         "Before you invite users to your map you will need to authorise your account to host these users. Select how many 'seats' you will require based on the number of employees. Farm owner + two employees will mean 3 seats.",
-      videoId: "gSTzDnsL0vA",
+      videoId: "ynZOc92JKuU",
     },
     {
       id: "share-map",
@@ -67,7 +67,7 @@
       title: "How to Share Map ID",
       content:
         "Share your Map ID with your operators, this will link you all to a shared live map.",
-      videoId: "cJWKTK9maIs",
+      videoId: "Ro-2SxeCbvk",
     },
     {
       id: "upload-boundaries",
@@ -75,7 +75,7 @@
       title: "How to Upload Paddock Boundaries",
       content:
         "Follow these steps to upload your digital paddock boundaries, they will display on your live map for everyone to see. This is not a mandatory step, AgSKAN will work perfectly fine without them.",
-      videoId: "8Ed09K5NNtg",
+      videoId: "f-A0YgnNQPw",
     },
     {
       id: "mobile-setup",
@@ -129,115 +129,127 @@
     : "item-0"
 </script>
 
-<div class="container mx-auto px-4 pb-16">
-  <div class="h-12"></div>
+<section class="bg-base-200">
+  <div class="container mx-auto px-4 py-16">
+    <div class="h-12"></div>
 
-  <!-- Header Section -->
-  <BlurFade delay={BLUR_FADE_DELAY}>
-    <div class="mx-auto mb-16 max-w-3xl text-center">
-      <h1 class="mb-6 text-4xl font-bold">Support Center</h1>
-      <p class="text-lg text-base-content/90">
-        AgSKAN is a great tool for helping with everyday farm management, it can
-        be set up in less than 10 minutes. Follow these simple steps to get your
-        farm started.
-      </p>
-    </div>
-  </BlurFade>
-
-  <div class="mx-auto max-w-3xl space-y-16">
-    <!-- Support Sections Accordion -->
-    <div class="rounded-lg bg-base-100 p-6 shadow-sm">
-      <BlurFade delay={BLUR_FADE_DELAY * 1.2}>
-        <h2 class="mb-6 text-2xl font-semibold">Setup Guides</h2>
-      </BlurFade>
-
-      <Accordion.Root
-        type="single"
-        bind:value={accordionValue}
-        class="space-y-4"
-        bind:this={accordionContainer}
-      >
-        {#each supportSections as section, i}
-          <BlurFade delay={BLUR_FADE_DELAY * 1.4 + i * 0.05}>
-            <Accordion.Item value={`item-${i}`} data-accordion-item={i}>
-              <Accordion.Trigger
-                class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-6 py-4 text-left transition-colors hover:bg-base-300"
-              >
-                <div class="flex items-center gap-3">
-                  <svelte:component
-                    this={section.icon}
-                    class="h-5 w-5 text-primary"
-                  />
-                  <span class="text-lg font-medium">{section.title}</span>
-                </div>
-              </Accordion.Trigger>
-              <Accordion.Content
-                class="mt-2 overflow-hidden rounded-lg border border-base-200 bg-base-100"
-              >
-                <div class="grid gap-8 p-6 md:grid-cols-2">
-                  <div class="space-y-4">
-                    <p class="font-medium text-base-content/90">
-                      {section.content}
-                    </p>
-                  </div>
-                  <div class="overflow-hidden rounded-lg bg-base-200 shadow-sm">
-                    <div class="aspect-video">
-                      <iframe
-                        class="h-full w-full"
-                        src={`https://www.youtube.com/embed/${section.videoId}?si=DoroVYQHQ31om0cO`}
-                        title="YouTube video player"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        referrerpolicy="strict-origin-when-cross-origin"
-                        allowfullscreen
-                      ></iframe>
-                    </div>
-                  </div>
-                </div>
-              </Accordion.Content>
-            </Accordion.Item>
-          </BlurFade>
-        {/each}
-      </Accordion.Root>
-    </div>
-
-    <!-- Contact Support Section -->
-    <BlurFade delay={BLUR_FADE_DELAY * 2}>
-      <div class="rounded-lg bg-base-100 p-6 shadow-sm">
-        <div class="space-y-6 text-center">
-          <div class="flex items-center justify-center gap-3">
-            <MessageCircle class="h-6 w-6 text-primary" />
-            <h2 class="text-2xl font-semibold">Need More Help?</h2>
-          </div>
-          <p class="font-medium text-base-content/90">
-            Get in touch with our team directly for personalized support and
-            assistance.
-          </p>
-          <div class="flex flex-col items-center gap-4">
-            <a
-              href="tel:0439405248"
-              class="group inline-flex items-center gap-2 text-lg font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              <Phone
-                class="h-5 w-5 transition-transform group-hover:scale-110"
-              />
-              0439 405 248
-            </a>
-            <a
-              href="mailto:ryan@skanfarming.com"
-              class="group inline-flex items-center gap-2 text-lg font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              <Mail
-                class="h-5 w-5 transition-transform group-hover:scale-110"
-              />
-              ryan@skanfarming.com
-            </a>
-          </div>
-        </div>
+    <!-- Header Section -->
+    <BlurFade delay={BLUR_FADE_DELAY}>
+      <div class="mx-auto mb-16 max-w-3xl text-center">
+        <h1 class="mb-6 text-4xl font-bold text-contrast-content">
+          Support Center
+        </h1>
+        <p class="text-lg text-contrast-content/80">
+          AgSKAN is a great tool for helping with everyday farm management, it
+          can be set up in less than 10 minutes. Follow these simple steps to
+          get your farm started.
+        </p>
       </div>
     </BlurFade>
+
+    <div class="mx-auto max-w-3xl space-y-16">
+      <!-- Support Sections Accordion -->
+      <div class="rounded-2xl bg-base-100 p-8 shadow-md">
+        <BlurFade delay={BLUR_FADE_DELAY * 1.2}>
+          <h2 class="mb-6 text-2xl font-semibold text-contrast-content">
+            Setup Guides
+          </h2>
+        </BlurFade>
+
+        <Accordion.Root
+          type="single"
+          bind:value={accordionValue}
+          class="space-y-4"
+          bind:this={accordionContainer}
+        >
+          {#each supportSections as section, i}
+            <BlurFade delay={BLUR_FADE_DELAY * 1.4 + i * 0.05}>
+              <Accordion.Item value={`item-${i}`} data-accordion-item={i}>
+                <Accordion.Trigger
+                  class="group flex w-full items-center justify-between rounded-lg bg-base-200 px-6 py-4 text-left transition-all duration-300 hover:bg-base-300 hover:shadow-sm"
+                >
+                  <div class="flex items-center gap-3">
+                    <svelte:component
+                      this={section.icon}
+                      class="h-5 w-5 text-secondary transition-transform group-hover:scale-110"
+                    />
+                    <span class="text-lg font-medium text-contrast-content"
+                      >{section.title}</span
+                    >
+                  </div>
+                </Accordion.Trigger>
+                <Accordion.Content
+                  class="mt-2 overflow-hidden rounded-lg bg-base-100"
+                >
+                  <div class="grid gap-8 p-6 md:grid-cols-2">
+                    <div class="space-y-4">
+                      <p class="font-medium leading-relaxed text-base-content">
+                        {section.content}
+                      </p>
+                    </div>
+                    <div
+                      class="overflow-hidden rounded-lg bg-base-300 shadow-sm"
+                    >
+                      <div class="aspect-video">
+                        <iframe
+                          class="h-full w-full"
+                          src={`https://www.youtube.com/embed/${section.videoId}`}
+                          title="YouTube video player"
+                          frameborder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          referrerpolicy="strict-origin-when-cross-origin"
+                          allowfullscreen
+                        ></iframe>
+                      </div>
+                    </div>
+                  </div>
+                </Accordion.Content>
+              </Accordion.Item>
+            </BlurFade>
+          {/each}
+        </Accordion.Root>
+      </div>
+
+      <!-- Contact Support Section -->
+      <BlurFade delay={BLUR_FADE_DELAY * 2}>
+        <div class="rounded-2xl bg-base-100 p-8 shadow-md">
+          <div class="space-y-6 text-center">
+            <div class="flex items-center justify-center gap-3">
+              <MessageCircle class="h-6 w-6 text-secondary" />
+              <h2 class="text-2xl font-semibold text-contrast-content">
+                Need More Help?
+              </h2>
+            </div>
+            <p class="font-medium text-base-content">
+              Get in touch with our team directly for personalized support and
+              assistance.
+            </p>
+            <div class="flex flex-col items-center gap-4">
+              <a
+                href="tel:0439405248"
+                class="group inline-flex items-center gap-2 text-lg font-medium text-secondary transition-colors hover:text-secondary/80"
+              >
+                <Phone
+                  class="h-5 w-5 transition-transform group-hover:scale-110"
+                />
+                0439 405 248
+              </a>
+              <a
+                href="mailto:ryan@skanfarming.com"
+                class="group inline-flex items-center gap-2 text-lg font-medium text-secondary transition-colors hover:text-secondary/80"
+              >
+                <Mail
+                  class="h-5 w-5 transition-transform group-hover:scale-110"
+                />
+                ryan@skanfarming.com
+              </a>
+            </div>
+          </div>
+        </div>
+      </BlurFade>
+    </div>
   </div>
-</div>
+</section>
 
 <style>
   /* Smooth accordion animations */
