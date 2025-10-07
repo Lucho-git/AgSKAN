@@ -1,12 +1,5 @@
 <script lang="ts">
-  import {
-    ChevronDown,
-    ChevronUp,
-    Compass,
-    Map,
-    MapPin,
-    Sprout,
-  } from "lucide-svelte"
+  import { Compass, Map, MapPin, Sprout, Play } from "lucide-svelte"
   import { onMount } from "svelte"
 
   let mounted = false
@@ -57,30 +50,29 @@
       description:
         "Drop pins for rocks, stumps, or wet patches with one tap. Everyone sees it, instantly -- no more gear damage or delays.",
       hasVideo: true,
-      videoUrl: "/content/landing/PinDrop.mp4",
+      videoUrl: "/content/landing/DroppingPins.mp4",
       imageUrl:
         "https://images.unsplash.com/photo-1609252509102-aa73ff8eab1a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
     },
   ]
 
-  let hoveredCards = new Array(features.length).fill(false)
+  let hoveredIndex: number | null = null
 
-  function handleCardMouseEnter(index: number) {
-    hoveredCards[index] = true
+  function handleMouseEnter(index: number) {
+    hoveredIndex = index
     if (features[index].hasVideo && videoRefs[index]) {
       videoRefs[index].play()
     }
   }
 
-  function handleCardMouseLeave(index: number) {
-    hoveredCards[index] = false
+  function handleMouseLeave(index: number) {
+    hoveredIndex = null
     if (features[index].hasVideo && videoRefs[index]) {
       videoRefs[index].pause()
       videoRefs[index].currentTime = 0
     }
   }
 
-  // Animation delay placeholder
   function animationDelay(node: HTMLElement, delay: number) {
     return {
       delay,
@@ -94,131 +86,114 @@
 </script>
 
 <section class="bg-base-200" id="features">
-  <div class="section-container py-20">
+  <div class="section-container px-4 py-12 md:py-20">
     {#if mounted}
       <h2
-        class="mb-16 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
+        class="mb-8 text-center font-sans text-2xl font-bold text-contrast-content md:mb-16 md:text-4xl"
         in:animationDelay={0}
       >
         Built to <span class="text-base-content">Solve Real Problems</span> in the
         Field
       </h2>
 
-      <div
-        class="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2 md:gap-12"
-      >
+      <div class="mx-auto grid max-w-6xl gap-4 md:grid-cols-2 md:gap-6">
         {#each features as feature, index}
           <div
-            class={`flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-base-100 shadow-md transition-all duration-500 ${
-              hoveredCards[index]
-                ? "transform border-2 border-base-content shadow-lg hover:scale-[1.02]"
-                : "border border-base-content/20 hover:border-primary/40 hover:shadow-lg"
-            }`}
+            class="group relative overflow-hidden rounded-2xl bg-base-100 shadow-md transition-all duration-500 hover:shadow-2xl"
             in:animationDelay={100 + index * 100}
-            on:mouseenter={() => handleCardMouseEnter(index)}
-            on:mouseleave={() => handleCardMouseLeave(index)}
+            on:mouseenter={() => handleMouseEnter(index)}
+            on:mouseleave={() => handleMouseLeave(index)}
             role="button"
             tabindex="0"
-            aria-expanded={hoveredCards[index]}
           >
-            <!-- Card Header - Always Visible -->
-            <div class="flex items-start p-6">
-              <div class="flex-1">
+            <!-- Background Image/Video -->
+            <div
+              class="absolute inset-0 transition-transform duration-700 group-hover:scale-105"
+            >
+              {#if feature.hasVideo}
+                <video
+                  bind:this={videoRefs[index]}
+                  class="h-full w-full object-cover"
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  on:error={() => {
+                    feature.hasVideo = false
+                  }}
+                >
+                  <source src={feature.videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              {:else}
+                <img
+                  src={feature.imageUrl}
+                  alt={`Demonstrating ${feature.title}`}
+                  class="h-full w-full object-cover"
+                  loading="lazy"
+                  on:error={(e) => {
+                    if (feature.fallbackImageUrl) {
+                      e.target.src = feature.fallbackImageUrl
+                    }
+                  }}
+                />
+              {/if}
+              <!-- Gradient overlay - visible by default, disappears on hover -->
+              <div
+                class={`absolute inset-0 bg-gradient-to-t from-base-300/100 via-base-300/80 to-transparent transition-all duration-500 ${
+                  hoveredIndex === index ? "opacity-0" : "opacity-100"
+                }`}
+              />
+            </div>
+
+            <!-- Content -->
+            <div
+              class="relative flex min-h-[280px] flex-col justify-end p-6 md:min-h-[320px] md:p-8"
+            >
+              <div class="mb-3 flex items-center gap-3">
+                <div
+                  class="flex h-10 w-10 items-center justify-center rounded-lg bg-base-100/90 shadow-lg backdrop-blur-sm transition-all duration-300 group-hover:scale-110 group-hover:bg-secondary"
+                >
+                  <svelte:component
+                    this={feature.icon}
+                    size={20}
+                    class="text-base-content transition-colors group-hover:text-secondary-content"
+                  />
+                </div>
+                {#if feature.hasVideo}
+                  <div
+                    class="flex h-8 w-8 items-center justify-center rounded-full bg-base-100/90 shadow-md backdrop-blur-sm transition-all duration-300 group-hover:scale-110"
+                  >
+                    <Play
+                      size={14}
+                      class="ml-0.5 text-base-content"
+                      fill="currentColor"
+                    />
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Text content - visible by default, hidden on hover -->
+              <div
+                class={`transition-all duration-500 ${
+                  hoveredIndex === index
+                    ? "translate-y-2 opacity-0"
+                    : "translate-y-0 opacity-100"
+                }`}
+              >
                 <h3
-                  class="mb-3 font-sans text-xl font-bold text-contrast-content"
+                  class="mb-2 font-sans text-xl font-bold text-contrast-content md:text-2xl"
                 >
                   {feature.title}
                 </h3>
-                <p class="font-medium text-base-content">{feature.subtitle}</p>
-              </div>
-
-              <!-- Feature icon in top right -->
-              <div
-                class={`ml-4 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full shadow-lg transition-all duration-500 ${
-                  hoveredCards[index]
-                    ? "scale-110 bg-gradient-to-br from-secondary to-secondary/80 shadow-secondary/20"
-                    : "bg-gradient-to-br from-base-content/20 to-base-content/10"
-                }`}
-              >
-                <svelte:component
-                  this={feature.icon}
-                  size={20}
-                  class={hoveredCards[index]
-                    ? "text-secondary-content"
-                    : "text-base-content"}
-                />
-              </div>
-            </div>
-
-            <!-- Expandable Content - Shows on hover -->
-            <div
-              class={`overflow-hidden transition-all duration-500 ease-in-out ${
-                hoveredCards[index]
-                  ? "max-h-[600px] opacity-100"
-                  : "max-h-0 opacity-0"
-              }`}
-            >
-              <div class="px-6 pb-6">
-                <div class="mb-5 overflow-hidden rounded-lg">
-                  {#if feature.hasVideo}
-                    <video
-                      bind:this={videoRefs[index]}
-                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
-                      muted
-                      loop
-                      playsinline
-                      preload="metadata"
-                      on:error={() => {
-                        // Fallback to image if video fails
-                        feature.hasVideo = false
-                      }}
-                    >
-                      <source src={feature.videoUrl} type="video/mp4" />
-                      <!-- Fallback image if video doesn't load -->
-                      Your browser does not support the video tag.
-                    </video>
-                  {:else}
-                    <img
-                      src={feature.imageUrl}
-                      alt={`Demonstrating ${feature.title}`}
-                      class="h-auto max-h-[300px] min-h-[250px] w-full object-cover transition-transform duration-500"
-                      loading="lazy"
-                      on:error={(e) => {
-                        // Fallback to stock image if PNG fails
-                        if (feature.fallbackImageUrl) {
-                          e.target.src = feature.fallbackImageUrl
-                        }
-                      }}
-                    />
-                  {/if}
-                </div>
-                <p class="leading-relaxed text-contrast-content/80">
+                <p class="mb-3 font-medium text-base-content">
+                  {feature.subtitle}
+                </p>
+                <p
+                  class="text-sm leading-relaxed text-contrast-content/90 md:text-base"
+                >
                   {feature.description}
                 </p>
-              </div>
-            </div>
-
-            <!-- Always visible action button -->
-            <div class="mt-3 px-6 pb-6">
-              <div
-                class={`flex w-full items-center justify-center rounded-lg border border-base-content/20 px-4 py-2 font-medium shadow-sm transition-all duration-300 ${
-                  hoveredCards[index]
-                    ? "bg-base-300/90 text-contrast-content shadow"
-                    : "bg-base-200/80 text-contrast-content/80"
-                }`}
-              >
-                {hoveredCards[index] ? "Show Less" : "Learn More"}
-                {#if hoveredCards[index]}
-                  <ChevronUp
-                    size={16}
-                    class="ml-2 -translate-y-1 transition-transform duration-300"
-                  />
-                {:else}
-                  <ChevronDown
-                    size={16}
-                    class="ml-2 transition-transform duration-300"
-                  />
-                {/if}
               </div>
             </div>
           </div>

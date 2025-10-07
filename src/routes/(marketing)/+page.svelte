@@ -85,10 +85,11 @@
 
 <main class="w-full">
   <Hero />
-  <Partners />
   <Agskan />
   <ProblemSolution />
   <Setup id="setup" />
+  <Partners />
+
   <Testimonials />
   <Pricing id="pricing" />
   <QandA id="qanda" />
