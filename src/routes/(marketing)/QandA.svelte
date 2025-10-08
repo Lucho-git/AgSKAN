@@ -22,11 +22,11 @@
     {
       question: "How much does AgSKAN cost?",
       answer: `
-          <p class="mb-4">AgSKAN costs $46 per month, per machine.</p>
+          <p class="mb-4">AgSKAN costs $30 per month, per machine.</p>
           <p>In the billing section, a 'machine' represents each vehicle that will be tracked on your farm. As the account owner, you'll pay for all machines, which gives your account the authority to host other users on your live map.</p>
           <p class="mt-4 p-4 bg-base-300 rounded-lg">
             <strong>Example:</strong> You (map owner) + 2 full-time operators = 3 machines<br>
-            Total cost: $138 per month for complete farm operation visibility
+            Total cost: $90 per month for complete farm operation visibility
           </p>`,
     },
     {
