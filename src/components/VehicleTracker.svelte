@@ -1,3 +1,5 @@
+<!-- src/components/VehicleTracker.svelte -->
+
 <script>
   import { onMount, onDestroy, getContext } from "svelte"
   import * as mapboxgl from "mapbox-gl"
@@ -10,18 +12,21 @@
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
-  import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte" // 🆕 NEW
+  import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { unsavedTrailStore } from "../stores/trailDataStore"
   import { toast } from "svelte-sonner"
   import "../styles/global.css"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
 
+  // 🆕 Import the helper function
+  import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
+
   export let map
   export let disableAutoZoom = false
   export let onOpenVehicleControls = null
 
-  // 🆕 NEW: Get global selection context
+  // Get global selection context
   let globalSelectionContext = null
   let globalSelectionState = null
 
@@ -57,10 +62,10 @@
   let isFirstPersonMode = false
   let lastTrackedHeading = null
 
-  // 🆕 NEW: Vehicle selection state
+  // Vehicle selection state
   let selectedVehicleId = null
 
-  // 🆕 NEW: Periodically check for global selection context and sync
+  // Periodically check for global selection context and sync
   let contextCheckInterval = null
 
   function syncWithGlobalSelection() {
@@ -101,7 +106,7 @@
   let lastClientHeading = null
   let previousVehicleMarker = null
 
-  // 🆕 UPDATED: Public method for vehicle selection (called by MapEventManager)
+  // Public method for vehicle selection (called by MapEventManager)
   export function handleVehicleSelection(vehicleId) {
     console.log(
       "🚗 VehicleTracker: Vehicle selection called with ID:",
@@ -115,7 +120,7 @@
       selectedVehicleId = null
       console.log("🚗 VehicleTracker: Vehicle explicitly deselected")
     } else if (selectedVehicleId === vehicleId) {
-      // Clicking same vehicle deselects it (this should be handled by MapEventManager reselection logic)
+      // Clicking same vehicle deselects it
       selectedVehicleId = null
       console.log("🚗 VehicleTracker: Vehicle deselected (same vehicle)")
     } else {
@@ -128,7 +133,7 @@
     updateAllVehicleSelectionStates()
   }
 
-  // 🆕 UPDATED: Update all vehicle markers selection states
+  // Update all vehicle markers selection states
   function updateAllVehicleSelectionStates() {
     console.log(
       "🚗 VehicleTracker: Updating all vehicle selection states, selectedVehicleId:",
@@ -155,14 +160,14 @@
     const element = marker.getElement()
     const markerContainer = element.querySelector(
       ".fm-vehicle-marker-container",
-    ) // ✅ Changed
+    )
 
     if (markerContainer) {
       if (isSelected) {
-        markerContainer.classList.add("fm-vehicle-selected") // ✅ Changed
+        markerContainer.classList.add("fm-vehicle-selected")
         console.log("🚗 Added selected class to marker")
       } else {
-        markerContainer.classList.remove("fm-vehicle-selected") // ✅ Changed
+        markerContainer.classList.remove("fm-vehicle-selected")
         console.log("🚗 Removed selected class from marker")
       }
     } else {
@@ -205,7 +210,7 @@
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
-        // 🆕 ADD OPERATION DATA
+        active_preset_id: $userVehicleStore.active_preset_id, // 🆕 Include preset ID
         selected_operation_id: $userVehicleStore.selected_operation_id,
         current_operation: $userVehicleStore.current_operation,
         operation_name: $userVehicleStore.operation_name,
@@ -389,7 +394,7 @@
     }
   }
 
-  // Zoom to vehicle function
+  // 🆕 UPDATED: Zoom to vehicle function using helper
   function zoomToVehicle(vehicle) {
     const parsedCoords = parseCoordinates(vehicle.coordinates)
     if (!parsedCoords) {
@@ -409,14 +414,16 @@
       duration: 1500,
     })
 
+    // 🆕 Use helper function for vehicle display name
+    const vehicleDisplayName = getVehicleDisplayName(vehicle)
     const vehicleInfo = vehicle.isCurrentUser
       ? "your location"
-      : `${vehicle.full_name}'s ${getVehicleDisplayName(vehicle)}`
+      : `${vehicle.full_name}'s ${vehicleDisplayName}`
 
     toast.success(`Zooming to ${vehicleInfo}`)
   }
 
-  // 🆕 NEW: Helper function to center camera on vehicle (for panel)
+  // Helper function to center camera on vehicle (for panel)
   function centerCameraOnVehicle(vehicle) {
     const parsedCoords = parseCoordinates(vehicle.coordinates)
     if (!parsedCoords) {
@@ -434,47 +441,6 @@
       : `${vehicle.full_name}'s location`
 
     toast.success(`Centered on ${vehicleInfo}`)
-  }
-
-  function getVehicleDisplayName(vehicle) {
-    const vehicleType = vehicle.vehicle_marker?.type || "Vehicle"
-
-    const shortNames = {
-      FourWheelDriveTractor: "FWD Tractor",
-      TowBetweenSeeder: "TB Seeder",
-      TowBehindSeeder: "TB Seeder",
-      TowBehindSeederTracks: "TB Seeder Tracks",
-      TowBehindBoomspray: "TB Boomspray",
-      SelfPropelledBoomspray: "SP Boomspray",
-      ThreePointBoomspray: "3P Boomspray",
-      FarmUte: "Farm Ute",
-      FrontWheelChaserBin: "FW Chaser",
-      FourWheelDriveChaserBin: "FWD Chaser",
-      HeaderDuals: "Header Duals",
-      HeaderSingles: "Header Singles",
-      HeaderTracks: "Header Tracks",
-      SelfPropelledSwather: "SP Swather",
-      Spreader: "Spreader",
-      Truck: "Truck",
-      CabOverTruck: "Cab Over Truck",
-      CabOverRoadTrain: "Road Train",
-      Baler: "Baler",
-      Mower: "Mower",
-      SelfPropelledMower: "SP Mower",
-      Telehandler: "Telehandler",
-      Loader: "Loader",
-      SimpleTractor: "Simple Tractor",
-      Pointer: "Pointer",
-      CombineHarvester: "Combine",
-      Excavator: "Excavator",
-      Tractor: "Tractor",
-      WheelLoader: "Wheel Loader",
-      WorkCar: "Work Car",
-      Airplane: "Airplane",
-      simpleTractor: "Simple Tractor",
-    }
-
-    return shortNames[vehicleType] || vehicleType
   }
 
   // Function to detect if running as a mobile app
@@ -585,7 +551,7 @@
     }
   }
 
-  // 🆕 NEW: Cleanup function
+  // Cleanup function
   function cleanup() {
     // Clear context check interval
     if (contextCheckInterval) {
@@ -599,7 +565,7 @@
   onMount(() => {
     detectPlatform()
 
-    // 🆕 NEW: Set up periodic sync with global selection context
+    // Set up periodic sync with global selection context
     contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     if (isMobileApp) {
@@ -669,7 +635,6 @@
       backgroundService.cleanup()
     }
 
-    // 🆕 NEW: Call cleanup function
     cleanup()
   })
 
@@ -730,7 +695,6 @@
             .addTo(map)
           otherVehicleMarkers[existingMarkerIndex] = newMarker
 
-          // 🆕 UPDATED: Update selection state for new marker
           const isSelected = selectedVehicleId === vehicle_id
           updateMarkerSelection(newMarker, isSelected)
         }
@@ -751,7 +715,6 @@
         marker.setLngLat([longitude, latitude]).setRotation(heading).addTo(map)
         otherVehicleMarkers.push(marker)
 
-        // 🆕 UPDATED: Update selection state for new marker
         const isSelected = selectedVehicleId === vehicle_id
         updateMarkerSelection(marker, isSelected)
       }
@@ -860,13 +823,12 @@
       userMarker.setLngLat([longitude, latitude]).addTo(map)
       previousVehicleMarker = { ...vehicleMarker }
 
-      // 🆕 UPDATED: Update selection state for user marker
       const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
       updateMarkerSelection(userMarker, isSelected)
     }
   }
 
-  // 🆕 UPDATED: Create marker element WITHOUT click handler (handled by MapEventManager)
+  // Create marker element WITHOUT click handler (handled by MapEventManager)
   function createMarkerElement(
     vehicleMarker,
     isUserVehicle = false,
@@ -874,9 +836,6 @@
   ) {
     const el = document.createElement("div")
     el.setAttribute("data-vehicle-id", vehicleId)
-
-    // 🆕 REMOVED: Click handler - now handled by MapEventManager
-    // The MapEventManager will detect touches/clicks on elements with data-vehicle-id
 
     new UserMarker({
       target: el,
@@ -888,7 +847,7 @@
         vehicleColor: vehicleMarker.bodyColor,
         vehicleSwath: vehicleMarker.swath,
         showPulse: isUserVehicle,
-        isSelected: selectedVehicleId === vehicleId, // 🆕 UPDATED: Pass selection state
+        isSelected: selectedVehicleId === vehicleId,
       },
     })
 
@@ -1031,7 +990,7 @@
   on:instantZoomToVehicle={handleInstantZoomToVehicle}
 />
 
-<!-- 🆕 NEW: Vehicle Details Panel -->
+<!-- Vehicle Details Panel -->
 <VehicleDetailsPanel
   {selectedVehicleId}
   {getVehicleById}

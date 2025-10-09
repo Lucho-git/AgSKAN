@@ -1,4 +1,4 @@
-<!-- VehicleStateSynchronizer.svelte -->
+<!-- src/components/VehicleStateSynchronizer.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { supabase } from "../lib/supabaseClient"
@@ -9,6 +9,7 @@
     otherVehiclesDataChanges,
     userVehicleTrailing,
   } from "../stores/vehicleStore"
+  import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { vehicleDataLoaded } from "../stores/loadedStore"
@@ -55,7 +56,6 @@
         return {
           ...vehicle,
           full_name: profile?.full_name || "Unknown User",
-          // 🆕 Add operation information
           selected_operation_id: profile?.selected_operation_id || null,
           current_operation: profile?.current_operation || null,
           operation_name: profile?.operation_name || "No operation",
@@ -84,7 +84,6 @@
         is_trailing: serverItem.is_trailing,
         last_update: serverItem.last_update,
         full_name: serverItem.full_name || clientItem?.full_name,
-        // 🆕 ADD OPERATION DATA
         selected_operation_id:
           serverItem.selected_operation_id || clientItem?.selected_operation_id,
         current_operation:
@@ -107,7 +106,6 @@
           serverItem.is_trailing !== clientItem.is_trailing
         const lastUpdateChanged =
           serverItem.last_update !== clientItem.last_update
-        // 🆕 ADD OPERATION CHANGE DETECTION
         const operationChanged =
           serverItem.operation_name !== clientItem.operation_name
 
@@ -176,7 +174,6 @@
       (JSON.stringify(vehicleData.vehicle_marker) !==
         JSON.stringify(previousVehicleData.vehicle_marker) ||
         vehicleData.is_trailing !== previousVehicleData.is_trailing)
-    // Add any other properties that should trigger immediate updates
 
     const currentTime = Date.now()
     const shouldUpdate =
@@ -220,10 +217,15 @@
     const userId = $profileStore.id
     const masterMapId = $profileStore.master_map_id
 
-    // First fetch the user's own vehicle data
+    // 🆕 FIRST: Load presets from database
+    console.log("📦 Loading vehicle presets for map:", masterMapId)
+    await vehiclePresetStore.loadPresetsForMap(masterMapId)
+    console.log("📦 Presets loaded:", $vehiclePresetStore)
+
+    // Then fetch the user's own vehicle data
     const userVehicle = await fetchUserVehicleData(userId)
 
-    // ✅ ALWAYS update the store, even for new users
+    // ALWAYS update the store, even for new users
     let parsedCoordinates = null
     let vehicleData = null
 
@@ -238,7 +240,7 @@
       }
       vehicleData = userVehicle
     } else {
-      // ✅ New user - create default vehicle data
+      // New user - create default vehicle data
       vehicleData = {
         vehicle_id: userId,
         coordinates: null,
@@ -255,7 +257,7 @@
       }
     }
 
-    // 🆕 Get operation data for current user from mapActivityStore
+    // Get operation data for current user from mapActivityStore
     const currentUserProfile = $mapActivityStore.connected_profiles.find(
       (p) => p.id === userId,
     )
@@ -265,13 +267,12 @@
       currentUserProfile,
     )
 
-    // ✅ ALWAYS update the userVehicleStore
+    // ALWAYS update the userVehicleStore
     userVehicleStore.update((vehicle) => {
       return {
         ...vehicle,
         ...vehicleData,
         coordinates: parsedCoordinates, // null for new users, parsed for existing
-        // 🆕 Add operation data to current user's vehicle
         selected_operation_id:
           currentUserProfile?.selected_operation_id || null,
         current_operation: currentUserProfile?.current_operation || null,
@@ -279,6 +280,8 @@
         operation_id: currentUserProfile?.operation_id || null,
       }
     })
+
+    // Preset matching happens reactively in VehicleDetailsPanel - no need to do it here!
 
     // Then fetch initial vehicle data from the server
     const initialVehicles = await fetchInitialVehicleData(masterMapId, userId)
@@ -294,7 +297,6 @@
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         if (payload.payload.vehicle_id !== userId) {
           // Update was made by another vehicle
-          //   console.log("Received vehicle update from another vehicle:", payload)
           serverOtherVehiclesData.update((vehicles) => {
             const existingVehicleIndex = vehicles.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
@@ -305,7 +307,6 @@
                 ...vehicles[existingVehicleIndex],
                 ...payload.payload,
                 full_name: vehicles[existingVehicleIndex].full_name,
-                // 🆕 PRESERVE OPERATION DATA
                 selected_operation_id:
                   vehicles[existingVehicleIndex].selected_operation_id,
                 current_operation:
@@ -314,7 +315,7 @@
                 operation_id: vehicles[existingVehicleIndex].operation_id,
               }
             } else {
-              // Vehicle doesn't exist, add it - but it won't have operation data
+              // Vehicle doesn't exist, add it
               console.log("pushing new vehicle", payload.payload)
               vehicles.push(payload.payload)
             }
@@ -335,24 +336,20 @@
           event: "*", // Listen to all changes (INSERT, UPDATE, DELETE)
           schema: "public",
           table: "vehicle_state",
-          filter: `master_map_id=eq.${masterMapId}`, // Filter for your master map id
+          filter: `master_map_id=eq.${masterMapId}`,
         },
         (payload) => {
           // Check if the update is from another vehicle
           if (payload.new.vehicle_id !== userId) {
-            // console.log(
-            //   "Received vehicle update from another vehicle direct from server:",
-            //   payload,
-            // )
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
-                (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id, // ✅ Fixed: use payload.new
+                (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
                 // Vehicle already exists, update its data while preserving operation data
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
-                  ...payload.new, // ✅ Fixed: use payload.new instead of payload.payload
+                  ...payload.new,
                   full_name: vehicles[existingVehicleIndex].full_name,
                   selected_operation_id:
                     vehicles[existingVehicleIndex].selected_operation_id,
@@ -362,9 +359,9 @@
                   operation_id: vehicles[existingVehicleIndex].operation_id,
                 }
               } else {
-                // Vehicle doesn't exist, add it - but it won't have operation data
-                console.log("pushing new vehicle", payload.new) // ✅ Fixed: use payload.new
-                vehicles.push(payload.new) // ✅ Fixed: use payload.new
+                // Vehicle doesn't exist, add it
+                console.log("pushing new vehicle", payload.new)
+                vehicles.push(payload.new)
               }
               return vehicles
             })

@@ -10,9 +10,9 @@ function createUserVehicleStore() {
     is_trailing: false,
     vehicle_marker: {
       type: "Pointer",
-      bodyColor: "Yellow",  // Keep as bodyColor
-      size: 45,             // Numeric value
-      swath: 12,
+      bodyColor: "Yellow",
+      size: 45,
+      swath: 4,
       path: () => vehicleComponents.Pointer,
     },
     heading: 0,
@@ -22,7 +22,7 @@ function createUserVehicleStore() {
     subscribe,
     set,
     update,
-    updateVehicleMarker: (newMarker) => {
+    updateVehicleMarker: (newMarker, presetId = null) => {
       update((store) => ({
         ...store,
         vehicle_marker: {
@@ -32,6 +32,8 @@ function createUserVehicleStore() {
         },
       }))
     },
+
+
   }
 }
 

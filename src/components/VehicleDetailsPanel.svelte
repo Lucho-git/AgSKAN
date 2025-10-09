@@ -1,3 +1,5 @@
+<!-- src/components/VehicleDetailsPanel.svelte -->
+
 <script>
   import {
     Edit3,
@@ -5,17 +7,19 @@
     Navigation,
     Clock,
     Zap,
-    MapPin,
-    User,
     Truck,
     Locate,
     Palette,
     Ruler,
+    User,
   } from "lucide-svelte"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
   import { userVehicleStore } from "../stores/vehicleStore"
+  import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import SVGComponents from "$lib/vehicles/index.js"
+
+  import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -35,16 +39,14 @@
     : null
   $: isCurrentUser = currentVehicle?.isCurrentUser || false
 
-  // 🆕 Reactive vehicle icon component - updates when userVehicleStore changes
+  // Reactive vehicle icon component - updates when userVehicleStore changes
   let VehicleIcon
   $: {
-    // For current user, watch the store for reactive updates
     if (isCurrentUser && $userVehicleStore?.vehicle_marker?.type) {
       VehicleIcon =
         SVGComponents[$userVehicleStore.vehicle_marker.type] ||
         SVGComponents.Pointer
     } else if (currentVehicle?.vehicle_marker?.type) {
-      // For other vehicles, use the currentVehicle data
       VehicleIcon =
         SVGComponents[currentVehicle.vehicle_marker.type] ||
         SVGComponents.Pointer
@@ -53,7 +55,7 @@
     }
   }
 
-  // 🆕 Reactive vehicle properties - update when userVehicleStore changes
+  // Reactive vehicle properties - update when userVehicleStore changes
   $: vehicleBodyColor = isCurrentUser
     ? $userVehicleStore?.vehicle_marker?.bodyColor || "Green"
     : currentVehicle?.vehicle_marker?.bodyColor || "Green"
@@ -62,18 +64,51 @@
     ? $userVehicleStore?.vehicle_marker?.swath || 12
     : currentVehicle?.vehicle_marker?.swath || 12
 
-  // 🆕 NEW: Reactive vehicle type for display
+  // Reactive vehicle type for display
   $: vehicleType = isCurrentUser
     ? $userVehicleStore?.vehicle_marker?.type || "Tractor"
     : currentVehicle?.vehicle_marker?.type || "Tractor"
 
-  // 🆕 NEW: Reactive vehicle marker for info panel
+  // Reactive vehicle marker for info panel
   $: vehicleMarkerData = isCurrentUser
     ? $userVehicleStore?.vehicle_marker
     : currentVehicle?.vehicle_marker
 
+  // 🆕 UPDATED: Match preset by configuration (type + bodyColor + swath)
+  $: displayName = (() => {
+    if (!currentVehicle) return "Unknown Vehicle"
+
+    // Get the vehicle marker to check against presets
+    const marker = isCurrentUser
+      ? $userVehicleStore?.vehicle_marker
+      : currentVehicle?.vehicle_marker
+
+    if (marker) {
+      // Try to find a matching preset by configuration
+      const matchingPreset = $vehiclePresetStore.find(
+        (p) =>
+          p.type === marker.type &&
+          p.body_color === marker.bodyColor &&
+          p.swath === marker.swath,
+      )
+
+      if (matchingPreset) {
+        console.log("🎯 Found matching preset by config:", matchingPreset.name)
+        return matchingPreset.name
+      }
+    }
+
+    // Fall back to vehicle type short name
+    const fallbackName = getVehicleTypeName(marker?.type || "Vehicle")
+    console.log("📛 Using fallback name:", fallbackName)
+    return fallbackName
+  })()
+
   $: if (currentVehicle) {
     console.log("🚗 Selected Vehicle Data:", currentVehicle)
+    console.log("🚗 Display Name:", displayName)
+    console.log("🚗 Vehicle Marker:", vehicleMarkerData)
+    console.log("🚗 Current Presets:", $vehiclePresetStore)
   }
 
   // Close panel when no vehicle selected
@@ -245,47 +280,6 @@
     return vehicle.operation_name || "No operation"
   }
 
-  function getVehicleDisplayName() {
-    if (!vehicleType) return "Unknown Vehicle"
-
-    const shortNames = {
-      FourWheelDriveTractor: "FWD Tractor",
-      TowBetweenSeeder: "TB Seeder",
-      TowBehindSeeder: "TB Seeder",
-      TowBehindSeederTracks: "TB Seeder Tracks",
-      TowBehindBoomspray: "TB Boomspray",
-      SelfPropelledBoomspray: "SP Boomspray",
-      ThreePointBoomspray: "3P Boomspray",
-      FarmUte: "Farm Ute",
-      FrontWheelChaserBin: "FW Chaser",
-      FourWheelDriveChaserBin: "FWD Chaser",
-      HeaderDuals: "Header Duals",
-      HeaderSingles: "Header Singles",
-      HeaderTracks: "Header Tracks",
-      SelfPropelledSwather: "SP Swather",
-      Spreader: "Spreader",
-      Truck: "Truck",
-      CabOverTruck: "Cab Over Truck",
-      CabOverRoadTrain: "Road Train",
-      Baler: "Baler",
-      Mower: "Mower",
-      SelfPropelledMower: "SP Mower",
-      Telehandler: "Telehandler",
-      Loader: "Loader",
-      SimpleTractor: "Simple Tractor",
-      Pointer: "Pointer",
-      CombineHarvester: "Combine",
-      Excavator: "Excavator",
-      Tractor: "Tractor",
-      WheelLoader: "Wheel Loader",
-      WorkCar: "Work Car",
-      Airplane: "Airplane",
-      simpleTractor: "Simple Tractor",
-    }
-
-    return shortNames[vehicleType] || vehicleType
-  }
-
   function handleIconClick() {
     if (isCurrentUser && onOpenVehicleControls) {
       onOpenVehicleControls()
@@ -323,7 +317,7 @@
               <span class="vehicle-label"
                 >{currentVehicle.full_name || "Unknown Operator"}</span
               >
-              <span class="vehicle-type">{getVehicleDisplayName()}</span>
+              <span class="vehicle-type">{displayName}</span>
             </div>
             <div
               class="vehicle-status"
@@ -455,9 +449,7 @@
             {isCurrentUser
               ? "You"
               : currentVehicle.full_name || "Unknown Operator"}
-            <span class="vehicle-type-preview">
-              - {getVehicleDisplayName()}</span
-            >
+            <span class="vehicle-type-preview"> - {displayName}</span>
           </span>
         </div>
       </div>
@@ -481,7 +473,6 @@
           <Locate size={20} />
         </button>
 
-        <!-- 🆕 UPDATED: Track button now shows for all vehicles (including current user) -->
         <button
           class="control-btn track-btn"
           on:click={handleStartTracking}

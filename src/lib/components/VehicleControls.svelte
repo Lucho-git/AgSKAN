@@ -7,23 +7,40 @@
     Minus,
     Plus,
     ChevronsLeftRight,
+    Star,
+    Bookmark,
+    Truck,
+    Trash2,
   } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
-
-  // Import the vehicle store directly
   import { userVehicleStore } from "../../stores/vehicleStore"
+  import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
+  import PresetNameDialog from "./PresetNameDialog.svelte"
 
   const dispatch = createEventDispatcher()
 
-  // Get current values directly from store - NO PROPS
+  // Get current values directly from store
   $: currentVehicleType = $userVehicleStore.vehicle_marker?.type || "Pointer"
   $: currentVehicleColor =
-    $userVehicleStore.vehicle_marker?.bodyColor || "Yellow" // Changed to bodyColor
+    $userVehicleStore.vehicle_marker?.bodyColor || "Yellow"
   $: currentVehicleSwath = $userVehicleStore.vehicle_marker?.swath || 12
 
   // Active sub-panel state
-  let activeSubPanel = null // null, 'vehicles', 'colors', 'swath'
+  let activeSubPanel = null // null, 'vehicles', 'colors', 'swath', 'presets'
+
+  // Dialog state
+  let showPresetDialog = false
+
+  // Check if current config is saved as preset
+  $: currentPreset = $vehiclePresetStore.find(
+    (p) =>
+      p.type === selectedVehicle &&
+      p.body_color === selectedColor &&
+      p.swath === selectedSwath,
+  )
+  $: isCurrentConfigSaved = !!currentPreset
 
   // Complete vehicle data with proper default sizes
   const vehicles = [
@@ -60,7 +77,6 @@
     { type: "Airplane", color: "blue", size: 85, swath: 50 },
   ]
 
-  // Color names matching your store's naming convention
   const colors = [
     "Red",
     "Blue",
@@ -77,7 +93,7 @@
   let selectedVehicle = currentVehicleType
   let selectedColor = currentVehicleColor
   let selectedSwath = currentVehicleSwath
-  let tempSwath = currentVehicleSwath // For slider
+  let tempSwath = currentVehicleSwath
 
   // Update selections when store changes
   $: {
@@ -132,38 +148,120 @@
     tempSwath = value
   }
 
-  // Get proper default size for vehicle type
   function getDefaultSizeForVehicle(vehicleType) {
     const vehicle = vehicles.find((v) => v.type === vehicleType)
-    return vehicle ? vehicle.size : 45 // Fallback to reasonable default
+    return vehicle ? vehicle.size : 45
   }
 
-  // Main confirm function that updates the store and closes menu
   function confirmVehicleSelection() {
     const defaultSize = getDefaultSizeForVehicle(selectedVehicle)
 
     console.log(`🚜 Vehicle updated:`, {
       type: selectedVehicle,
-      bodyColor: selectedColor, // Changed to bodyColor
+      bodyColor: selectedColor,
       swath: selectedSwath,
       size: defaultSize,
     })
 
-    // Update the vehicle store using the updateVehicleMarker helper
     userVehicleStore.updateVehicleMarker({
       type: selectedVehicle,
-      bodyColor: selectedColor, // Changed to bodyColor
+      bodyColor: selectedColor,
       swath: selectedSwath,
       size: defaultSize,
     })
 
-    // Show success message
-    toast.success(
-      `Vehicle updated: ${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m`,
+    const matchingPreset = $vehiclePresetStore.find(
+      (p) =>
+        p.type === selectedVehicle &&
+        p.body_color === selectedColor &&
+        p.swath === selectedSwath,
     )
 
-    // Close the toolbox
+    const displayName = matchingPreset
+      ? matchingPreset.name
+      : `${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m`
+
+    toast.success(`Vehicle updated: ${displayName}`)
+
     dispatch("close")
+  }
+
+  function openSavePresetDialog() {
+    showPresetDialog = true
+  }
+
+  // 🆕 NEW: Star button handler - Save OR Delete
+  async function handleStarButtonClick() {
+    if (isCurrentConfigSaved && currentPreset) {
+      // Store the preset name BEFORE deleting (so we can use it in the toast)
+      const presetNameToDelete = currentPreset.name
+      const presetIdToDelete = currentPreset.id
+
+      // Configuration is already saved - offer to delete
+      if (confirm(`Delete preset "${presetNameToDelete}"?`)) {
+        try {
+          await vehiclePresetStore.deletePreset(presetIdToDelete)
+          toast.success(`Preset "${presetNameToDelete}" deleted`)
+        } catch (error) {
+          console.error("Delete preset error:", error)
+          toast.error("Failed to delete preset")
+        }
+      }
+    } else {
+      // Configuration is not saved - offer to save
+      openSavePresetDialog()
+    }
+  }
+
+  async function handleSavePreset(event) {
+    const { name } = event.detail
+    const defaultSize = getDefaultSizeForVehicle(selectedVehicle)
+
+    try {
+      await vehiclePresetStore.addPreset(
+        $profileStore.master_map_id,
+        $profileStore.id,
+        {
+          name,
+          type: selectedVehicle,
+          bodyColor: selectedColor,
+          swath: selectedSwath,
+          size: defaultSize,
+        },
+      )
+
+      showPresetDialog = false
+      toast.success(`Preset "${name}" saved!`)
+    } catch (error) {
+      toast.error(error.message || "Failed to save preset")
+    }
+  }
+
+  function handleCancelPresetDialog() {
+    showPresetDialog = false
+  }
+
+  function loadPreset(preset) {
+    selectedVehicle = preset.type
+    selectedColor = preset.body_color
+    selectedSwath = preset.swath
+    tempSwath = preset.swath
+
+    hideSubPanel()
+    toast.success(`Loaded preset: ${preset.name}`)
+  }
+
+  async function deletePreset(event, presetId, presetName) {
+    event.stopPropagation() // Prevent card click
+
+    if (confirm(`Delete preset "${presetName}"?`)) {
+      try {
+        await vehiclePresetStore.deletePreset(presetId)
+        toast.success(`Preset "${presetName}" deleted`)
+      } catch (error) {
+        toast.error("Failed to delete preset")
+      }
+    }
   }
 
   function getShortName(vehicleType) {
@@ -203,12 +301,10 @@
     return shortNames[vehicleType] || vehicleType
   }
 
-  // Function to get the exact color value that SVG components expect
   function getColorValue(colorName) {
     return colorName
   }
 
-  // Function to get display color for UI elements (CSS-compatible colors)
   function getDisplayColor(colorName) {
     const colorMap = {
       Red: "#ff0000",
@@ -225,7 +321,6 @@
   }
 </script>
 
-<!-- Rest of template stays exactly the same -->
 <div class="vehicle-controls">
   {#if activeSubPanel === null}
     <!-- Main Vehicle Panel -->
@@ -245,12 +340,37 @@
             {/if}
           </div>
         </div>
+
+        <!-- Star button moved below vehicle icon -->
         <div class="vehicle-details">
-          <div class="vehicle-name">{getShortName(selectedVehicle)}</div>
+          <div class="vehicle-name-row">
+            <div class="vehicle-name">
+              {#if currentPreset}
+                {currentPreset.name}
+              {:else}
+                {getShortName(selectedVehicle)}
+              {/if}
+            </div>
+            <!-- 🆕 UPDATED: Star button now calls handleStarButtonClick -->
+            <button
+              class="star-button-inline"
+              class:saved={isCurrentConfigSaved}
+              on:click={handleStarButtonClick}
+              title={isCurrentConfigSaved
+                ? `Delete preset "${currentPreset?.name}"`
+                : "Save as preset"}
+            >
+              <Star
+                size={18}
+                fill={isCurrentConfigSaved ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
           <div class="vehicle-specs">{selectedColor} • {selectedSwath}m</div>
         </div>
       </div>
 
+      <!-- Rest of your component stays exactly the same... -->
       <!-- Quick Actions -->
       <div class="quick-actions">
         <button class="action-button" on:click={() => showSubPanel("vehicles")}>
@@ -294,9 +414,22 @@
           </div>
           <ChevronRight size={16} class="chevron" />
         </button>
+
+        <button
+          class="action-button preset-action"
+          on:click={() => showSubPanel("presets")}
+        >
+          <div class="action-icon">
+            <Bookmark size={20} />
+          </div>
+          <div class="action-info">
+            <div class="action-name">My Presets</div>
+            <div class="action-value">{$vehiclePresetStore.length} saved</div>
+          </div>
+          <ChevronRight size={16} class="chevron" />
+        </button>
       </div>
 
-      <!-- Confirm Button - Only show if there are changes -->
       {#if hasChanges}
         <div class="confirm-section">
           <button class="main-confirm-btn" on:click={confirmVehicleSelection}>
@@ -306,35 +439,145 @@
         </div>
       {/if}
     </div>
+  {:else if activeSubPanel === "presets"}
+    <!-- Presets Sub-Panel -->
+    <div class="sub-panel">
+      <div class="sub-header">
+        <button class="back-btn" on:click={hideSubPanel}>←</button>
+        <h4>My Presets</h4>
+      </div>
+      <div class="scrollable-content">
+        {#if $vehiclePresetStore.length === 0}
+          <div class="empty-state">
+            <Bookmark size={48} class="empty-icon" />
+            <p class="empty-title">No presets saved yet</p>
+            <p class="empty-description">
+              Configure your vehicle, then tap the star icon to save it as a
+              preset.
+            </p>
+          </div>
+        {:else}
+          <div class="preset-grid">
+            {#each $vehiclePresetStore as preset (preset.id)}
+              <button class="preset-card" on:click={() => loadPreset(preset)}>
+                <div class="preset-header">
+                  <div class="preset-icon">
+                    {#if SVGComponents[preset.type]}
+                      <svelte:component
+                        this={SVGComponents[preset.type]}
+                        bodyColor={preset.body_color}
+                        size="40px"
+                      />
+                    {:else}
+                      <div class="fallback-icon-small">🚜</div>
+                    {/if}
+                  </div>
+                  <!-- 🆕 Delete button -->
+                  <button
+                    class="preset-delete"
+                    on:click={(e) => deletePreset(e, preset.id, preset.name)}
+                    title="Delete preset"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{preset.name}</div>
+                  <div class="preset-specs">
+                    {preset.body_color} • {preset.swath}m
+                  </div>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
   {:else if activeSubPanel === "vehicles"}
-    <!-- Vehicle Selection -->
+    <!-- Vehicle Selection with Presets at Top -->
     <div class="sub-panel">
       <div class="sub-header">
         <button class="back-btn" on:click={hideSubPanel}>←</button>
         <h4>Select Vehicle</h4>
       </div>
       <div class="scrollable-content">
-        <div class="vehicle-grid">
-          {#each vehicles as vehicle}
-            <button
-              class="vehicle-option"
-              class:selected={selectedVehicle === vehicle.type}
-              on:click={() => selectVehicle(vehicle.type)}
-            >
-              <div class="vehicle-icon-small">
-                {#if SVGComponents[vehicle.type]}
-                  <svelte:component
-                    this={SVGComponents[vehicle.type]}
-                    bodyColor={getColorValue(selectedColor)}
-                    size="40px"
-                  />
-                {:else}
-                  <div class="fallback-icon-small">🚜</div>
-                {/if}
-              </div>
-              <div class="vehicle-label">{getShortName(vehicle.type)}</div>
-            </button>
-          {/each}
+        <!-- My Presets Section (shown at top if presets exist) -->
+        {#if $vehiclePresetStore.length > 0}
+          <div class="presets-in-vehicles-section">
+            <div class="section-header">
+              <Bookmark size={14} />
+              <span>MY PRESETS</span>
+            </div>
+            <div class="preset-quick-grid">
+              {#each $vehiclePresetStore as preset (preset.id)}
+                <button
+                  class="preset-quick-card"
+                  class:selected={selectedVehicle === preset.type &&
+                    selectedColor === preset.body_color &&
+                    selectedSwath === preset.swath}
+                  on:click={() => loadPreset(preset)}
+                >
+                  <!-- 🆕 Delete button in quick preset -->
+                  <button
+                    class="preset-quick-delete"
+                    on:click={(e) => deletePreset(e, preset.id, preset.name)}
+                    title="Delete preset"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+
+                  <div class="preset-quick-icon">
+                    {#if SVGComponents[preset.type]}
+                      <svelte:component
+                        this={SVGComponents[preset.type]}
+                        bodyColor={preset.body_color}
+                        size="32px"
+                      />
+                    {:else}
+                      <div class="fallback-icon-small">🚜</div>
+                    {/if}
+                  </div>
+                  <div class="preset-quick-name">{preset.name}</div>
+                  <div class="preset-quick-specs">
+                    {preset.body_color} • {preset.swath}m
+                  </div>
+                </button>
+              {/each}
+            </div>
+            <div class="section-divider"></div>
+          </div>
+        {/if}
+
+        <!-- All Vehicles Section -->
+        <div class="all-vehicles-section">
+          {#if $vehiclePresetStore.length > 0}
+            <div class="section-header">
+              <Truck size={14} />
+              <span>ALL VEHICLES</span>
+            </div>
+          {/if}
+          <div class="vehicle-grid">
+            {#each vehicles as vehicle}
+              <button
+                class="vehicle-option"
+                class:selected={selectedVehicle === vehicle.type}
+                on:click={() => selectVehicle(vehicle.type)}
+              >
+                <div class="vehicle-icon-small">
+                  {#if SVGComponents[vehicle.type]}
+                    <svelte:component
+                      this={SVGComponents[vehicle.type]}
+                      bodyColor={getColorValue(selectedColor)}
+                      size="40px"
+                    />
+                  {:else}
+                    <div class="fallback-icon-small">🚜</div>
+                  {/if}
+                </div>
+                <div class="vehicle-label">{getShortName(vehicle.type)}</div>
+              </button>
+            {/each}
+          </div>
         </div>
       </div>
     </div>
@@ -361,7 +604,7 @@
       </div>
     </div>
   {:else if activeSubPanel === "swath"}
-    <!-- Swath Selection with Slider -->
+    <!-- Swath Selection -->
     <div class="sub-panel">
       <div class="sub-header">
         <button class="back-btn" on:click={hideSubPanel}>←</button>
@@ -417,6 +660,13 @@
   {/if}
 </div>
 
+<!-- Preset Name Dialog -->
+<PresetNameDialog
+  isOpen={showPresetDialog}
+  on:save={handleSavePreset}
+  on:cancel={handleCancelPresetDialog}
+/>
+
 <style>
   .vehicle-controls {
     padding: 16px;
@@ -456,6 +706,7 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 8px 16px rgba(96, 165, 250, 0.3);
+    position: relative;
   }
 
   .vehicle-icon {
@@ -470,13 +721,57 @@
 
   .vehicle-details {
     text-align: center;
+    width: 100%;
+  }
+
+  /* 🆕 NEW: Vehicle name row with inline star button */
+  .vehicle-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 4px;
   }
 
   .vehicle-name {
     font-size: 16px;
     font-weight: 600;
     color: white;
-    margin-bottom: 4px;
+  }
+
+  /* 🆕 NEW: Inline star button styling */
+  .star-button-inline {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0;
+  }
+
+  .star-button-inline:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: white;
+    transform: scale(1.15);
+  }
+
+  .star-button-inline.saved {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+
+  .star-button-inline.saved:hover {
+    background: rgba(251, 191, 36, 0.3);
+    border-color: rgba(251, 191, 36, 0.6);
   }
 
   .vehicle-specs {
@@ -507,6 +802,15 @@
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     transform: translateY(-1px);
+  }
+
+  .preset-action {
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .preset-action:hover {
+    border-color: rgba(251, 191, 36, 0.5);
+    background: rgba(251, 191, 36, 0.1);
   }
 
   .action-icon {
@@ -565,7 +869,6 @@
     transform: translateX(2px);
   }
 
-  /* Main confirm button styling - Improved for mobile */
   .confirm-section {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding-top: 16px;
@@ -655,6 +958,245 @@
   .scrollable-content {
     flex: 1;
     overflow-y: auto;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    color: rgba(255, 255, 255, 0.3);
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 8px;
+  }
+
+  .empty-description {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding-bottom: 20px;
+  }
+
+  .preset-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .preset-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .preset-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .preset-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+  }
+
+  .preset-delete {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+
+  .preset-delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    transform: scale(1.1);
+  }
+
+  .preset-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .preset-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    text-align: left;
+  }
+
+  .preset-specs {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    text-align: left;
+  }
+
+  .presets-in-vehicles-section {
+    margin-bottom: 20px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .preset-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .preset-quick-card {
+    background: linear-gradient(
+      135deg,
+      rgba(251, 191, 36, 0.1),
+      rgba(251, 191, 36, 0.05)
+    );
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+  }
+
+  .preset-quick-card:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(251, 191, 36, 0.2),
+      rgba(251, 191, 36, 0.1)
+    );
+    border-color: rgba(251, 191, 36, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+  }
+
+  .preset-quick-card.selected {
+    background: linear-gradient(
+      135deg,
+      rgba(251, 191, 36, 0.3),
+      rgba(251, 191, 36, 0.2)
+    );
+    border-color: rgba(251, 191, 36, 0.6);
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
+  }
+
+  /* 🆕 NEW: Delete button for quick presets */
+  .preset-quick-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    z-index: 10;
+  }
+
+  .preset-quick-delete:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.6);
+    transform: scale(1.15);
+  }
+
+  .preset-quick-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    margin-bottom: 4px;
+  }
+
+  .preset-quick-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preset-quick-specs {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.6);
+    text-align: center;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+    margin: 16px 0;
+  }
+
+  .all-vehicles-section {
+    /* Container for all vehicles */
   }
 
   .vehicle-grid {
@@ -884,58 +1426,14 @@
     transform: translateY(-1px);
   }
 
-  /* Mobile Responsive */
   @media (max-width: 768px) {
     .vehicle-controls {
       padding: 12px;
     }
 
-    .main-panel {
-      gap: 16px;
-    }
-
-    .current-vehicle {
-      padding: 16px;
-    }
-
-    .vehicle-preview {
-      padding: 12px;
-    }
-
-    .vehicle-grid,
-    .color-grid {
+    .preset-grid,
+    .preset-quick-grid {
       gap: 10px;
-    }
-
-    .vehicle-option,
-    .color-option {
-      padding: 10px;
-    }
-
-    .preset-buttons {
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    /* Mobile confirm button improvements */
-    .confirm-section {
-      padding-top: 12px;
-      margin-top: 8px;
-    }
-
-    .main-confirm-btn {
-      padding: 12px 14px;
-      font-size: 14px;
-      min-height: 44px;
-      gap: 6px;
-    }
-
-    .confirm-icon {
-      width: 16px;
-      height: 16px;
-    }
-
-    .confirm-text {
-      font-size: 14px;
     }
   }
 
@@ -944,41 +1442,19 @@
       padding: 10px;
     }
 
-    .main-panel {
-      gap: 14px;
-    }
-
-    .current-vehicle {
+    .preset-card {
       padding: 14px;
-      gap: 12px;
     }
 
-    .vehicle-preview {
-      padding: 10px;
-    }
-
-    .action-button {
-      padding: 12px;
-    }
-
-    .quick-actions {
-      gap: 10px;
-    }
-
-    /* Extra small mobile confirm button */
-    .main-confirm-btn {
-      padding: 10px 12px;
+    .preset-name {
       font-size: 13px;
-      min-height: 40px;
-      gap: 4px;
     }
 
-    .confirm-text {
-      font-size: 13px;
+    .preset-specs {
+      font-size: 11px;
     }
   }
 
-  /* Scrollbar styling */
   .scrollable-content::-webkit-scrollbar {
     width: 4px;
   }
