@@ -1,3 +1,4 @@
+// src/stores/vehicleStore.js
 import { writable } from "svelte/store"
 import vehicleComponents from "$lib/vehicles"
 
@@ -9,10 +10,10 @@ function createUserVehicleStore() {
     is_trailing: false,
     vehicle_marker: {
       type: "Pointer",
-      color: "Yellow",
-      size: "45px",
+      bodyColor: "Yellow",  // Keep as bodyColor
+      size: 45,             // Numeric value
       swath: 12,
-      path: () => vehicleComponents.SimpleTractor,
+      path: () => vehicleComponents.Pointer,
     },
     heading: 0,
   })
@@ -27,7 +28,7 @@ function createUserVehicleStore() {
         vehicle_marker: {
           ...store.vehicle_marker,
           ...newMarker,
-          path: () => vehicleComponents[newMarker.type],
+          path: () => vehicleComponents[newMarker.type] || vehicleComponents.Pointer,
         },
       }))
     },

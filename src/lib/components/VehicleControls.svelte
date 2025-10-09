@@ -16,51 +16,51 @@
 
   const dispatch = createEventDispatcher()
 
-  // Get current values from store instead of props
-  $: currentVehicleType = $userVehicleStore.vehicle_marker?.type || "Tractor"
+  // Get current values directly from store - NO PROPS
+  $: currentVehicleType = $userVehicleStore.vehicle_marker?.type || "Pointer"
   $: currentVehicleColor =
-    $userVehicleStore.vehicle_marker?.bodyColor || "Green"
+    $userVehicleStore.vehicle_marker?.bodyColor || "Yellow" // Changed to bodyColor
   $: currentVehicleSwath = $userVehicleStore.vehicle_marker?.swath || 12
 
   // Active sub-panel state
   let activeSubPanel = null // null, 'vehicles', 'colors', 'swath'
 
-  // Complete vehicle data with PROPER default sizes
+  // Complete vehicle data with proper default sizes
   const vehicles = [
-    { type: "FourWheelDriveTractor", bodyColor: "green", size: 35, swath: 4 },
-    { type: "TowBetweenSeeder", bodyColor: "red", size: 80, swath: 12 },
-    { type: "TowBehindSeeder", bodyColor: "red", size: 80, swath: 12 },
-    { type: "TowBehindSeederTracks", bodyColor: "red", size: 80, swath: 12 },
-    { type: "TowBehindBoomspray", bodyColor: "red", size: 80, swath: 36 },
-    { type: "SelfPropelledBoomspray", bodyColor: "red", size: 45, swath: 36 },
-    { type: "ThreePointBoomspray", bodyColor: "red", size: 45, swath: 36 },
-    { type: "FarmUte", bodyColor: "red", size: 40, swath: 4 },
-    { type: "FrontWheelChaserBin", bodyColor: "red", size: 70, swath: 12 },
-    { type: "FourWheelDriveChaserBin", bodyColor: "red", size: 70, swath: 12 },
-    { type: "HeaderDuals", bodyColor: "red", size: 50, swath: 12 },
-    { type: "HeaderSingles", bodyColor: "red", size: 50, swath: 12 },
-    { type: "HeaderTracks", bodyColor: "red", size: 50, swath: 12 },
-    { type: "SelfPropelledSwather", bodyColor: "red", size: 50, swath: 12 },
-    { type: "Spreader", bodyColor: "red", size: 80, swath: 12 },
-    { type: "Truck", bodyColor: "red", size: 60, swath: 4 },
-    { type: "CabOverTruck", bodyColor: "red", size: 60, swath: 4 },
-    { type: "CabOverRoadTrain", bodyColor: "red", size: 100, swath: 4 },
-    { type: "Baler", bodyColor: "red", size: 80, swath: 12 },
-    { type: "Mower", bodyColor: "red", size: 60, swath: 12 },
-    { type: "SelfPropelledMower", bodyColor: "red", size: 60, swath: 12 },
-    { type: "Telehandler", bodyColor: "red", size: 70, swath: 12 },
-    { type: "Loader", bodyColor: "red", size: 50, swath: 4 },
-    { type: "SimpleTractor", bodyColor: "red", size: 45, swath: 4 },
-    { type: "Pointer", bodyColor: "green", size: 45, swath: 4 },
-    { type: "CombineHarvester", bodyColor: "yellow", size: 60, swath: 12 },
-    { type: "Excavator", bodyColor: "orange", size: 70, swath: 4 },
-    { type: "Tractor", bodyColor: "green", size: 45, swath: 4 },
-    { type: "WheelLoader", bodyColor: "yellow", size: 60, swath: 4 },
-    { type: "WorkCar", bodyColor: "red", size: 45, swath: 4 },
-    { type: "Airplane", bodyColor: "blue", size: 85, swath: 50 },
+    { type: "FourWheelDriveTractor", color: "green", size: 35, swath: 4 },
+    { type: "TowBetweenSeeder", color: "red", size: 80, swath: 12 },
+    { type: "TowBehindSeeder", color: "red", size: 80, swath: 12 },
+    { type: "TowBehindSeederTracks", color: "red", size: 80, swath: 12 },
+    { type: "TowBehindBoomspray", color: "red", size: 80, swath: 36 },
+    { type: "SelfPropelledBoomspray", color: "red", size: 45, swath: 36 },
+    { type: "ThreePointBoomspray", color: "red", size: 45, swath: 36 },
+    { type: "FarmUte", color: "red", size: 40, swath: 4 },
+    { type: "FrontWheelChaserBin", color: "red", size: 70, swath: 12 },
+    { type: "FourWheelDriveChaserBin", color: "red", size: 70, swath: 12 },
+    { type: "HeaderDuals", color: "red", size: 50, swath: 12 },
+    { type: "HeaderSingles", color: "red", size: 50, swath: 12 },
+    { type: "HeaderTracks", color: "red", size: 50, swath: 12 },
+    { type: "SelfPropelledSwather", color: "red", size: 50, swath: 12 },
+    { type: "Spreader", color: "red", size: 80, swath: 12 },
+    { type: "Truck", color: "red", size: 60, swath: 4 },
+    { type: "CabOverTruck", color: "red", size: 60, swath: 4 },
+    { type: "CabOverRoadTrain", color: "red", size: 100, swath: 4 },
+    { type: "Baler", color: "red", size: 80, swath: 12 },
+    { type: "Mower", color: "red", size: 60, swath: 12 },
+    { type: "SelfPropelledMower", color: "red", size: 60, swath: 12 },
+    { type: "Telehandler", color: "red", size: 70, swath: 12 },
+    { type: "Loader", color: "red", size: 50, swath: 4 },
+    { type: "SimpleTractor", color: "red", size: 45, swath: 4 },
+    { type: "Pointer", color: "green", size: 45, swath: 4 },
+    { type: "CombineHarvester", color: "yellow", size: 60, swath: 12 },
+    { type: "Excavator", color: "orange", size: 70, swath: 4 },
+    { type: "Tractor", color: "green", size: 45, swath: 4 },
+    { type: "WheelLoader", color: "yellow", size: 60, swath: 4 },
+    { type: "WorkCar", color: "red", size: 45, swath: 4 },
+    { type: "Airplane", color: "blue", size: 85, swath: 50 },
   ]
 
-  // Use the exact same color array as your original component - simple strings
+  // Color names matching your store's naming convention
   const colors = [
     "Red",
     "Blue",
@@ -132,42 +132,37 @@
     tempSwath = value
   }
 
-  // FIXED: Get proper default size for vehicle type
+  // Get proper default size for vehicle type
   function getDefaultSizeForVehicle(vehicleType) {
     const vehicle = vehicles.find((v) => v.type === vehicleType)
-    return vehicle ? vehicle.size : 120 // Fallback to reasonable default
+    return vehicle ? vehicle.size : 45 // Fallback to reasonable default
   }
 
   // Main confirm function that updates the store and closes menu
   function confirmVehicleSelection() {
     const defaultSize = getDefaultSizeForVehicle(selectedVehicle)
 
-    // ALWAYS use vehicle-specific default size (ignore existing size)
-    const finalSize = defaultSize
+    console.log(`🚜 Vehicle updated:`, {
+      type: selectedVehicle,
+      bodyColor: selectedColor, // Changed to bodyColor
+      swath: selectedSwath,
+      size: defaultSize,
+    })
 
-    console.log(`🚜 Vehicle size logic:`)
-    console.log(`  - Selected vehicle: ${selectedVehicle}`)
-    console.log(`  - Default size for vehicle: ${defaultSize}`)
-    console.log(`  - Final size (always default): ${finalSize}`)
-
-    // Update the vehicle store
-    userVehicleStore.update((vehicle) => ({
-      ...vehicle,
-      vehicle_marker: {
-        ...vehicle.vehicle_marker,
-        type: selectedVehicle,
-        bodyColor: selectedColor,
-        swath: selectedSwath,
-        size: finalSize, // Always uses the vehicle-specific default
-      },
-    }))
+    // Update the vehicle store using the updateVehicleMarker helper
+    userVehicleStore.updateVehicleMarker({
+      type: selectedVehicle,
+      bodyColor: selectedColor, // Changed to bodyColor
+      swath: selectedSwath,
+      size: defaultSize,
+    })
 
     // Show success message
     toast.success(
-      `Vehicle updated: ${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m • ${finalSize}px`,
+      `Vehicle updated: ${getShortName(selectedVehicle)} • ${selectedColor} • ${selectedSwath}m`,
     )
 
-    // Close the toolbox by dispatching close event to parent
+    // Close the toolbox
     dispatch("close")
   }
 
@@ -208,9 +203,9 @@
     return shortNames[vehicleType] || vehicleType
   }
 
-  // Function to get the exact color value that SVG components expect (just the string)
+  // Function to get the exact color value that SVG components expect
   function getColorValue(colorName) {
-    return colorName // SVG components expect the string directly like "Blue", "Red", etc.
+    return colorName
   }
 
   // Function to get display color for UI elements (CSS-compatible colors)
@@ -230,7 +225,7 @@
   }
 </script>
 
-<!-- Rest of the component remains exactly the same -->
+<!-- Rest of template stays exactly the same -->
 <div class="vehicle-controls">
   {#if activeSubPanel === null}
     <!-- Main Vehicle Panel -->

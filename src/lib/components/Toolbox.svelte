@@ -1,14 +1,7 @@
 <!-- src/lib/components/Toolbox.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import {
-    MapPin,
-    PencilRuler,
-    Route,
-    Truck,
-    Ruler,
-    Satellite,
-  } from "lucide-svelte"
+  import { MapPin, Route, Truck, Ruler, Satellite } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   // Import vehicle store and components
@@ -25,17 +18,11 @@
 
   export let isOpen = false
   export let satelliteManager = null
-  export let currentVehicleType = "Tractor"
-  export let currentVehicleColor = "Green"
-  export let currentVehicleSwath = 12
-
-  // Trail-related props
   export let trailReplayAPI = null
 
   const dispatch = createEventDispatcher()
 
-  // State for different tool panels
-  let activePanel = null // 'main', 'satellite', 'marker', 'vehicle', 'trail', etc.
+  let activePanel = null
 
   // Get vehicle icon component from store
   let VehicleIcon
@@ -50,7 +37,6 @@
     }
   }
 
-  // Get default marker from userSettingsStore
   function getDefaultMarker() {
     return (
       $userSettingsStore?.defaultMarker || {
@@ -92,9 +78,7 @@
     activePanel = "trail"
   }
 
-  // Tool functions
   function handleMeasurement() {
-    // Toggle drawing mode for measurements
     $drawingModeEnabled = !$drawingModeEnabled
     closeToolbox()
   }
@@ -113,16 +97,13 @@
 </script>
 
 {#if isOpen}
-  <!-- Backdrop -->
   <div
     class="toolbox-backdrop"
     on:click={closeToolbox}
     on:keydown={(e) => e.key === "Escape" && closeToolbox()}
   ></div>
 
-  <!-- Panel -->
   <div class="toolbox-panel">
-    <!-- Header -->
     <div class="toolbox-header">
       <div class="header-content">
         {#if activePanel === "satellite"}
@@ -143,36 +124,22 @@
       </div>
     </div>
 
-    <!-- Dynamic Content -->
     <div class="toolbox-content">
       {#if activePanel === "satellite"}
-        <!-- Satellite Options Panel -->
         <SatelliteControls {satelliteManager} />
       {:else if activePanel === "marker"}
-        <!-- Marker Panel -->
         <MarkerControls on:close={closeToolbox} />
       {:else if activePanel === "vehicle"}
-        <!-- Vehicle Panel -->
-        <VehicleControls
-          on:vehicleUpdated={(e) => dispatch("vehicleUpdated", e.detail)}
-          on:close={closeToolbox}
-          {currentVehicleType}
-          {currentVehicleColor}
-          {currentVehicleSwath}
-        />
+        <!-- NO PROPS PASSED - VehicleControls manages everything internally -->
+        <VehicleControls on:close={closeToolbox} />
       {:else if activePanel === "trail"}
-        <!-- Trail Panel -->
         <TrailControls
           {trailReplayAPI}
-          {currentVehicleType}
-          {currentVehicleColor}
-          {currentVehicleSwath}
           on:openTrailViewer={() => dispatch("openTrailViewer")}
           on:switchToVehicle={handleSwitchToVehicle}
           on:close={closeToolbox}
         />
       {:else}
-        <!-- Main Tool Grid -->
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
             <div class="vehicle-icon-container">
@@ -181,7 +148,6 @@
                   this={VehicleIcon}
                   bodyColor={$userVehicleStore.vehicle_marker.bodyColor}
                   size="48px"
-                  swath={$userVehicleStore.vehicle_marker.swath}
                 />
               {:else}
                 <Truck size={48} />
@@ -190,7 +156,6 @@
             <span>Select Vehicle</span>
           </button>
 
-          <!-- Marker Button with actual default marker icon -->
           <button class="tool-button" on:click={showMarkerPanel}>
             <div class="marker-icon-container">
               {#if defaultMarker.id === "default"}
@@ -210,7 +175,6 @@
             <span>Marker</span>
           </button>
 
-          <!-- Row 2 -->
           <button
             class="tool-button"
             class:tool-active={$drawingModeEnabled}
@@ -220,19 +184,16 @@
             <span>Measure</span>
           </button>
 
-          <!-- Trail button with Route icon -->
           <button class="tool-button" on:click={handleTrailControls}>
             <Route size={36} />
             <span>Trails</span>
           </button>
 
-          <!-- Row 3 -->
           <button class="tool-button" on:click={showSatellitePanel}>
             <Satellite size={36} />
             <span>Satellite</span>
           </button>
 
-          <!-- Empty slot to maintain grid layout -->
           <div class="tool-placeholder"></div>
         </div>
       {/if}

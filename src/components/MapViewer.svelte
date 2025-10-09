@@ -65,12 +65,6 @@
   // Toolbox state
   let toolboxOpen = false
 
-  // Current vehicle state for toolbox
-  $: currentVehicleType = $userVehicleStore.vehicle_marker?.type || "Tractor"
-  $: currentVehicleColor =
-    $userVehicleStore.vehicle_marker?.bodyColor || "#22c55e"
-  $: currentVehicleSwath = $userVehicleStore.vehicle_marker?.swath || 12
-
   // Layer ordering registry with trail support
   const LAYER_ORDER = {
     // Bottom layers (fields) - 100-199
@@ -549,13 +543,9 @@
   bind:this={toolboxRef}
   {satelliteManager}
   trailReplayAPI={trailHighlighter?.highlighterAPI}
-  {currentVehicleType}
-  {currentVehicleColor}
-  {currentVehicleSwath}
   isOpen={toolboxOpen}
   on:close={closeToolbox}
   on:tool={handleToolAction}
-  on:vehicleUpdated={handleVehicleUpdate}
   on:openTrailViewer={handleOpenTrailViewer}
 />
 
