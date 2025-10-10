@@ -1,6 +1,5 @@
-<!-- src\components\MapViewer.svelte -->
 <script>
-  import { onMount, onDestroy, setContext, getContext } from "svelte"
+  import { onMount, onDestroy, setContext } from "svelte"
   import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
@@ -16,7 +15,7 @@
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
-  // Import lucide icons for the toolbox - changed from Wrench to Menu
+  // Import lucide icons for the toolbox
   import { Menu } from "lucide-svelte"
 
   import MapEventManager from "./MapEventManager.svelte"
@@ -31,7 +30,10 @@
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
   import NavigationControl from "$lib/components/NavigationControl.svelte"
   import Toolbox from "$lib/components/Toolbox.svelte"
-  import CrosshairMarkerPlacement from "$lib/components/CrosshairMarkerPlacement.svelte" // ADD THIS IMPORT
+  import CrosshairMarkerPlacement from "$lib/components/CrosshairMarkerPlacement.svelte"
+  import DrawingTool from "$lib/components/DrawingTool.svelte"
+  import DrawingModePanel from "$lib/components/DrawingModePanel.svelte"
+  import MarkerDrawings from "$lib/components/MarkerDrawings.svelte"
 
   // Import persistent managers
   import SatelliteManager from "$lib/components/SatelliteManager.svelte"
@@ -196,7 +198,6 @@
   // Handle vehicle updates from toolbox
   function handleVehicleUpdate(event) {
     const { type, color, swath } = event.detail
-    // The VehicleStateSynchronizer will handle the actual updates
     console.log("Vehicle updated:", { type, color, swath })
   }
 
@@ -212,10 +213,19 @@
   function handleOpenVehicleControls() {
     console.log("🚗 Opening vehicle controls from vehicle panel icon click")
     toolboxOpen = true
-    // Use the toolbox reference to switch to vehicle panel
     if (toolboxRef) {
       toolboxRef.switchToVehiclePanel()
     }
+  }
+
+  // Drawing callbacks
+  function handleDrawingComplete() {
+    console.log("Drawing completed")
+    // Drawings are auto-reloaded when panel re-opens
+  }
+
+  function handleDrawingCancel() {
+    console.log("Drawing cancelled")
   }
 
   function handleToolAction(event) {
@@ -223,37 +233,29 @@
 
     console.log("Tool action:", type)
 
-    // Handle different tool actions
     switch (type) {
       case "locate-home":
         handleLocateHome()
         break
       case "place-marker":
-        // TODO: Implement marker placement mode
         toast.info("Marker placement mode activated")
         break
       case "drawing-mode":
-        // TODO: Implement drawing mode toggle
         toast.info("Drawing mode activated")
         break
       case "vehicle-controls":
-        // TODO: Open vehicle controls
         toast.info("Vehicle controls opened")
         break
       case "trail-recording":
-        // TODO: Toggle trail recording
         toast.info("Trail recording toggled")
         break
       case "measurement":
-        // TODO: Open measurement tools
         toast.info("Measurement tools opened")
         break
       case "map-sync":
-        // TODO: Trigger map sync
         toast.info("Map sync initiated")
         break
       case "settings":
-        // TODO: Open settings
         toast.info("Settings opened")
         break
       default:
@@ -289,12 +291,10 @@
         mapLoaded = true
         initializeMapLocation()
 
-        // Disable gestures
         if (map.touchZoomRotate._tapDragZoom) {
           map.touchZoomRotate._tapDragZoom.disable()
         }
 
-        // Simple MapboxDraw setup for mobile touch handling
         const draw = new MapboxDraw({
           displayControlsDefault: false,
           controls: {},
@@ -305,9 +305,7 @@
           boxSelect: false,
           translateEnabled: false,
           rotateEnabled: false,
-          // Add custom styles to fix the line-dasharray issue
           styles: [
-            // Point style
             {
               id: "gl-draw-point",
               type: "circle",
@@ -321,7 +319,6 @@
                 "circle-color": "#000",
               },
             },
-            // Line styles with proper dasharray format
             {
               id: "gl-draw-lines",
               type: "line",
@@ -377,7 +374,6 @@
                 "line-dasharray": ["literal", [1, 1]],
               },
             },
-            // Polygon styles
             {
               id: "gl-draw-polygon-fill",
               type: "fill",
@@ -487,7 +483,7 @@
       onLongPress={handleLongPress}
     />
 
-    <!-- Persistent Managers - Never unmount -->
+    <!-- Persistent Managers -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
     <!-- Toolbox Trigger Button -->
@@ -501,7 +497,6 @@
       </button>
     </div>
 
-    <!-- Keep existing ButtonSection for now -->
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
@@ -515,7 +510,6 @@
       coordinatedEvents={true}
     />
 
-    <!-- ADD THE CROSSHAIR MARKER PLACEMENT COMPONENT HERE -->
     <CrosshairMarkerPlacement {map} {markerManagerRef} />
 
     <MapStateSaver {map} />
@@ -527,18 +521,27 @@
       onOpenVehicleControls={handleOpenVehicleControls}
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
+    <MarkerDrawings {map} />
+
     <DrawingHectares {map} />
 
-    <!-- Trail View with clean API access -->
     <TrailView bind:this={trailHighlighter} {map} />
 
     {#if selectedOperation}
       <TrailSynchronizer {selectedOperation} {map} />
     {/if}
+
+    <!-- Drawing Components (Always Present) -->
+    <DrawingTool {map} />
+    <DrawingModePanel
+      {map}
+      onComplete={handleDrawingComplete}
+      onCancel={handleDrawingCancel}
+    />
   {/if}
 </div>
 
-<!-- Toolbox with direct API access -->
+<!-- Toolbox -->
 <Toolbox
   bind:this={toolboxRef}
   {satelliteManager}
@@ -591,7 +594,6 @@
     background-color: #3182ce;
   }
 
-  /* Toolbox Trigger Button Styles */
   .toolbox-trigger-container {
     position: absolute;
     top: 92px;

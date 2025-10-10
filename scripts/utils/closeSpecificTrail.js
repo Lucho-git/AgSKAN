@@ -11,7 +11,7 @@ dotenv.config()
 const supabase = createClient(process.env.PUBLIC_SUPABASE_URL, process.env.PRIVATE_SUPABASE_SERVICE_ROLE)
 
 // *** CONFIGURE THIS ***
-const TRAIL_ID = 'bdc2dd4b-b3e1-4cfd-8726-1e9c96e0e032'
+const TRAIL_ID = 'cfd945c3-fc05-43f7-afce-17264e989fe3'
 // **********************
 
 async function validateGeometry(path) {

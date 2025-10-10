@@ -8,12 +8,15 @@
     FileText,
     Copy,
     Plus,
+    Pen,
   } from "lucide-svelte"
   import { markerApi } from "$lib/api/markerApi"
   import {
     getAllMarkers,
     findMarkerByIconClass,
   } from "$lib/data/markerDefinitions"
+  import DrawingPanel from "$lib/components/DrawingPanel.svelte"
+  import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
 
   export let map
   export let getCurrentIconClass
@@ -27,14 +30,19 @@
   // UI State
   let showEditMenu = false
   let showInfoPanel = false
+  let showDrawingPanel = false
   let isExpanded = false
   let selectedMarkerIsNew = false
   let lastMarkerId = null
 
-  // Unified notes state (works for both new and existing markers)
+  // Track if we should re-open after drawing
+  let shouldReopenAfterDrawing = false
+  let previousMarkerId = null
+
+  // Unified notes state
   let markerNotes = ""
   let showNotesSection = false
-  let originalNotes = "" // Track original notes to detect changes
+  let originalNotes = ""
 
   // Notes editing in info panel
   let editingNotesInInfo = false
@@ -48,6 +56,9 @@
   // Preview icon state for bottom bar
   let previewIconClass = null
 
+  // Reference to DrawingPanel
+  let drawingPanelRef
+
   // Get current marker data
   $: currentMarker = $selectedMarkerStore
     ? $confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id)
@@ -58,10 +69,11 @@
   $: if (selectedMarkerIsNew && !showEditMenu) {
     showEditMenu = true
     showInfoPanel = false
+    showDrawingPanel = false
     isExpanded = true
-    markerNotes = "" // Reset notes for new marker
+    markerNotes = ""
     originalNotes = ""
-    showNotesSection = false // Start with notes collapsed
+    showNotesSection = false
     previewIconClass = null
   }
 
@@ -74,6 +86,29 @@
       infoNotesValue = currentMarker?.notes || ""
       editingNotesInInfo = false
       lastMarkerId = currentMarkerId
+    }
+  }
+
+  // Watch for drawing completion and re-open panel
+  $: {
+    const isDrawing = $markerDrawingStore.isActive
+
+    // If drawing just finished for our marker, re-open the drawing panel
+    if (
+      !isDrawing &&
+      shouldReopenAfterDrawing &&
+      previousMarkerId === currentMarker?.id
+    ) {
+      shouldReopenAfterDrawing = false
+      previousMarkerId = null
+
+      // Re-open the drawing panel
+      setTimeout(() => {
+        showDrawingPanel = true
+        showEditMenu = false
+        showInfoPanel = false
+        isExpanded = true
+      }, 100)
     }
   }
 
@@ -114,10 +149,35 @@
   const allMarkerIcons = getAllMarkers()
   $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
 
-  // Get marker name (using preview if available)
+  // Get marker name
   function getMarkerName(iconClass) {
     const marker = findMarkerByIconClass(iconClass)
     return marker?.name || "Marker"
+  }
+
+  // Handle drawing start - close this panel
+  function handleDrawingStart() {
+    shouldReopenAfterDrawing = true
+    previousMarkerId = currentMarker?.id
+
+    // Close this panel
+    showDrawingPanel = false
+    showEditMenu = false
+    showInfoPanel = false
+    isExpanded = false
+  }
+
+  // Handle drawing complete - re-open and refresh
+  function handleDrawingComplete() {
+    isExpanded = true
+    showDrawingPanel = true
+    showEditMenu = false
+    showInfoPanel = false
+
+    // Refresh the drawings list
+    if (drawingPanelRef) {
+      drawingPanelRef.refreshDrawings()
+    }
   }
 
   // Close all panels
@@ -128,6 +188,7 @@
 
     showEditMenu = false
     showInfoPanel = false
+    showDrawingPanel = false
     isExpanded = false
     selectedIconForEdit = null
     pendingIconChange = false
@@ -170,7 +231,6 @@
 
     try {
       await navigator.clipboard.writeText(coordText)
-      // Optional: Show a brief success indicator
       console.log("Coordinates copied:", coordText)
     } catch (err) {
       console.error("Failed to copy coordinates:", err)
@@ -197,7 +257,6 @@
         throw new Error(result.message)
       }
 
-      // Update the confirmed store
       confirmedMarkersStore.update((markers) => {
         const existingIndex = markers.findIndex(
           (m) => m.id === currentMarker.id,
@@ -237,7 +296,6 @@
 
     selectedIconForEdit = icon
 
-    // Update preview for bottom bar
     previewIconClass =
       icon.id === "default"
         ? "default"
@@ -264,7 +322,7 @@
     }
   }
 
-  // Confirm changes (works for both new markers and icon/notes changes)
+  // Confirm changes
   function handleConfirmMarker() {
     if (selectedMarkerIsNew) {
       confirmNewMarker()
@@ -318,7 +376,7 @@
     previewIconClass = null
   }
 
-  // Confirm changes to existing marker (icon and/or notes)
+  // Confirm changes to existing marker
   async function confirmChanges() {
     if (!$selectedMarkerStore || !currentMarker) return
 
@@ -332,7 +390,6 @@
 
     const notesChanged = markerNotes.trim() !== originalNotes.trim()
 
-    // Save notes if changed
     if (notesChanged) {
       try {
         const result = await markerApi.updateMarkerNotes(
@@ -350,7 +407,6 @@
       }
     }
 
-    // Update the confirmed store
     confirmedMarkersStore.update((markers) => {
       const existingIndex = markers.findIndex(
         (m) => m.id === $selectedMarkerStore.id,
@@ -400,7 +456,6 @@
       centerCameraOnMarker($selectedMarkerStore.coordinates)
     }
 
-    // Load current notes when opening edit menu for existing marker
     if (!selectedMarkerIsNew) {
       markerNotes = currentMarker?.notes || ""
       originalNotes = currentMarker?.notes || ""
@@ -408,6 +463,7 @@
 
     showEditMenu = !showEditMenu
     showInfoPanel = false
+    showDrawingPanel = false
     isExpanded = showEditMenu
     showNotesSection = false
   }
@@ -420,8 +476,21 @@
 
     showInfoPanel = !showInfoPanel
     showEditMenu = false
+    showDrawingPanel = false
     isExpanded = showInfoPanel
     editingNotesInInfo = false
+  }
+
+  // Handle drawing button click
+  function handleDrawingClick() {
+    if ($selectedMarkerStore?.coordinates) {
+      centerCameraOnMarker($selectedMarkerStore.coordinates)
+    }
+
+    showDrawingPanel = !showDrawingPanel
+    showInfoPanel = false
+    showEditMenu = false
+    isExpanded = showDrawingPanel
   }
 
   // Toggle notes section
@@ -432,10 +501,9 @@
 
 <!-- Marker Panel -->
 <div class="marker-panel" class:expanded={isExpanded}>
-  <!-- Info Section (metadata only - no notes) -->
+  <!-- Info Section -->
   {#if isExpanded && showInfoPanel && !selectedMarkerIsNew}
     <div class="info-section">
-      <!-- Marker Header -->
       <div class="marker-header">
         <div class="marker-title">
           <span class="marker-label"
@@ -447,9 +515,7 @@
         </div>
       </div>
 
-      <!-- Notes Section - Above Coordinates -->
       {#if editingNotesInInfo}
-        <!-- Editing notes -->
         <div class="notes-edit-section-info">
           <div class="notes-header-info">
             <span class="notes-label">📝 Edit Notes</span>
@@ -474,7 +540,6 @@
           ></textarea>
         </div>
       {:else if currentMarker?.notes}
-        <!-- Display notes with edit button -->
         <div class="notes-display-section">
           <div class="notes-display-header">
             <span class="notes-label">📝 Notes</span>
@@ -487,7 +552,6 @@
           </div>
         </div>
       {:else}
-        <!-- Add notes button -->
         <div class="add-notes-section">
           <button class="add-notes-btn" on:click={startEditingInfoNotes}>
             <Plus size={16} />
@@ -497,7 +561,6 @@
         </div>
       {/if}
 
-      <!-- Coordinates Section with Copy Button -->
       <div class="coordinates-section">
         <div class="coord-item">
           <div class="coord-header">
@@ -518,7 +581,7 @@
     </div>
   {/if}
 
-  <!-- Unified Edit Section (works for both new and existing markers) -->
+  <!-- Edit Section -->
   {#if isExpanded && showEditMenu}
     <div class="icon-section">
       <div class="icon-section-header">
@@ -526,7 +589,6 @@
           {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Edit Marker"}
         </span>
         <div class="icon-actions">
-          <!-- Notes toggle button (for both new and existing) -->
           <button
             class="notes-toggle-btn"
             class:active={showNotesSection}
@@ -536,7 +598,6 @@
             <span class="btn-text">Notes</span>
           </button>
 
-          <!-- Confirm button (shown when changes are pending) -->
           {#if hasChanges || selectedMarkerIsNew}
             <button class="confirm-icon-btn" on:click={handleConfirmMarker}>
               <Check size={16} />
@@ -546,7 +607,6 @@
         </div>
       </div>
 
-      <!-- Unified Notes Section (works for both new and existing) -->
       {#if showNotesSection}
         <div class="notes-edit-section">
           <textarea
@@ -559,7 +619,6 @@
         </div>
       {/if}
 
-      <!-- Icon Grid -->
       <div class="icon-grid-container">
         <div class="icon-grid">
           {#each selectableMarkers as icon}
@@ -584,11 +643,20 @@
     </div>
   {/if}
 
+  <!-- Drawing Section -->
+  {#if isExpanded && showDrawingPanel && !selectedMarkerIsNew}
+    <DrawingPanel
+      bind:this={drawingPanelRef}
+      {map}
+      {currentMarker}
+      {getCurrentIconClass}
+      onStartDrawing={handleDrawingStart}
+    />
+  {/if}
+
   <!-- Control Bar -->
   <div class="control-bar">
-    <!-- Marker Info -->
     <div class="marker-info">
-      <!-- Clickable Icon Display with Edit Badge -->
       <button
         class="marker-icon-display"
         class:active={showEditMenu && isExpanded}
@@ -610,7 +678,6 @@
           <IconSVG icon="mapbox-marker" size="28px" />
         {/if}
 
-        <!-- Edit Badge Overlay (only show for existing markers) -->
         {#if !selectedMarkerIsNew}
           <div class="edit-badge">
             <Edit3 size={12} />
@@ -622,7 +689,6 @@
         <span class="marker-name">
           {getMarkerName(displayIconClass)}
         </span>
-        <!-- Notes preview - desktop: inline, mobile: underneath -->
         {#if markerNotes && showEditMenu}
           <span class="marker-notes-preview marker-notes-desktop">
             - {markerNotes}</span
@@ -641,21 +707,26 @@
       </div>
     </div>
 
-    <!-- Action Controls -->
     <div class="action-controls">
       {#if selectedMarkerIsNew}
-        <!-- New marker - show confirm button -->
         <button class="control-btn confirm-btn" on:click={handleConfirmMarker}>
           <Check size={20} />
         </button>
       {:else}
-        <!-- Existing marker - show info and delete buttons (edit removed) -->
         <button
           class="control-btn info-btn"
           class:active={showInfoPanel && isExpanded}
           on:click={handleInfoClick}
         >
           <Info size={20} />
+        </button>
+
+        <button
+          class="control-btn drawing-btn"
+          class:active={showDrawingPanel && isExpanded}
+          on:click={handleDrawingClick}
+        >
+          <Pen size={20} />
         </button>
       {/if}
 
@@ -704,13 +775,11 @@
     transform: translateY(0);
   }
 
-  /* Info section - scrollable */
   .info-section {
     padding: 16px 20px 0;
     overflow-y: auto;
   }
 
-  /* Icon section - flex managed */
   .icon-section {
     padding: 16px 20px 0;
     overflow: hidden;
@@ -773,7 +842,7 @@
     transform: scale(1.01);
   }
 
-  /* Notes Display Section (Info tab - read only) */
+  /* Notes Display Section */
   .notes-display-section {
     flex-shrink: 0;
     margin-bottom: 12px;
@@ -954,7 +1023,7 @@
     font-family: monospace;
   }
 
-  /* Notes Edit Section (Edit tab - editable) - COMPACT */
+  /* Notes Edit Section (Edit tab) */
   .notes-edit-section {
     flex-shrink: 0;
     margin-bottom: 12px;
@@ -1116,7 +1185,6 @@
     min-width: 0;
   }
 
-  /* Clickable Icon Display with Gradient Border */
   .marker-icon-display {
     position: relative;
     width: 48px;
@@ -1156,7 +1224,6 @@
     color: white;
   }
 
-  /* Edit Badge - Emerald green with pencil */
   .edit-badge {
     position: absolute;
     bottom: -4px;
@@ -1207,7 +1274,6 @@
     text-overflow: ellipsis;
   }
 
-  /* Desktop: notes inline with title */
   .marker-notes-mobile {
     display: none;
   }
@@ -1267,6 +1333,17 @@
     color: white;
   }
 
+  .drawing-btn {
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+  }
+
+  .drawing-btn:hover,
+  .drawing-btn.active {
+    background: rgba(168, 85, 247, 0.3);
+    color: white;
+  }
+
   .delete-btn {
     background: rgba(239, 68, 68, 0.2);
     color: #ef4444;
@@ -1313,7 +1390,6 @@
       font-size: 16px;
     }
 
-    /* Mobile: show notes underneath on separate line */
     .marker-notes-desktop {
       display: none;
     }
