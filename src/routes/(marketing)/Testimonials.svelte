@@ -244,7 +244,7 @@
             on:click={handleWallOfLoveClick}
             disabled
           >
-            View All Customer Stories
+            View All Stories
             <ArrowRight size={18} class="ml-2" />
           </button>
           <p class="mt-3 text-sm text-contrast-content/60">

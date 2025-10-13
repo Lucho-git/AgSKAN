@@ -23,7 +23,7 @@
 </script>
 
 <section class="bg-base-200" id="founders">
-  <div class="section-container py-20">
+  <div class="section-container py-12 sm:py-20">
     {#if mounted}
       <div class="mx-auto max-w-4xl" in:animationDelay={0}>
         <div
@@ -31,19 +31,25 @@
         >
           <!-- Main Content -->
           <div class="p-6 sm:p-8">
-            <h2 class="mb-6 text-2xl font-bold text-contrast-content">
+            <h2
+              class="mb-4 text-xl font-bold text-contrast-content sm:mb-6 sm:text-2xl"
+            >
               Built by a Farmer and a Software Engineer
             </h2>
-            <div class="mb-8">
-              <p class="mb-6 text-contrast-content/70">
+            <div class="mb-6 sm:mb-8">
+              <p
+                class="mb-6 text-sm leading-relaxed text-contrast-content/70 sm:text-base"
+              >
                 One of us lived in the paddock. The other built startups. After
                 20 years of friendship (and too many radio calls), we built a
                 better way to keep farms in sync.
               </p>
 
               <!-- Combined Founders Section -->
-              <div class="rounded-lg border border-base-300 bg-base-200 p-6">
-                <div class="mb-4 h-64 overflow-hidden rounded-lg sm:h-72">
+              <div
+                class="rounded-lg border border-base-300 bg-base-200 p-4 sm:p-6"
+              >
+                <div class="mb-4 h-48 overflow-hidden rounded-lg sm:h-72">
                   <img
                     src="/images/team.jpg"
                     alt="AgSKAN Founders"
@@ -51,7 +57,9 @@
                     style="object-position: center 25%;"
                   />
                 </div>
-                <div class="flex items-end justify-between">
+
+                <!-- Mobile: Stack vertically -->
+                <div class="space-y-3 sm:space-y-0">
                   <div>
                     <h4 class="font-semibold text-contrast-content">
                       Ryan Skamp & Lachie Ross
@@ -60,12 +68,14 @@
                       Farmer & Software Engineer
                     </p>
                   </div>
-                  <div class="flex items-center gap-3">
-                    <div class="text-sm text-contrast-content/60">
+
+                  <!-- Mobile: Stack badges -->
+                  <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div class="text-xs text-contrast-content/60 sm:text-sm">
                       Est. 2023
                     </div>
                     <div
-                      class="rounded-lg border border-base-300 bg-base-100 px-4 py-1.5 text-sm text-contrast-content"
+                      class="rounded-lg border border-base-300 bg-base-100 px-3 py-1 text-xs text-contrast-content sm:px-4 sm:py-1.5 sm:text-sm"
                     >
                       Based in Australia
                     </div>
@@ -74,12 +84,16 @@
               </div>
             </div>
 
-            <div class="mb-8">
-              <h3 class="mb-4 text-xl font-semibold text-contrast-content">
+            <div class="mb-6 sm:mb-8">
+              <h3
+                class="mb-3 text-lg font-semibold text-contrast-content sm:mb-4 sm:text-xl"
+              >
                 Our Mission
               </h3>
 
-              <p class="text-contrast-content/70">
+              <p
+                class="text-sm leading-relaxed text-contrast-content/70 sm:text-base"
+              >
                 We built a better way to keep farms in sync. No complicated
                 interfaces, no steep learning curves—just straightforward
                 solutions designed for the realities of agricultural life.
@@ -88,11 +102,11 @@
 
             <!-- Simplified Call to action with arrow -->
             <button
-              class="inline-flex items-center gap-1 font-semibold text-base-content transition-colors hover:text-base-content/80 hover:underline"
+              class="inline-flex items-center gap-1 text-sm font-semibold text-base-content transition-colors hover:text-base-content/80 hover:underline sm:text-base"
               on:click={() => goto("/team")}
             >
               Meet the Founders
-              <ArrowRight size={16} />
+              <ArrowRight size={16} class="flex-shrink-0" />
             </button>
           </div>
         </div>

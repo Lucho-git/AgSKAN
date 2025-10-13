@@ -30,7 +30,7 @@
         })
       },
       {
-        threshold: 0.5, // Play when 50% of video is visible
+        threshold: 0.7, // Play when 50% of video is visible
       },
     )
 

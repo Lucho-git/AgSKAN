@@ -132,7 +132,7 @@
             class="group btn btn-secondary w-full text-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-secondary/40"
             on:click={() => goto("/login?tab=sign_up")}
           >
-            Start Free and Get Instant Visibility
+            See it Now
             <ArrowRight
               size={16}
               class="ml-2 transition-transform group-hover:translate-x-1"
