@@ -4,9 +4,51 @@
 
   let mounted = false
   let videoRefs: HTMLVideoElement[] = []
+  let observer: IntersectionObserver
 
   onMount(() => {
     mounted = true
+
+    // Set up Intersection Observer for mobile autoplay
+    observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target as HTMLVideoElement
+          const index = videoRefs.indexOf(video)
+
+          if (entry.isIntersecting && index !== -1) {
+            // Video is in view
+            video.play().catch(() => {
+              // Autoplay failed - this is expected on some browsers
+              console.log("Autoplay prevented for video", index)
+            })
+          } else if (index !== -1) {
+            // Video is out of view
+            video.pause()
+            video.currentTime = 0
+          }
+        })
+      },
+      {
+        threshold: 0.5, // Play when 50% of video is visible
+      },
+    )
+
+    // Observe all videos once they're mounted
+    setTimeout(() => {
+      videoRefs.forEach((video) => {
+        if (video) {
+          observer.observe(video)
+        }
+      })
+    }, 100)
+
+    return () => {
+      // Cleanup
+      if (observer) {
+        observer.disconnect()
+      }
+    }
   })
 
   const features = [
