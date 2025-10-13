@@ -92,8 +92,8 @@
               <div class="aspect-video">
                 <iframe
                   class="h-full w-full"
-                  src="https://www.youtube.com/embed/KMAOcSfhw4c?si=DoroVYQHQ31om0cO&autoplay=1"
-                  title="How AgSKAN Works in 90 Seconds"
+                  src="https://www.youtube.com/embed/FEoL4K-GXWs?si=OYKER1bmZsfwDm6q"
+                  title="YouTube video player"
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   referrerpolicy="strict-origin-when-cross-origin"
