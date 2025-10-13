@@ -438,7 +438,7 @@
 
       // Update operations stores
       if (operations?.length) {
-        operationStore.set(operations)
+        operationStore.set([...operations].reverse())
 
         const selectedOp = operations.find(
           (op) => op.id === profile.selected_operation_id,
