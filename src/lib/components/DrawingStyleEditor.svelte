@@ -8,19 +8,29 @@
   export let onSave = () => {}
   export let onCancel = () => {}
 
-  // Style state - updated defaults
-  let fillOpacity = drawing.style?.fillOpacity || 0.3
-  let strokeWidth = drawing.style?.strokeWidth || 3 // 👈 Thicker default (was 2)
-  let strokeStyle = drawing.style?.strokeStyle || "dashed" // 👈 Dashed default (was "solid")
-  let fillColor = drawing.style?.fillColor || "#0ea5e9"
-  let strokeColor = drawing.style?.strokeColor || "#0ea5e9"
+  // Style state - use exact values from drawing
+  let fillOpacity = drawing.style?.fillOpacity ?? 0.3
+  let strokeWidth = drawing.style?.strokeWidth ?? 3
+  let strokeStyle = drawing.style?.strokeStyle ?? "dashed"
+  let fillColor = drawing.style?.fillColor ?? "#0ea5e9"
+  let strokeColor = drawing.style?.strokeColor ?? "#0ea5e9"
 
-  // Preview layer
+  // Preview layer IDs
   let previewSourceId = `preview-${drawing.id}`
   let previewFillLayerId = `preview-fill-${drawing.id}`
   let previewLineLayerId = `preview-line-${drawing.id}`
 
+  // Store original layer visibility states
+  let originalLayerStates = {
+    fill: null,
+    lineSolid: null,
+    lineDashed: null,
+  }
+
   onMount(() => {
+    // Hide original drawing layers
+    hideOriginalDrawingLayers()
+
     // Zoom to drawing
     zoomToDrawing()
 
@@ -28,10 +38,54 @@
     addPreviewLayer()
 
     return () => {
-      // Cleanup preview layers
+      // Restore original layers and cleanup preview
+      restoreOriginalDrawingLayers()
       removePreviewLayer()
     }
   })
+
+  function hideOriginalDrawingLayers() {
+    if (!map) return
+
+    try {
+      // Store original visibility and hide layers
+      const layers = [
+        { id: "marker-drawings-fill", key: "fill" },
+        { id: "marker-drawings-line-solid", key: "lineSolid" },
+        { id: "marker-drawings-line-dashed", key: "lineDashed" },
+      ]
+
+      layers.forEach(({ id, key }) => {
+        if (map.getLayer(id)) {
+          originalLayerStates[key] =
+            map.getLayoutProperty(id, "visibility") || "visible"
+          map.setLayoutProperty(id, "visibility", "none")
+        }
+      })
+    } catch (error) {
+      console.error("Error hiding original layers:", error)
+    }
+  }
+
+  function restoreOriginalDrawingLayers() {
+    if (!map) return
+
+    try {
+      const layers = [
+        { id: "marker-drawings-fill", key: "fill" },
+        { id: "marker-drawings-line-solid", key: "lineSolid" },
+        { id: "marker-drawings-line-dashed", key: "lineDashed" },
+      ]
+
+      layers.forEach(({ id, key }) => {
+        if (map.getLayer(id) && originalLayerStates[key]) {
+          map.setLayoutProperty(id, "visibility", originalLayerStates[key])
+        }
+      })
+    } catch (error) {
+      console.error("Error restoring original layers:", error)
+    }
+  }
 
   function zoomToDrawing() {
     if (!map || !drawing.geometry) return
@@ -53,8 +107,6 @@
         padding: { top: 100, bottom: 400, left: 50, right: 50 },
         duration: 800,
       })
-
-      console.log("📍 Zoomed to drawing")
     } catch (error) {
       console.error("Error zooming to drawing:", error)
     }
@@ -92,7 +144,7 @@
         })
       }
 
-      // Add line layer
+      // Add line layer - with zoom-dependent width
       if (!map.getLayer(previewLineLayerId)) {
         map.addLayer({
           id: previewLineLayerId,
@@ -104,14 +156,20 @@
           },
           paint: {
             "line-color": strokeColor,
-            "line-width": strokeWidth,
-            "line-opacity": 0.8,
+            "line-width": [
+              "interpolate",
+              ["exponential", 2],
+              ["zoom"],
+              10,
+              ["*", strokeWidth, ["^", 2, -6]],
+              24,
+              ["*", strokeWidth, ["^", 2, 8]],
+            ],
+            "line-opacity": 1.0,
             "line-dasharray": strokeStyle === "dashed" ? [2, 2] : [1, 0],
           },
         })
       }
-
-      console.log("✅ Added preview layer")
     } catch (error) {
       console.error("Error adding preview layer:", error)
     }
@@ -130,7 +188,6 @@
       if (map.getSource(previewSourceId)) {
         map.removeSource(previewSourceId)
       }
-      console.log("🧹 Removed preview layer")
     } catch (error) {
       console.error("Error removing preview layer:", error)
     }
@@ -146,10 +203,19 @@
         map.setPaintProperty(previewFillLayerId, "fill-opacity", fillOpacity)
       }
 
-      // Update line layer
+      // Update line layer - with zoom-dependent width
       if (map.getLayer(previewLineLayerId)) {
         map.setPaintProperty(previewLineLayerId, "line-color", strokeColor)
-        map.setPaintProperty(previewLineLayerId, "line-width", strokeWidth)
+        map.setPaintProperty(previewLineLayerId, "line-width", [
+          "interpolate",
+          ["exponential", 2],
+          ["zoom"],
+          10,
+          ["*", strokeWidth, ["^", 2, -6]],
+          24,
+          ["*", strokeWidth, ["^", 2, 8]],
+        ])
+        map.setPaintProperty(previewLineLayerId, "line-opacity", 1.0)
         map.setPaintProperty(
           previewLineLayerId,
           "line-dasharray",
@@ -172,6 +238,7 @@
   }
 
   function handleSave() {
+    restoreOriginalDrawingLayers()
     removePreviewLayer()
     onSave({
       fillColor,
@@ -183,6 +250,7 @@
   }
 
   function handleCancel() {
+    restoreOriginalDrawingLayers()
     removePreviewLayer()
     onCancel()
   }
@@ -197,6 +265,7 @@
   ]
 </script>
 
+<!-- Rest of the component HTML remains the same -->
 <div class="style-editor-panel">
   <div class="style-editor-header">
     <div class="header-info">
@@ -266,7 +335,7 @@
       </div>
     {/if}
 
-    <!-- Stroke Width - 👈 Updated range -->
+    <!-- Stroke Width -->
     <div class="style-section">
       <label class="section-label">
         Line Width

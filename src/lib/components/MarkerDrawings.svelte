@@ -72,7 +72,7 @@
         },
       })
 
-      // Solid line layer
+      // Solid line layer - with zoom-dependent width
       mapContext.addLayerOrdered({
         id: "marker-drawings-line-solid",
         type: "line",
@@ -84,12 +84,20 @@
         },
         paint: {
           "line-color": ["get", "strokeColor"],
-          "line-width": ["get", "strokeWidth"],
-          "line-opacity": 0.8,
+          "line-width": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            10,
+            ["*", ["get", "strokeWidth"], ["^", 2, -6]],
+            24,
+            ["*", ["get", "strokeWidth"], ["^", 2, 8]],
+          ],
+          "line-opacity": 1.0,
         },
       })
 
-      // Dashed line layer
+      // Dashed line layer - with zoom-dependent width
       mapContext.addLayerOrdered({
         id: "marker-drawings-line-dashed",
         type: "line",
@@ -101,8 +109,16 @@
         },
         paint: {
           "line-color": ["get", "strokeColor"],
-          "line-width": ["get", "strokeWidth"],
-          "line-opacity": 0.8,
+          "line-width": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            10,
+            ["*", ["get", "strokeWidth"], ["^", 2, -6]],
+            24,
+            ["*", ["get", "strokeWidth"], ["^", 2, 8]],
+          ],
+          "line-opacity": 1.0,
           "line-dasharray": [2, 2],
         },
       })

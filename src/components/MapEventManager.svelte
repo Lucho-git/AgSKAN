@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
+  import { confirmedMarkersStore } from "../stores/mapStore"
 
   export let map
   export let mapLoaded = false
@@ -93,7 +94,7 @@
     }
   }
 
-  // 🆕 NEW: Single unified interaction handler
+  // Single unified interaction handler
   async function handleUnifiedInteraction(clientX, clientY, mapPoint) {
     if (isProcessingInteraction) {
       console.log("🚫 Already processing interaction, ignoring...")
@@ -154,7 +155,7 @@
 
   // Handle map layer interactions
   async function handleMapInteraction(interaction) {
-    const { type, id, features } = interaction
+    const { type, id, features, isDrawing } = interaction
 
     const isCurrentlySelected =
       globalSelectionState.selectedType === type &&
@@ -164,7 +165,7 @@
       console.log(`🔄 ${type} reselection - deselecting`)
       clearGlobalSelection()
     } else {
-      console.log(`✅ Selecting ${type}`)
+      console.log(`✅ Selecting ${type}${isDrawing ? " (from drawing)" : ""}`)
 
       if (type === "field") {
         setGlobalSelection("field", id, mapFieldsRef)
@@ -174,7 +175,39 @@
       } else if (type === "marker") {
         setGlobalSelection("marker", id, markerManagerRef)
         if (markerManagerRef?.handleMarkerSelection) {
-          await markerManagerRef.handleMarkerSelection({ features })
+          // If it's from a drawing, we need to construct the marker feature
+          if (isDrawing) {
+            // Find the marker in the confirmed markers
+            const markers = confirmedMarkersStore
+            let marker = null
+
+            // Safely get the current value from the store
+            const unsubscribe = markers.subscribe((value) => {
+              marker = value?.find((m) => m.id === id)
+            })
+            unsubscribe()
+
+            if (marker) {
+              const syntheticFeatures = [
+                {
+                  type: "Feature",
+                  geometry: {
+                    type: "Point",
+                    coordinates: marker.coordinates,
+                  },
+                  properties: {
+                    id: marker.id,
+                    iconClass: marker.iconClass,
+                  },
+                },
+              ]
+              await markerManagerRef.handleMarkerSelection({
+                features: syntheticFeatures,
+              })
+            }
+          } else {
+            await markerManagerRef.handleMarkerSelection({ features })
+          }
         }
       }
     }
@@ -196,10 +229,38 @@
     return null
   }
 
-  // 🆕 UPDATED: Check for map layers at point with proper priority order
+  // Check for map layers at point with proper priority order
   async function checkMapLayersAtPoint(point) {
     try {
-      // 🆕 UPDATED: Check markers FIRST (priority 100) - but only if layer exists
+      // Check marker drawings FIRST (priority 150) - if clicked, select the parent marker
+      const drawingLayers = [
+        "marker-drawings-fill",
+        "marker-drawings-line-solid",
+        "marker-drawings-line-dashed",
+      ].filter((layerId) => map.getLayer(layerId))
+
+      if (drawingLayers.length > 0) {
+        const drawingFeatures = map.queryRenderedFeatures(point, {
+          layers: drawingLayers,
+        })
+
+        if (drawingFeatures.length > 0) {
+          const markerId = drawingFeatures[0]?.properties?.marker_id
+          if (markerId) {
+            console.log("🎨 Found drawing for marker:", markerId)
+            // Return as a marker interaction to select the parent marker
+            return {
+              type: "marker",
+              id: markerId,
+              features: [],
+              priority: 150,
+              isDrawing: true,
+            }
+          }
+        }
+      }
+
+      // Check markers SECOND (priority 100)
       if (map.getLayer("markers-layer")) {
         const markerFeatures = map.queryRenderedFeatures(point, {
           layers: ["markers-layer"],
@@ -219,7 +280,7 @@
         }
       }
 
-      // 🆕 UPDATED: Check fields SECOND (priority 10) - but only if layers exist
+      // Check fields THIRD (priority 10)
       const fieldLayers = ["fields-fill", "fields-fill-selected"].filter(
         (layerId) => map.getLayer(layerId),
       )
