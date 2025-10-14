@@ -3,7 +3,7 @@
   import { onMount, onDestroy } from "svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import * as turf from "@turf/turf"
-  import { Ruler, Plus, X } from "lucide-svelte"
+  import { Ruler, Plus, X, Undo } from "lucide-svelte"
 
   export let map
   let area = { hectares: 0, squareMeters: 0 }
@@ -14,6 +14,8 @@
     fill: "drawing-hectares-fill",
     points: "drawing-hectares-points",
   }
+
+  $: canUndo = currentPoints.length > 0
 
   function formatArea(areaInSquareMeters) {
     return {
@@ -149,6 +151,9 @@
           console.error("Error calculating area:", error)
           area = { hectares: 0, squareMeters: 0 }
         }
+      } else {
+        // Reset area if less than 3 points
+        area = { hectares: 0, squareMeters: 0 }
       }
 
       // Update the source
@@ -171,6 +176,16 @@
     // Use assignment instead of push to trigger reactivity
     currentPoints = [...currentPoints, point]
     console.log("Added point:", point, "Total points:", currentPoints.length)
+
+    updateMapDisplay()
+  }
+
+  function undoLastPoint() {
+    if (currentPoints.length === 0) return
+
+    // Remove last point
+    currentPoints = currentPoints.slice(0, -1)
+    console.log("Undid last point. Remaining points:", currentPoints.length)
 
     updateMapDisplay()
   }
@@ -310,13 +325,23 @@
   <!-- Control buttons - bottom center -->
   <div class="button-container">
     <div class="button-group">
+      <!-- Undo button -->
+      <button
+        class="undo-btn"
+        class:disabled={!canUndo}
+        on:click={undoLastPoint}
+        disabled={!canUndo}
+      >
+        <Undo size={20} />
+      </button>
+
       <!-- Main add point button -->
       <button class="add-point-btn" on:click={addPoint}>
         <Plus class="h-6 w-6" />
         <span class="btn-label">Add Point</span>
       </button>
 
-      <!-- Cancel button (always available) -->
+      <!-- Cancel button -->
       <button class="cancel-btn" on:click={cancelDrawing}>
         <X class="h-5 w-5" />
       </button>
@@ -476,6 +501,37 @@
     gap: 12px;
   }
 
+  .undo-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(234, 179, 8, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
+  }
+
+  .undo-btn:hover:not(.disabled) {
+    background: #ca8a04;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(234, 179, 8, 0.4);
+  }
+
+  .undo-btn:active:not(.disabled) {
+    transform: scale(0.95);
+  }
+
+  .undo-btn.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background: rgba(234, 179, 8, 0.5);
+  }
+
   .add-point-btn {
     display: flex;
     flex-direction: column;
@@ -571,6 +627,7 @@
       font-size: 9px;
     }
 
+    .undo-btn,
     .cancel-btn {
       width: 44px;
       height: 44px;
@@ -604,6 +661,7 @@
       font-size: 8px;
     }
 
+    .undo-btn,
     .cancel-btn {
       width: 40px;
       height: 40px;
