@@ -26,6 +26,9 @@
       strokeWidth: number
       strokeStyle?: string
     }
+    map_markers?: {
+      deleted: boolean
+    }
   }
 
   function canUseMap(): boolean {
@@ -168,7 +171,13 @@
 
       const { data, error } = await supabase
         .from("marker_drawings")
-        .select("*, geometry:geometry_geojson")
+        .select(
+          `
+          *,
+          geometry:geometry_geojson,
+          map_markers(deleted)
+        `,
+        )
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
         .order("created_at", { ascending: true })
@@ -178,7 +187,9 @@
         return
       }
 
+      // Filter out drawings where drawing.deleted=true OR marker.deleted=true
       drawings = (data || [])
+        .filter((d) => d.map_markers && !d.map_markers.deleted)
         .map((d) => {
           let parsedGeometry = d.geometry
           if (typeof d.geometry === "string") {
@@ -221,7 +232,8 @@
     const masterMapId = $profileStore.master_map_id
     if (!masterMapId) return
 
-    const channel = supabase
+    // Subscribe to drawing changes
+    const drawingsChannel = supabase
       .channel("marker-drawings-changes")
       .on(
         "postgres_changes",
@@ -235,8 +247,24 @@
       )
       .subscribe()
 
+    // Subscribe to marker changes (to catch deletions instantly)
+    const markersChannel = supabase
+      .channel("markers-changes-for-drawings")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "map_markers",
+          filter: `master_map_id=eq.${masterMapId}`,
+        },
+        () => refreshDrawings(),
+      )
+      .subscribe()
+
     unsubscribe = () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(drawingsChannel)
+      supabase.removeChannel(markersChannel)
     }
   }
 
@@ -249,7 +277,13 @@
 
       const { data, error } = await supabase
         .from("marker_drawings")
-        .select("*, geometry:geometry_geojson")
+        .select(
+          `
+          *,
+          geometry:geometry_geojson,
+          map_markers(deleted)
+        `,
+        )
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
         .order("created_at", { ascending: true })
@@ -259,7 +293,9 @@
         return
       }
 
+      // Filter out drawings where drawing.deleted=true OR marker.deleted=true
       drawings = (data || [])
+        .filter((d) => d.map_markers && !d.map_markers.deleted)
         .map((d) => {
           let parsedGeometry = d.geometry
           if (typeof d.geometry === "string") {
