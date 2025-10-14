@@ -5,6 +5,7 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore" // 👈 NEW
   import mapboxgl from "mapbox-gl"
   const { LngLatBounds } = mapboxgl
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
@@ -66,7 +67,7 @@
             payload,
           )
 
-          // ✅ Handle the change immediately using payload data
+          // Handle the change immediately using payload data
           handleRealtimeMarkerChange(payload)
 
           // Show notification
@@ -77,7 +78,7 @@
 
     // Initial load - MUST happen before setting up change tracking
     loadMarkersFromServer().then(() => {
-      // ✅ Only start tracking changes AFTER initial load
+      // Only start tracking changes AFTER initial load
       setupChangeTracking()
     })
 
@@ -93,7 +94,7 @@
     }
   })
 
-  // ✅ NEW: Handle real-time marker changes directly from payload
+  // Handle real-time marker changes directly from payload
   function handleRealtimeMarkerChange(payload) {
     const { eventType, new: newData, old: oldData } = payload
 
@@ -107,6 +108,12 @@
       const markerId = newData?.id || oldData?.id
       if (markerId) {
         lastKnownState.delete(markerId)
+
+        // 👇 NEW: Remove from visibility store
+        markerVisibilityStore.update((settings) => {
+          const { [markerId]: removed, ...rest } = settings
+          return rest
+        })
       }
 
       console.log("🗑️ Removed marker from realtime event")
@@ -126,7 +133,7 @@
         id: newData.id,
         coordinates: coordinates,
         iconClass: iconClass,
-        notes: newData.notes, // ✅ Notes included from realtime payload
+        notes: newData.notes,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -155,12 +162,17 @@
         created_at: processedMarker.created_at,
       })
 
+      // 👇 NEW: Update visibility in store
+      const visibility =
+        newData.marker_data?.properties?.drawings_visibility || "selected"
+      markerVisibilityStore.setMarkerVisibility(newData.id, visibility)
+
       // Recalculate bounding box
       calculateAndStoreBoundingBox($confirmedMarkersStore)
     }
   }
 
-  // ✅ Separate function to setup change tracking after initialization
+  // Separate function to setup change tracking after initialization
   function setupChangeTracking() {
     console.log("🎯 Setting up change tracking after initialization")
 
@@ -193,7 +205,7 @@
   })
 
   function trackChangedMarkers(currentMarkers) {
-    // ✅ Don't track changes until we're initialized
+    // Don't track changes until we're initialized
     if (!isInitialized) {
       console.log("⏸️ Skipping change tracking - not initialized yet")
       return
@@ -217,14 +229,14 @@
         lastKnown.iconClass !== marker.iconClass ||
         lastKnown.coordinates[0] !== marker.coordinates[0] ||
         lastKnown.coordinates[1] !== marker.coordinates[1] ||
-        lastKnown.notes !== marker.notes // ✅ Track note changes
+        lastKnown.notes !== marker.notes
       ) {
         pendingChanges.add(id)
         console.log(`✏️ Tracked change for marker ${id}`)
       }
     }
 
-    // ✅ Only check for deletions if we have a baseline
+    // Only check for deletions if we have a baseline
     if (lastKnownState.size > 0) {
       for (const [id] of lastKnownState) {
         if (!currentMap.has(id)) {
@@ -242,13 +254,13 @@
         iconClass: marker.iconClass,
         coordinates: [...marker.coordinates],
         created_at: marker.created_at,
-        notes: marker.notes, // ✅ Include notes in tracking
+        notes: marker.notes,
       })
     })
     pendingChanges.clear()
     pendingDeletions.clear()
 
-    // ✅ Mark as initialized after first successful load
+    // Mark as initialized after first successful load
     if (!isInitialized) {
       isInitialized = true
       console.log(
@@ -284,7 +296,6 @@
     isSyncing = true
 
     try {
-      // ✅ Include notes and updated_at in the select
       let query = supabase
         .from("map_markers")
         .select(
@@ -304,6 +315,19 @@
 
       if (error) throw error
 
+      // 👇 NEW: Load visibility settings into store
+      const visibilitySettings = {}
+      markers?.forEach((marker) => {
+        const visibility =
+          marker.marker_data?.properties?.drawings_visibility || "selected"
+        visibilitySettings[marker.id] = visibility
+      })
+      markerVisibilityStore.set(visibilitySettings)
+      console.log(
+        "✅ Loaded visibility settings into store:",
+        visibilitySettings,
+      )
+
       // Process markers
       const processedMarkers = (markers || [])
         .map((marker) => {
@@ -319,12 +343,12 @@
             id: marker.id,
             coordinates: coordinates,
             iconClass: iconClass,
-            notes: marker.notes, // ✅ Include notes
+            notes: marker.notes,
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
               new Date().toISOString(),
-            updated_at: marker.updated_at, // ✅ Include updated_at
+            updated_at: marker.updated_at,
           }
         })
         .filter(Boolean)
@@ -399,27 +423,33 @@
 
     // Sync marker updates/additions
     if (changedMarkers.length > 0) {
-      const markerData = changedMarkers.map((marker) => ({
-        master_map_id: masterMapId,
-        id: marker.id,
-        marker_data: {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: marker.coordinates,
+      const markerData = changedMarkers.map((marker) => {
+        // 👇 NEW: Include visibility from store in marker_data
+        const visibility = $markerVisibilityStore[marker.id] || "selected"
+
+        return {
+          master_map_id: masterMapId,
+          id: marker.id,
+          marker_data: {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: marker.coordinates,
+            },
+            properties: {
+              icon: marker.iconClass || "default",
+              id: marker.id,
+              drawings_visibility: visibility, // 👈 NEW
+            },
           },
-          properties: {
-            icon: marker.iconClass || "default",
-            id: marker.id,
-          },
-        },
-        notes: marker.notes || null, // ✅ Include notes in sync
-        last_confirmed: marker.created_at || new Date().toISOString(),
-        created_at: marker.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(), // ✅ Update timestamp
-        update_user_id: userId,
-        deleted: null,
-      }))
+          notes: marker.notes || null,
+          last_confirmed: marker.created_at || new Date().toISOString(),
+          created_at: marker.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          update_user_id: userId,
+          deleted: null,
+        }
+      })
 
       const { error } = await supabase
         .from("map_markers")

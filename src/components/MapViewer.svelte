@@ -17,6 +17,7 @@
 
   // Import lucide icons for the toolbox
   import { Menu } from "lucide-svelte"
+  import { selectedMarkerStore } from "../stores/mapStore"
 
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"
@@ -73,6 +74,10 @@
     "fields-fill": { order: 100, category: "field-base" },
     "fields-fill-selected": { order: 101, category: "field-base" },
 
+    // Marker drawings (above fields, below trails) - 150-199
+    "marker-drawings-fill": { order: 150, category: "marker-drawings" },
+    "marker-drawings-line-solid": { order: 151, category: "marker-drawings" },
+    "marker-drawings-line-dashed": { order: 152, category: "marker-drawings" },
     // Trail layers (middle) - 200-299
     "trail-layers-start": { order: 200, category: "trails" },
 
@@ -521,7 +526,7 @@
       onOpenVehicleControls={handleOpenVehicleControls}
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
-    <MarkerDrawings {map} />
+    <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <DrawingHectares {map} />
 

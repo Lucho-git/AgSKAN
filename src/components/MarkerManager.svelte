@@ -7,6 +7,7 @@
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"
+  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
@@ -116,7 +117,6 @@
     map.flyTo({
       center: coordinates,
       duration: 1000,
-      // Don't include zoom - keep current zoom level
     })
   }
 
@@ -126,8 +126,7 @@
 
     map.flyTo({
       center: coordinates,
-      duration: 800, // Slightly faster than normal centering
-      // Don't include zoom - keep current zoom level
+      duration: 800,
     })
   }
 
@@ -260,7 +259,7 @@
         filter: [
           "all",
           ["==", ["get", "selected"], true],
-          ["==", ["get", "confirmed"], true], // Only show circle for confirmed markers
+          ["==", ["get", "confirmed"], true],
         ],
         paint: {
           "circle-radius": 18,
@@ -300,7 +299,7 @@
         icon: getIconImageName(marker.iconClass),
         iconClass: marker.iconClass || "default",
         selected: $selectedMarkerStore?.id === marker.id,
-        confirmed: true, // Mark confirmed markers
+        confirmed: true,
       },
     }))
 
@@ -385,10 +384,10 @@
       iconClass = "default"
       iconImageName = "default"
     } else if (defaultMarker.class === "custom-svg") {
-      iconClass = `custom-svg-${defaultMarker.id}` // Store as custom-svg-rock, etc.
-      iconImageName = `custom-svg-${defaultMarker.id}` // Map image name
+      iconClass = `custom-svg-${defaultMarker.id}`
+      iconImageName = `custom-svg-${defaultMarker.id}`
     } else {
-      iconClass = defaultMarker.class // ionic-pin, at-carrot, etc.
+      iconClass = defaultMarker.class
       iconImageName = defaultMarker.class
     }
 
@@ -411,7 +410,7 @@
         icon: iconImageName,
         iconClass: iconClass,
         selected: true,
-        confirmed: false, // Mark as unconfirmed to prevent circle showing
+        confirmed: false,
       },
     }
 
@@ -420,7 +419,9 @@
     addMarkerToLayer(feature)
     selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
 
-    // Always do a quick camera center on new marker placement
+    // Set default visibility to 'always' for new markers
+    markerVisibilityStore.setMarkerVisibility(id, "always")
+
     quickCenterOnMarker([lngLat.lng, lngLat.lat])
 
     controlStore.update((controls) => ({
@@ -483,7 +484,6 @@
 
       console.log("Confirming marker:", markerData)
 
-      // Simple direct update to store - exactly like original
       confirmedMarkersStore.update((markers) => {
         const existingIndex = markers.findIndex((m) => m.id === id)
         if (existingIndex >= 0) {
@@ -508,10 +508,15 @@
     if ($selectedMarkerStore) {
       const { id } = $selectedMarkerStore
 
-      // Simple removal from store
       confirmedMarkersStore.update((markers) =>
         markers.filter((m) => m.id !== id),
       )
+
+      // Remove from visibility store
+      markerVisibilityStore.update((settings) => {
+        const { [id]: removed, ...rest } = settings
+        return rest
+      })
 
       removeMarkerFromLayer(id)
       selectedMarkerStore.set(null)
@@ -529,22 +534,20 @@
     const coordinates = $locationMarkerStore
     if (!coordinates) return
 
-    // Get default marker from userSettingsStore
     const defaultMarker = getDefaultMarker()
     console.log(
       "🎯 Using default marker for location placement:",
       defaultMarker,
     )
 
-    // Convert the default marker to proper iconClass format for storage
     let iconClass
 
     if (defaultMarker.class === "default") {
       iconClass = "default"
     } else if (defaultMarker.class === "custom-svg") {
-      iconClass = `custom-svg-${defaultMarker.id}` // Store as custom-svg-rock, etc.
+      iconClass = `custom-svg-${defaultMarker.id}`
     } else {
-      iconClass = defaultMarker.class // ionic-pin, at-carrot, etc.
+      iconClass = defaultMarker.class
     }
 
     const id = uuidv4()
@@ -555,8 +558,10 @@
       created_at: new Date().toISOString(),
     }
 
-    // Add to store directly
     confirmedMarkersStore.update((markers) => [...markers, markerData])
+
+    // Set default visibility to 'always' for new markers
+    markerVisibilityStore.setMarkerVisibility(id, "always")
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -569,7 +574,6 @@
 
   // Cleanup function
   function cleanup() {
-    // Clear context check interval
     if (contextCheckInterval) {
       clearInterval(contextCheckInterval)
       contextCheckInterval = null
@@ -584,7 +588,6 @@
       coordinatedEvents,
     )
 
-    // Set up periodic sync with global selection context
     contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     locationMarkerUnsubscribe = locationMarkerStore.subscribe((timestamp) => {
@@ -615,7 +618,6 @@
   })
 </script>
 
-<!-- Marker Edit Panel Component -->
 {#if $controlStore.showMarkerMenu && $selectedMarkerStore}
   <MarkerEditPanel
     {map}

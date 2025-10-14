@@ -1,13 +1,14 @@
 <script>
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
   import { supabase } from "$lib/supabaseClient"
+  import { profileStore } from "$lib/stores/profileStore"
   import { Square, Pen, X, Check } from "lucide-svelte"
+  import DrawingStyleEditor from "./DrawingStyleEditor.svelte"
 
   export let map
   export let onComplete = () => {}
   export let onCancel = () => {}
 
-  // Subscribe to drawing store
   $: isActive = $markerDrawingStore.isActive
   $: mode = $markerDrawingStore.mode
   $: markerName = $markerDrawingStore.markerName || "Marker"
@@ -15,8 +16,14 @@
   $: minPoints = mode === "area" ? 3 : 2
   $: canSave = points.length >= minPoints
 
+  // Style editor state
+  let showStyleEditor = false
+  let pendingDrawing = null
+
   function handleCancel() {
     markerDrawingStore.cancel()
+    showStyleEditor = false
+    pendingDrawing = null
     onCancel()
   }
 
@@ -40,8 +47,9 @@
       }
     }
 
-    // Save to database
-    const drawingData = {
+    // Store pending drawing data with CORRECT defaults
+    pendingDrawing = {
+      id: crypto.randomUUID(), // Temporary ID for preview
       marker_id: finalState.markerId,
       master_map_id: finalState.masterMapId,
       drawing_type: finalState.mode === "area" ? "polygon" : "line",
@@ -50,28 +58,91 @@
         fillColor: finalState.color,
         strokeColor: finalState.color,
         fillOpacity: 0.3,
-        strokeWidth: 2,
+        strokeWidth: 3,
+        strokeStyle: "dashed",
       },
-      created_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
-      .from("marker_drawings")
-      .insert([drawingData])
-      .select() // 👈 Get the inserted drawing back
+    // Show style editor instead of saving immediately
+    showStyleEditor = true
+  }
+
+  async function handleStyleSave(styleData) {
+    if (!pendingDrawing) return
+
+    // Update style with user choices
+    const finalStyle = {
+      ...pendingDrawing.style,
+      ...(styleData.detail || styleData),
+    }
+
+    console.log("💾 Saving drawing with style:", finalStyle)
+
+    // Convert GeoJSON to WKT for PostGIS
+    const geometryWKT = convertGeoJSONToWKT(pendingDrawing.geometry)
+
+    console.log("🗺️ Geometry WKT:", geometryWKT)
+
+    const { data, error } = await supabase.rpc("insert_marker_drawing", {
+      p_marker_id: pendingDrawing.marker_id,
+      p_master_map_id: pendingDrawing.master_map_id,
+      p_drawing_type: pendingDrawing.drawing_type,
+      p_geometry_wkt: geometryWKT,
+      p_style: finalStyle,
+      p_user_id: $profileStore.id,
+    })
 
     if (error) {
       console.error("Error saving drawing:", error)
     } else {
-      console.log("✅ Drawing saved successfully:", data)
-      // The realtime subscription in MarkerDrawings component will pick this up
+      console.log("✅ Drawing saved with custom style:", data)
+
+      window.dispatchEvent(
+        new CustomEvent("marker-drawing-created", {
+          detail: {
+            markerId: pendingDrawing.marker_id,
+            drawingId: data,
+          },
+        }),
+      )
     }
 
-    onComplete() // 👈 This triggers the DrawingPanel to reload
+    // Reset state
+    showStyleEditor = false
+    pendingDrawing = null
+    onComplete()
+  }
+
+  function handleStyleCancel() {
+    showStyleEditor = false
+    pendingDrawing = null
+    // Don't call onComplete - go back to drawing mode
+  }
+
+  function convertGeoJSONToWKT(geometry) {
+    if (geometry.type === "Polygon") {
+      const coords = geometry.coordinates[0]
+        .map((coord) => `${coord[0]} ${coord[1]}`)
+        .join(", ")
+      return `POLYGON((${coords}))`
+    } else if (geometry.type === "LineString") {
+      const coords = geometry.coordinates
+        .map((coord) => `${coord[0]} ${coord[1]}`)
+        .join(", ")
+      return `LINESTRING(${coords})`
+    }
+    return null
   }
 </script>
 
-{#if isActive}
+{#if showStyleEditor && pendingDrawing}
+  <DrawingStyleEditor
+    {map}
+    drawing={pendingDrawing}
+    onSave={handleStyleSave}
+    onCancel={handleStyleCancel}
+  />
+{:else if isActive}
   <div class="drawing-mode-panel">
     <div class="drawing-mode-header">
       <div class="drawing-mode-info">
@@ -103,7 +174,7 @@
           disabled={!canSave}
         >
           <Check size={18} />
-          <span class="btn-text">Confirm</span>
+          <span class="btn-text">Next</span>
         </button>
       </div>
     </div>
@@ -224,7 +295,6 @@
     cursor: not-allowed;
   }
 
-  /* Mobile - Icons only */
   @media (max-width: 768px) {
     .drawing-mode-header {
       padding: 16px 20px;
@@ -261,7 +331,6 @@
     }
   }
 
-  /* Small mobile */
   @media (max-width: 480px) {
     .cancel-btn,
     .confirm-btn {

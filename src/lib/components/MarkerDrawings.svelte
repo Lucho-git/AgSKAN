@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy, getContext } from "svelte"
-  import { get } from "svelte/store"
   import { supabase } from "$lib/supabaseClient"
   import { profileStore } from "$lib/stores/profileStore"
+  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import * as mapboxgl from "mapbox-gl"
 
   export let map: mapboxgl.Map
+  export let currentMarkerId: string | null = null
 
   const mapContext = getContext("map")
 
@@ -17,15 +18,13 @@
     id: string
     marker_id: string
     drawing_type: "polygon" | "line"
-    geometry: {
-      type: string
-      coordinates: number[][] | number[][][]
-    }
+    geometry: any
     style: {
       fillColor: string
       strokeColor: string
       fillOpacity: number
       strokeWidth: number
+      strokeStyle?: string
     }
   }
 
@@ -39,7 +38,7 @@
       features: drawings.map((drawing) => ({
         type: "Feature",
         id: drawing.id,
-        geometry: drawing.geometry, // 👈 Direct use, just like fields!
+        geometry: drawing.geometry,
         properties: {
           id: drawing.id,
           marker_id: drawing.marker_id,
@@ -48,6 +47,7 @@
           strokeColor: drawing.style.strokeColor,
           fillOpacity: drawing.style.fillOpacity,
           strokeWidth: drawing.style.strokeWidth,
+          strokeStyle: drawing.style.strokeStyle || "solid",
         },
       })),
     }
@@ -60,7 +60,7 @@
     }
 
     try {
-      // Polygon fill layer
+      // Fill layer for polygons
       mapContext.addLayerOrdered({
         id: "marker-drawings-fill",
         type: "fill",
@@ -72,11 +72,12 @@
         },
       })
 
-      // Line/Polygon stroke layer
+      // Solid line layer
       mapContext.addLayerOrdered({
-        id: "marker-drawings-line",
+        id: "marker-drawings-line-solid",
         type: "line",
         source: "marker-drawings",
+        filter: ["==", ["get", "strokeStyle"], "solid"],
         layout: {
           "line-cap": "round",
           "line-join": "round",
@@ -88,9 +89,51 @@
         },
       })
 
-      console.log("✅ Added marker drawing layers with proper ordering")
+      // Dashed line layer
+      mapContext.addLayerOrdered({
+        id: "marker-drawings-line-dashed",
+        type: "line",
+        source: "marker-drawings",
+        filter: ["==", ["get", "strokeStyle"], "dashed"],
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": ["get", "strokeColor"],
+          "line-width": ["get", "strokeWidth"],
+          "line-opacity": 0.8,
+          "line-dasharray": [2, 2],
+        },
+      })
     } catch (error) {
       console.error("Error adding drawing layers:", error)
+    }
+  }
+
+  function getVisibleDrawings(allDrawings: MarkerDrawing[]) {
+    return allDrawings.filter((drawing) => {
+      const visibility = $markerVisibilityStore[drawing.marker_id] || "always"
+      if (visibility === "always") return true
+      return drawing.marker_id === currentMarkerId
+    })
+  }
+
+  function updateMapDrawings() {
+    if (!canUseMap()) return
+
+    try {
+      const visibleDrawings = getVisibleDrawings(drawings)
+      const drawingsGeojson = createDrawingsGeoJSON(visibleDrawings)
+      const drawingsSource = map.getSource(
+        "marker-drawings",
+      ) as mapboxgl.GeoJSONSource
+
+      if (drawingsSource) {
+        drawingsSource.setData(drawingsGeojson)
+      }
+    } catch (error) {
+      console.error("Error updating map drawings:", error)
     }
   }
 
@@ -107,12 +150,11 @@
         return
       }
 
-      // Fetch drawings from database
       const { data, error } = await supabase
         .from("marker_drawings")
-        .select("*")
+        .select("*, geometry:geometry_geojson")
         .eq("master_map_id", masterMapId)
-        .is("deleted", null)
+        .or("deleted.is.null,deleted.eq.false")
         .order("created_at", { ascending: true })
 
       if (error) {
@@ -120,34 +162,40 @@
         return
       }
 
-      drawings = data || []
-      console.log(`Loading ${drawings.length} marker drawings`)
+      drawings = (data || [])
+        .map((d) => {
+          let parsedGeometry = d.geometry
+          if (typeof d.geometry === "string") {
+            try {
+              parsedGeometry = JSON.parse(d.geometry)
+            } catch (e) {
+              console.error("Failed to parse geometry for drawing:", d.id, e)
+              return null
+            }
+          }
+          return { ...d, geometry: parsedGeometry }
+        })
+        .filter((d) => d !== null)
 
-      const drawingsGeojson = createDrawingsGeoJSON(drawings)
+      const visibleDrawings = getVisibleDrawings(drawings)
+      const drawingsGeojson = createDrawingsGeoJSON(visibleDrawings)
 
-      // Add source
       if (!map.getSource("marker-drawings")) {
         map.addSource("marker-drawings", {
           type: "geojson",
           data: drawingsGeojson,
         })
-
-        // Add layers after source
         addDrawingLayers()
       } else {
-        // Update existing source
         const drawingsSource = map.getSource(
           "marker-drawings",
         ) as mapboxgl.GeoJSONSource
         drawingsSource.setData(drawingsGeojson)
       }
 
-      // Subscribe to realtime updates
       if (!unsubscribe) {
         subscribeToDrawingUpdates()
       }
-
-      console.log("✅ Marker drawings loaded and layers created")
     } catch (error) {
       console.error("Error loading marker drawings:", error)
     }
@@ -157,7 +205,6 @@
     const masterMapId = $profileStore.master_map_id
     if (!masterMapId) return
 
-    // Subscribe to changes in marker_drawings table
     const channel = supabase
       .channel("marker-drawings-changes")
       .on(
@@ -168,10 +215,7 @@
           table: "marker_drawings",
           filter: `master_map_id=eq.${masterMapId}`,
         },
-        (payload) => {
-          console.log("Marker drawing change detected:", payload)
-          refreshDrawings()
-        },
+        () => refreshDrawings(),
       )
       .subscribe()
 
@@ -189,9 +233,9 @@
 
       const { data, error } = await supabase
         .from("marker_drawings")
-        .select("*")
+        .select("*, geometry:geometry_geojson")
         .eq("master_map_id", masterMapId)
-        .is("deleted", null)
+        .or("deleted.is.null,deleted.eq.false")
         .order("created_at", { ascending: true })
 
       if (error) {
@@ -199,31 +243,37 @@
         return
       }
 
-      drawings = data || []
+      drawings = (data || [])
+        .map((d) => {
+          let parsedGeometry = d.geometry
+          if (typeof d.geometry === "string") {
+            try {
+              parsedGeometry = JSON.parse(d.geometry)
+            } catch (e) {
+              console.error("Failed to parse geometry for drawing:", d.id, e)
+              return null
+            }
+          }
+          return { ...d, geometry: parsedGeometry }
+        })
+        .filter((d) => d !== null)
 
-      const drawingsGeojson = createDrawingsGeoJSON(drawings)
-
-      const drawingsSource = map.getSource(
-        "marker-drawings",
-      ) as mapboxgl.GeoJSONSource
-      if (drawingsSource) {
-        drawingsSource.setData(drawingsGeojson)
-        console.log("✅ Refreshed marker drawings on map")
-      }
+      updateMapDrawings()
     } catch (error) {
       console.error("Error refreshing marker drawings:", error)
     }
   }
 
+  $: if (currentMarkerId !== undefined || $markerVisibilityStore) {
+    updateMapDrawings()
+  }
+
   function cleanup() {
     isDestroyed = true
-
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
     }
-
-    console.log("MarkerDrawings cleanup completed")
   }
 
   onMount(() => {
@@ -232,7 +282,8 @@
       return
     }
 
-    console.log("MarkerDrawings component mounted")
+    const handleDrawingCreated = () => refreshDrawings()
+    window.addEventListener("marker-drawing-created", handleDrawingCreated)
 
     if (map.loaded()) {
       loadDrawings()
@@ -244,11 +295,11 @@
       if (map) {
         map.off("load", loadDrawings)
       }
+      window.removeEventListener("marker-drawing-created", handleDrawingCreated)
     }
   })
 
   onDestroy(() => {
-    console.log("MarkerDrawings component destroying")
     cleanup()
   })
 </script>
