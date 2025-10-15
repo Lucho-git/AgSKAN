@@ -19,12 +19,12 @@
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
+  import { profileStore } from "$lib/stores/profileStore" // 🆕 Import profileStore
 
   export let map
   export let disableAutoZoom = false
   export let onOpenVehicleControls = null
 
-  // Get global selection context
   let globalSelectionContext = null
   let globalSelectionState = null
 
@@ -41,30 +41,25 @@
   }
 
   let geolocateControl
-  // 🆕 CHANGED: Store user marker data (marker + component)
   let userMarkerData = null
+  let userInitialsMarker = null // 🆕 Separate marker for user initials
   let lastRecordedTime = 0
-  // 🆕 CHANGED: Store other vehicle data (marker + component + vehicleId)
-  let otherVehicleMarkers = [] // Array of { marker, component, vehicleId }
+  let otherVehicleMarkers = [] // Array of { marker, component, vehicleId, initialsMarker }
   let currentSpeed = 0
   let isMobileApp = false
   let isBackground = false
   let appState = "web"
   let removeBackgroundListener = null
 
-  // Vehicle tracking state
   let trackedVehicleId = null
   let isTrackingVehicle = false
   let lastTrackedPosition = null
 
-  // First-person view state
   let isFirstPersonMode = false
   let lastTrackedHeading = null
 
-  // Vehicle selection state
   let selectedVehicleId = null
 
-  // Periodically check for global selection context and sync
   let contextCheckInterval = null
 
   function syncWithGlobalSelection() {
@@ -125,29 +120,24 @@
     updateAllVehicleSelectionStates()
   }
 
-  // 🆕 UPDATED: Use component $set for selection updates
   function updateAllVehicleSelectionStates() {
     console.log(
       "🚗 VehicleTracker: Updating all vehicle selection states, selectedVehicleId:",
       selectedVehicleId,
     )
 
-    // Update user marker if it exists
     if (userMarkerData?.component) {
       const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
       userMarkerData.component.$set({ isSelected })
       console.log("🚗 Updated user marker selection:", isSelected)
     }
 
-    // Update other vehicle markers
     otherVehicleMarkers.forEach(({ component, vehicleId }) => {
       const isSelected = selectedVehicleId === vehicleId
       component.$set({ isSelected })
       console.log(`🚗 Updated vehicle ${vehicleId} selection:`, isSelected)
     })
   }
-
-  // 🆕 REMOVED: updateMarkerSelection function no longer needed
 
   function parseCoordinates(coords) {
     if (!coords) return null
@@ -169,6 +159,85 @@
     }
 
     return null
+  }
+
+  // 🆕 Extract initials from full name
+  function getUserInitials(fullName) {
+    if (!fullName || typeof fullName !== "string") return ""
+
+    const trimmed = fullName.trim()
+    if (!trimmed) return ""
+
+    const names = trimmed.split(/\s+/)
+
+    if (names.length === 1) {
+      // Single name - take first 2 characters
+      return names[0].substring(0, 2).toUpperCase()
+    }
+
+    // Multiple names - take first letter of first and last name
+    return (names[0][0] + names[names.length - 1][0]).toUpperCase()
+  }
+
+  // 🆕 Create initials marker element
+  function createInitialsMarkerElement(initials, vehicleColor = null) {
+    const el = document.createElement("div")
+    el.className = "fm-initials-marker"
+    el.textContent = initials
+
+    // Color background based on vehicle color for better visibility
+    let backgroundColor = "rgba(0, 0, 0, 0.85)"
+
+    if (vehicleColor) {
+      const colorMap = {
+        Yellow: "rgba(234, 179, 8, 0.95)",
+        Orange: "rgba(249, 115, 22, 0.95)",
+        Red: "rgba(239, 68, 68, 0.95)",
+        Green: "rgba(34, 197, 94, 0.95)",
+        Blue: "rgba(59, 130, 246, 0.95)",
+        Purple: "rgba(168, 85, 247, 0.95)",
+        HotPink: "rgba(236, 72, 153, 0.95)",
+      }
+      backgroundColor = colorMap[vehicleColor] || backgroundColor
+    }
+
+    el.style.cssText = `
+      background: ${backgroundColor};
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 10px;
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+      pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      user-select: none;
+      line-height: 1;
+    `
+
+    return el
+  }
+
+  // 🆕 Update initials marker color
+  function updateInitialsMarkerColor(marker, vehicleColor) {
+    if (!marker) return
+
+    const el = marker.getElement()
+    if (!el) return
+
+    const colorMap = {
+      Yellow: "rgba(234, 179, 8, 0.95)",
+      Orange: "rgba(249, 115, 22, 0.95)",
+      Red: "rgba(239, 68, 68, 0.95)",
+      Green: "rgba(34, 197, 94, 0.95)",
+      Blue: "rgba(59, 130, 246, 0.95)",
+      Purple: "rgba(168, 85, 247, 0.95)",
+      HotPink: "rgba(236, 72, 153, 0.95)",
+    }
+
+    el.style.background = colorMap[vehicleColor] || "rgba(0, 0, 0, 0.85)"
   }
 
   function getVehicleById(vehicleId) {
@@ -566,11 +635,16 @@
   onDestroy(() => {
     stopTrackingVehicle()
 
-    // 🆕 UPDATED: Clean up user marker with component
     if (userMarkerData) {
       userMarkerData.marker.remove()
       userMarkerData.component.$destroy()
       userMarkerData = null
+    }
+
+    // 🆕 Clean up user initials marker
+    if (userInitialsMarker) {
+      userInitialsMarker.remove()
+      userInitialsMarker = null
     }
 
     if (userVehicleUnsubscribe) {
@@ -592,17 +666,20 @@
       backgroundService.cleanup()
     }
 
-    // 🆕 UPDATED: Clean up other vehicle markers with components
-    otherVehicleMarkers.forEach(({ marker, component }) => {
+    // 🆕 Clean up other vehicle markers AND initials
+    otherVehicleMarkers.forEach(({ marker, component, initialsMarker }) => {
       marker.remove()
       component.$destroy()
+      if (initialsMarker) {
+        initialsMarker.remove()
+      }
     })
     otherVehicleMarkers = []
 
     cleanup()
   })
 
-  // 🆕 COMPLETELY REWRITTEN: Process changes with component updates
+  // 🆕 UPDATED: Process changes with initials marker updates
   function processChanges(changes) {
     changes.forEach((change) => {
       const {
@@ -620,7 +697,6 @@
         .split(",")
         .map(parseFloat)
 
-      // Update camera for tracked vehicle when it moves
       if (isTrackingVehicle && vehicle_id === trackedVehicleId) {
         if (
           update_types.includes("position_changed") ||
@@ -636,7 +712,6 @@
         }
       }
 
-      // Find existing vehicle marker data
       const existingIndex = otherVehicleMarkers.findIndex(
         (item) => item.vehicleId === vehicle_id,
       )
@@ -644,9 +719,9 @@
       if (existingIndex !== -1) {
         // EXISTING VEHICLE - update in place
         const existingData = otherVehicleMarkers[existingIndex]
-        const { marker, component } = existingData
+        const { marker, component, initialsMarker } = existingData
 
-        // ✅ UPDATE PROPS: Just update the component props instead of recreating!
+        // Update vehicle marker props
         if (update_types.includes("vehicle_marker_changed")) {
           console.log(
             `🎨 Updating vehicle ${vehicle_id} marker props:`,
@@ -658,22 +733,31 @@
             vehicleColor: vehicle_marker.bodyColor,
             vehicleSwath: vehicle_marker.swath,
           })
-          // No need to remove/recreate marker! 🎉
+
+          // 🆕 Update initials marker color
+          if (initialsMarker) {
+            updateInitialsMarkerColor(initialsMarker, vehicle_marker.bodyColor)
+          }
         }
 
-        // Update position/rotation as before
+        // Update position/rotation
         if (
           update_types.includes("position_changed") ||
           update_types.includes("heading_changed")
         ) {
           animateMarker(marker, longitude, latitude, heading)
+
+          // 🆕 Also animate initials marker (without rotation)
+          if (initialsMarker) {
+            animateMarker(initialsMarker, longitude, latitude, 0)
+          }
         }
 
         // Update selection state
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
       } else {
-        // NEW VEHICLE - create marker + component
+        // NEW VEHICLE - create marker + component + initials
         console.log(`🆕 Creating new vehicle marker for ${vehicle_id}`)
         const { element, component } = createMarkerElement(
           vehicle_marker,
@@ -692,10 +776,34 @@
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
 
+        // 🆕 Create initials marker for this vehicle
+        let initialsMarker = null
+        if (full_name) {
+          const initials = getUserInitials(full_name)
+          if (initials) {
+            const initialsEl = createInitialsMarkerElement(
+              initials,
+              vehicle_marker.bodyColor,
+            )
+            initialsMarker = new mapboxgl.Marker({
+              element: initialsEl,
+              anchor: "bottom",
+              offset: [0, -40], // Position above vehicle (adjust based on your vehicle size)
+            })
+              .setLngLat([longitude, latitude])
+              .addTo(map)
+
+            console.log(
+              `✅ Created initials marker "${initials}" for ${full_name}`,
+            )
+          }
+        }
+
         otherVehicleMarkers.push({
           marker,
           component,
           vehicleId: vehicle_id,
+          initialsMarker, // 🆕 Store initials marker
         })
       }
 
@@ -772,11 +880,10 @@
     requestAnimationFrame(animate)
   }
 
-  // 🆕 COMPLETELY REWRITTEN: Update user marker with component updates
+  // 🆕 UPDATED: Update user marker with initials
   function updateUserMarker(vehicleMarker) {
     // Check if we can just update props instead of recreating
     if (userMarkerData && previousVehicleMarker) {
-      // Type is the same - we can update props
       if (vehicleMarker.type === previousVehicleMarker.type) {
         const propsChanged =
           vehicleMarker.bodyColor !== previousVehicleMarker.bodyColor ||
@@ -790,9 +897,18 @@
             vehicleColor: vehicleMarker.bodyColor,
             vehicleSwath: vehicleMarker.swath,
           })
+
+          // 🆕 Update initials marker color
+          if (userInitialsMarker) {
+            updateInitialsMarkerColor(
+              userInitialsMarker,
+              vehicleMarker.bodyColor,
+            )
+          }
+
           previousVehicleMarker = { ...vehicleMarker }
         }
-        return // No need to recreate
+        return
       }
 
       // Type changed - need to recreate
@@ -800,6 +916,12 @@
       userMarkerData.marker.remove()
       userMarkerData.component.$destroy()
       userMarkerData = null
+
+      // 🆕 Also remove initials marker
+      if (userInitialsMarker) {
+        userInitialsMarker.remove()
+        userInitialsMarker = null
+      }
     }
 
     // Create new marker (first time or type changed)
@@ -819,6 +941,28 @@
     if ($userVehicleStore.coordinates) {
       const { latitude, longitude } = $userVehicleStore.coordinates
       marker.setLngLat([longitude, latitude]).addTo(map)
+
+      // 🆕 Create initials marker for current user
+      if ($profileStore?.full_name) {
+        const initials = getUserInitials($profileStore.full_name)
+        if (initials) {
+          const initialsEl = createInitialsMarkerElement(
+            initials,
+            vehicleMarker.bodyColor,
+          )
+          userInitialsMarker = new mapboxgl.Marker({
+            element: initialsEl,
+            anchor: "bottom",
+            offset: [0, -40], // Position above vehicle
+          })
+            .setLngLat([longitude, latitude])
+            .addTo(map)
+
+          console.log(
+            `✅ Created initials marker "${initials}" for current user`,
+          )
+        }
+      }
     }
 
     const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
@@ -828,7 +972,6 @@
     previousVehicleMarker = { ...vehicleMarker }
   }
 
-  // 🆕 UPDATED: Return both element and component
   function createMarkerElement(
     vehicleMarker,
     isUserVehicle = false,
@@ -929,7 +1072,6 @@
           }
         })
 
-        // 🆕 UPDATED: Use userMarkerData instead of userMarker
         if (userMarkerData?.marker && userMarkerData.marker.getLngLat()) {
           animateMarker(
             userMarkerData.marker,
@@ -937,6 +1079,11 @@
             latitude,
             updatedHeading,
           )
+
+          // 🆕 Also animate user initials marker
+          if (userInitialsMarker) {
+            animateMarker(userInitialsMarker, longitude, latitude, 0)
+          }
         }
 
         lastClientCoordinates = { latitude, longitude }
