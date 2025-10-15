@@ -18,8 +18,8 @@
   import { userVehicleStore } from "../stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import SVGComponents from "$lib/vehicles/index.js"
-
   import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
+  import { onMount, onDestroy } from "svelte"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -33,13 +33,23 @@
   let showInfoPanel = false
   let isExpanded = false
 
+  // 🆕 Speed calculation state
+  let vehicleSpeedData = new Map() // vehicleId -> { positions: [], speeds: [] }
+  let speedUpdateInterval = null
+
+  // Constants for speed calculation
+  const MAX_POSITION_HISTORY = 5 // Keep last 5 positions
+  const STALE_THRESHOLD_MS = 30000 // 30 seconds = stale
+  const MIN_MOVEMENT_THRESHOLD_M = 2 // Minimum 2 meters to count as movement
+  const SPEED_SMOOTHING_FACTOR = 0.3 // Smooth speed changes
+
   // Get current vehicle data
   $: currentVehicle = selectedVehicleId
     ? getVehicleById(selectedVehicleId)
     : null
   $: isCurrentUser = currentVehicle?.isCurrentUser || false
 
-  // Reactive vehicle icon component - updates when userVehicleStore changes
+  // Reactive vehicle icon component
   let VehicleIcon
   $: {
     if (isCurrentUser && $userVehicleStore?.vehicle_marker?.type) {
@@ -55,7 +65,6 @@
     }
   }
 
-  // Reactive vehicle properties - update when userVehicleStore changes
   $: vehicleBodyColor = isCurrentUser
     ? $userVehicleStore?.vehicle_marker?.bodyColor || "Green"
     : currentVehicle?.vehicle_marker?.bodyColor || "Green"
@@ -64,27 +73,22 @@
     ? $userVehicleStore?.vehicle_marker?.swath || 12
     : currentVehicle?.vehicle_marker?.swath || 12
 
-  // Reactive vehicle type for display
   $: vehicleType = isCurrentUser
     ? $userVehicleStore?.vehicle_marker?.type || "Tractor"
     : currentVehicle?.vehicle_marker?.type || "Tractor"
 
-  // Reactive vehicle marker for info panel
   $: vehicleMarkerData = isCurrentUser
     ? $userVehicleStore?.vehicle_marker
     : currentVehicle?.vehicle_marker
 
-  // 🆕 UPDATED: Match preset by configuration (type + bodyColor + swath)
   $: displayName = (() => {
     if (!currentVehicle) return "Unknown Vehicle"
 
-    // Get the vehicle marker to check against presets
     const marker = isCurrentUser
       ? $userVehicleStore?.vehicle_marker
       : currentVehicle?.vehicle_marker
 
     if (marker) {
-      // Try to find a matching preset by configuration
       const matchingPreset = $vehiclePresetStore.find(
         (p) =>
           p.type === marker.type &&
@@ -93,31 +97,217 @@
       )
 
       if (matchingPreset) {
-        console.log("🎯 Found matching preset by config:", matchingPreset.name)
         return matchingPreset.name
       }
     }
 
-    // Fall back to vehicle type short name
     const fallbackName = getVehicleTypeName(marker?.type || "Vehicle")
-    console.log("📛 Using fallback name:", fallbackName)
     return fallbackName
   })()
 
-  $: if (currentVehicle) {
-    console.log("🚗 Selected Vehicle Data:", currentVehicle)
-    console.log("🚗 Display Name:", displayName)
-    console.log("🚗 Vehicle Marker:", vehicleMarkerData)
-    console.log("🚗 Current Presets:", $vehiclePresetStore)
-  }
-
-  // Close panel when no vehicle selected
   $: if (!selectedVehicleId) {
     showInfoPanel = false
     isExpanded = false
   }
 
-  // Format last seen time
+  // 🆕 Track vehicle position changes for speed calculation
+  $: if (currentVehicle?.coordinates && currentVehicle?.id) {
+    updateVehiclePosition(currentVehicle)
+  }
+
+  // 🆕 CORE SPEED CALCULATION LOGIC
+  function parseCoordinates(coords) {
+    if (!coords) return null
+
+    if (typeof coords === "object" && coords.latitude && coords.longitude) {
+      return coords
+    }
+
+    if (typeof coords === "string") {
+      const cleanedCoords = coords.slice(1, -1)
+      const [longitude, latitude] = cleanedCoords.split(",").map(parseFloat)
+      return { latitude, longitude }
+    }
+
+    return null
+  }
+
+  // Calculate distance between two coordinates (Haversine formula)
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000 // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180
+    const φ2 = (lat2 * Math.PI) / 180
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    return R * c // Distance in meters
+  }
+
+  // Update vehicle position for speed tracking
+  function updateVehiclePosition(vehicle) {
+    if (!vehicle?.id || !vehicle?.coordinates || !vehicle?.last_update) return
+
+    const coords = parseCoordinates(vehicle.coordinates)
+    if (!coords) return
+
+    const vehicleId = vehicle.id
+    const timestamp = new Date(vehicle.last_update).getTime()
+
+    // Initialize tracking for this vehicle if needed
+    if (!vehicleSpeedData.has(vehicleId)) {
+      vehicleSpeedData.set(vehicleId, {
+        positions: [],
+        speeds: [],
+        lastCalculatedSpeed: 0,
+      })
+    }
+
+    const data = vehicleSpeedData.get(vehicleId)
+
+    // Add new position
+    data.positions.push({
+      lat: coords.latitude,
+      lon: coords.longitude,
+      timestamp,
+    })
+
+    // Keep only recent positions
+    if (data.positions.length > MAX_POSITION_HISTORY) {
+      data.positions.shift()
+    }
+
+    // Calculate speed if we have at least 2 positions
+    if (data.positions.length >= 2) {
+      const recent = data.positions[data.positions.length - 1]
+      const previous = data.positions[data.positions.length - 2]
+
+      const distance = calculateDistance(
+        previous.lat,
+        previous.lon,
+        recent.lat,
+        recent.lon,
+      )
+
+      const timeDiff = (recent.timestamp - previous.timestamp) / 1000 // seconds
+
+      if (timeDiff > 0) {
+        // Calculate speed in km/h
+        let speedKmh = (distance / timeDiff) * 3.6
+
+        // Filter out unrealistic speeds (e.g., >200 km/h for farm equipment)
+        if (speedKmh > 200) {
+          speedKmh = data.lastCalculatedSpeed // Keep previous speed
+        }
+
+        // Ignore tiny movements (GPS noise)
+        if (distance < MIN_MOVEMENT_THRESHOLD_M) {
+          speedKmh = 0
+        }
+
+        // Smooth the speed using exponential moving average
+        const smoothedSpeed =
+          data.lastCalculatedSpeed * (1 - SPEED_SMOOTHING_FACTOR) +
+          speedKmh * SPEED_SMOOTHING_FACTOR
+
+        data.speeds.push(smoothedSpeed)
+        data.lastCalculatedSpeed = smoothedSpeed
+
+        // Keep speed history limited
+        if (data.speeds.length > MAX_POSITION_HISTORY) {
+          data.speeds.shift()
+        }
+      }
+    }
+
+    vehicleSpeedData.set(vehicleId, data)
+  }
+
+  // 🆕 Calculate and format speed for display
+  function calculateSpeed(vehicle) {
+    if (!vehicle?.id) return "- -"
+
+    const now = Date.now()
+    const lastUpdate = new Date(vehicle.last_update).getTime()
+    const timeSinceUpdate = now - lastUpdate
+
+    // Check if vehicle data is stale
+    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
+      return "- -" // Vehicle is offline/stale
+    }
+
+    // Get speed data for this vehicle
+    const data = vehicleSpeedData.get(vehicle.id)
+
+    if (!data || data.speeds.length === 0) {
+      // No calculated speed yet - check if vehicle is moving recently
+      if (timeSinceUpdate < 5000) {
+        return "0 km/h" // Recently updated but no speed data = stationary
+      }
+      return "- -"
+    }
+
+    // Get average of recent speeds for stability
+    const avgSpeed =
+      data.speeds.reduce((sum, s) => sum + s, 0) / data.speeds.length
+
+    // Round to 1 decimal place
+    const roundedSpeed = Math.round(avgSpeed * 10) / 10
+
+    // Format speed
+    if (roundedSpeed < 0.5) {
+      return "0 km/h" // Effectively stationary
+    }
+
+    return `${roundedSpeed.toFixed(1)} km/h`
+  }
+
+  // 🆕 Get speed status indicator (for styling/color)
+  function getSpeedStatus(vehicle) {
+    if (!vehicle?.id) return "unknown"
+
+    const now = Date.now()
+    const lastUpdate = new Date(vehicle.last_update).getTime()
+    const timeSinceUpdate = now - lastUpdate
+
+    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
+      return "stale" // Gray/offline
+    }
+
+    const data = vehicleSpeedData.get(vehicle.id)
+    if (!data || data.speeds.length === 0) {
+      return "stationary" // Yellow/waiting for data
+    }
+
+    const avgSpeed =
+      data.speeds.reduce((sum, s) => sum + s, 0) / data.speeds.length
+
+    if (avgSpeed < 0.5) {
+      return "stationary" // Yellow/stopped
+    }
+
+    return "moving" // Green/active
+  }
+
+  // 🆕 Periodic cleanup of stale vehicle data
+  function cleanupStaleData() {
+    const now = Date.now()
+    const staleCutoff = now - STALE_THRESHOLD_MS * 2 // Double the threshold for cleanup
+
+    for (const [vehicleId, data] of vehicleSpeedData.entries()) {
+      if (data.positions.length > 0) {
+        const lastPosition = data.positions[data.positions.length - 1]
+        if (now - lastPosition.timestamp > staleCutoff) {
+          vehicleSpeedData.delete(vehicleId)
+        }
+      }
+    }
+  }
+
   function formatLastSeen(timestamp) {
     if (!timestamp) return "Unknown"
     const date = new Date(timestamp)
@@ -179,10 +369,6 @@
       }
     }
 
-    return "- -"
-  }
-
-  function calculateSpeed(vehicle) {
     return "- -"
   }
 
@@ -275,6 +461,20 @@
     }
   }
 
+  // 🆕 Get speed indicator color
+  function getSpeedColor(status) {
+    switch (status) {
+      case "moving":
+        return "#22c55e" // Green
+      case "stationary":
+        return "#f59e0b" // Yellow
+      case "stale":
+        return "#6b7280" // Gray
+      default:
+        return "#6b7280"
+    }
+  }
+
   function getCurrentOperation(vehicle) {
     if (!vehicle) return "No operation"
     return vehicle.operation_name || "No operation"
@@ -302,6 +502,20 @@
       startTrackingVehicle(currentVehicle.id)
     }
   }
+
+  // 🆕 Lifecycle management
+  onMount(() => {
+    // Periodic cleanup of stale vehicle data every minute
+    speedUpdateInterval = setInterval(cleanupStaleData, 60000)
+  })
+
+  onDestroy(() => {
+    if (speedUpdateInterval) {
+      clearInterval(speedUpdateInterval)
+    }
+    // Clear all speed data on unmount
+    vehicleSpeedData.clear()
+  })
 </script>
 
 {#if currentVehicle}
@@ -329,14 +543,22 @@
 
           <!-- Status Grid -->
           <div class="status-grid">
-            <!-- Speed -->
-            <div class="status-item">
-              <div class="status-icon">
+            <!-- 🆕 UPDATED: Speed with status color -->
+            <div
+              class="status-item"
+              data-speed-status={getSpeedStatus(currentVehicle)}
+            >
+              <div
+                class="status-icon"
+                style="color: {getSpeedColor(getSpeedStatus(currentVehicle))}"
+              >
                 <Zap size={16} />
               </div>
               <div class="status-content">
                 <span class="status-label">Speed</span>
-                <span class="status-value"
+                <span
+                  class="status-value"
+                  style="color: {getSpeedColor(getSpeedStatus(currentVehicle))}"
                   >{calculateSpeed(currentVehicle)}</span
                 >
               </div>
@@ -802,6 +1024,19 @@
   .track-btn:hover {
     background: rgba(168, 85, 247, 0.3);
     color: white;
+  }
+
+  /* 🆕 Speed status-specific border colors */
+  .status-item[data-speed-status="moving"] {
+    border-left-color: #22c55e;
+  }
+
+  .status-item[data-speed-status="stationary"] {
+    border-left-color: #f59e0b;
+  }
+
+  .status-item[data-speed-status="stale"] {
+    border-left-color: #6b7280;
   }
 
   /* Mobile Responsiveness */

@@ -18,8 +18,6 @@
   import "../styles/global.css"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
-
-  // 🆕 Import the helper function
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
 
   export let map
@@ -30,7 +28,6 @@
   let globalSelectionContext = null
   let globalSelectionState = null
 
-  // Try to get global selection context
   function checkGlobalSelectionContext() {
     try {
       globalSelectionContext = getContext("globalSelection")
@@ -44,9 +41,11 @@
   }
 
   let geolocateControl
-  let userMarker
+  // 🆕 CHANGED: Store user marker data (marker + component)
+  let userMarkerData = null
   let lastRecordedTime = 0
-  let otherVehicleMarkers = []
+  // 🆕 CHANGED: Store other vehicle data (marker + component + vehicleId)
+  let otherVehicleMarkers = [] // Array of { marker, component, vehicleId }
   let currentSpeed = 0
   let isMobileApp = false
   let isBackground = false
@@ -75,7 +74,6 @@
       const currentState = globalSelectionContext.getState()
 
       if (currentState.selectedType === "vehicle") {
-        // Vehicle is selected via unified system
         if (selectedVehicleId !== currentState.selectedId) {
           selectedVehicleId = currentState.selectedId
           updateAllVehicleSelectionStates()
@@ -88,7 +86,6 @@
         currentState.selectedType !== "vehicle" &&
         selectedVehicleId !== null
       ) {
-        // Something else is selected, clear vehicle selection
         selectedVehicleId = null
         updateAllVehicleSelectionStates()
         console.log(
@@ -106,7 +103,6 @@
   let lastClientHeading = null
   let previousVehicleMarker = null
 
-  // Public method for vehicle selection (called by MapEventManager)
   export function handleVehicleSelection(vehicleId) {
     console.log(
       "🚗 VehicleTracker: Vehicle selection called with ID:",
@@ -116,24 +112,20 @@
     )
     console.log("Other vehicle data", $otherVehiclesStore)
     if (vehicleId === null) {
-      // Explicit deselection
       selectedVehicleId = null
       console.log("🚗 VehicleTracker: Vehicle explicitly deselected")
     } else if (selectedVehicleId === vehicleId) {
-      // Clicking same vehicle deselects it
       selectedVehicleId = null
       console.log("🚗 VehicleTracker: Vehicle deselected (same vehicle)")
     } else {
-      // Select new vehicle
       selectedVehicleId = vehicleId
       console.log("🚗 VehicleTracker: Selected vehicle ID:", selectedVehicleId)
     }
 
-    // Update all vehicle markers to reflect selection state
     updateAllVehicleSelectionStates()
   }
 
-  // Update all vehicle markers selection states
+  // 🆕 UPDATED: Use component $set for selection updates
   function updateAllVehicleSelectionStates() {
     console.log(
       "🚗 VehicleTracker: Updating all vehicle selection states, selectedVehicleId:",
@@ -141,41 +133,22 @@
     )
 
     // Update user marker if it exists
-    if (userMarker) {
+    if (userMarkerData?.component) {
       const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
-      updateMarkerSelection(userMarker, isSelected)
+      userMarkerData.component.$set({ isSelected })
       console.log("🚗 Updated user marker selection:", isSelected)
     }
 
     // Update other vehicle markers
-    otherVehicleMarkers.forEach((marker) => {
-      const vehicleId = marker.getElement().getAttribute("data-vehicle-id")
+    otherVehicleMarkers.forEach(({ component, vehicleId }) => {
       const isSelected = selectedVehicleId === vehicleId
-      updateMarkerSelection(marker, isSelected)
+      component.$set({ isSelected })
       console.log(`🚗 Updated vehicle ${vehicleId} selection:`, isSelected)
     })
   }
 
-  function updateMarkerSelection(marker, isSelected) {
-    const element = marker.getElement()
-    const markerContainer = element.querySelector(
-      ".fm-vehicle-marker-container",
-    )
+  // 🆕 REMOVED: updateMarkerSelection function no longer needed
 
-    if (markerContainer) {
-      if (isSelected) {
-        markerContainer.classList.add("fm-vehicle-selected")
-        console.log("🚗 Added selected class to marker")
-      } else {
-        markerContainer.classList.remove("fm-vehicle-selected")
-        console.log("🚗 Removed selected class from marker")
-      }
-    } else {
-      console.warn("🚗 Marker container not found for selection update")
-    }
-  }
-
-  // Helper function to parse coordinates
   function parseCoordinates(coords) {
     if (!coords) return null
 
@@ -198,7 +171,6 @@
     return null
   }
 
-  // Function to get current vehicle data by ID
   function getVehicleById(vehicleId) {
     if (vehicleId === $userVehicleStore.vehicle_id) {
       return {
@@ -210,7 +182,7 @@
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
-        active_preset_id: $userVehicleStore.active_preset_id, // 🆕 Include preset ID
+        active_preset_id: $userVehicleStore.active_preset_id,
         selected_operation_id: $userVehicleStore.selected_operation_id,
         current_operation: $userVehicleStore.current_operation,
         operation_name: $userVehicleStore.operation_name,
@@ -232,7 +204,6 @@
     return null
   }
 
-  // Function to toggle first-person view mode
   function toggleFirstPersonMode() {
     isFirstPersonMode = !isFirstPersonMode
     lastTrackedHeading = null
@@ -263,7 +234,6 @@
         },
       })
 
-      // Update camera if we have a tracked vehicle with valid position
       if (isTrackingVehicle) {
         const vehicle = getVehicleById(trackedVehicleId)
         if (vehicle) {
@@ -287,7 +257,6 @@
     }
   }
 
-  // Function to start tracking a vehicle
   function startTrackingVehicle(vehicleId) {
     stopTrackingVehicle()
 
@@ -307,7 +276,6 @@
         },
       })
 
-      // Initial camera update if vehicle has valid position
       const parsedCoords = parseCoordinates(vehicle.coordinates)
       if (parsedCoords) {
         updateCameraForTrackedVehicle(
@@ -320,7 +288,6 @@
     }
   }
 
-  // Function to stop tracking
   function stopTrackingVehicle() {
     if (isTrackingVehicle) {
       const vehicle = getVehicleById(trackedVehicleId)
@@ -345,7 +312,6 @@
     }
   }
 
-  // Real-time camera update with change detection
   function updateCameraForTrackedVehicle(
     vehicleId,
     longitude,
@@ -354,20 +320,17 @@
   ) {
     if (!isTrackingVehicle || trackedVehicleId !== vehicleId) return
 
-    // Check if position actually changed
     const positionChanged =
       !lastTrackedPosition ||
       lastTrackedPosition.latitude !== latitude ||
       lastTrackedPosition.longitude !== longitude
 
-    // Check if heading actually changed (for first-person mode)
     const headingChanged =
       isFirstPersonMode &&
       heading !== null &&
       heading !== undefined &&
       heading !== lastTrackedHeading
 
-    // Only update camera if something actually changed
     if (!positionChanged && !headingChanged) {
       return
     }
@@ -385,7 +348,6 @@
 
     map.easeTo(cameraOptions)
 
-    // Update tracking state only if values actually changed
     if (positionChanged) {
       lastTrackedPosition = { latitude, longitude }
     }
@@ -394,7 +356,6 @@
     }
   }
 
-  // 🆕 UPDATED: Zoom to vehicle function using helper
   function zoomToVehicle(vehicle) {
     const parsedCoords = parseCoordinates(vehicle.coordinates)
     if (!parsedCoords) {
@@ -414,7 +375,6 @@
       duration: 1500,
     })
 
-    // 🆕 Use helper function for vehicle display name
     const vehicleDisplayName = getVehicleDisplayName(vehicle)
     const vehicleInfo = vehicle.isCurrentUser
       ? "your location"
@@ -423,7 +383,6 @@
     toast.success(`Zooming to ${vehicleInfo}`)
   }
 
-  // Helper function to center camera on vehicle (for panel)
   function centerCameraOnVehicle(vehicle) {
     const parsedCoords = parseCoordinates(vehicle.coordinates)
     if (!parsedCoords) {
@@ -443,7 +402,6 @@
     toast.success(`Centered on ${vehicleInfo}`)
   }
 
-  // Function to detect if running as a mobile app
   function detectPlatform() {
     try {
       const isNativePlatform = Capacitor.isNativePlatform()
@@ -464,7 +422,6 @@
     }
   }
 
-  // Setup background service
   async function setupBackgroundService() {
     if (!isMobileApp) return
 
@@ -513,7 +470,6 @@
     }
   }
 
-  // Handle visibility changes for web browsers
   function handleVisibilityChange() {
     if (document.visibilityState === "hidden") {
       isBackground = true
@@ -551,9 +507,7 @@
     }
   }
 
-  // Cleanup function
   function cleanup() {
-    // Clear context check interval
     if (contextCheckInterval) {
       clearInterval(contextCheckInterval)
       contextCheckInterval = null
@@ -565,7 +519,6 @@
   onMount(() => {
     detectPlatform()
 
-    // Set up periodic sync with global selection context
     contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
 
     if (isMobileApp) {
@@ -613,9 +566,13 @@
   onDestroy(() => {
     stopTrackingVehicle()
 
-    if (userMarker) {
-      userMarker.remove()
+    // 🆕 UPDATED: Clean up user marker with component
+    if (userMarkerData) {
+      userMarkerData.marker.remove()
+      userMarkerData.component.$destroy()
+      userMarkerData = null
     }
+
     if (userVehicleUnsubscribe) {
       userVehicleUnsubscribe()
     }
@@ -635,10 +592,17 @@
       backgroundService.cleanup()
     }
 
+    // 🆕 UPDATED: Clean up other vehicle markers with components
+    otherVehicleMarkers.forEach(({ marker, component }) => {
+      marker.remove()
+      component.$destroy()
+    })
+    otherVehicleMarkers = []
+
     cleanup()
   })
 
-  // Process real-time vehicle changes
+  // 🆕 COMPLETELY REWRITTEN: Process changes with component updates
   function processChanges(changes) {
     changes.forEach((change) => {
       const {
@@ -672,53 +636,70 @@
         }
       }
 
-      const existingMarkerIndex = otherVehicleMarkers.findIndex((marker) => {
-        const vehicleId = marker.getElement().getAttribute("data-vehicle-id")
-        return vehicleId === vehicle_id
-      })
+      // Find existing vehicle marker data
+      const existingIndex = otherVehicleMarkers.findIndex(
+        (item) => item.vehicleId === vehicle_id,
+      )
 
-      if (existingMarkerIndex !== -1) {
-        const existingMarker = otherVehicleMarkers[existingMarkerIndex]
+      if (existingIndex !== -1) {
+        // EXISTING VEHICLE - update in place
+        const existingData = otherVehicleMarkers[existingIndex]
+        const { marker, component } = existingData
 
+        // ✅ UPDATE PROPS: Just update the component props instead of recreating!
         if (update_types.includes("vehicle_marker_changed")) {
-          existingMarker.remove()
-
-          const newMarker = new mapboxgl.Marker({
-            element: createMarkerElement(vehicle_marker, false, vehicle_id),
-            pitchAlignment: "map",
-            rotationAlignment: "map",
+          console.log(
+            `🎨 Updating vehicle ${vehicle_id} marker props:`,
+            vehicle_marker,
+          )
+          component.$set({
+            vehicleSize: vehicle_marker.size,
+            userVehicle: vehicle_marker.type,
+            vehicleColor: vehicle_marker.bodyColor,
+            vehicleSwath: vehicle_marker.swath,
           })
-
-          newMarker
-            .setLngLat([longitude, latitude])
-            .setRotation(heading)
-            .addTo(map)
-          otherVehicleMarkers[existingMarkerIndex] = newMarker
-
-          const isSelected = selectedVehicleId === vehicle_id
-          updateMarkerSelection(newMarker, isSelected)
+          // No need to remove/recreate marker! 🎉
         }
 
+        // Update position/rotation as before
         if (
           update_types.includes("position_changed") ||
           update_types.includes("heading_changed")
         ) {
-          animateMarker(existingMarker, longitude, latitude, heading)
+          animateMarker(marker, longitude, latitude, heading)
         }
+
+        // Update selection state
+        const isSelected = selectedVehicleId === vehicle_id
+        component.$set({ isSelected })
       } else {
+        // NEW VEHICLE - create marker + component
+        console.log(`🆕 Creating new vehicle marker for ${vehicle_id}`)
+        const { element, component } = createMarkerElement(
+          vehicle_marker,
+          false,
+          vehicle_id,
+        )
+
         const marker = new mapboxgl.Marker({
-          element: createMarkerElement(vehicle_marker, false, vehicle_id),
+          element: element,
           pitchAlignment: "map",
           rotationAlignment: "map",
         })
 
         marker.setLngLat([longitude, latitude]).setRotation(heading).addTo(map)
-        otherVehicleMarkers.push(marker)
 
         const isSelected = selectedVehicleId === vehicle_id
-        updateMarkerSelection(marker, isSelected)
+        component.$set({ isSelected })
+
+        otherVehicleMarkers.push({
+          marker,
+          component,
+          vehicleId: vehicle_id,
+        })
       }
 
+      // Update store
       otherVehiclesStore.update((vehicles) => {
         const index = vehicles.findIndex(
           (vehicle) => vehicle.vehicle_id === vehicle_id,
@@ -754,7 +735,6 @@
     })
   }
 
-  // Smooth marker animation
   function animateMarker(marker, targetLng, targetLat, targetRotation) {
     const currentLngLat = marker.getLngLat()
     const currentRotation = marker.getRotation()
@@ -792,43 +772,63 @@
     requestAnimationFrame(animate)
   }
 
+  // 🆕 COMPLETELY REWRITTEN: Update user marker with component updates
   function updateUserMarker(vehicleMarker) {
-    if (userMarker && previousVehicleMarker) {
-      if (
-        vehicleMarker.type === previousVehicleMarker.type &&
-        vehicleMarker.bodyColor === previousVehicleMarker.bodyColor &&
-        vehicleMarker.size === previousVehicleMarker.size &&
-        vehicleMarker.swath === previousVehicleMarker.swath
-      ) {
-        return
+    // Check if we can just update props instead of recreating
+    if (userMarkerData && previousVehicleMarker) {
+      // Type is the same - we can update props
+      if (vehicleMarker.type === previousVehicleMarker.type) {
+        const propsChanged =
+          vehicleMarker.bodyColor !== previousVehicleMarker.bodyColor ||
+          vehicleMarker.size !== previousVehicleMarker.size ||
+          vehicleMarker.swath !== previousVehicleMarker.swath
+
+        if (propsChanged) {
+          console.log("🎨 Updating user marker props:", vehicleMarker)
+          userMarkerData.component.$set({
+            vehicleSize: vehicleMarker.size,
+            vehicleColor: vehicleMarker.bodyColor,
+            vehicleSwath: vehicleMarker.swath,
+          })
+          previousVehicleMarker = { ...vehicleMarker }
+        }
+        return // No need to recreate
       }
+
+      // Type changed - need to recreate
+      console.log("🔄 User marker type changed, recreating...")
+      userMarkerData.marker.remove()
+      userMarkerData.component.$destroy()
+      userMarkerData = null
     }
 
-    if (userMarker) {
-      userMarker.remove()
-    }
+    // Create new marker (first time or type changed)
+    console.log("🆕 Creating new user marker")
+    const { element, component } = createMarkerElement(
+      vehicleMarker,
+      true,
+      $userVehicleStore.vehicle_id,
+    )
 
-    userMarker = new mapboxgl.Marker({
-      element: createMarkerElement(
-        vehicleMarker,
-        true,
-        $userVehicleStore.vehicle_id,
-      ),
+    const marker = new mapboxgl.Marker({
+      element: element,
       pitchAlignment: "map",
       rotationAlignment: "map",
     })
 
     if ($userVehicleStore.coordinates) {
       const { latitude, longitude } = $userVehicleStore.coordinates
-      userMarker.setLngLat([longitude, latitude]).addTo(map)
-      previousVehicleMarker = { ...vehicleMarker }
-
-      const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
-      updateMarkerSelection(userMarker, isSelected)
+      marker.setLngLat([longitude, latitude]).addTo(map)
     }
+
+    const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
+    component.$set({ isSelected })
+
+    userMarkerData = { marker, component }
+    previousVehicleMarker = { ...vehicleMarker }
   }
 
-  // Create marker element WITHOUT click handler (handled by MapEventManager)
+  // 🆕 UPDATED: Return both element and component
   function createMarkerElement(
     vehicleMarker,
     isUserVehicle = false,
@@ -837,7 +837,7 @@
     const el = document.createElement("div")
     el.setAttribute("data-vehicle-id", vehicleId)
 
-    new UserMarker({
+    const component = new UserMarker({
       target: el,
       props: {
         pulseColor: "rgba(172, 172, 230, 0.8)",
@@ -847,14 +847,13 @@
         vehicleColor: vehicleMarker.bodyColor,
         vehicleSwath: vehicleMarker.swath,
         showPulse: isUserVehicle,
-        isSelected: selectedVehicleId === vehicleId,
+        isSelected: false,
       },
     })
 
-    return el
+    return { element: el, component }
   }
 
-  // Stream marker position with change detection
   function streamMarkerPosition(coords) {
     const { latitude, longitude, heading, speed } = coords
     currentSpeed = speed ? Math.round(speed * 3.6) : 0
@@ -869,7 +868,6 @@
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
 
-    // Update camera if tracking current user and position/heading changed
     if (
       isTrackingVehicle &&
       trackedVehicleId === $userVehicleStore.vehicle_id
@@ -931,8 +929,14 @@
           }
         })
 
-        if (userMarker && userMarker.getLngLat()) {
-          animateMarker(userMarker, longitude, latitude, updatedHeading)
+        // 🆕 UPDATED: Use userMarkerData instead of userMarker
+        if (userMarkerData?.marker && userMarkerData.marker.getLngLat()) {
+          animateMarker(
+            userMarkerData.marker,
+            longitude,
+            latitude,
+            updatedHeading,
+          )
         }
 
         lastClientCoordinates = { latitude, longitude }
@@ -943,7 +947,6 @@
     }
   }
 
-  // Event handlers for VehicleControls
   function handleStartTracking(event) {
     startTrackingVehicle(event.detail.vehicleId)
   }
@@ -962,7 +965,6 @@
 
   function handleInstantZoomToVehicle(event) {
     const { vehicle } = event.detail
-    // Immediate zoom without animation interference
     if (vehicle.coordinates) {
       const coords = parseCoordinates(vehicle.coordinates)
       if (coords) {
@@ -972,11 +974,9 @@
     }
   }
 
-  // Export selected vehicle ID for external access
   export { selectedVehicleId }
 </script>
 
-<!-- Vehicle Controls Component -->
 <VehicleControls
   {map}
   {currentSpeed}
@@ -990,7 +990,6 @@
   on:instantZoomToVehicle={handleInstantZoomToVehicle}
 />
 
-<!-- Vehicle Details Panel -->
 <VehicleDetailsPanel
   {selectedVehicleId}
   {getVehicleById}
