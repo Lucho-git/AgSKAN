@@ -153,7 +153,30 @@ async function closeTrailWithPath(
         }
 
         console.log(`✅ Trail ${trail_id}: Successfully closed (paths stored, points deleted)`);
-        console.log(`   Metrics status: Pending calculation`);
+        console.log(`   Attempting metrics calculation in background...`);
+
+        // Attempt metrics calculation in background (non-blocking, failures are OK)
+        supabase.rpc('calculate_trail_metrics', { trail_id_param: trail_id })
+            .then(({ data: metricsResult, error: metricsError }) => {
+                if (metricsError || !metricsResult?.success) {
+                    console.warn(`⚠️  Trail ${trail_id}: Metrics calculation failed (will calculate later)`);
+                    if (metricsError) {
+                        console.warn(`    Error:`, metricsError.message);
+                    } else if (metricsResult?.error) {
+                        console.warn(`    Error:`, metricsResult.error);
+                    }
+                } else {
+                    console.log(`✅ Trail ${trail_id}: Metrics calculated successfully`);
+                    if (metricsResult.metrics) {
+                        console.log(`   Distance: ${metricsResult.metrics.trail_distance}m`);
+                        console.log(`   Area: ${metricsResult.metrics.trail_hectares} hectares`);
+                        console.log(`   Overlap: ${metricsResult.metrics.trail_percentage_overlap}%`);
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn(`⚠️  Trail ${trail_id}: Metrics calculation error (will calculate later)`, err.message);
+            });
 
         return { data, error: null };
 
