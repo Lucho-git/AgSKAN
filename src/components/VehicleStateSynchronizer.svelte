@@ -1,4 +1,5 @@
 <!-- src/components/VehicleStateSynchronizer.svelte -->
+
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { supabase } from "../lib/supabaseClient"
@@ -45,10 +46,8 @@
 
     const vehicles = $mapActivityStore.vehicle_states || []
 
-    // Get profile information for each vehicle INCLUDING operation data
     const vehiclesWithProfiles = await Promise.all(
       vehicles.map(async (vehicle) => {
-        // Find the profile with operation data
         const profile = $mapActivityStore.connected_profiles.find(
           (p) => p.id === vehicle.vehicle_id,
         )
@@ -64,7 +63,6 @@
       }),
     )
 
-    // Filter out the current user and return
     return vehiclesWithProfiles.filter(
       (vehicle) => vehicle.vehicle_id !== userId,
     )
@@ -83,6 +81,7 @@
         vehicle_marker: serverItem.vehicle_marker,
         is_trailing: serverItem.is_trailing,
         last_update: serverItem.last_update,
+        speed: serverItem.speed, // 🆕 Include speed
         full_name: serverItem.full_name || clientItem?.full_name,
         selected_operation_id:
           serverItem.selected_operation_id || clientItem?.selected_operation_id,
@@ -108,6 +107,7 @@
           serverItem.last_update !== clientItem.last_update
         const operationChanged =
           serverItem.operation_name !== clientItem.operation_name
+        const speedChanged = serverItem.speed !== clientItem.speed // 🆕 Detect speed changes
 
         if (vehicleMarkerChanged)
           change.update_types.push("vehicle_marker_changed")
@@ -117,6 +117,7 @@
           change.update_types.push("trailing_status_changed")
         if (lastUpdateChanged) change.update_types.push("last_update_changed")
         if (operationChanged) change.update_types.push("operation_changed")
+        if (speedChanged) change.update_types.push("speed_changed") // 🆕 Speed update type
       }
 
       return change
@@ -129,7 +130,14 @@
     const userId = $profileStore.id
     const masterMapId = $profileStore.master_map_id
 
-    const { coordinates, last_update, heading, vehicle_marker } = vehicleData
+    const {
+      coordinates,
+      last_update,
+      heading,
+      vehicle_marker,
+      speed,
+    } = // 🆕 Destructure speed
+      vehicleData
 
     if (!coordinates) {
       console.warn("Coordinates not available. Skipping vehicle state update.")
@@ -144,6 +152,7 @@
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
       heading: heading !== null ? heading : null,
+      speed: speed !== null && speed !== undefined ? speed : 0, // 🆕 Include speed (default to 0)
     }
 
     try {
@@ -161,14 +170,20 @@
     const userId = $profileStore.id
     const masterMapId = $profileStore.master_map_id
 
-    const { coordinates, last_update, heading, vehicle_marker } = vehicleData
+    const {
+      coordinates,
+      last_update,
+      heading,
+      vehicle_marker,
+      speed,
+    } = // 🆕 Destructure speed
+      vehicleData
 
     if (!coordinates) {
       console.warn("Coordinates not available. Skipping database update.")
       return
     }
 
-    // Check if any non-movement properties have changed
     const hasNonMovementChanges =
       previousVehicleData &&
       (JSON.stringify(vehicleData.vehicle_marker) !==
@@ -194,6 +209,7 @@
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
       heading: heading !== null ? heading : null,
+      speed: speed !== null && speed !== undefined ? speed : 0, // 🆕 Include speed
     }
 
     const { data, error } = await supabase
@@ -204,11 +220,10 @@
     if (error) {
       console.error("Error updating vehicle state in database:", error)
     } else {
-      console.log("Database updated")
+      console.log("Database updated with speed:", speed)
       lastDatabaseUpdate = currentTime
     }
 
-    // Update previous vehicle data after successful update
     previousVehicleData = { ...vehicleData }
   }
 
@@ -217,20 +232,16 @@
     const userId = $profileStore.id
     const masterMapId = $profileStore.master_map_id
 
-    // 🆕 FIRST: Load presets from database
     console.log("📦 Loading vehicle presets for map:", masterMapId)
     await vehiclePresetStore.loadPresetsForMap(masterMapId)
     console.log("📦 Presets loaded:", $vehiclePresetStore)
 
-    // Then fetch the user's own vehicle data
     const userVehicle = await fetchUserVehicleData(userId)
 
-    // ALWAYS update the store, even for new users
     let parsedCoordinates = null
     let vehicleData = null
 
     if (userVehicle) {
-      // Existing user - parse their coordinates
       if (userVehicle.coordinates) {
         const [longitude, latitude] = userVehicle.coordinates
           .slice(1, -1)
@@ -240,13 +251,13 @@
       }
       vehicleData = userVehicle
     } else {
-      // New user - create default vehicle data
       vehicleData = {
         vehicle_id: userId,
         coordinates: null,
         last_update: null,
         heading: null,
         is_trailing: false,
+        speed: 0, // 🆕 Default speed
         vehicle_marker: {
           type: "Pointer",
           bodyColor: "Yellow",
@@ -257,7 +268,6 @@
       }
     }
 
-    // Get operation data for current user from mapActivityStore
     const currentUserProfile = $mapActivityStore.connected_profiles.find(
       (p) => p.id === userId,
     )
@@ -267,12 +277,11 @@
       currentUserProfile,
     )
 
-    // ALWAYS update the userVehicleStore
     userVehicleStore.update((vehicle) => {
       return {
         ...vehicle,
         ...vehicleData,
-        coordinates: parsedCoordinates, // null for new users, parsed for existing
+        coordinates: parsedCoordinates,
         selected_operation_id:
           currentUserProfile?.selected_operation_id || null,
         current_operation: currentUserProfile?.current_operation || null,
@@ -281,9 +290,6 @@
       }
     })
 
-    // Preset matching happens reactively in VehicleDetailsPanel - no need to do it here!
-
-    // Then fetch initial vehicle data from the server
     const initialVehicles = await fetchInitialVehicleData(masterMapId, userId)
     console.log("Initial vehicle data:", initialVehicles)
     serverOtherVehiclesData.set(initialVehicles)
@@ -291,18 +297,15 @@
     const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
     otherVehiclesDataChanges.set(changes)
 
-    // Subscribe to realtime updates from other vehicles (broadcast)
     channel = supabase
       .channel(`vehicle_updates_${masterMapId}`)
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         if (payload.payload.vehicle_id !== userId) {
-          // Update was made by another vehicle
           serverOtherVehiclesData.update((vehicles) => {
             const existingVehicleIndex = vehicles.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
             )
             if (existingVehicleIndex !== -1) {
-              // Vehicle already exists, update its data while preserving operation data
               vehicles[existingVehicleIndex] = {
                 ...vehicles[existingVehicleIndex],
                 ...payload.payload,
@@ -315,14 +318,12 @@
                 operation_id: vehicles[existingVehicleIndex].operation_id,
               }
             } else {
-              // Vehicle doesn't exist, add it
               console.log("pushing new vehicle", payload.payload)
               vehicles.push(payload.payload)
             }
             return vehicles
           })
 
-          // Compare the serverOtherVehiclesData with the otherVehiclesStore and store the changes
           const changes = compareData(
             $serverOtherVehiclesData,
             $otherVehiclesStore,
@@ -333,20 +334,18 @@
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to all changes (INSERT, UPDATE, DELETE)
+          event: "*",
           schema: "public",
           table: "vehicle_state",
           filter: `master_map_id=eq.${masterMapId}`,
         },
         (payload) => {
-          // Check if the update is from another vehicle
           if (payload.new.vehicle_id !== userId) {
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
-                // Vehicle already exists, update its data while preserving operation data
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
                   ...payload.new,
@@ -359,14 +358,12 @@
                   operation_id: vehicles[existingVehicleIndex].operation_id,
                 }
               } else {
-                // Vehicle doesn't exist, add it
                 console.log("pushing new vehicle", payload.new)
                 vehicles.push(payload.new)
               }
               return vehicles
             })
 
-            // Compare the serverOtherVehiclesData with the otherVehiclesStore and store the changes
             const changes = compareData(
               $serverOtherVehiclesData,
               $otherVehiclesStore,
@@ -377,13 +374,10 @@
       )
       .subscribe()
 
-    // Subscribe to changes in the userVehicleStore
     unsubscribe = userVehicleStore.subscribe(async (vehicleData) => {
-      // Always broadcast the update
       console.log("Broadcasting vehicle state:", vehicleData)
       await broadcastVehicleState(vehicleData)
 
-      // Update database with new logic
       await updateDatabaseVehicleState(vehicleData)
     })
 

@@ -19,7 +19,7 @@
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
-  import { profileStore } from "$lib/stores/profileStore" // 🆕 Import profileStore
+  import { profileStore } from "$lib/stores/profileStore"
 
   export let map
   export let disableAutoZoom = false
@@ -42,9 +42,9 @@
 
   let geolocateControl
   let userMarkerData = null
-  let userInitialsMarker = null // 🆕 Separate marker for user initials
+  let userInitialsMarker = null
   let lastRecordedTime = 0
-  let otherVehicleMarkers = [] // Array of { marker, component, vehicleId, initialsMarker }
+  let otherVehicleMarkers = []
   let currentSpeed = 0
   let isMobileApp = false
   let isBackground = false
@@ -61,6 +61,12 @@
   let selectedVehicleId = null
 
   let contextCheckInterval = null
+
+  // 🆕 Speed calculation state
+  let lastSpeedCalcPosition = null
+  let lastSpeedCalcTime = null
+  const MIN_SPEED_CALC_INTERVAL_MS = 1000 // Calculate speed every 1 second minimum
+  const MIN_MOVEMENT_THRESHOLD_M = 1.5 // Minimum 1.5 meters to count as movement
 
   function syncWithGlobalSelection() {
     checkGlobalSelectionContext()
@@ -161,7 +167,68 @@
     return null
   }
 
-  // 🆕 Extract initials from full name
+  // 🆕 Calculate distance between two coordinates (Haversine formula)
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000 // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180
+    const φ2 = (lat2 * Math.PI) / 180
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    return R * c // Distance in meters
+  }
+
+  // 🆕 Calculate speed from GPS coordinates
+  function calculateSpeedFromGPS(latitude, longitude, timestamp) {
+    // Need at least one previous position
+    if (!lastSpeedCalcPosition || !lastSpeedCalcTime) {
+      lastSpeedCalcPosition = { latitude, longitude }
+      lastSpeedCalcTime = timestamp
+      return 0 // First position, no speed yet
+    }
+
+    const timeDiff = timestamp - lastSpeedCalcTime
+
+    // Don't calculate too frequently
+    if (timeDiff < MIN_SPEED_CALC_INTERVAL_MS) {
+      return currentSpeed // Return last calculated speed
+    }
+
+    // Calculate distance traveled
+    const distance = calculateDistance(
+      lastSpeedCalcPosition.latitude,
+      lastSpeedCalcPosition.longitude,
+      latitude,
+      longitude,
+    )
+
+    // Update last position for next calculation
+    lastSpeedCalcPosition = { latitude, longitude }
+    lastSpeedCalcTime = timestamp
+
+    // If movement is too small, consider vehicle stationary (filters GPS noise)
+    if (distance < MIN_MOVEMENT_THRESHOLD_M) {
+      return 0
+    }
+
+    // Calculate speed in km/h
+    const timeInSeconds = timeDiff / 1000
+    const speedKmh = (distance / timeInSeconds) * 3.6
+
+    // Sanity check: reject unrealistic speeds (>200 km/h for farm equipment)
+    if (speedKmh > 200) {
+      return currentSpeed // Keep previous speed, likely GPS error
+    }
+
+    // Round to 1 decimal place
+    return Math.round(speedKmh * 10) / 10
+  }
+
   function getUserInitials(fullName) {
     if (!fullName || typeof fullName !== "string") return ""
 
@@ -171,21 +238,17 @@
     const names = trimmed.split(/\s+/)
 
     if (names.length === 1) {
-      // Single name - take first 2 characters
       return names[0].substring(0, 2).toUpperCase()
     }
 
-    // Multiple names - take first letter of first and last name
     return (names[0][0] + names[names.length - 1][0]).toUpperCase()
   }
 
-  // 🆕 Create initials marker element
   function createInitialsMarkerElement(initials, vehicleColor = null) {
     const el = document.createElement("div")
     el.className = "fm-initials-marker"
     el.textContent = initials
 
-    // Color background based on vehicle color for better visibility
     let backgroundColor = "rgba(0, 0, 0, 0.85)"
 
     if (vehicleColor) {
@@ -220,7 +283,6 @@
     return el
   }
 
-  // 🆕 Update initials marker color
   function updateInitialsMarkerColor(marker, vehicleColor) {
     if (!marker) return
 
@@ -248,6 +310,7 @@
         vehicle_marker: $userVehicleStore.vehicle_marker,
         coordinates: $userVehicleStore.coordinates,
         heading: $userVehicleStore.heading,
+        speed: $userVehicleStore.speed, // 🆕 Include speed
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
@@ -641,7 +704,6 @@
       userMarkerData = null
     }
 
-    // 🆕 Clean up user initials marker
     if (userInitialsMarker) {
       userInitialsMarker.remove()
       userInitialsMarker = null
@@ -666,7 +728,6 @@
       backgroundService.cleanup()
     }
 
-    // 🆕 Clean up other vehicle markers AND initials
     otherVehicleMarkers.forEach(({ marker, component, initialsMarker }) => {
       marker.remove()
       component.$destroy()
@@ -679,7 +740,6 @@
     cleanup()
   })
 
-  // 🆕 UPDATED: Process changes with initials marker updates
   function processChanges(changes) {
     changes.forEach((change) => {
       const {
@@ -690,6 +750,7 @@
         update_types,
         is_trailing,
         full_name,
+        speed, // 🆕 Include speed from broadcast
       } = change
 
       const [longitude, latitude] = coordinates
@@ -717,11 +778,9 @@
       )
 
       if (existingIndex !== -1) {
-        // EXISTING VEHICLE - update in place
         const existingData = otherVehicleMarkers[existingIndex]
         const { marker, component, initialsMarker } = existingData
 
-        // Update vehicle marker props
         if (update_types.includes("vehicle_marker_changed")) {
           console.log(
             `🎨 Updating vehicle ${vehicle_id} marker props:`,
@@ -734,30 +793,25 @@
             vehicleSwath: vehicle_marker.swath,
           })
 
-          // 🆕 Update initials marker color
           if (initialsMarker) {
             updateInitialsMarkerColor(initialsMarker, vehicle_marker.bodyColor)
           }
         }
 
-        // Update position/rotation
         if (
           update_types.includes("position_changed") ||
           update_types.includes("heading_changed")
         ) {
           animateMarker(marker, longitude, latitude, heading)
 
-          // 🆕 Also animate initials marker (without rotation)
           if (initialsMarker) {
             animateMarker(initialsMarker, longitude, latitude, 0)
           }
         }
 
-        // Update selection state
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
       } else {
-        // NEW VEHICLE - create marker + component + initials
         console.log(`🆕 Creating new vehicle marker for ${vehicle_id}`)
         const { element, component } = createMarkerElement(
           vehicle_marker,
@@ -776,7 +830,6 @@
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
 
-        // 🆕 Create initials marker for this vehicle
         let initialsMarker = null
         if (full_name) {
           const initials = getUserInitials(full_name)
@@ -788,7 +841,7 @@
             initialsMarker = new mapboxgl.Marker({
               element: initialsEl,
               anchor: "bottom",
-              offset: [0, -40], // Position above vehicle (adjust based on your vehicle size)
+              offset: [0, -40],
             })
               .setLngLat([longitude, latitude])
               .addTo(map)
@@ -803,11 +856,11 @@
           marker,
           component,
           vehicleId: vehicle_id,
-          initialsMarker, // 🆕 Store initials marker
+          initialsMarker,
         })
       }
 
-      // Update store
+      // 🆕 Update store with speed included
       otherVehiclesStore.update((vehicles) => {
         const index = vehicles.findIndex(
           (vehicle) => vehicle.vehicle_id === vehicle_id,
@@ -834,9 +887,9 @@
             })
           }
 
-          vehicles[index] = { ...oldVehicle, ...change }
+          vehicles[index] = { ...oldVehicle, ...change, speed } // 🆕 Include speed
         } else {
-          vehicles.push(change)
+          vehicles.push({ ...change, speed }) // 🆕 Include speed
         }
         return vehicles
       })
@@ -880,9 +933,7 @@
     requestAnimationFrame(animate)
   }
 
-  // 🆕 UPDATED: Update user marker with initials
   function updateUserMarker(vehicleMarker) {
-    // Check if we can just update props instead of recreating
     if (userMarkerData && previousVehicleMarker) {
       if (vehicleMarker.type === previousVehicleMarker.type) {
         const propsChanged =
@@ -898,7 +949,6 @@
             vehicleSwath: vehicleMarker.swath,
           })
 
-          // 🆕 Update initials marker color
           if (userInitialsMarker) {
             updateInitialsMarkerColor(
               userInitialsMarker,
@@ -911,20 +961,17 @@
         return
       }
 
-      // Type changed - need to recreate
       console.log("🔄 User marker type changed, recreating...")
       userMarkerData.marker.remove()
       userMarkerData.component.$destroy()
       userMarkerData = null
 
-      // 🆕 Also remove initials marker
       if (userInitialsMarker) {
         userInitialsMarker.remove()
         userInitialsMarker = null
       }
     }
 
-    // Create new marker (first time or type changed)
     console.log("🆕 Creating new user marker")
     const { element, component } = createMarkerElement(
       vehicleMarker,
@@ -942,7 +989,6 @@
       const { latitude, longitude } = $userVehicleStore.coordinates
       marker.setLngLat([longitude, latitude]).addTo(map)
 
-      // 🆕 Create initials marker for current user
       if ($profileStore?.full_name) {
         const initials = getUserInitials($profileStore.full_name)
         if (initials) {
@@ -953,7 +999,7 @@
           userInitialsMarker = new mapboxgl.Marker({
             element: initialsEl,
             anchor: "bottom",
-            offset: [0, -40], // Position above vehicle
+            offset: [0, -40],
           })
             .setLngLat([longitude, latitude])
             .addTo(map)
@@ -999,7 +1045,16 @@
 
   function streamMarkerPosition(coords) {
     const { latitude, longitude, heading, speed } = coords
-    currentSpeed = speed ? Math.round(speed * 3.6) : 0
+
+    // 🆕 Calculate speed from GPS positions (more accurate than device speed)
+    const calculatedSpeed = calculateSpeedFromGPS(
+      latitude,
+      longitude,
+      Date.now(),
+    )
+
+    // Update displayed speed for speedometer
+    currentSpeed = Math.round(calculatedSpeed)
 
     const currentTime = Date.now()
 
@@ -1007,6 +1062,7 @@
       coordinates: { latitude, longitude },
       last_update: currentTime,
       vehicle_marker: $userVehicleStore.vehicle_marker,
+      speed: calculatedSpeed, // 🆕 Include calculated speed
     }
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
@@ -1037,7 +1093,7 @@
 
   function updateUserVehicleData(currentTime, vehicleData, updatedHeading) {
     if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
-      const { coordinates } = vehicleData
+      const { coordinates, speed } = vehicleData // 🆕 Destructure speed
       const { bodyColor, swath } = vehicleData.vehicle_marker
       const { latitude, longitude } = coordinates
 
@@ -1062,6 +1118,7 @@
         lastClientCoordinates.longitude !== longitude ||
         lastClientHeading !== updatedHeading
       ) {
+        // 🆕 Update vehicle store with speed
         userVehicleStore.update((vehicle) => {
           return {
             ...vehicle,
@@ -1069,6 +1126,7 @@
             last_update: vehicleData.last_update,
             vehicle_marker: vehicleData.vehicle_marker,
             heading: updatedHeading,
+            speed: speed, // 🆕 Add speed to store
           }
         })
 
@@ -1080,7 +1138,6 @@
             updatedHeading,
           )
 
-          // 🆕 Also animate user initials marker
           if (userInitialsMarker) {
             animateMarker(userInitialsMarker, longitude, latitude, 0)
           }
