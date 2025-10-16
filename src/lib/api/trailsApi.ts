@@ -97,7 +97,7 @@ function simplifyPath(points: Point[], tolerance: number): Point[] {
 }
 
 /**
- * Close a trail with path data
+ * Close a trail with path data using fast closure
  */
 async function closeTrailWithPath(
     trail_id: string,
@@ -106,14 +106,13 @@ async function closeTrailWithPath(
 ) {
     if (!path || path.length === 0) {
         // If no path is provided, just update the end time
-        const result = await supabase.rpc("close_trail", {
+        const result = await supabase.rpc("close_trail_fast", {
             trail_id_param: trail_id,
             end_time_param: endTime,
             path_param: null,
             detailed_path_param: null
         });
 
-        // Return consistent structure
         return { data: result.data, error: result.error };
     }
 
@@ -132,11 +131,11 @@ async function closeTrailWithPath(
 
     console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedPath.length.toLocaleString()} simplified (${Math.round((1 - simplifiedPath.length / path.length) * 100)}% reduction)`);
 
-    // Try with detailed path first
     try {
-        console.log(`Attempting to close trail ${trail_id} with detailed path (${path.length.toLocaleString()} points)...`);
+        console.log(`Closing trail ${trail_id} with fast closure (stores paths, no calculations)...`);
 
-        const { data, error } = await supabase.rpc("close_trail", {
+        // Use close_trail_fast - stores paths and deletes points, but doesn't calculate metrics
+        const { data, error } = await supabase.rpc("close_trail_fast", {
             trail_id_param: trail_id,
             end_time_param: endTime,
             path_param: pathString,
@@ -144,47 +143,18 @@ async function closeTrailWithPath(
         });
 
         if (error) {
-            // Check if it's a timeout or performance-related error
-            const isPerformanceError =
-                error.code === '57014' || // query_canceled (timeout)
-                error.code === '53200' || // out_of_memory
-                error.code === '53400' || // configuration_limit_exceeded
-                error.code === '54000' || // program_limit_exceeded
-                error.message?.toLowerCase().includes('timeout') ||
-                error.message?.toLowerCase().includes('memory') ||
-                error.message?.toLowerCase().includes('too complex') ||
-                error.message?.toLowerCase().includes('cancel');
-
-            if (isPerformanceError) {
-                console.warn(`⚠️  Trail ${trail_id}: Detailed path calculation failed (${error.code || 'performance issue'})`);
-                console.warn(`    Error: ${error.message}`);
-                console.log(`    Retrying with simplified path for buffer calculations...`);
-
-                // Fall back to simplified version
-                const { data: simplifiedData, error: simplifiedError } = await supabase.rpc("close_trail_simplified", {
-                    trail_id_param: trail_id,
-                    end_time_param: endTime,
-                    path_param: pathString,
-                    detailed_path_param: detailedPathString
-                });
-
-                if (simplifiedError) {
-                    console.error(`❌ Trail ${trail_id}: Simplified calculation also failed`, simplifiedError);
-                    throw simplifiedError;
-                }
-
-                console.log(`✅ Trail ${trail_id}: Successfully closed using simplified calculations`);
-                console.log(`   Method: ${simplifiedData?.note || 'simplified path for area/buffer'}`);
-
-                return { data: simplifiedData, error: null };
-            }
-
-            // If it's not a performance error, throw it
-            console.error(`❌ Trail ${trail_id}: Non-performance error:`, error);
+            console.error(`❌ Trail ${trail_id}: Fast closure failed:`, error);
             throw error;
         }
 
-        console.log(`✅ Trail ${trail_id}: Successfully closed using detailed path calculations`);
+        if (!data?.success) {
+            console.error(`❌ Trail ${trail_id}: Fast closure returned error:`, data?.error);
+            throw new Error(data?.error || 'Fast closure failed');
+        }
+
+        console.log(`✅ Trail ${trail_id}: Successfully closed (paths stored, points deleted)`);
+        console.log(`   Metrics status: Pending calculation`);
+
         return { data, error: null };
 
     } catch (error) {
