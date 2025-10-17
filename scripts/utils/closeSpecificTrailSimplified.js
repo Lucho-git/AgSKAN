@@ -14,7 +14,7 @@ dotenv.config()
 const supabase = createClient(process.env.PUBLIC_SUPABASE_URL, process.env.PRIVATE_SUPABASE_SERVICE_ROLE)
 
 // *** CONFIGURE THIS ***
-const TRAIL_ID = '14864b5b-be9e-47de-a385-1483deef7df3'
+const TRAIL_ID = 'c0870bfc-ab4e-4bef-9ec7-859b239d521e'
 // **********************
 
 // Helper function to log with timestamps

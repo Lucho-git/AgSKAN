@@ -15,7 +15,7 @@
   } from "lucide-svelte"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
-  import { userVehicleStore } from "../stores/vehicleStore"
+  import { userVehicleStore, otherVehiclesStore } from "../stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
@@ -33,10 +33,110 @@
 
   const STALE_THRESHOLD_MS = 30000 // 30 seconds
 
-  $: currentVehicle = selectedVehicleId
-    ? getVehicleById(selectedVehicleId)
-    : null
+  // 🆕 FIXED: React directly to store changes, not derived objects
+  $: currentVehicle = (() => {
+    if (!selectedVehicleId) return null
+
+    // Check if it's the current user
+    if (selectedVehicleId === $userVehicleStore.vehicle_id) {
+      // Return fresh data from store every time store updates
+      return {
+        id: $userVehicleStore.vehicle_id,
+        full_name: "You",
+        vehicle_marker: $userVehicleStore.vehicle_marker,
+        coordinates: $userVehicleStore.coordinates,
+        heading: $userVehicleStore.heading,
+        speed: $userVehicleStore.speed, // 🔥 This will now update reactively!
+        is_trailing: $userVehicleStore.is_trailing,
+        last_update: $userVehicleStore.last_update,
+        isCurrentUser: true,
+        active_preset_id: $userVehicleStore.active_preset_id,
+        selected_operation_id: $userVehicleStore.selected_operation_id,
+        current_operation: $userVehicleStore.current_operation,
+        operation_name: $userVehicleStore.operation_name,
+        operation_id: $userVehicleStore.operation_id,
+      }
+    }
+
+    // Find in other vehicles store
+    const otherVehicle = $otherVehiclesStore.find(
+      (v) => v.vehicle_id === selectedVehicleId,
+    )
+
+    if (otherVehicle) {
+      return {
+        ...otherVehicle,
+        id: otherVehicle.vehicle_id,
+        isCurrentUser: false,
+      }
+    }
+
+    return null
+  })()
+
   $: isCurrentUser = currentVehicle?.isCurrentUser || false
+
+  // 🆕 Now this will update reactively because currentVehicle updates
+  $: currentSpeed = (() => {
+    if (!currentVehicle) return "- -"
+
+    const now = Date.now()
+    const lastUpdate = new Date(currentVehicle.last_update).getTime()
+    const timeSinceUpdate = now - lastUpdate
+
+    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
+      return "- -"
+    }
+
+    const speed = currentVehicle.speed
+
+    if (speed === null || speed === undefined) {
+      return "- -"
+    }
+
+    if (speed < 0.5) {
+      return "0 km/h"
+    }
+
+    return `${speed.toFixed(1)} km/h`
+  })()
+
+  $: speedStatus = (() => {
+    if (!currentVehicle) return "unknown"
+
+    const now = Date.now()
+    const lastUpdate = new Date(currentVehicle.last_update).getTime()
+    const timeSinceUpdate = now - lastUpdate
+
+    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
+      return "stale"
+    }
+
+    const speed = currentVehicle.speed
+
+    if (speed === null || speed === undefined) {
+      return "unknown"
+    }
+
+    if (speed < 0.5) {
+      return "stationary"
+    }
+
+    return "moving"
+  })()
+
+  $: speedColor = (() => {
+    switch (speedStatus) {
+      case "moving":
+        return "#22c55e"
+      case "stationary":
+        return "#f59e0b"
+      case "stale":
+        return "#6b7280"
+      default:
+        return "#6b7280"
+    }
+  })()
 
   let VehicleIcon
   $: {
@@ -98,69 +198,18 @@
     isExpanded = false
   }
 
-  // 🆕 Simple speed formatting with staleness check
-  function formatSpeed(vehicle) {
-    if (!vehicle) return "- -"
-
-    const now = Date.now()
-    const lastUpdate = new Date(vehicle.last_update).getTime()
-    const timeSinceUpdate = now - lastUpdate
-
-    // 🆕 Check if data is stale (no update in 30 seconds)
-    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
-      return "- -" // Stale data
-    }
-
-    const speed = vehicle.speed
-
-    if (speed === null || speed === undefined) {
-      return "- -"
-    }
-
-    if (speed < 0.5) {
-      return "0 km/h"
-    }
-
-    return `${speed.toFixed(1)} km/h`
+  // 🆕 Debug logging to verify reactivity
+  $: if (currentVehicle) {
+    console.log("🔄 Vehicle data updated:", {
+      id: currentVehicle.id,
+      speed: currentVehicle.speed,
+      last_update: currentVehicle.last_update,
+      isCurrentUser: currentVehicle.isCurrentUser,
+    })
   }
 
-  // 🆕 Get speed status for styling
-  function getSpeedStatus(vehicle) {
-    if (!vehicle) return "unknown"
-
-    const now = Date.now()
-    const lastUpdate = new Date(vehicle.last_update).getTime()
-    const timeSinceUpdate = now - lastUpdate
-
-    if (timeSinceUpdate > STALE_THRESHOLD_MS) {
-      return "stale"
-    }
-
-    const speed = vehicle.speed
-
-    if (speed === null || speed === undefined) {
-      return "unknown"
-    }
-
-    if (speed < 0.5) {
-      return "stationary"
-    }
-
-    return "moving"
-  }
-
-  // 🆕 Get speed indicator color
-  function getSpeedColor(status) {
-    switch (status) {
-      case "moving":
-        return "#22c55e" // Green
-      case "stationary":
-        return "#f59e0b" // Yellow
-      case "stale":
-        return "#6b7280" // Gray
-      default:
-        return "#6b7280"
-    }
+  $: {
+    console.log("⚡ Speed display updated:", currentSpeed)
   }
 
   function formatLastSeen(timestamp) {
@@ -366,23 +415,15 @@
           </div>
 
           <div class="status-grid">
-            <!-- 🆕 Simple speed display -->
-            <div
-              class="status-item"
-              data-speed-status={getSpeedStatus(currentVehicle)}
-            >
-              <div
-                class="status-icon"
-                style="color: {getSpeedColor(getSpeedStatus(currentVehicle))}"
-              >
+            <!-- Speed display - now fully reactive -->
+            <div class="status-item" data-speed-status={speedStatus}>
+              <div class="status-icon" style="color: {speedColor}">
                 <Zap size={16} />
               </div>
               <div class="status-content">
                 <span class="status-label">Speed</span>
-                <span
-                  class="status-value"
-                  style="color: {getSpeedColor(getSpeedStatus(currentVehicle))}"
-                  >{formatSpeed(currentVehicle)}</span
+                <span class="status-value" style="color: {speedColor}"
+                  >{currentSpeed}</span
                 >
               </div>
             </div>
@@ -521,7 +562,6 @@
 {/if}
 
 <style>
-  /* Main Vehicle Panel */
   .vehicle-panel {
     position: fixed;
     bottom: 0;
@@ -832,7 +872,6 @@
     color: white;
   }
 
-  /* Speed status-specific border colors */
   .status-item[data-speed-status="moving"] {
     border-left-color: #22c55e;
   }
