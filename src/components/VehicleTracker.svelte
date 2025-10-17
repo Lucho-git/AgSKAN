@@ -62,11 +62,13 @@
 
   let contextCheckInterval = null
 
-  // 🆕 Speed calculation state
   let lastSpeedCalcPosition = null
   let lastSpeedCalcTime = null
-  const MIN_SPEED_CALC_INTERVAL_MS = 1000 // Calculate speed every 1 second minimum
-  const MIN_MOVEMENT_THRESHOLD_M = 1.5 // Minimum 1.5 meters to count as movement
+  let speedHistory = []
+  const MIN_SPEED_CALC_INTERVAL_MS = 1000
+  const MIN_MOVEMENT_THRESHOLD_M = 0.8
+  const SPEED_HISTORY_SIZE = 5
+  const SPEED_SMOOTHING_ALPHA = 0.6
 
   function syncWithGlobalSelection() {
     checkGlobalSelectionContext()
@@ -167,9 +169,8 @@
     return null
   }
 
-  // 🆕 Calculate distance between two coordinates (Haversine formula)
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000 // Earth's radius in meters
+    const R = 6371000
     const φ1 = (lat1 * Math.PI) / 180
     const φ2 = (lat2 * Math.PI) / 180
     const Δφ = ((lat2 - lat1) * Math.PI) / 180
@@ -180,26 +181,22 @@
       Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
-    return R * c // Distance in meters
+    return R * c
   }
 
-  // 🆕 Calculate speed from GPS coordinates
   function calculateSpeedFromGPS(latitude, longitude, timestamp) {
-    // Need at least one previous position
     if (!lastSpeedCalcPosition || !lastSpeedCalcTime) {
       lastSpeedCalcPosition = { latitude, longitude }
       lastSpeedCalcTime = timestamp
-      return 0 // First position, no speed yet
+      return currentSpeed || 0
     }
 
     const timeDiff = timestamp - lastSpeedCalcTime
 
-    // Don't calculate too frequently
     if (timeDiff < MIN_SPEED_CALC_INTERVAL_MS) {
-      return currentSpeed // Return last calculated speed
+      return currentSpeed
     }
 
-    // Calculate distance traveled
     const distance = calculateDistance(
       lastSpeedCalcPosition.latitude,
       lastSpeedCalcPosition.longitude,
@@ -207,26 +204,44 @@
       longitude,
     )
 
-    // Update last position for next calculation
+    const timeInSeconds = timeDiff / 1000
+    let speedKmh = (distance / timeInSeconds) * 3.6
+
+    if (speedKmh > 200) {
+      return currentSpeed
+    }
+
     lastSpeedCalcPosition = { latitude, longitude }
     lastSpeedCalcTime = timestamp
 
-    // If movement is too small, consider vehicle stationary (filters GPS noise)
     if (distance < MIN_MOVEMENT_THRESHOLD_M) {
-      return 0
+      speedHistory.push(Math.min(speedKmh, 0.5))
+    } else {
+      speedHistory.push(speedKmh)
     }
 
-    // Calculate speed in km/h
-    const timeInSeconds = timeDiff / 1000
-    const speedKmh = (distance / timeInSeconds) * 3.6
-
-    // Sanity check: reject unrealistic speeds (>200 km/h for farm equipment)
-    if (speedKmh > 200) {
-      return currentSpeed // Keep previous speed, likely GPS error
+    if (speedHistory.length > SPEED_HISTORY_SIZE) {
+      speedHistory.shift()
     }
 
-    // Round to 1 decimal place
-    return Math.round(speedKmh * 10) / 10
+    if (speedHistory.length > 0) {
+      let smoothedSpeed = speedHistory[0]
+      for (let i = 1; i < speedHistory.length; i++) {
+        smoothedSpeed =
+          SPEED_SMOOTHING_ALPHA * speedHistory[i] +
+          (1 - SPEED_SMOOTHING_ALPHA) * smoothedSpeed
+      }
+
+      const finalSpeed =
+        SPEED_SMOOTHING_ALPHA * smoothedSpeed +
+        (1 - SPEED_SMOOTHING_ALPHA) * currentSpeed
+
+      const roundedSpeed = Math.round(finalSpeed * 10) / 10
+
+      return roundedSpeed
+    }
+
+    return currentSpeed
   }
 
   function getUserInitials(fullName) {
@@ -310,7 +325,7 @@
         vehicle_marker: $userVehicleStore.vehicle_marker,
         coordinates: $userVehicleStore.coordinates,
         heading: $userVehicleStore.heading,
-        speed: $userVehicleStore.speed, // 🆕 Include speed
+        speed: $userVehicleStore.speed,
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
@@ -750,7 +765,7 @@
         update_types,
         is_trailing,
         full_name,
-        speed, // 🆕 Include speed from broadcast
+        speed,
       } = change
 
       const [longitude, latitude] = coordinates
@@ -860,7 +875,6 @@
         })
       }
 
-      // 🆕 Update store with speed included
       otherVehiclesStore.update((vehicles) => {
         const index = vehicles.findIndex(
           (vehicle) => vehicle.vehicle_id === vehicle_id,
@@ -887,9 +901,9 @@
             })
           }
 
-          vehicles[index] = { ...oldVehicle, ...change, speed } // 🆕 Include speed
+          vehicles[index] = { ...oldVehicle, ...change, speed }
         } else {
-          vehicles.push({ ...change, speed }) // 🆕 Include speed
+          vehicles.push({ ...change, speed })
         }
         return vehicles
       })
@@ -1040,20 +1054,18 @@
       },
     })
 
-    return { element: el, component }
+    return { element: el, component } // 🔥 This line was correct, make sure it's there
   }
 
   function streamMarkerPosition(coords) {
     const { latitude, longitude, heading, speed } = coords
 
-    // 🆕 Calculate speed from GPS positions (more accurate than device speed)
     const calculatedSpeed = calculateSpeedFromGPS(
       latitude,
       longitude,
       Date.now(),
     )
 
-    // Update displayed speed for speedometer
     currentSpeed = Math.round(calculatedSpeed)
 
     const currentTime = Date.now()
@@ -1062,7 +1074,7 @@
       coordinates: { latitude, longitude },
       last_update: currentTime,
       vehicle_marker: $userVehicleStore.vehicle_marker,
-      speed: calculatedSpeed, // 🆕 Include calculated speed
+      speed: calculatedSpeed,
     }
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
@@ -1093,7 +1105,7 @@
 
   function updateUserVehicleData(currentTime, vehicleData, updatedHeading) {
     if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
-      const { coordinates, speed } = vehicleData // 🆕 Destructure speed
+      const { coordinates, speed } = vehicleData
       const { bodyColor, swath } = vehicleData.vehicle_marker
       const { latitude, longitude } = coordinates
 
@@ -1118,7 +1130,6 @@
         lastClientCoordinates.longitude !== longitude ||
         lastClientHeading !== updatedHeading
       ) {
-        // 🆕 Update vehicle store with speed
         userVehicleStore.update((vehicle) => {
           return {
             ...vehicle,
@@ -1126,7 +1137,7 @@
             last_update: vehicleData.last_update,
             vehicle_marker: vehicleData.vehicle_marker,
             heading: updatedHeading,
-            speed: speed, // 🆕 Add speed to store
+            speed: speed,
           }
         })
 
