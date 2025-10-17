@@ -113,7 +113,7 @@
                 }}
               >
                 <div
-                  class="absolute inset-0 bg-[url('https://img.youtube.com/vi/KMAOcSfhw4c/maxresdefault.jpg')] bg-cover bg-center"
+                  class="absolute inset-0 bg-[url('https://img.youtube.com/vi/FEoL4K-GXWs/maxresdefault.jpg')] bg-cover bg-center"
                 ></div>
                 <div class="absolute inset-0 bg-black/20"></div>
                 <div class="relative flex flex-col items-center gap-4">
