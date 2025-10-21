@@ -573,15 +573,21 @@
     document.removeEventListener("touchstart", handleDocumentTouchStart)
     document.removeEventListener("touchend", handleDocumentTouchEnd)
 
-    // Clear global selection state
-    clearGlobalSelection()
-
     // Clear any pending timers
     clearTimeout(longPressTimer)
     longPressTimer = null
     longPressStartPosition = null
     longPressStartTime = null
     longPressJustCompleted = false
+
+    // DON'T clear global selection here - let components clean up themselves
+    // The map is being destroyed, so trying to update filters/sources will fail
+    // Just reset the state object
+    globalSelectionState = {
+      selectedType: null,
+      selectedId: null,
+      selectedComponent: null,
+    }
   }
 
   onDestroy(() => {
