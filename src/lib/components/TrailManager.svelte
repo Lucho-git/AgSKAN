@@ -1,9 +1,11 @@
+<!-- src/lib/components/TrailManager.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, getContext } from "svelte"
   import * as mapboxgl from "mapbox-gl"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
   import { trailsApi } from "$lib/api/trailsApi"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
   import {
     historicalTrailStore,
@@ -12,7 +14,6 @@
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { toast } from "svelte-sonner"
 
-  // ✅ Get the layer management context
   const mapContext = getContext("map")
 
   export const TRAIL_CONFIG = {
@@ -48,6 +49,82 @@
   export let map: Map
 
   let lastCoordinateCount = 0
+  let allTrailLayers: string[] = [] // Track all trail layer IDs
+  let previousVisibility = true
+
+  // 🆕 Reactive statement to handle visibility changes
+  $: {
+    if (
+      map &&
+      $layerVisibilityStore &&
+      $layerVisibilityStore.trails !== previousVisibility
+    ) {
+      updateTrailVisibility($layerVisibilityStore.trails)
+      previousVisibility = $layerVisibilityStore.trails
+    }
+  }
+
+  // 🆕 Function to update all trail layer visibility
+  function updateTrailVisibility(visible: boolean) {
+    if (!map || !map.getStyle()) return
+
+    try {
+      const visibility = visible ? "visible" : "none"
+
+      // Update all tracked trail layers
+      allTrailLayers.forEach((layerId) => {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", visibility)
+        }
+      })
+
+      // Also update highlight layers if they exist
+      $historicalTrailStore.forEach((trail) => {
+        const { highlightLayerId, highlightBackgroundLayerId } =
+          generateTrailIds(trail.id)
+        const innerLayerId = `${highlightLayerId}-inner`
+
+        if (map.getLayer(highlightLayerId)) {
+          map.setLayoutProperty(highlightLayerId, "visibility", visibility)
+        }
+        if (map.getLayer(innerLayerId)) {
+          map.setLayoutProperty(innerLayerId, "visibility", visibility)
+        }
+        if (map.getLayer(highlightBackgroundLayerId)) {
+          map.setLayoutProperty(
+            highlightBackgroundLayerId,
+            "visibility",
+            visibility,
+          )
+        }
+      })
+
+      // Update current trail if it exists
+      if ($currentTrailStore) {
+        const { layerId } = generateTrailIds($currentTrailStore.id)
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", visibility)
+        }
+      }
+
+      // Update other active trails
+      $otherActiveTrailStore.forEach((trail) => {
+        const { layerId } = generateTrailIds(trail.id)
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", visibility)
+        }
+      })
+
+      console.log(
+        "✅ Updated trail visibility:",
+        visible,
+        "Layers:",
+        allTrailLayers.length,
+      )
+    } catch (error) {
+      console.error("Error updating trail visibility:", error)
+    }
+  }
 
   export function generateTrailIds(trailId: string): TrailIdentifiers {
     return {
@@ -103,9 +180,12 @@
       highlightBackgroundLayerId,
       layerId,
     ]
+
     layersToRemove.forEach((layer) => {
       if (map.getLayer(layer)) {
         map.removeLayer(layer)
+        // Remove from tracking
+        allTrailLayers = allTrailLayers.filter((id) => id !== layer)
       }
     })
 
@@ -137,7 +217,6 @@
     }
   }
 
-  // ✅ Updated addTrail to use the centralized layer ordering system
   export function addTrail(trail: Trail): string {
     const { sourceId, layerId } = generateTrailIds(trail.id)
     const zoomDependentWidth = calculateZoomDependentWidth(
@@ -147,6 +226,7 @@
 
     if (map.getLayer(layerId)) {
       map.removeLayer(layerId)
+      allTrailLayers = allTrailLayers.filter((id) => id !== layerId)
     }
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId)
@@ -164,6 +244,8 @@
       layout: {
         "line-join": "round",
         "line-cap": "round",
+        // 🆕 Set initial visibility based on store
+        visibility: $layerVisibilityStore.trails ? "visible" : "none",
       },
       paint: {
         "line-color": trail.trail_color || "#FF0000",
@@ -172,21 +254,22 @@
       },
     }
 
-    // ✅ Use the centralized trail layer ordering system
     if (mapContext?.addTrailLayerOrdered) {
       mapContext.addTrailLayerOrdered(layerConfig)
     } else {
-      // Fallback to manual insertion
       addTrailWithFallback(layerConfig)
+    }
+
+    // 🆕 Track this layer
+    if (!allTrailLayers.includes(layerId)) {
+      allTrailLayers = [...allTrailLayers, layerId]
     }
 
     return layerId
   }
 
-  // ✅ Fallback function for backwards compatibility
   function addTrailWithFallback(layerConfig) {
     try {
-      // Try to find field outline layer to insert before it
       const existingLayers = map.getStyle().layers
       const fieldOutlineLayer = existingLayers.find(
         (layer) =>
@@ -276,7 +359,6 @@
       const trail = trails[i]
       try {
         addTrail(trail)
-        // Small delay to prevent overwhelming the map
         await new Promise((resolve) =>
           setTimeout(resolve, TRAIL_CONFIG.LOAD_DELAY),
         )
