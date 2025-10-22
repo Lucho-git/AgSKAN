@@ -4,6 +4,7 @@
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { fieldStore } from "$lib/stores/fieldStore"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import * as mapboxgl from "mapbox-gl"
   import * as turf from "@turf/turf"
   import InfoPanel from "./InfoPanel.svelte"
@@ -97,6 +98,77 @@
 
   function canUseMap(): boolean {
     return !isDestroyed && map && map.getLayer && map.getSource
+  }
+
+  // 🆕 Reactive statement to update layer visibility when store changes
+  $: if (canUseMap() && $layerVisibilityStore) {
+    updateLayerVisibility()
+  }
+
+  function updateLayerVisibility() {
+    if (!canUseMap()) return
+
+    try {
+      const fieldsVisible = $layerVisibilityStore.fields
+      const labelsVisible = $layerVisibilityStore.fieldLabels
+
+      // Toggle field fill layers
+      if (map.getLayer("fields-fill")) {
+        map.setLayoutProperty(
+          "fields-fill",
+          "visibility",
+          fieldsVisible ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("fields-fill-selected")) {
+        map.setLayoutProperty(
+          "fields-fill-selected",
+          "visibility",
+          fieldsVisible ? "visible" : "none",
+        )
+      }
+
+      // Toggle field outline layers
+      if (map.getLayer("fields-outline")) {
+        map.setLayoutProperty(
+          "fields-outline",
+          "visibility",
+          fieldsVisible ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("fields-outline-selected")) {
+        map.setLayoutProperty(
+          "fields-outline-selected",
+          "visibility",
+          fieldsVisible ? "visible" : "none",
+        )
+      }
+
+      // Toggle field label layers (only visible if both fields and labels are enabled)
+      if (map.getLayer("fields-labels")) {
+        map.setLayoutProperty(
+          "fields-labels",
+          "visibility",
+          labelsVisible && fieldsVisible ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("fields-labels-area")) {
+        map.setLayoutProperty(
+          "fields-labels-area",
+          "visibility",
+          labelsVisible && fieldsVisible ? "visible" : "none",
+        )
+      }
+
+      console.log("✅ Updated field layer visibility:", {
+        fields: fieldsVisible,
+        labels: labelsVisible && fieldsVisible,
+      })
+    } catch (error) {
+      if (!isDestroyed) {
+        console.error("Error updating layer visibility:", error)
+      }
+    }
   }
 
   function createLabelPoints(fields: Field[]) {
@@ -520,6 +592,9 @@
         } else {
           console.warn("Unable to calculate valid bounding box")
         }
+
+        // 🆕 Apply initial visibility state after layers are created
+        updateLayerVisibility()
 
         console.log("✅ Fields loaded and layers created with proper ordering")
       }
