@@ -221,12 +221,13 @@
       })
     }
 
-    // Main marker layer
+    // Main marker layer - exclude selected markers
     if (!map.getLayer("markers-layer")) {
       const layerConfig = {
         id: "markers-layer",
         type: "symbol",
         source: "markers",
+        filter: ["!=", ["get", "selected"], true], // 👈 NEW: Hide selected markers from this layer
         layout: {
           "icon-image": ["get", "icon"],
           "icon-size": 0.35,
@@ -276,6 +277,38 @@
       } else {
         map.addLayer(selectionLayerConfig)
         console.log("⚠️ Added markers selection circle layer without ordering")
+      }
+    }
+
+    // 🆕 NEW: Selected marker layer - shows ONLY the selected marker on top
+    if (!map.getLayer("markers-selected-layer")) {
+      const selectedLayerConfig = {
+        id: "markers-selected-layer",
+        type: "symbol",
+        source: "markers",
+        filter: ["==", ["get", "selected"], true], // 👈 Only show selected markers
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": 0.35,
+          "icon-allow-overlap": true,
+          "text-allow-overlap": true,
+          "icon-anchor": [
+            "case",
+            ["==", ["get", "icon"], "default"],
+            "center",
+            "center",
+          ],
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(selectedLayerConfig)
+        console.log("✅ Added markers-selected-layer with proper ordering")
+      } else {
+        map.addLayer(selectedLayerConfig)
+        console.log(
+          "⚠️ Added markers-selected-layer without ordering (fallback)",
+        )
       }
     }
 
@@ -608,6 +641,8 @@
         if (map.getLayer("markers-layer")) map.removeLayer("markers-layer")
         if (map.getLayer("markers-selection-circle"))
           map.removeLayer("markers-selection-circle")
+        if (map.getLayer("markers-selected-layer"))
+          map.removeLayer("markers-selected-layer")
         if (map.getSource("markers")) map.removeSource("markers")
       } catch (error) {
         console.warn("Error cleaning up map layers:", error)

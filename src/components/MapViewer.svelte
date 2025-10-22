@@ -74,10 +74,11 @@
     "fields-fill": { order: 100, category: "field-base" },
     "fields-fill-selected": { order: 101, category: "field-base" },
 
-    // Marker drawings (above fields, below trails) - 150-199
+    // Marker drawings (above fields, below markers) - 150-199
     "marker-drawings-fill": { order: 150, category: "marker-drawings" },
     "marker-drawings-line-solid": { order: 151, category: "marker-drawings" },
     "marker-drawings-line-dashed": { order: 152, category: "marker-drawings" },
+
     // Trail layers (middle) - 200-299
     "trail-layers-start": { order: 200, category: "trails" },
 
@@ -87,8 +88,10 @@
     "fields-labels-area": { order: 302, category: "field-decoration" },
     "fields-labels": { order: 303, category: "field-decoration" },
 
-    // Interactive/UI layers (top) - 400+
-    "markers-layer": { order: 400, category: "interactive" },
+    // Marker layers (above everything) - 400-499
+    "markers-layer": { order: 400, category: "markers" },
+    "markers-selection-circle": { order: 401, category: "markers" },
+    "markers-selected-layer": { order: 402, category: "markers" },
   }
 
   // Central layer management
@@ -144,6 +147,8 @@
             "fields-labels-area",
             "fields-labels",
             "markers-layer",
+            "markers-selection-circle",
+            "markers-selected-layer",
           ].includes(layer.id),
         )
 

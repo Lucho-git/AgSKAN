@@ -232,7 +232,47 @@
   // Check for map layers at point with proper priority order
   async function checkMapLayersAtPoint(point) {
     try {
-      // Check marker drawings FIRST (priority 150) - if clicked, select the parent marker
+      // Check SELECTED marker layer FIRST (priority 200)
+      if (map.getLayer("markers-selected-layer")) {
+        const selectedMarkerFeatures = map.queryRenderedFeatures(point, {
+          layers: ["markers-selected-layer"],
+        })
+
+        if (selectedMarkerFeatures.length > 0) {
+          const markerId = selectedMarkerFeatures[0]?.properties?.id
+          if (markerId !== undefined) {
+            console.log("🎯 Found SELECTED marker with priority 200:", markerId)
+            return {
+              type: "marker",
+              id: markerId,
+              features: selectedMarkerFeatures,
+              priority: 200,
+            }
+          }
+        }
+      }
+
+      // Check regular markers SECOND (priority 150) - MOVED UP
+      if (map.getLayer("markers-layer")) {
+        const markerFeatures = map.queryRenderedFeatures(point, {
+          layers: ["markers-layer"],
+        })
+
+        if (markerFeatures.length > 0) {
+          const markerId = markerFeatures[0]?.properties?.id
+          if (markerId !== undefined) {
+            console.log("🎯 Found regular marker with priority 150:", markerId)
+            return {
+              type: "marker",
+              id: markerId,
+              features: markerFeatures,
+              priority: 150,
+            }
+          }
+        }
+      }
+
+      // Check marker drawings THIRD (priority 100) - MOVED DOWN
       const drawingLayers = [
         "marker-drawings-fill",
         "marker-drawings-line-solid",
@@ -253,34 +293,14 @@
               type: "marker",
               id: markerId,
               features: [],
-              priority: 150,
+              priority: 100,
               isDrawing: true,
             }
           }
         }
       }
 
-      // Check markers SECOND (priority 100)
-      if (map.getLayer("markers-layer")) {
-        const markerFeatures = map.queryRenderedFeatures(point, {
-          layers: ["markers-layer"],
-        })
-
-        if (markerFeatures.length > 0) {
-          const markerId = markerFeatures[0]?.properties?.id
-          if (markerId !== undefined) {
-            console.log("🎯 Found marker with priority 100:", markerId)
-            return {
-              type: "marker",
-              id: markerId,
-              features: markerFeatures,
-              priority: 100,
-            }
-          }
-        }
-      }
-
-      // Check fields THIRD (priority 10)
+      // Check fields FOURTH (priority 10)
       const fieldLayers = ["fields-fill", "fields-fill-selected"].filter(
         (layerId) => map.getLayer(layerId),
       )
@@ -309,7 +329,6 @@
 
     return null
   }
-
   // Initialize when map and refs are ready
   $: if (
     mapLoaded &&
@@ -453,7 +472,7 @@
       return
     }
 
-    // 🆕 Only handle left mouse button (button 0) for long press
+    // Only handle left mouse button (button 0) for long press
     // Right click (button 2) should be ignored for rotation/context menu
     if (
       event.originalEvent.type === "mousedown" &&
