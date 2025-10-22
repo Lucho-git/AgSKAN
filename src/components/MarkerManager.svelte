@@ -8,6 +8,7 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
@@ -108,6 +109,48 @@
 
   $: if (mapLoaded && map && !markersInitialized) {
     initializeMarkerLayers()
+  }
+
+  // 🆕 Reactive statement to update marker layer visibility
+  $: if (markersInitialized && map && $layerVisibilityStore) {
+    updateMarkerLayerVisibility()
+  }
+
+  function updateMarkerLayerVisibility() {
+    if (!map || !map.getLayer) return
+
+    try {
+      const markersVisible = $layerVisibilityStore.markers
+
+      // Toggle all marker-related layers
+      if (map.getLayer("markers-layer")) {
+        map.setLayoutProperty(
+          "markers-layer",
+          "visibility",
+          markersVisible ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("markers-selected-layer")) {
+        map.setLayoutProperty(
+          "markers-selected-layer",
+          "visibility",
+          markersVisible ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("markers-selection-circle")) {
+        map.setLayoutProperty(
+          "markers-selection-circle",
+          "visibility",
+          markersVisible ? "visible" : "none",
+        )
+      }
+
+      console.log("✅ Updated marker layer visibility:", {
+        markers: markersVisible,
+      })
+    } catch (error) {
+      console.error("Error updating marker layer visibility:", error)
+    }
   }
 
   // Fixed: Center camera without zooming
@@ -227,7 +270,7 @@
         id: "markers-layer",
         type: "symbol",
         source: "markers",
-        filter: ["!=", ["get", "selected"], true], // 👈 NEW: Hide selected markers from this layer
+        filter: ["!=", ["get", "selected"], true],
         layout: {
           "icon-image": ["get", "icon"],
           "icon-size": 0.35,
@@ -280,13 +323,13 @@
       }
     }
 
-    // 🆕 NEW: Selected marker layer - shows ONLY the selected marker on top
+    // Selected marker layer - shows ONLY the selected marker on top
     if (!map.getLayer("markers-selected-layer")) {
       const selectedLayerConfig = {
         id: "markers-selected-layer",
         type: "symbol",
         source: "markers",
-        filter: ["==", ["get", "selected"], true], // 👈 Only show selected markers
+        filter: ["==", ["get", "selected"], true],
         layout: {
           "icon-image": ["get", "icon"],
           "icon-size": 0.35,
@@ -314,6 +357,9 @@
 
     markersInitialized = true
     console.log("✅ Marker layers initialization complete")
+
+    // 🆕 Apply initial visibility state after layers are created
+    updateMarkerLayerVisibility()
 
     refreshMapMarkers()
   }

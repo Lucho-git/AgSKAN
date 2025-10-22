@@ -3,6 +3,7 @@
   import { supabase } from "$lib/supabaseClient"
   import { profileStore } from "$lib/stores/profileStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import * as mapboxgl from "mapbox-gl"
 
   export let map: mapboxgl.Map
@@ -33,6 +34,60 @@
 
   function canUseMap(): boolean {
     return !isDestroyed && map && map.getLayer && map.getSource
+  }
+
+  // 🆕 Reactive statement to update layer visibility when store changes
+  $: if (canUseMap() && $layerVisibilityStore) {
+    updateLayerVisibility()
+  }
+
+  function updateLayerVisibility() {
+    if (!canUseMap()) return
+
+    try {
+      const markersVisible = $layerVisibilityStore.markers
+      const drawingsVisible = $layerVisibilityStore.markerDrawings
+
+      // Drawings are only visible if BOTH markers and drawings are enabled
+      const shouldShowDrawings = markersVisible && drawingsVisible
+
+      // Toggle marker drawing fill layer
+      if (map.getLayer("marker-drawings-fill")) {
+        map.setLayoutProperty(
+          "marker-drawings-fill",
+          "visibility",
+          shouldShowDrawings ? "visible" : "none",
+        )
+      }
+
+      // Toggle marker drawing solid line layer
+      if (map.getLayer("marker-drawings-line-solid")) {
+        map.setLayoutProperty(
+          "marker-drawings-line-solid",
+          "visibility",
+          shouldShowDrawings ? "visible" : "none",
+        )
+      }
+
+      // Toggle marker drawing dashed line layer
+      if (map.getLayer("marker-drawings-line-dashed")) {
+        map.setLayoutProperty(
+          "marker-drawings-line-dashed",
+          "visibility",
+          shouldShowDrawings ? "visible" : "none",
+        )
+      }
+
+      console.log("✅ Updated marker drawing visibility:", {
+        markers: markersVisible,
+        drawings: drawingsVisible,
+        showing: shouldShowDrawings,
+      })
+    } catch (error) {
+      if (!isDestroyed) {
+        console.error("Error updating marker drawing visibility:", error)
+      }
+    }
   }
 
   function createDrawingsGeoJSON(drawings: MarkerDrawing[]) {
@@ -125,6 +180,8 @@
           "line-dasharray": [2, 2],
         },
       })
+
+      console.log("✅ Added marker drawing layers")
     } catch (error) {
       console.error("Error adding drawing layers:", error)
     }
@@ -213,6 +270,9 @@
           data: drawingsGeojson,
         })
         addDrawingLayers()
+
+        // 🆕 Apply initial visibility state after layers are created
+        updateLayerVisibility()
       } else {
         const drawingsSource = map.getSource(
           "marker-drawings",
