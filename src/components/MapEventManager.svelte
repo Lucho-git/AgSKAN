@@ -453,6 +453,15 @@
       return
     }
 
+    // 🆕 Only handle left mouse button (button 0) for long press
+    // Right click (button 2) should be ignored for rotation/context menu
+    if (
+      event.originalEvent.type === "mousedown" &&
+      event.originalEvent.button !== 0
+    ) {
+      return
+    }
+
     if (event.originalEvent.type.startsWith("touch")) {
       const now = Date.now()
 
