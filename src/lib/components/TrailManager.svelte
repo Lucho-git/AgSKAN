@@ -1,4 +1,3 @@
-<!-- src/lib/components/TrailManager.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, getContext } from "svelte"
   import * as mapboxgl from "mapbox-gl"
@@ -49,39 +48,52 @@
   export let map: Map
 
   let lastCoordinateCount = 0
-  let allTrailLayers: string[] = [] // Track all trail layer IDs
-  let previousVisibility = true
+  let historicalTrailLayers: string[] = [] // Track historical trail layers
+  let activeTrailLayers: string[] = [] // Track active trail layers
+  let previousHistoricalVisibility = true
+  let previousActiveVisibility = true
 
-  // 🆕 Reactive statement to handle visibility changes
+  // 🆕 Watch for historical trails visibility changes
   $: {
     if (
       map &&
       $layerVisibilityStore &&
-      $layerVisibilityStore.trails !== previousVisibility
+      $layerVisibilityStore.historicalTrails !== previousHistoricalVisibility
     ) {
-      updateTrailVisibility($layerVisibilityStore.trails)
-      previousVisibility = $layerVisibilityStore.trails
+      updateHistoricalTrailVisibility($layerVisibilityStore.historicalTrails)
+      previousHistoricalVisibility = $layerVisibilityStore.historicalTrails
     }
   }
 
-  // 🆕 Function to update all trail layer visibility
-  function updateTrailVisibility(visible: boolean) {
+  // 🆕 Watch for active trails visibility changes
+  $: {
+    if (
+      map &&
+      $layerVisibilityStore &&
+      $layerVisibilityStore.activeTrails !== previousActiveVisibility
+    ) {
+      updateActiveTrailVisibility($layerVisibilityStore.activeTrails)
+      previousActiveVisibility = $layerVisibilityStore.activeTrails
+    }
+  }
+
+  // 🆕 Function to update historical trail visibility
+  function updateHistoricalTrailVisibility(visible: boolean) {
     if (!map || !map.getStyle()) return
 
     try {
       const visibility = visible ? "visible" : "none"
 
-      // Update all tracked trail layers
-      allTrailLayers.forEach((layerId) => {
+      // Update all tracked historical trail layers
+      historicalTrailLayers.forEach((layerId) => {
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visibility)
         }
       })
 
-      // Also update highlight layers if they exist
+      // Also update highlight layers for historical trails
       $historicalTrailStore.forEach((trail) => {
-        const { highlightLayerId, highlightBackgroundLayerId } =
-          generateTrailIds(trail.id)
+        const { highlightLayerId } = generateTrailIds(trail.id)
         const innerLayerId = `${highlightLayerId}-inner`
 
         if (map.getLayer(highlightLayerId)) {
@@ -90,39 +102,41 @@
         if (map.getLayer(innerLayerId)) {
           map.setLayoutProperty(innerLayerId, "visibility", visibility)
         }
-        if (map.getLayer(highlightBackgroundLayerId)) {
-          map.setLayoutProperty(
-            highlightBackgroundLayerId,
-            "visibility",
-            visibility,
-          )
-        }
       })
 
-      // Update current trail if it exists
-      if ($currentTrailStore) {
-        const { layerId } = generateTrailIds($currentTrailStore.id)
-        if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", visibility)
-        }
-      }
+      console.log(
+        "✅ Updated historical trail visibility:",
+        visible,
+        "Layers:",
+        historicalTrailLayers.length,
+      )
+    } catch (error) {
+      console.error("Error updating historical trail visibility:", error)
+    }
+  }
 
-      // Update other active trails
-      $otherActiveTrailStore.forEach((trail) => {
-        const { layerId } = generateTrailIds(trail.id)
+  // 🆕 Function to update active trail visibility
+  function updateActiveTrailVisibility(visible: boolean) {
+    if (!map || !map.getStyle()) return
+
+    try {
+      const visibility = visible ? "visible" : "none"
+
+      // Update all tracked active trail layers
+      activeTrailLayers.forEach((layerId) => {
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visibility)
         }
       })
 
       console.log(
-        "✅ Updated trail visibility:",
+        "✅ Updated active trail visibility:",
         visible,
         "Layers:",
-        allTrailLayers.length,
+        activeTrailLayers.length,
       )
     } catch (error) {
-      console.error("Error updating trail visibility:", error)
+      console.error("Error updating active trail visibility:", error)
     }
   }
 
@@ -171,7 +185,7 @@
     }
   }
 
-  export function removeTrail(trailId: string) {
+  export function removeTrail(trailId: string, isHistorical: boolean = true) {
     const { sourceId, layerId, highlightLayerId, highlightBackgroundLayerId } =
       generateTrailIds(trailId)
 
@@ -185,7 +199,13 @@
       if (map.getLayer(layer)) {
         map.removeLayer(layer)
         // Remove from tracking
-        allTrailLayers = allTrailLayers.filter((id) => id !== layer)
+        if (isHistorical) {
+          historicalTrailLayers = historicalTrailLayers.filter(
+            (id) => id !== layer,
+          )
+        } else {
+          activeTrailLayers = activeTrailLayers.filter((id) => id !== layer)
+        }
       }
     })
 
@@ -217,7 +237,8 @@
     }
   }
 
-  export function addTrail(trail: Trail): string {
+  // 🆕 Add trail with type tracking (historical vs active)
+  export function addTrail(trail: Trail, isHistorical: boolean = true): string {
     const { sourceId, layerId } = generateTrailIds(trail.id)
     const zoomDependentWidth = calculateZoomDependentWidth(
       trail.trail_width || 3,
@@ -226,7 +247,13 @@
 
     if (map.getLayer(layerId)) {
       map.removeLayer(layerId)
-      allTrailLayers = allTrailLayers.filter((id) => id !== layerId)
+      if (isHistorical) {
+        historicalTrailLayers = historicalTrailLayers.filter(
+          (id) => id !== layerId,
+        )
+      } else {
+        activeTrailLayers = activeTrailLayers.filter((id) => id !== layerId)
+      }
     }
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId)
@@ -237,6 +264,15 @@
       data: createTrailGeoJSON(trail.path),
     })
 
+    // 🆕 Set visibility based on trail type
+    const visibility = isHistorical
+      ? $layerVisibilityStore.historicalTrails
+        ? "visible"
+        : "none"
+      : $layerVisibilityStore.activeTrails
+        ? "visible"
+        : "none"
+
     const layerConfig = {
       id: layerId,
       type: "line",
@@ -244,8 +280,7 @@
       layout: {
         "line-join": "round",
         "line-cap": "round",
-        // 🆕 Set initial visibility based on store
-        visibility: $layerVisibilityStore.trails ? "visible" : "none",
+        visibility: visibility,
       },
       paint: {
         "line-color": trail.trail_color || "#FF0000",
@@ -260,9 +295,15 @@
       addTrailWithFallback(layerConfig)
     }
 
-    // 🆕 Track this layer
-    if (!allTrailLayers.includes(layerId)) {
-      allTrailLayers = [...allTrailLayers, layerId]
+    // 🆕 Track this layer in the appropriate array
+    if (isHistorical) {
+      if (!historicalTrailLayers.includes(layerId)) {
+        historicalTrailLayers = [...historicalTrailLayers, layerId]
+      }
+    } else {
+      if (!activeTrailLayers.includes(layerId)) {
+        activeTrailLayers = [...activeTrailLayers, layerId]
+      }
     }
 
     return layerId
@@ -301,11 +342,12 @@
     }
   }
 
+  // 🆕 Current trail is "active"
   export function updateCurrentTrail(trail: Trail) {
     const { sourceId } = generateTrailIds(trail.id)
 
     if ($currentTrailStore && $currentTrailStore.id !== trail.id) {
-      removeTrail($currentTrailStore.id)
+      removeTrail($currentTrailStore.id, false) // false = active trail
     }
 
     if (map.getSource(sourceId)) {
@@ -327,10 +369,11 @@
         ...trail,
         path: convertToLineString(trail.path as TrailCoordinate[]),
       }
-      addTrail(trailWithLineString)
+      addTrail(trailWithLineString, false) // false = active trail
     }
   }
 
+  // 🆕 Other active trails are also "active"
   export function updateOtherActiveTrail(trail: Trail) {
     const { sourceId } = generateTrailIds(trail.id)
 
@@ -348,17 +391,18 @@
         ...trail,
         path: convertToLineString(trail.path as TrailCoordinate[]),
       }
-      addTrail(trailWithLineString)
+      addTrail(trailWithLineString, false) // false = active trail
     }
   }
 
+  // 🆕 Historical trails are "historical"
   async function loadHistoricalTrails() {
     const trails = $historicalTrailStore
 
     for (let i = 0; i < trails.length; i++) {
       const trail = trails[i]
       try {
-        addTrail(trail)
+        addTrail(trail, true) // true = historical trail
         await new Promise((resolve) =>
           setTimeout(resolve, TRAIL_CONFIG.LOAD_DELAY),
         )
@@ -416,7 +460,7 @@
               !currentTrails.some((currTrail) => currTrail.id === prevTrail.id),
           )
           deletedTrails.forEach((trail) => {
-            removeTrail(trail.id)
+            removeTrail(trail.id, true) // true = historical trail
           })
         }
         previousTrails = [...currentTrails]

@@ -8,6 +8,8 @@
     EyeOff,
     Layers,
     Truck,
+    History,
+    Activity,
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -59,11 +61,18 @@
       indent: true,
     },
     {
-      id: "trails",
-      name: "Trails",
-      icon: Pen,
-      description: "Show/hide recorded trail paths",
+      id: "historicalTrails",
+      name: "Historical Trails",
+      icon: History,
+      description: "Show/hide completed trail paths",
       color: "#8b5cf6",
+    },
+    {
+      id: "activeTrails",
+      name: "Active Trails",
+      icon: Activity,
+      description: "Show/hide currently recording trails",
+      color: "#ec4899",
     },
   ]
 

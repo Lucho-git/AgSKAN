@@ -9,7 +9,8 @@ const defaultState = {
   fieldLabels: true,
   vehicles: true,
   vehicleLabels: true,
-  trails: true,
+  historicalTrails: true,  // ← Changed from 'trails'
+  activeTrails: true,       // ← New
 }
 
 function createLayerVisibilityStore() {
