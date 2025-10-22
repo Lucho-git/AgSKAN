@@ -1,7 +1,7 @@
 <!-- src/lib/components/Toolbox.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { MapPin, Route, Truck, Ruler, Satellite } from "lucide-svelte"
+  import { MapPin, Route, Truck, Ruler, Satellite, Layers } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   // Import vehicle store and components
@@ -15,6 +15,7 @@
   import MarkerControls from "$lib/components/MarkerControls.svelte"
   import VehicleControls from "$lib/components/VehicleControls.svelte"
   import TrailControls from "$lib/components/TrailControls.svelte"
+  import LayerControls from "$lib/components/LayerControls.svelte"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -78,6 +79,10 @@
     activePanel = "trail"
   }
 
+  function showLayersPanel() {
+    activePanel = "layers"
+  }
+
   function handleMeasurement() {
     $drawingModeEnabled = !$drawingModeEnabled
     closeToolbox()
@@ -118,6 +123,9 @@
         {:else if activePanel === "trail"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Trail Recording</h3>
+        {:else if activePanel === "layers"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Map Layers</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -139,6 +147,8 @@
           on:switchToVehicle={handleSwitchToVehicle}
           on:close={closeToolbox}
         />
+      {:else if activePanel === "layers"}
+        <LayerControls />
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
@@ -194,7 +204,10 @@
             <span>Satellite</span>
           </button>
 
-          <div class="tool-placeholder"></div>
+          <button class="tool-button" on:click={showLayersPanel}>
+            <Layers size={36} />
+            <span>Layers</span>
+          </button>
         </div>
       {/if}
     </div>
