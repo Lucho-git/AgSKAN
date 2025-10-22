@@ -938,7 +938,19 @@
 
   async function handleDeleteConfirm() {
     if (trailToDelete) {
-      const success = await deleteTrail(trailToDelete.id)
+      const trailIdToDelete = trailToDelete.id
+
+      // Clean up map visualization BEFORE deleting from store
+      removeHighlight(trailIdToDelete)
+      removeStartEndMarkers(trailIdToDelete)
+
+      // Stop animation if this trail is currently animating
+      if (animationState.trailId === trailIdToDelete) {
+        stopAnimation()
+      }
+
+      const success = await deleteTrail(trailIdToDelete)
+
       if (success) {
         showDeleteModal = false
         trailToDelete = null
@@ -947,13 +959,23 @@
         if ($historicalTrailStore.length === 0) {
           showNavigationUI = false
           showReplayPanel = false
+          isExpanded = false
         } else {
           // Update currentTrailIndex only if there are remaining trails
           if (currentTrailIndex >= $historicalTrailStore.length) {
             currentTrailIndex = Math.max(0, $historicalTrailStore.length - 1)
           }
-          navigateToTrail(currentTrailIndex)
+
+          // Navigate to the next trail (this will select it properly)
+          await navigateToTrail(currentTrailIndex)
         }
+      } else {
+        // If deletion failed, close modal but DON'T try to re-select
+        // The trail is still in the store, so it will remain visible
+        showDeleteModal = false
+        trailToDelete = null
+
+        toast.error("Failed to delete trail. Please try again.")
       }
     }
   }

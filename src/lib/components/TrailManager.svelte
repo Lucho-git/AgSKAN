@@ -454,13 +454,65 @@
     let previousTrails = $historicalTrailStore
     cleanup.historicalTrailsUnsubscribe = historicalTrailStore.subscribe(
       (currentTrails) => {
+        // Skip initial subscription trigger
+        if (!map || !map.isStyleLoaded()) {
+          previousTrails = [...currentTrails]
+          return
+        }
+
         if (previousTrails && currentTrails) {
           const deletedTrails = previousTrails.filter(
             (prevTrail) =>
               !currentTrails.some((currTrail) => currTrail.id === prevTrail.id),
           )
+
           deletedTrails.forEach((trail) => {
+            console.log("🗑️ Removing trail from map:", trail.id)
             removeTrail(trail.id, true) // true = historical trail
+
+            // Define all layer and source IDs
+            const animationSourceId = `animation-source-${trail.id}`
+            const animationLayerId = `animation-layer-${trail.id}`
+            const animationBorderSourceId = `animation-border-source-${trail.id}`
+            const animationBorderLayerId = `animation-border-layer-${trail.id}`
+            const markersSourceId = `markers-source-${trail.id}`
+            const markersLayerId = `markers-layer-${trail.id}`
+            const markersTextLayerId = `markers-text-layer-${trail.id}`
+
+            // Clean up all possible layers
+            const layersToRemove = [
+              animationLayerId,
+              animationBorderLayerId,
+              markersLayerId,
+              markersTextLayerId,
+            ]
+
+            layersToRemove.forEach((layerId) => {
+              if (map.getLayer(layerId)) {
+                try {
+                  map.removeLayer(layerId)
+                } catch (error) {
+                  console.warn(`Error removing layer ${layerId}:`, error)
+                }
+              }
+            })
+
+            // Clean up all possible sources
+            const sourcesToRemove = [
+              animationSourceId,
+              animationBorderSourceId,
+              markersSourceId,
+            ]
+
+            sourcesToRemove.forEach((sourceId) => {
+              if (map.getSource(sourceId)) {
+                try {
+                  map.removeSource(sourceId)
+                } catch (error) {
+                  console.warn(`Error removing source ${sourceId}:`, error)
+                }
+              }
+            })
           })
         }
         previousTrails = [...currentTrails]
