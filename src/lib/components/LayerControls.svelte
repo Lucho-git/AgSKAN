@@ -51,8 +51,8 @@
       color: "#f97316",
     },
     {
-      id: "vehicleInitials",
-      name: "Vehicle Initials",
+      id: "vehicleLabels",
+      name: "Vehicle Labels",
       icon: Truck,
       description: "Show/hide initials above vehicles",
       color: "#f97316",

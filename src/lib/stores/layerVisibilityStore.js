@@ -8,7 +8,7 @@ const defaultState = {
   fields: true,
   fieldLabels: true,
   vehicles: true,
-  vehicleInitials: true,
+  vehicleLabels: true,
   trails: true,
 }
 

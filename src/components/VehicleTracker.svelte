@@ -10,6 +10,7 @@
     otherVehiclesDataChanges,
   } from "../stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
@@ -69,6 +70,78 @@
   const MIN_MOVEMENT_THRESHOLD_M = 0.8
   const SPEED_HISTORY_SIZE = 5
   const SPEED_SMOOTHING_ALPHA = 0.6
+
+  let previousVisibility = { vehicles: true, vehicleLabels: true }
+
+  $: {
+    if (map && $layerVisibilityStore) {
+      const vehiclesChanged =
+        $layerVisibilityStore.vehicles !== previousVisibility.vehicles
+      const labelsChanged =
+        $layerVisibilityStore.vehicleLabels !== previousVisibility.vehicleLabels
+
+      if (vehiclesChanged || labelsChanged) {
+        updateVehicleVisibility()
+        previousVisibility = {
+          vehicles: $layerVisibilityStore.vehicles,
+          vehicleLabels: $layerVisibilityStore.vehicleLabels,
+        }
+      }
+    }
+  }
+
+  function updateVehicleVisibility() {
+    if (!map) return
+
+    try {
+      const vehiclesVisible = $layerVisibilityStore.vehicles
+      const labelsVisible = $layerVisibilityStore.vehicleLabels
+
+      // Update vehicle marker visibility
+      if (userMarkerData?.marker) {
+        const userElement = userMarkerData.marker.getElement()
+        if (userElement) {
+          userElement.style.display = vehiclesVisible ? "block" : "none"
+        }
+      }
+
+      otherVehicleMarkers.forEach(({ marker }) => {
+        const element = marker?.getElement()
+        if (element) {
+          element.style.display = vehiclesVisible ? "block" : "none"
+        }
+      })
+
+      // Update label visibility - only if they exist
+      if (userInitialsMarker) {
+        const element = userInitialsMarker.getElement()
+        if (element) {
+          element.style.display =
+            vehiclesVisible && labelsVisible ? "block" : "none"
+        }
+      }
+
+      otherVehicleMarkers.forEach(({ initialsMarker }) => {
+        if (initialsMarker) {
+          const element = initialsMarker.getElement()
+          if (element) {
+            element.style.display =
+              vehiclesVisible && labelsVisible ? "block" : "none"
+          }
+        }
+      })
+
+      console.log("✅ Updated vehicle visibility:", {
+        vehicles: vehiclesVisible,
+        labels: labelsVisible,
+        userMarkerExists: !!userMarkerData,
+        userInitialsExists: !!userInitialsMarker,
+        otherVehicleCount: otherVehicleMarkers.length,
+      })
+    } catch (error) {
+      console.error("Error updating vehicle visibility:", error)
+    }
+  }
 
   function syncWithGlobalSelection() {
     checkGlobalSelectionContext()
@@ -845,6 +918,10 @@
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
 
+        // Set initial visibility for vehicle marker
+        const vehiclesVisible = $layerVisibilityStore.vehicles
+        element.style.display = vehiclesVisible ? "block" : "none"
+
         let initialsMarker = null
         if (full_name) {
           const initials = getUserInitials(full_name)
@@ -860,6 +937,11 @@
             })
               .setLngLat([longitude, latitude])
               .addTo(map)
+
+            // Set initial visibility for label
+            const labelsVisible = $layerVisibilityStore.vehicleLabels
+            initialsEl.style.display =
+              vehiclesVisible && labelsVisible ? "block" : "none"
 
             console.log(
               `✅ Created initials marker "${initials}" for ${full_name}`,
@@ -1003,6 +1085,10 @@
       const { latitude, longitude } = $userVehicleStore.coordinates
       marker.setLngLat([longitude, latitude]).addTo(map)
 
+      // Set initial visibility for user vehicle marker
+      const vehiclesVisible = $layerVisibilityStore.vehicles
+      element.style.display = vehiclesVisible ? "block" : "none"
+
       if ($profileStore?.full_name) {
         const initials = getUserInitials($profileStore.full_name)
         if (initials) {
@@ -1017,6 +1103,11 @@
           })
             .setLngLat([longitude, latitude])
             .addTo(map)
+
+          // Set initial visibility for user label
+          const labelsVisible = $layerVisibilityStore.vehicleLabels
+          initialsEl.style.display =
+            vehiclesVisible && labelsVisible ? "block" : "none"
 
           console.log(
             `✅ Created initials marker "${initials}" for current user`,
@@ -1054,7 +1145,7 @@
       },
     })
 
-    return { element: el, component } // 🔥 This line was correct, make sure it's there
+    return { element: el, component }
   }
 
   function streamMarkerPosition(coords) {
