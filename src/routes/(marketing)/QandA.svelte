@@ -15,7 +15,20 @@
 
   const faqs = [
     {
-      question: "How do I setup AgSKAN?",
+      question: "Is AgSKAN right for me?",
+      answer: `
+      <div class="space-y-4">
+        <p>AgSKAN works well for broadacre farmers, farm managers, agricultural contractors, operations with seasonal staff, and farms running mixed machinery fleets.</p>
+        
+        <p>Most people use AgSKAN to see where their team is and what coverage they've completed throughout the day. You get a live map showing what's happening across your farm in real-time.</p>
+        
+        <p>It's also handy for marking rocks, stumps, and firebreaks so everyone can see and avoid them. This helps prevent machinery damage and keeps hazards visible to the whole crew.</p>
+        
+        <p>If you're working with new team members or seasonal staff who don't know the property well, AgSKAN makes it easier to direct them around the farm. And since it works on any phone or tablet, it bridges the gap between different machinery brands - everyone sees the same live map regardless of what they're driving.</p>
+      </div>`,
+    },
+    {
+      question: "How do I set up AgSKAN?",
       answer: `
           <p>Getting started is quick and easy. Follow our <a href="/support?guide=quick-start" class="text-primary hover:underline">setup guide</a> to watch a short tutorial about setting up AgSKAN in under 4 minutes.</p>`,
     },
@@ -30,6 +43,32 @@
           </p>`,
     },
     {
+      question: "What hardware do I need?",
+      answer: `
+      <div class="space-y-4">
+        <p>AgSKAN works on any mobile device or tablet, but for permanent tractor setups, we recommend a dedicated tablet with a cab mount. Check our hardware recommendations list for the best options.</p>
+        
+        <p>Our phone app is perfect for testing the platform or quickly checking crew locations in the paddock. However, for all-day tracking and mapping work, a dedicated tablet delivers better performance and reliability.</p>
+        
+        <p class="mt-4"><strong>Robust Tablet Setup</strong></p>
+        <p>For a reliable in-cab setup, you'll need three main components: a tablet with cellular capabilities, a cab mount, and a data plan.</p>
+        
+        <p class="p-4 bg-base-300 rounded-lg">
+          <strong>Budget Android Setup:</strong> Around $600-$700 upfront<br>
+          This includes an Android tablet, protective case, cab mount, and 12 months of prepaid data
+        </p>
+        
+        <p>We also offer recommendations for premium setups with Apple or Samsung tablets. Check our detailed hardware page for specific models, mounting options, and purchase links.</p>
+        
+        <p class="text-sm text-contrast-content/70 mt-4">Note: We aren't affiliated with any brands - these are recommendations only based on what we think works well for farm use.</p>
+      </div>`,
+    },
+    {
+      question: "How does AgSKAN work with limited coverage?",
+      answer: `
+          <p>AgSKAN works in areas with limited mobile coverage. You'll need reception at the start of each mapping session to load the platform, but intermittent coverage throughout the day won't affect performance. The system automatically uploads data whenever it reconnects to the network.</p>`,
+    },
+    {
       question: "Will AgSKAN work for seeding?",
       answer: `
           <div class="space-y-4">
@@ -42,7 +81,7 @@
               <li>Access the map on any mobile device</li>
             </ul>
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $61 per month, using only phones or tablets
+              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $60 per month, using only phones or tablets
             </p>
           </div>`,
     },
@@ -64,7 +103,7 @@
           </div>`,
     },
     {
-      question: "Will AgSKAN work for rock/stump picking?",
+      question: "Will AgSKAN work for rock and stump picking?",
       answer: `
           <div class="space-y-4">
             <p>AgSKAN simplifies obstacle management across your operation:</p>
@@ -74,20 +113,6 @@
               <li>Streamlined obstacle clearing process</li>
               <li>Works in any tractor or vehicle</li>
             </ul>
-          </div>`,
-    },
-    {
-      question: "Do I need any hardware to run AgSKAN?",
-      answer: `
-          <div class="space-y-4">
-            <p>AgSKAN is designed to work with devices you already own:</p>
-            <ul class="list-disc pl-6 space-y-2">
-              <li>Works on any iOS or Android phone or tablet</li>
-              <li>Only requires an internet connection</li>
-              <li>Compatible with all machine brands and ages</li>
-              <li>No additional hardware needed</li>
-            </ul>
-            <p>Check out our <a href="/support?guide=mobile-setup" class="text-primary hover:underline">mobile setup guide</a> to get started.</p>
           </div>`,
     },
     {
@@ -104,9 +129,13 @@
           </div>`,
     },
     {
-      question: "Will AgSKAN work if I don't have paddock boundary files?",
+      question: "I can't find my paddock boundaries?",
       answer: `
-          <p>You can start using AgSKAN immediately without paddock boundaries. Simply open the map and begin tracking - the boundary files are optional and can be added later if needed.</p>`,
+          <div class="space-y-4">
+            <p>Can't find your paddock boundaries? Check platforms you've used before - AgWorld, John Deere Operations Centre, or your tractor GPS screen likely have your mapping files. Your agronomist or farm advisor may have them too.</p>
+            <p>Need help uploading? Contact us directly or email your paddock files with your full name and farm name and we'll upload them for you.</p>
+            <p>Don't have paddock maps? No problem. Our tracking and mapping platform works perfectly without them. While some advanced features require boundary files, you can jump in and start using the core system right away.</p>
+          </div>`,
     },
     {
       question: "How do I connect people to my map?",
