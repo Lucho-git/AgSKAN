@@ -42,7 +42,7 @@
               <li>Access the map on any mobile device</li>
             </ul>
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $92 per month, using only phones or tablets
+              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $61 per month, using only phones or tablets
             </p>
           </div>`,
     },
@@ -59,7 +59,7 @@
               <li>Access from any mobile device</li>
             </ul>
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $184 per month
+              <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $122 per month
             </p>
           </div>`,
     },

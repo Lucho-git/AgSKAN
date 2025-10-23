@@ -237,21 +237,6 @@
             </div>
           {/each}
         </div>
-
-        <div class="mt-10 text-center" in:animationDelay={400}>
-          <button
-            class="group btn btn-outline w-full max-w-md cursor-not-allowed border-base-content/30 text-lg text-base-content/50"
-            on:click={handleWallOfLoveClick}
-            disabled
-          >
-            View All Stories
-            <ArrowRight size={18} class="ml-2" />
-          </button>
-          <p class="mt-3 text-sm text-contrast-content/60">
-            See tweets, emails, images, Facebook posts and more from our happy
-            customers
-          </p>
-        </div>
       </div>
     {/if}
   </div>

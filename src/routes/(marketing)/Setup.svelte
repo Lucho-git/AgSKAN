@@ -123,7 +123,7 @@
                     <Play size={24} class="ml-1" />
                   </button>
                   <span class="font-medium text-white shadow-sm"
-                    >Watch: How AgSKAN Works in 90 Seconds</span
+                    >Watch: How AgSKAN Works</span
                   >
                 </div>
               </div>

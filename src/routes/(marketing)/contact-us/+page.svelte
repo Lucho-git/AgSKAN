@@ -3,41 +3,12 @@
   import { onMount } from "svelte"
 
   let mounted = false
-  let formStatus: "idle" | "submitting" | "success" | "error" = "idle"
-  let formData = {
-    name: "",
-    email: "",
-    subject: "",
-    message: "",
-  }
 
   onMount(() => {
     mounted = true
     // Scroll to top when component mounts
     window.scrollTo(0, 0)
   })
-
-  function handleChange(e: Event) {
-    const target = e.target as HTMLInputElement | HTMLTextAreaElement
-    const { name, value } = target
-    formData = { ...formData, [name]: value }
-  }
-
-  function handleSubmit(e: Event) {
-    e.preventDefault()
-    formStatus = "submitting"
-
-    // Simulate form submission
-    setTimeout(() => {
-      // 90% chance of success
-      if (Math.random() > 0.1) {
-        formStatus = "success"
-        formData = { name: "", email: "", subject: "", message: "" }
-      } else {
-        formStatus = "error"
-      }
-    }, 1500)
-  }
 
   // Animation delay placeholder
   function animationDelay(node: HTMLElement, delay: number) {
@@ -83,23 +54,45 @@
           <p
             class="mx-auto mb-8 max-w-2xl text-lg text-contrast-content/80 md:text-xl"
           >
-            We're here to help! Whether you have a question about features,
-            pricing, or need support, our team is ready to answer all your
-            questions.
+            We're here to help! Whether you have a question about setup,
+            features, pricing or just want a chat. We love hearing from you and
+            are ready to answer all your questions.
           </p>
-          <div class="mt-8 flex flex-wrap justify-center gap-4">
+
+          <!-- Corner Badge Icons - More Solid -->
+          <div class="mx-auto mt-8 grid max-w-3xl gap-6 sm:grid-cols-2">
             <a
-              href="#contact-form"
-              class="btn btn-secondary px-6 py-3 text-base"
+              href="tel:0439405248"
+              class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-hover to-hover/80 p-8 text-hover-content shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"
             >
-              Send us a message
+              <div
+                class="absolute right-4 top-4 opacity-60 transition-opacity group-hover:opacity-80"
+              >
+                <Phone size={28} strokeWidth={2.5} />
+              </div>
+              <div class="relative z-10">
+                <h3 class="mb-2 text-2xl font-bold">Call or Text</h3>
+                <p class="mb-2 text-3xl font-black">0439 405 248</p>
+                <p class="text-sm opacity-90">Available anytime</p>
+              </div>
             </a>
+
             <a
-              href="tel:+61800555247"
-              class="btn btn-outline inline-flex items-center px-6 py-3 text-base"
+              href="mailto:service@skanfarming.com"
+              class="from-dark-card to-dark-card/80 text-dark-card-content group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"
             >
-              <Phone size={18} class="mr-2" />
-              Call directly
+              <div
+                class="absolute right-4 top-4 opacity-60 transition-opacity group-hover:opacity-80"
+              >
+                <Mail size={28} strokeWidth={2.5} />
+              </div>
+              <div class="relative z-10">
+                <h3 class="mb-2 text-2xl font-bold">Email Us</h3>
+                <p class="mb-2 break-all text-xl font-bold">
+                  service@skanfarming.com
+                </p>
+                <p class="text-sm opacity-90">Response within 24 hours</p>
+              </div>
             </a>
           </div>
         </div>
@@ -240,274 +233,6 @@
                   class="ml-2 transition-transform group-hover:translate-x-1"
                 />
               </a>
-            </div>
-          </div>
-        </div>
-      {/if}
-    </div>
-  </section>
-
-  <!-- Contact Section -->
-  <section class="relative bg-base-200 py-16" id="contact-form">
-    <div
-      class="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-transparent via-base-content/30 to-transparent"
-    ></div>
-
-    <div class="section-container relative z-10">
-      {#if mounted}
-        <div class="mx-auto max-w-5xl" in:animationDelay={200}>
-          <div class="grid gap-10 md:grid-cols-2">
-            <!-- Contact Form -->
-            <div class="overflow-hidden rounded-xl bg-base-100 shadow-md">
-              <div
-                class="h-2 bg-gradient-to-r from-base-content to-base-content/80"
-              ></div>
-              <div class="p-8">
-                <h2
-                  class="mb-6 font-sans text-2xl font-bold text-contrast-content"
-                >
-                  Send Us a Message
-                </h2>
-
-                {#if formStatus === "success"}
-                  <div
-                    class="rounded-lg border border-success/30 bg-success/10 p-6 text-center"
-                  >
-                    <div
-                      class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/20 text-success"
-                    >
-                      <svg
-                        width="28"
-                        height="28"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                      </svg>
-                    </div>
-                    <h3 class="mb-2 text-xl font-bold text-contrast-content">
-                      Message Sent!
-                    </h3>
-                    <p class="mb-4 text-success">
-                      Thank you for reaching out. We'll get back to you as soon
-                      as possible.
-                    </p>
-                    <button
-                      on:click={() => (formStatus = "idle")}
-                      class="font-medium text-base-content underline hover:text-base-content/80"
-                    >
-                      Send another message
-                    </button>
-                  </div>
-                {:else}
-                  <form on:submit={handleSubmit} class="space-y-5">
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-contrast-content"
-                      >
-                        Your Name <span class="text-error">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="name"
-                        bind:value={formData.name}
-                        on:input={handleChange}
-                        required
-                        class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-base-content"
-                        placeholder="John Doe"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-contrast-content"
-                      >
-                        Your Email <span class="text-error">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        bind:value={formData.email}
-                        on:input={handleChange}
-                        required
-                        class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-base-content"
-                        placeholder="john@example.com"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-contrast-content"
-                      >
-                        Subject <span class="text-error">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="subject"
-                        bind:value={formData.subject}
-                        on:input={handleChange}
-                        required
-                        class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-base-content"
-                        placeholder="What can we help you with?"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-contrast-content"
-                      >
-                        Message <span class="text-error">*</span>
-                      </label>
-                      <textarea
-                        rows="5"
-                        name="message"
-                        bind:value={formData.message}
-                        on:input={handleChange}
-                        required
-                        class="w-full resize-none rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-base-content"
-                        placeholder="Please describe how we can help you..."
-                      ></textarea>
-                    </div>
-
-                    <div class="pt-2">
-                      <button
-                        type="submit"
-                        disabled={formStatus === "submitting"}
-                        class={`relative w-full overflow-hidden rounded-lg px-6 py-3 font-medium text-base-100 transition-all duration-300 ${
-                          formStatus === "submitting"
-                            ? "cursor-not-allowed bg-base-content/80"
-                            : "bg-base-content hover:bg-base-content/90 hover:shadow-lg"
-                        }`}
-                      >
-                        {#if formStatus === "submitting"}
-                          <span class="flex items-center justify-center">
-                            <svg
-                              class="-ml-1 mr-3 h-5 w-5 animate-spin text-base-100"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                class="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                stroke-width="4"
-                              ></circle>
-                              <path
-                                class="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
-                            </svg>
-                            Sending...
-                          </span>
-                        {:else if formStatus === "error"}
-                          <span>
-                            Try Again
-                            <svg
-                              class="ml-2 inline-block h-5 w-5"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            >
-                              <path
-                                d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                              ></path>
-                              <path d="M3 3v5h5"></path>
-                              <path
-                                d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
-                              ></path>
-                              <path d="M16 21h5v-5"></path>
-                            </svg>
-                          </span>
-                        {:else}
-                          Send Message
-                        {/if}
-                      </button>
-
-                      {#if formStatus === "error"}
-                        <div class="mt-3 text-center text-sm text-error">
-                          There was a problem sending your message. Please try
-                          again.
-                        </div>
-                      {/if}
-                    </div>
-                  </form>
-                {/if}
-              </div>
-            </div>
-
-            <!-- Contact Info -->
-            <div class="flex flex-col gap-6">
-              <div class="rounded-xl bg-base-100 p-8 shadow-md">
-                <h2
-                  class="mb-6 font-sans text-2xl font-bold text-contrast-content"
-                >
-                  Contact Information
-                </h2>
-
-                <div class="space-y-6">
-                  <div class="flex items-start gap-4">
-                    <div
-                      class="mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-content shadow-sm"
-                    >
-                      <Phone size={24} />
-                    </div>
-                    <div>
-                      <h3
-                        class="mb-2 text-lg font-semibold text-contrast-content"
-                      >
-                        Phone Support
-                      </h3>
-                      <a
-                        href="tel:+61439405248"
-                        class="block text-lg font-medium text-base-content hover:underline"
-                      >
-                        +61 (439) 405-248
-                      </a>
-                      <p class="mt-2 text-contrast-content/70">
-                        Call or Text anytime
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-start gap-4">
-                    <div
-                      class="mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-content shadow-sm"
-                    >
-                      <Mail size={24} />
-                    </div>
-                    <div>
-                      <h3
-                        class="mb-2 text-lg font-semibold text-contrast-content"
-                      >
-                        Email Us
-                      </h3>
-                      <a
-                        href="mailto:service@skanfarming.com
-"
-                        class="block text-lg font-medium text-base-content hover:underline"
-                      >
-                        service@skanfarming.com
-                      </a>
-                      <p class="mt-2 text-contrast-content/70">
-                        For general inquiries and support<br />
-                        We typically respond within 24 hours
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

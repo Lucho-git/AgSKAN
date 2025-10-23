@@ -56,6 +56,9 @@ const config: Config = {
                 // Custom hover color: yellow in light, black in dark
                 "hover": "oklch(var(--hover) / <alpha-value>)",
                 "hover-content": "oklch(var(--hover-content) / <alpha-value>)",
+                // Dark card: dark blue in light, white in dark
+                "dark-card": "oklch(var(--dark-card) / <alpha-value>)",
+                "dark-card-content": "oklch(var(--dark-card-content) / <alpha-value>)",
             },
             borderRadius: {
                 lg: "var(--radius)",
@@ -63,10 +66,10 @@ const config: Config = {
                 sm: "calc(var(--radius) - 4px)",
             },
             fontFamily: {
-                sans: ["Montserrat", "Inter", "ui-sans-serif", "system-ui", "sans-serif"], // Remove ...fontFamily.sans
+                sans: ["Montserrat", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
                 montserrat: ["Montserrat", "ui-sans-serif", "system-ui", "sans-serif"],
                 inter: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-                archivo: ['Montserrat', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], // Fix this naming
+                archivo: ['Montserrat', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
             },
             animation: {
                 'accordion-down': 'accordion-down 0.2s ease-out',
@@ -180,77 +183,83 @@ const config: Config = {
         themes: [
             {
                 skantheme: {
-                    "primary": "#17a34a",           // #17a34a
-                    "primary-content": "#fefbf6",   // #fefbf6
-                    "secondary": "#F7DB5C",         // #F7DB5C
-                    "secondary-content": "#232322", // #232322
-                    "accent": "#fde68a",            // #fde68a
-                    "accent-content": "#fefbf6",    // #fefbf6
-                    "neutral": "#102030",           // #102030
-                    "neutral-content": "#fefbf6",   // #fefbf6
-                    "base-100": "#ffffff",          // #ffffff
-                    "base-200": "#f1f5f9",          // #f1f5f9
-                    "base-300": "#cbd5e1",          // #cbd5e1
-                    "base-content": "#232322",      // #232322 (dark for light mode)
-                    "info": "#3b82f6",              // #3b82f6
-                    "success": "#22c55e",           // #22c55e
-                    "warning": "#f59e0b",           // #f59e0b
-                    "error": "#ef4444",             // #ef4444
+                    "primary": "#17a34a",
+                    "primary-content": "#fefbf6",
+                    "secondary": "#F7DB5C",
+                    "secondary-content": "#232322",
+                    "accent": "#fde68a",
+                    "accent-content": "#fefbf6",
+                    "neutral": "#102030",
+                    "neutral-content": "#fefbf6",
+                    "base-100": "#ffffff",
+                    "base-200": "#f1f5f9",
+                    "base-300": "#cbd5e1",
+                    "base-content": "#232322",
+                    "info": "#3b82f6",
+                    "success": "#22c55e",
+                    "warning": "#f59e0b",
+                    "error": "#ef4444",
                     "--gradient-start": "var(--base-200)",
                     "--gradient-end": "var(--base-100)",
-                    "focus": "#FF00FF",             // #FF00FF
-                    "focus-content": "#FFFFFF",     // #FFFFFF
+                    "focus": "#FF00FF",
+                    "focus-content": "#FFFFFF",
                     "--radius": "0.5rem",
                     "--border": "var(--base-200)",
                     "--input": "var(--base-200)",
                     "--ring": "var(--primary)",
                     // Brand color: yellow in light mode
-                    "--brand": "91% 0.15 85",        // #F7DB5C
-                    "--brand-content": "14% 0.01 85", // #232322
+                    "--brand": "91% 0.15 85",
+                    "--brand-content": "14% 0.01 85",
                     // High contrast: white with dark content in light mode
-                    "--contrast": "100% 0 0",        // #ffffff (white)
-                    "--contrast-content": "14% 0.01 85", // #232322 (dark)
+                    "--contrast": "100% 0 0",
+                    "--contrast-content": "14% 0.01 85",
                     // Hover color: yellow in light mode
-                    "--hover": "91% 0.15 85",        // #F7DB5C (yellow)
-                    "--hover-content": "14% 0.01 85", // #232322 (dark)
+                    "--hover": "91% 0.15 85",
+                    "--hover-content": "14% 0.01 85",
+                    // Dark card: dark blue in light mode
+                    "--dark-card": "7% 0.02 240",
+                    "--dark-card-content": "99% 0.01 85",
                 },
             },
             {
                 skanthemedark: {
-                    "primary": "#17a34a",           // #17a34a
-                    "primary-content": "#fefbf6",   // #fefbf6
-                    "secondary": "#F7DB5C",         // #F7DB5C
-                    "secondary-content": "#232322", // #232322
-                    "accent": "#D95D39",            // #D95D39
-                    "accent-content": "#fefbf6",    // #fefbf6
-                    "neutral": "#f9e58a",           // #f9e58a
-                    "neutral-content": "#232322",   // #232322
-                    "base-100": "#121212",          // #121212
-                    "base-200": "#1E1E1E",          // #1E1E1E
-                    "base-300": "#374151",          // #374151
-                    "base-content": "#F7DB5C",      // #F7DB5C (yellow for dark mode)
-                    "info": "#93c5fd",              // #93c5fd
-                    "success": "#a7f3d0",           // #a7f3d0
-                    "warning": "#fde68a",           // #fde68a
-                    "error": "#fca5a5",             // #fca5a5
-                    "error-content": "#ffffff",     // #ffffff
+                    "primary": "#17a34a",
+                    "primary-content": "#fefbf6",
+                    "secondary": "#F7DB5C",
+                    "secondary-content": "#232322",
+                    "accent": "#D95D39",
+                    "accent-content": "#fefbf6",
+                    "neutral": "#f9e58a",
+                    "neutral-content": "#232322",
+                    "base-100": "#121212",
+                    "base-200": "#1E1E1E",
+                    "base-300": "#374151",
+                    "base-content": "#F7DB5C",
+                    "info": "#93c5fd",
+                    "success": "#a7f3d0",
+                    "warning": "#fde68a",
+                    "error": "#fca5a5",
+                    "error-content": "#ffffff",
                     "--gradient-start": "var(--base-200)",
                     "--gradient-end": "var(--base-100)",
-                    "focus": "#FF00FF",             // #FF00FF
-                    "focus-content": "#FFFFFF",     // #FFFFFF
+                    "focus": "#FF00FF",
+                    "focus-content": "#FFFFFF",
                     "--radius": "0.5rem",
                     "--border": "var(--base-200)",
                     "--input": "var(--base-200)",
                     "--ring": "var(--primary)",
                     // Brand color: white in dark mode
-                    "--brand": "99% 0.01 85",        // #fefbf6
-                    "--brand-content": "91% 0.15 85", // #F7DB5C
+                    "--brand": "99% 0.01 85",
+                    "--brand-content": "91% 0.15 85",
                     // High contrast: dark with white content in dark mode  
-                    "--contrast": "14% 0.01 85",     // #232322 (dark)
-                    "--contrast-content": "100% 0 0", // #ffffff (white)
+                    "--contrast": "14% 0.01 85",
+                    "--contrast-content": "100% 0 0",
                     // Hover color: black in dark mode
-                    "--hover": "14% 0.01 85",        // #232322 (dark/black)
-                    "--hover-content": "100% 0 0",   // #ffffff (white)
+                    "--hover": "14% 0.01 85",
+                    "--hover-content": "100% 0 0",
+                    // Dark card: white in dark mode
+                    "--dark-card": "99% 0.01 85",
+                    "--dark-card-content": "14% 0.01 85",
                 },
             },
             "autumn",

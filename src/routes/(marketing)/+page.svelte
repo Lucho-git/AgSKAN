@@ -88,9 +88,10 @@
   <Agskan />
   <ProblemSolution />
   <Setup id="setup" />
-  <Partners />
 
   <Testimonials />
+  <Partners />
+
   <Pricing id="pricing" />
   <QandA id="qanda" />
   <Founders />
