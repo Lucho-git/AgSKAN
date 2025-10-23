@@ -134,7 +134,7 @@
           <div class="space-y-4">
             <p>Can't find your paddock boundaries? Check platforms you've used before - AgWorld, John Deere Operations Centre, or your tractor GPS screen likely have your mapping files. Your agronomist or farm advisor may have them too.</p>
             <p>Need help uploading? Contact us directly or email your paddock files with your full name and farm name and we'll upload them for you.</p>
-            <p>Don't have paddock maps? No problem. Our tracking and mapping platform works perfectly without them. While some advanced features require boundary files, you can jump in and start using the core system right away.</p>
+            <p>Don't have paddock maps? No problem. Our tracking and mapping platform works perfectly without them. While some features are enhanced with boundary files, you can jump in and start using the core system right away.</p>
           </div>`,
     },
     {
