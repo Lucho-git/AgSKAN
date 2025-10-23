@@ -121,7 +121,7 @@
           <div class="space-y-4">
             <p>Yes, uploading paddock boundaries is quick and simple:</p>
             <ul class="list-disc pl-6 space-y-2">
-              <li>Takes less than 5 minutes with existing paddock files</li>
+              <li>Takes less than 2 minutes with existing paddock files</li>
               <li>Simple step-by-step process</li>
               <li>Supports common boundary file formats</li>
             </ul>
