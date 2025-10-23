@@ -54,7 +54,7 @@
                     src="/images/team.jpg"
                     alt="AgSKAN Founders"
                     class="h-full w-full object-cover object-center"
-                    style="object-position: center 25%;"
+                    style="object-position: center 25%; transform: scale(1.2);"
                   />
                 </div>
 

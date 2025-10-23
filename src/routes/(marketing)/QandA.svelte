@@ -66,7 +66,7 @@
     {
       question: "How does AgSKAN work with limited coverage?",
       answer: `
-          <p>AgSKAN works in areas with limited mobile coverage. You'll need reception at the start of each mapping session to load the platform, but intermittent coverage throughout the day won't affect performance. The system automatically uploads data whenever it reconnects to the network.</p>`,
+          <p>AgSKAN works in areas with limited mobile coverage. You'll need reception at the start of each mapping session to load the platform, but intermittent coverage throughout the day won't impede your progress. The system automatically uploads data whenever it reconnects to the network.</p>`,
     },
     {
       question: "Will AgSKAN work for seeding?",
