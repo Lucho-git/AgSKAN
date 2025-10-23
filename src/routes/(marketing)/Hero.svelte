@@ -6,6 +6,7 @@
     Play,
     Pause,
     Globe,
+    Phone,
   } from "lucide-svelte"
   import { goto } from "$app/navigation"
   import { onMount } from "svelte"
@@ -120,20 +121,13 @@
               on:click={() => goto("/login?tab=sign_up")}
             >
               <div class="relative flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-content"
-                  >
-                    <Globe size={20} class="text-neutral" />
-                  </div>
-                  <div class="text-left">
-                    <p class="text-base font-bold text-neutral-content">
-                      Start Free Now
-                    </p>
-                    <p class="text-xs text-neutral-content/80">
-                      No credit card required
-                    </p>
-                  </div>
+                <div class="text-left">
+                  <p class="text-base font-bold text-neutral-content">
+                    Start Free Now
+                  </p>
+                  <p class="text-xs text-neutral-content/80">
+                    No card required
+                  </p>
                 </div>
                 <ArrowRight
                   size={20}
@@ -144,32 +138,17 @@
 
             <a
               href="tel:0439405248"
-              class="group flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-all duration-300 hover:bg-base-200"
+              class="group flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-6 py-4 transition-all duration-300 hover:bg-base-200"
             >
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-8 w-8 items-center justify-center rounded-md bg-black"
-                >
-                  <svg
-                    class="h-4 w-4 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
-                    />
-                  </svg>
-                </div>
-                <div class="text-left">
-                  <p class="mb-0.5 text-xs text-contrast-content/70">Call Us</p>
-                  <p class="text-base font-bold text-contrast-content">
-                    0439 405 248
-                  </p>
-                </div>
+              <div class="text-left">
+                <p class="text-base font-bold text-contrast-content">
+                  0439 405 248
+                </p>
+                <p class="text-xs text-contrast-content/70">Call us</p>
               </div>
-              <ArrowRight
-                size={16}
-                class="text-contrast-content/50 transition-all group-hover:translate-x-1 group-hover:text-contrast-content"
+              <Phone
+                size={20}
+                class="text-contrast-content/50 transition-all group-hover:text-contrast-content"
               />
             </a>
           </div>
