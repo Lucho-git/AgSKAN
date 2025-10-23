@@ -30,7 +30,7 @@
     {
       question: "How do I set up AgSKAN?",
       answer: `
-          <p>Getting started is quick and easy. Follow our <a href="/support?guide=quick-start" class="text-primary hover:underline">setup guide</a> to watch a short tutorial about setting up AgSKAN in under 4 minutes.</p>`,
+          <p>Getting started is quick and easy. Watch our <a href="/knowledge-base#video-setup-4min" class="text-primary hover:underline">4-minute setup tutorial</a> to get up and running.</p>`,
     },
     {
       question: "How much does AgSKAN cost?",
@@ -40,13 +40,14 @@
           <p class="mt-4 p-4 bg-base-300 rounded-lg">
             <strong>Example:</strong> You (map owner) + 2 full-time operators = 3 machines<br>
             Total cost: $90 per month for complete farm operation visibility
-          </p>`,
+          </p>
+          <p class="mt-4">Learn more about <a href="/knowledge-base#video-billing" class="text-primary hover:underline">managing billing and seats</a>.</p>`,
     },
     {
       question: "What hardware do I need?",
       answer: `
       <div class="space-y-4">
-        <p>AgSKAN works on any mobile device or tablet, but for permanent tractor setups, we recommend a dedicated tablet with a cab mount. Check our hardware recommendations list for the best options.</p>
+        <p>AgSKAN works on any mobile device or tablet, but for permanent tractor setups, we recommend a dedicated tablet with a cab mount. Check our <a href="/knowledge-base#video-hardware" class="text-primary hover:underline">hardware recommendations video</a> for the best options.</p>
         
         <p>Our phone app is perfect for testing the platform or quickly checking crew locations in the paddock. However, for all-day tracking and mapping work, a dedicated tablet delivers better performance and reliability.</p>
         
@@ -58,7 +59,7 @@
           This includes an Android tablet, protective case, cab mount, and 12 months of prepaid data
         </p>
         
-        <p>We also offer recommendations for premium setups with Apple or Samsung tablets. Check our detailed hardware page for specific models, mounting options, and purchase links.</p>
+        <p>We also offer recommendations for premium setups with Apple or Samsung tablets. Watch our <a href="/knowledge-base#video-hardware" class="text-primary hover:underline">detailed hardware guide</a> for specific models, mounting options, and purchase links.</p>
         
         <p class="text-sm text-contrast-content/70 mt-4">Note: We aren't affiliated with any brands - these are recommendations only based on what we think works well for farm use.</p>
       </div>`,
@@ -66,7 +67,8 @@
     {
       question: "How does AgSKAN work with limited coverage?",
       answer: `
-          <p>AgSKAN works in areas with limited mobile coverage. You'll need reception at the start of each mapping session to load the platform, but intermittent coverage throughout the day won't impede your progress. The system automatically uploads data whenever it reconnects to the network.</p>`,
+          <p>AgSKAN works in areas with limited mobile coverage. You'll need reception at the start of each mapping session to load the platform, but intermittent coverage throughout the day won't impede your progress. The system automatically uploads data whenever it reconnects to the network.</p>
+          <p class="mt-4">Learn more about <a href="/knowledge-base#video-location-settings" class="text-primary hover:underline">location settings and GPS configuration</a>.</p>`,
     },
     {
       question: "Will AgSKAN work for seeding?",
@@ -83,6 +85,7 @@
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
               <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $60 per month, using only phones or tablets
             </p>
+            <p class="mt-4">Watch how to <a href="/knowledge-base#video-trailing" class="text-primary hover:underline">start GPS tracking</a> and <a href="/knowledge-base#video-pin-drop" class="text-primary hover:underline">use pin drops</a>.</p>
           </div>`,
     },
     {
@@ -100,6 +103,7 @@
             <p class="mt-4 p-4 bg-base-300 rounded-lg">
               <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $122 per month
             </p>
+            <p class="mt-4">Learn how to <a href="/knowledge-base#video-locate-operator" class="text-primary hover:underline">find team members in real-time</a> and <a href="/knowledge-base#video-trailing" class="text-primary hover:underline">track machine coverage</a>.</p>
           </div>`,
     },
     {
@@ -113,6 +117,7 @@
               <li>Streamlined obstacle clearing process</li>
               <li>Works in any tractor or vehicle</li>
             </ul>
+            <p class="mt-4">Watch our <a href="/knowledge-base#video-pin-drop" class="text-primary hover:underline">pin drop tutorial</a> to see how easy it is to mark obstacles.</p>
           </div>`,
     },
     {
@@ -125,7 +130,7 @@
               <li>Simple step-by-step process</li>
               <li>Supports common boundary file formats</li>
             </ul>
-            <p>Follow our <a href="/support?guide=upload-boundaries" class="text-primary hover:underline">paddock boundary guide</a> for detailed instructions.</p>
+            <p>Follow our <a href="/knowledge-base#video-upload-boundaries" class="text-primary hover:underline">paddock boundary upload guide</a> for detailed instructions.</p>
           </div>`,
     },
     {
@@ -147,7 +152,7 @@
               <li>Team members can instantly join your live map</li>
               <li>No complicated setup required</li>
             </ul>
-            <p>Need help finding the map ID? Check our <a href="/support?guide=share-map" class="text-primary hover:underline">sharing guide</a> for step-by-step instructions.</p>
+            <p>Watch our <a href="/knowledge-base#video-invite-operators" class="text-primary hover:underline">team invitation tutorial</a> for step-by-step instructions.</p>
           </div>`,
     },
   ]

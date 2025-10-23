@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte"
+  import { browser } from "$app/environment"
   import {
     Play,
     BookOpen,
@@ -15,6 +16,23 @@
 
   onMount(() => {
     mounted = true
+
+    // Handle direct video links from Q&A page or other pages
+    if (browser && window.location.hash) {
+      const hash = window.location.hash.substring(1) // Remove the #
+      if (hash.startsWith("video-")) {
+        const videoId = hash.replace("video-", "")
+        activeVideoId = videoId
+
+        // Scroll to the video after a brief delay to allow rendering
+        setTimeout(() => {
+          const element = document.getElementById(hash)
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" })
+          }
+        }, 300)
+      }
+    }
   })
 
   // Video content organized by topic
@@ -200,7 +218,19 @@
   ]
 
   function toggleVideo(videoId) {
-    activeVideoId = activeVideoId === videoId ? null : videoId
+    if (activeVideoId === videoId) {
+      activeVideoId = null
+      // Remove hash from URL
+      if (browser) {
+        history.replaceState(null, "", window.location.pathname)
+      }
+    } else {
+      activeVideoId = videoId
+      // Update URL hash when video is opened
+      if (browser) {
+        window.location.hash = `video-${videoId}`
+      }
+    }
   }
 </script>
 
@@ -247,7 +277,7 @@
               class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             >
               {#each videos as video}
-                <div class="group">
+                <div class="group" id="video-{video.id}">
                   <button
                     on:click={() => toggleVideo(video.id)}
                     class="w-full text-left"
@@ -396,7 +426,7 @@
           class="inline-flex items-center justify-center gap-2 rounded-lg bg-base-content px-8 py-4 font-semibold text-base-100 transition-opacity hover:opacity-90"
         >
           <Phone size={20} />
-          0439 405 248
+          Call us: 0439 405 248
         </a>
         <a
           href="mailto:ryan@skanfarming.com"
