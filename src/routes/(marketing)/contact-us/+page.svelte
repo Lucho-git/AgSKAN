@@ -79,7 +79,7 @@
 
             <a
               href="mailto:service@skanfarming.com"
-              class="from-dark-card to-dark-card/80 text-dark-card-content group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"
+              class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-dark-card/80 p-8 text-dark-card-content shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"
             >
               <div
                 class="absolute right-4 top-4 opacity-60 transition-opacity group-hover:opacity-80"
@@ -182,7 +182,7 @@
                 information.
               </p>
               <a
-                href="/support"
+                href="/knowledge-base"
                 class="group inline-flex items-center font-medium text-base-content hover:text-base-content/80"
               >
                 Browse articles
@@ -222,7 +222,7 @@
                 AgSKAN.
               </p>
               <a
-                href="https://www.youtube.com/channel/AgSKANTutorials"
+                href="https://www.youtube.com/watch?v=SnbBcs5dbCI&list=PLaZBPWNTvXl-tXt0UG1L3TznBT9NW_LQY"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="group inline-flex items-center font-medium text-base-content hover:text-base-content/80"
