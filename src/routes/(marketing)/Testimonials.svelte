@@ -1,12 +1,23 @@
 <script lang="ts">
-  import { ArrowRight, Play, Quote, X } from "lucide-svelte"
+  import { Play, Quote, X } from "lucide-svelte"
   import { onMount } from "svelte"
-  import { goto } from "$app/navigation"
+  import { tweened } from "svelte/motion"
+  import { cubicOut } from "svelte/easing"
+  import { fly } from "svelte/transition"
 
   let mounted = false
   let activeVideo: number | null = null
   let videoRefs: HTMLVideoElement[] = []
-  let showToast = false
+  let currentIndex = 1
+  let transitionKey = 0
+
+  const cardWidth = 400
+  const gap = 16
+
+  const centerPosition = tweened(currentIndex * cardWidth, {
+    duration: 700,
+    easing: cubicOut,
+  })
 
   onMount(() => {
     mounted = true
@@ -18,7 +29,24 @@
       position: "6,000ha Operation - Moora, WA",
       quote:
         "We saved hours every day once the whole crew was on AgSKAN. I just look at the map and know exactly what's going on.",
-      image: "/content/reviews/KieranPoppelwell.JPG",
+      image: "/content/reviews/KieranPoppelwell.png",
+      hasVideo: false,
+    },
+    {
+      name: "Adam Smith",
+      position: "3,500ha Operation, Northam",
+      quote:
+        "You've single-handedly made seeding half as stressful. Working flawlessly. Well done to you and Lachie",
+      image: "/content/reviews/AdamSmith.png",
+      hasVideo: true,
+      videoUrl: "/content/reviews/Lingy.mp4",
+    },
+    {
+      name: "Harry Brown",
+      position: "Browns Ag Spraying - Gnowangerup, WA",
+      quote:
+        "Game changer for contractors. My clients can see exactly what I've done in real-time. No more calls asking if I've finished their paddock.",
+      image: "/content/reviews/HarryBrown.png",
       hasVideo: false,
     },
     {
@@ -29,28 +57,17 @@
       image: "/content/reviews/GaryGuifelli.JPG",
       hasVideo: false,
     },
-    {
-      name: "Adam Smith",
-      position: "3,500ha Operation, Northam",
-      quote:
-        "You've single-handedly made seeding half as stressful. Working flawlessly. Well done to you and Lachie",
-      image: "/content/reviews/AdamSmith.JPG",
-      hasVideo: true,
-      videoUrl: "/content/reviews/Lingy.mp4",
-    },
   ]
 
   function toggleVideo(index: number) {
     if (activeVideo === index) {
       activeVideo = null
-      // Pause video when closing
       if (testimonials[index].hasVideo && videoRefs[index]) {
         videoRefs[index].pause()
         videoRefs[index].currentTime = 0
       }
     } else {
       activeVideo = index
-      // Auto-play video when opening (if it's a video testimonial)
       if (testimonials[index].hasVideo && videoRefs[index]) {
         setTimeout(() => {
           videoRefs[index].play()
@@ -59,52 +76,50 @@
     }
   }
 
-  function handleWallOfLoveClick() {
-    showToast = true
-    setTimeout(() => {
-      showToast = false
-    }, 3000) // Hide toast after 3 seconds
+  function goToSlide(index: number) {
+    if (activeVideo !== null) {
+      activeVideo = null
+    }
+    transitionKey++
+    currentIndex = index
   }
 
-  // Animation delay placeholder
-  function animationDelay(node: HTMLElement, delay: number) {
-    return {
-      delay,
-      duration: 600,
-      css: (t: number) => `
-        opacity: ${t};
-        transform: translateY(${(1 - t) * 20}px);
-      `,
+  function handleCardClick(index: number) {
+    if (index !== currentIndex) {
+      goToSlide(index)
     }
   }
 
-  // Fade in animation for video
-  function fadeIn(node: HTMLElement) {
-    return {
-      duration: 300,
-      css: (t: number) => `
-        opacity: ${t};
-        transform: scale(${0.9 + t * 0.1});
-      `,
+  function closeModal() {
+    activeVideo = null
+    if (videoRefs[currentIndex]) {
+      videoRefs[currentIndex].pause()
+      videoRefs[currentIndex].currentTime = 0
     }
   }
 
-  // Toast animation
-  function toastSlide(node: HTMLElement) {
-    return {
-      duration: 300,
-      css: (t: number) => `
-        opacity: ${t};
-        transform: translateX(${(1 - t) * 100}%);
-      `,
+  // Calculate circular position - always show 1 card on left, rest on right
+  function getCircularPosition(index: number, center: number) {
+    const totalCards = testimonials.length
+    let offset = index - center
+
+    // Wrap around: if we're at the far right, put on the left
+    if (offset >= totalCards - 1) {
+      offset = offset - totalCards
+    } else if (offset < -1) {
+      offset += totalCards
     }
+
+    return offset
   }
+
+  $: centerPosition.set(currentIndex * cardWidth)
 </script>
 
 <section class="bg-base-100" id="testimonials">
   <div class="section-container py-20">
     {#if mounted}
-      <div in:animationDelay={0}>
+      <div>
         <h2
           class="mb-6 text-center font-sans text-3xl font-bold text-contrast-content md:text-4xl"
         >
@@ -112,151 +127,178 @@
         </h2>
 
         <p
-          class="mx-auto mb-10 max-w-2xl text-center text-lg text-contrast-content/70"
+          class="mx-auto mb-12 max-w-2xl text-center text-lg text-contrast-content/70"
         >
           Real farmers. Real results. Real time saved.
         </p>
 
-        <div class="mt-8 grid gap-6 md:grid-cols-3">
-          {#each testimonials as testimonial, index}
+        <div class="relative mx-auto max-w-6xl">
+          <!-- Carousel Container -->
+          <div class="relative mx-auto px-4">
             <div
-              class="relative rounded-xl bg-base-200 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-              in:animationDelay={100 + index * 100}
+              class="relative flex min-h-[480px] items-center justify-center"
             >
-              <div
-                class="absolute -left-4 -top-4 flex h-8 w-8 items-center justify-center rounded-full bg-base-content text-base-100"
-              >
-                <Quote size={16} />
-              </div>
+              {#key transitionKey}
+                {#each testimonials as testimonial, index}
+                  {@const circularOffset = getCircularPosition(
+                    index,
+                    currentIndex,
+                  )}
+                  {@const isCenter = circularOffset === 0}
+                  {@const translateX = circularOffset * (cardWidth + gap)}
+                  {@const opacity = isCenter
+                    ? 1
+                    : circularOffset === -1
+                      ? 0.6
+                      : circularOffset === 1
+                        ? 0.6
+                        : 0.3}
+                  {@const scale = isCenter ? 1 : 0.9}
+                  {@const zIndex = isCenter
+                    ? 20
+                    : Math.abs(circularOffset) === 1
+                      ? 10
+                      : 5}
 
-              <!-- 5-star rating -->
-              <div class="mb-4 flex items-center gap-1">
-                {#each Array(5) as _, star}
-                  <svg
-                    class="h-5 w-5 fill-current text-secondary"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                    />
-                  </svg>
-                {/each}
-              </div>
-
-              <p class="mb-6 italic text-contrast-content/80">
-                "{testimonial.quote}"
-              </p>
-
-              <div class="flex items-center gap-4">
-                <div class="h-12 w-12 overflow-hidden rounded-full">
-                  <img
-                    src={testimonial.image}
-                    alt={testimonial.name}
-                    class="h-full w-full object-cover"
-                    on:error={(e) => {
-                      // Fallback to random user image if real photo fails
-                      e.target.src = `https://randomuser.me/api/portraits/${index % 2 === 0 ? "men" : "women"}/${index + 20}.jpg`
+                  <button
+                    in:fly={{
+                      x:
+                        circularOffset === -1
+                          ? (testimonials.length - 1) * (cardWidth + gap)
+                          : 0,
+                      duration: circularOffset === -1 ? 700 : 0,
+                      easing: cubicOut,
                     }}
-                  />
-                </div>
-                <div>
-                  <h4 class="font-bold text-contrast-content">
-                    {testimonial.name}
-                  </h4>
-                  <p class="text-sm text-contrast-content/60">
-                    {testimonial.position}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                class="mt-4 flex items-center gap-2 font-medium text-primary transition-colors hover:text-primary/80"
-                on:click={() => toggleVideo(index)}
-              >
-                <Play size={16} />
-                <span>Watch video</span>
-              </button>
-
-              <!-- Video/Placeholder -->
-              {#if activeVideo === index}
-                <div
-                  class="absolute inset-x-0 bottom-[70px] mx-4 mt-4 rounded-lg bg-base-300 p-3 shadow-xl transition-all"
-                  in:fadeIn
-                >
-                  <div class="relative">
-                    <button
-                      on:click={() => toggleVideo(index)}
-                      class="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-base-content/80 text-base-100 transition-colors hover:bg-base-content"
+                    out:fly={{
+                      x: circularOffset === -1 ? -(cardWidth + gap) * 2 : 0,
+                      duration: circularOffset === -1 ? 700 : 0,
+                      easing: cubicOut,
+                    }}
+                    class="absolute flex w-96 flex-shrink-0 items-start justify-center text-left {!isCenter
+                      ? 'cursor-pointer hover:opacity-70'
+                      : ''}"
+                    style="transform: translateX({translateX}px) scale({scale}); z-index: {zIndex}; opacity: {opacity};"
+                    on:click={() => handleCardClick(index)}
+                    disabled={isCenter}
+                  >
+                    <div
+                      class="relative w-full rounded-xl bg-base-200 p-6 shadow-lg md:p-8"
                     >
-                      <X size={14} />
-                    </button>
-
-                    {#if testimonial.hasVideo}
-                      <!-- Actual video for Adam Smith -->
-                      <!-- svelte-ignore a11y-media-has-caption -->
-                      <video
-                        bind:this={videoRefs[index]}
-                        class="aspect-video w-full rounded bg-base-content/20"
-                        controls
-                        preload="metadata"
-                        on:error={() => {
-                          // Fallback to placeholder if video fails
-                          testimonial.hasVideo = false
-                        }}
-                      >
-                        <source src={testimonial.videoUrl} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
-                    {:else}
-                      <!-- Placeholder for others -->
                       <div
-                        class="flex aspect-video items-center justify-center rounded bg-base-content/20 text-contrast-content"
+                        class="absolute -left-3 -top-3 flex h-10 w-10 items-center justify-center rounded-full bg-base-content text-base-100 shadow-md"
                       >
-                        <Play size={36} class="opacity-60" />
-                        <span class="sr-only">Video placeholder</span>
+                        <Quote size={20} />
                       </div>
-                    {/if}
 
-                    <div class="mt-2 text-sm text-contrast-content">
-                      <h5 class="font-medium">
-                        {testimonial.name}'s Experience with AgSKAN
-                      </h5>
-                      <p class="mt-1 text-xs text-contrast-content/70">
-                        {#if testimonial.hasVideo}
-                          Hear directly from {testimonial.name.split(" ")[0]} about
-                          using AgSKAN
-                        {:else}
-                          Watch how {testimonial.name.split(" ")[0]} uses AgSKAN
-                          on the farm
-                        {/if}
+                      <div class="mb-4 flex items-center justify-center gap-1">
+                        {#each Array(5) as _}
+                          <svg
+                            class="h-5 w-5 fill-current text-secondary"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                            />
+                          </svg>
+                        {/each}
+                      </div>
+
+                      <p
+                        class="mb-6 text-center text-lg italic text-contrast-content/90"
+                      >
+                        "{testimonial.quote}"
                       </p>
+
+                      <div class="flex flex-col items-center gap-3">
+                        <div class="h-16 w-16 overflow-hidden rounded-full">
+                          <img
+                            src={testimonial.image}
+                            alt={testimonial.name}
+                            class="h-full w-full object-cover"
+                            on:error={(e) => {
+                              e.currentTarget.src = `https://randomuser.me/api/portraits/${index % 2 === 0 ? "men" : "women"}/${index + 20}.jpg`
+                            }}
+                          />
+                        </div>
+                        <div class="text-center">
+                          <h4 class="font-bold text-contrast-content">
+                            {testimonial.name}
+                          </h4>
+                          <p class="text-sm text-contrast-content/60">
+                            {testimonial.position}
+                          </p>
+                        </div>
+                      </div>
+
+                      {#if isCenter && testimonial.hasVideo}
+                        <div class="mt-4 flex justify-center">
+                          <button
+                            class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content transition-colors hover:bg-primary/90"
+                            on:click|stopPropagation={() => toggleVideo(index)}
+                          >
+                            <Play size={16} />
+                            <span>Watch video</span>
+                          </button>
+                        </div>
+                      {/if}
                     </div>
-                  </div>
-                </div>
-              {/if}
+                  </button>
+                {/each}
+              {/key}
             </div>
-          {/each}
+
+            <!-- Navigation Dots -->
+            <div class="mt-8 flex justify-center gap-2">
+              {#each testimonials as _, index}
+                <button
+                  class="h-2 w-2 rounded-full transition-all duration-300 {currentIndex ===
+                  index
+                    ? 'w-8 bg-primary'
+                    : 'bg-base-content/30 hover:bg-base-content/50'}"
+                  on:click={() => goToSlide(index)}
+                  aria-label="Go to testimonial {index + 1}"
+                />
+              {/each}
+            </div>
+          </div>
         </div>
       </div>
     {/if}
   </div>
 
-  <!-- Toast Notification -->
-  {#if showToast}
+  <!-- Video Modal -->
+  {#if activeVideo !== null && testimonials[activeVideo].hasVideo}
     <div
-      class="fixed bottom-6 right-6 z-50 rounded-lg bg-base-content px-6 py-3 text-base-100 shadow-lg"
-      in:toastSlide
-      out:toastSlide
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      on:click={closeModal}
+      on:keydown={(e) => e.key === "Escape" && closeModal()}
+      role="button"
+      tabindex="0"
     >
-      <div class="flex items-center gap-2">
-        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fill-rule="evenodd"
-            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-            clip-rule="evenodd"
-          />
-        </svg>
-        <span class="font-medium">Wall of Love coming soon!</span>
+      <div
+        class="relative w-full max-w-4xl"
+        on:click|stopPropagation
+        on:keydown|stopPropagation
+        role="button"
+        tabindex="0"
+      >
+        <button
+          on:click={closeModal}
+          class="absolute -right-4 -top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-900 shadow-lg hover:bg-gray-100"
+        >
+          <X size={20} />
+        </button>
+
+        <!-- svelte-ignore a11y-media-has-caption -->
+        <video
+          bind:this={videoRefs[activeVideo]}
+          class="w-full rounded-lg shadow-2xl"
+          controls
+          autoplay
+          preload="metadata"
+        >
+          <source src={testimonials[activeVideo].videoUrl} type="video/mp4" />
+        </video>
       </div>
     </div>
   {/if}
