@@ -150,9 +150,7 @@
   const companyLinks = [
     { href: "/team", label: "About Us" },
     { href: "/contact-us", label: "Contact Us" },
-    { href: "/wall-of-love", label: "Wall of Love" },
     { href: "/knowledge-base", label: "Knowledge Base" },
-    { href: "/support", label: "Support Center (old)" },
   ]
 </script>
 

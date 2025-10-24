@@ -116,45 +116,10 @@
                 </li>
                 <li>
                   <FooterLink
-                    href="/wall-of-love"
-                    className="transition-colors py-1 inline-block"
-                  >
-                    Wall of Love
-                  </FooterLink>
-                </li>
-                <li>
-                  <FooterLink
                     href="#pricing"
                     className="transition-colors py-1 inline-block"
                   >
                     Pricing
-                  </FooterLink>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Legal -->
-            <div>
-              <h4
-                class="mb-4 text-lg font-bold uppercase tracking-wide text-neutral-content"
-              >
-                Legal
-              </h4>
-              <ul class="space-y-2">
-                <li>
-                  <FooterLink
-                    href="/terms-of-service"
-                    className="transition-colors py-1 inline-block"
-                  >
-                    Terms of Service
-                  </FooterLink>
-                </li>
-                <li>
-                  <FooterLink
-                    href="/privacy-policy"
-                    className="transition-colors py-1 inline-block"
-                  >
-                    Privacy Policy
                   </FooterLink>
                 </li>
               </ul>
@@ -167,7 +132,32 @@
               >
                 Contact
               </h4>
-              <div class="mt-2 grid max-w-[160px] grid-cols-3 gap-3">
+              <div class="flex flex-col gap-3">
+                <a
+                  href="mailto:support@skanfarming.com.au"
+                  class="flex items-center gap-2 text-sm text-neutral-content/70 transition-colors hover:text-neutral-content"
+                >
+                  <Mail size={16} />
+                  <span>Email Us</span>
+                </a>
+                <a
+                  href="tel:+61439405248"
+                  class="flex items-center gap-2 text-sm text-neutral-content/70 transition-colors hover:text-neutral-content"
+                >
+                  <Phone size={16} />
+                  <span>Call Us</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Socials -->
+            <div>
+              <h4
+                class="mb-4 text-lg font-bold uppercase tracking-wide text-neutral-content"
+              >
+                Follow Us
+              </h4>
+              <div class="flex gap-3">
                 <a
                   href="https://twitter.com/SKANfarming"
                   target="_blank"
@@ -177,25 +167,17 @@
                   <Twitter size={18} />
                 </a>
                 <a
-                  href="#"
+                  href="https://www.instagram.com/skanfarming"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Instagram size={18} />
                 </a>
                 <a
-                  href="mailto:support@skanfarming.com.au"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
-                >
-                  <Mail size={18} />
-                </a>
-                <a
-                  href="tel:+61439405248"
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
-                >
-                  <Phone size={18} />
-                </a>
-                <a
-                  href="#"
+                  href="https://www.facebook.com/p/SKAN-Farming-61558331905426/"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   class="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-content/10 text-neutral-content/70 transition-all duration-300 hover:scale-105 hover:bg-neutral-content hover:text-neutral"
                 >
                   <Facebook size={18} />
