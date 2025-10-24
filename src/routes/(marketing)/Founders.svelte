@@ -62,10 +62,10 @@
                 <div class="space-y-3 sm:space-y-0">
                   <div>
                     <h4 class="font-semibold text-contrast-content">
-                      Ryan Skamp & Lachie Ross
+                      Lachie Ross & Ryan Skamp
                     </h4>
                     <p class="text-sm text-base-content">
-                      Farmer & Software Engineer
+                      Software Engineer & Farmer
                     </p>
                   </div>
 

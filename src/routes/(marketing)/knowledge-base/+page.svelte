@@ -8,6 +8,7 @@
     Clock,
     Phone,
     Mail,
+    ChevronRight,
   } from "lucide-svelte"
   import { getArticlesByCategory } from "$lib/data/articleData"
 
@@ -19,12 +20,11 @@
 
     // Handle direct video links from Q&A page or other pages
     if (browser && window.location.hash) {
-      const hash = window.location.hash.substring(1) // Remove the #
+      const hash = window.location.hash.substring(1)
       if (hash.startsWith("video-")) {
         const videoId = hash.replace("video-", "")
         activeVideoId = videoId
 
-        // Scroll to the video after a brief delay to allow rendering
         setTimeout(() => {
           const element = document.getElementById(hash)
           if (element) {
@@ -220,13 +220,11 @@
   function toggleVideo(videoId) {
     if (activeVideoId === videoId) {
       activeVideoId = null
-      // Remove hash from URL
       if (browser) {
         history.replaceState(null, "", window.location.pathname)
       }
     } else {
       activeVideoId = videoId
-      // Update URL hash when video is opened
       if (browser) {
         window.location.hash = `video-${videoId}`
       }
@@ -272,15 +270,66 @@
               {category}
             </h3>
 
-            <!-- Video Grid with Thumbnails -->
-            <div
-              class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            >
+            <!-- Mobile: List View, Desktop: Grid View -->
+            <div class="video-container">
               {#each videos as video}
-                <div class="group" id="video-{video.id}">
+                <div class="video-item" id="video-{video.id}">
+                  <!-- Mobile List Item (hidden on desktop) -->
                   <button
                     on:click={() => toggleVideo(video.id)}
-                    class="w-full text-left"
+                    class="mobile-list-item group w-full"
+                  >
+                    <div
+                      class="flex items-center gap-4 rounded-lg border border-base-300 bg-base-100 p-4 transition-all hover:border-base-content/30 hover:shadow-md"
+                    >
+                      <!-- Play Icon -->
+                      <div class="flex-shrink-0">
+                        <div
+                          class="flex h-12 w-12 items-center justify-center rounded-full bg-base-content/10 transition-colors group-hover:bg-base-content/20"
+                        >
+                          <Play
+                            size={20}
+                            class="text-base-content"
+                            fill={activeVideoId === video.id
+                              ? "currentColor"
+                              : "none"}
+                          />
+                        </div>
+                      </div>
+
+                      <!-- Text Content -->
+                      <div class="min-w-0 flex-1 text-left">
+                        <h4 class="mb-1 font-semibold text-base-content">
+                          {video.title}
+                        </h4>
+                        <p class="text-sm text-base-content/60">
+                          {video.description}
+                        </p>
+                      </div>
+
+                      <!-- Duration & Arrow -->
+                      <div class="flex flex-shrink-0 items-center gap-2">
+                        <span
+                          class="flex items-center gap-1 text-xs text-base-content/60"
+                        >
+                          <Clock size={12} />
+                          {video.duration}
+                        </span>
+                        <ChevronRight
+                          size={18}
+                          class="text-base-content/40 transition-transform {activeVideoId ===
+                          video.id
+                            ? 'rotate-90'
+                            : ''}"
+                        />
+                      </div>
+                    </div>
+                  </button>
+
+                  <!-- Desktop Grid Item (hidden on mobile) -->
+                  <button
+                    on:click={() => toggleVideo(video.id)}
+                    class="desktop-grid-item group w-full text-left"
                   >
                     <!-- Thumbnail Container -->
                     <div
@@ -328,7 +377,7 @@
                     </p>
                   </button>
 
-                  <!-- Expanded Video Player -->
+                  <!-- Expanded Video Player (for both mobile & desktop) -->
                   {#if activeVideoId === video.id}
                     <div
                       class="mt-4 overflow-hidden rounded-lg border border-base-300 shadow-lg"
@@ -450,5 +499,54 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Mobile: List view */
+  .video-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .mobile-list-item {
+    display: block;
+  }
+
+  .desktop-grid-item {
+    display: none;
+  }
+
+  /* Desktop: Grid view */
+  @media (min-width: 640px) {
+    .video-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .mobile-list-item {
+      display: none;
+    }
+
+    .desktop-grid-item {
+      display: block;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .video-container {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .video-container {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Smooth expand animation */
+  .video-item {
+    transition: all 0.3s ease;
   }
 </style>
