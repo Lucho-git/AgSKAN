@@ -53,15 +53,15 @@
   const teamMembers = [
     {
       name: "Ryan Skamp",
-      role: "CEO & Co-Founder",
+      role: "Managing Founder",
       bio: "Ryan has over 5000+ hours of machinery operating experience after spending 5+ years working in the Agricultural industry. He is applying these industry insights to build a program that will make farmers' lives easier.",
-      image: "/images/ryan.jpg",
+      image: "/images/Ryan_Canola.jpeg",
     },
     {
       name: "Lachie Ross",
-      role: "CTO & Co-Founder",
+      role: "Technical Founder",
       bio: "Lachie is a software engineer with a degree in Computer Science from Curtin University. He has been involved in many startups and innovations, bringing a wealth of technical knowledge to AgSKAN.",
-      image: "/images/lachjacked.png",
+      image: "/images/Lach_Canola.jpeg",
     },
     {
       name: "Ella Ross",
