@@ -9,9 +9,10 @@
 
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
-  import { Home, MapPin, Navigation } from "lucide-svelte"
+  import { Home, MapPin, Navigation, RotateCcw } from "lucide-svelte"
 
   let isCircular = true
+  let isRefreshing = false
 
   onMount(async () => {
     console.log("Mounting ButtonSection")
@@ -53,6 +54,26 @@
 
   function handleLocateHome() {
     dispatch("locateHome")
+  }
+
+  async function handleRefresh() {
+    if (isRefreshing) return
+
+    isRefreshing = true
+    console.log("🔄 Initiating map refresh...")
+
+    toast.loading("Refreshing map data...", { id: "map-refresh" })
+
+    try {
+      // Force a hard reload of the current page
+      if (browser) {
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("Error refreshing map:", error)
+      toast.error("Failed to refresh map data", { id: "map-refresh" })
+      isRefreshing = false
+    }
   }
 </script>
 
@@ -113,6 +134,19 @@
         ? 'scale-100 opacity-90'
         : 'h-50 scale-0 overflow-hidden opacity-0'}"
     >
+      <!-- Refresh Map Button - MOVED TO TOP -->
+      <button
+        class="menu-button btn {isCircular
+          ? 'btn-circle'
+          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90 {isRefreshing
+          ? 'refreshing'
+          : ''}"
+        on:click={handleRefresh}
+        disabled={isRefreshing}
+      >
+        <RotateCcw size={24} class={isRefreshing ? "spinning" : ""} />
+      </button>
+
       <!-- InstantLocationMarker Button -->
       <button
         class="menu-button btn {isCircular
@@ -191,6 +225,16 @@
     color: #f7db5c;
   }
 
+  .menu-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .menu-button.refreshing {
+    background-color: rgba(96, 165, 250, 0.3);
+    border-color: #000000;
+  }
+
   /* Top button styles */
   .top-button {
     background-color: #f7db5c;
@@ -213,6 +257,20 @@
   .menu-button.trailing-active:hover {
     background-color: #dc0000;
     color: #f7db5c;
+  }
+
+  /* Spinning animation for refresh icon */
+  .menu-button :global(.spinning) {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   @keyframes draw {

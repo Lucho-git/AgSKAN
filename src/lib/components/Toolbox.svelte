@@ -138,7 +138,6 @@
       {:else if activePanel === "marker"}
         <MarkerControls on:close={closeToolbox} />
       {:else if activePanel === "vehicle"}
-        <!-- NO PROPS PASSED - VehicleControls manages everything internally -->
         <VehicleControls on:close={closeToolbox} />
       {:else if activePanel === "trail"}
         <TrailControls
@@ -215,6 +214,16 @@
 {/if}
 
 <style>
+  /* Update tool-grid to handle 6 items (2x3 grid) */
+  .tool-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 18px 14px;
+    align-content: start;
+  }
+
+  /* Keep all other existing styles exactly the same */
   .toolbox-backdrop {
     position: fixed;
     top: 0;
@@ -292,14 +301,6 @@
     overflow-y: auto;
   }
 
-  .tool-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    padding: 18px 14px;
-    align-content: start;
-  }
-
   .tool-button {
     display: flex;
     flex-direction: column;
@@ -330,7 +331,6 @@
     transform: translateY(0);
   }
 
-  /* Active state for measure button */
   .tool-button.tool-active {
     background: rgba(96, 165, 250, 0.2);
     border-color: rgba(96, 165, 250, 0.4);
@@ -351,7 +351,6 @@
     margin-top: 2px;
   }
 
-  /* Icon containers - consistent sizing */
   .vehicle-icon-container,
   .marker-icon-container {
     display: flex;
@@ -362,13 +361,6 @@
     overflow: visible;
   }
 
-  /* Empty placeholder to maintain grid alignment */
-  .tool-placeholder {
-    height: 110px;
-    background: transparent;
-  }
-
-  /* Animations */
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -387,7 +379,6 @@
     }
   }
 
-  /* Consistent responsive design across all screen sizes */
   @media (max-width: 768px) {
     .toolbox-panel {
       width: 260px;
@@ -415,7 +406,6 @@
       height: 32px;
     }
 
-    /* Adjust icon sizes for mobile */
     .vehicle-icon-container :global(svg),
     .vehicle-icon-container :global(ion-icon),
     .vehicle-icon-container :global(i),
@@ -427,7 +417,6 @@
       font-size: 40px !important;
     }
 
-    /* Adjust other Lucide icon sizes */
     .tool-button
       :global(
         svg:not(.vehicle-icon-container svg):not(.marker-icon-container svg)
@@ -464,7 +453,6 @@
       height: 28px;
     }
 
-    /* Smaller icons for small mobile */
     .vehicle-icon-container :global(svg),
     .vehicle-icon-container :global(ion-icon),
     .vehicle-icon-container :global(i),
@@ -485,7 +473,6 @@
     }
   }
 
-  /* Scrollbar styling for content area */
   .toolbox-content::-webkit-scrollbar {
     width: 4px;
   }
