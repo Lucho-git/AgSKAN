@@ -1,11 +1,10 @@
-<!-- MapStateSaver.svelte -->
 <script>
   import { onMount, onDestroy } from "svelte"
   import { confirmedMarkersStore, syncStore } from "../stores/mapStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore" // 👈 NEW
+  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import mapboxgl from "mapbox-gl"
   const { LngLatBounds } = mapboxgl
   import { markerBoundaryStore } from "$lib/stores/homeBoundaryStore"
@@ -46,7 +45,7 @@
       window.addEventListener("offline", handleOffline)
     }
 
-    // Subscribe to real-time changes from other users
+    // Subscribe to real-time changes - FILTER OUT OUR OWN CHANGES
     channel = supabase
       .channel("map_markers_changes")
       .on(
@@ -58,19 +57,32 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         async (payload) => {
-          // Skip if it's our own change
-          if (payload.new?.update_user_id === userId) return
+          // Double-check: Skip if it's our own change
+          if (payload.new?.update_user_id === userId) {
+            console.log("⏭️ Skipping own change - user ID match")
+            return
+          }
+
+          // Also skip if old data has our user ID (for updates)
+          if (
+            payload.old?.update_user_id === userId &&
+            payload.eventType === "UPDATE"
+          ) {
+            console.log("⏭️ Skipping own update - old user ID match")
+            return
+          }
 
           console.log(
-            "🔄 Received real-time change:",
+            "🔄 Received real-time change from another user:",
             payload.eventType,
-            payload,
+            "User ID:",
+            payload.new?.update_user_id,
           )
 
           // Handle the change immediately using payload data
           handleRealtimeMarkerChange(payload)
 
-          // Show notification
+          // Show notification ONLY for other users' changes
           await showChangeNotification(payload)
         },
       )
@@ -109,7 +121,7 @@
       if (markerId) {
         lastKnownState.delete(markerId)
 
-        // 👇 NEW: Remove from visibility store
+        // Remove from visibility store
         markerVisibilityStore.update((settings) => {
           const { [markerId]: removed, ...rest } = settings
           return rest
@@ -138,6 +150,10 @@
         updated_at: newData.updated_at,
       }
 
+      // 🔥 KEY FIX: Temporarily disable change tracking while updating from realtime
+      const wasSyncing = isSyncing
+      isSyncing = true // This prevents trackChangedMarkers from running
+
       confirmedMarkersStore.update((markers) => {
         const existingIndex = markers.findIndex((m) => m.id === newData.id)
 
@@ -154,7 +170,7 @@
         return markers
       })
 
-      // Update our tracking
+      // 🔥 KEY FIX: Update lastKnownState IMMEDIATELY to prevent re-syncing
       lastKnownState.set(newData.id, {
         iconClass: processedMarker.iconClass,
         coordinates: [...processedMarker.coordinates],
@@ -162,13 +178,20 @@
         created_at: processedMarker.created_at,
       })
 
-      // 👇 NEW: Update visibility in store
+      // Re-enable change tracking
+      isSyncing = wasSyncing
+
+      // Update visibility in store
       const visibility =
         newData.marker_data?.properties?.drawings_visibility || "selected"
       markerVisibilityStore.setMarkerVisibility(newData.id, visibility)
 
       // Recalculate bounding box
       calculateAndStoreBoundingBox($confirmedMarkersStore)
+
+      console.log(
+        "🔒 Real-time marker locked in lastKnownState to prevent re-sync",
+      )
     }
   }
 
@@ -315,7 +338,7 @@
 
       if (error) throw error
 
-      // 👇 NEW: Load visibility settings into store
+      // Load visibility settings into store
       const visibilitySettings = {}
       markers?.forEach((marker) => {
         const visibility =
@@ -325,7 +348,8 @@
       markerVisibilityStore.set(visibilitySettings)
       console.log(
         "✅ Loaded visibility settings into store:",
-        visibilitySettings,
+        Object.keys(visibilitySettings).length,
+        "markers",
       )
 
       // Process markers
@@ -418,13 +442,13 @@
     )
 
     console.log(
-      `🔄 Syncing ${changedMarkers.length} changed markers and ${pendingDeletions.size} deletions`,
+      `🔄 Syncing ${changedMarkers.length} changed markers and ${pendingDeletions.size} deletions for user ${userId}`,
     )
 
     // Sync marker updates/additions
     if (changedMarkers.length > 0) {
       const markerData = changedMarkers.map((marker) => {
-        // 👇 NEW: Include visibility from store in marker_data
+        // Include visibility from store in marker_data
         const visibility = $markerVisibilityStore[marker.id] || "selected"
 
         return {
@@ -439,23 +463,27 @@
             properties: {
               icon: marker.iconClass || "default",
               id: marker.id,
-              drawings_visibility: visibility, // 👈 NEW
+              drawings_visibility: visibility,
             },
           },
           notes: marker.notes || null,
           last_confirmed: marker.created_at || new Date().toISOString(),
           created_at: marker.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          update_user_id: userId,
+          update_user_id: userId, // Set the user ID
           deleted: null,
         }
       })
+
+      console.log("💾 Upserting markers with user ID:", userId)
 
       const { error } = await supabase
         .from("map_markers")
         .upsert(markerData, { onConflict: "id" })
 
       if (error) throw error
+
+      console.log("✅ Successfully upserted", changedMarkers.length, "markers")
     }
 
     // Sync deletions
@@ -488,6 +516,12 @@
     const coordinates = payload.new?.marker_data?.geometry?.coordinates
     const isDeleted = payload.new?.deleted === true
 
+    console.log("🔍 DEBUG Notification:", {
+      updateUserId: payload.new?.update_user_id,
+      currentUserId: userId,
+      match: payload.new?.update_user_id === userId,
+    })
+
     // Get username
     let username = "Another user"
     const connectedUser = $mapActivityStore.connected_profiles?.find(
@@ -496,16 +530,19 @@
 
     if (connectedUser) {
       username = connectedUser.full_name
+      console.log("👤 Found connected user:", username, connectedUser.id)
     } else if (payload.new?.update_user_id) {
       const { data: user } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, id")
         .eq("id", payload.new.update_user_id)
         .single()
 
-      if (user) username = user.full_name
+      if (user) {
+        username = user.full_name
+        console.log("👤 Fetched user from DB:", username, user.id)
+      }
     }
-
     // Show appropriate notification
     let title, description
     switch (changeType) {

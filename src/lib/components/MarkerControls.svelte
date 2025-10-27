@@ -59,7 +59,21 @@
     console.log("📊 Current userSettingsStore:", $userSettingsStore)
 
     try {
-      // Update both the local store and database
+      // FIRST: Update the store immediately for instant reactivity
+      userSettingsStore.update((settings) => ({
+        ...settings,
+        defaultMarker: {
+          id: marker.id,
+          class: marker.class,
+          name: marker.name,
+        },
+      }))
+
+      console.log("🎯 Store updated immediately!")
+      console.log("Selected marker:", marker)
+      console.log("Updated userSettingsStore:", $userSettingsStore)
+
+      // THEN: Persist to database
       const result = await userSettingsApi.updateDefaultMarker({
         id: marker.id,
         class: marker.class,
@@ -67,19 +81,28 @@
       })
 
       if (result.success) {
-        console.log("🎯 Default marker updated!")
-        console.log("Selected marker:", marker)
-        console.log("Updated userSettingsStore:", $userSettingsStore)
-
+        console.log("✅ Default marker persisted to database!")
         // Show success toast
         toast.success(`Default marker set: ${marker.name}`)
       } else {
         console.error("❌ API Error updating default marker:", result.message)
         toast.error("Failed to save default marker")
+
+        // Revert the store update if database save failed
+        userSettingsStore.update((settings) => ({
+          ...settings,
+          defaultMarker: selectedMarker,
+        }))
       }
     } catch (error) {
       console.error("❌ Error updating default marker:", error)
       toast.error("Failed to save default marker")
+
+      // Revert the store update if there was an error
+      userSettingsStore.update((settings) => ({
+        ...settings,
+        defaultMarker: selectedMarker,
+      }))
     }
 
     // Just go back to previous menu instead of closing everything

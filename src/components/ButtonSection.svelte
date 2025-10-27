@@ -3,6 +3,7 @@
   import { createEventDispatcher } from "svelte"
   import { mapStore, locationMarkerStore, syncStore } from "../stores/mapStore"
   import { userVehicleStore, userVehicleTrailing } from "../stores/vehicleStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   import { controlStore, trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
@@ -10,6 +11,8 @@
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import { Home, MapPin, Navigation, RotateCcw } from "lucide-svelte"
+  import IconSVG from "../components/IconSVG.svelte"
+  import { getAllMarkers } from "$lib/data/markerDefinitions"
 
   let isCircular = true
   let isRefreshing = false
@@ -23,6 +26,26 @@
   })
 
   const dispatch = createEventDispatcher()
+
+  // Make defaultMarker reactive to userSettingsStore changes
+  $: defaultMarker = (() => {
+    const storeMarker = $userSettingsStore?.defaultMarker
+    if (storeMarker) {
+      // First try to find in ALL markers (includes deprecated)
+      const allMarkers = getAllMarkers()
+      const foundMarker = allMarkers.find(
+        (icon) =>
+          icon.id === storeMarker.id && icon.class === storeMarker.class,
+      )
+      if (foundMarker) return foundMarker
+    }
+    // Fallback to default
+    return {
+      id: "default",
+      class: "default",
+      name: "Default Marker",
+    }
+  })()
 
   function toggleTrailing() {
     trailingButtonPressed.update((value) => !value)
@@ -134,7 +157,7 @@
         ? 'scale-100 opacity-90'
         : 'h-50 scale-0 overflow-hidden opacity-0'}"
     >
-      <!-- Refresh Map Button - MOVED TO TOP -->
+      <!-- Refresh Map Button -->
       <button
         class="menu-button btn {isCircular
           ? 'btn-circle'
@@ -147,14 +170,29 @@
         <RotateCcw size={24} class={isRefreshing ? "spinning" : ""} />
       </button>
 
-      <!-- InstantLocationMarker Button -->
+      <!-- InstantLocationMarker Button with Default Marker Icon -->
       <button
         class="menu-button btn {isCircular
           ? 'btn-circle'
-          : 'btn-square'} btn-lg bg-white text-sm hover:bg-opacity-90"
+          : 'btn-square'} marker-icon-button btn-lg bg-white text-sm hover:bg-opacity-90"
         on:click={handleLocationClick}
       >
-        <MapPin size={24} />
+        <div class="marker-icon-container">
+          {#key defaultMarker.id + defaultMarker.class}
+            {#if defaultMarker.id === "default"}
+              <IconSVG icon="mapbox-marker" size="32px" />
+            {:else if defaultMarker.class === "custom-svg"}
+              <IconSVG icon={defaultMarker.id} size="32px" />
+            {:else if defaultMarker.class?.startsWith("ionic-")}
+              <ion-icon name={defaultMarker.id} style="font-size: 32px;"
+              ></ion-icon>
+            {:else if defaultMarker.class?.startsWith("at-")}
+              <i class={`${defaultMarker.class}`} style="font-size: 32px;"></i>
+            {:else}
+              <MapPin size={24} />
+            {/if}
+          {/key}
+        </div>
       </button>
 
       <!-- Locate Home Button -->
@@ -233,6 +271,22 @@
   .menu-button.refreshing {
     background-color: rgba(96, 165, 250, 0.3);
     border-color: #000000;
+  }
+
+  /* Marker icon container for proper sizing */
+  .marker-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Ensure marker icon button displays correctly */
+  .marker-icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Top button styles */
