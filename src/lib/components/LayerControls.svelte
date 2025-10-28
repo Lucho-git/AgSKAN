@@ -10,6 +10,7 @@
     Truck,
     History,
     Activity,
+    Navigation, // ← NEW ICON
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -73,6 +74,14 @@
       icon: Activity,
       description: "Show/hide currently recording trails",
       color: "#ec4899",
+    },
+    {
+      id: "trailArrows", // ← NEW LAYER
+      name: "Trail Arrows",
+      icon: Navigation,
+      description: "Show/hide direction arrows on trails",
+      color: "#a78bfa",
+      indent: true,
     },
   ]
 

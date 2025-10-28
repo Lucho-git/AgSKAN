@@ -23,7 +23,8 @@
     MAX_POWER: 8,
     DEFAULT_OPACITY: 0.5,
     LOAD_DELAY: 10,
-    SEGMENT_DURATION: 900000, // 5 minutes in milliseconds
+    SEGMENT_DURATION: 900000, // 15 minutes in milliseconds
+    ARROW_INTERVAL_METERS: 10, // Fixed real-world distance between arrows
   }
 
   export interface TrailIdentifiers {
@@ -48,10 +49,11 @@
 
   export let map: Map
 
-  let lastCoordinateCount = 0
   let historicalTrailLayers: string[] = []
+  let historicalDirectionalLayers: string[] = []
   let previousHistoricalVisibility = true
   let previousActiveVisibility = true
+  let previousArrowsVisibility = false
 
   // Track segment counts AND coordinate counts per trail
   let lastSegmentIndices = new Map<string, number>()
@@ -60,9 +62,11 @@
   // Track which trails are in the combined layer
   let activeTrailsInCombinedLayer = new Set<string>()
 
-  // Single combined source for all active trails
+  // Combined source and layers for all active trails
   const COMBINED_ACTIVE_SOURCE_ID = "all-active-trails-combined"
   const COMBINED_ACTIVE_LAYER_ID = "all-active-trails-layer"
+  const COMBINED_ACTIVE_MARKERS_SOURCE_ID = "all-active-trails-markers-source"
+  const COMBINED_ACTIVE_MARKERS_ID = "all-active-trails-markers"
 
   $: {
     if (
@@ -86,6 +90,20 @@
     }
   }
 
+  $: {
+    if (
+      map &&
+      map.isStyleLoaded &&
+      map.isStyleLoaded() &&
+      $layerVisibilityStore &&
+      typeof $layerVisibilityStore.trailArrows !== "undefined" &&
+      $layerVisibilityStore.trailArrows !== previousArrowsVisibility
+    ) {
+      updateArrowVisibility($layerVisibilityStore.trailArrows)
+      previousArrowsVisibility = $layerVisibilityStore.trailArrows
+    }
+  }
+
   function updateHistoricalTrailVisibility(visible: boolean) {
     if (!map || !map.getStyle()) return
 
@@ -95,6 +113,15 @@
       historicalTrailLayers.forEach((layerId) => {
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", visibility)
+        }
+      })
+
+      // Update arrows based on both trail visibility AND arrow visibility
+      const arrowVisibility =
+        visible && $layerVisibilityStore.trailArrows ? "visible" : "none"
+      historicalDirectionalLayers.forEach((layerId) => {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", arrowVisibility)
         }
       })
 
@@ -127,6 +154,7 @@
     try {
       const visibility = visible ? "visible" : "none"
 
+      // Update trail line
       if (map.getLayer(COMBINED_ACTIVE_LAYER_ID)) {
         map.setLayoutProperty(
           COMBINED_ACTIVE_LAYER_ID,
@@ -135,9 +163,56 @@
         )
       }
 
+      // Update arrows based on both trail visibility AND arrow visibility
+      const arrowVisibility =
+        visible && $layerVisibilityStore.trailArrows ? "visible" : "none"
+      if (map.getLayer(COMBINED_ACTIVE_MARKERS_ID)) {
+        map.setLayoutProperty(
+          COMBINED_ACTIVE_MARKERS_ID,
+          "visibility",
+          arrowVisibility,
+        )
+      }
+
       console.log("✅ Updated active trail visibility:", visible)
     } catch (error) {
       console.error("Error updating active trail visibility:", error)
+    }
+  }
+
+  function updateArrowVisibility(visible: boolean) {
+    if (!map || !map.getStyle || !map.getStyle()) return
+
+    try {
+      // Arrows should only be visible if BOTH arrows are enabled AND their parent trails are visible
+
+      // Update active trail arrows
+      const activeArrowVisibility =
+        visible && $layerVisibilityStore.activeTrails ? "visible" : "none"
+      if (map.getLayer(COMBINED_ACTIVE_MARKERS_ID)) {
+        map.setLayoutProperty(
+          COMBINED_ACTIVE_MARKERS_ID,
+          "visibility",
+          activeArrowVisibility,
+        )
+      }
+
+      // Update historical trail arrows
+      const historicalArrowVisibility =
+        visible && $layerVisibilityStore.historicalTrails ? "visible" : "none"
+      historicalDirectionalLayers.forEach((layerId) => {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(
+            layerId,
+            "visibility",
+            historicalArrowVisibility,
+          )
+        }
+      })
+
+      console.log("✅ Updated arrow visibility:", visible)
+    } catch (error) {
+      console.error("Error updating arrow visibility:", error)
     }
   }
 
@@ -173,7 +248,166 @@
     ]
   }
 
-  // Split trail into time-based segments with sort keys and trail metadata
+  // ============================================
+  // ARROW SIZE CALCULATION - Similar to line width
+  // ============================================
+  export function calculateZoomDependentTextSize(
+    baseSize: number,
+    multiplier: number = 1,
+  ) {
+    return [
+      "interpolate",
+      ["exponential", 2],
+      ["zoom"],
+      TRAIL_CONFIG.MIN_ZOOM,
+      [
+        "*",
+        baseSize * TRAIL_CONFIG.MULTIPLIER * multiplier,
+        ["^", 2, TRAIL_CONFIG.MIN_POWER],
+      ],
+      TRAIL_CONFIG.MAX_ZOOM,
+      [
+        "*",
+        baseSize * TRAIL_CONFIG.MULTIPLIER * multiplier,
+        ["^", 2, TRAIL_CONFIG.MAX_POWER],
+      ],
+    ]
+  }
+
+  // ============================================
+  // ARROW MARKER STYLING - Updated with zoom formula
+  // ============================================
+  function createArrowMarkerConfig(
+    layerId: string,
+    sourceId: string,
+    visibility: string,
+  ) {
+    // Combine both visibility settings
+    const arrowVisibility =
+      visibility === "visible" && $layerVisibilityStore.trailArrows
+        ? "visible"
+        : "none"
+
+    return {
+      id: layerId,
+      type: "symbol",
+      source: sourceId,
+      layout: {
+        "text-field": "›",
+        "text-size": calculateZoomDependentTextSize(3, 1), // Base size 3, multiplier 1
+        "text-rotate": ["+", ["get", "bearing"], 90],
+        "text-rotation-alignment": "map",
+        "text-pitch-alignment": "map",
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+        "text-anchor": "center",
+        visibility: arrowVisibility,
+      },
+      paint: {
+        "text-color": ["get", "color"],
+        "text-opacity": 1,
+        "text-halo-color": ["get", "color"],
+        "text-halo-width": 1,
+      },
+    }
+  }
+
+  // Calculate distance between two coordinates in meters using Haversine formula
+  function calculateDistance(
+    lon1: number,
+    lat1: number,
+    lon2: number,
+    lat2: number,
+  ): number {
+    const R = 6371000 // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180
+    const φ2 = (lat2 * Math.PI) / 180
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    return R * c
+  }
+
+  // Calculate bearing (direction) from one point to another
+  function calculateBearing(
+    lon1: number,
+    lat1: number,
+    lon2: number,
+    lat2: number,
+  ): number {
+    const φ1 = (lat1 * Math.PI) / 180
+    const φ2 = (lat2 * Math.PI) / 180
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+    const y = Math.sin(Δλ) * Math.cos(φ2)
+    const x =
+      Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+    const θ = Math.atan2(y, x)
+
+    const bearing = ((θ * 180) / Math.PI + 360) % 360
+
+    return bearing
+  }
+
+  // Generate arrow markers at fixed intervals along a line
+  function generateArrowMarkers(
+    coordinates: [number, number][],
+    intervalMeters: number,
+    trailId: string,
+    trailColor: string,
+  ) {
+    if (coordinates.length < 2) return []
+
+    const markers = []
+    let accumulatedDistance = 0
+    let distanceSinceLastMarker = 0
+
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const [lon1, lat1] = coordinates[i]
+      const [lon2, lat2] = coordinates[i + 1]
+
+      const segmentDistance = calculateDistance(lon1, lat1, lon2, lat2)
+      distanceSinceLastMarker += segmentDistance
+
+      // Check if we should place a marker along this segment
+      while (distanceSinceLastMarker >= intervalMeters) {
+        const distanceAlongSegment =
+          segmentDistance - (distanceSinceLastMarker - intervalMeters)
+        const ratio = distanceAlongSegment / segmentDistance
+
+        // Interpolate position
+        const markerLon = lon1 + (lon2 - lon1) * ratio
+        const markerLat = lat1 + (lat2 - lat1) * ratio
+
+        // Calculate bearing for this marker
+        const bearing = calculateBearing(lon1, lat1, lon2, lat2)
+
+        markers.push({
+          type: "Feature",
+          properties: {
+            trailId: trailId,
+            color: trailColor,
+            bearing: bearing,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [markerLon, markerLat],
+          },
+        })
+
+        distanceSinceLastMarker -= intervalMeters
+      }
+    }
+
+    return markers
+  }
+
+  // Split trail into time-based segments with overlapping coordinates
   function splitTrailIntoSegments(
     coordinates: TrailCoordinate[],
     trailId: string,
@@ -218,6 +452,7 @@
           })
         }
 
+        // Start new segment with overlap (keep last coordinate)
         currentSegment = [coord]
         segmentStartTime = coord.timestamp
       }
@@ -226,7 +461,7 @@
     return segments
   }
 
-  // Create initial combined GeoJSON (used only on first load)
+  // Create initial combined GeoJSON for active trails
   function createInitialCombinedActiveTrailsGeoJSON(trails: Trail[]) {
     console.log("\n🎬 INITIAL COMBINED TRAIL CREATION")
     const allSegments = []
@@ -258,7 +493,6 @@
       )
       allSegments.push(...segments)
 
-      // Track both segment and coordinate counts
       lastSegmentIndices.set(trail.id, segments.length)
       lastCoordinateCounts.set(trail.id, trailCoordinates.length)
       activeTrailsInCombinedLayer.add(trail.id)
@@ -272,7 +506,47 @@
     }
   }
 
-  // 🆕 FIXED: Incremental update that handles both new segments AND updated existing segments
+  // Create arrow markers for active trails
+  function createActiveTrailMarkers(trails: Trail[]) {
+    console.log("\n🎯 CREATING ARROW MARKERS")
+    const allMarkers = []
+
+    trails.forEach((trail) => {
+      let coordinates: [number, number][]
+
+      if ("type" in trail.path && trail.path.type === "LineString") {
+        coordinates = trail.path.coordinates as [number, number][]
+      } else {
+        const trailCoords = trail.path as TrailCoordinate[]
+        const sorted = [...trailCoords].sort(
+          (a, b) => a.timestamp - b.timestamp,
+        )
+        coordinates = sorted.map((c) => [
+          c.coordinates.longitude,
+          c.coordinates.latitude,
+        ])
+      }
+
+      const markers = generateArrowMarkers(
+        coordinates,
+        TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+        trail.id,
+        trail.trail_color || "#FF0000",
+      )
+
+      console.log(`  ▶ Trail ${trail.id}: ${markers.length} arrow markers`)
+      allMarkers.push(...markers)
+    })
+
+    console.log(`✅ Total arrow markers: ${allMarkers.length}`)
+
+    return {
+      type: "FeatureCollection",
+      features: allMarkers,
+    }
+  }
+
+  // Incremental update for active trails
   function updateCombinedActiveTrailsIncremental() {
     console.log("\n🔄 INCREMENTAL UPDATE")
 
@@ -286,7 +560,6 @@
       return
     }
 
-    // Check if source exists
     const source = map.getSource(
       COMBINED_ACTIVE_SOURCE_ID,
     ) as mapboxgl.GeoJSONSource
@@ -296,7 +569,6 @@
       return
     }
 
-    // Get existing features (safely)
     let existingFeatures = []
     try {
       const currentData = (source as any)._data
@@ -309,7 +581,6 @@
       return
     }
 
-    // Check for removed trails
     const currentTrailIds = new Set(allActiveTrails.map((t) => t.id))
     const removedTrails = Array.from(activeTrailsInCombinedLayer).filter(
       (id) => !currentTrailIds.has(id),
@@ -329,11 +600,9 @@
     let hasChanges = false
     let totalNewSegments = 0
 
-    // 🆕 Build a new feature array by updating/replacing segments
     const updatedFeatures = []
     const processedTrailIds = new Set<string>()
 
-    // Process each active trail
     allActiveTrails.forEach((trail) => {
       let trailCoordinates: TrailCoordinate[]
 
@@ -360,7 +629,6 @@
         previousSegments: lastSegmentIndex,
       })
 
-      // Get all segments for this trail (fresh calculation)
       const allSegments = splitTrailIntoSegments(
         trailCoordinates,
         trail.id,
@@ -370,7 +638,6 @@
 
       processedTrailIds.add(trail.id)
 
-      // Check if this is a new trail
       if (!activeTrailsInCombinedLayer.has(trail.id)) {
         console.log(`  ✨ New trail detected: ${trail.id}`)
         activeTrailsInCombinedLayer.add(trail.id)
@@ -380,7 +647,6 @@
         totalNewSegments += allSegments.length
         hasChanges = true
       } else if (currentCoordCount !== previousCoordCount) {
-        // 🆕 Coordinates changed - replace ALL segments for this trail
         console.log(
           `  🔄 Trail ${trail.id}: Coordinates changed, updating all segments (${lastSegmentIndex} → ${allSegments.length} segments)`,
         )
@@ -394,9 +660,7 @@
         lastCoordinateCounts.set(trail.id, currentCoordCount)
         hasChanges = true
       } else {
-        // No changes - keep existing segments
         console.log(`    ⏭️ No changes`)
-        // Add existing segments for this trail
         const existingTrailSegments = existingFeatures.filter(
           (feature: any) => feature.properties.trailId === trail.id,
         )
@@ -404,7 +668,6 @@
       }
     })
 
-    // Add segments from other trails that weren't processed (shouldn't happen, but safety)
     existingFeatures.forEach((feature: any) => {
       if (!processedTrailIds.has(feature.properties.trailId)) {
         updatedFeatures.push(feature)
@@ -415,18 +678,27 @@
       console.log(`  📊 Total new segments: ${totalNewSegments}`)
       console.log(`  📊 Total segments now: ${updatedFeatures.length}`)
 
-      // Update the source with new data (no flicker!)
       source.setData({
         type: "FeatureCollection",
         features: updatedFeatures,
       })
+
+      // Update arrow markers
+      const markerSource = map.getSource(
+        COMBINED_ACTIVE_MARKERS_SOURCE_ID,
+      ) as mapboxgl.GeoJSONSource
+      if (markerSource) {
+        const markersGeoJSON = createActiveTrailMarkers(allActiveTrails)
+        markerSource.setData(markersGeoJSON)
+      }
+
       console.log(`✅ Incremental update complete`)
     } else {
       console.log(`  ⏭️ No changes`)
     }
   }
 
-  // Full rebuild (only used when necessary)
+  // Full rebuild for active trails
   function rebuildCombinedActiveTrails() {
     console.log("\n🔨 FULL REBUILD")
 
@@ -439,11 +711,20 @@
 
     if (allActiveTrails.length === 0) {
       console.log("⚠️ No active trails to display")
-      if (map.getLayer(COMBINED_ACTIVE_LAYER_ID)) {
-        map.removeLayer(COMBINED_ACTIVE_LAYER_ID)
-      }
+      const layersToRemove = [
+        COMBINED_ACTIVE_MARKERS_ID,
+        COMBINED_ACTIVE_LAYER_ID,
+      ]
+      layersToRemove.forEach((layerId) => {
+        if (map.getLayer(layerId)) {
+          map.removeLayer(layerId)
+        }
+      })
       if (map.getSource(COMBINED_ACTIVE_SOURCE_ID)) {
         map.removeSource(COMBINED_ACTIVE_SOURCE_ID)
+      }
+      if (map.getSource(COMBINED_ACTIVE_MARKERS_SOURCE_ID)) {
+        map.removeSource(COMBINED_ACTIVE_MARKERS_SOURCE_ID)
       }
       lastSegmentIndices.clear()
       lastCoordinateCounts.clear()
@@ -453,25 +734,40 @@
 
     const combinedGeoJSON =
       createInitialCombinedActiveTrailsGeoJSON(allActiveTrails)
+    const markersGeoJSON = createActiveTrailMarkers(allActiveTrails)
 
-    // Remove existing combined layer and source
-    if (map.getLayer(COMBINED_ACTIVE_LAYER_ID)) {
-      map.removeLayer(COMBINED_ACTIVE_LAYER_ID)
-    }
+    // Remove existing layers
+    const layersToRemove = [
+      COMBINED_ACTIVE_MARKERS_ID,
+      COMBINED_ACTIVE_LAYER_ID,
+    ]
+    layersToRemove.forEach((layerId) => {
+      if (map.getLayer(layerId)) {
+        map.removeLayer(layerId)
+      }
+    })
     if (map.getSource(COMBINED_ACTIVE_SOURCE_ID)) {
       map.removeSource(COMBINED_ACTIVE_SOURCE_ID)
     }
+    if (map.getSource(COMBINED_ACTIVE_MARKERS_SOURCE_ID)) {
+      map.removeSource(COMBINED_ACTIVE_MARKERS_SOURCE_ID)
+    }
 
-    // Add new combined source
+    // Add new sources
     map.addSource(COMBINED_ACTIVE_SOURCE_ID, {
       type: "geojson",
       data: combinedGeoJSON,
     })
 
+    map.addSource(COMBINED_ACTIVE_MARKERS_SOURCE_ID, {
+      type: "geojson",
+      data: markersGeoJSON,
+    })
+
     const visibility = $layerVisibilityStore.activeTrails ? "visible" : "none"
 
-    // Add new combined layer with data-driven styling
-    const layerConfig = {
+    // Main trail layer (solid line)
+    const mainLayerConfig = {
       id: COMBINED_ACTIVE_LAYER_ID,
       type: "line",
       source: COMBINED_ACTIVE_SOURCE_ID,
@@ -489,13 +785,26 @@
     }
 
     if (mapContext?.addTrailLayerOrdered) {
-      mapContext.addTrailLayerOrdered(layerConfig)
+      mapContext.addTrailLayerOrdered(mainLayerConfig)
     } else {
-      addTrailWithFallback(layerConfig)
+      addTrailWithFallback(mainLayerConfig)
+    }
+
+    // Arrow markers layer using unified config
+    const markerLayerConfig = createArrowMarkerConfig(
+      COMBINED_ACTIVE_MARKERS_ID,
+      COMBINED_ACTIVE_MARKERS_SOURCE_ID,
+      visibility,
+    )
+
+    if (mapContext?.addTrailLayerOrdered) {
+      mapContext.addTrailLayerOrdered(markerLayerConfig)
+    } else {
+      addTrailWithFallback(markerLayerConfig)
     }
 
     console.log(
-      `✅ Full rebuild complete: ${combinedGeoJSON.features.length} segments`,
+      `✅ Full rebuild complete: ${combinedGeoJSON.features.length} segments, ${markersGeoJSON.features.length} arrow markers`,
     )
   }
 
@@ -516,33 +825,39 @@
     const { sourceId, layerId, highlightLayerId, highlightBackgroundLayerId } =
       generateTrailIds(trailId)
 
-    const layersToRemove = [
-      highlightLayerId,
-      highlightBackgroundLayerId,
-      layerId,
-    ]
+    if (isHistorical) {
+      const markersSourceId = `${sourceId}-markers`
+      const markersLayerId = `${layerId}-markers`
 
-    layersToRemove.forEach((layer) => {
-      if (map.getLayer(layer)) {
-        map.removeLayer(layer)
-        if (isHistorical) {
+      const layersToRemove = [
+        markersLayerId,
+        highlightLayerId,
+        highlightBackgroundLayerId,
+        layerId,
+      ]
+
+      layersToRemove.forEach((layer) => {
+        if (map.getLayer(layer)) {
+          map.removeLayer(layer)
           historicalTrailLayers = historicalTrailLayers.filter(
             (id) => id !== layer,
           )
+          historicalDirectionalLayers = historicalDirectionalLayers.filter(
+            (id) => id !== layer,
+          )
         }
+      })
+
+      if (map.getSource(sourceId)) {
+        map.removeSource(sourceId)
       }
-    })
-
-    if (map.getSource(sourceId)) {
-      map.removeSource(sourceId)
-    }
-
-    // Clean up tracking for active trails
-    if (!isHistorical) {
+      if (map.getSource(markersSourceId)) {
+        map.removeSource(markersSourceId)
+      }
+    } else {
       lastSegmentIndices.delete(trailId)
       lastCoordinateCounts.delete(trailId)
       activeTrailsInCombinedLayer.delete(trailId)
-      // Rebuild to remove segments
       rebuildCombinedActiveTrails()
     }
   }
@@ -570,7 +885,7 @@
     }
   }
 
-  // Add individual historical trail
+  // Add individual historical trail with arrow markers
   export function addTrail(trail: Trail, isHistorical: boolean = true): string {
     if (!isHistorical) {
       console.log(
@@ -585,28 +900,73 @@
       1,
     )
 
-    if (map.getLayer(layerId)) {
-      map.removeLayer(layerId)
-      historicalTrailLayers = historicalTrailLayers.filter(
-        (id) => id !== layerId,
-      )
-    }
+    const markersSourceId = `${sourceId}-markers`
+    const markersLayerId = `${layerId}-markers`
+
+    // Remove existing layers
+    const layersToRemove = [markersLayerId, layerId]
+    layersToRemove.forEach((layer) => {
+      if (map.getLayer(layer)) {
+        map.removeLayer(layer)
+        historicalTrailLayers = historicalTrailLayers.filter(
+          (id) => id !== layer,
+        )
+        historicalDirectionalLayers = historicalDirectionalLayers.filter(
+          (id) => id !== layer,
+        )
+      }
+    })
+
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId)
     }
+    if (map.getSource(markersSourceId)) {
+      map.removeSource(markersSourceId)
+    }
 
     const geoJsonData = createTrailGeoJSON(trail.path)
+
+    // Generate arrow markers for historical trail
+    let coordinates: [number, number][]
+    if ("type" in trail.path && trail.path.type === "LineString") {
+      coordinates = trail.path.coordinates as [number, number][]
+    } else {
+      const trailCoords = trail.path as TrailCoordinate[]
+      const sorted = [...trailCoords].sort((a, b) => a.timestamp - b.timestamp)
+      coordinates = sorted.map((c) => [
+        c.coordinates.longitude,
+        c.coordinates.latitude,
+      ])
+    }
+
+    const markers = generateArrowMarkers(
+      coordinates,
+      TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+      trail.id,
+      trail.trail_color || "#FF0000",
+    )
+
+    const markersGeoJSON = {
+      type: "FeatureCollection",
+      features: markers,
+    }
 
     map.addSource(sourceId, {
       type: "geojson",
       data: geoJsonData,
     })
 
+    map.addSource(markersSourceId, {
+      type: "geojson",
+      data: markersGeoJSON,
+    })
+
     const visibility = $layerVisibilityStore.historicalTrails
       ? "visible"
       : "none"
 
-    const layerConfig = {
+    // Main trail layer (solid line)
+    const mainLayerConfig = {
       id: layerId,
       type: "line",
       source: sourceId,
@@ -623,14 +983,36 @@
     }
 
     if (mapContext?.addTrailLayerOrdered) {
-      mapContext.addTrailLayerOrdered(layerConfig)
+      mapContext.addTrailLayerOrdered(mainLayerConfig)
     } else {
-      addTrailWithFallback(layerConfig)
+      addTrailWithFallback(mainLayerConfig)
+    }
+
+    // Arrow markers layer using unified config
+    const markerLayerConfig = createArrowMarkerConfig(
+      markersLayerId,
+      markersSourceId,
+      visibility,
+    )
+
+    if (mapContext?.addTrailLayerOrdered) {
+      mapContext.addTrailLayerOrdered(markerLayerConfig)
+    } else {
+      addTrailWithFallback(markerLayerConfig)
     }
 
     if (!historicalTrailLayers.includes(layerId)) {
       historicalTrailLayers = [...historicalTrailLayers, layerId]
     }
+
+    historicalDirectionalLayers = [
+      ...historicalDirectionalLayers,
+      markersLayerId,
+    ]
+
+    console.log(
+      `✅ Added trail ${trail.id} with ${markers.length} arrow markers`,
+    )
 
     return layerId
   }
@@ -668,7 +1050,6 @@
     }
   }
 
-  // Update functions now use incremental updates
   export function updateCurrentTrail(trail: Trail) {
     console.log(`\n📝 Updating current trail: ${trail.id}`)
     updateCombinedActiveTrailsIncremental()
