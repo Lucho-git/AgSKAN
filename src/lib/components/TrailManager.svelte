@@ -209,6 +209,31 @@
     if (!map || !map.getStyle || !map.getStyle()) return
 
     try {
+      // When enabling arrows, regenerate them if we have active trails
+      if (visible) {
+        const allActiveTrails = [
+          ...($currentTrailStore ? [$currentTrailStore] : []),
+          ...$otherActiveTrailStore,
+        ].filter((trail) => trail && trail.path)
+
+        if (allActiveTrails.length > 0) {
+          console.log(
+            "🔄 Arrows enabled - regenerating markers for active trails",
+          )
+          const markerSource = map.getSource(
+            COMBINED_ACTIVE_MARKERS_SOURCE_ID,
+          ) as mapboxgl.GeoJSONSource
+
+          if (markerSource) {
+            const markersGeoJSON = createActiveTrailMarkers(
+              allActiveTrails,
+              false,
+            )
+            markerSource.setData(markersGeoJSON)
+          }
+        }
+      }
+
       // Arrows should only be visible if BOTH arrows are enabled AND their parent trails are visible
 
       // Update active trail arrows
@@ -557,12 +582,21 @@
     }
   }
 
-  // Create arrow markers for active trails - OPTIMIZED WITH INCREMENTAL GENERATION
+  // Create arrow markers for active trails - OPTIMIZED WITH EARLY EXIT
   function createActiveTrailMarkers(
     trails: Trail[],
     isIncremental: boolean = false,
     trailsWithChangedCoords: Set<string> = new Set(),
   ) {
+    // Early exit if arrows are disabled - saves processing
+    if (!$layerVisibilityStore.trailArrows) {
+      console.log("⏭️ Skipping arrow generation (arrows disabled)")
+      return {
+        type: "FeatureCollection",
+        features: [],
+      }
+    }
+
     console.log("\n🎯 CREATING ARROW MARKERS")
     const allMarkers: ArrowMarker[] = []
 
@@ -815,7 +849,7 @@
         features: updatedFeatures,
       })
 
-      // Update arrow markers with incremental generation
+      // Update arrow markers with incremental generation (will skip if arrows disabled)
       const markerSource = map.getSource(
         COMBINED_ACTIVE_MARKERS_SOURCE_ID,
       ) as mapboxgl.GeoJSONSource
@@ -1065,7 +1099,7 @@
 
     const geoJsonData = createTrailGeoJSON(trail.path)
 
-    // Generate arrow markers for historical trail
+    // Generate arrow markers for historical trail (always generate for historical)
     let coordinates: [number, number][]
     let startTimestamp = 0
 
