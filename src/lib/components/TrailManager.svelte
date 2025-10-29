@@ -47,6 +47,25 @@
     coordinates: [number, number][]
   }
 
+  interface ArrowMarker {
+    type: string
+    properties: {
+      trailId: string
+      color: string
+      bearing: number
+      sortKey: number
+    }
+    geometry: {
+      type: string
+      coordinates: [number, number]
+    }
+  }
+
+  interface TrailDistanceState {
+    lastCoordIndex: number
+    distanceSinceLastMarker: number
+  }
+
   export let map: Map
 
   let historicalTrailLayers: string[] = []
@@ -61,6 +80,12 @@
 
   // Track which trails are in the combined layer
   let activeTrailsInCombinedLayer = new Set<string>()
+
+  // Track previous arrow markers for reuse
+  let previousArrowMarkers: ArrowMarker[] = []
+
+  // Track distance state for incremental arrow generation
+  let trailDistanceState = new Map<string, TrailDistanceState>()
 
   // Combined source and layers for all active trails
   const COMBINED_ACTIVE_SOURCE_ID = "all-active-trails-combined"
@@ -195,12 +220,25 @@
           "visibility",
           activeArrowVisibility,
         )
+        console.log(`  ✓ Active arrows: ${activeArrowVisibility}`)
       }
 
-      // Update historical trail arrows
+      // Update historical trail arrows - FIXED: Find all marker layers dynamically
       const historicalArrowVisibility =
         visible && $layerVisibilityStore.historicalTrails ? "visible" : "none"
-      historicalDirectionalLayers.forEach((layerId) => {
+
+      // Get all layers and filter for historical trail markers
+      const allLayers = map.getStyle().layers
+      const historicalMarkerLayers = allLayers
+        .filter(
+          (layer) =>
+            layer.id.includes("-markers") &&
+            layer.id.startsWith("trail-layer-") &&
+            layer.id !== COMBINED_ACTIVE_MARKERS_ID,
+        )
+        .map((layer) => layer.id)
+
+      historicalMarkerLayers.forEach((layerId) => {
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(
             layerId,
@@ -275,7 +313,7 @@
   }
 
   // ============================================
-  // ARROW MARKER STYLING - Updated with zoom formula
+  // ARROW MARKER STYLING - Updated with zoom formula and sort key
   // ============================================
   function createArrowMarkerConfig(
     layerId: string,
@@ -294,18 +332,19 @@
       source: sourceId,
       layout: {
         "text-field": "›",
-        "text-size": calculateZoomDependentTextSize(3, 1), // Base size 3, multiplier 1
+        "text-size": calculateZoomDependentTextSize(3, 1),
         "text-rotate": ["+", ["get", "bearing"], 90],
         "text-rotation-alignment": "map",
         "text-pitch-alignment": "map",
         "text-allow-overlap": true,
         "text-ignore-placement": true,
         "text-anchor": "center",
+        "symbol-sort-key": ["get", "sortKey"],
         visibility: arrowVisibility,
       },
       paint: {
         "text-color": ["get", "color"],
-        "text-opacity": 1,
+        "text-opacity": 0.8,
         "text-halo-color": ["get", "color"],
         "text-halo-width": 1,
       },
@@ -351,23 +390,31 @@
 
     const bearing = ((θ * 180) / Math.PI + 360) % 360
 
-    return bearing
+    return (bearing + 180) % 360
   }
 
-  // Generate arrow markers at fixed intervals along a line
-  function generateArrowMarkers(
+  // Generate arrow markers incrementally - supports both full and incremental generation
+  function generateArrowMarkersIncremental(
     coordinates: [number, number][],
+    startIndex: number,
     intervalMeters: number,
     trailId: string,
     trailColor: string,
-  ) {
-    if (coordinates.length < 2) return []
+    startTimestamp: number,
+    initialDistanceSinceLastMarker: number = 0,
+  ): { markers: ArrowMarker[]; finalDistance: number } {
+    if (coordinates.length < 2) {
+      return { markers: [], finalDistance: 0 }
+    }
 
-    const markers = []
-    let accumulatedDistance = 0
-    let distanceSinceLastMarker = 0
+    const markers: ArrowMarker[] = []
+    let distanceSinceLastMarker = initialDistanceSinceLastMarker
 
-    for (let i = 0; i < coordinates.length - 1; i++) {
+    // Start from the previous coordinate to maintain continuity
+    // (we need the segment from previous coord to first new coord)
+    const actualStartIndex = Math.max(0, startIndex - 1)
+
+    for (let i = actualStartIndex; i < coordinates.length - 1; i++) {
       const [lon1, lat1] = coordinates[i]
       const [lon2, lat2] = coordinates[i + 1]
 
@@ -393,6 +440,7 @@
             trailId: trailId,
             color: trailColor,
             bearing: bearing,
+            sortKey: startTimestamp,
           },
           geometry: {
             type: "Point",
@@ -404,7 +452,10 @@
       }
     }
 
-    return markers
+    return {
+      markers,
+      finalDistance: distanceSinceLastMarker,
+    }
   }
 
   // Split trail into time-based segments with overlapping coordinates
@@ -506,16 +557,22 @@
     }
   }
 
-  // Create arrow markers for active trails
-  function createActiveTrailMarkers(trails: Trail[]) {
+  // Create arrow markers for active trails - OPTIMIZED WITH INCREMENTAL GENERATION
+  function createActiveTrailMarkers(
+    trails: Trail[],
+    isIncremental: boolean = false,
+    trailsWithChangedCoords: Set<string> = new Set(),
+  ) {
     console.log("\n🎯 CREATING ARROW MARKERS")
-    const allMarkers = []
+    const allMarkers: ArrowMarker[] = []
 
     trails.forEach((trail) => {
       let coordinates: [number, number][]
+      let startTimestamp = 0
 
       if ("type" in trail.path && trail.path.type === "LineString") {
         coordinates = trail.path.coordinates as [number, number][]
+        startTimestamp = 0
       } else {
         const trailCoords = trail.path as TrailCoordinate[]
         const sorted = [...trailCoords].sort(
@@ -525,20 +582,90 @@
           c.coordinates.longitude,
           c.coordinates.latitude,
         ])
+        startTimestamp = sorted[0]?.timestamp || 0
       }
 
-      const markers = generateArrowMarkers(
-        coordinates,
-        TRAIL_CONFIG.ARROW_INTERVAL_METERS,
-        trail.id,
-        trail.trail_color || "#FF0000",
-      )
+      // Check if this trail's coordinates changed
+      const coordsChanged = trailsWithChangedCoords.has(trail.id)
 
-      console.log(`  ▶ Trail ${trail.id}: ${markers.length} arrow markers`)
-      allMarkers.push(...markers)
+      if (coordsChanged || !isIncremental) {
+        const existingState = trailDistanceState.get(trail.id) || {
+          lastCoordIndex: 0,
+          distanceSinceLastMarker: 0,
+        }
+
+        const existingMarkers = previousArrowMarkers.filter(
+          (m) => m.properties.trailId === trail.id,
+        )
+
+        if (
+          coordinates.length > existingState.lastCoordIndex &&
+          isIncremental &&
+          existingMarkers.length > 0
+        ) {
+          // INCREMENTAL: Generate only for new coordinates
+          const { markers: newMarkers, finalDistance } =
+            generateArrowMarkersIncremental(
+              coordinates,
+              existingState.lastCoordIndex,
+              TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+              trail.id,
+              trail.trail_color || "#FF0000",
+              startTimestamp,
+              existingState.distanceSinceLastMarker,
+            )
+
+          console.log(
+            `  ➕ Trail ${trail.id}: ${existingMarkers.length} reused + ${newMarkers.length} new markers`,
+          )
+
+          allMarkers.push(...existingMarkers, ...newMarkers)
+
+          // Update state for next time
+          trailDistanceState.set(trail.id, {
+            lastCoordIndex: coordinates.length,
+            distanceSinceLastMarker: finalDistance,
+          })
+        } else {
+          // FULL REGENERATION: For new trails or full rebuilds
+          const { markers, finalDistance } = generateArrowMarkersIncremental(
+            coordinates,
+            0,
+            TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+            trail.id,
+            trail.trail_color || "#FF0000",
+            startTimestamp,
+            0,
+          )
+
+          console.log(
+            `  ▶ Trail ${trail.id}: ${markers.length} arrow markers (${coordsChanged ? "REGENERATED" : "INITIAL"})`,
+          )
+
+          allMarkers.push(...markers)
+
+          // Update state for next time
+          trailDistanceState.set(trail.id, {
+            lastCoordIndex: coordinates.length,
+            distanceSinceLastMarker: finalDistance,
+          })
+        }
+      } else {
+        // Reuse existing markers for unchanged trails
+        const existingMarkers = previousArrowMarkers.filter(
+          (m) => m.properties.trailId === trail.id,
+        )
+        console.log(
+          `  ↻ Trail ${trail.id}: ${existingMarkers.length} arrow markers (REUSED)`,
+        )
+        allMarkers.push(...existingMarkers)
+      }
     })
 
     console.log(`✅ Total arrow markers: ${allMarkers.length}`)
+
+    // Store for next iteration
+    previousArrowMarkers = allMarkers
 
     return {
       type: "FeatureCollection",
@@ -592,6 +719,7 @@
         lastSegmentIndices.delete(id)
         lastCoordinateCounts.delete(id)
         activeTrailsInCombinedLayer.delete(id)
+        trailDistanceState.delete(id)
       })
       rebuildCombinedActiveTrails()
       return
@@ -602,6 +730,7 @@
 
     const updatedFeatures = []
     const processedTrailIds = new Set<string>()
+    const trailsWithChangedCoords = new Set<string>()
 
     allActiveTrails.forEach((trail) => {
       let trailCoordinates: TrailCoordinate[]
@@ -644,6 +773,7 @@
         updatedFeatures.push(...allSegments)
         lastSegmentIndices.set(trail.id, allSegments.length)
         lastCoordinateCounts.set(trail.id, currentCoordCount)
+        trailsWithChangedCoords.add(trail.id)
         totalNewSegments += allSegments.length
         hasChanges = true
       } else if (currentCoordCount !== previousCoordCount) {
@@ -651,6 +781,8 @@
           `  🔄 Trail ${trail.id}: Coordinates changed, updating all segments (${lastSegmentIndex} → ${allSegments.length} segments)`,
         )
         updatedFeatures.push(...allSegments)
+
+        trailsWithChangedCoords.add(trail.id)
 
         if (allSegments.length > lastSegmentIndex) {
           totalNewSegments += allSegments.length - lastSegmentIndex
@@ -683,12 +815,16 @@
         features: updatedFeatures,
       })
 
-      // Update arrow markers
+      // Update arrow markers with incremental generation
       const markerSource = map.getSource(
         COMBINED_ACTIVE_MARKERS_SOURCE_ID,
       ) as mapboxgl.GeoJSONSource
       if (markerSource) {
-        const markersGeoJSON = createActiveTrailMarkers(allActiveTrails)
+        const markersGeoJSON = createActiveTrailMarkers(
+          allActiveTrails,
+          true,
+          trailsWithChangedCoords,
+        )
         markerSource.setData(markersGeoJSON)
       }
 
@@ -729,12 +865,14 @@
       lastSegmentIndices.clear()
       lastCoordinateCounts.clear()
       activeTrailsInCombinedLayer.clear()
+      previousArrowMarkers = []
+      trailDistanceState.clear()
       return
     }
 
     const combinedGeoJSON =
       createInitialCombinedActiveTrailsGeoJSON(allActiveTrails)
-    const markersGeoJSON = createActiveTrailMarkers(allActiveTrails)
+    const markersGeoJSON = createActiveTrailMarkers(allActiveTrails, false)
 
     // Remove existing layers
     const layersToRemove = [
@@ -858,6 +996,7 @@
       lastSegmentIndices.delete(trailId)
       lastCoordinateCounts.delete(trailId)
       activeTrailsInCombinedLayer.delete(trailId)
+      trailDistanceState.delete(trailId)
       rebuildCombinedActiveTrails()
     }
   }
@@ -928,8 +1067,11 @@
 
     // Generate arrow markers for historical trail
     let coordinates: [number, number][]
+    let startTimestamp = 0
+
     if ("type" in trail.path && trail.path.type === "LineString") {
       coordinates = trail.path.coordinates as [number, number][]
+      startTimestamp = 0
     } else {
       const trailCoords = trail.path as TrailCoordinate[]
       const sorted = [...trailCoords].sort((a, b) => a.timestamp - b.timestamp)
@@ -937,13 +1079,17 @@
         c.coordinates.longitude,
         c.coordinates.latitude,
       ])
+      startTimestamp = sorted[0]?.timestamp || 0
     }
 
-    const markers = generateArrowMarkers(
+    const { markers } = generateArrowMarkersIncremental(
       coordinates,
+      0,
       TRAIL_CONFIG.ARROW_INTERVAL_METERS,
       trail.id,
       trail.trail_color || "#FF0000",
+      startTimestamp,
+      0,
     )
 
     const markersGeoJSON = {
@@ -1011,7 +1157,7 @@
     ]
 
     console.log(
-      `✅ Added trail ${trail.id} with ${markers.length} arrow markers`,
+      `✅ Added historical trail ${trail.id} with ${markers.length} arrow markers`,
     )
 
     return layerId
@@ -1193,6 +1339,8 @@
     lastSegmentIndices.clear()
     lastCoordinateCounts.clear()
     activeTrailsInCombinedLayer.clear()
+    previousArrowMarkers = []
+    trailDistanceState.clear()
   })
 
   export const trailManagerAPI = {
