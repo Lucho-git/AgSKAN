@@ -1,17 +1,20 @@
-<!-- src/lib/components/TrailHighlighter.svelte -->
-
 <script lang="ts">
   import type { Map } from "mapbox-gl"
+
   import type { Trail } from "$lib/types/trail"
+
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
+
   import * as mapboxgl from "mapbox-gl"
+
   import { onMount } from "svelte"
+
   import { toast } from "svelte-sonner"
+
   import {
     X,
     Trash2,
     Play,
-    Square,
     Pause,
     ChevronUp,
     ChevronDown,
@@ -20,120 +23,187 @@
     Loader2,
   } from "lucide-svelte"
 
-  interface TrailIdentifiers {
-    sourceId: string
-    layerId: string
-    highlightLayerId: string
-    highlightBackgroundLayerId: string
-  }
+  import {
+    generateTrailIds,
+    calculateZoomDependentWidth,
+  } from "$lib/utils/trailGeometry"
 
   interface AnimationState {
     trailId: string
+
     coordinates: [number, number][]
+
     currentIndex: number
+
     progress: number
+
     isPlaying: boolean
+
     isPaused: boolean
+
     isComplete: boolean
+
     isLoading: boolean
+
     isReady: boolean
   }
 
-  export let calculateZoomDependentWidth: (
-    width: number,
-    multiplier: number,
-  ) => number
-  export let generateTrailIds: (trailId: string) => TrailIdentifiers
+  export let map: Map
+
   export let deleteTrail: (trailId: string) => Promise<boolean>
 
-  export let map: Map
+  export let historicalTrailAPI: any
+
+  export let activeTrailAPI: any
+
   let currentTrailIndex = 0
+
   let showNavigationUI = false
+
   let showDeleteModal = false
+
   let showDropdownMenu = false
+
   let showReplayPanel = false
+
   let isExpanded = false
+
   let trailToDelete: Trail | null = null
+
   let animationIntervalId: number | null = null
+
   let tractorMarker: mapboxgl.Marker | null = null
+
   let isSliderActive = false
-  let wasPlayingBeforeDrag = false // Track if we were playing before slider drag
+
+  let wasPlayingBeforeDrag = false
+
   let progressContainer: HTMLElement
-  let hasInitiallyFittedBounds = false // Track if we've done initial camera fit
-  let pendingBoundsFit = false // Track if we need to fit bounds after expansion
+
+  let hasInitiallyFittedBounds = false
+
+  let pendingBoundsFit = false
+
+  let pulseAnimationId: number | null = null
+
+  let currentlySelectedTrailId: string | null = null
 
   // Centralized animation state
+
   let animationState: AnimationState = {
     trailId: "",
+
     coordinates: [],
+
     currentIndex: 0,
+
     progress: 0,
+
     isPlaying: false,
+
     isPaused: false,
+
     isComplete: false,
+
     isLoading: false,
+
     isReady: false,
   }
 
   const HIGHLIGHT_CONFIG = {
     TRAIL_HIGHLIGHT_DELAY: 3000,
-    FLIGHT_DURATION: 800, // Reduced from 2000ms for faster camera movement
-    HIGHLIGHT_WIDTH_MULTIPLIER: 1.2,
+
+    FLIGHT_DURATION: 800,
+
     MAX_FLIGHT_ZOOM: 19,
+
     ANIMATION_SPEED: 25,
+
+    DIMMED_OPACITY: 0.25,
+
+    NORMAL_OPACITY: 0.8,
+
+    GLOW_WIDTH_MULTIPLIER: 3.0,
+
+    BORDER_WIDTH_MULTIPLIER: 2.0,
+
+    INNER_WIDTH_MULTIPLIER: 1.5,
   }
 
-  // Make currentTrail reactive to currentTrailIndex changes
   $: currentTrail = $historicalTrailStore[currentTrailIndex] || null
 
-  // Watch for trail changes and reset animation state
   $: if (currentTrail) {
     initializeTrailAnimation(currentTrail)
   }
 
-  // Watch for expansion changes and handle pending bounds fitting
   $: if (
     isExpanded &&
     pendingBoundsFit &&
     currentTrail &&
     animationState.isReady
   ) {
-    // Wait for expansion animation to complete before fitting bounds
     setTimeout(() => {
       if (currentTrail && animationState.coordinates.length > 0) {
         fitTrailBounds(animationState.coordinates, true, false)
+
         hasInitiallyFittedBounds = true
+
         pendingBoundsFit = false
       }
-    }, 350) // Wait for expansion animation (300ms) + small buffer
+    }, 350)
   }
+
+  $: estimatedTime = (() => {
+    if (!currentTrail?.start_time || !currentTrail?.end_time) return "N/A"
+
+    const startTime = new Date(currentTrail.start_time)
+
+    const endTime = new Date(currentTrail.end_time)
+
+    const durationMs = endTime.getTime() - startTime.getTime()
+
+    const hours = Math.floor(durationMs / (1000 * 60 * 60))
+
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
+    } else {
+      return `${minutes}m`
+    }
+  })()
 
   function getCurrentTrail(): Trail | null {
     return currentTrail
   }
 
   function initializeTrailAnimation(trail: Trail) {
-    // Stop any existing animation
     stopAnimation()
 
-    // Reset bounds fitting flags for new trail
     hasInitiallyFittedBounds = false
+
     pendingBoundsFit = false
 
-    // Reset animation state for new trail
     animationState = {
       trailId: trail.id,
+
       coordinates: [],
+
       currentIndex: 0,
+
       progress: 0,
+
       isPlaying: false,
+
       isPaused: false,
+
       isComplete: false,
+
       isLoading: true,
+
       isReady: false,
     }
 
-    // Process trail coordinates
     setTimeout(() => {
       try {
         let coordinates: [number, number][] = []
@@ -145,8 +215,10 @@
             const sortedCoords = [...trail.path].sort(
               (a, b) => a.timestamp - b.timestamp,
             )
+
             coordinates = sortedCoords.map((coord) => [
               coord.coordinates.longitude,
+
               coord.coordinates.latitude,
             ])
           }
@@ -154,15 +226,19 @@
 
         if (coordinates.length === 0) {
           console.error("No valid coordinates found for trail:", trail.id)
+
           animationState.isLoading = false
+
           return
         }
 
-        // Update animation state with processed coordinates
         animationState = {
           ...animationState,
+
           coordinates,
+
           isLoading: false,
+
           isReady: true,
         }
 
@@ -171,130 +247,189 @@
         )
       } catch (error) {
         console.error("Error initializing trail animation:", error)
+
         animationState.isLoading = false
       }
-    }, 50) // Small delay to ensure UI update
+    }, 50)
   }
 
   function createTractorIcon() {
     const tractorDiv = document.createElement("div")
+
     tractorDiv.innerHTML = `
-      <div style="
-        width: 24px; 
-        height: 24px; 
-        background: #22c55e;
-        border: 2px solid white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        font-size: 12px;
-      ">🚜</div>
-    `
+
+<div style="
+
+width: 24px;
+
+height: 24px;
+
+background: #22c55e;
+
+border: 2px solid white;
+
+border-radius: 50%;
+
+display: flex;
+
+align-items: center;
+
+justify-content: center;
+
+box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+
+font-size: 12px;
+
+">🚜</div>
+
+`
+
     return tractorDiv
   }
 
   function createAnimationSource(trail: Trail): string {
     const animationSourceId = `animation-source-${trail.id}`
+
     const animationBorderSourceId = `animation-border-source-${trail.id}`
 
-    // Remove existing animation sources if they exist
     if (map.getSource(animationSourceId)) {
-      if (map.getLayer(`animation-layer-${trail.id}`)) {
-        map.removeLayer(`animation-layer-${trail.id}`)
-      }
       map.removeSource(animationSourceId)
     }
 
     if (map.getSource(animationBorderSourceId)) {
-      if (map.getLayer(`animation-border-layer-${trail.id}`)) {
-        map.removeLayer(`animation-border-layer-${trail.id}`)
-      }
       map.removeSource(animationBorderSourceId)
     }
 
-    // Create empty GeoJSON sources
+    const emptyGeoJSON = {
+      type: "FeatureCollection",
+
+      features: [],
+    }
+
     map.addSource(animationSourceId, {
       type: "geojson",
-      data: {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: [],
-        },
-      },
+
+      data: emptyGeoJSON,
     })
 
     map.addSource(animationBorderSourceId, {
       type: "geojson",
-      data: {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: [],
-        },
-      },
+
+      data: emptyGeoJSON,
     })
 
-    // Add white border layer first (underneath)
+    // White border layer
+
     map.addLayer({
       id: `animation-border-layer-${trail.id}`,
+
       type: "line",
+
       source: animationBorderSourceId,
+
       layout: {
         "line-join": "round",
+
         "line-cap": "round",
       },
+
       paint: {
         "line-color": "white",
+
         "line-width": calculateZoomDependentWidth(
           (trail.trail_width || 3) * 1.6,
+
           1,
         ),
-        "line-opacity": 0.8,
+
+        "line-opacity": 0.9,
       },
     })
 
-    // Add colored animation layer on top
+    // Inner white fill layer
+
     map.addLayer({
       id: `animation-layer-${trail.id}`,
+
       type: "line",
+
       source: animationSourceId,
+
       layout: {
         "line-join": "round",
+
         "line-cap": "round",
       },
+
       paint: {
-        "line-color": "#ff4444", // Bright red for the animation
+        "line-color": "white",
+
         "line-width": calculateZoomDependentWidth(
-          (trail.trail_width || 3) * 1.3,
+          (trail.trail_width || 3) * 1.0,
+
           1,
         ),
-        "line-opacity": 0.7,
+
+        "line-opacity": 1.0,
       },
     })
 
     return animationSourceId
   }
 
+  function startPulsingGlow(trailId: string) {
+    stopPulsingGlow()
+
+    const { highlightLayerId } = generateTrailIds(trailId)
+
+    const glowLayerId = `${highlightLayerId}-glow`
+
+    let pulsePhase = 0
+
+    function pulse() {
+      pulsePhase = (pulsePhase + 0.08) % (Math.PI * 2)
+
+      const glowOpacity = 0.4 + Math.sin(pulsePhase) * 0.3 // Oscillates between 0.1 and 0.7
+
+      if (map.getLayer(glowLayerId)) {
+        map.setPaintProperty(glowLayerId, "line-opacity", glowOpacity)
+      } else {
+        stopPulsingGlow()
+
+        return
+      }
+
+      pulseAnimationId = requestAnimationFrame(pulse)
+    }
+
+    pulse()
+  }
+
+  function stopPulsingGlow() {
+    if (pulseAnimationId !== null) {
+      cancelAnimationFrame(pulseAnimationId)
+
+      pulseAnimationId = null
+    }
+  }
+
   function getMenuHeight(): number {
     if (!showReplayPanel) return 0
 
-    let height = 76 // Control bar height with padding
+    let height = 76
 
     if (isExpanded) {
-      height += window.innerHeight * 0.3 // 50vh max height
+      height += window.innerHeight * 0.3
     }
 
-    return Math.min(height, window.innerHeight * 0.6) // Cap at 60vh
+    return Math.min(height, window.innerHeight * 0.6)
   }
 
   function fitTrailBounds(
     coordinates: [number, number][],
+
     considerMenu = false,
+
     fastTransition = false,
   ) {
     if (coordinates.length === 0) return
@@ -303,15 +438,16 @@
       (bounds, coord) => {
         return bounds.extend(coord)
       },
+
       new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]),
     )
 
     let bottomPadding = 100
+
     if (considerMenu && showReplayPanel) {
       bottomPadding = getMenuHeight() + 50
     }
 
-    // Use faster duration for trail switching
     const duration = fastTransition
       ? HIGHLIGHT_CONFIG.FLIGHT_DURATION / 2
       : HIGHLIGHT_CONFIG.FLIGHT_DURATION
@@ -319,11 +455,16 @@
     map.fitBounds(bounds, {
       padding: {
         top: 100,
+
         bottom: bottomPadding,
+
         left: 100,
+
         right: 100,
       },
+
       duration: duration,
+
       maxZoom: HIGHLIGHT_CONFIG.MAX_FLIGHT_ZOOM,
     })
   }
@@ -333,8 +474,10 @@
       return
 
     const totalSteps = animationState.coordinates.length - 1
+
     if (totalSteps > 0) {
       const progress = animationState.currentIndex / totalSteps
+
       animationState.progress = Math.min(1, Math.max(0, progress))
     }
   }
@@ -348,12 +491,13 @@
       return
 
     const rect = progressContainer.getBoundingClientRect()
+
     const clickX = event.clientX - rect.left
+
     const progress = Math.max(0, Math.min(1, clickX / rect.width))
 
     seekToProgress(progress)
 
-    // Start playing from new position
     if (!animationState.isPlaying && !isSliderActive) {
       startAnimation()
     }
@@ -363,9 +507,9 @@
     if (!animationState.isReady) return
 
     isSliderActive = true
+
     wasPlayingBeforeDrag = animationState.isPlaying
 
-    // Pause animation if it's currently playing
     if (animationState.isPlaying) {
       pauseAnimation()
     }
@@ -376,7 +520,6 @@
 
     isSliderActive = false
 
-    // Resume playing if we were playing before the drag started
     if (wasPlayingBeforeDrag) {
       startAnimation()
     }
@@ -387,88 +530,94 @@
   function startAnimation() {
     if (!animationState.isReady || animationState.coordinates.length === 0) {
       console.warn("Cannot start animation: trail not ready")
+
       return
     }
 
-    // Auto-expand when starting animation and mark that we need bounds fitting
     if (!isExpanded) {
       isExpanded = true
-      pendingBoundsFit = true // Mark that we need to fit bounds after expansion
+
+      pendingBoundsFit = true
     } else if (!hasInitiallyFittedBounds) {
-      // If already expanded but haven't fitted bounds yet, do it now
       fitTrailBounds(animationState.coordinates, true, false)
+
       hasInitiallyFittedBounds = true
     }
 
-    // Clear any existing animation
     if (animationIntervalId) {
       clearInterval(animationIntervalId)
+
       animationIntervalId = null
     }
 
-    // Update state
     animationState.isPlaying = true
+
     animationState.isPaused = false
+
     animationState.isComplete = false
 
     const trail = getCurrentTrail()
+
     if (!trail) return
 
-    // Ensure animation sources exist
     const animationSourceId = createAnimationSource(trail)
+
     const animationBorderSourceId = `animation-border-source-${trail.id}`
 
-    // Hide original trail
     const { layerId } = generateTrailIds(trail.id)
+
     if (map.getLayer(layerId)) {
       map.setLayoutProperty(layerId, "visibility", "none")
     }
 
-    // Safely remove existing tractor marker
     if (tractorMarker) {
       try {
         tractorMarker.remove()
       } catch (error) {
         console.warn("Error removing tractor marker:", error)
       }
+
       tractorMarker = null
     }
 
-    // Create new tractor marker with validation
     const startIndex = Math.min(
       animationState.currentIndex,
+
       animationState.coordinates.length - 1,
     )
+
     if (startIndex >= 0 && startIndex < animationState.coordinates.length) {
       tractorMarker = new mapboxgl.Marker({
         element: createTractorIcon(),
+
         anchor: "center",
       })
+
         .setLngLat(animationState.coordinates[startIndex])
+
         .addTo(map)
     }
 
-    // Update initial display
     updateAnimationDisplay()
 
-    // Start animation loop
     animationIntervalId = setInterval(() => {
       if (
         animationState.currentIndex >=
         animationState.coordinates.length - 1
       ) {
-        // Animation completed
         completeAnimation()
+
         return
       }
 
       if (!animationState.isPlaying) {
-        // Animation was paused
         return
       }
 
       animationState.currentIndex++
+
       updateAnimationDisplay()
+
       updateAnimationProgress()
     }, HIGHLIGHT_CONFIG.ANIMATION_SPEED)
   }
@@ -477,10 +626,12 @@
     if (!animationState.isReady) return
 
     animationState.isPlaying = false
+
     animationState.isPaused = true
 
     if (animationIntervalId) {
       clearInterval(animationIntervalId)
+
       animationIntervalId = null
     }
   }
@@ -489,6 +640,7 @@
     if (!animationState.isReady || !animationState.isPaused) return
 
     animationState.isPlaying = true
+
     animationState.isPaused = false
 
     startAnimation()
@@ -497,22 +649,27 @@
   function completeAnimation() {
     if (animationIntervalId) {
       clearInterval(animationIntervalId)
+
       animationIntervalId = null
     }
 
     animationState.isPlaying = false
+
     animationState.isPaused = false
+
     animationState.isComplete = true
+
     animationState.progress = 1
+
     animationState.currentIndex = animationState.coordinates.length - 1
 
-    // Safely remove tractor marker when animation completes
     if (tractorMarker) {
       try {
         tractorMarker.remove()
       } catch (error) {
         console.warn("Error removing tractor marker on completion:", error)
       }
+
       tractorMarker = null
     }
 
@@ -524,26 +681,33 @@
       return
 
     const trail = getCurrentTrail()
+
     if (!trail || trail.id !== animationState.trailId) return
 
     const animationSourceId = `animation-source-${trail.id}`
+
     const animationBorderSourceId = `animation-border-source-${trail.id}`
 
-    // Update animation display
     const currentCoordinates = animationState.coordinates.slice(
       0,
+
       animationState.currentIndex + 1,
     )
+
     const source = map.getSource(animationSourceId) as mapboxgl.GeoJSONSource
+
     const borderSource = map.getSource(
       animationBorderSourceId,
     ) as mapboxgl.GeoJSONSource
 
     const geoJsonData = {
       type: "Feature",
+
       properties: {},
+
       geometry: {
         type: "LineString",
+
         coordinates: currentCoordinates,
       },
     }
@@ -551,11 +715,11 @@
     if (source) {
       source.setData(geoJsonData)
     }
+
     if (borderSource) {
       borderSource.setData(geoJsonData)
     }
 
-    // Safely move tractor marker with validation
     if (
       tractorMarker &&
       animationState.currentIndex >= 0 &&
@@ -567,8 +731,9 @@
         )
       } catch (error) {
         console.warn("Error updating tractor marker position:", error)
-        // Remove broken marker
+
         tractorMarker.remove()
+
         tractorMarker = null
       }
     }
@@ -581,28 +746,31 @@
     const targetIndex = Math.floor(
       targetProgress * (animationState.coordinates.length - 1),
     )
+
     animationState.currentIndex = targetIndex
+
     animationState.progress = targetProgress
 
-    // Update completion state
     if (targetProgress >= 1) {
       animationState.isComplete = true
+
       animationState.isPlaying = false
+
       animationState.isPaused = false
     } else {
       animationState.isComplete = false
     }
 
     const trail = getCurrentTrail()
+
     if (!trail || trail.id !== animationState.trailId) return
 
-    // Ensure animation sources exist
     const animationSourceId = `animation-source-${trail.id}`
+
     if (!map.getSource(animationSourceId)) {
       createAnimationSource(trail)
     }
 
-    // Safely create or move tractor marker with validation
     if (
       !tractorMarker &&
       targetIndex >= 0 &&
@@ -611,9 +779,12 @@
       try {
         tractorMarker = new mapboxgl.Marker({
           element: createTractorIcon(),
+
           anchor: "center",
         })
+
           .setLngLat(animationState.coordinates[targetIndex])
+
           .addTo(map)
       } catch (error) {
         console.warn("Error creating tractor marker:", error)
@@ -627,19 +798,20 @@
         tractorMarker.setLngLat(animationState.coordinates[targetIndex])
       } catch (error) {
         console.warn("Error moving tractor marker:", error)
-        // Remove broken marker
+
         tractorMarker.remove()
+
         tractorMarker = null
       }
     }
 
-    // Update display
     updateAnimationDisplay()
   }
 
   function togglePlayPause() {
     if (!animationState.isReady || animationState.isLoading) {
       console.warn("Trail not ready for playback")
+
       return
     }
 
@@ -648,13 +820,14 @@
     } else if (animationState.isPaused) {
       resumeAnimation()
     } else if (animationState.isComplete) {
-      // Restart from beginning
       animationState.currentIndex = 0
+
       animationState.progress = 0
+
       animationState.isComplete = false
+
       startAnimation()
     } else {
-      // Start from current position
       startAnimation()
     }
   }
@@ -664,29 +837,32 @@
 
     if (!animationState.isReady || animationState.trailId !== trail.id) {
       console.warn("Trail not ready for animation")
+
       return
     }
 
-    // Auto-expand when starting animation
     if (!isExpanded) {
       isExpanded = true
-      // Set pending bounds fit and let the reactive statement handle it after expansion
+
       pendingBoundsFit = true
     } else {
-      fitTrailBounds(animationState.coordinates, true, true) // Use fast transition
-      hasInitiallyFittedBounds = true // Mark that we've done initial fit
+      fitTrailBounds(animationState.coordinates, true, true)
+
+      hasInitiallyFittedBounds = true
     }
 
-    // Reset animation state for new playback
     animationState.currentIndex = 0
+
     animationState.progress = 0
+
     animationState.isComplete = false
+
     animationState.isPaused = false
 
-    // Start animation after camera movement - account for expansion delay if needed
     const delay = !hasInitiallyFittedBounds
       ? HIGHLIGHT_CONFIG.FLIGHT_DURATION + 350
       : HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100
+
     setTimeout(() => {
       startAnimation()
     }, delay)
@@ -695,48 +871,54 @@
   function stopAnimation() {
     if (animationIntervalId) {
       clearInterval(animationIntervalId)
+
       animationIntervalId = null
     }
 
-    // Reset bounds fitting flags
     hasInitiallyFittedBounds = false
+
     pendingBoundsFit = false
 
-    // Safely remove tractor marker
     if (tractorMarker) {
       try {
         tractorMarker.remove()
       } catch (error) {
         console.warn("Error removing tractor marker:", error)
       }
+
       tractorMarker = null
     }
 
     const currentTrail = getCurrentTrail()
+
     if (currentTrail && map && map.getStyle()) {
-      // Remove animation layers
       const animationSourceId = `animation-source-${currentTrail.id}`
+
       const animationLayerId = `animation-layer-${currentTrail.id}`
+
       const animationBorderSourceId = `animation-border-source-${currentTrail.id}`
+
       const animationBorderLayerId = `animation-border-layer-${currentTrail.id}`
 
-      // Remove all animation layers and sources
       try {
         if (map.getLayer(animationLayerId)) {
           map.removeLayer(animationLayerId)
         }
+
         if (map.getSource(animationSourceId)) {
           map.removeSource(animationSourceId)
         }
+
         if (map.getLayer(animationBorderLayerId)) {
           map.removeLayer(animationBorderLayerId)
         }
+
         if (map.getSource(animationBorderSourceId)) {
           map.removeSource(animationBorderSourceId)
         }
 
-        // Show the original trail again
         const { layerId } = generateTrailIds(currentTrail.id)
+
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", "visible")
         }
@@ -745,38 +927,43 @@
       }
     }
 
-    // Reset animation state
     if (animationState.trailId === currentTrail?.id) {
       animationState.isPlaying = false
+
       animationState.isPaused = false
+
       animationState.isComplete = false
+
       animationState.currentIndex = 0
+
       animationState.progress = 0
     }
   }
 
   function createStartEndMarkers(trail: Trail) {
     const markersSourceId = `markers-source-${trail.id}`
+
     const markersLayerId = `markers-layer-${trail.id}`
+
     const markersTextLayerId = `markers-text-layer-${trail.id}`
 
-    // Remove existing markers if they exist
     if (map.getSource(markersSourceId)) {
       if (map.getLayer(markersLayerId)) {
         map.removeLayer(markersLayerId)
       }
+
       if (map.getLayer(markersTextLayerId)) {
         map.removeLayer(markersTextLayerId)
       }
+
       map.removeSource(markersSourceId)
     }
 
-    // Use coordinates from animation state if available and matching
     let coordinates: [number, number][] = []
+
     if (animationState.isReady && animationState.trailId === trail.id) {
       coordinates = animationState.coordinates
     } else {
-      // Fallback to processing from trail data
       if (trail.path && typeof trail.path === "object") {
         if ("type" in trail.path && trail.path.type === "LineString") {
           coordinates = trail.path.coordinates
@@ -784,8 +971,10 @@
           const sortedCoords = [...trail.path].sort(
             (a, b) => a.timestamp - b.timestamp,
           )
+
           coordinates = sortedCoords.map((coord) => [
             coord.coordinates.longitude,
+
             coord.coordinates.latitude,
           ])
         }
@@ -795,27 +984,36 @@
     if (coordinates.length < 2) return
 
     const startPoint = coordinates[0]
+
     const endPoint = coordinates[coordinates.length - 1]
 
-    // Create markers source
     map.addSource(markersSourceId, {
       type: "geojson",
+
       data: {
         type: "FeatureCollection",
+
         features: [
           {
             type: "Feature",
+
             properties: { type: "start", symbol: "🚜" },
+
             geometry: {
               type: "Point",
+
               coordinates: startPoint,
             },
           },
+
           {
             type: "Feature",
+
             properties: { type: "end", symbol: "🏁" },
+
             geometry: {
               type: "Point",
+
               coordinates: endPoint,
             },
           },
@@ -823,38 +1021,55 @@
       },
     })
 
-    // Add background circles first
     map.addLayer({
       id: markersLayerId,
+
       type: "circle",
+
       source: markersSourceId,
+
       paint: {
         "circle-radius": 15,
+
         "circle-color": [
           "case",
+
           ["==", ["get", "type"], "start"],
-          "#22c55e", // Green for start
-          "#ef4444", // Red for end
+
+          "#22c55e",
+
+          "#ef4444",
         ],
+
         "circle-stroke-width": 2,
+
         "circle-stroke-color": "white",
+
         "circle-opacity": 0.9,
       },
     })
 
-    // Add emoji text on top
     map.addLayer({
       id: markersTextLayerId,
+
       type: "symbol",
+
       source: markersSourceId,
+
       layout: {
         "text-field": ["get", "symbol"],
+
         "text-size": 16,
+
         "text-anchor": "center",
+
         "text-offset": [0, 0],
+
         "text-allow-overlap": true,
+
         "text-ignore-placement": true,
       },
+
       paint: {
         "text-opacity": 1,
       },
@@ -863,15 +1078,19 @@
 
   function removeStartEndMarkers(trailId: string) {
     const markersSourceId = `markers-source-${trailId}`
+
     const markersLayerId = `markers-layer-${trailId}`
+
     const markersTextLayerId = `markers-text-layer-${trailId}`
 
     if (map.getLayer(markersTextLayerId)) {
       map.removeLayer(markersTextLayerId)
     }
+
     if (map.getLayer(markersLayerId)) {
       map.removeLayer(markersLayerId)
     }
+
     if (map.getSource(markersSourceId)) {
       map.removeSource(markersSourceId)
     }
@@ -879,59 +1098,148 @@
 
   function selectTrail(trail: Trail) {
     const { sourceId, highlightLayerId } = generateTrailIds(trail.id)
+
     const baseWidth = trail.trail_width || 3
 
-    // Thin white border for selection
+    // Dim all other trails for contrast
+
+    $historicalTrailStore.forEach((t) => {
+      if (t.id !== trail.id) {
+        const { layerId } = generateTrailIds(t.id)
+
+        if (map.getLayer(layerId)) {
+          map.setPaintProperty(
+            layerId,
+
+            "line-opacity",
+
+            HIGHLIGHT_CONFIG.DIMMED_OPACITY,
+          )
+        }
+      }
+    })
+
+    // Add outer glow layer (will pulse)
+
+    const glowLayerId = `${highlightLayerId}-glow`
+
     map.addLayer({
       type: "line",
+
       source: sourceId,
-      id: highlightLayerId,
+
+      id: glowLayerId,
+
       paint: {
         "line-color": "white",
-        "line-width": calculateZoomDependentWidth(baseWidth, 1.4),
+
+        "line-width": calculateZoomDependentWidth(
+          baseWidth,
+
+          HIGHLIGHT_CONFIG.GLOW_WIDTH_MULTIPLIER,
+        ),
+
         "line-opacity": 0.6,
+
+        "line-blur": 8,
       },
+
       layout: {
         "line-cap": "round",
+
         "line-join": "round",
       },
     })
 
-    // Add the original trail on top with slight emphasis
-    const innerLayerId = `${highlightLayerId}-inner`
+    // Add bright white border
+
     map.addLayer({
       type: "line",
+
       source: sourceId,
-      id: innerLayerId,
+
+      id: highlightLayerId,
+
       paint: {
-        "line-color": trail.trail_color,
-        "line-width": calculateZoomDependentWidth(baseWidth, 1.1),
-        "line-opacity": 0.9,
+        "line-color": "white",
+
+        "line-width": calculateZoomDependentWidth(
+          baseWidth,
+
+          HIGHLIGHT_CONFIG.BORDER_WIDTH_MULTIPLIER,
+        ),
+
+        "line-opacity": 1.0,
       },
+
       layout: {
         "line-cap": "round",
+
         "line-join": "round",
       },
     })
 
-    // Add start/end markers
+    // Add the trail itself with enhanced color and width
+
+    const innerLayerId = `${highlightLayerId}-inner`
+
+    map.addLayer({
+      type: "line",
+
+      source: sourceId,
+
+      id: innerLayerId,
+
+      paint: {
+        "line-color": trail.trail_color,
+
+        "line-width": calculateZoomDependentWidth(
+          baseWidth,
+
+          HIGHLIGHT_CONFIG.INNER_WIDTH_MULTIPLIER,
+        ),
+
+        "line-opacity": 1.0,
+      },
+
+      layout: {
+        "line-cap": "round",
+
+        "line-join": "round",
+      },
+    })
+
     createStartEndMarkers(trail)
+
+    // Start pulsing the glow
+
+    currentlySelectedTrailId = trail.id
+
+    startPulsingGlow(trail.id)
   }
 
   function handleDeleteTrail() {
     trailToDelete = $historicalTrailStore[currentTrailIndex]
+
     showDeleteModal = true
   }
 
   function closeReplayPanel() {
     showReplayPanel = false
+
     showNavigationUI = false
+
     stopAnimation()
+
+    stopPulsingGlow()
+
     isExpanded = false
 
-    // Clean up highlights and animations when closing
+    currentlySelectedTrailId = null
+
     $historicalTrailStore.forEach((t) => {
       removeHighlight(t.id)
+
       removeStartEndMarkers(t.id)
     })
   }
@@ -940,39 +1248,43 @@
     if (trailToDelete) {
       const trailIdToDelete = trailToDelete.id
 
-      // Clean up map visualization BEFORE deleting from store
       removeHighlight(trailIdToDelete)
+
       removeStartEndMarkers(trailIdToDelete)
 
-      // Stop animation if this trail is currently animating
       if (animationState.trailId === trailIdToDelete) {
         stopAnimation()
+      }
+
+      if (currentlySelectedTrailId === trailIdToDelete) {
+        stopPulsingGlow()
+
+        currentlySelectedTrailId = null
       }
 
       const success = await deleteTrail(trailIdToDelete)
 
       if (success) {
         showDeleteModal = false
+
         trailToDelete = null
 
-        // If this was the last trail, close the navigation UI
         if ($historicalTrailStore.length === 0) {
           showNavigationUI = false
+
           showReplayPanel = false
+
           isExpanded = false
         } else {
-          // Update currentTrailIndex only if there are remaining trails
           if (currentTrailIndex >= $historicalTrailStore.length) {
             currentTrailIndex = Math.max(0, $historicalTrailStore.length - 1)
           }
 
-          // Navigate to the next trail (this will select it properly)
           await navigateToTrail(currentTrailIndex)
         }
       } else {
-        // If deletion failed, close modal but DON'T try to re-select
-        // The trail is still in the store, so it will remain visible
         showDeleteModal = false
+
         trailToDelete = null
 
         toast.error("Failed to delete trail. Please try again.")
@@ -983,35 +1295,48 @@
   function toggleNavigationUI() {
     if (!$historicalTrailStore.length) {
       toast.error("No trails available. Create some trails first!")
+
       return
     }
 
     showNavigationUI = !showNavigationUI
+
     if (!showNavigationUI) {
-      // Clean up highlights and animations when hiding UI
       $historicalTrailStore.forEach((t) => {
         removeHighlight(t.id)
+
         removeStartEndMarkers(t.id)
       })
+
       stopAnimation()
+
+      stopPulsingGlow()
+
       showDropdownMenu = false
+
       showReplayPanel = false
+
       isExpanded = false
+
+      currentlySelectedTrailId = null
     } else {
-      // Start selection for current trail when showing UI
       if ($historicalTrailStore.length > 0) {
         const currentTrail = $historicalTrailStore[currentTrailIndex]
+
         flyToTrail(currentTrail)
+
         selectTrail(currentTrail)
+
         showReplayPanel = true
-        isExpanded = false // Start in minimal state
+
+        isExpanded = false
       }
     }
   }
 
   function flyToTrail(trail: Trail) {
-    // Use coordinates from animation state if available
     let coordinates: [number, number][] = []
+
     if (animationState.isReady && animationState.trailId === trail.id) {
       coordinates = animationState.coordinates
     } else if (trail.path && trail.path.coordinates) {
@@ -1019,21 +1344,45 @@
     }
 
     if (coordinates.length > 0) {
-      fitTrailBounds(coordinates, true, true) // Use fast transition for trail switching
+      fitTrailBounds(coordinates, true, true)
     }
   }
 
   function removeHighlight(trailId: string) {
     const { highlightLayerId } = generateTrailIds(trailId)
+
     const innerLayerId = `${highlightLayerId}-inner`
 
+    const glowLayerId = `${highlightLayerId}-glow`
+
     try {
+      if (map && map.getLayer(glowLayerId)) {
+        map.removeLayer(glowLayerId)
+      }
+
       if (map && map.getLayer(highlightLayerId)) {
         map.removeLayer(highlightLayerId)
       }
+
       if (map && map.getLayer(innerLayerId)) {
         map.removeLayer(innerLayerId)
       }
+
+      // Restore all trails to normal opacity
+
+      $historicalTrailStore.forEach((t) => {
+        const { layerId } = generateTrailIds(t.id)
+
+        if (map.getLayer(layerId)) {
+          map.setPaintProperty(
+            layerId,
+
+            "line-opacity",
+
+            HIGHLIGHT_CONFIG.NORMAL_OPACITY,
+          )
+        }
+      })
     } catch (error) {
       console.log("Error removing highlight layers:", error)
     }
@@ -1042,16 +1391,18 @@
   async function navigateToTrail(index: number) {
     if ($historicalTrailStore.length === 0) return
 
-    // Stop any ongoing animation when navigating
     stopAnimation()
 
-    // Clean up previous trail highlights and markers
+    stopPulsingGlow()
+
     $historicalTrailStore.forEach((t) => {
       removeHighlight(t.id)
+
       removeStartEndMarkers(t.id)
     })
 
     currentTrailIndex = index
+
     if (currentTrailIndex >= $historicalTrailStore.length) {
       currentTrailIndex = 0
     } else if (currentTrailIndex < 0) {
@@ -1059,12 +1410,13 @@
     }
 
     const trail = $historicalTrailStore[currentTrailIndex]
+
     console.log("Navigating to trail_id:", trail.id)
 
     flyToTrail(trail)
+
     selectTrail(trail)
 
-    // Reduced wait time due to faster camera movement
     await new Promise((resolve) =>
       setTimeout(resolve, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 100),
     )
@@ -1078,71 +1430,59 @@
     navigateToTrail(currentTrailIndex + 1)
   }
 
-  // Format date for display
   function formatDate(dateString: string): string {
     const date = new Date(dateString)
+
     return date.toLocaleDateString("en-US", {
       month: "short",
+
       day: "numeric",
     })
   }
 
-  // Format distance from meters to kilometers
   function formatDistance(distanceInMeters: number): string {
     if (!distanceInMeters) return "0.0 km"
+
     const kilometers = distanceInMeters / 1000
+
     return `${kilometers.toFixed(1)} km`
   }
 
-  // Format hectares
   function formatHectares(hectares: number): string {
     if (!hectares) return "0.0"
+
     return hectares.toFixed(1)
   }
 
-  // Format percentage
   function formatPercentage(percentage: number): string {
     if (!percentage) return "0.0%"
+
     return `${percentage.toFixed(1)}%`
   }
 
-  // Calculate estimated time based on start and end time
-  function getEstimatedTime(): string {
-    const currentTrail = getCurrentTrail()
-    if (!currentTrail?.start_time || !currentTrail?.end_time) return "N/A"
-
-    const startTime = new Date(currentTrail.start_time)
-    const endTime = new Date(currentTrail.end_time)
-    const durationMs = endTime.getTime() - startTime.getTime()
-
-    const hours = Math.floor(durationMs / (1000 * 60 * 60))
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`
-    } else {
-      return `${minutes}m`
-    }
-  }
-
-  // Function to handle clicking on a trail (from external calls)
   function playTrail(trailIndex: number) {
     currentTrailIndex = trailIndex
+
     showReplayPanel = true
+
     showNavigationUI = true
-    isExpanded = false // Start in minimal state, will expand when animation starts
+
+    isExpanded = false
 
     const trail = $historicalTrailStore[currentTrailIndex]
+
     if (trail) {
       flyToTrail(trail)
+
       selectTrail(trail)
-      // Wait for trail to be ready, then start animation - reduced delay
+
       const checkReady = setInterval(() => {
         if (animationState.isReady && animationState.trailId === trail.id) {
           clearInterval(checkReady)
+
           setTimeout(() => {
             animateTrailCreation(trail)
-          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200) // Reduced delay
+          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200)
         }
       }, 100)
     }
@@ -1150,33 +1490,46 @@
 
   export const highlighterAPI = {
     selectTrail,
+
     removeHighlight,
+
     flyToTrail,
+
     nextTrail: handleNext,
+
     previousTrail: handlePrevious,
+
     navigateToTrail,
+
     animateTrailCreation,
+
     stopAnimation,
+
     toggleNavigationUI,
+
     playTrail,
   }
 
   onMount(() => {
     const cleanup = () => {
+      stopPulsingGlow()
+
       if (map && map.getStyle()) {
         stopAnimation()
       } else {
-        // Just clean up non-map resources if map is already destroyed
         if (animationIntervalId) {
           clearInterval(animationIntervalId)
+
           animationIntervalId = null
         }
+
         if (tractorMarker) {
           try {
             tractorMarker.remove()
           } catch (error) {
             console.warn("Error removing tractor marker on cleanup:", error)
           }
+
           tractorMarker = null
         }
       }
@@ -1311,7 +1664,7 @@
           <div class="stat-compact">
             <div class="stat-icon">⏱️</div>
             <div class="stat-info">
-              <span class="stat-value">{getEstimatedTime()}</span>
+              <span class="stat-value">{estimatedTime}</span>
               <span class="stat-label">duration</span>
             </div>
           </div>
