@@ -31,7 +31,7 @@ interface TrailTimeoutConfig {
 }
 
 const DEFAULT_CONFIG: TrailTimeoutConfig = {
-    timeoutMinutes: 24 * 60, // 24 hours in minutes
+    timeoutMinutes: 10 * 60, // 10 hours in minutes
     closeStaleTrails: true,
     notifyOnClose: true,
 };
