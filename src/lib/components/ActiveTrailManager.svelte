@@ -433,7 +433,26 @@
       },
       paint: {
         "line-color": ["get", "color"],
-        "line-width": calculateZoomDependentWidth(3, 1),
+        "line-width": [
+          // ← FIX: Use dynamic width from properties
+          "interpolate",
+          ["exponential", 2],
+          ["zoom"],
+          TRAIL_CONFIG.MIN_ZOOM,
+          [
+            "*",
+            ["get", "width"], // ← Get width from feature properties
+            TRAIL_CONFIG.MULTIPLIER,
+            ["^", 2, TRAIL_CONFIG.MIN_POWER],
+          ],
+          TRAIL_CONFIG.MAX_ZOOM,
+          [
+            "*",
+            ["get", "width"], // ← Get width from feature properties
+            TRAIL_CONFIG.MULTIPLIER,
+            ["^", 2, TRAIL_CONFIG.MAX_POWER],
+          ],
+        ],
         "line-opacity": TRAIL_CONFIG.DEFAULT_OPACITY,
       },
     }
