@@ -169,15 +169,12 @@
   // ============================================
 
   function updateCombinedActiveTrailsIncremental() {
-    console.log("\n🔄 INCREMENTAL UPDATE")
-
     const allActiveTrails = [
       ...($currentTrailStore ? [$currentTrailStore] : []),
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
     if (allActiveTrails.length === 0) {
-      console.log("⚠️ No active trails")
       return
     }
 
@@ -185,7 +182,6 @@
       COMBINED_ACTIVE_SOURCE_ID,
     ) as mapboxgl.GeoJSONSource
     if (!source) {
-      console.log("⚠️ Source doesn't exist, doing full rebuild")
       rebuildCombinedActiveTrails()
       return
     }
@@ -245,13 +241,6 @@
       const previousCoordCount = lastCoordinateCounts.get(trail.id) || 0
       const lastSegmentIndex = lastSegmentIndices.get(trail.id) || 0
 
-      console.log(`  🔍 Trail ${trail.id}:`, {
-        previousCoords: previousCoordCount,
-        currentCoords: currentCoordCount,
-        newCoords: currentCoordCount - previousCoordCount,
-        previousSegments: lastSegmentIndex,
-      })
-
       const allSegments = splitTrailIntoSegments(
         trailCoordinates,
         trail.id,
@@ -271,9 +260,6 @@
         totalNewSegments += allSegments.length
         hasChanges = true
       } else if (currentCoordCount !== previousCoordCount) {
-        console.log(
-          `  🔄 Trail ${trail.id}: Coordinates changed, updating all segments (${lastSegmentIndex} → ${allSegments.length} segments)`,
-        )
         updatedFeatures.push(...allSegments)
 
         trailsWithChangedCoords.add(trail.id)
@@ -286,7 +272,6 @@
         lastCoordinateCounts.set(trail.id, currentCoordCount)
         hasChanges = true
       } else {
-        console.log(`    ⏭️ No changes`)
         const existingTrailSegments = existingFeatures.filter(
           (feature: any) => feature.properties.trailId === trail.id,
         )
@@ -301,9 +286,6 @@
     })
 
     if (hasChanges) {
-      console.log(`  📊 Total new segments: ${totalNewSegments}`)
-      console.log(`  📊 Total segments now: ${updatedFeatures.length}`)
-
       source.setData({
         type: "FeatureCollection",
         features: updatedFeatures,
@@ -326,25 +308,18 @@
         previousArrowMarkers = result.updatedMarkers
         trailDistanceState = result.updatedDistanceState
       }
-
-      console.log(`✅ Incremental update complete`)
     } else {
       console.log(`  ⏭️ No changes`)
     }
   }
 
   function rebuildCombinedActiveTrails() {
-    console.log("\n🔨 FULL REBUILD")
-
     const allActiveTrails = [
       ...($currentTrailStore ? [$currentTrailStore] : []),
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
-    console.log(`Active trails: ${allActiveTrails.length}`)
-
     if (allActiveTrails.length === 0) {
-      console.log("⚠️ No active trails to display")
       const layersToRemove = [
         COMBINED_ACTIVE_MARKERS_ID,
         COMBINED_ACTIVE_LAYER_ID,
@@ -476,10 +451,6 @@
     } else {
       addTrailWithFallback(markerLayerConfig)
     }
-
-    console.log(
-      `✅ Full rebuild complete: ${combinedGeoJSON.features.length} segments, ${result.geoJSON.features.length} arrow markers`,
-    )
   }
 
   // ============================================
@@ -506,12 +477,10 @@
   }
 
   export function updateCurrentTrail(trail: Trail) {
-    console.log(`\n📝 Updating current trail: ${trail.id}`)
     updateCombinedActiveTrailsIncremental()
   }
 
   export function updateOtherActiveTrail(trail: Trail) {
-    console.log(`\n📝 Updating other active trail: ${trail.id}`)
     updateCombinedActiveTrailsIncremental()
   }
 
@@ -543,9 +512,6 @@
       (activeTrails) => {
         if (map && map.isStyleLoaded()) {
           if (activeTrails && activeTrails.length > 0) {
-            console.log(
-              `\n📡 Other active trails updated: ${activeTrails.length} trails`,
-            )
             updateCombinedActiveTrailsIncremental()
           }
         }

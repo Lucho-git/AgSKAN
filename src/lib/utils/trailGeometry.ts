@@ -446,7 +446,6 @@ export function createActiveTrailMarkers(
 ) {
     // Early exit if arrows are disabled - saves processing
     if (!arrowsEnabled) {
-        console.log("⏭️ Skipping arrow generation (arrows disabled)")
         return {
             geoJSON: {
                 type: "FeatureCollection",

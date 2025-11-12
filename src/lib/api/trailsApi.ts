@@ -868,7 +868,7 @@ export const trailsApi = {
         timestamp: number;
     }>) {
         try {
-            console.log(`Saving ${coordinatesBatch.length} coordinates for trail ${trailId}`);
+            //console.log(`Saving ${coordinatesBatch.length} coordinates for trail ${trailId}`);
 
             // Get user session
             const { data: sessionData } = await supabase.auth.getSession();
@@ -901,7 +901,7 @@ export const trailsApi = {
                 throw new Error(`Failed to save coordinates: ${error.message}`);
             }
 
-            console.log(`Successfully saved ${data.length} coordinates`);
+            //console.log(`Successfully saved ${data.length} coordinates`);
             return { coordinates: data };
 
         } catch (error) {
