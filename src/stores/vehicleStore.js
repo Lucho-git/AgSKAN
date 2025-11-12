@@ -4,7 +4,7 @@ import vehicleComponents from "$lib/vehicles"
 
 function createUserVehicleStore() {
   const { subscribe, set, update } = writable({
-    id: null,
+    vehicle_id: null,
     coordinates: null,
     last_update: null,
     is_trailing: false,
@@ -16,6 +16,16 @@ function createUserVehicleStore() {
       path: () => vehicleComponents.Pointer,
     },
     heading: 0,
+    speed: 0,
+    is_flashing: false,
+    flash_started_at: null,
+    flash_reason: null,
+    master_map_id: null,
+    active_preset_id: null,
+    selected_operation_id: null,
+    current_operation: null,
+    operation_name: null,
+    operation_id: null,
   })
 
   return {
@@ -32,8 +42,6 @@ function createUserVehicleStore() {
         },
       }))
     },
-
-
   }
 }
 

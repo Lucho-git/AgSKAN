@@ -81,7 +81,10 @@
         vehicle_marker: serverItem.vehicle_marker,
         is_trailing: serverItem.is_trailing,
         last_update: serverItem.last_update,
-        speed: serverItem.speed, // 🆕 Include speed
+        speed: serverItem.speed,
+        is_flashing: serverItem.is_flashing || false,
+        flash_started_at: serverItem.flash_started_at || null,
+        flash_reason: serverItem.flash_reason || null,
         full_name: serverItem.full_name || clientItem?.full_name,
         selected_operation_id:
           serverItem.selected_operation_id || clientItem?.selected_operation_id,
@@ -107,7 +110,10 @@
           serverItem.last_update !== clientItem.last_update
         const operationChanged =
           serverItem.operation_name !== clientItem.operation_name
-        const speedChanged = serverItem.speed !== clientItem.speed // 🆕 Detect speed changes
+        const speedChanged = serverItem.speed !== clientItem.speed
+        const flashChanged =
+          serverItem.is_flashing !== clientItem.is_flashing ||
+          serverItem.flash_reason !== clientItem.flash_reason
 
         if (vehicleMarkerChanged)
           change.update_types.push("vehicle_marker_changed")
@@ -117,7 +123,8 @@
           change.update_types.push("trailing_status_changed")
         if (lastUpdateChanged) change.update_types.push("last_update_changed")
         if (operationChanged) change.update_types.push("operation_changed")
-        if (speedChanged) change.update_types.push("speed_changed") // 🆕 Speed update type
+        if (speedChanged) change.update_types.push("speed_changed")
+        if (flashChanged) change.update_types.push("flash_state_changed")
       }
 
       return change
@@ -136,8 +143,10 @@
       heading,
       vehicle_marker,
       speed,
-    } = // 🆕 Destructure speed
-      vehicleData
+      is_flashing,
+      flash_started_at,
+      flash_reason,
+    } = vehicleData
 
     if (!coordinates) {
       console.warn("Coordinates not available. Skipping vehicle state update.")
@@ -152,7 +161,12 @@
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
       heading: heading !== null ? heading : null,
-      speed: speed !== null && speed !== undefined ? speed : 0, // 🆕 Include speed (default to 0)
+      speed: speed !== null && speed !== undefined ? speed : 0,
+      is_flashing: is_flashing || false,
+      flash_started_at: flash_started_at
+        ? new Date(flash_started_at).toISOString()
+        : null,
+      flash_reason: flash_reason || null,
     }
 
     try {
@@ -176,8 +190,10 @@
       heading,
       vehicle_marker,
       speed,
-    } = // 🆕 Destructure speed
-      vehicleData
+      is_flashing,
+      flash_started_at,
+      flash_reason,
+    } = vehicleData
 
     if (!coordinates) {
       console.warn("Coordinates not available. Skipping database update.")
@@ -188,7 +204,9 @@
       previousVehicleData &&
       (JSON.stringify(vehicleData.vehicle_marker) !==
         JSON.stringify(previousVehicleData.vehicle_marker) ||
-        vehicleData.is_trailing !== previousVehicleData.is_trailing)
+        vehicleData.is_trailing !== previousVehicleData.is_trailing ||
+        vehicleData.is_flashing !== previousVehicleData.is_flashing ||
+        vehicleData.flash_reason !== previousVehicleData.flash_reason)
 
     const currentTime = Date.now()
     const shouldUpdate =
@@ -209,7 +227,12 @@
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
       heading: heading !== null ? heading : null,
-      speed: speed !== null && speed !== undefined ? speed : 0, // 🆕 Include speed
+      speed: speed !== null && speed !== undefined ? speed : 0,
+      is_flashing: is_flashing || false,
+      flash_started_at: flash_started_at
+        ? new Date(flash_started_at).toISOString()
+        : null,
+      flash_reason: flash_reason || null,
     }
 
     const { data, error } = await supabase
@@ -220,7 +243,7 @@
     if (error) {
       console.error("Error updating vehicle state in database:", error)
     } else {
-      console.log("Database updated with speed:", speed)
+      console.log("Database updated with vehicle state including flash status")
       lastDatabaseUpdate = currentTime
     }
 
@@ -257,7 +280,10 @@
         last_update: null,
         heading: null,
         is_trailing: false,
-        speed: 0, // 🆕 Default speed
+        speed: 0,
+        is_flashing: false,
+        flash_started_at: null,
+        flash_reason: null,
         vehicle_marker: {
           type: "Pointer",
           bodyColor: "Yellow",

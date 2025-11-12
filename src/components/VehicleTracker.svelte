@@ -407,6 +407,9 @@
         current_operation: $userVehicleStore.current_operation,
         operation_name: $userVehicleStore.operation_name,
         operation_id: $userVehicleStore.operation_id,
+        is_flashing: $userVehicleStore.is_flashing,
+        flash_started_at: $userVehicleStore.flash_started_at,
+        flash_reason: $userVehicleStore.flash_reason,
       }
     }
 
@@ -839,6 +842,9 @@
         is_trailing,
         full_name,
         speed,
+        is_flashing,
+        flash_started_at,
+        flash_reason,
       } = change
 
       const [longitude, latitude] = coordinates
@@ -869,16 +875,24 @@
         const existingData = otherVehicleMarkers[existingIndex]
         const { marker, component, initialsMarker } = existingData
 
-        if (update_types.includes("vehicle_marker_changed")) {
+        if (
+          update_types.includes("vehicle_marker_changed") ||
+          update_types.includes("flash_state_changed")
+        ) {
           console.log(
             `🎨 Updating vehicle ${vehicle_id} marker props:`,
             vehicle_marker,
+            "flash state:",
+            is_flashing,
+            flash_reason,
           )
           component.$set({
             vehicleSize: vehicle_marker.size,
             userVehicle: vehicle_marker.type,
             vehicleColor: vehicle_marker.bodyColor,
             vehicleSwath: vehicle_marker.swath,
+            isFlashing: is_flashing || false,
+            flashReason: flash_reason || null,
           })
 
           if (initialsMarker) {
@@ -905,6 +919,7 @@
           vehicle_marker,
           false,
           vehicle_id,
+          { is_flashing, flash_started_at, flash_reason },
         )
 
         const marker = new mapboxgl.Marker({
@@ -1037,12 +1052,24 @@
           vehicleMarker.size !== previousVehicleMarker.size ||
           vehicleMarker.swath !== previousVehicleMarker.swath
 
-        if (propsChanged) {
-          console.log("🎨 Updating user marker props:", vehicleMarker)
+        const flashChanged =
+          $userVehicleStore.is_flashing !== previousVehicleMarker.is_flashing ||
+          $userVehicleStore.flash_reason !== previousVehicleMarker.flash_reason
+
+        if (propsChanged || flashChanged) {
+          console.log(
+            "🎨 Updating user marker props:",
+            vehicleMarker,
+            "flash:",
+            $userVehicleStore.is_flashing,
+            $userVehicleStore.flash_reason,
+          )
           userMarkerData.component.$set({
             vehicleSize: vehicleMarker.size,
             vehicleColor: vehicleMarker.bodyColor,
             vehicleSwath: vehicleMarker.swath,
+            isFlashing: $userVehicleStore.is_flashing || false,
+            flashReason: $userVehicleStore.flash_reason || null,
           })
 
           if (userInitialsMarker) {
@@ -1052,7 +1079,11 @@
             )
           }
 
-          previousVehicleMarker = { ...vehicleMarker }
+          previousVehicleMarker = {
+            ...vehicleMarker,
+            is_flashing: $userVehicleStore.is_flashing,
+            flash_reason: $userVehicleStore.flash_reason,
+          }
         }
         return
       }
@@ -1073,6 +1104,11 @@
       vehicleMarker,
       true,
       $userVehicleStore.vehicle_id,
+      {
+        is_flashing: $userVehicleStore.is_flashing,
+        flash_started_at: $userVehicleStore.flash_started_at,
+        flash_reason: $userVehicleStore.flash_reason,
+      },
     )
 
     const marker = new mapboxgl.Marker({
@@ -1120,13 +1156,22 @@
     component.$set({ isSelected })
 
     userMarkerData = { marker, component }
-    previousVehicleMarker = { ...vehicleMarker }
+    previousVehicleMarker = {
+      ...vehicleMarker,
+      is_flashing: $userVehicleStore.is_flashing,
+      flash_reason: $userVehicleStore.flash_reason,
+    }
   }
 
   function createMarkerElement(
     vehicleMarker,
     isUserVehicle = false,
     vehicleId = null,
+    flashState = {
+      is_flashing: false,
+      flash_started_at: null,
+      flash_reason: null,
+    },
   ) {
     const el = document.createElement("div")
     el.setAttribute("data-vehicle-id", vehicleId)
@@ -1142,6 +1187,8 @@
         vehicleSwath: vehicleMarker.swath,
         showPulse: isUserVehicle,
         isSelected: false,
+        isFlashing: flashState.is_flashing || false,
+        flashReason: flashState.flash_reason || null,
       },
     })
 

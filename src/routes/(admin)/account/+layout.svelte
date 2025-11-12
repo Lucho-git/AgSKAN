@@ -391,6 +391,22 @@
           ),
       ])
 
+      console.log(
+        "🔍 Connected profiles IDs:",
+        connectedProfilesWithOperations.map((p) => p.id),
+      )
+      console.log(
+        "🔍 Vehicle states returned:",
+        vehicleStatesResult.data?.map((v) => v.vehicle_id),
+      )
+      console.log("🔍 Tablet 1 ID:", "a2ff2047-1465-4775-a98d-df0a9c3351d8")
+      console.log(
+        "🔍 Is Tablet 1 in connected profiles?",
+        connectedProfilesWithOperations.some(
+          (p) => p.id === "a2ff2047-1465-4775-a98d-df0a9c3351d8",
+        ),
+      )
+
       // Create connected map object
       const connected_map = {
         id: masterMap.id,

@@ -1,7 +1,15 @@
 <!-- src/lib/components/Toolbox.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { MapPin, Route, Truck, Ruler, Satellite, Layers } from "lucide-svelte"
+  import {
+    MapPin,
+    Route,
+    Truck,
+    Ruler,
+    Satellite,
+    Layers,
+    Zap,
+  } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   // Import vehicle store and components
@@ -16,6 +24,7 @@
   import VehicleControls from "$lib/components/VehicleControls.svelte"
   import TrailControls from "$lib/components/TrailControls.svelte"
   import LayerControls from "$lib/components/LayerControls.svelte"
+  import VehicleFlashController from "./VehicleFlashController.svelte"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -37,6 +46,9 @@
         SVGComponents.Pointer
     }
   }
+
+  // Check if vehicle is currently flashing
+  $: isFlashing = $userVehicleStore.is_flashing || false
 
   function getDefaultMarker() {
     return (
@@ -83,6 +95,10 @@
     activePanel = "layers"
   }
 
+  function showFlashPanel() {
+    activePanel = "flash"
+  }
+
   function handleMeasurement() {
     $drawingModeEnabled = !$drawingModeEnabled
     closeToolbox()
@@ -126,6 +142,9 @@
         {:else if activePanel === "layers"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Map Layers</h3>
+        {:else if activePanel === "flash"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Flash Signals</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -148,6 +167,10 @@
         />
       {:else if activePanel === "layers"}
         <LayerControls />
+      {:else if activePanel === "flash"}
+        <div class="flash-panel-container">
+          <VehicleFlashController />
+        </div>
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
@@ -163,6 +186,15 @@
               {/if}
             </div>
             <span>Select Vehicle</span>
+          </button>
+
+          <button
+            class="tool-button flash-tool"
+            class:tool-active={isFlashing}
+            on:click={showFlashPanel}
+          >
+            <Zap size={36} class={isFlashing ? "flashing-icon" : ""} />
+            <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
           </button>
 
           <button class="tool-button" on:click={showMarkerPanel}>
@@ -214,7 +246,6 @@
 {/if}
 
 <style>
-  /* Update tool-grid to handle 6 items (2x3 grid) */
   .tool-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -223,14 +254,13 @@
     align-content: start;
   }
 
-  /* Keep all other existing styles exactly the same */
   .toolbox-backdrop {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(0, 0, 0, 0.5);
     z-index: 1000;
     animation: fadeIn 0.2s ease-out;
   }
@@ -241,24 +271,19 @@
     left: 0;
     width: 280px;
     height: 100%;
-    background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(16px);
+    background: #1a1a1a;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 1001;
     display: flex;
     flex-direction: column;
     animation: slideInLeft 0.3s ease-out;
-    color: white;
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .toolbox-header {
     padding: 20px 16px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.9),
-      rgba(0, 0, 0, 0.8)
-    );
+    background: #1a1a1a;
   }
 
   .header-content {
@@ -268,7 +293,7 @@
   }
 
   .back-button {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border: none;
     border-radius: 50%;
     width: 32px;
@@ -276,7 +301,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 18px;
@@ -284,21 +309,22 @@
   }
 
   .back-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .toolbox-header h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: white;
+    color: rgba(255, 255, 255, 0.95);
     flex: 1;
   }
 
   .toolbox-content {
     flex: 1;
     overflow-y: auto;
+    background: #1a1a1a;
   }
 
   .tool-button {
@@ -315,16 +341,15 @@
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.7);
     overflow: visible;
   }
 
   .tool-button:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
-    color: white;
+    color: rgba(255, 255, 255, 0.95);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   .tool-button:active {
@@ -332,15 +357,45 @@
   }
 
   .tool-button.tool-active {
-    background: rgba(96, 165, 250, 0.2);
-    border-color: rgba(96, 165, 250, 0.4);
+    background: rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.3);
     color: #60a5fa;
   }
 
   .tool-button.tool-active:hover {
-    background: rgba(96, 165, 250, 0.3);
-    border-color: rgba(96, 165, 250, 0.5);
-    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+  }
+
+  .flash-tool.tool-active {
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+  }
+
+  .flash-tool.tool-active:hover {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+
+  .flashing-icon {
+    animation: flashPulse 1s ease-in-out infinite;
+  }
+
+  @keyframes flashPulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.1);
+    }
+  }
+
+  .flash-panel-container {
+    padding: 16px;
   }
 
   .tool-button span {
@@ -424,6 +479,10 @@
       width: 30px !important;
       height: 30px !important;
     }
+
+    .flash-panel-container {
+      padding: 12px;
+    }
   }
 
   @media (max-width: 480px) {
@@ -471,6 +530,10 @@
       width: 26px !important;
       height: 26px !important;
     }
+
+    .flash-panel-container {
+      padding: 10px;
+    }
   }
 
   .toolbox-content::-webkit-scrollbar {
@@ -478,12 +541,12 @@
   }
 
   .toolbox-content::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 2px;
   }
 
   .toolbox-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 2px;
   }
 </style>

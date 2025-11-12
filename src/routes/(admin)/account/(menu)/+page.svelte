@@ -1,3 +1,5 @@
+<!-- src\routes\(admin)\account\(menu)\+page.svelte -->
+
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
