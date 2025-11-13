@@ -875,9 +875,12 @@
         const existingData = otherVehicleMarkers[existingIndex]
         const { marker, component, initialsMarker } = existingData
 
+        // ALWAYS update flash state when processing changes
         if (
           update_types.includes("vehicle_marker_changed") ||
-          update_types.includes("flash_state_changed")
+          update_types.includes("flash_state_changed") ||
+          update_types.includes("position_changed") || // Add this
+          update_types.includes("new_vehicle") // Add this
         ) {
           console.log(
             `🎨 Updating vehicle ${vehicle_id} marker props:`,
@@ -891,8 +894,8 @@
             userVehicle: vehicle_marker.type,
             vehicleColor: vehicle_marker.bodyColor,
             vehicleSwath: vehicle_marker.swath,
-            isFlashing: is_flashing || false,
-            flashReason: flash_reason || null,
+            isFlashing: is_flashing || false, // Ensure we're using the change data
+            flashReason: flash_reason || null, // Ensure we're using the change data
           })
 
           if (initialsMarker) {
@@ -919,7 +922,11 @@
           vehicle_marker,
           false,
           vehicle_id,
-          { is_flashing, flash_started_at, flash_reason },
+          {
+            is_flashing: is_flashing || false, // Use the change data
+            flash_started_at: flash_started_at || null,
+            flash_reason: flash_reason || null,
+          },
         )
 
         const marker = new mapboxgl.Marker({
@@ -998,9 +1005,23 @@
             })
           }
 
-          vehicles[index] = { ...oldVehicle, ...change, speed }
+          // Update the vehicle with ALL flash data from the change
+          vehicles[index] = {
+            ...oldVehicle,
+            ...change,
+            speed,
+            is_flashing: is_flashing || false,
+            flash_started_at: flash_started_at || null,
+            flash_reason: flash_reason || null,
+          }
         } else {
-          vehicles.push({ ...change, speed })
+          vehicles.push({
+            ...change,
+            speed,
+            is_flashing: is_flashing || false,
+            flash_started_at: flash_started_at || null,
+            flash_reason: flash_reason || null,
+          })
         }
         return vehicles
       })

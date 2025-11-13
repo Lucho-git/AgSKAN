@@ -66,6 +66,10 @@
     dispatch("close")
   }
 
+  function handleFlashClose() {
+    closeToolbox()
+  }
+
   function showMainPanel() {
     activePanel = null
   }
@@ -169,7 +173,7 @@
         <LayerControls />
       {:else if activePanel === "flash"}
         <div class="flash-panel-container">
-          <VehicleFlashController />
+          <VehicleFlashController on:closeToolbox={handleFlashClose} />
         </div>
       {:else}
         <div class="tool-grid">

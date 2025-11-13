@@ -20,6 +20,7 @@
   let unsubscribe
   let lastDatabaseUpdate = 0
   let previousVehicleData = null
+  let lastBroadcastFlashState = null // Track last broadcast flash state
   const DATABASE_UPDATE_INTERVAL = 10000 // 10 seconds
 
   async function fetchUserVehicleData(userId) {
@@ -162,11 +163,33 @@
       vehicle_marker,
       heading: heading !== null ? heading : null,
       speed: speed !== null && speed !== undefined ? speed : 0,
+    }
+
+    // Only include flash data if it has changed
+    const currentFlashState = {
       is_flashing: is_flashing || false,
-      flash_started_at: flash_started_at
-        ? new Date(flash_started_at).toISOString()
-        : null,
       flash_reason: flash_reason || null,
+    }
+
+    const flashStateChanged =
+      !lastBroadcastFlashState ||
+      lastBroadcastFlashState.is_flashing !== currentFlashState.is_flashing ||
+      lastBroadcastFlashState.flash_reason !== currentFlashState.flash_reason
+
+    if (flashStateChanged) {
+      vehicleStateData.is_flashing = currentFlashState.is_flashing
+      vehicleStateData.flash_started_at = flash_started_at
+        ? new Date(flash_started_at).toISOString()
+        : null
+      vehicleStateData.flash_reason = currentFlashState.flash_reason
+
+      console.log("⚡ Flash state changed, broadcasting:", {
+        vehicle_id: userId,
+        is_flashing: vehicleStateData.is_flashing,
+        flash_reason: vehicleStateData.flash_reason,
+      })
+
+      lastBroadcastFlashState = currentFlashState
     }
 
     try {
@@ -243,7 +266,6 @@
     if (error) {
       console.error("Error updating vehicle state in database:", error)
     } else {
-      console.log("Database updated with vehicle state including flash status")
       lastDatabaseUpdate = currentTime
     }
 
@@ -273,6 +295,12 @@
         parsedCoordinates = { latitude, longitude }
       }
       vehicleData = userVehicle
+
+      // Initialize last broadcast flash state
+      lastBroadcastFlashState = {
+        is_flashing: userVehicle.is_flashing || false,
+        flash_reason: userVehicle.flash_reason || null,
+      }
     } else {
       vehicleData = {
         vehicle_id: userId,
@@ -291,6 +319,11 @@
           swath: 4,
         },
         master_map_id: masterMapId,
+      }
+
+      lastBroadcastFlashState = {
+        is_flashing: false,
+        flash_reason: null,
       }
     }
 
@@ -332,17 +365,31 @@
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
             )
             if (existingVehicleIndex !== -1) {
-              vehicles[existingVehicleIndex] = {
-                ...vehicles[existingVehicleIndex],
+              const existingVehicle = vehicles[existingVehicleIndex]
+
+              // Only update flash state if it's included in the payload
+              const updatedVehicle = {
+                ...existingVehicle,
                 ...payload.payload,
-                full_name: vehicles[existingVehicleIndex].full_name,
-                selected_operation_id:
-                  vehicles[existingVehicleIndex].selected_operation_id,
-                current_operation:
-                  vehicles[existingVehicleIndex].current_operation,
-                operation_name: vehicles[existingVehicleIndex].operation_name,
-                operation_id: vehicles[existingVehicleIndex].operation_id,
+                // Preserve profile data
+                full_name: existingVehicle.full_name,
+                selected_operation_id: existingVehicle.selected_operation_id,
+                current_operation: existingVehicle.current_operation,
+                operation_name: existingVehicle.operation_name,
+                operation_id: existingVehicle.operation_id,
               }
+
+              // If flash data is in payload, update it; otherwise keep existing
+              if ("is_flashing" in payload.payload) {
+                updatedVehicle.is_flashing =
+                  payload.payload.is_flashing || false
+                updatedVehicle.flash_started_at =
+                  payload.payload.flash_started_at || null
+                updatedVehicle.flash_reason =
+                  payload.payload.flash_reason || null
+              }
+
+              vehicles[existingVehicleIndex] = updatedVehicle
             } else {
               console.log("pushing new vehicle", payload.payload)
               vehicles.push(payload.payload)
@@ -375,6 +422,7 @@
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
                   ...payload.new,
+                  // Preserve profile data
                   full_name: vehicles[existingVehicleIndex].full_name,
                   selected_operation_id:
                     vehicles[existingVehicleIndex].selected_operation_id,
@@ -382,6 +430,10 @@
                     vehicles[existingVehicleIndex].current_operation,
                   operation_name: vehicles[existingVehicleIndex].operation_name,
                   operation_id: vehicles[existingVehicleIndex].operation_id,
+                  // Explicitly include flash data from postgres update
+                  is_flashing: payload.new.is_flashing || false,
+                  flash_started_at: payload.new.flash_started_at || null,
+                  flash_reason: payload.new.flash_reason || null,
                 }
               } else {
                 console.log("pushing new vehicle", payload.new)
@@ -401,9 +453,7 @@
       .subscribe()
 
     unsubscribe = userVehicleStore.subscribe(async (vehicleData) => {
-      console.log("Broadcasting vehicle state:", vehicleData)
       await broadcastVehicleState(vehicleData)
-
       await updateDatabaseVehicleState(vehicleData)
     })
 
