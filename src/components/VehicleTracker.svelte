@@ -723,9 +723,9 @@
 
         localStorage.removeItem("webBackgroundStartTime")
 
-        toast.info("Tab returned to foreground", {
-          description: `Background duration: ${durationText}`,
-        })
+        // toast.info("Tab returned to foreground", {
+        //   description: `Background duration: ${durationText}`,
+        // })
       }
     }
   }
@@ -852,6 +852,67 @@
         .split(",")
         .map(parseFloat)
 
+      // Handle flash state changes with toasts
+      if (update_types.includes("flash_state_changed")) {
+        const existingVehicle = $otherVehiclesStore.find(
+          (v) => v.vehicle_id === vehicle_id,
+        )
+
+        // Flash just started
+        if (is_flashing && existingVehicle && !existingVehicle.is_flashing) {
+          const reasonLabels = {
+            full: "FULL",
+            empty: "EMPTY",
+            help: "HELP",
+          }
+          const reasonColors = {
+            full: "#f59e0b",
+            empty: "#8b5cf6",
+            help: "#ef4444",
+          }
+
+          const reasonLabel = reasonLabels[flash_reason] || "FLASHING"
+          const reasonColor = reasonColors[flash_reason] || "#f59e0b"
+          const isHelpSignal = flash_reason === "help"
+
+          const toastOptions = {
+            description: isHelpSignal
+              ? `${full_name} needs assistance!`
+              : `${full_name} is signaling ${reasonLabel}`,
+            duration: isHelpSignal ? 45000 : 8000,
+            action: {
+              label: "Locate",
+              onClick: () => {
+                map.flyTo({
+                  center: [longitude, latitude],
+                  zoom: 16,
+                  duration: 1500,
+                })
+              },
+            },
+            style: `border-left: 4px solid ${reasonColor};`,
+          }
+
+          if (isHelpSignal) {
+            toast.error(`🆘 ${reasonLabel} Signal`, toastOptions)
+          } else if (flash_reason === "empty") {
+            toast.info(`🟣 ${reasonLabel} Signal`, toastOptions)
+          } else {
+            toast.warning(`🟠 ${reasonLabel} Signal`, toastOptions)
+          }
+
+          console.log(`⚡ Flash started for ${full_name}:`, flash_reason)
+        }
+        // Flash just stopped
+        else if (
+          !is_flashing &&
+          existingVehicle &&
+          existingVehicle.is_flashing
+        ) {
+          console.log(`⚡ Flash stopped for ${full_name}`)
+        }
+      }
+
       if (isTrackingVehicle && vehicle_id === trackedVehicleId) {
         if (
           update_types.includes("position_changed") ||
@@ -875,12 +936,9 @@
         const existingData = otherVehicleMarkers[existingIndex]
         const { marker, component, initialsMarker } = existingData
 
-        // ALWAYS update flash state when processing changes
         if (
           update_types.includes("vehicle_marker_changed") ||
-          update_types.includes("flash_state_changed") ||
-          update_types.includes("position_changed") || // Add this
-          update_types.includes("new_vehicle") // Add this
+          update_types.includes("flash_state_changed")
         ) {
           console.log(
             `🎨 Updating vehicle ${vehicle_id} marker props:`,
@@ -894,8 +952,8 @@
             userVehicle: vehicle_marker.type,
             vehicleColor: vehicle_marker.bodyColor,
             vehicleSwath: vehicle_marker.swath,
-            isFlashing: is_flashing || false, // Ensure we're using the change data
-            flashReason: flash_reason || null, // Ensure we're using the change data
+            isFlashing: is_flashing || false,
+            flashReason: flash_reason || null,
           })
 
           if (initialsMarker) {
@@ -922,11 +980,7 @@
           vehicle_marker,
           false,
           vehicle_id,
-          {
-            is_flashing: is_flashing || false, // Use the change data
-            flash_started_at: flash_started_at || null,
-            flash_reason: flash_reason || null,
-          },
+          { is_flashing, flash_started_at, flash_reason },
         )
 
         const marker = new mapboxgl.Marker({
@@ -940,7 +994,6 @@
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
 
-        // Set initial visibility for vehicle marker
         const vehiclesVisible = $layerVisibilityStore.vehicles
         element.style.display = vehiclesVisible ? "block" : "none"
 
@@ -960,7 +1013,6 @@
               .setLngLat([longitude, latitude])
               .addTo(map)
 
-            // Set initial visibility for label
             const labelsVisible = $layerVisibilityStore.vehicleLabels
             initialsEl.style.display =
               vehiclesVisible && labelsVisible ? "block" : "none"
@@ -1005,23 +1057,9 @@
             })
           }
 
-          // Update the vehicle with ALL flash data from the change
-          vehicles[index] = {
-            ...oldVehicle,
-            ...change,
-            speed,
-            is_flashing: is_flashing || false,
-            flash_started_at: flash_started_at || null,
-            flash_reason: flash_reason || null,
-          }
+          vehicles[index] = { ...oldVehicle, ...change, speed }
         } else {
-          vehicles.push({
-            ...change,
-            speed,
-            is_flashing: is_flashing || false,
-            flash_started_at: flash_started_at || null,
-            flash_reason: flash_reason || null,
-          })
+          vehicles.push({ ...change, speed })
         }
         return vehicles
       })

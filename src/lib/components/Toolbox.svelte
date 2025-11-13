@@ -192,15 +192,6 @@
             <span>Select Vehicle</span>
           </button>
 
-          <button
-            class="tool-button flash-tool"
-            class:tool-active={isFlashing}
-            on:click={showFlashPanel}
-          >
-            <Zap size={36} class={isFlashing ? "flashing-icon" : ""} />
-            <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
-          </button>
-
           <button class="tool-button" on:click={showMarkerPanel}>
             <div class="marker-icon-container">
               {#if defaultMarker.id === "default"}
@@ -242,6 +233,15 @@
           <button class="tool-button" on:click={showLayersPanel}>
             <Layers size={36} />
             <span>Layers</span>
+          </button>
+
+          <button
+            class="tool-button flash-tool"
+            class:tool-active={isFlashing}
+            on:click={showFlashPanel}
+          >
+            <Zap size={36} class={isFlashing ? "flashing-icon" : ""} />
+            <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
           </button>
         </div>
       {/if}

@@ -1,14 +1,15 @@
 <!-- src/lib/components/VehicleFlashController.svelte -->
 <script>
+  import { createEventDispatcher } from "svelte"
   import { userVehicleStore } from "../../stores/vehicleStore"
   import { toast } from "svelte-sonner"
   import { onMount, onDestroy } from "svelte"
 
+  const dispatch = createEventDispatcher()
+
   const FLASH_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 
   let timeoutId = null
-  let remainingTime = 0
-  let intervalId = null
   let selectedReason = "full"
 
   $: isFlashing = $userVehicleStore.is_flashing
@@ -16,8 +17,8 @@
 
   const flashReasons = [
     { id: "full", label: "Full", color: "#f59e0b", emoji: "🟠" },
-    { id: "empty", label: "Empty", color: "#ef4444", emoji: "🔴" },
-    { id: "help", label: "Help", color: "#8b5cf6", emoji: "🟣" },
+    { id: "empty", label: "Empty", color: "#8b5cf6", emoji: "🟣" },
+    { id: "help", label: "Help", color: "#ef4444", emoji: "🔴" },
   ]
 
   async function startFlashing() {
@@ -36,22 +37,11 @@
       stopFlashing(true)
     }, FLASH_DURATION_MS)
 
-    // Update remaining time display
-    remainingTime = FLASH_DURATION_MS
-    if (intervalId) clearInterval(intervalId)
-    intervalId = setInterval(() => {
-      remainingTime -= 1000
-      if (remainingTime <= 0) {
-        clearInterval(intervalId)
-      }
-    }, 1000)
-
     const reasonData = flashReasons.find((r) => r.id === selectedReason)
     const reasonText = reasonData ? reasonData.label : "Unknown"
 
-    toast.success(`${reasonText} Signal - Flashing Started`, {
-      description: `Auto-stops in ${formatTime(FLASH_DURATION_MS)}`,
-    })
+    // Close the toolbox after starting flash
+    dispatch("closeToolbox")
   }
 
   async function stopFlashing(autoStopped = false) {
@@ -67,19 +57,10 @@
       timeoutId = null
     }
 
-    if (intervalId) {
-      clearInterval(intervalId)
-      intervalId = null
-    }
-
-    remainingTime = 0
-
     if (autoStopped) {
       toast.info("Flash Auto-Stopped", {
         description: "5 minute flash period ended",
       })
-    } else {
-      toast.success("Flash Stopped")
     }
   }
 
@@ -95,32 +76,17 @@
       } else {
         // Resume countdown
         const remaining = FLASH_DURATION_MS - elapsed
-        remainingTime = remaining
 
         timeoutId = setTimeout(() => {
           stopFlashing(true)
         }, remaining)
-
-        intervalId = setInterval(() => {
-          remainingTime -= 1000
-          if (remainingTime <= 0) {
-            clearInterval(intervalId)
-          }
-        }, 1000)
       }
     }
   })
 
   onDestroy(() => {
     if (timeoutId) clearTimeout(timeoutId)
-    if (intervalId) clearInterval(intervalId)
   })
-
-  function formatTime(ms) {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = Math.floor((ms % 60000) / 1000)
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`
-  }
 </script>
 
 <div class="flash-controller">

@@ -16,12 +16,12 @@
 
   $: vehicle = SVGComponents[userVehicle] || SVGComponents.tractor
 
-  // Flash colors and labels based on reason - HELP is now red and bigger
+  // Flash colors and labels based on reason - HELP is RED, EMPTY is PURPLE
   $: flashColor =
     {
       full: "#f59e0b", // amber
-      empty: "#ef4444", // red
-      help: "#ef4444", // red (changed from purple)
+      empty: "#8b5cf6", // purple (swapped from red)
+      help: "#ef4444", // red (swapped from purple)
     }[flashReason] || "#f59e0b"
 
   $: flashLabel =
