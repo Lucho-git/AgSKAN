@@ -14,7 +14,6 @@
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
-  import { unsavedTrailStore } from "../stores/trailDataStore"
   import { toast } from "svelte-sonner"
   import "../styles/global.css"
   import { Capacitor } from "@capacitor/core"
@@ -1313,7 +1312,6 @@
           color: bodyColor,
           swath: swath,
         }
-        unsavedTrailStore.update((markers) => [...markers, locationData])
 
         coordinateBufferStore.set({
           coordinates: { latitude, longitude },

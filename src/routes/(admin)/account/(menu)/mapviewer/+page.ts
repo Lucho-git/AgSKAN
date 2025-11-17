@@ -16,7 +16,6 @@ import {
     currentTrailStore,
     coordinateBufferStore,
     unsavedCoordinatesStore,
-    unsavedTrailsStore,
 } from "$lib/stores/currentTrailStore"
 import {
     historicalTrailStore,
@@ -35,7 +34,6 @@ const defaultStoreValues = {
     currentTrail: null,
     coordinateBuffer: [],
     unsavedCoordinates: [],
-    unsavedTrails: [],
     historicalTrails: [],
     otherActiveTrails: [],
 }
@@ -51,7 +49,6 @@ function initializeStores() {
     currentTrailStore.set(defaultStoreValues.currentTrail)
     coordinateBufferStore.set(defaultStoreValues.coordinateBuffer)
     unsavedCoordinatesStore.set(defaultStoreValues.unsavedCoordinates)
-    unsavedTrailsStore.set(defaultStoreValues.unsavedTrails)
 
     // Initialize historical and other active trail stores
     historicalTrailStore.set(defaultStoreValues.historicalTrails)
