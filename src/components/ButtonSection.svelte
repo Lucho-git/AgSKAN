@@ -1,12 +1,13 @@
 <!-- src/components/ButtonSection.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { mapStore, locationMarkerStore, syncStore } from "../stores/mapStore"
+  import { mapStore, locationMarkerStore } from "../stores/mapStore"
   import {
     userVehicleStore,
     userVehicleTrailing,
   } from "$lib/stores/vehicleStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { commands } from "$lib/stores/commandStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
@@ -59,13 +60,8 @@
     pendingCoordinates.length > 0 || pendingClosures.length > 0
 
   function toggleTrailing() {
-    if ($userVehicleTrailing) {
-      // Currently trailing - STOP IT
-      dispatch("stopTrail")
-    } else {
-      // Not trailing - START IT
-      dispatch("startTrail")
-    }
+    // Use command store instead of dispatching events
+    commands.trail.toggle()
   }
 
   function handleBackToDashboard() {
@@ -81,9 +77,9 @@
   function confirmExit() {
     showExitModal = false
 
-    // If actively trailing, stop it first
+    // If actively trailing, stop it first using command store
     if ($userVehicleTrailing) {
-      dispatch("stopTrail")
+      commands.trail.stop()
 
       // Give a moment for the stop trail to process
       setTimeout(() => {

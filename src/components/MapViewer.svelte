@@ -11,7 +11,6 @@
     fieldBoundaryStore,
     markerBoundaryStore,
   } from "$lib/stores/homeBoundaryStore"
-  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
@@ -53,7 +52,6 @@
   let mapEventManagerRef = null
   let trailHighlighter = null
   let toolboxRef = null
-  let trailSynchronizerRef = null
 
   // Manager references
   let satelliteManager = null
@@ -276,23 +274,6 @@
         break
       default:
         console.warn("Unknown tool action:", type)
-    }
-  }
-
-  // Trail handlers
-  async function handleStartTrail() {
-    if (trailSynchronizerRef) {
-      await trailSynchronizerRef.startTrail()
-    } else {
-      toast.error("Trail system not ready")
-    }
-  }
-
-  async function handleStopTrail() {
-    if (trailSynchronizerRef) {
-      await trailSynchronizerRef.stopTrail()
-    } else {
-      toast.error("Trail system not ready")
     }
   }
 
@@ -537,14 +518,12 @@
       </button>
     </div>
 
-    <!-- ButtonSection with pending data -->
+    <!-- ButtonSection with pending data - NO TRAIL EVENTS -->
     <ButtonSection
       {pendingCoordinates}
       {pendingClosures}
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
-      on:startTrail={handleStartTrail}
-      on:stopTrail={handleStopTrail}
     />
 
     <NavigationControl />
@@ -572,10 +551,9 @@
 
     <TrailView bind:this={trailHighlighter} {map} />
 
-    <!-- TrailSynchronizer with pending data event -->
+    <!-- TrailSynchronizer with pending data event - HANDLES COMMANDS INTERNALLY -->
     {#if selectedOperation}
       <TrailSynchronizer
-        bind:this={trailSynchronizerRef}
         {selectedOperation}
         {map}
         on:pendingDataUpdate={handlePendingDataUpdate}

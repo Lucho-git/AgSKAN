@@ -6,8 +6,11 @@
     userVehicleStore,
     userVehicleTrailing,
   } from "$lib/stores/vehicleStore"
-  import { trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
+
+  // ✅ IMPORT COMMAND STORE
+  import { commands } from "$lib/stores/commandStore"
+
   import SVGComponents from "$lib/vehicles/index.js"
   import { Play, Route, ChevronRight } from "lucide-svelte"
 
@@ -31,16 +34,17 @@
     }
   }
 
+  // ✅ UPDATED: Use command store instead of trailingButtonPressed
   function toggleTrailing() {
     const wasTrailing = $userVehicleTrailing
 
-    trailingButtonPressed.update((value) => !value)
+    // Dispatch the toggle command
+    commands.trail.toggle()
 
     if (!wasTrailing) {
       toast.info("Initiating trail recording...")
       // Auto-close toolbox when starting trail recording
       dispatch("close")
-    } else {
     }
   }
 

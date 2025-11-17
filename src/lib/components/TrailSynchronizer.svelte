@@ -26,6 +26,9 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { session, initializeSession } from "$lib/stores/sessionStore"
 
+  // ✅ IMPORT COMMAND STORE
+  import { commandStore, COMMANDS } from "$lib/stores/commandStore"
+
   import TrailView from "$lib/components/TrailView.svelte"
 
   export let selectedOperation
@@ -61,6 +64,7 @@
   let cleanup = {
     coordinateBufferUnsubscribe: null,
     unsavedCoordinatesUnsubscribe: null,
+    commandStoreUnsubscribe: null, // ✅ ADD THIS
     onlineListener: null,
     offlineListener: null,
   }
@@ -81,6 +85,33 @@
 
     window.addEventListener("online", cleanup.onlineListener)
     window.addEventListener("offline", cleanup.offlineListener)
+
+    // ✅ SUBSCRIBE TO COMMAND STORE
+    cleanup.commandStoreUnsubscribe = commandStore.subscribe(
+      async (command) => {
+        if (!command) return
+
+        console.log("🎯 TrailSynchronizer received command:", command)
+
+        switch (command.type) {
+          case COMMANDS.TRAIL_START:
+            await startTrail()
+            break
+          case COMMANDS.TRAIL_STOP:
+            await stopTrail()
+            break
+          case COMMANDS.TRAIL_TOGGLE:
+            if ($userVehicleTrailing) {
+              await stopTrail()
+            } else {
+              await startTrail()
+            }
+            break
+          default:
+            console.warn("Unknown command:", command.type)
+        }
+      },
+    )
 
     await initializeSession()
     await checkOpenTrails()
@@ -128,6 +159,9 @@
       cleanup.coordinateBufferUnsubscribe()
     if (cleanup.unsavedCoordinatesUnsubscribe)
       cleanup.unsavedCoordinatesUnsubscribe()
+    if (cleanup.commandStoreUnsubscribe)
+      // ✅ ADD THIS
+      cleanup.commandStoreUnsubscribe()
 
     if (cleanup.onlineListener) {
       window.removeEventListener("online", cleanup.onlineListener)
@@ -145,10 +179,10 @@
   })
 
   // ============================================
-  // PUBLIC API - Called by parent via events
+  // TRAIL CONTROL - CALLED VIA COMMAND STORE
   // ============================================
 
-  export async function startTrail() {
+  async function startTrail() {
     if ($userVehicleTrailing) {
       toast.warning("Trail recording already active")
       return
@@ -185,7 +219,7 @@
     }
   }
 
-  export async function stopTrail() {
+  async function stopTrail() {
     if (!$userVehicleTrailing) {
       console.warn("⚠️ No active trail to stop")
       toast.warning("No active trail to stop")

@@ -1,5 +1,4 @@
 <!-- src/components/VehicleTracker.svelte -->
-
 <script>
   import { onMount, onDestroy, getContext } from "svelte"
   import * as mapboxgl from "mapbox-gl"
@@ -11,6 +10,10 @@
   } from "$lib/stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+
+  // ✅ IMPORT COMMAND STORE
+  import { commands } from "$lib/stores/commandStore"
+
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
@@ -1306,13 +1309,6 @@
       const { latitude, longitude } = coordinates
 
       if ($userVehicleTrailing) {
-        const locationData = {
-          coordinates: { latitude, longitude },
-          timestamp: currentTime,
-          color: bodyColor,
-          swath: swath,
-        }
-
         coordinateBufferStore.set({
           coordinates: { latitude, longitude },
           timestamp: currentTime,
@@ -1386,6 +1382,8 @@
 
   export { selectedVehicleId }
 </script>
+
+svelte
 
 <VehicleControls
   {map}
