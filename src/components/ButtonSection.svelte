@@ -4,18 +4,19 @@
   import { mapStore, locationMarkerStore, syncStore } from "../stores/mapStore"
   import { userVehicleStore, userVehicleTrailing } from "../stores/vehicleStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
-
-  import { controlStore, trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
-  import { Home, MapPin, Navigation, RotateCcw } from "lucide-svelte"
+  import { Home, MapPin, RotateCcw } from "lucide-svelte"
   import IconSVG from "../components/IconSVG.svelte"
   import { getAllMarkers } from "$lib/data/markerDefinitions"
 
   let isCircular = true
   let isRefreshing = false
+  let isExpanded = false
+
+  const dispatch = createEventDispatcher()
 
   onMount(async () => {
     console.log("Mounting ButtonSection")
@@ -24,8 +25,6 @@
       isExpanded = true
     }, 200)
   })
-
-  const dispatch = createEventDispatcher()
 
   // Make defaultMarker reactive to userSettingsStore changes
   $: defaultMarker = (() => {
@@ -48,19 +47,18 @@
   })()
 
   function toggleTrailing() {
-    trailingButtonPressed.update((value) => !value)
-
-    if (!$userVehicleTrailing) {
-      toast.info("Initiating trail recording...")
+    if ($userVehicleTrailing) {
+      // Currently trailing - STOP IT
+      dispatch("stopTrail")
     } else {
+      // Not trailing - START IT
+      dispatch("startTrail")
     }
   }
 
   function handleBackToDashboard() {
     dispatch("backToDashboard")
   }
-
-  let isExpanded = false
 
   function toggleExpanded() {
     isExpanded = !isExpanded
@@ -214,36 +212,20 @@
           : ''} relative"
         on:click={toggleTrailing}
       >
-        {#if $userVehicleTrailing}
-          <svg
-            class={$userVehicleTrailing ? "animate-trail" : ""}
-            fill="currentColor"
-            width="36px"
-            height="36px"
-            viewBox="0 0 32 32"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <title>trail</title>
-            <path
-              d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-            ></path>
-          </svg>
-        {:else}
-          <svg
-            fill="currentColor"
-            width="36px"
-            height="36px"
-            viewBox="0 0 32 32"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <title>trail</title>
-            <path
-              d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-            ></path>
-          </svg>
-        {/if}
+        <svg
+          class={$userVehicleTrailing ? "animate-trail" : ""}
+          fill="currentColor"
+          width="36px"
+          height="36px"
+          viewBox="0 0 32 32"
+          version="1.1"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <title>trail</title>
+          <path
+            d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+          ></path>
+        </svg>
       </button>
     </div>
   </div>

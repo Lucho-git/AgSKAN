@@ -1,3 +1,4 @@
+<!-- MapViewer.svelte -->
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
   import mapboxgl from "mapbox-gl"
@@ -52,6 +53,7 @@
   let mapEventManagerRef = null
   let trailHighlighter = null
   let toolboxRef = null
+  let trailSynchronizerRef = null // ADD THIS
 
   // Manager references
   let satelliteManager = null
@@ -270,6 +272,23 @@
         break
       default:
         console.warn("Unknown tool action:", type)
+    }
+  }
+
+  // ADD THESE TWO TRAIL HANDLERS
+  async function handleStartTrail() {
+    if (trailSynchronizerRef) {
+      await trailSynchronizerRef.startTrail()
+    } else {
+      toast.error("Trail system not ready")
+    }
+  }
+
+  async function handleStopTrail() {
+    if (trailSynchronizerRef) {
+      await trailSynchronizerRef.stopTrail()
+    } else {
+      toast.error("Trail system not ready")
     }
   }
 
@@ -507,9 +526,12 @@
       </button>
     </div>
 
+    <!-- ADD EVENT HANDLERS HERE -->
     <ButtonSection
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
+      on:startTrail={handleStartTrail}
+      on:stopTrail={handleStopTrail}
     />
 
     <NavigationControl />
@@ -537,8 +559,13 @@
 
     <TrailView bind:this={trailHighlighter} {map} />
 
+    <!-- ADD bind:this HERE -->
     {#if selectedOperation}
-      <TrailSynchronizer {selectedOperation} {map} />
+      <TrailSynchronizer
+        bind:this={trailSynchronizerRef}
+        {selectedOperation}
+        {map}
+      />
     {/if}
 
     <!-- Drawing Components (Always Present) -->
