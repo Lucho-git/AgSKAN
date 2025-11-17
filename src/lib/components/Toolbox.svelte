@@ -13,7 +13,7 @@
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   // Import vehicle store and components
-  import { userVehicleStore } from "../../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import IconSVG from "../../components/IconSVG.svelte"

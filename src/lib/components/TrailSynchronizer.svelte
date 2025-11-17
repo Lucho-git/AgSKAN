@@ -1,6 +1,6 @@
 <!-- src/components/TrailSynchronizer.svelte -->
 <script>
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { trailsApi } from "$lib/api/trailsApi"
@@ -9,7 +9,7 @@
   import {
     userVehicleStore,
     userVehicleTrailing,
-  } from "../../stores/vehicleStore"
+  } from "$lib/stores/vehicleStore"
 
   import {
     currentTrailStore,
@@ -31,6 +31,8 @@
   export let selectedOperation
   export let map
 
+  const dispatch = createEventDispatcher()
+
   let supabaseChannel
   let areTrailsLoaded = false
 
@@ -38,6 +40,14 @@
   let isOnline = navigator.onLine
   let pendingCoordinates = writable([])
   let pendingClosures = writable([])
+
+  // Dispatch pending data updates whenever they change
+  $: {
+    dispatch("pendingDataUpdate", {
+      coordinates: $pendingCoordinates,
+      closures: $pendingClosures,
+    })
+  }
 
   // Retry mechanism for failed coordinates
   let retryIntervalId = null

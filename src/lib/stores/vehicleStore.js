@@ -1,4 +1,4 @@
-// src/stores/vehicleStore.js
+// src/lib/stores/vehicleStore.js
 import { writable } from "svelte/store"
 import vehicleComponents from "$lib/vehicles"
 

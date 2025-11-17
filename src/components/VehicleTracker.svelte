@@ -8,7 +8,7 @@
     userVehicleTrailing,
     otherVehiclesStore,
     otherVehiclesDataChanges,
-  } from "../stores/vehicleStore"
+  } from "$lib/stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import UserMarker from "./UserMarker.svelte"

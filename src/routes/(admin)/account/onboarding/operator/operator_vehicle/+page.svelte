@@ -15,7 +15,7 @@
   import { toast } from "svelte-sonner"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { userVehicleStore } from "../../../../../../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { onMount } from "svelte"
 

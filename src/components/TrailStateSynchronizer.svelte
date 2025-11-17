@@ -11,7 +11,7 @@
     newOtherTrail,
   } from "../stores/trailDataStore"
 
-  import { userVehicleStore } from "../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
 
   import { trailsApi } from "$lib/api/trailsApi"
   import { trailDataLoaded } from "../stores/loadedStore"

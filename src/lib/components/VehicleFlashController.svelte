@@ -1,7 +1,7 @@
 <!-- src/lib/components/VehicleFlashController.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { userVehicleStore } from "../../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import { toast } from "svelte-sonner"
   import { onMount, onDestroy } from "svelte"
 

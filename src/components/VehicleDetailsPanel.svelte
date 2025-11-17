@@ -15,7 +15,10 @@
   } from "lucide-svelte"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
-  import { userVehicleStore, otherVehiclesStore } from "../stores/vehicleStore"
+  import {
+    userVehicleStore,
+    otherVehiclesStore,
+  } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"

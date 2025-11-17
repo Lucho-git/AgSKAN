@@ -13,7 +13,7 @@
     Trash2,
   } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
-  import { userVehicleStore } from "../../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"

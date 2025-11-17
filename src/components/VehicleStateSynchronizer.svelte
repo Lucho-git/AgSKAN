@@ -9,7 +9,7 @@
     serverOtherVehiclesData,
     otherVehiclesDataChanges,
     userVehicleTrailing,
-  } from "../stores/vehicleStore"
+  } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"

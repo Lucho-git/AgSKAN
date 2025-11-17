@@ -11,7 +11,7 @@
     fieldBoundaryStore,
     markerBoundaryStore,
   } from "$lib/stores/homeBoundaryStore"
-  import { userVehicleStore } from "../stores/vehicleStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
@@ -53,7 +53,7 @@
   let mapEventManagerRef = null
   let trailHighlighter = null
   let toolboxRef = null
-  let trailSynchronizerRef = null // ADD THIS
+  let trailSynchronizerRef = null
 
   // Manager references
   let satelliteManager = null
@@ -69,6 +69,10 @@
 
   // Toolbox state
   let toolboxOpen = false
+
+  // Pending sync data for ButtonSection
+  let pendingCoordinates = []
+  let pendingClosures = []
 
   // Layer ordering registry with trail support
   const LAYER_ORDER = {
@@ -275,7 +279,7 @@
     }
   }
 
-  // ADD THESE TWO TRAIL HANDLERS
+  // Trail handlers
   async function handleStartTrail() {
     if (trailSynchronizerRef) {
       await trailSynchronizerRef.startTrail()
@@ -290,6 +294,13 @@
     } else {
       toast.error("Trail system not ready")
     }
+  }
+
+  // Handle pending data updates from TrailSynchronizer
+  function handlePendingDataUpdate(event) {
+    const { coordinates, closures } = event.detail
+    pendingCoordinates = coordinates || []
+    pendingClosures = closures || []
   }
 
   onMount(async () => {
@@ -526,8 +537,10 @@
       </button>
     </div>
 
-    <!-- ADD EVENT HANDLERS HERE -->
+    <!-- ButtonSection with pending data -->
     <ButtonSection
+      {pendingCoordinates}
+      {pendingClosures}
       on:backToDashboard={handleBackToDashboard}
       on:locateHome={handleLocateHome}
       on:startTrail={handleStartTrail}
@@ -559,12 +572,13 @@
 
     <TrailView bind:this={trailHighlighter} {map} />
 
-    <!-- ADD bind:this HERE -->
+    <!-- TrailSynchronizer with pending data event -->
     {#if selectedOperation}
       <TrailSynchronizer
         bind:this={trailSynchronizerRef}
         {selectedOperation}
         {map}
+        on:pendingDataUpdate={handlePendingDataUpdate}
       />
     {/if}
 

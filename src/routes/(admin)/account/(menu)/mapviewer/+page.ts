@@ -8,7 +8,6 @@ import { redirect } from "@sveltejs/kit"
 
 import {
     controlStore,
-    showEndTrailModal,
     trailingButtonPressed,
     crispVisibility,
     drawingModeEnabled,
@@ -30,7 +29,6 @@ const defaultStoreValues = {
         showMarkerMenu: false,
         showVehicleMenu: false,
     },
-    showEndTrailModal: false,
     trailingButtonPressed: false,
     crispVisibility: false,
     drawingModeEnabled: false,
@@ -45,7 +43,6 @@ const defaultStoreValues = {
 function initializeStores() {
     // Initialize all control-related stores with default values
     controlStore.set(defaultStoreValues.controls)
-    showEndTrailModal.set(defaultStoreValues.showEndTrailModal)
     trailingButtonPressed.set(defaultStoreValues.trailingButtonPressed)
     crispVisibility.set(defaultStoreValues.crispVisibility)
     drawingModeEnabled.set(defaultStoreValues.drawingModeEnabled)

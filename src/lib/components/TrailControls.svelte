@@ -5,7 +5,7 @@
   import {
     userVehicleStore,
     userVehicleTrailing,
-  } from "../../stores/vehicleStore"
+  } from "$lib/stores/vehicleStore"
   import { trailingButtonPressed } from "$lib/stores/controlStore"
   import { toast } from "svelte-sonner"
   import SVGComponents from "$lib/vehicles/index.js"

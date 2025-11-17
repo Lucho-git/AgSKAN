@@ -5,7 +5,7 @@
     userVehicleStore,
     userVehicleTrailing,
     otherVehiclesStore,
-  } from "../stores/vehicleStore"
+  } from "$lib/stores/vehicleStore"
   import {
     Gauge,
     Users,
