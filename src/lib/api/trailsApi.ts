@@ -868,7 +868,12 @@ export const trailsApi = {
         timestamp: number;
     }>) {
         try {
-            //console.log(`Saving ${coordinatesBatch.length} coordinates for trail ${trailId}`);
+            console.log(`📍 saveCoordinates called with:`, {
+                operationId,
+                trailId,
+                batchLength: coordinatesBatch?.length,
+                batchSample: coordinatesBatch?.[0]
+            });
 
             // Get user session
             const { data: sessionData } = await supabase.auth.getSession();
@@ -877,9 +882,54 @@ export const trailsApi = {
                 throw new Error("Authentication required");
             }
 
-            if (!trailId || !coordinatesBatch || coordinatesBatch.length === 0) {
-                throw new Error("Missing required fields");
+            // Detailed validation logging
+            if (!trailId) {
+                console.error("❌ Missing trailId:", trailId);
+                throw new Error("Missing trailId");
             }
+
+            if (!coordinatesBatch) {
+                console.error("❌ coordinatesBatch is undefined/null:", coordinatesBatch);
+                throw new Error("coordinatesBatch is required");
+            }
+
+            if (!Array.isArray(coordinatesBatch)) {
+                console.error("❌ coordinatesBatch is not an array:", typeof coordinatesBatch, coordinatesBatch);
+                throw new Error("coordinatesBatch must be an array");
+            }
+
+            if (coordinatesBatch.length === 0) {
+                console.error("❌ coordinatesBatch is empty");
+                throw new Error("coordinatesBatch cannot be empty");
+            }
+
+            // Validate each coordinate in the batch
+            for (let i = 0; i < coordinatesBatch.length; i++) {
+                const coord = coordinatesBatch[i];
+                console.log(`🔍 Validating coordinate ${i}:`, coord);
+
+                if (!coord.coordinates) {
+                    console.error(`❌ Coordinate ${i} missing 'coordinates' field:`, coord);
+                    throw new Error(`Coordinate ${i} missing 'coordinates' field`);
+                }
+
+                if (typeof coord.coordinates.latitude !== 'number') {
+                    console.error(`❌ Coordinate ${i} has invalid latitude:`, coord.coordinates.latitude);
+                    throw new Error(`Coordinate ${i} has invalid latitude`);
+                }
+
+                if (typeof coord.coordinates.longitude !== 'number') {
+                    console.error(`❌ Coordinate ${i} has invalid longitude:`, coord.coordinates.longitude);
+                    throw new Error(`Coordinate ${i} has invalid longitude`);
+                }
+
+                if (!coord.timestamp) {
+                    console.error(`❌ Coordinate ${i} missing timestamp:`, coord);
+                    throw new Error(`Coordinate ${i} missing timestamp`);
+                }
+            }
+
+            console.log(`✅ All ${coordinatesBatch.length} coordinates validated successfully`);
 
             // Prepare the batch of coordinates for insertion
             const coordinatesForInsert = coordinatesBatch.map(
@@ -891,21 +941,26 @@ export const trailsApi = {
                 })
             );
 
+            console.log(`📤 Inserting coordinates:`, {
+                count: coordinatesForInsert.length,
+                sample: coordinatesForInsert[0]
+            });
+
             const { data, error } = await supabase
                 .from("trail_stream")
                 .insert(coordinatesForInsert)
                 .select();
 
             if (error) {
-                console.error("Error saving coordinates:", error);
+                console.error("❌ Error saving coordinates:", error);
                 throw new Error(`Failed to save coordinates: ${error.message}`);
             }
 
-            //console.log(`Successfully saved ${data.length} coordinates`);
+            console.log(`✅ Successfully saved ${data.length} coordinates`);
             return { coordinates: data };
 
         } catch (error) {
-            console.error("Error in saveCoordinates:", error);
+            console.error("❌ Error in saveCoordinates:", error);
             return {
                 error: true,
                 message: error.message || "Failed to save coordinates"

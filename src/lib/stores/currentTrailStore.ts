@@ -26,6 +26,36 @@ export interface UnsavedTrail {
     }[]
 }
 
+export interface PendingCoordinate {
+    coordinates: {
+        latitude: number
+        longitude: number
+    }
+    timestamp: number
+    trail_id: string  // ✅ Added trail_id to track which trail this coordinate belongs to
+}
+
+export interface PendingClosure {
+    trailId: string
+    trailData: {
+        trail_id: string
+        vehicle_id: string
+        operation_id: string
+        path: {
+            latitude: number
+            longitude: number
+            timestamp: number
+        }[]
+        trail_color: string
+        trail_width: number
+    }
+    pathData: {
+        latitude: number
+        longitude: number
+        timestamp: number
+    }[]
+}
+
 function createCurrentTrailStore() {
     const { subscribe, set, update } = writable<Trail | null>(null)
 
@@ -93,7 +123,44 @@ function createUnsavedTrailsStore() {
     }
 }
 
+function createPendingCoordinatesStore() {
+    const { subscribe, set, update } = writable<PendingCoordinate[]>([])
+
+    return {
+        subscribe,
+        set,
+        update,
+        add: (coord: PendingCoordinate) => update((coords) => [...coords, coord]),
+        remove: (coordsToRemove: PendingCoordinate[]) =>
+            update((coords) =>
+                coords.filter(
+                    (coord) =>
+                        !coordsToRemove.some(
+                            (remove) => remove.timestamp === coord.timestamp,
+                        ),
+                ),
+            ),
+        clear: () => set([]),
+    }
+}
+
+function createPendingClosuresStore() {
+    const { subscribe, set, update } = writable<PendingClosure[]>([])
+
+    return {
+        subscribe,
+        set,
+        update,
+        add: (closure: PendingClosure) => update((closures) => [...closures, closure]),
+        remove: (trailId: string) =>
+            update((closures) => closures.filter((c) => c.trailId !== trailId)),
+        clear: () => set([]),
+    }
+}
+
 export const currentTrailStore = createCurrentTrailStore()
 export const coordinateBufferStore = createCoordinateBufferStore()
 export const unsavedCoordinatesStore = createUnsavedCoordinatesStore()
 export const unsavedTrailsStore = createUnsavedTrailsStore()
+export const pendingCoordinatesStore = createPendingCoordinatesStore()
+export const pendingClosuresStore = createPendingClosuresStore()

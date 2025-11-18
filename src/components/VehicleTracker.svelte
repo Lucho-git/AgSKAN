@@ -1305,7 +1305,6 @@
   function updateUserVehicleData(currentTime, vehicleData, updatedHeading) {
     if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
       const { coordinates, speed } = vehicleData
-      const { bodyColor, swath } = vehicleData.vehicle_marker
       const { latitude, longitude } = coordinates
 
       if ($userVehicleTrailing) {

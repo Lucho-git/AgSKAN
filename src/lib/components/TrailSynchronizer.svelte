@@ -1,10 +1,10 @@
 <!-- src/components/TrailSynchronizer.svelte -->
 <script>
-  import { onMount, onDestroy, createEventDispatcher } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { trailsApi } from "$lib/api/trailsApi"
-  import { writable, get } from "svelte/store"
+  import { get } from "svelte/store"
 
   import {
     userVehicleStore,
@@ -14,7 +14,8 @@
   import {
     currentTrailStore,
     coordinateBufferStore,
-    unsavedCoordinatesStore,
+    pendingCoordinatesStore,
+    pendingClosuresStore,
   } from "$lib/stores/currentTrailStore"
 
   import {
@@ -26,7 +27,6 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { session, initializeSession } from "$lib/stores/sessionStore"
 
-  // ✅ IMPORT COMMAND STORE
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
 
   import TrailView from "$lib/components/TrailView.svelte"
@@ -34,23 +34,11 @@
   export let selectedOperation
   export let map
 
-  const dispatch = createEventDispatcher()
-
   let supabaseChannel
   let areTrailsLoaded = false
 
   // Offline queue management
   let isOnline = navigator.onLine
-  let pendingCoordinates = writable([])
-  let pendingClosures = writable([])
-
-  // Dispatch pending data updates whenever they change
-  $: {
-    dispatch("pendingDataUpdate", {
-      coordinates: $pendingCoordinates,
-      closures: $pendingClosures,
-    })
-  }
 
   // Retry mechanism for failed coordinates
   let retryIntervalId = null
@@ -63,8 +51,8 @@
 
   let cleanup = {
     coordinateBufferUnsubscribe: null,
-    unsavedCoordinatesUnsubscribe: null,
-    commandStoreUnsubscribe: null, // ✅ ADD THIS
+    pendingCoordinatesUnsubscribe: null,
+    commandStoreUnsubscribe: null,
     onlineListener: null,
     offlineListener: null,
   }
@@ -86,7 +74,7 @@
     window.addEventListener("online", cleanup.onlineListener)
     window.addEventListener("offline", cleanup.offlineListener)
 
-    // ✅ SUBSCRIBE TO COMMAND STORE
+    // Subscribe to command store
     cleanup.commandStoreUnsubscribe = commandStore.subscribe(
       async (command) => {
         if (!command) return
@@ -107,6 +95,9 @@
               await startTrail()
             }
             break
+          case COMMANDS.SYNC_TRIGGER:
+            await syncPendingChanges()
+            break
           default:
             console.warn("Unknown command:", command.type)
         }
@@ -118,7 +109,7 @@
     await checkOtherActiveTrails()
     await fetchOperationTrails()
 
-    // ✅ INSTANT COORDINATE SENDING - No batching
+    // Instant coordinate sending - No batching
     cleanup.coordinateBufferUnsubscribe = coordinateBufferStore.subscribe(
       async (newCoordinateBuffer) => {
         if (
@@ -138,8 +129,8 @@
       },
     )
 
-    // ✅ RETRY MECHANISM - Start retry interval for failed coordinates
-    cleanup.unsavedCoordinatesUnsubscribe = unsavedCoordinatesStore.subscribe(
+    // Retry mechanism - Start retry interval for failed coordinates
+    cleanup.pendingCoordinatesUnsubscribe = pendingCoordinatesStore.subscribe(
       (coordinates) => {
         if (coordinates.length > 0 && !retryIntervalId) {
           startRetryInterval()
@@ -157,11 +148,9 @@
   onDestroy(() => {
     if (cleanup.coordinateBufferUnsubscribe)
       cleanup.coordinateBufferUnsubscribe()
-    if (cleanup.unsavedCoordinatesUnsubscribe)
-      cleanup.unsavedCoordinatesUnsubscribe()
-    if (cleanup.commandStoreUnsubscribe)
-      // ✅ ADD THIS
-      cleanup.commandStoreUnsubscribe()
+    if (cleanup.pendingCoordinatesUnsubscribe)
+      cleanup.pendingCoordinatesUnsubscribe()
+    if (cleanup.commandStoreUnsubscribe) cleanup.commandStoreUnsubscribe()
 
     if (cleanup.onlineListener) {
       window.removeEventListener("online", cleanup.onlineListener)
@@ -277,10 +266,7 @@
     // If offline, queue the closure
     if (!isOnline) {
       console.log("📴 Trail closure queued (offline):", trailId)
-      pendingClosures.update((closures) => [
-        ...closures,
-        { trailId, trailData, pathData },
-      ])
+      pendingClosuresStore.add({ trailId, trailData, pathData })
 
       // Clear active trail locally
       resetTrailState()
@@ -318,7 +304,6 @@
       historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
       // Clear everything
-      unsavedCoordinatesStore.clear()
       resetTrailState()
 
       toast.success("Trail saved successfully", {
@@ -336,10 +321,7 @@
 
       if (isNetworkError) {
         console.log("📴 Trail closure queued (network error):", trailId)
-        pendingClosures.update((closures) => [
-          ...closures,
-          { trailId, trailData, pathData },
-        ])
+        pendingClosuresStore.add({ trailId, trailData, pathData })
 
         isOnline = false
         resetTrailState()
@@ -371,14 +353,12 @@
     const coordinateWithTimestamp = {
       coordinates: coordinateData.coordinates,
       timestamp: coordinateData.timestamp,
+      trail_id: $currentTrailStore?.id, // ✅ Store trail ID with coordinate
     }
 
     // If offline, queue immediately
     if (!isOnline) {
-      pendingCoordinates.update((pending) => [
-        ...pending,
-        coordinateWithTimestamp,
-      ])
+      pendingCoordinatesStore.add(coordinateWithTimestamp)
       console.log("📴 Coordinate queued (offline):", coordinateWithTimestamp)
       return
     }
@@ -413,11 +393,8 @@
       console.warn("❌ Failed to save coordinate, queueing:", error)
       consecutiveFailures++
 
-      // Add to pending queue
-      pendingCoordinates.update((pending) => [
-        ...pending,
-        coordinateWithTimestamp,
-      ])
+      // Add to pending queue using store
+      pendingCoordinatesStore.add(coordinateWithTimestamp)
 
       // Update online status if it was a network error
       if (
@@ -431,7 +408,7 @@
       // Only show warning after multiple failures and if not already shown
       if (consecutiveFailures >= 5 && !hasShownConnectionWarning) {
         hasShownConnectionWarning = true
-        const unsavedCount = get(pendingCoordinates).length
+        const unsavedCount = get(pendingCoordinatesStore).length
 
         toast.warning("Poor connectivity detected", {
           description: `${unsavedCount} trail points queued. Trail continues locally and will sync when connection improves.`,
@@ -446,53 +423,112 @@
   // ============================================
 
   async function syncPendingChanges() {
-    const coords = get(pendingCoordinates)
-    const closures = get(pendingClosures)
+    const coords = get(pendingCoordinatesStore)
+    const closures = get(pendingClosuresStore)
 
-    if (coords.length === 0 && closures.length === 0) return
+    if (coords.length === 0 && closures.length === 0) {
+      toast.info("No pending data to sync")
+      return
+    }
 
     console.log("🔄 Syncing pending changes:", {
       coordinates: coords.length,
       closures: closures.length,
     })
 
-    // Sync coordinates first
+    // ✅ CRITICAL: Sync coordinates FIRST and WAIT for completion
     if (coords.length > 0) {
-      try {
-        const result = await trailsApi.saveCoordinates(
-          selectedOperation.id,
-          $currentTrailStore?.id,
-          coords,
+      // Group coordinates by trail_id
+      const coordsByTrail = coords.reduce((acc, coord) => {
+        const trailId = coord.trail_id
+        if (!trailId) {
+          console.warn("⚠️ Coordinate missing trail_id:", coord)
+          return acc
+        }
+        if (!acc[trailId]) {
+          acc[trailId] = []
+        }
+        acc[trailId].push(coord)
+        return acc
+      }, {})
+
+      console.log("📍 Coordinates grouped by trail:", {
+        trailIds: Object.keys(coordsByTrail),
+        counts: Object.entries(coordsByTrail).map(([id, coords]) => ({
+          trailId: id,
+          count: coords.length,
+        })),
+      })
+
+      // Sync coordinates for each trail
+      for (const [trailId, trailCoords] of Object.entries(coordsByTrail)) {
+        console.log(
+          `📍 Syncing ${trailCoords.length} coordinates for trail ${trailId}`,
         )
 
-        if (result.error) {
-          throw new Error(result.message || "Failed to sync coordinates")
+        try {
+          const result = await trailsApi.saveCoordinates(
+            selectedOperation.id,
+            trailId,
+            trailCoords,
+          )
+
+          console.log("📍 saveCoordinates result:", result)
+
+          if (result.error) {
+            throw new Error(result.message || "Failed to sync coordinates")
+          }
+
+          // Remove synced coordinates from pending store
+          pendingCoordinatesStore.update((pending) =>
+            pending.filter((c) => c.trail_id !== trailId),
+          )
+
+          console.log(
+            `✅ Synced ${trailCoords.length} coordinates for trail ${trailId}`,
+          )
+
+          toast.success(`Synced ${trailCoords.length} trail points`, {
+            duration: 2000,
+          })
+        } catch (error) {
+          console.error(
+            `❌ Failed to sync coordinates for trail ${trailId}:`,
+            error,
+          )
+          toast.error(
+            `Failed to sync coordinates for trail ${trailId} - will retry`,
+          )
+          // Don't proceed to closures if coordinates failed
+          return
         }
-
-        pendingCoordinates.set([])
-        console.log("✅ Synced coordinates:", coords.length)
-
-        toast.success(`Synced ${coords.length} trail points`, {
-          duration: 2000,
-        })
-      } catch (error) {
-        console.error("Failed to sync coordinates:", error)
       }
     }
 
-    // Then sync closures
+    // ✅ Only sync closures AFTER coordinates are successfully synced
     if (closures.length > 0) {
+      console.log("🔒 Attempting to sync closures:", {
+        count: closures.length,
+        closuresSample: closures[0],
+      })
+
       for (const closure of closures) {
         try {
+          // 🔍 Add a small delay to ensure DB has processed the coordinate inserts
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
+          console.log("🔒 Closing trail:", {
+            trailId: closure.trailId,
+            pathDataLength: closure.pathData?.length,
+          })
+
           const result = await trailsApi.closeTrail(closure.trailData)
 
           if (result.error) {
             throw new Error(result.message || "Failed to sync trail closure")
           }
 
-          pendingClosures.update((list) =>
-            list.filter((c) => c.trailId !== closure.trailId),
-          )
+          pendingClosuresStore.remove(closure.trailId)
 
           console.log("✅ Synced trail closure:", closure.trailId)
 
@@ -517,7 +553,12 @@
             duration: 3000,
           })
         } catch (error) {
-          console.error("Failed to sync trail closure:", closure.trailId, error)
+          console.error(
+            "❌ Failed to sync trail closure:",
+            closure.trailId,
+            error,
+          )
+          toast.error(`Failed to sync trail ${closure.trailId}`)
         }
       }
     }
@@ -545,49 +586,60 @@
   }
 
   async function retryFailedCoordinates() {
-    const unsavedCoordinates = $unsavedCoordinatesStore
+    const pendingCoordinates = $pendingCoordinatesStore
 
-    if (unsavedCoordinates.length === 0) {
+    if (pendingCoordinates.length === 0) {
       return
     }
 
-    const coordinatesToRetry = [...unsavedCoordinates]
-
-    // Optimistically clear the store
-    unsavedCoordinatesStore.set([])
-
-    try {
-      const result = await trailsApi.saveCoordinates(
-        selectedOperation.id,
-        $currentTrailStore.id,
-        coordinatesToRetry.map((coord) => ({
-          coordinates: coord.coordinates,
-          timestamp: coord.timestamp,
-        })),
-      )
-
-      if (result.error) {
-        throw new Error(result.message || "Failed to retry coordinates")
+    // Group coordinates by trail_id
+    const coordsByTrail = pendingCoordinates.reduce((acc, coord) => {
+      const trailId = coord.trail_id
+      if (!trailId) {
+        console.warn("⚠️ Coordinate missing trail_id during retry:", coord)
+        return acc
       }
-
-      // Reset failure tracking
-      consecutiveFailures = 0
-      lastSuccessfulSync = Date.now()
-
-      // Only notify user if we had a warning shown and recovered a significant amount
-      if (hasShownConnectionWarning && coordinatesToRetry.length >= 10) {
-        hasShownConnectionWarning = false
-        toast.success(`Connection restored`, {
-          description: `Synced ${coordinatesToRetry.length} queued trail points`,
-          duration: 3000,
-        })
+      if (!acc[trailId]) {
+        acc[trailId] = []
       }
-    } catch (error) {
-      // Silently add back to unsaved coordinates
-      unsavedCoordinatesStore.update((coords) => [
-        ...coordinatesToRetry,
-        ...coords,
-      ])
+      acc[trailId].push(coord)
+      return acc
+    }, {})
+
+    // Retry coordinates for each trail
+    for (const [trailId, trailCoords] of Object.entries(coordsByTrail)) {
+      try {
+        const result = await trailsApi.saveCoordinates(
+          selectedOperation.id,
+          trailId,
+          trailCoords,
+        )
+
+        if (result.error) {
+          throw new Error(result.message || "Failed to retry coordinates")
+        }
+
+        // Remove synced coordinates from pending store
+        pendingCoordinatesStore.update((pending) =>
+          pending.filter((c) => c.trail_id !== trailId),
+        )
+
+        // Reset failure tracking
+        consecutiveFailures = 0
+        lastSuccessfulSync = Date.now()
+
+        // Only notify user if we had a warning shown and recovered a significant amount
+        if (hasShownConnectionWarning && trailCoords.length >= 10) {
+          hasShownConnectionWarning = false
+          toast.success(`Connection restored`, {
+            description: `Synced ${trailCoords.length} queued trail points`,
+            duration: 3000,
+          })
+        }
+      } catch (error) {
+        // Silently fail - coordinates stay in pending store
+        console.warn(`Failed to retry coordinates for trail ${trailId}:`, error)
+      }
     }
   }
 
