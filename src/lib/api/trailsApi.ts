@@ -952,7 +952,11 @@ export const trailsApi = {
                 .select();
 
             if (error) {
-                console.error("❌ Error saving coordinates:", error);
+                // Only log if it's NOT a network error
+                if (!error.message?.includes('Failed to fetch') &&
+                    !error.message?.includes('ERR_INTERNET_DISCONNECTED')) {
+                    console.error("❌ Error saving coordinates:", error);
+                }
                 throw new Error(`Failed to save coordinates: ${error.message}`);
             }
 
@@ -960,7 +964,12 @@ export const trailsApi = {
             return { coordinates: data };
 
         } catch (error) {
-            console.error("❌ Error in saveCoordinates:", error);
+            // Only log unexpected errors (not network failures)
+            if (!error.message?.includes('Failed to fetch') &&
+                !error.message?.includes('ERR_INTERNET_DISCONNECTED')) {
+                console.error("❌ Error in saveCoordinates:", error);
+            }
+
             return {
                 error: true,
                 message: error.message || "Failed to save coordinates"
