@@ -373,7 +373,6 @@
       }
     }
   }
-
   // ============================================
   // LIFECYCLE
   // ============================================
@@ -381,67 +380,143 @@
   let historicalTrailsUnsubscribe: (() => void) | null = null
 
   onMount(() => {
+    console.log("🏔️ HistoricalTrailManager mounted")
+
     loadHistoricalTrails()
 
     let previousTrails = $historicalTrailStore
     historicalTrailsUnsubscribe = historicalTrailStore.subscribe(
       (currentTrails) => {
+        console.log("🏔️ HistoricalTrailManager: Store changed", {
+          previousCount: previousTrails?.length,
+          currentCount: currentTrails?.length,
+          mapReady: map && map.isStyleLoaded(),
+        })
+
         if (!map || !map.isStyleLoaded()) {
+          console.log("  ⏸️ Map not ready, skipping")
           previousTrails = [...currentTrails]
           return
         }
 
         if (previousTrails && currentTrails) {
+          // Check for NEW trails
+          const newTrails = currentTrails.filter(
+            (currTrail) =>
+              !previousTrails.some(
+                (prevTrail) => prevTrail.id === currTrail.id,
+              ),
+          )
+
+          if (newTrails.length > 0) {
+            console.log(
+              "  ➕ NEW trails detected:",
+              newTrails.map((t) => ({
+                id: t.id,
+                hasPath: !!t.path,
+                pathType: t.path?.type,
+                coords: t.path?.coordinates?.length,
+                color: t.trail_color,
+                width: t.trail_width,
+              })),
+            )
+
+            newTrails.forEach((trail) => {
+              console.log(`  🎨 Calling addTrail() for ${trail.id}...`)
+              try {
+                const layerId = addTrail(trail)
+                console.log(
+                  `  ✅ addTrail() succeeded for ${trail.id}, layerId: ${layerId}`,
+                )
+
+                // Verify the layer was actually added to the map
+                setTimeout(() => {
+                  const layerExists = map.getLayer(layerId)
+                  const sourceExists = map.getSource(
+                    generateTrailIds(trail.id).sourceId,
+                  )
+                  console.log(`  🔍 Post-add verification for ${trail.id}:`, {
+                    layerExists: !!layerExists,
+                    sourceExists: !!sourceExists,
+                    layerId,
+                  })
+                }, 100)
+              } catch (error) {
+                console.error(`  ❌ addTrail() failed for ${trail.id}:`, error)
+              }
+            })
+          } else {
+            console.log("  ℹ️ No new trails to add")
+          }
+
+          // Check for DELETED trails
           const deletedTrails = previousTrails.filter(
             (prevTrail) =>
               !currentTrails.some((currTrail) => currTrail.id === prevTrail.id),
           )
 
-          deletedTrails.forEach((trail) => {
-            console.log("🗑️ Removing trail from map:", trail.id)
-            removeTrail(trail.id)
+          if (deletedTrails.length > 0) {
+            console.log(
+              "  🗑️ Trails to remove:",
+              deletedTrails.map((t) => t.id),
+            )
 
-            const animationSourceId = `animation-source-${trail.id}`
-            const animationLayerId = `animation-layer-${trail.id}`
-            const animationBorderSourceId = `animation-border-source-${trail.id}`
-            const animationBorderLayerId = `animation-border-layer-${trail.id}`
-            const markersSourceId = `markers-source-${trail.id}`
-            const markersLayerId = `markers-layer-${trail.id}`
-            const markersTextLayerId = `markers-text-layer-${trail.id}`
+            deletedTrails.forEach((trail) => {
+              console.log(`  🗑️ Removing trail from map: ${trail.id}`)
+              removeTrail(trail.id)
 
-            const layersToRemove = [
-              animationLayerId,
-              animationBorderLayerId,
-              markersLayerId,
-              markersTextLayerId,
-            ]
+              const animationSourceId = `animation-source-${trail.id}`
+              const animationLayerId = `animation-layer-${trail.id}`
+              const animationBorderSourceId = `animation-border-source-${trail.id}`
+              const animationBorderLayerId = `animation-border-layer-${trail.id}`
+              const markersSourceId = `markers-source-${trail.id}`
+              const markersLayerId = `markers-layer-${trail.id}`
+              const markersTextLayerId = `markers-text-layer-${trail.id}`
 
-            layersToRemove.forEach((layerId) => {
-              if (map.getLayer(layerId)) {
-                try {
-                  map.removeLayer(layerId)
-                } catch (error) {
-                  console.warn(`Error removing layer ${layerId}:`, error)
+              const layersToRemove = [
+                animationLayerId,
+                animationBorderLayerId,
+                markersLayerId,
+                markersTextLayerId,
+              ]
+
+              layersToRemove.forEach((layerId) => {
+                if (map.getLayer(layerId)) {
+                  try {
+                    map.removeLayer(layerId)
+                    console.log(`    ✓ Removed layer: ${layerId}`)
+                  } catch (error) {
+                    console.warn(
+                      `    ⚠️ Error removing layer ${layerId}:`,
+                      error,
+                    )
+                  }
                 }
-              }
-            })
+              })
 
-            const sourcesToRemove = [
-              animationSourceId,
-              animationBorderSourceId,
-              markersSourceId,
-            ]
+              const sourcesToRemove = [
+                animationSourceId,
+                animationBorderSourceId,
+                markersSourceId,
+              ]
 
-            sourcesToRemove.forEach((sourceId) => {
-              if (map.getSource(sourceId)) {
-                try {
-                  map.removeSource(sourceId)
-                } catch (error) {
-                  console.warn(`Error removing source ${sourceId}:`, error)
+              sourcesToRemove.forEach((sourceId) => {
+                if (map.getSource(sourceId)) {
+                  try {
+                    map.removeSource(sourceId)
+                    console.log(`    ✓ Removed source: ${sourceId}`)
+                  } catch (error) {
+                    console.warn(
+                      `    ⚠️ Error removing source ${sourceId}:`,
+                      error,
+                    )
+                  }
                 }
-              }
+              })
             })
-          })
+          } else {
+            console.log("  ℹ️ No trails to remove")
+          }
         }
         previousTrails = [...currentTrails]
       },
@@ -449,6 +524,7 @@
   })
 
   onDestroy(() => {
+    console.log("🏔️ HistoricalTrailManager destroyed")
     if (historicalTrailsUnsubscribe) {
       historicalTrailsUnsubscribe()
     }

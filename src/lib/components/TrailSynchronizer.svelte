@@ -301,6 +301,14 @@
         path: lineStringPath,
       }
 
+      console.log("🔍 Creating historical trail:", {
+        resultTrail: result.trail,
+        historicalTrail,
+        hasPath: !!historicalTrail.path,
+        pathType: historicalTrail.path?.type,
+        pathCoords: historicalTrail.path?.coordinates?.length,
+      })
+
       historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
       // Clear everything
@@ -713,55 +721,162 @@
       })
     }
 
+    // In TrailSynchronizer.svelte, modify handleTrailUpdate:
+
     function handleTrailUpdate(payload) {
       if (!payload.new) return
       const trailData = payload.new
 
-      if (trailData.vehicle_id === currentVehicleId) return
+      console.log("📥 Trail UPDATE received:", {
+        id: trailData.id,
+        vehicle_id: trailData.vehicle_id,
+        isCurrentUser: trailData.vehicle_id === currentVehicleId,
+        end_time: trailData.end_time
+          ? new Date(trailData.end_time).toISOString()
+          : null,
+        has_path: !!trailData.path,
+      })
 
-      if (!$otherActiveTrailStore?.length) {
-        otherActiveTrailStore.set([])
+      if (trailData.vehicle_id === currentVehicleId) {
+        console.log("  ↪️ Skipping (own trail)")
+        return
       }
 
-      otherActiveTrailStore.update((trails = []) => {
-        const existingTrailIndex = trails.findIndex(
-          (t) => t.id === trailData.id,
-        )
-        if (existingTrailIndex === -1) {
-          return trails
-        }
+      if (!trailData.end_time || !trailData.path) {
+        console.log(`  ⏳ Trail ${trailData.id} not ready`)
+        return
+      }
 
-        const existingTrail = trails[existingTrailIndex]
+      console.log(`  🔄 Fetching GeoJSON for trail ${trailData.id}...`)
 
-        const lineStringPath = {
-          type: "LineString",
-          coordinates: existingTrail.path.map((point) => [
-            point.coordinates.longitude,
-            point.coordinates.latitude,
-          ]),
-        }
+      fetchTrailAsGeoJSON(trailData.id)
+        .then((geoJsonPath) => {
+          console.log("  📊 Fetched GeoJSON result:", {
+            id: trailData.id,
+            pathExists: !!geoJsonPath,
+            type: geoJsonPath?.type,
+            coordsCount: geoJsonPath?.coordinates?.length,
+          })
 
-        const historicalTrail = {
-          id: trailData.id,
-          vehicle_id: trailData.vehicle_id,
-          operation_id: trailData.operation_id,
-          start_time: trailData.start_time,
-          end_time: trailData.end_time,
-          trail_color: trailData.trail_color,
-          trail_width: trailData.trail_width,
-          path: lineStringPath,
-          detailed_path: trailData.detailed_path,
-        }
+          if (
+            !geoJsonPath ||
+            !geoJsonPath.coordinates ||
+            geoJsonPath.coordinates.length === 0
+          ) {
+            console.error(`  ❌ Invalid path data for trail ${trailData.id}`)
+            return
+          }
 
-        historicalTrailStore.update((historicalTrails) => [
-          ...historicalTrails,
-          historicalTrail,
-        ])
+          const historicalTrail = {
+            id: trailData.id,
+            vehicle_id: trailData.vehicle_id,
+            operation_id: trailData.operation_id,
+            start_time: trailData.start_time,
+            end_time: trailData.end_time,
+            trail_color: trailData.trail_color,
+            trail_width: trailData.trail_width,
+            path: geoJsonPath,
+            detailed_path: trailData.detailed_path,
+            trail_distance: trailData.trail_distance,
+            trail_hectares: trailData.trail_hectares,
+            trail_hectares_overlap: trailData.trail_hectares_overlap,
+            trail_percentage_overlap: trailData.trail_percentage_overlap,
+            metrics_calculated: trailData.metrics_calculated,
+          }
 
-        return trails.filter((trail) => trail.id !== trailData.id)
-      })
+          console.log("  📦 Historical trail object created:", {
+            id: historicalTrail.id,
+            hasPath: !!historicalTrail.path,
+            pathType: historicalTrail.path?.type,
+            pathCoords: historicalTrail.path?.coordinates?.length,
+            color: historicalTrail.trail_color,
+            width: historicalTrail.trail_width,
+          })
+
+          // BEFORE adding to store
+          const beforeCount = $historicalTrailStore.length
+          const beforeIds = $historicalTrailStore.map((t) => t.id)
+
+          historicalTrailStore.update((historicalTrails) => {
+            const newTrails = [...historicalTrails, historicalTrail]
+            console.log("  🗂️ historicalTrailStore.update called:", {
+              beforeCount: historicalTrails.length,
+              afterCount: newTrails.length,
+              newTrailId: historicalTrail.id,
+            })
+            return newTrails
+          })
+
+          // AFTER adding to store
+          setTimeout(() => {
+            const afterCount = $historicalTrailStore.length
+            const afterIds = $historicalTrailStore.map((t) => t.id)
+            const wasAdded = afterIds.includes(trailData.id)
+
+            console.log("  ✅ Store update completed:", {
+              beforeCount,
+              afterCount,
+              wasAdded,
+              newTrailId: trailData.id,
+              storeIds: afterIds,
+            })
+          }, 100)
+
+          // Remove from active
+          otherActiveTrailStore.update((trails = []) => {
+            const beforeActive = trails.length
+            const updatedTrails = trails.filter(
+              (trail) => trail.id !== trailData.id,
+            )
+            console.log("  🗑️ Removed from active trails:", {
+              beforeCount: beforeActive,
+              afterCount: updatedTrails.length,
+              removedId: trailData.id,
+            })
+            return updatedTrails
+          })
+        })
+        .catch((error) => {
+          console.error(
+            `  ❌ Failed to fetch GeoJSON for trail ${trailData.id}:`,
+            error,
+          )
+        })
     }
+    async function fetchTrailAsGeoJSON(trailId) {
+      try {
+        // Fetch the SIMPLIFIED path (stored as GeoJSON) using the RPC function
+        const { data: pathData, error: pathError } = await supabase.rpc(
+          "get_trail_path_as_geojson",
+          { trail_id_param: trailId },
+        )
 
+        if (pathError) {
+          console.error(
+            `Error fetching GeoJSON path for trail ${trailId}:`,
+            pathError,
+          )
+          return null
+        }
+
+        if (!pathData) {
+          console.error(`No path data returned for trail ${trailId}`)
+          return null
+        }
+
+        console.log(
+          `  ✅ Fetched path with ${pathData.coordinates?.length || 0} coordinates`,
+        )
+
+        return pathData
+      } catch (error) {
+        console.error(
+          `Error in fetchTrailAsGeoJSON for trail ${trailId}:`,
+          error,
+        )
+        return null
+      }
+    }
     function handleTrailDelete(payload) {
       if (!payload.old) return
 
