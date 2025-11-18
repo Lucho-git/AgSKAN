@@ -37,8 +37,8 @@ const config: CapacitorConfig = {
         }
     },
     android: {
-        versionName: "2.40",
-        versionCode: 240,
+        versionName: "2.42",
+        versionCode: 242,
     },
     ios: {
         limitsNavigationsToAppBoundDomains: false,

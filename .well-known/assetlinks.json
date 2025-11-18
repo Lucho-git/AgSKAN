@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.skanfarming",
+      "sha256_cert_fingerprints": [
+        "61:35:BA:29:A8:29:C3:0F:F1:39:DE:91:71:8B:D2:9C:47:FE:EC:35:E9:90:92:A1:96:77:AC:EC:D7:D6:9C:1F"
+      ]
+    }
+  }
+]
