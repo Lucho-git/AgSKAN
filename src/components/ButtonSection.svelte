@@ -619,8 +619,8 @@
             </div>
           {/if}
 
-          <!-- Compact Stats Grid -->
-          <div class="compact-stats">
+          <!-- Compact Stats Grid - ALWAYS 3 COLUMNS -->
+          <div class="compact-stats-row">
             <div class="stat-compact">
               <Database size={14} class="text-blue-400" />
               <div class="stat-compact-content">
@@ -667,12 +667,6 @@
               <Ruler size={14} class="text-white/60" />
               <span class="property-label">Swath</span>
               <span class="property-value">{trailSwath}</span>
-            </div>
-
-            <div class="property-item">
-              <Ruler size={14} class="text-white/60" />
-              <span class="property-label">Width</span>
-              <span class="property-value">{trailWidth}px</span>
             </div>
           </div>
 
@@ -974,7 +968,7 @@
     overflow: visible !important;
   }
 
-  /* Modal Overlay */
+  /* Modal Overlay - INCREASED Z-INDEX */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -986,7 +980,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9999; /* Increased from 1000 */
     animation: fadeIn 0.2s ease-out;
   }
 
@@ -1128,8 +1122,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Compact Stats Grid */
-  .compact-stats {
+  /* Compact Stats Row - ALWAYS 3 COLUMNS IN A ROW */
+  .compact-stats-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
@@ -1341,8 +1335,15 @@
       max-width: 380px;
     }
 
-    .compact-stats {
-      grid-template-columns: 1fr 1fr;
+    /* Stats row stays as 3 columns even on mobile */
+    .compact-stats-row {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .stat-compact {
+      padding: 8px 6px;
+      gap: 6px;
     }
 
     .stat-compact-value {

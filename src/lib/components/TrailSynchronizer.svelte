@@ -1095,6 +1095,8 @@
             const userList = activeUsers.join(", ")
             return `Active trails from: ${userList}`
           } else {
+            console.log("Unknown vehilces", activeUsers)
+
             return `Found ${activeTrails.length} active ${
               activeTrails.length === 1 ? "trail" : "trails"
             } from unknown vehicles`
