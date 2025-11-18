@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from "svelte"
-  import { confirmedMarkersStore, syncStore } from "../stores/mapStore"
+  import { confirmedMarkersStore, syncStore } from "$lib/stores/markerStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"

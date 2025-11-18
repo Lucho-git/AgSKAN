@@ -1,7 +1,7 @@
 <!-- src/components/ButtonSection.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { mapStore, locationMarkerStore } from "../stores/mapStore"
+  import { mapStore, locationMarkerStore } from "$lib/stores/markerStore"
   import {
     userVehicleStore,
     userVehicleTrailing,

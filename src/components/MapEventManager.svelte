@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
-  import { confirmedMarkersStore } from "../stores/mapStore"
+  import { confirmedMarkersStore } from "$lib/stores/markerStore"
 
   export let map
   export let mapLoaded = false

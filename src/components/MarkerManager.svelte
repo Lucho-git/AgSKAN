@@ -3,7 +3,7 @@
     selectedMarkerStore,
     confirmedMarkersStore,
     locationMarkerStore,
-  } from "../stores/mapStore"
+  } from "$lib/stores/markerStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"

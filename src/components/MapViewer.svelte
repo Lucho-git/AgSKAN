@@ -6,7 +6,7 @@
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 
-  import { mapStore } from "../stores/mapStore"
+  import { mapStore, selectedMarkerStore } from "$lib/stores/markerStore"
   import {
     fieldBoundaryStore,
     markerBoundaryStore,
@@ -17,7 +17,6 @@
 
   // Import lucide icons for the toolbox
   import { Menu } from "lucide-svelte"
-  import { selectedMarkerStore } from "../stores/mapStore"
 
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"

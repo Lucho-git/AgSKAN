@@ -1,4 +1,4 @@
-// @src\stores\mapStore.js
+//$lib/stores/markerStore.js
 
 //@ts-nocheck
 import { writable } from "svelte/store"
