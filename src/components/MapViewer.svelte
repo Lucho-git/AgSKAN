@@ -22,6 +22,7 @@
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./MarkerManager.svelte"
   import ButtonSection from "./ButtonSection.svelte"
+  import TrailModals from "./TrailModals.svelte"
   import MapStateSaver from "./MapStateSaver.svelte"
   import VehicleTracker from "./VehicleTracker.svelte"
   import VehicleStateSynchronizer from "./VehicleStateSynchronizer.svelte"
@@ -40,6 +41,15 @@
   import SatelliteManager from "$lib/components/SatelliteManager.svelte"
 
   import { db } from "./db.js"
+  import { commands } from "$lib/stores/commandStore"
+  import {
+    userVehicleTrailing,
+    userVehicleStore,
+  } from "$lib/stores/vehicleStore"
+  import {
+    pendingCoordinatesStore,
+    pendingClosuresStore,
+  } from "$lib/stores/currentTrailStore"
 
   export let handleBackToDashboard
   export let initialLocation
@@ -71,6 +81,10 @@
   // Pending sync data for ButtonSection
   let pendingCoordinates = []
   let pendingClosures = []
+
+  // Trail modal state (managed at MapViewer level)
+  let showTrailInfoModal = false
+  let showExitModal = false
 
   // Layer ordering registry with trail support
   const LAYER_ORDER = {
@@ -282,6 +296,47 @@
     const { coordinates, closures } = event.detail
     pendingCoordinates = coordinates || []
     pendingClosures = closures || []
+  }
+
+  // Handle trail info modal request from ButtonSection
+  function handleOpenTrailInfo() {
+    showTrailInfoModal = true
+  }
+
+  // Handle exit request from ButtonSection
+  function handleRequestExit() {
+    const hasUnsyncedChanges =
+      $pendingCoordinatesStore.length > 0 || $pendingClosuresStore.length > 0
+
+    if ($userVehicleTrailing || hasUnsyncedChanges) {
+      showExitModal = true
+    } else {
+      handleBackToDashboard()
+    }
+  }
+
+  // Handle confirmed exit from TrailModals
+  function handleConfirmExit() {
+    showExitModal = false
+
+    if ($userVehicleTrailing) {
+      commands.trail.stop()
+      setTimeout(() => {
+        handleBackToDashboard()
+      }, 500)
+    } else {
+      handleBackToDashboard()
+    }
+  }
+
+  // Handle cancel exit from TrailModals
+  function handleCancelExit() {
+    showExitModal = false
+  }
+
+  // Handle close trail info modal from TrailModals
+  function handleCloseTrailInfo() {
+    showTrailInfoModal = false
   }
 
   onMount(async () => {
@@ -518,11 +573,12 @@
       </button>
     </div>
 
-    <!-- ButtonSection with pending data - NO TRAIL EVENTS -->
+    <!-- ButtonSection with event dispatching -->
     <ButtonSection
       {pendingCoordinates}
       {pendingClosures}
-      on:backToDashboard={handleBackToDashboard}
+      on:openTrailInfo={handleOpenTrailInfo}
+      on:requestExit={handleRequestExit}
       on:locateHome={handleLocateHome}
     />
 
@@ -551,7 +607,7 @@
 
     <TrailView bind:this={trailHighlighter} {map} />
 
-    <!-- TrailSynchronizer with pending data event - HANDLES COMMANDS INTERNALLY -->
+    <!-- TrailSynchronizer with pending data event -->
     {#if selectedOperation}
       <TrailSynchronizer
         {selectedOperation}
@@ -579,6 +635,15 @@
   on:close={closeToolbox}
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
+/>
+
+<!-- Trail Modals (rendered at MapViewer level - no constraints!) -->
+<TrailModals
+  bind:showTrailInfo={showTrailInfoModal}
+  bind:showExitModal
+  on:confirmExit={handleConfirmExit}
+  on:cancelExit={handleCancelExit}
+  on:closeTrailInfo={handleCloseTrailInfo}
 />
 
 <style>
