@@ -47,6 +47,7 @@
   let userMarkerData = null
   let userInitialsMarker = null
   let lastRecordedTime = 0
+  let lastBroadcastTime = 0
   let otherVehicleMarkers = []
   let currentSpeed = 0
   let isMobileApp = false
@@ -74,6 +75,15 @@
   const SPEED_SMOOTHING_ALPHA = 0.6
 
   let previousVisibility = { vehicles: true, vehicleLabels: true }
+
+  const LOCATION_TRACKING_INTERVAL_MIN = 30
+  const MINIMUM_BROADCAST_INTERVAL = 15000 // 15 seconds
+
+  let userVehicleUnsubscribe
+  let unsubscribeOtherVehiclesDataChanges
+  let lastClientCoordinates = null
+  let lastClientHeading = null
+  let previousVehicleMarker = null
 
   $: {
     if (map && $layerVisibilityStore) {
@@ -172,14 +182,6 @@
       }
     }
   }
-
-  const LOCATION_TRACKING_INTERVAL_MIN = 30
-
-  let userVehicleUnsubscribe
-  let unsubscribeOtherVehiclesDataChanges
-  let lastClientCoordinates = null
-  let lastClientHeading = null
-  let previousVehicleMarker = null
 
   export function handleVehicleSelection(vehicleId) {
     console.log(
@@ -724,10 +726,6 @@
         }
 
         localStorage.removeItem("webBackgroundStartTime")
-
-        // toast.info("Tab returned to foreground", {
-        //   description: `Background duration: ${durationText}`,
-        // })
       }
     }
   }
@@ -1307,19 +1305,27 @@
       const { coordinates, speed } = vehicleData
       const { latitude, longitude } = coordinates
 
-      if ($userVehicleTrailing) {
-        coordinateBufferStore.set({
-          coordinates: { latitude, longitude },
-          timestamp: currentTime,
-        })
-      }
-
-      if (
+      // ✅ Check if coordinates or heading have changed
+      const coordinatesChanged =
         !lastClientCoordinates ||
         lastClientCoordinates.latitude !== latitude ||
-        lastClientCoordinates.longitude !== longitude ||
-        lastClientHeading !== updatedHeading
-      ) {
+        lastClientCoordinates.longitude !== longitude
+
+      const headingChanged = lastClientHeading !== updatedHeading
+
+      // ✅ Check if 15 seconds have elapsed since last broadcast
+      const timeElapsed =
+        currentTime - lastBroadcastTime >= MINIMUM_BROADCAST_INTERVAL
+
+      // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
+      if (coordinatesChanged || headingChanged || timeElapsed) {
+        if ($userVehicleTrailing) {
+          coordinateBufferStore.set({
+            coordinates: { latitude, longitude },
+            timestamp: currentTime,
+          })
+        }
+
         userVehicleStore.update((vehicle) => {
           return {
             ...vehicle,
@@ -1346,9 +1352,9 @@
 
         lastClientCoordinates = { latitude, longitude }
         lastClientHeading = updatedHeading
+        lastRecordedTime = currentTime
+        lastBroadcastTime = currentTime
       }
-
-      lastRecordedTime = currentTime
     }
   }
 
@@ -1381,8 +1387,6 @@
 
   export { selectedVehicleId }
 </script>
-
-svelte
 
 <VehicleControls
   {map}
