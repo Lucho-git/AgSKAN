@@ -1,7 +1,12 @@
 <!-- src/components/ButtonSection.svelte -->
 <script>
   import { createEventDispatcher } from "svelte"
-  import { markerStore, locationMarkerStore } from "$lib/stores/markerStore"
+  import {
+    markerStore,
+    locationMarkerStore,
+    pendingMarkerChangesStore,
+    pendingMarkerDeletionsStore,
+  } from "$lib/stores/markerStore"
   import {
     userVehicleStore,
     userVehicleTrailing,
@@ -58,9 +63,16 @@
     }
   })()
 
-  // Computed property to check if there are unsynced changes
-  $: hasUnsyncedChanges =
+  // Computed property to check if there are unsynced TRAIL changes
+  $: hasUnsyncedTrailChanges =
     $pendingCoordinatesStore.length > 0 || $pendingClosuresStore.length > 0
+
+  // Computed property to check if there are unsynced MARKER changes
+  $: hasUnsyncedMarkerChanges =
+    $pendingMarkerChangesStore.size > 0 || $pendingMarkerDeletionsStore.size > 0
+
+  // Combined unsynced changes check
+  $: hasUnsyncedChanges = hasUnsyncedTrailChanges || hasUnsyncedMarkerChanges
 
   // Get total points in current trail
   $: totalTrailPoints = $currentTrailStore ? $currentTrailStore.path.length : 0

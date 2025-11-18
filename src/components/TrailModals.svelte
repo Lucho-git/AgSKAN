@@ -7,6 +7,10 @@
     pendingClosuresStore,
   } from "$lib/stores/currentTrailStore"
   import {
+    pendingMarkerChangesStore,
+    pendingMarkerDeletionsStore,
+  } from "$lib/stores/markerStore"
+  import {
     userVehicleStore,
     userVehicleTrailing,
   } from "$lib/stores/vehicleStore"
@@ -47,9 +51,16 @@
     }
   })
 
-  // Computed property to check if there are unsynced changes
-  $: hasUnsyncedChanges =
+  // Computed property to check if there are unsynced TRAIL changes
+  $: hasUnsyncedTrailChanges =
     $pendingCoordinatesStore.length > 0 || $pendingClosuresStore.length > 0
+
+  // Computed property to check if there are unsynced MARKER changes
+  $: hasUnsyncedMarkerChanges =
+    $pendingMarkerChangesStore.size > 0 || $pendingMarkerDeletionsStore.size > 0
+
+  // Combined unsynced changes check
+  $: hasUnsyncedChanges = hasUnsyncedTrailChanges || hasUnsyncedMarkerChanges
 
   // Get total points in current trail
   $: totalTrailPoints = $currentTrailStore ? $currentTrailStore.path.length : 0
@@ -59,6 +70,11 @@
 
   // Get number of synced points (total minus pending)
   $: syncedPoints = totalTrailPoints - unsyncedPoints
+
+  // Get unsynced marker counts
+  $: unsyncedMarkerChanges = $pendingMarkerChangesStore.size
+  $: unsyncedMarkerDeletions = $pendingMarkerDeletionsStore.size
+  $: totalUnsyncedMarkers = unsyncedMarkerChanges + unsyncedMarkerDeletions
 
   // Calculate trail duration with live updates
   $: trailDuration = (() => {
@@ -266,10 +282,12 @@
             </div>
           </div>
 
-          <div class="stat-compact {hasUnsyncedChanges ? 'warning' : ''}">
+          <div class="stat-compact {hasUnsyncedTrailChanges ? 'warning' : ''}">
             <WifiOff
               size={14}
-              class={hasUnsyncedChanges ? "text-amber-400" : "text-white/40"}
+              class={hasUnsyncedTrailChanges
+                ? "text-amber-400"
+                : "text-white/40"}
             />
             <div class="stat-compact-content">
               <span class="stat-compact-label">Queue</span>
@@ -308,7 +326,7 @@
         {/if}
 
         <!-- Warning Banner for Unsynced Data -->
-        {#if hasUnsyncedChanges}
+        {#if hasUnsyncedTrailChanges}
           <div class="warning-banner">
             <AlertTriangle size={16} class="flex-shrink-0 text-amber-400" />
             <div class="text-xs">
@@ -386,23 +404,46 @@
             </div>
           {:else if hasUnsyncedChanges}
             <div>
-              <p class="mb-2 font-semibold text-white/90">
+              <p class="mb-3 font-semibold text-white/90">
                 You have unsynced changes.
               </p>
-              <p class="mb-2 text-sm text-white/70">
-                You have {$pendingCoordinatesStore.length} trail point{$pendingCoordinatesStore.length !==
-                1
-                  ? "s"
-                  : ""}
-                {#if $pendingClosuresStore.length > 0}
-                  and {$pendingClosuresStore.length} trail closure{$pendingClosuresStore.length !==
+
+              <!-- Show trail unsynced data -->
+              {#if hasUnsyncedTrailChanges}
+                <p class="mb-2 text-sm text-white/70">
+                  <strong>Trail data:</strong>
+                  {$pendingCoordinatesStore.length} point{$pendingCoordinatesStore.length !==
                   1
                     ? "s"
                     : ""}
-                {/if}
-                waiting to sync.
-              </p>
-              <p class="text-sm text-white/70">
+                  {#if $pendingClosuresStore.length > 0}
+                    and {$pendingClosuresStore.length} closure{$pendingClosuresStore.length !==
+                    1
+                      ? "s"
+                      : ""}
+                  {/if}
+                  waiting to sync.
+                </p>
+              {/if}
+
+              <!-- Show marker unsynced data -->
+              {#if hasUnsyncedMarkerChanges}
+                <p class="mb-2 text-sm text-white/70">
+                  <strong>Marker data:</strong>
+                  {unsyncedMarkerChanges} change{unsyncedMarkerChanges !== 1
+                    ? "s"
+                    : ""}
+                  {#if unsyncedMarkerDeletions > 0}
+                    and {unsyncedMarkerDeletions} deletion{unsyncedMarkerDeletions !==
+                    1
+                      ? "s"
+                      : ""}
+                  {/if}
+                  waiting to sync.
+                </p>
+              {/if}
+
+              <p class="mt-3 text-sm font-medium text-white/80">
                 Exiting now may result in data loss. Please wait for sync to
                 complete.
               </p>

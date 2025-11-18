@@ -429,10 +429,17 @@
   async function syncPendingChanges() {
     if (pendingChanges.size === 0 && pendingDeletions.size === 0) return
 
+    // ✅ Capture counts BEFORE syncing
+    const changesCount = pendingChanges.size
+    const deletionsCount = pendingDeletions.size
+    const totalCount = changesCount + deletionsCount
+
     try {
       await syncOnlyChangedMarkers()
+
+      // ✅ Use the captured counts
       toast.success(
-        `Synced ${pendingChanges.size + pendingDeletions.size} offline changes`,
+        `Synced ${totalCount} offline marker${totalCount !== 1 ? "s" : ""}`,
       )
     } catch (error) {
       console.error("❌ Failed to sync pending changes:", error)

@@ -6,7 +6,12 @@
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 
-  import { markerStore, selectedMarkerStore } from "$lib/stores/markerStore"
+  import {
+    markerStore,
+    selectedMarkerStore,
+    pendingMarkerChangesStore,
+    pendingMarkerDeletionsStore,
+  } from "$lib/stores/markerStore"
   import {
     fieldBoundaryStore,
     markerBoundaryStore,
@@ -304,10 +309,19 @@
 
   // Handle exit request from ButtonSection
   function handleRequestExit() {
-    const hasUnsyncedChanges =
+    const hasUnsyncedTrailChanges =
       $pendingCoordinatesStore.length > 0 || $pendingClosuresStore.length > 0
 
-    if ($userVehicleTrailing || hasUnsyncedChanges) {
+    const hasUnsyncedMarkerChanges =
+      $pendingMarkerChangesStore.size > 0 ||
+      $pendingMarkerDeletionsStore.size > 0
+
+    // Show modal if trailing OR any unsynced changes exist
+    if (
+      $userVehicleTrailing ||
+      hasUnsyncedTrailChanges ||
+      hasUnsyncedMarkerChanges
+    ) {
       showExitModal = true
     } else {
       handleBackToDashboard()
