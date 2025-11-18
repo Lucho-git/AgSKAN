@@ -3,7 +3,7 @@
 //@ts-nocheck
 import { writable } from "svelte/store"
 
-export const mapStore = writable(null)
+export const markerStore = writable(null)
 
 export const selectedMarkerStore = writable(null)
 
@@ -95,3 +95,7 @@ function createLocationMarkerStore() {
 }
 
 export const locationMarkerStore = createLocationMarkerStore()
+
+// 🆕 Pending marker changes stores for tracking unsynced data
+export const pendingMarkerChangesStore = writable(new Set())
+export const pendingMarkerDeletionsStore = writable(new Set())

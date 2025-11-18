@@ -1,6 +1,11 @@
 <script>
   import { onMount, onDestroy } from "svelte"
-  import { confirmedMarkersStore, syncStore } from "$lib/stores/markerStore"
+  import {
+    confirmedMarkersStore,
+    syncStore,
+    pendingMarkerChangesStore,
+    pendingMarkerDeletionsStore,
+  } from "$lib/stores/markerStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -268,6 +273,10 @@
         }
       }
     }
+
+    // 🆕 Update stores for external components to consume
+    pendingMarkerChangesStore.set(new Set(pendingChanges))
+    pendingMarkerDeletionsStore.set(new Set(pendingDeletions))
   }
 
   function updateLastKnownState(markers) {
@@ -282,6 +291,10 @@
     })
     pendingChanges.clear()
     pendingDeletions.clear()
+
+    // 🆕 Clear the stores after successful sync
+    pendingMarkerChangesStore.set(new Set())
+    pendingMarkerDeletionsStore.set(new Set())
 
     // Mark as initialized after first successful load
     if (!isInitialized) {

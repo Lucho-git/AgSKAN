@@ -6,7 +6,7 @@
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 
-  import { mapStore, selectedMarkerStore } from "$lib/stores/markerStore"
+  import { markerStore, selectedMarkerStore } from "$lib/stores/markerStore"
   import {
     fieldBoundaryStore,
     markerBoundaryStore,
@@ -359,7 +359,7 @@
       map.setMaxPitch(0)
       map.setMinPitch(0)
 
-      mapStore.set(map)
+      markerStore.set(map)
       mapInitialized = true
 
       const setupMap = () => {
@@ -519,7 +519,7 @@
       map.off()
       map.remove()
       map = null
-      mapStore.set(null)
+      markerStore.set(null)
     }
   })
 
