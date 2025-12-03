@@ -11,7 +11,7 @@
     History,
     Activity,
     Navigation,
-    MessageSquare, // ← NEW ICON for marker labels
+    MessageSquare,
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -21,14 +21,12 @@
       id: "markers",
       name: "Markers",
       icon: MapPin,
-      description: "Show/hide map markers",
       color: "#60a5fa",
     },
     {
       id: "markerLabels",
       name: "Marker Labels",
       icon: MessageSquare,
-      description: "Show/hide note labels above markers",
       color: "#ffee8c",
       indent: true,
     },
@@ -36,7 +34,6 @@
       id: "markerDrawings",
       name: "Marker Drawings",
       icon: Pen,
-      description: "Show/hide marker annotations",
       color: "#60a5fa",
       indent: true,
     },
@@ -44,14 +41,12 @@
       id: "fields",
       name: "Fields",
       icon: Square,
-      description: "Show/hide field boundaries",
       color: "#34d399",
     },
     {
       id: "fieldLabels",
       name: "Field Labels",
       icon: Square,
-      description: "Show/hide field names",
       color: "#34d399",
       indent: true,
     },
@@ -59,14 +54,12 @@
       id: "vehicles",
       name: "Vehicles",
       icon: Truck,
-      description: "Show/hide vehicle icons",
       color: "#f97316",
     },
     {
       id: "vehicleLabels",
       name: "Vehicle Labels",
       icon: Truck,
-      description: "Show/hide initials above vehicles",
       color: "#f97316",
       indent: true,
     },
@@ -74,21 +67,18 @@
       id: "historicalTrails",
       name: "Historical Trails",
       icon: History,
-      description: "Show/hide completed trail paths",
       color: "#8b5cf6",
     },
     {
       id: "activeTrails",
       name: "Active Trails",
       icon: Activity,
-      description: "Show/hide currently recording trails",
       color: "#ec4899",
     },
     {
       id: "trailArrows",
       name: "Trail Arrows",
       icon: Navigation,
-      description: "Show/hide direction arrows on trails",
       color: "#a78bfa",
       indent: true,
     },
@@ -123,28 +113,31 @@
   <!-- Layer List -->
   <div class="layer-list">
     {#each layers as layer}
-      <button
-        class="layer-item"
-        class:indent={layer.indent}
-        class:active={$layerVisibilityStore[layer.id]}
-        on:click={() => toggleLayer(layer.id)}
-      >
-        <div class="layer-left">
-          <div class="layer-icon" style="color: {layer.color}">
-            <svelte:component this={layer.icon} size={20} />
+      <div class="layer-row" class:indent={layer.indent}>
+        <button
+          class="layer-item"
+          class:active={$layerVisibilityStore[layer.id]}
+          on:click={() => toggleLayer(layer.id)}
+        >
+          <div class="layer-left">
+            <div class="layer-icon" style="color: {layer.color}">
+              <svelte:component this={layer.icon} size={18} />
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">{layer.name}</div>
+            </div>
           </div>
-          <div class="layer-info">
-            <div class="layer-name">{layer.name}</div>
-            <div class="layer-description">{layer.description}</div>
-          </div>
-        </div>
 
-        <div class="layer-toggle">
-          <div class="toggle-switch" class:on={$layerVisibilityStore[layer.id]}>
-            <div class="toggle-slider"></div>
+          <div class="layer-toggle">
+            <div
+              class="toggle-switch"
+              class:on={$layerVisibilityStore[layer.id]}
+            >
+              <div class="toggle-slider"></div>
+            </div>
           </div>
-        </div>
-      </button>
+        </button>
+      </div>
     {/each}
   </div>
 
@@ -154,23 +147,26 @@
       <Layers size={16} />
     </div>
     <div class="info-text">
-      Toggle layers on/off to customize your map view. Changes are instant.
+      Toggle layers on/off to customize your map view.
     </div>
   </div>
 </div>
 
 <style>
   .layer-controls {
-    padding: 16px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
+    box-sizing: border-box;
+    width: 100%;
+    overflow: hidden;
   }
 
   /* Quick Actions */
   .quick-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
   }
 
   .quick-action-btn {
@@ -178,8 +174,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 6px;
+    padding: 8px 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -200,26 +196,37 @@
   .layer-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .layer-row {
+    display: flex;
+    width: 100%;
+  }
+
+  .layer-row.indent {
+    padding-left: 20px;
   }
 
   .layer-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 12px;
+    padding: 10px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
-    width: 100%;
+    flex: 1;
     text-align: left;
+    box-sizing: border-box;
+    min-width: 0;
   }
 
-  .layer-item.indent {
-    margin-left: 20px;
+  .layer-row.indent .layer-item {
     background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.06);
   }
 
   .layer-item:hover {
@@ -234,18 +241,19 @@
   .layer-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex: 1;
+    min-width: 0;
   }
 
   .layer-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    border-radius: 6px;
     flex-shrink: 0;
   }
 
@@ -258,27 +266,24 @@
     font-size: 13px;
     font-weight: 500;
     color: white;
-    margin-bottom: 2px;
-  }
-
-  .layer-description {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
-    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Toggle Switch */
   .layer-toggle {
     flex-shrink: 0;
+    margin-left: 8px;
   }
 
   .toggle-switch {
     position: relative;
-    width: 40px;
-    height: 22px;
+    width: 36px;
+    height: 20px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 11px;
+    border-radius: 10px;
     transition: all 0.3s ease;
   }
 
@@ -291,8 +296,8 @@
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     background: rgba(255, 255, 255, 0.8);
     border-radius: 50%;
     transition: all 0.3s ease;
@@ -300,19 +305,18 @@
   }
 
   .toggle-switch.on .toggle-slider {
-    transform: translateX(18px);
+    transform: translateX(16px);
     background: #22c55e;
   }
 
   /* Info Section */
   .info-section {
     display: flex;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     background: rgba(96, 165, 250, 0.1);
     border: 1px solid rgba(96, 165, 250, 0.2);
     border-radius: 8px;
-    margin-top: 4px;
   }
 
   .info-icon {
@@ -325,45 +329,5 @@
     font-size: 11px;
     color: rgba(255, 255, 255, 0.7);
     line-height: 1.4;
-  }
-
-  /* Mobile Responsive */
-  @media (max-width: 768px) {
-    .layer-controls {
-      padding: 12px;
-    }
-
-    .layer-item {
-      padding: 12px 10px;
-    }
-
-    .layer-name {
-      font-size: 12px;
-    }
-
-    .layer-description {
-      font-size: 10px;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .layer-controls {
-      padding: 10px;
-      gap: 16px;
-    }
-
-    .layer-item {
-      padding: 10px 8px;
-    }
-
-    .layer-icon {
-      width: 28px;
-      height: 28px;
-    }
-
-    .quick-action-btn {
-      font-size: 11px;
-      padding: 8px 10px;
-    }
   }
 </style>
