@@ -748,6 +748,13 @@
       setupBackgroundService()
     }
 
+    // Add Navigation Control (compass)
+    const navigationControl = new mapboxgl.NavigationControl({
+      showCompass: true,
+      showZoom: false, // Set to true if you also want zoom buttons
+      visualizePitch: true,
+    })
+
     geolocateControl = new mapboxgl.GeolocateControl({
       positionOptions: {
         enableHighAccuracy: true,
@@ -763,6 +770,8 @@
     })
 
     map.addControl(geolocateControl, "bottom-right")
+    map.addControl(navigationControl, "bottom-right")
+
     map.on("load", () => {
       if (!disableAutoZoom) {
         geolocateControl.trigger()
