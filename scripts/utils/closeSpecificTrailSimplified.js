@@ -14,7 +14,7 @@ dotenv.config()
 const supabase = createClient(process.env.PUBLIC_SUPABASE_URL, process.env.PRIVATE_SUPABASE_SERVICE_ROLE)
 
 // *** CONFIGURE THIS ***
-const TRAIL_ID = 'c0870bfc-ab4e-4bef-9ec7-859b239d521e'
+const TRAIL_ID = '0ce93852-466e-4c30-a9c6-52e2219c14ac'
 // **********************
 
 // Helper function to log with timestamps
@@ -158,7 +158,7 @@ async function closeSpecificTrailSimplified() {
         logWithTimestamp(`Applying Douglas-Peucker simplification (tolerance: 0.000005)...`)
         const simplifyStartTime = Date.now()
         console.log(`This preserves all important geometry (turns, loops) while reducing points`)
-        const simplifiedPath = simplifyPath(pathForSimplification, 0.0005)
+        const simplifiedPath = simplifyPath(pathForSimplification, 0.0001)
 
         const simplifyDuration = ((Date.now() - simplifyStartTime) / 1000).toFixed(2)
         logWithTimestamp(`✓ Simplified to ${simplifiedPath.length.toLocaleString()} points in ${simplifyDuration}s`)

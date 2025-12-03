@@ -26,6 +26,9 @@
   let globalSelectionContext = null
   let globalSelectionState = null
 
+  // Configuration for note labels
+  const NOTE_LABEL_MAX_LENGTH = 25
+
   // Helper function to get default marker from store
   function getDefaultMarker() {
     return (
@@ -35,6 +38,15 @@
         name: "Default Marker",
       }
     )
+  }
+
+  // Truncate note text for display on map
+  function truncateNote(note, maxLength = NOTE_LABEL_MAX_LENGTH) {
+    if (!note) return null
+    const trimmed = note.trim()
+    if (!trimmed) return null
+    if (trimmed.length <= maxLength) return trimmed
+    return trimmed.substring(0, maxLength) + "..."
   }
 
   // Try to get global selection context
@@ -111,7 +123,7 @@
     initializeMarkerLayers()
   }
 
-  // 🆕 Reactive statement to update marker layer visibility
+  // Reactive statement to update marker layer visibility
   $: if (markersInitialized && map && $layerVisibilityStore) {
     updateMarkerLayerVisibility()
   }
@@ -121,6 +133,7 @@
 
     try {
       const markersVisible = $layerVisibilityStore.markers
+      const markerLabelsVisible = $layerVisibilityStore.markerLabels !== false // Default to true if not set
 
       // Toggle all marker-related layers
       if (map.getLayer("markers-layer")) {
@@ -145,8 +158,18 @@
         )
       }
 
+      // Toggle marker note labels - only visible if both markers AND labels are enabled
+      if (map.getLayer("markers-note-labels")) {
+        map.setLayoutProperty(
+          "markers-note-labels",
+          "visibility",
+          markersVisible && markerLabelsVisible ? "visible" : "none",
+        )
+      }
+
       console.log("✅ Updated marker layer visibility:", {
         markers: markersVisible,
+        markerLabels: markerLabelsVisible,
       })
     } catch (error) {
       console.error("Error updating marker layer visibility:", error)
@@ -355,10 +378,67 @@
       }
     }
 
+    // Note labels layer - displays truncated notes above markers
+    if (!map.getLayer("markers-note-labels")) {
+      const noteLabelsConfig = {
+        id: "markers-note-labels",
+        type: "symbol",
+        source: "markers",
+        minzoom: 12,
+        filter: [
+          "all",
+          ["has", "noteLabel"],
+          ["!=", ["get", "noteLabel"], ""],
+          ["==", ["get", "confirmed"], true],
+        ],
+        layout: {
+          "text-field": ["get", "noteLabel"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+          ],
+          "text-anchor": "bottom",
+          "text-offset": [0, -1.8],
+          "text-max-width": 14,
+          "text-allow-overlap": false,
+          "text-optional": true,
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+          "text-letter-spacing": 0.02,
+        },
+        paint: {
+          "text-color": "#ffee8c",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+          "text-halo-blur": 0,
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(noteLabelsConfig)
+        console.log("✅ Added markers-note-labels layer with proper ordering")
+      } else {
+        map.addLayer(noteLabelsConfig)
+        console.log(
+          "⚠️ Added markers-note-labels layer without ordering (fallback)",
+        )
+      }
+    }
+
     markersInitialized = true
     console.log("✅ Marker layers initialization complete")
 
-    // 🆕 Apply initial visibility state after layers are created
+    // Apply initial visibility state after layers are created
     updateMarkerLayerVisibility()
 
     refreshMapMarkers()
@@ -379,6 +459,10 @@
         iconClass: marker.iconClass || "default",
         selected: $selectedMarkerStore?.id === marker.id,
         confirmed: true,
+        // Add truncated note label for display
+        noteLabel: truncateNote(marker.notes),
+        // Store full notes for reference (not displayed directly)
+        hasNotes: !!marker.notes,
       },
     }))
 
@@ -386,6 +470,10 @@
       type: "FeatureCollection",
       features: features,
     })
+
+    console.log(
+      `📍 Refreshed ${features.length} markers, ${features.filter((f) => f.properties.noteLabel).length} with notes`,
+    )
   }
 
   function addMarkerToLayer(feature) {
@@ -431,6 +519,25 @@
     }))
 
     source.setData(data)
+  }
+
+  // Update a marker's note label on the map
+  function updateMarkerNoteLabel(markerId, notes) {
+    if (!map || !map.getSource("markers")) return
+
+    const source = map.getSource("markers")
+    const data = source._data
+
+    const featureIndex = data.features.findIndex(
+      (f) => f.properties.id === markerId,
+    )
+
+    if (featureIndex >= 0) {
+      data.features[featureIndex].properties.noteLabel = truncateNote(notes)
+      data.features[featureIndex].properties.hasNotes = !!notes
+      source.setData(data)
+      console.log(`📝 Updated note label for marker ${markerId}`)
+    }
   }
 
   function getCurrentIconClass(markerId) {
@@ -490,6 +597,8 @@
         iconClass: iconClass,
         selected: true,
         confirmed: false,
+        noteLabel: null,
+        hasNotes: false,
       },
     }
 
@@ -689,6 +798,8 @@
           map.removeLayer("markers-selection-circle")
         if (map.getLayer("markers-selected-layer"))
           map.removeLayer("markers-selected-layer")
+        if (map.getLayer("markers-note-labels"))
+          map.removeLayer("markers-note-labels")
         if (map.getSource("markers")) map.removeSource("markers")
       } catch (error) {
         console.warn("Error cleaning up map layers:", error)
@@ -709,5 +820,6 @@
     {confirmedMarkersStore}
     {selectedMarkerStore}
     {getIconImageName}
+    {updateMarkerNoteLabel}
   />
 {/if}

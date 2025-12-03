@@ -4,6 +4,7 @@ import { writable } from 'svelte/store'
 // Default visibility state for all layers
 const defaultState = {
   markers: true,
+  markerLabels: true,      // ← NEW: Note labels above markers
   markerDrawings: true,
   fields: true,
   fieldLabels: true,
@@ -11,7 +12,7 @@ const defaultState = {
   vehicleLabels: true,
   historicalTrails: true,
   activeTrails: true,
-  trailArrows: false,  // ← CHANGED: Trail direction arrows off by default
+  trailArrows: false,
 }
 
 function createLayerVisibilityStore() {

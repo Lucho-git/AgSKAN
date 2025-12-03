@@ -10,7 +10,8 @@
     Truck,
     History,
     Activity,
-    Navigation, // ← NEW ICON
+    Navigation,
+    MessageSquare, // ← NEW ICON for marker labels
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -22,6 +23,14 @@
       icon: MapPin,
       description: "Show/hide map markers",
       color: "#60a5fa",
+    },
+    {
+      id: "markerLabels",
+      name: "Marker Labels",
+      icon: MessageSquare,
+      description: "Show/hide note labels above markers",
+      color: "#ffee8c",
+      indent: true,
     },
     {
       id: "markerDrawings",
@@ -76,7 +85,7 @@
       color: "#ec4899",
     },
     {
-      id: "trailArrows", // ← NEW LAYER
+      id: "trailArrows",
       name: "Trail Arrows",
       icon: Navigation,
       description: "Show/hide direction arrows on trails",
