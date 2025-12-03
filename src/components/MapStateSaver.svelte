@@ -125,13 +125,17 @@
     const { eventType, new: newData, old: oldData } = payload
 
     if (eventType === "DELETE" || newData?.deleted === true) {
-      // Remove marker
+      const markerId = newData?.id || oldData?.id
+
+      // Prevent trackChangedMarkers from running during realtime deletion
+      const wasSyncing = isSyncing
+      isSyncing = true
+
+      // Remove marker from store
       confirmedMarkersStore.update((markers) =>
-        markers.filter((m) => m.id !== (newData?.id || oldData?.id)),
+        markers.filter((m) => m.id !== markerId),
       )
 
-      // Remove from tracking
-      const markerId = newData?.id || oldData?.id
       if (markerId) {
         lastKnownState.delete(markerId)
 
@@ -142,7 +146,9 @@
         })
       }
 
-      console.log("🗑️ Removed marker from realtime event")
+      isSyncing = wasSyncing
+
+      console.log("🗑️ Removed marker from realtime event:", markerId)
       return
     }
 
