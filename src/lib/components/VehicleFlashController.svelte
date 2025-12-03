@@ -8,8 +8,10 @@
   const dispatch = createEventDispatcher()
 
   const FLASH_DURATION_MS = 5 * 60 * 1000 // 5 minutes
+  const FLASH_TOAST_ID = "flash-toast"
 
   let timeoutId = null
+  let toastIntervalId = null
   let selectedReason = "full"
 
   $: isFlashing = $userVehicleStore.is_flashing
@@ -21,6 +23,50 @@
     { id: "help", label: "Help", color: "#ef4444", emoji: "🔴" },
   ]
 
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  function getRemainingSeconds() {
+    if (!$userVehicleStore.flash_started_at) return 0
+    const startTime = new Date($userVehicleStore.flash_started_at).getTime()
+    const elapsed = Date.now() - startTime
+    return Math.max(0, Math.ceil((FLASH_DURATION_MS - elapsed) / 1000))
+  }
+
+  function showFlashToast() {
+    const reasonData = flashReasons.find(
+      (r) => r.id === $userVehicleStore.flash_reason,
+    )
+    const reasonLabel = reasonData?.label || "Unknown"
+
+    const updateToast = () => {
+      const remaining = getRemainingSeconds()
+      toast.info(`Flashing: ${reasonLabel}`, {
+        id: FLASH_TOAST_ID,
+        description: `Time remaining: ${formatTime(remaining)}`,
+        duration: Infinity,
+        action: {
+          label: "Stop",
+          onClick: () => stopFlashing(false),
+        },
+      })
+    }
+
+    updateToast()
+    toastIntervalId = setInterval(updateToast, 1000)
+  }
+
+  function dismissFlashToast() {
+    if (toastIntervalId) {
+      clearInterval(toastIntervalId)
+      toastIntervalId = null
+    }
+    toast.dismiss(FLASH_TOAST_ID)
+  }
+
   async function startFlashing() {
     const now = new Date().toISOString()
 
@@ -31,16 +77,15 @@
       flash_reason: selectedReason,
     }))
 
-    // Auto-stop after 5 minutes
     if (timeoutId) clearTimeout(timeoutId)
     timeoutId = setTimeout(() => {
       stopFlashing(true)
     }, FLASH_DURATION_MS)
 
-    const reasonData = flashReasons.find((r) => r.id === selectedReason)
-    const reasonText = reasonData ? reasonData.label : "Unknown"
+    setTimeout(() => {
+      showFlashToast()
+    }, 0)
 
-    // Close the toolbox after starting flash
     dispatch("closeToolbox")
   }
 
@@ -57,6 +102,8 @@
       timeoutId = null
     }
 
+    dismissFlashToast()
+
     if (autoStopped) {
       toast.info("Flash Auto-Stopped", {
         description: "5 minute flash period ended",
@@ -64,28 +111,28 @@
     }
   }
 
-  // Check for expired flash on mount
   onMount(() => {
     if ($userVehicleStore.is_flashing && $userVehicleStore.flash_started_at) {
       const startTime = new Date($userVehicleStore.flash_started_at).getTime()
       const elapsed = Date.now() - startTime
 
       if (elapsed >= FLASH_DURATION_MS) {
-        // Flash has expired
         stopFlashing(true)
       } else {
-        // Resume countdown
         const remaining = FLASH_DURATION_MS - elapsed
 
         timeoutId = setTimeout(() => {
           stopFlashing(true)
         }, remaining)
+
+        showFlashToast()
       }
     }
   })
 
   onDestroy(() => {
     if (timeoutId) clearTimeout(timeoutId)
+    if (toastIntervalId) clearInterval(toastIntervalId)
   })
 </script>
 
