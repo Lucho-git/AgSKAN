@@ -45,10 +45,12 @@
     if (!note) return null
     const trimmed = note.trim()
     if (!trimmed) return null
-    if (trimmed.length <= maxLength) return trimmed
-    return trimmed.substring(0, maxLength) + "..."
+    const displayText =
+      trimmed.length <= maxLength
+        ? trimmed
+        : trimmed.substring(0, maxLength) + "..."
+    return "• " + displayText // ← current active option
   }
-
   // Try to get global selection context
   function checkGlobalSelectionContext() {
     try {
