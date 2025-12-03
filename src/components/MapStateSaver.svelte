@@ -62,6 +62,15 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         async (payload) => {
+          console.log("🔔 RAW REALTIME EVENT:", {
+            eventType: payload.eventType,
+            newUpdateUserId: payload.new?.update_user_id,
+            oldUpdateUserId: payload.old?.update_user_id,
+            myUserId: userId,
+            isDeleted: payload.new?.deleted,
+            markerId: payload.new?.id || payload.old?.id,
+          })
+
           // Double-check: Skip if it's our own change
           if (payload.new?.update_user_id === userId) {
             console.log("⏭️ Skipping own change - user ID match")
@@ -116,24 +125,31 @@
     const { eventType, new: newData, old: oldData } = payload
 
     if (eventType === "DELETE" || newData?.deleted === true) {
-      // Remove marker
+      const markerId = newData?.id || oldData?.id
+
+      // 🔥 FIX: Prevent trackChangedMarkers from running during realtime deletion
+      const wasSyncing = isSyncing
+      isSyncing = true
+
+      // Remove marker from store
       confirmedMarkersStore.update((markers) =>
-        markers.filter((m) => m.id !== (newData?.id || oldData?.id)),
+        markers.filter((m) => m.id !== markerId),
       )
 
-      // Remove from tracking
-      const markerId = newData?.id || oldData?.id
       if (markerId) {
         lastKnownState.delete(markerId)
+        pendingDeletions.delete(markerId)
+        pendingMarkerDeletionsStore.set(new Set(pendingDeletions))
 
-        // Remove from visibility store
         markerVisibilityStore.update((settings) => {
           const { [markerId]: removed, ...rest } = settings
           return rest
         })
       }
 
-      console.log("🗑️ Removed marker from realtime event")
+      isSyncing = wasSyncing // Restore previous state
+
+      console.log("🗑️ Removed marker from realtime event:", markerId)
       return
     }
 
