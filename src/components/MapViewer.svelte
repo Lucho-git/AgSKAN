@@ -31,6 +31,7 @@
   import VehicleTracker from "./VehicleTracker.svelte"
   import VehicleStateSynchronizer from "./VehicleStateSynchronizer.svelte"
   import MapFields from "./MapFields.svelte"
+  import EmOverlays from "$lib/components/EmOverlays.svelte"
   import TrailSynchronizer from "$lib/components/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/TrailView.svelte"
   import DrawingHectares from "$lib/components/DrawingHectares.svelte"
@@ -92,6 +93,10 @@
 
   // Layer ordering registry with trail support
   const LAYER_ORDER = {
+    // EM overlay layers (very bottom) - 50-99
+    "em-overlay-fill": { order: 50, category: "em-overlays" },
+    "em-overlay-outline": { order: 51, category: "em-overlays" },
+
     // Bottom layers (fields) - 100-199
     "fields-fill": { order: 100, category: "field-base" },
     "fields-fill-selected": { order: 101, category: "field-base" },
@@ -614,6 +619,7 @@
       onOpenVehicleControls={handleOpenVehicleControls}
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
+    <EmOverlays {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <DrawingHectares {map} />
@@ -726,7 +732,6 @@
   .toolbox-trigger-button:hover {
     background-color: #f7db5c;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-    transform: translateY(-1px);
   }
 
   .toolbox-trigger-button.active {

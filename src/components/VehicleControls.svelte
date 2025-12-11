@@ -7,7 +7,6 @@
     otherVehiclesStore,
   } from "$lib/stores/vehicleStore"
   import {
-    Gauge,
     Users,
     Crosshair,
     Target,
@@ -19,14 +18,12 @@
   import SVGComponents from "$lib/vehicles/index.js"
 
   export let map
-  export let currentSpeed = 0
   export let trackedVehicleId = null
   export let isTrackingVehicle = false
   export let isFirstPersonMode = false
 
   const dispatch = createEventDispatcher()
 
-  let showSpeedometer = false
   let showUnifiedMenu = false
   let sortedVehicles = []
 
@@ -92,7 +89,6 @@
     return null
   }
 
-  // Vehicle sorting with priority system
   function calculateSortedVehicles() {
     const allVehicles = [
       {
@@ -129,38 +125,28 @@
             ? new Date(b.last_update).getTime()
             : b.last_update || 0
 
-        // Priority 1: Currently tracked vehicle always first
         if (a.id === trackedVehicleId) return -1
         if (b.id === trackedVehicleId) return 1
 
-        // Priority 2: Current user comes next
         if (a.isCurrentUser && !b.isCurrentUser) return -1
         if (b.isCurrentUser && !a.isCurrentUser) return 1
 
-        // Priority 3: Online AND trailing (actively working)
         const aOnlineTrailing = aOnline && aTrailing
         const bOnlineTrailing = bOnline && bTrailing
 
         if (aOnlineTrailing && !bOnlineTrailing) return -1
         if (bOnlineTrailing && !aOnlineTrailing) return 1
 
-        // Priority 4: Just online (connected but not working)
         if (aOnline && !bOnline) return -1
         if (bOnline && !aOnline) return 1
 
-        // Priority 5: Just trailing (might be offline but was working)
         if (aTrailing && !bTrailing) return -1
         if (bTrailing && !aTrailing) return 1
 
-        // Priority 6: Most recently updated vehicles
         return bTime - aTime
       })
 
     return allVehicles
-  }
-
-  function toggleSpeedometer() {
-    showSpeedometer = !showSpeedometer
   }
 
   function toggleUnifiedMenu() {
@@ -198,7 +184,6 @@
     showUnifiedMenu = false
   }
 
-  // Instant zoom to tracked vehicle without interrupting tracking camera
   function zoomToTrackedVehicleInstant() {
     if (trackedVehicle) {
       dispatch("instantZoomToVehicle", { vehicle: trackedVehicle })
@@ -288,8 +273,7 @@
 <!-- Vehicle Controls Button -->
 {#if !isTrackingVehicle && !showUnifiedMenu}
   <button
-    class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-    style="bottom: 6.5rem;"
+    class="fixed bottom-4 left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
     on:click={toggleUnifiedMenu}
     aria-label="Open vehicle menu"
   >
@@ -300,8 +284,8 @@
 <!-- Expanded Vehicle Menu -->
 {#if showUnifiedMenu}
   <div
-    class="menu-expanded fixed z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
-    style="bottom: 6.5rem; left: 0.75rem; width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
+    class="menu-expanded fixed bottom-4 left-3 z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
+    style="width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-white/20 p-4">
@@ -404,7 +388,6 @@
                       {formatLastUpdate(vehicle.last_update)}
                     </p>
                   </div>
-                  <!-- Status indicator -->
                   <div class="relative flex-shrink-0">
                     <div
                       class="h-2 w-2 rounded-full {vehicle.isCurrentUser
@@ -415,7 +398,6 @@
                             ? 'bg-blue-400'
                             : 'bg-white/40'}"
                     ></div>
-                    <!-- Pulse animation for active vehicles -->
                     {#if vehicle.isCurrentUser}
                       <div
                         class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-30"
@@ -512,8 +494,8 @@
 <!-- Tracking Bar -->
 {#if isTrackingVehicle && !showUnifiedMenu && trackedVehicle}
   <div
-    class="tracking-bar fixed z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
-    style="bottom: 6.5rem; left: 0.75rem; transform-origin: left center;"
+    class="tracking-bar fixed bottom-4 left-3 z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
+    style="transform-origin: left center;"
   >
     <!-- Users Icon Button -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -594,34 +576,6 @@
   </div>
 {/if}
 
-<!-- Speedometer Button -->
-<button
-  class="fixed left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-  style="background: {showSpeedometer
-    ? 'rgba(255, 255, 255, 0.9)'
-    : ''}; bottom: 3.5rem;"
-  class:text-black={showSpeedometer}
-  on:click={toggleSpeedometer}
-  aria-label={showSpeedometer ? "Hide speed" : "Show speed"}
->
-  {#if showSpeedometer}
-    <ChevronDown size={20} color="black" />
-  {:else}
-    <Gauge size={20} />
-  {/if}
-</button>
-
-<!-- Speedometer Display -->
-{#if showSpeedometer}
-  <div
-    class="speed-fade-in fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center rounded-lg bg-black/70 px-5 py-2.5 text-white backdrop-blur"
-    style="min-width: min-content"
-  >
-    <div class="text-2xl font-bold">{currentSpeed}</div>
-    <div class="text-xs opacity-80">km/h</div>
-  </div>
-{/if}
-
 <style>
   .menu-expanded {
     animation: bubbleExpand 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -629,10 +583,6 @@
 
   .tracking-bar {
     animation: extendFromButton 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-
-  .speed-fade-in {
-    animation: fadeIn 0.3s ease-in-out;
   }
 
   @media (min-width: 640px) {
@@ -674,17 +624,6 @@
     100% {
       opacity: 1;
       transform: scaleX(1) translateX(0);
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translate(-50%, 20px);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, 0);
     }
   }
 
