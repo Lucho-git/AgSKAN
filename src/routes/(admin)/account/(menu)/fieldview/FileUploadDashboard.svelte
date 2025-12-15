@@ -3,7 +3,7 @@
   import { onMount, afterUpdate } from "svelte" // Added afterUpdate
   import { goto } from "$app/navigation"
   import { userFilesStore } from "./userFilesStore" // Adjust path if necessary
-  import { menuStore } from "../../../../../stores/menuStore"
+  import { menuStore } from "$lib/stores/menuStore"
   import { session } from "$lib/stores/sessionStore" // Import session store
   import { fileApi } from "$lib/api/fileApi"
 

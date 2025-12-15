@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { menuStore } from "../../../../stores/menuStore"
+  import { menuStore } from "$lib/stores/menuStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { enhance, applyAction } from "$app/forms"
   import { toast } from "svelte-sonner"

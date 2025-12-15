@@ -1,3 +1,5 @@
+<!-- src\routes\(admin)\account\(menu)\+layout.svelte -->
+
 <script lang="ts">
   import { page } from "$app/stores"
   import { afterNavigate, goto } from "$app/navigation"

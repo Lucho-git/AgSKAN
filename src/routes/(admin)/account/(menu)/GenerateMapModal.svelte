@@ -1,6 +1,6 @@
 <script lang="ts">
   import { v4 as uuidv4 } from "uuid"
-  import { menuStore } from "../../../../stores/menuStore"
+  import { menuStore } from "$lib/stores/menuStore"
   import { toast } from "svelte-sonner"
   import { Map } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"

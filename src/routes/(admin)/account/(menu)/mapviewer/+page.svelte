@@ -1,3 +1,4 @@
+<!--src\routes\(admin)\account\(menu)\mapviewer\+page.svelte-->
 <script lang="ts">
   import { getContext, onMount, onDestroy } from "svelte"
   import type { Writable } from "svelte/store"

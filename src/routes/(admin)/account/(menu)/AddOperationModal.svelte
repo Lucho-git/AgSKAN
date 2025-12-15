@@ -3,7 +3,7 @@
     operationStore,
     selectedOperationStore,
   } from "$lib/stores/operationStore"
-  import { menuStore } from "../../../../stores/menuStore"
+  import { menuStore } from "$lib/stores/menuStore"
   import { toast } from "svelte-sonner"
   import { operationApi } from "$lib/api/operationApi"
   import { profileStore } from "$lib/stores/profileStore"

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { Crisp } from "crisp-sdk-web"
-  import { screenSize } from "../stores/screenSizeStore"
+  import { screenSize } from "$lib/stores/screenSizeStore"
   import { page } from "$app/stores"
   import { derived } from "svelte/store"
   import { profileStore } from "$lib/stores/profileStore"

@@ -4,7 +4,7 @@
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
-  import { menuStore } from "../../../../stores/menuStore"
+  import { menuStore } from "$lib/stores/menuStore"
   import OperationModal from "./OperationModal.svelte"
   import Icon from "@iconify/svelte"
   import LottieAnimation from "$lib/components/LottieAnimation.svelte"

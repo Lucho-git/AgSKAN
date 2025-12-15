@@ -13,7 +13,7 @@
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { vehicleDataLoaded } from "../stores/loadedStore"
+  import { vehicleDataLoaded } from "../lib/stores/loadedStore"
   import { page } from "$app/stores"
 
   let channel = null
