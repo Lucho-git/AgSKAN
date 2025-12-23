@@ -14,7 +14,7 @@
   let overlayOpacity = 70
 
   // Hardcoded for this client
-  const TARGET_MAP_ID = "8a28e15f-58f1-474d-9b18-a9bf62565e2d"
+  const TARGET_MAP_ID = "f4f55f0e-8340-4748-a0ca-eb9f7ffb3123"
 
   // Check if this is the correct map reactively
   $: isTargetMap = $connectedMapStore.id === TARGET_MAP_ID
