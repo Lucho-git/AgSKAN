@@ -118,6 +118,25 @@
     }
   }
 
+  function getBeforeLayerId(): string | undefined {
+    // Insert below markers and fields - find the first available layer to insert before
+    const layersToInsertBefore = [
+      "fields-fill",
+      "fields-fill-selected",
+      "markers-layer",
+      "markers-selection-circle",
+      "markers-selected-layer",
+    ]
+
+    for (const layerId of layersToInsertBefore) {
+      if (map.getLayer(layerId)) {
+        return layerId
+      }
+    }
+
+    return undefined
+  }
+
   async function loadOverlays() {
     // Early exit if not the target map
     if (!isTargetMap) {
@@ -183,6 +202,7 @@
 
     try {
       const propertyName = getValuePropertyName(overlay.geojson)
+      const beforeLayerId = getBeforeLayerId()
 
       if (!map.getSource(sourceId)) {
         map.addSource(sourceId, {
@@ -192,48 +212,57 @@
       }
 
       if (!map.getLayer(fillLayerId)) {
-        map.addLayer({
-          id: fillLayerId,
-          type: "fill",
-          source: sourceId,
-          paint: {
-            "fill-color": getColourStops(propertyName),
-            "fill-opacity": overlayOpacity / 100,
+        map.addLayer(
+          {
+            id: fillLayerId,
+            type: "fill",
+            source: sourceId,
+            paint: {
+              "fill-color": getColourStops(propertyName),
+              "fill-opacity": overlayOpacity / 100,
+            },
           },
-        })
+          beforeLayerId,
+        )
       }
 
       if (!map.getLayer(outlineLayerId)) {
-        map.addLayer({
-          id: outlineLayerId,
-          type: "line",
-          source: sourceId,
-          paint: {
-            "line-color": "#000",
-            "line-width": 1,
-            "line-opacity": (overlayOpacity / 100) * 0.7,
+        map.addLayer(
+          {
+            id: outlineLayerId,
+            type: "line",
+            source: sourceId,
+            paint: {
+              "line-color": "#000",
+              "line-width": 1,
+              "line-opacity": (overlayOpacity / 100) * 0.7,
+            },
           },
-        })
+          beforeLayerId,
+        )
       }
 
       if (!map.getLayer(labelLayerId)) {
-        map.addLayer({
-          id: labelLayerId,
-          type: "symbol",
-          source: sourceId,
-          layout: {
-            "text-field": ["to-string", ["get", propertyName]],
-            "text-size": 11,
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            "text-allow-overlap": true,
-            visibility: showLabels ? "visible" : "none",
+        map.addLayer(
+          {
+            id: labelLayerId,
+            type: "symbol",
+            source: sourceId,
+            layout: {
+              "text-field": ["to-string", ["get", propertyName]],
+              "text-size": 11,
+              "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+              "text-allow-overlap": true,
+              visibility: showLabels ? "visible" : "none",
+            },
+            paint: {
+              "text-color": "#ffffff",
+              "text-halo-color": "#000000",
+              "text-halo-width": 1,
+            },
           },
-          paint: {
-            "text-color": "#ffffff",
-            "text-halo-color": "#000000",
-            "text-halo-width": 1,
-          },
-        })
+          beforeLayerId,
+        )
       }
 
       console.log(`🗺️ EmOverlays: ✅ Added: ${overlay.name}`)
