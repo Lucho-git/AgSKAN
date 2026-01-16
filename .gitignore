@@ -6,6 +6,9 @@ node_modules
 .env
 .env.*
 !.env.example
+# Vite timestamp files - auto-generated, should not be tracked
+*.timestamp-*.mjs
+*.timestamp-*.js
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
