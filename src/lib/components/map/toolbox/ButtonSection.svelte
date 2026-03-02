@@ -258,57 +258,58 @@
 
       <!-- InstantLocationMarker Button with Fan-out -->
       <div class="marker-fan-wrapper">
-        {#if markerFanOpen && hasExtraMarkers}
-          <!-- Fan-out: extra markers (furthest left first) -->
-          {#each [...extraMarkers].reverse() as extraMarker, revIdx}
-            {@const fanIdx = extraMarkers.length - 1 - revIdx}
+        {#if hasExtraMarkers}
+          <!-- Fan-out row: transitions in/out like the vertical dropdown -->
+          <div
+            class="fan-row"
+            class:fan-row-open={markerFanOpen}
+          >
+            <!-- Primary marker (closest to main button) -->
             <button
               class="fan-button btn btn-circle bg-white hover:bg-opacity-90"
-              style="margin-right: {(extraMarkers.length - revIdx) * 52 +
-                8}px; animation-delay: {revIdx * 0.04}s;"
-              on:click={() => dropExtraMarker(extraMarker)}
-              title="Drop {extraMarker?.name || 'Marker'}"
+              on:click={dropPrimaryMarker}
+              title="Drop {defaultMarker?.name || 'Default'} marker"
             >
               <div class="marker-icon-container fan-icon">
-                {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                  <IconSVG icon={extraMarker.id} size="26px" />
-                {:else if extraMarker?.class?.startsWith("ionic-")}
-                  <ion-icon name={extraMarker.id} style="font-size: 26px;"
+                {#if defaultMarker.id === "default"}
+                  <IconSVG icon="mapbox-marker" size="26px" />
+                {:else if defaultMarker.class === "custom-svg"}
+                  <IconSVG icon={defaultMarker.id} size="26px" />
+                {:else if defaultMarker.class?.startsWith("ionic-")}
+                  <ion-icon name={defaultMarker.id} style="font-size: 26px;"
                   ></ion-icon>
-                {:else if extraMarker?.class?.startsWith("at-")}
-                  <i class={`${extraMarker.class}`} style="font-size: 26px;"
+                {:else if defaultMarker.class?.startsWith("at-")}
+                  <i class={`${defaultMarker.class}`} style="font-size: 26px;"
                   ></i>
                 {:else}
                   <MapPin size={20} />
                 {/if}
               </div>
             </button>
-          {/each}
 
-          <!-- Fan-out: primary marker (closest to main button) -->
-          <button
-            class="fan-button btn btn-circle bg-white hover:bg-opacity-90"
-            style="margin-right: 8px; animation-delay: {extraMarkers.length *
-              0.04}s;"
-            on:click={dropPrimaryMarker}
-            title="Drop {defaultMarker?.name || 'Default'} marker"
-          >
-            <div class="marker-icon-container fan-icon">
-              {#if defaultMarker.id === "default"}
-                <IconSVG icon="mapbox-marker" size="26px" />
-              {:else if defaultMarker.class === "custom-svg"}
-                <IconSVG icon={defaultMarker.id} size="26px" />
-              {:else if defaultMarker.class?.startsWith("ionic-")}
-                <ion-icon name={defaultMarker.id} style="font-size: 26px;"
-                ></ion-icon>
-              {:else if defaultMarker.class?.startsWith("at-")}
-                <i class={`${defaultMarker.class}`} style="font-size: 26px;"
-                ></i>
-              {:else}
-                <MapPin size={20} />
-              {/if}
-            </div>
-          </button>
+            <!-- Extra markers -->
+            {#each extraMarkers as extraMarker}
+              <button
+                class="fan-button btn btn-circle bg-white hover:bg-opacity-90"
+                on:click={() => dropExtraMarker(extraMarker)}
+                title="Drop {extraMarker?.name || 'Marker'}"
+              >
+                <div class="marker-icon-container fan-icon">
+                  {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+                    <IconSVG icon={extraMarker.id} size="26px" />
+                  {:else if extraMarker?.class?.startsWith("ionic-")}
+                    <ion-icon name={extraMarker.id} style="font-size: 26px;"
+                    ></ion-icon>
+                  {:else if extraMarker?.class?.startsWith("at-")}
+                    <i class={`${extraMarker.class}`} style="font-size: 26px;"
+                    ></i>
+                  {:else}
+                    <MapPin size={20} />
+                  {/if}
+                </div>
+              </button>
+            {/each}
+          </div>
         {/if}
 
         <!-- Main marker button (always visible) -->
@@ -614,17 +615,37 @@
     justify-content: flex-end;
   }
 
-  .fan-button {
+  /* Horizontal row that holds all fan buttons — transitions like the vertical dropdown */
+  .fan-row {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 8px;
     position: absolute;
     right: 100%;
+    margin-right: 8px;
+    transform-origin: right center;
+    transform: scaleX(0);
+    opacity: 0;
+    transition: all 0.5s ease-in-out;
+    pointer-events: none;
+  }
+
+  .fan-row.fan-row-open {
+    transform: scaleX(1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .fan-button {
     width: 44px;
     height: 44px;
     min-height: 44px;
+    flex-shrink: 0;
     background-color: #f7db5c;
     border: 2px solid #000000;
     color: #000000;
-    animation: fanIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    z-index: -1;
+    transition: all 0.2s ease;
   }
 
   .fan-button:hover {
@@ -690,16 +711,5 @@
     line-height: 16px;
     text-align: center;
     pointer-events: none;
-  }
-
-  @keyframes fanIn {
-    from {
-      opacity: 0;
-      transform: scale(0.3) translateX(20px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1) translateX(0);
-    }
   }
 </style>
