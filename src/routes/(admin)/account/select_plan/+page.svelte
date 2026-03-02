@@ -1,7 +1,7 @@
 <script lang="ts">
-  import PricePlanBox from "../../../../components/PricePlanBox.svelte"
+  import PricePlanBox from "$lib/components/general/PricePlanBox.svelte"
   import PricingFAQ from "../../../(marketing)/pricing/PricingFAQ.svelte"
-  import PricingPlans from "../../../../components/PricingPlans.svelte"
+  import PricingPlans from "$lib/components/general/PricingPlans.svelte"
 
   let currentPlanId = ""
 </script>
@@ -11,13 +11,13 @@
 </svelte:head>
 
 <div
-  class="text-center content-center mb-12 mt-4 flex items-center place-content-center"
+  class="mb-12 mt-4 flex place-content-center content-center items-center text-center"
 >
-  <div class="flex flex-col w-full px-6">
+  <div class="flex w-full flex-col px-6">
     <div>
-      <h1 class="text-2xl font-bold mb-6">Select a Plan</h1>
+      <h1 class="mb-6 text-2xl font-bold">Select a Plan</h1>
       <div
-        class="mt-0 flex flex-col lg:flex-row gap-10 justify-center flex-wrap"
+        class="mt-0 flex flex-col flex-wrap justify-center gap-10 lg:flex-row"
       >
         <PricingPlans {currentPlanId} />
       </div>

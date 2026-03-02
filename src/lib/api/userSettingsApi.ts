@@ -577,6 +577,58 @@ export const userSettingsApi = {
     },
 
 
+    async updateExtraMarkers(markers: { id: string; class: string; name: string }[]) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save extra markers");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    extra_markers: markers,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving extra markers:", error);
+                return {
+                    success: false,
+                    message: "Failed to save extra markers",
+                    errorFields: []
+                };
+            }
+
+            // Update store
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                extraMarkers: markers,
+            }));
+
+            return {
+                success: true,
+                message: "Extra markers updated"
+            };
+        } catch (error) {
+            console.error("Error in updateExtraMarkers:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving extra markers",
+                errorFields: []
+            };
+        }
+    },
+
+
     /**
      * Deletes the user's account
      */

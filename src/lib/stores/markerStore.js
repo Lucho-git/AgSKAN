@@ -96,6 +96,20 @@ function createLocationMarkerStore() {
 
 export const locationMarkerStore = createLocationMarkerStore()
 
+// Extra marker location store - carries {coordinates, marker} payload
+function createExtraLocationMarkerStore() {
+  const { subscribe, set, update } = writable(null)
+
+  return {
+    subscribe,
+    set,
+    update,
+    drop: (coordinates, marker) => set({ coordinates, marker, timestamp: Date.now() }),
+  }
+}
+
+export const extraLocationMarkerStore = createExtraLocationMarkerStore()
+
 // 🆕 Pending marker changes stores for tracking unsynced data
 export const pendingMarkerChangesStore = writable(new Set())
 export const pendingMarkerDeletionsStore = writable(new Set())

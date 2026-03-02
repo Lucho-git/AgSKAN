@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PricingSection from "$lib/components/PricingSection.svelte"
+  import PricingSection from "$lib/components/general/PricingSection.svelte"
   export let currentPlanId: string | null = null
 </script>
 

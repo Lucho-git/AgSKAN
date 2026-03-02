@@ -15,7 +15,7 @@
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
-  import BoundaryWizard from "$lib/components/BoundaryWizard.svelte"
+  import BoundaryWizard from "$lib/components/map/overlays/BoundaryWizard.svelte"
 
   // State management for wizard
   let showWizard = false

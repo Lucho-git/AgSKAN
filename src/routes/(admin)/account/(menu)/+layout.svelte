@@ -16,7 +16,7 @@
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
 
-  import CrispChatWidget from "../../../../components/CrispChatWidget.svelte"
+  import CrispChatWidget from "$lib/components/general/CrispChatWidget.svelte"
 
   const adminSectionStore = writable("")
   const isNavigating = writable(false)

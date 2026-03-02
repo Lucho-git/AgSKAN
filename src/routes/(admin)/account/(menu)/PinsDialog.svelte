@@ -15,7 +15,7 @@
     deletePins,
     type MapMarker,
   } from "$lib/utils/pinsFromMapId"
-  import IconSVG from "../../../../components/IconSVG.svelte"
+  import IconSVG from "$lib/components/general/IconSVG.svelte"
 
   export let open = false
   export let mapMarkers: number

@@ -9,7 +9,7 @@
   import { Input } from "$lib/components/ui/input"
   import { Check, X, Info } from "lucide-svelte"
   import type { CarouselAPI } from "$lib/components/ui/carousel/context.js"
-  import GeoJSONMap from "$lib/components/GeoJsonMap.svelte"
+  import GeoJSONMap from "$lib/components/map/overlays/GeoJsonMap.svelte"
   import { toast } from "svelte-sonner"
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"

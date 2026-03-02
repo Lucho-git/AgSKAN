@@ -18,7 +18,7 @@
   import { fieldStore } from "$lib/stores/fieldStore"
   import { fileApi } from "$lib/api/fileApi"
   import { processBoundariesApi } from "$lib/api/processBoundariesApi"
-  import GeoJSONMap from "$lib/components/GeoJsonMap.svelte"
+  import GeoJSONMap from "$lib/components/map/overlays/GeoJsonMap.svelte"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
   const dispatch = createEventDispatcher()

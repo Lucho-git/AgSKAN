@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
-  import SettingsModule from "$lib/components/SettingsModule.svelte"
+  import SettingsModule from "$lib/components/map/toolbox/SettingsModule.svelte"
   import { ArrowRight, Check, Minus, Plus, Users, X, Zap } from "lucide-svelte"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"

@@ -5,7 +5,7 @@
   import { goto } from "$app/navigation"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
-  import MapViewer from "../../../../../components/MapViewer.svelte"
+  import MapViewer from "$lib/components/map/MapViewer.svelte"
   import type { PageData } from "./$types"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"

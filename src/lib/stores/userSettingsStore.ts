@@ -16,7 +16,8 @@ const defaultSettings = {
         "id": "default",
         "name": "Default Marker",
         "class": "default"
-    }
+    },
+    extraMarkers: [] as { id: string; class: string; name: string }[],
 };
 
 export const userSettingsStore = writable(defaultSettings);

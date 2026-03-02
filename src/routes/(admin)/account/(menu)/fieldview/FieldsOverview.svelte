@@ -42,7 +42,7 @@
   import { session } from "$lib/stores/sessionStore"
   import { userFilesStore } from "./userFilesStore"
   import { get } from "svelte/store"
-  import FieldIcon from "$lib/components/FieldIcon.svelte"
+  import FieldIcon from "$lib/components/map/overlays/FieldIcon.svelte"
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
 

@@ -1,7 +1,7 @@
 <!-- src/routes/(admin)/account/payment_plans/+page.svelte -->
 <script lang="ts">
   import { onMount } from "svelte"
-  import PricingSection from "$lib/components/PricingSection.svelte"
+  import PricingSection from "$lib/components/general/PricingSection.svelte"
   import { supabase, session } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
