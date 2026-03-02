@@ -91,6 +91,11 @@
     activePanel = "vehicle"
   }
 
+  export function switchToMarkerPanel() {
+    console.log("🔧 Toolbox: Switching to marker panel")
+    activePanel = "marker"
+  }
+
   function showTrailPanel() {
     activePanel = "trail"
   }

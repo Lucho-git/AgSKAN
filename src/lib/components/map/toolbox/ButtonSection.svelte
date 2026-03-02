@@ -22,8 +22,8 @@
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
-  import { onMount, onDestroy } from "svelte"
-  import { Home, MapPin, RotateCcw, Wifi, WifiOff } from "lucide-svelte"
+  import { onMount } from "svelte"
+  import { Home, MapPin, RotateCcw, Wifi, WifiOff, Plus } from "lucide-svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { getAllMarkers } from "$lib/data/markerDefinitions"
 
@@ -33,7 +33,6 @@
   let isCircular = true
   let isRefreshing = false
   let isExpanded = false
-  let markerFanOpen = false
 
   const dispatch = createEventDispatcher()
 
@@ -86,11 +85,6 @@
     ? extraMarkers[extraMarkers.length - 1]
     : null
 
-  // Reset fan when menu collapses
-  $: if (!isExpanded) {
-    markerFanOpen = false
-  }
-
   // Computed property to check if there are unsynced TRAIL changes
   $: hasUnsyncedTrailChanges =
     $pendingCoordinatesStore.length > 0 || $pendingClosuresStore.length > 0
@@ -128,16 +122,6 @@
 
   function toggleExpanded() {
     isExpanded = !isExpanded
-  }
-
-  function handleLocationClick() {
-    if (hasExtraMarkers) {
-      // Toggle the fan open/closed
-      markerFanOpen = !markerFanOpen
-      return
-    }
-    // No extra markers — drop primary directly
-    dropPrimaryMarker()
   }
 
   function dropPrimaryMarker() {
@@ -210,38 +194,94 @@
     </svg>
   </button>
 
-  <!-- Floating button container -->
-  <div class="fixed right-4 top-4 z-20 flex flex-col items-end">
-    <!-- Toggle expand/collapse button -->
-    <button
-      class="top-button btn {isCircular
-        ? 'btn-circle'
-        : 'btn-square'} btn-lg mb-3 bg-white hover:bg-opacity-90"
-      on:click={toggleExpanded}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-8 w-8 transition-transform duration-300 {isExpanded
-          ? 'rotate-180'
-          : ''}"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
+  <!-- Floating layout: marker grid (left) + dropdown menu (right) -->
+  <div class="fixed right-4 top-4 z-20 flex items-start gap-3">
+    <!-- Marker grid: always visible, separate from dropdown -->
+    <div class="marker-grid-panel">
+      <!-- Primary marker -->
+      <button
+        class="marker-slot btn btn-circle"
+        on:click={dropPrimaryMarker}
+        title="Drop {defaultMarker?.name || 'Default'} marker"
       >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M19 9l-7 7-7-7"
-        />
-      </svg>
-    </button>
+        <div class="marker-icon-container fan-icon">
+          {#if defaultMarker.id === "default"}
+            <IconSVG icon="mapbox-marker" size="26px" />
+          {:else if defaultMarker.class === "custom-svg"}
+            <IconSVG icon={defaultMarker.id} size="26px" />
+          {:else if defaultMarker.class?.startsWith("ionic-")}
+            <ion-icon name={defaultMarker.id} style="font-size: 26px;"></ion-icon>
+          {:else if defaultMarker.class?.startsWith("at-")}
+            <i class={`${defaultMarker.class}`} style="font-size: 26px;"></i>
+          {:else}
+            <MapPin size={20} />
+          {/if}
+        </div>
+      </button>
 
-    <!-- Button list container -->
-    <div
-      class="flex origin-top flex-col space-y-3 transition-all duration-700 ease-in-out {isExpanded
-        ? 'scale-100 opacity-90'
-        : 'h-50 scale-0 overflow-hidden opacity-0'}"
+      <!-- Extra markers -->
+      {#each extraMarkers as extraMarker}
+        <button
+          class="marker-slot btn btn-circle"
+          on:click={() => dropExtraMarker(extraMarker)}
+          title="Drop {extraMarker?.name || 'Marker'}"
+        >
+          <div class="marker-icon-container fan-icon">
+            {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+              <IconSVG icon={extraMarker.id} size="26px" />
+            {:else if extraMarker?.class?.startsWith("ionic-")}
+              <ion-icon name={extraMarker.id} style="font-size: 26px;"></ion-icon>
+            {:else if extraMarker?.class?.startsWith("at-")}
+              <i class={`${extraMarker.class}`} style="font-size: 26px;"></i>
+            {:else}
+              <MapPin size={20} />
+            {/if}
+          </div>
+        </button>
+      {/each}
+
+      <!-- Add / Edit markers button -->
+      <button
+        class="marker-slot marker-slot-add btn btn-circle"
+        on:click={() => dispatch('openMarkerSettings')}
+        title="Add or edit quick-drop markers"
+      >
+        <Plus size={20} />
+      </button>
+    </div>
+
+    <!-- Dropdown menu column -->
+    <div class="flex flex-col items-end">
+      <!-- Chevron toggle -->
+      <button
+        class="top-button btn {isCircular
+          ? 'btn-circle'
+          : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+        on:click={toggleExpanded}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-8 w-8 transition-transform duration-300 {isExpanded
+            ? 'rotate-180'
+            : ''}"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      <!-- Button list container -->
+      <div
+        class="mt-3 flex origin-top flex-col space-y-3 transition-all duration-700 ease-in-out {isExpanded
+          ? 'scale-100 opacity-90'
+          : 'h-50 scale-0 overflow-hidden opacity-0'}"
     >
       <!-- Refresh Map Button -->
       <button
@@ -256,130 +296,7 @@
         <RotateCcw size={24} class={isRefreshing ? "spinning" : ""} />
       </button>
 
-      <!-- InstantLocationMarker Button with Fan-out -->
-      <div class="marker-fan-wrapper">
-        {#if hasExtraMarkers}
-          <!-- Fan-out row: transitions in/out like the vertical dropdown -->
-          <div
-            class="fan-row"
-            class:fan-row-open={markerFanOpen}
-          >
-            <!-- Primary marker (closest to main button) -->
-            <button
-              class="fan-button btn btn-circle bg-white hover:bg-opacity-90"
-              on:click={dropPrimaryMarker}
-              title="Drop {defaultMarker?.name || 'Default'} marker"
-            >
-              <div class="marker-icon-container fan-icon">
-                {#if defaultMarker.id === "default"}
-                  <IconSVG icon="mapbox-marker" size="26px" />
-                {:else if defaultMarker.class === "custom-svg"}
-                  <IconSVG icon={defaultMarker.id} size="26px" />
-                {:else if defaultMarker.class?.startsWith("ionic-")}
-                  <ion-icon name={defaultMarker.id} style="font-size: 26px;"
-                  ></ion-icon>
-                {:else if defaultMarker.class?.startsWith("at-")}
-                  <i class={`${defaultMarker.class}`} style="font-size: 26px;"
-                  ></i>
-                {:else}
-                  <MapPin size={20} />
-                {/if}
-              </div>
-            </button>
 
-            <!-- Extra markers -->
-            {#each extraMarkers as extraMarker}
-              <button
-                class="fan-button btn btn-circle bg-white hover:bg-opacity-90"
-                on:click={() => dropExtraMarker(extraMarker)}
-                title="Drop {extraMarker?.name || 'Marker'}"
-              >
-                <div class="marker-icon-container fan-icon">
-                  {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                    <IconSVG icon={extraMarker.id} size="26px" />
-                  {:else if extraMarker?.class?.startsWith("ionic-")}
-                    <ion-icon name={extraMarker.id} style="font-size: 26px;"
-                    ></ion-icon>
-                  {:else if extraMarker?.class?.startsWith("at-")}
-                    <i class={`${extraMarker.class}`} style="font-size: 26px;"
-                    ></i>
-                  {:else}
-                    <MapPin size={20} />
-                  {/if}
-                </div>
-              </button>
-            {/each}
-          </div>
-        {/if}
-
-        <!-- Main marker button (always visible) -->
-        <button
-          class="menu-button btn {isCircular
-            ? 'btn-circle'
-            : 'btn-square'} marker-icon-button btn-lg bg-white text-sm hover:bg-opacity-90
-            {markerFanOpen ? 'fan-open' : ''}"
-          on:click={handleLocationClick}
-        >
-          {#if hasExtraMarkers}
-            <!-- Stacked composite: shows layered icons to hint at fan group -->
-            <div class="marker-stack">
-              <!-- Background icon (last extra marker, behind) -->
-              <div class="marker-stack-back">
-                {#if lastExtraMarker?.class === "custom-svg" || lastExtraMarker?.class?.startsWith("custom-svg")}
-                  <IconSVG icon={lastExtraMarker.id} size="20px" />
-                {:else if lastExtraMarker?.class?.startsWith("ionic-")}
-                  <ion-icon name={lastExtraMarker.id} style="font-size: 20px;"
-                  ></ion-icon>
-                {:else if lastExtraMarker?.class?.startsWith("at-")}
-                  <i class={`${lastExtraMarker.class}`} style="font-size: 20px;"
-                  ></i>
-                {:else}
-                  <MapPin size={16} />
-                {/if}
-              </div>
-              <!-- Foreground/primary icon (front) -->
-              <div class="marker-stack-front">
-                {#key defaultMarker.id + defaultMarker.class}
-                  {#if defaultMarker.id === "default"}
-                    <IconSVG icon="mapbox-marker" size="24px" />
-                  {:else if defaultMarker.class === "custom-svg"}
-                    <IconSVG icon={defaultMarker.id} size="24px" />
-                  {:else if defaultMarker.class?.startsWith("ionic-")}
-                    <ion-icon name={defaultMarker.id} style="font-size: 24px;"
-                    ></ion-icon>
-                  {:else if defaultMarker.class?.startsWith("at-")}
-                    <i class={`${defaultMarker.class}`} style="font-size: 24px;"
-                    ></i>
-                  {:else}
-                    <MapPin size={20} />
-                  {/if}
-                {/key}
-              </div>
-              <!-- Count badge (primary + extras) -->
-              <div class="marker-stack-badge">{extraMarkers.length + 1}</div>
-            </div>
-          {:else}
-            <!-- Single marker — no extras configured -->
-            <div class="marker-icon-container">
-              {#key defaultMarker.id + defaultMarker.class}
-                {#if defaultMarker.id === "default"}
-                  <IconSVG icon="mapbox-marker" size="32px" />
-                {:else if defaultMarker.class === "custom-svg"}
-                  <IconSVG icon={defaultMarker.id} size="32px" />
-                {:else if defaultMarker.class?.startsWith("ionic-")}
-                  <ion-icon name={defaultMarker.id} style="font-size: 32px;"
-                  ></ion-icon>
-                {:else if defaultMarker.class?.startsWith("at-")}
-                  <i class={`${defaultMarker.class}`} style="font-size: 32px;"
-                  ></i>
-                {:else}
-                  <MapPin size={24} />
-                {/if}
-              {/key}
-            </div>
-          {/if}
-        </button>
-      </div>
 
       <!-- Locate Home Button -->
       <button
@@ -433,6 +350,7 @@
           </button>
         {/if}
       </div>
+      </div>
     </div>
   </div>
 </div>
@@ -468,13 +386,6 @@
     justify-content: center;
     width: 32px;
     height: 32px;
-  }
-
-  /* Ensure marker icon button displays correctly */
-  .marker-icon-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   /* Top button styles */
@@ -607,109 +518,51 @@
     overflow: visible !important;
   }
 
-  /* ── Marker Fan-out ─────────────────────────────── */
-  .marker-fan-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-  }
-
-  /* Horizontal row that holds all fan buttons — transitions like the vertical dropdown */
-  .fan-row {
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: center;
+  /* ── Marker Grid Panel (always visible, left of dropdown) ── */
+  .marker-grid-panel {
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
     gap: 8px;
-    position: absolute;
-    right: 100%;
-    margin-right: 8px;
-    transform-origin: right center;
-    transform: scaleX(0);
-    opacity: 0;
-    transition: all 0.5s ease-in-out;
-    pointer-events: none;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 2px solid rgba(247, 219, 92, 0.4);
+    border-radius: 16px;
   }
 
-  .fan-row.fan-row-open {
-    transform: scaleX(1);
-    opacity: 1;
-    pointer-events: auto;
+  /* Single marker: single column */
+  .marker-grid-panel:has(.marker-slot:only-child) {
+    grid-template-columns: 44px;
   }
 
-  .fan-button {
+  .marker-slot {
     width: 44px;
     height: 44px;
     min-height: 44px;
-    flex-shrink: 0;
     background-color: #f7db5c;
     border: 2px solid #000000;
     color: #000000;
     transition: all 0.2s ease;
   }
 
-  .fan-button:hover {
-    background-color: rgb(0, 0, 0, 0.5);
+  .marker-slot:hover {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #f7db5c;
+  }
+
+  .marker-slot-add {
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 2px dashed rgba(247, 219, 92, 0.55);
+    color: rgba(247, 219, 92, 0.85);
+  }
+
+  .marker-slot-add:hover {
+    background-color: rgba(247, 219, 92, 0.2);
+    border-style: solid;
     color: #f7db5c;
   }
 
   .fan-icon {
     width: 26px;
     height: 26px;
-  }
-
-  /* Highlight the main button when fan is open */
-  .marker-icon-button.fan-open {
-    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.5);
-  }
-
-  /* ── Stacked composite icon ────────────────────── */
-  .marker-stack {
-    position: relative;
-    width: 36px;
-    height: 36px;
-  }
-
-  .marker-stack-back {
-    position: absolute;
-    top: 0;
-    left: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    opacity: 0.55;
-    filter: grayscale(0.2);
-  }
-
-  .marker-stack-front {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    /* subtle lift */
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
-  }
-
-  .marker-stack-badge {
-    position: absolute;
-    top: -4px;
-    right: -6px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: #000;
-    color: #f7db5c;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    text-align: center;
-    pointer-events: none;
   }
 </style>

@@ -255,6 +255,14 @@
     }
   }
 
+  function handleOpenMarkerSettings() {
+    console.log("📌 Opening marker settings from marker grid")
+    toolboxOpen = true
+    if (toolboxRef) {
+      toolboxRef.switchToMarkerPanel()
+    }
+  }
+
   // Drawing callbacks
   function handleDrawingComplete() {
     console.log("Drawing completed")
@@ -598,6 +606,7 @@
       on:openTrailInfo={handleOpenTrailInfo}
       on:requestExit={handleRequestExit}
       on:locateHome={handleLocateHome}
+      on:openMarkerSettings={handleOpenMarkerSettings}
     />
 
     <NavigationControl />
