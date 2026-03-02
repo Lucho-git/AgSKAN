@@ -1346,16 +1346,55 @@
           }
         })
 
-        if (userMarkerData?.marker && userMarkerData.marker.getLngLat()) {
-          animateMarker(
-            userMarkerData.marker,
-            longitude,
-            latitude,
-            updatedHeading,
-          )
+        if (userMarkerData?.marker) {
+          if (userMarkerData.marker.getLngLat()) {
+            // Marker already on the map — animate to new position
+            animateMarker(
+              userMarkerData.marker,
+              longitude,
+              latitude,
+              updatedHeading,
+            )
 
-          if (userInitialsMarker) {
-            animateMarker(userInitialsMarker, longitude, latitude, 0)
+            if (userInitialsMarker) {
+              animateMarker(userInitialsMarker, longitude, latitude, 0)
+            }
+          } else {
+            // Marker was created without coordinates (new user, first visit).
+            // Now that geolocation has provided coordinates, place it on the map.
+            console.log("📍 Placing user marker on map for first time (new account)")
+            userMarkerData.marker
+              .setLngLat([longitude, latitude])
+              .setRotation(updatedHeading || 0)
+              .addTo(map)
+
+            const vehiclesVisible = $layerVisibilityStore.vehicles
+            const element = userMarkerData.marker.getElement()
+            if (element) {
+              element.style.display = vehiclesVisible ? "block" : "none"
+            }
+
+            // Create initials marker if it doesn't exist yet
+            if (!userInitialsMarker && $profileStore?.full_name) {
+              const initials = getUserInitials($profileStore.full_name)
+              if (initials) {
+                const initialsEl = createInitialsMarkerElement(
+                  initials,
+                  $userVehicleStore.vehicle_marker.bodyColor,
+                )
+                userInitialsMarker = new mapboxgl.Marker({
+                  element: initialsEl,
+                  anchor: "bottom",
+                  offset: [0, -40],
+                })
+                  .setLngLat([longitude, latitude])
+                  .addTo(map)
+
+                const labelsVisible = $layerVisibilityStore.vehicleLabels
+                initialsEl.style.display =
+                  vehiclesVisible && labelsVisible ? "block" : "none"
+              }
+            }
           }
         }
 
