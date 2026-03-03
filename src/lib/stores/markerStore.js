@@ -113,3 +113,6 @@ export const extraLocationMarkerStore = createExtraLocationMarkerStore()
 // 🆕 Pending marker changes stores for tracking unsynced data
 export const pendingMarkerChangesStore = writable(new Set())
 export const pendingMarkerDeletionsStore = writable(new Set())
+
+// Remote marker ripple event - fires when another user places a marker
+export const remoteMarkerRippleStore = writable(null)

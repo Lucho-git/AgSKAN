@@ -5,6 +5,7 @@
     confirmedMarkersStore,
     locationMarkerStore,
     extraLocationMarkerStore,
+    remoteMarkerRippleStore,
   } from "$lib/stores/markerStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -14,12 +15,65 @@
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
+  import * as mapboxgl from "mapbox-gl"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
   import { getIconImageName as getIconImageNameUtil } from "$lib/data/markerDefinitions"
 
   export let map
   export let mapLoaded = false
   export let coordinatedEvents = false
+
+  /**
+   * Show a temporary ripple animation at the given [lng, lat] coordinates.
+   * Uses a short-lived DOM marker that self-removes after the animation.
+   */
+  function showPlacementRipple(lngLat, color = 'rgba(247, 219, 92') {
+    if (!map) return
+    console.log('🫧 Ripple at', lngLat, 'color:', color)
+    const el = document.createElement('div')
+    el.className = 'marker-ripple-container'
+
+    const isConfirm = color.includes('59, 130, 246')
+
+    if (isConfirm) {
+      // Confirm animation: ring expand → hold → collapse → center flash
+      const ring = document.createElement('div')
+      ring.className = 'marker-ripple-lock'
+      ring.style.borderColor = `${color}, 0.9)`
+      ring.style.background = `${color}, 0.12)`
+      ring.style.boxShadow = `0 0 25px ${color}, 0.5)`
+      const dot = document.createElement('div')
+      dot.className = 'marker-ripple-lock-dot'
+      dot.style.background = `${color}, 0.95)`
+      dot.style.boxShadow = `0 0 12px ${color}, 0.8), 0 0 30px ${color}, 0.4)`
+      el.appendChild(ring)
+      el.appendChild(dot)
+
+      const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map)
+
+      dot.addEventListener('animationend', () => ripple.remove())
+    } else {
+      // Gold placement: two expanding rings
+      const ring1 = document.createElement('div')
+      ring1.className = 'marker-ripple-ring'
+      ring1.style.borderColor = `${color}, 0.9)`
+      ring1.style.background = `${color}, 0.18)`
+      const ring2 = document.createElement('div')
+      ring2.className = 'marker-ripple-ring marker-ripple-ring--delayed'
+      ring2.style.borderColor = `${color}, 0.6)`
+      ring2.style.background = `${color}, 0.08)`
+      el.appendChild(ring1)
+      el.appendChild(ring2)
+
+      const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map)
+
+      ring2.addEventListener('animationend', () => ripple.remove())
+    }
+  }
 
   // Get the layer management context
   const mapContext = getContext("map")
@@ -72,6 +126,7 @@
   let locationMarkerUnsubscribe
   let extraLocationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
+  let remoteRippleUnsubscribe
   let markersInitialized = false
   let iconsLoaded = false
   let iconPaths = null
@@ -615,6 +670,9 @@
     addMarkerToLayer(feature)
     selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
 
+    // Gold ripple on initial placement
+    showPlacementRipple([lngLat.lng, lngLat.lat])
+
     // Set default visibility to 'always' for new markers
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
@@ -689,6 +747,9 @@
         return [...markers, markerData]
       })
 
+      // Blue ripple on confirmation
+      showPlacementRipple(coordinates, 'rgba(59, 130, 246')
+
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
     }
@@ -759,6 +820,9 @@
     // Set default visibility to 'always' for new markers
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
+    // Blue ripple - quick-drop is auto-confirmed
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(59, 130, 246')
+
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
         center: [coordinates.longitude, coordinates.latitude],
@@ -801,6 +865,9 @@
     // Set default visibility to 'always' for new markers
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
+    // Blue ripple - quick-drop is auto-confirmed
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(59, 130, 246')
+
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
         center: [coordinates.longitude, coordinates.latitude],
@@ -841,12 +908,19 @@
     confirmedMarkersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
       if (markersInitialized && map) refreshMapMarkers()
     })
+
+    remoteRippleUnsubscribe = remoteMarkerRippleStore.subscribe((event) => {
+      if (event && event.coordinates) {
+        showPlacementRipple(event.coordinates, 'rgba(59, 130, 246')
+      }
+    })
   })
 
   onDestroy(() => {
     if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
     if (extraLocationMarkerUnsubscribe) extraLocationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
+    if (remoteRippleUnsubscribe) remoteRippleUnsubscribe()
 
     if (map && map.getStyle && typeof map.getLayer === "function") {
       try {
@@ -878,5 +952,135 @@
     {selectedMarkerStore}
     {getIconImageName}
     {updateMarkerNoteLabel}
+    {showPlacementRipple}
   />
 {/if}
+
+<style>
+  :global(.marker-ripple-container) {
+    pointer-events: none;
+    width: 0;
+    height: 0;
+    position: relative;
+  }
+
+  :global(.marker-ripple-ring) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 4px solid rgba(247, 219, 92, 0.9);
+    background: rgba(247, 219, 92, 0.18);
+    animation: marker-ripple 1.6s ease-out forwards;
+  }
+
+  :global(.marker-ripple-ring--delayed) {
+    animation: marker-ripple 1.8s ease-out 0.25s forwards;
+    opacity: 0;
+    border-width: 3px;
+    border-color: rgba(247, 219, 92, 0.6);
+    background: rgba(247, 219, 92, 0.08);
+  }
+
+  @keyframes -global-marker-ripple {
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 1;
+    }
+    60% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(3);
+      opacity: 0;
+    }
+  }
+
+  /* Blue confirm: smooth radar-lock */
+  :global(.marker-ripple-lock) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: 3px solid rgba(59, 130, 246, 0.9);
+    background: rgba(59, 130, 246, 0.12);
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+    animation: marker-lock 1.4s ease-in-out forwards;
+  }
+
+  :global(.marker-ripple-lock-dot) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.95);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4);
+    animation: marker-lock-dot 1.4s ease-in-out forwards;
+  }
+
+  @keyframes -global-marker-lock {
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    15% {
+      transform: translate(-50%, -50%) scale(2.2);
+      opacity: 0.8;
+    }
+    /* Hold expanded */
+    40% {
+      transform: translate(-50%, -50%) scale(2.2);
+      opacity: 0.6;
+      border-width: 3px;
+    }
+    /* Collapse inward — gets brighter + thicker */
+    80% {
+      transform: translate(-50%, -50%) scale(0.15);
+      opacity: 1;
+      border-width: 6px;
+      box-shadow: 0 0 40px rgba(59, 130, 246, 0.8);
+    }
+    /* Vanish */
+    100% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+      border-width: 6px;
+    }
+  }
+
+  @keyframes -global-marker-lock-dot {
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    /* Hidden while ring is open */
+    75% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    /* Pop in when ring reaches center */
+    85% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 1;
+    }
+    /* Settle */
+    92% {
+      transform: translate(-50%, -50%) scale(1.8);
+      opacity: 0.9;
+    }
+    /* Fade out */
+    100% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+    }
+  }
+</style>

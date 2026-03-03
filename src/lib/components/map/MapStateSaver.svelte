@@ -6,6 +6,7 @@
     syncStore,
     pendingMarkerChangesStore,
     pendingMarkerDeletionsStore,
+    remoteMarkerRippleStore,
   } from "$lib/stores/markerStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -186,6 +187,12 @@
           // Add new marker
           markers.push(processedMarker)
           console.log("➕ Added marker from realtime event:", newData.id)
+
+          // Trigger ripple animation for new remote markers
+          remoteMarkerRippleStore.set({
+            coordinates: processedMarker.coordinates,
+            timestamp: Date.now(),
+          })
         }
 
         return markers
