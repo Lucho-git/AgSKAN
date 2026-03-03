@@ -1,12 +1,15 @@
 <!-- src/lib/components/map/MapStateSaver.svelte -->
 <script>
   import { onMount, onDestroy } from "svelte"
+  import { get } from "svelte/store"
   import {
     confirmedMarkersStore,
     syncStore,
     pendingMarkerChangesStore,
     pendingMarkerDeletionsStore,
     remoteMarkerRippleStore,
+    remoteMarkerEditStore,
+    remoteMarkerDeleteStore,
   } from "$lib/stores/markerStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -129,6 +132,14 @@
     if (eventType === "DELETE" || newData?.deleted === true) {
       const markerId = newData?.id || oldData?.id
 
+      // Grab coordinates BEFORE removing from store for deletion animation
+      let deletedCoords = null
+      const currentMarkers = get(confirmedMarkersStore)
+      const markerToDelete = currentMarkers.find((m) => m.id === markerId)
+      if (markerToDelete?.coordinates) {
+        deletedCoords = markerToDelete.coordinates
+      }
+
       // Prevent trackChangedMarkers from running during realtime deletion
       const wasSyncing = isSyncing
       isSyncing = true
@@ -149,6 +160,14 @@
       }
 
       isSyncing = wasSyncing
+
+      // Trigger deletion animation at marker's last position
+      if (deletedCoords) {
+        remoteMarkerDeleteStore.set({
+          coordinates: deletedCoords,
+          timestamp: Date.now(),
+        })
+      }
 
       console.log("🗑️ Removed marker from realtime event:", markerId)
       return
@@ -183,6 +202,12 @@
           // Update existing marker
           markers[existingIndex] = processedMarker
           console.log("✏️ Updated marker from realtime event:", newData.id)
+
+          // Trigger edit animation for remote marker edits
+          remoteMarkerEditStore.set({
+            coordinates: processedMarker.coordinates,
+            timestamp: Date.now(),
+          })
         } else {
           // Add new marker
           markers.push(processedMarker)

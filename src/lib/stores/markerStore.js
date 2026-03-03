@@ -116,3 +116,9 @@ export const pendingMarkerDeletionsStore = writable(new Set())
 
 // Remote marker ripple event - fires when another user places a marker
 export const remoteMarkerRippleStore = writable(null)
+
+// Remote marker edit event - fires when another user edits a marker
+export const remoteMarkerEditStore = writable(null)
+
+// Remote marker delete event - fires when another user deletes a marker
+export const remoteMarkerDeleteStore = writable(null)

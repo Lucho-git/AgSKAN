@@ -6,6 +6,8 @@
     locationMarkerStore,
     extraLocationMarkerStore,
     remoteMarkerRippleStore,
+    remoteMarkerEditStore,
+    remoteMarkerDeleteStore,
   } from "$lib/stores/markerStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -33,27 +35,27 @@
     const el = document.createElement('div')
     el.className = 'marker-ripple-container'
 
-    const isConfirm = color.includes('59, 130, 246')
+    const isConfirm = color.includes('34, 197, 94')
 
     if (isConfirm) {
-      // Confirm animation: ring expand → hold → collapse → center flash
+      // Soft gather — thin ring contracts inward, sharp dot snap + outward pulse
       const ring = document.createElement('div')
-      ring.className = 'marker-ripple-lock'
-      ring.style.borderColor = `${color}, 0.9)`
-      ring.style.background = `${color}, 0.12)`
-      ring.style.boxShadow = `0 0 25px ${color}, 0.5)`
+      ring.className = 'marker-confirm-gather'
+      ring.style.borderColor = `${color}, 0.5)`
+      ring.style.boxShadow = `0 0 12px ${color}, 0.2)`
       const dot = document.createElement('div')
-      dot.className = 'marker-ripple-lock-dot'
+      dot.className = 'marker-confirm-gather-dot'
       dot.style.background = `${color}, 0.95)`
-      dot.style.boxShadow = `0 0 12px ${color}, 0.8), 0 0 30px ${color}, 0.4)`
+      dot.style.boxShadow = `0 0 14px ${color}, 0.9), 0 0 35px ${color}, 0.5)`
+      const pulse = document.createElement('div')
+      pulse.className = 'marker-confirm-gather-pulse'
+      pulse.style.borderColor = `${color}, 0.6)`
       el.appendChild(ring)
       el.appendChild(dot)
-
+      el.appendChild(pulse)
       const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat(lngLat)
-        .addTo(map)
-
-      dot.addEventListener('animationend', () => ripple.remove())
+        .setLngLat(lngLat).addTo(map)
+      pulse.addEventListener('animationend', () => ripple.remove())
     } else {
       // Gold placement: two expanding rings
       const ring1 = document.createElement('div')
@@ -75,7 +77,32 @@
     }
   }
 
-  // Get the layer management context
+  function showRemovalAnimation(lngLat) {
+    if (!map) return
+    const el = document.createElement('div')
+    el.className = 'marker-ripple-container'
+
+    const puff = document.createElement('div')
+    puff.className = 'marker-removal-puff'
+    el.appendChild(puff)
+    const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(lngLat)
+      .addTo(map)
+    puff.addEventListener('animationend', () => ripple.remove())
+  }
+
+  function showEditRipple(lngLat) {
+    if (!map) return
+    const el = document.createElement('div')
+    el.className = 'marker-ripple-container'
+    const ring = document.createElement('div')
+    ring.className = 'marker-edit-pulse'
+    el.appendChild(ring)
+    const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(lngLat).addTo(map)
+    ring.addEventListener('animationend', () => m.remove())
+  }
+
   const mapContext = getContext("map")
 
   // Get global selection context for unified event system
@@ -127,6 +154,8 @@
   let extraLocationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
   let remoteRippleUnsubscribe
+  let remoteEditUnsubscribe
+  let remoteDeleteUnsubscribe
   let markersInitialized = false
   let iconsLoaded = false
   let iconPaths = null
@@ -747,8 +776,8 @@
         return [...markers, markerData]
       })
 
-      // Blue ripple on confirmation
-      showPlacementRipple(coordinates, 'rgba(59, 130, 246')
+      // Green ripple on confirmation
+      showPlacementRipple(coordinates, 'rgba(34, 197, 94')
 
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
@@ -763,7 +792,12 @@
   // Remove marker
   function removeMarker() {
     if ($selectedMarkerStore) {
-      const { id } = $selectedMarkerStore
+      const { id, coordinates } = $selectedMarkerStore
+
+      // Play removal animation before removing
+      if (coordinates) {
+        showRemovalAnimation(coordinates)
+      }
 
       confirmedMarkersStore.update((markers) =>
         markers.filter((m) => m.id !== id),
@@ -820,8 +854,8 @@
     // Set default visibility to 'always' for new markers
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
-    // Blue ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(59, 130, 246')
+    // Green ripple - quick-drop is auto-confirmed
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94')
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -865,8 +899,8 @@
     // Set default visibility to 'always' for new markers
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
-    // Blue ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(59, 130, 246')
+    // Green ripple - quick-drop is auto-confirmed
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94')
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -911,7 +945,19 @@
 
     remoteRippleUnsubscribe = remoteMarkerRippleStore.subscribe((event) => {
       if (event && event.coordinates) {
-        showPlacementRipple(event.coordinates, 'rgba(59, 130, 246')
+        showPlacementRipple(event.coordinates, 'rgba(34, 197, 94')
+      }
+    })
+
+    remoteEditUnsubscribe = remoteMarkerEditStore.subscribe((event) => {
+      if (event && event.coordinates) {
+        showEditRipple(event.coordinates)
+      }
+    })
+
+    remoteDeleteUnsubscribe = remoteMarkerDeleteStore.subscribe((event) => {
+      if (event && event.coordinates) {
+        showRemovalAnimation(event.coordinates)
       }
     })
   })
@@ -921,6 +967,8 @@
     if (extraLocationMarkerUnsubscribe) extraLocationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
     if (remoteRippleUnsubscribe) remoteRippleUnsubscribe()
+    if (remoteEditUnsubscribe) remoteEditUnsubscribe()
+    if (remoteDeleteUnsubscribe) remoteDeleteUnsubscribe()
 
     if (map && map.getStyle && typeof map.getLayer === "function") {
       try {
@@ -953,6 +1001,7 @@
     {getIconImageName}
     {updateMarkerNoteLabel}
     {showPlacementRipple}
+    {showEditRipple}
   />
 {/if}
 
@@ -999,88 +1048,135 @@
     }
   }
 
-  /* Blue confirm: smooth radar-lock */
-  :global(.marker-ripple-lock) {
+  /* ===== CONFIRM: Soft gather — ring contracts, dot snap + outward pulse ===== */
+  :global(.marker-confirm-gather) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1.2);
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 2px solid rgba(34, 197, 94, 0.5);
+    background: transparent;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+    animation: marker-gather-ring 1.0s ease-in forwards;
+  }
+
+  :global(.marker-confirm-gather-dot) {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0);
-    width: 180px;
-    height: 180px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    border: 3px solid rgba(59, 130, 246, 0.9);
-    background: rgba(59, 130, 246, 0.12);
-    box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
-    animation: marker-lock 1.4s ease-in-out forwards;
+    background: rgba(34, 197, 94, 0.95);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.9), 0 0 35px rgba(34, 197, 94, 0.5);
+    animation: marker-gather-dot 1.1s ease-out forwards;
   }
 
-  :global(.marker-ripple-lock-dot) {
+  :global(.marker-confirm-gather-pulse) {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0);
-    width: 16px;
-    height: 16px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
-    background: rgba(59, 130, 246, 0.95);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4);
-    animation: marker-lock-dot 1.4s ease-in-out forwards;
+    border: 2px solid rgba(34, 197, 94, 0.6);
+    background: transparent;
+    animation: marker-gather-pulse 0.6s ease-out 0.75s forwards;
   }
 
-  @keyframes -global-marker-lock {
+  @keyframes -global-marker-gather-ring {
+    0% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
+    20% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; border-width: 2px; }
+    70% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.7; border-width: 3px; }
+    85% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  }
+
+  @keyframes -global-marker-gather-dot {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    65% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    72% { transform: translate(-50%, -50%) scale(3); opacity: 1; box-shadow: 0 0 20px rgba(34, 197, 94, 1), 0 0 50px rgba(34, 197, 94, 0.6); }
+    82% { transform: translate(-50%, -50%) scale(2); opacity: 0.9; }
+    90% { transform: translate(-50%, -50%) scale(2.4); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  }
+
+  @keyframes -global-marker-gather-pulse {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+  }
+
+  /* ===== EDIT: Blue gentle pulse ===== */
+
+  :global(.marker-edit-pulse) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.4);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(59, 130, 246, 0.6);
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+    animation: marker-edit-pulse 0.9s ease-out forwards;
+  }
+
+  @keyframes -global-marker-edit-pulse {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    15% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.8; }
+    45% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.6; box-shadow: 0 0 18px rgba(59, 130, 246, 0.35); }
+    100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+  }
+
+  /* Removal: Smoke puff — expands and dissipates */
+  :global(.marker-removal-puff) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(239, 68, 68, 0.55) 0%,
+      rgba(220, 60, 60, 0.35) 30%,
+      rgba(180, 70, 70, 0.18) 60%,
+      transparent 100%
+    );
+    box-shadow: 0 0 40px rgba(239, 68, 68, 0.5);
+    animation: marker-puff 1.2s ease-out forwards;
+  }
+
+  @keyframes -global-marker-puff {
     0% {
-      transform: translate(-50%, -50%) scale(0);
-      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.2);
+      opacity: 1;
     }
     15% {
-      transform: translate(-50%, -50%) scale(2.2);
-      opacity: 0.8;
+      transform: translate(-50%, -50%) scale(1.2);
+      opacity: 0.95;
+      box-shadow: 0 0 50px rgba(239, 68, 68, 0.7);
     }
-    /* Hold expanded */
     40% {
       transform: translate(-50%, -50%) scale(2.2);
-      opacity: 0.6;
-      border-width: 3px;
+      opacity: 0.7;
     }
-    /* Collapse inward — gets brighter + thicker */
-    80% {
-      transform: translate(-50%, -50%) scale(0.15);
-      opacity: 1;
-      border-width: 6px;
-      box-shadow: 0 0 40px rgba(59, 130, 246, 0.8);
+    70% {
+      transform: translate(-50%, -50%) scale(3);
+      opacity: 0.35;
+      filter: blur(4px);
     }
-    /* Vanish */
     100% {
-      transform: translate(-50%, -50%) scale(0);
+      transform: translate(-50%, -50%) scale(3.8);
       opacity: 0;
-      border-width: 6px;
-    }
-  }
-
-  @keyframes -global-marker-lock-dot {
-    0% {
-      transform: translate(-50%, -50%) scale(0);
-      opacity: 0;
-    }
-    /* Hidden while ring is open */
-    75% {
-      transform: translate(-50%, -50%) scale(0);
-      opacity: 0;
-    }
-    /* Pop in when ring reaches center */
-    85% {
-      transform: translate(-50%, -50%) scale(2.5);
-      opacity: 1;
-    }
-    /* Settle */
-    92% {
-      transform: translate(-50%, -50%) scale(1.8);
-      opacity: 0.9;
-    }
-    /* Fade out */
-    100% {
-      transform: translate(-50%, -50%) scale(2);
-      opacity: 0;
+      filter: blur(10px);
     }
   }
 </style>

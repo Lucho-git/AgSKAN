@@ -28,6 +28,7 @@
   export let selectedMarkerStore
   export let getIconImageName
   export let showPlacementRipple = () => {}
+  export let showEditRipple = () => {}
 
   // UI State
   let showEditMenu = false
@@ -357,8 +358,8 @@
       return [...markers, markerData]
     })
 
-    // Blue ripple on confirmation
-    showPlacementRipple(coordinates, 'rgba(59, 130, 246')
+    // Green ripple on confirmation
+    showPlacementRipple(coordinates, 'rgba(34, 197, 94')
 
     if (map && map.getSource("markers")) {
       const source = map.getSource("markers")
@@ -427,9 +428,9 @@
       return markers
     })
 
-    // Blue ripple on edit confirmation
+    // Green edit ripple on edit confirmation
     if ($selectedMarkerStore?.coordinates) {
-      showPlacementRipple($selectedMarkerStore.coordinates, 'rgba(59, 130, 246')
+      showEditRipple($selectedMarkerStore.coordinates)
     }
 
     selectedIconForEdit = null
