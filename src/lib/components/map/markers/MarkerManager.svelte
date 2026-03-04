@@ -1018,32 +1018,32 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0);
-    width: 200px;
-    height: 200px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
-    border: 4px solid rgba(247, 219, 92, 0.9);
-    background: rgba(247, 219, 92, 0.18);
-    animation: marker-ripple 1.6s ease-out forwards;
+    border: 2.5px solid rgba(247, 219, 92, 0.7);
+    background: rgba(247, 219, 92, 0.1);
+    animation: marker-ripple 1.0s ease-out forwards;
   }
 
   :global(.marker-ripple-ring--delayed) {
-    animation: marker-ripple 1.8s ease-out 0.25s forwards;
+    animation: marker-ripple 1.2s ease-out 0.15s forwards;
     opacity: 0;
-    border-width: 3px;
-    border-color: rgba(247, 219, 92, 0.6);
-    background: rgba(247, 219, 92, 0.08);
+    border-width: 2px;
+    border-color: rgba(247, 219, 92, 0.45);
+    background: rgba(247, 219, 92, 0.05);
   }
 
   @keyframes -global-marker-ripple {
     0% {
       transform: translate(-50%, -50%) scale(0);
-      opacity: 1;
+      opacity: 0.9;
     }
-    60% {
-      opacity: 0.6;
+    50% {
+      opacity: 0.5;
     }
     100% {
-      transform: translate(-50%, -50%) scale(3);
+      transform: translate(-50%, -50%) scale(2.2);
       opacity: 0;
     }
   }
