@@ -9,8 +9,10 @@
     Satellite,
     Layers,
     Zap,
+    Gamepad2,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
+  import { devModeEnabled } from "$lib/stores/devModeStore"
 
   // Import vehicle store and components
   import { userVehicleStore } from "$lib/stores/vehicleStore"
@@ -106,6 +108,11 @@
 
   function showFlashPanel() {
     activePanel = "flash"
+  }
+
+  function toggleDevMode() {
+    devModeEnabled.update((v) => !v)
+    closeToolbox()
   }
 
   function handleMeasurement() {
@@ -247,6 +254,15 @@
           >
             <Zap size={26} class={isFlashing ? "flashing-icon" : ""} />
             <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
+          </button>
+
+          <button
+            class="tool-button"
+            class:tool-active={$devModeEnabled}
+            on:click={toggleDevMode}
+          >
+            <Gamepad2 size={26} />
+            <span>{$devModeEnabled ? "Exit Dev Mode" : "Dev Mode"}</span>
           </button>
         </div>
       {/if}

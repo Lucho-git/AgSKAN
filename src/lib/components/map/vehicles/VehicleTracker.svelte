@@ -23,6 +23,10 @@
   import backgroundService from "$lib/services/backgroundService"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
+  import {
+    devModeEnabled,
+    devPositionStore,
+  } from "$lib/stores/devModeStore"
 
   export let map
   export let disableAutoZoom = false
@@ -679,6 +683,7 @@
               })
             }
           } else if (event === "location" && isBackground) {
+            if ($devModeEnabled) return // Dev mode overrides real GPS
             streamMarkerPosition(data.coords)
           } else if (event === "permissionChange") {
             if (data.backgroundPermissionGranted) {
@@ -779,6 +784,7 @@
     })
 
     geolocateControl.on("geolocate", (e) => {
+      if ($devModeEnabled) return // Dev mode overrides real GPS
       const { coords } = e
       streamMarkerPosition(coords)
     })
@@ -1261,6 +1267,11 @@
     })
 
     return { element: el, component }
+  }
+
+  // ✅ Dev mode: pipe synthetic position into the normal GPS pipeline
+  $: if ($devModeEnabled && $devPositionStore.latitude != null) {
+    streamMarkerPosition($devPositionStore)
   }
 
   function streamMarkerPosition(coords) {

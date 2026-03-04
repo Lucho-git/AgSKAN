@@ -41,6 +41,8 @@
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
+  import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
+  import { devModeEnabled } from "$lib/stores/devModeStore"
 
   // Import persistent managers
   import SatelliteManager from "$lib/components/map/toolbox/SatelliteManager.svelte"
@@ -664,6 +666,11 @@
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
 />
+
+<!-- Dev Mode Joystick Overlay -->
+{#if $devModeEnabled}
+  <DevModeJoystick {map} />
+{/if}
 
 <!-- Trail Modals (rendered at MapViewer level - no constraints!) -->
 <TrailModals
