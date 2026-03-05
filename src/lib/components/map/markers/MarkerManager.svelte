@@ -22,7 +22,7 @@
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
-  import { getIconImageName as getIconImageNameUtil } from "$lib/data/markerDefinitions"
+  import { getIconImageName as getIconImageNameUtil, findMarkerByIconClass } from "$lib/data/markerDefinitions"
 
   export let map
   export let mapLoaded = false
@@ -32,7 +32,15 @@
    * Show a temporary ripple animation at the given [lng, lat] coordinates.
    * Uses a short-lived DOM marker that self-removes after the animation.
    */
-  function showPlacementRipple(lngLat, color = 'rgba(247, 219, 92') {
+  function appendFloatingLabel(container, text) {
+    if (!text) return
+    const label = document.createElement('div')
+    label.className = 'marker-floating-label'
+    label.textContent = text
+    container.appendChild(label)
+  }
+
+  function showPlacementRipple(lngLat, color = 'rgba(247, 219, 92', markerName = '') {
     if (!map) return
     console.log('🫧 Ripple at', lngLat, 'color:', color)
     const el = document.createElement('div')
@@ -56,6 +64,9 @@
       el.appendChild(ring)
       el.appendChild(dot)
       el.appendChild(pulse)
+
+      if (markerName) appendFloatingLabel(el, `${markerName} Placed`)
+
       const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat(lngLat).addTo(map)
       pulse.addEventListener('animationend', () => ripple.remove())
@@ -72,6 +83,8 @@
       el.appendChild(ring1)
       el.appendChild(ring2)
 
+      if (markerName) appendFloatingLabel(el, `${markerName} Placed`)
+
       const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat(lngLat)
         .addTo(map)
@@ -80,7 +93,7 @@
     }
   }
 
-  function showRemovalAnimation(lngLat) {
+  function showRemovalAnimation(lngLat, markerName = '') {
     if (!map) return
     const el = document.createElement('div')
     el.className = 'marker-ripple-container'
@@ -88,13 +101,16 @@
     const puff = document.createElement('div')
     puff.className = 'marker-removal-puff'
     el.appendChild(puff)
+
+    if (markerName) appendFloatingLabel(el, `${markerName} Deleted`)
+
     const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lngLat)
       .addTo(map)
     puff.addEventListener('animationend', () => ripple.remove())
   }
 
-  function showCollectAnimation(lngLat) {
+  function showCollectAnimation(lngLat, markerName = '') {
     if (!map) return
     const el = document.createElement('div')
     el.className = 'marker-ripple-container'
@@ -107,19 +123,24 @@
     dot.className = 'marker-collect-dot'
     el.appendChild(dot)
 
+    if (markerName) appendFloatingLabel(el, `${markerName} Collected`)
+
     const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lngLat)
       .addTo(map)
     dot.addEventListener('animationend', () => ripple.remove())
   }
 
-  function showEditRipple(lngLat) {
+  function showEditRipple(lngLat, markerName = '') {
     if (!map) return
     const el = document.createElement('div')
     el.className = 'marker-ripple-container'
     const ring = document.createElement('div')
     ring.className = 'marker-edit-pulse'
     el.appendChild(ring)
+
+    if (markerName) appendFloatingLabel(el, markerName)
+
     const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lngLat).addTo(map)
     ring.addEventListener('animationend', () => m.remove())
@@ -799,7 +820,8 @@
       })
 
       // Green ripple on confirmation
-      showPlacementRipple(coordinates, 'rgba(34, 197, 94')
+      const markerDef = findMarkerByIconClass(iconClass)
+      showPlacementRipple(coordinates, 'rgba(34, 197, 94', markerDef?.name || 'Marker')
 
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
@@ -815,10 +837,13 @@
   function removeMarker() {
     if ($selectedMarkerStore) {
       const { id, coordinates } = $selectedMarkerStore
+      const iconClass = getCurrentIconClass(id)
+      const markerDef = findMarkerByIconClass(iconClass)
+      const markerName = markerDef?.name || 'Marker'
 
       // Play removal animation before removing
       if (coordinates) {
-        showRemovalAnimation(coordinates)
+        showRemovalAnimation(coordinates, markerName)
       }
 
       confirmedMarkersStore.update((markers) =>
@@ -855,11 +880,13 @@
     if (!marker) return
 
     // Play animation
+    const markerDef = findMarkerByIconClass(marker.iconClass)
+    const markerName = markerDef?.name || 'Marker'
     if (marker.coordinates) {
       if (animStyle === 'green') {
-        showCollectAnimation(marker.coordinates)
+        showCollectAnimation(marker.coordinates, markerName)
       } else {
-        showRemovalAnimation(marker.coordinates)
+        showRemovalAnimation(marker.coordinates, markerName)
       }
     }
 
@@ -979,7 +1006,7 @@
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
     // Green ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94')
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94', defaultMarker?.name || 'Marker')
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -1024,7 +1051,7 @@
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
     // Green ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94')
+    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94', extraMarker?.name || 'Marker')
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -1141,6 +1168,34 @@
 {/if}
 
 <style>
+  :global(.marker-floating-label) {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%) translateY(-8px);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.75);
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    z-index: 50;
+    animation: marker-label-float 1.8s ease-out forwards;
+  }
+
+  @keyframes -global-marker-label-float {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.85); }
+    10%  { opacity: 1; transform: translateX(-50%) translateY(-14px) scale(1); }
+    55%  { opacity: 1; transform: translateX(-50%) translateY(-28px); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-48px) scale(0.92); }
+  }
+
   :global(.marker-ripple-container) {
     pointer-events: none;
     width: 0;
