@@ -10,9 +10,11 @@
     Layers,
     Zap,
     Gamepad2,
+    Magnet,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import { devModeEnabled } from "$lib/stores/devModeStore"
+  import { collectionModeStore } from "$lib/stores/markerStore"
 
   // Import vehicle store and components
   import { userVehicleStore } from "$lib/stores/vehicleStore"
@@ -26,6 +28,7 @@
   import VehicleControls from "$lib/components/map/vehicles/VehicleControls_lib.svelte"
   import TrailControls from "$lib/components/map/trails/TrailControls.svelte"
   import LayerControls from "./LayerControls.svelte"
+  import CollectionControls from "./CollectionControls.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
 
   export let isOpen = false
@@ -110,6 +113,10 @@
     activePanel = "flash"
   }
 
+  function showCollectionPanel() {
+    activePanel = "collection"
+  }
+
   function toggleDevMode() {
     devModeEnabled.update((v) => !v)
     closeToolbox()
@@ -161,6 +168,9 @@
         {:else if activePanel === "flash"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Flash Signals</h3>
+        {:else if activePanel === "collection"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Collection Mode</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -187,6 +197,8 @@
         <div class="flash-panel-container">
           <VehicleFlashController on:closeToolbox={handleFlashClose} />
         </div>
+      {:else if activePanel === "collection"}
+        <CollectionControls on:close={closeToolbox} />
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
@@ -254,6 +266,15 @@
           >
             <Zap size={26} class={isFlashing ? "flashing-icon" : ""} />
             <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
+          </button>
+
+          <button
+            class="tool-button collection-tool"
+            class:tool-active={$collectionModeStore.enabled}
+            on:click={showCollectionPanel}
+          >
+            <Magnet size={26} />
+            <span>Rock Picking</span>
           </button>
 
           <button
@@ -401,6 +422,17 @@
   .flash-tool.tool-active:hover {
     background: rgba(251, 191, 36, 0.3);
     border-color: rgba(251, 191, 36, 0.6);
+  }
+
+  .collection-tool.tool-active {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.5);
+    color: #c084fc;
+  }
+
+  .collection-tool.tool-active:hover {
+    background: rgba(168, 85, 247, 0.3);
+    border-color: rgba(168, 85, 247, 0.6);
   }
 
   .flashing-icon {

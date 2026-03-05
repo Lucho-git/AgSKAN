@@ -11,6 +11,7 @@
     selectedMarkerStore,
     pendingMarkerChangesStore,
     pendingMarkerDeletionsStore,
+    collectionRouteStore,
   } from "$lib/stores/markerStore"
   import {
     fieldBoundaryStore,
@@ -35,6 +36,7 @@
   import TrailSynchronizer from "$lib/components/map/trails/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/map/trails/TrailView.svelte"
   import DrawingHectares from "$lib/components/map/overlays/DrawingHectares.svelte"
+  import CollectionRoutePlanner from "$lib/components/map/overlays/CollectionRoutePlanner.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
@@ -220,6 +222,8 @@
   }
 
   function handleLongPress(lngLat) {
+    // Don't place markers while lasso-drawing a collection route
+    if ($collectionRouteStore.phase === "drawing") return
     if (markerManagerRef) {
       markerManagerRef.handleMarkerPlacement(lngLat)
     }
@@ -634,6 +638,7 @@
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <DrawingHectares {map} />
+    <CollectionRoutePlanner {map} />
 
     <TrailView bind:this={trailHighlighter} {map} />
 

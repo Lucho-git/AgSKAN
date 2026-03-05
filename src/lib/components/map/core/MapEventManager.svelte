@@ -1,4 +1,4 @@
-<!-- src/lib/components/map/MapEventManager.svelte -->
+<!-- src/lib/components/map/core/MapEventManager.svelte -->
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
   import { confirmedMarkersStore, collectionRouteStore } from "$lib/stores/markerStore"

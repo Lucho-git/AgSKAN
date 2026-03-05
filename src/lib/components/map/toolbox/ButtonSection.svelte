@@ -586,13 +586,13 @@
             >
               <div class="marker-icon-container">
                 {#if defaultMarker.id === "default"}
-                  <IconSVG icon="mapbox-marker" size="24px" />
+                  <IconSVG icon="mapbox-marker" size="26px" />
                 {:else if defaultMarker.class === "custom-svg"}
-                  <IconSVG icon={defaultMarker.id} size="24px" />
+                  <IconSVG icon={defaultMarker.id} size="26px" />
                 {:else if defaultMarker.class?.startsWith("ionic-")}
-                  <ion-icon name={defaultMarker.id} style="font-size: 24px;"></ion-icon>
+                  <ion-icon name={defaultMarker.id} style="font-size: 26px;"></ion-icon>
                 {:else if defaultMarker.class?.startsWith("at-")}
-                  <i class={`${defaultMarker.class}`} style="font-size: 24px;"></i>
+                  <i class={`${defaultMarker.class}`} style="font-size: 26px;"></i>
                 {:else}
                   <MapPin size={20} />
                 {/if}
@@ -613,11 +613,11 @@
               >
                 <div class="marker-icon-container">
                   {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                    <IconSVG icon={extraMarker.id} size="24px" />
+                    <IconSVG icon={extraMarker.id} size="26px" />
                   {:else if extraMarker?.class?.startsWith("ionic-")}
-                    <ion-icon name={extraMarker.id} style="font-size: 24px;"></ion-icon>
+                    <ion-icon name={extraMarker.id} style="font-size: 26px;"></ion-icon>
                   {:else if extraMarker?.class?.startsWith("at-")}
-                    <i class={`${extraMarker.class}`} style="font-size: 24px;"></i>
+                    <i class={`${extraMarker.class}`} style="font-size: 26px;"></i>
                   {:else}
                     <MapPin size={20} />
                   {/if}
@@ -640,13 +640,13 @@
             >
               <div class="marker-icon-container">
                 {#if defaultMarker.id === "default"}
-                  <IconSVG icon="mapbox-marker" size="24px" />
+                  <IconSVG icon="mapbox-marker" size="26px" />
                 {:else if defaultMarker.class === "custom-svg"}
-                  <IconSVG icon={defaultMarker.id} size="24px" />
+                  <IconSVG icon={defaultMarker.id} size="26px" />
                 {:else if defaultMarker.class?.startsWith("ionic-")}
-                  <ion-icon name={defaultMarker.id} style="font-size: 24px;"></ion-icon>
+                  <ion-icon name={defaultMarker.id} style="font-size: 26px;"></ion-icon>
                 {:else if defaultMarker.class?.startsWith("at-")}
-                  <i class={`${defaultMarker.class}`} style="font-size: 24px;"></i>
+                  <i class={`${defaultMarker.class}`} style="font-size: 26px;"></i>
                 {:else}
                   <MapPin size={20} />
                 {/if}
@@ -667,11 +667,11 @@
               >
                 <div class="marker-icon-container">
                   {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                    <IconSVG icon={extraMarker.id} size="24px" />
+                    <IconSVG icon={extraMarker.id} size="26px" />
                   {:else if extraMarker?.class?.startsWith("ionic-")}
-                    <ion-icon name={extraMarker.id} style="font-size: 24px;"></ion-icon>
+                    <ion-icon name={extraMarker.id} style="font-size: 26px;"></ion-icon>
                   {:else if extraMarker?.class?.startsWith("at-")}
-                    <i class={`${extraMarker.class}`} style="font-size: 24px;"></i>
+                    <i class={`${extraMarker.class}`} style="font-size: 26px;"></i>
                   {:else}
                     <MapPin size={20} />
                   {/if}
@@ -685,6 +685,7 @@
         {/if}
 
         </div>
+
       </div>
     </div>
 
@@ -907,9 +908,9 @@
   /*  V2 (Glass) — frosted dark circle, black border        */
   /* ═══════════════════════════════════════════════════════ */
   .marker-v5 {
-    width: 52px;
-    height: 52px;
-    min-height: 52px;
+    width: 4rem;
+    height: 4rem;
+    min-height: 4rem;
     padding: 0;
     background: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(12px);
@@ -920,9 +921,9 @@
 
   /* Shrink when 2-col grid */
   .marker-grid-2col .marker-v5 {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: 3.5rem;
+    height: 3.5rem;
+    min-height: 3.5rem;
   }
 
   .marker-v5:hover {
@@ -936,9 +937,9 @@
   /*  V3 (Inset) — dark recessed square, black border       */
   /* ═══════════════════════════════════════════════════════ */
   .marker-v6 {
-    width: 52px;
-    height: 52px;
-    min-height: 52px;
+    width: 4rem;
+    height: 4rem;
+    min-height: 4rem;
     padding: 0;
     border-radius: 12px;
     background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
@@ -955,9 +956,9 @@
 
   /* Shrink when 2-col grid */
   .marker-grid-2col .marker-v6 {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: 3.5rem;
+    height: 3.5rem;
+    min-height: 3.5rem;
   }
 
   .marker-v6:hover {

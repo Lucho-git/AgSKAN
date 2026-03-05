@@ -88,6 +88,9 @@
   let unsubscribeOtherVehiclesDataChanges
   let lastClientCoordinates = null
   let lastClientHeading = null
+
+  // Track running animation frames per marker so we can cancel on new update
+  const markerAnimFrames = new WeakMap()
   let previousVehicleMarker = null
 
   $: {
@@ -569,9 +572,11 @@
 
     const cameraOptions = {
       center: [longitude, latitude],
-      duration: 600,
+      duration: $devModeEnabled ? 60 : 600,
       essential: true,
-      easing: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
+      easing: $devModeEnabled
+        ? (t) => t   // linear for dev mode
+        : (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
     }
 
     if (isFirstPersonMode && heading !== null && heading !== undefined) {
@@ -1083,6 +1088,10 @@
   }
 
   function animateMarker(marker, targetLng, targetLat, targetRotation) {
+    // Cancel any running animation for this marker
+    const prevFrame = markerAnimFrames.get(marker)
+    if (prevFrame) cancelAnimationFrame(prevFrame)
+
     const currentLngLat = marker.getLngLat()
     const currentRotation = marker.getRotation()
 
@@ -1096,27 +1105,34 @@
       rotationDiff += 360
     }
 
-    const duration = 600
+    // Dev mode: short linear lerp matching joystick rate; GPS: smooth 600ms ease
+    const isDevMode = $devModeEnabled
+    const duration = isDevMode ? 60 : 600
     const start = performance.now()
 
     function animate(timestamp) {
       const elapsed = timestamp - start
       const t = Math.min(elapsed / duration, 1)
 
-      const easing = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+      // Linear for dev (smooth at high update rate), eased for GPS
+      const progress = isDevMode ? t : (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t)
 
-      const lng = currentLngLat.lng + lngDiff * easing
-      const lat = currentLngLat.lat + latDiff * easing
-      const rotation = currentRotation + rotationDiff * easing
+      const lng = currentLngLat.lng + lngDiff * progress
+      const lat = currentLngLat.lat + latDiff * progress
+      const rotation = currentRotation + rotationDiff * progress
 
       marker.setLngLat([lng, lat]).setRotation(rotation)
 
       if (elapsed < duration) {
-        requestAnimationFrame(animate)
+        const id = requestAnimationFrame(animate)
+        markerAnimFrames.set(marker, id)
+      } else {
+        markerAnimFrames.delete(marker)
       }
     }
 
-    requestAnimationFrame(animate)
+    const id = requestAnimationFrame(animate)
+    markerAnimFrames.set(marker, id)
   }
 
   function updateUserMarker(vehicleMarker) {

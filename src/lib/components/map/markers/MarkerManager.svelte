@@ -8,12 +8,15 @@
     remoteMarkerRippleStore,
     remoteMarkerEditStore,
     remoteMarkerDeleteStore,
+    collectionModeStore,
+    collectionRouteStore,
   } from "$lib/stores/markerStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { controlStore } from "$lib/stores/controlStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
@@ -89,6 +92,25 @@
       .setLngLat(lngLat)
       .addTo(map)
     puff.addEventListener('animationend', () => ripple.remove())
+  }
+
+  function showCollectAnimation(lngLat) {
+    if (!map) return
+    const el = document.createElement('div')
+    el.className = 'marker-ripple-container'
+
+    const gather = document.createElement('div')
+    gather.className = 'marker-collect-gather'
+    el.appendChild(gather)
+
+    const dot = document.createElement('div')
+    dot.className = 'marker-collect-dot'
+    el.appendChild(dot)
+
+    const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(lngLat)
+      .addTo(map)
+    dot.addEventListener('animationend', () => ripple.remove())
   }
 
   function showEditRipple(lngLat) {
@@ -819,6 +841,108 @@
     }))
   }
 
+  // ═══════════════════════════════════════════════════════
+  //  Collection Mode — auto-delete markers by proximity
+  // ═══════════════════════════════════════════════════════
+
+  /** Delete a marker by ID without requiring it to be selected first */
+  export function collectMarkerById(markerId, animStyle = 'red') {
+    const markers = /** @type {any[]} */ ([])
+    const unsub = confirmedMarkersStore.subscribe(m => markers.push(...m))
+    unsub()
+
+    const marker = markers.find(m => m.id === markerId)
+    if (!marker) return
+
+    // Play animation
+    if (marker.coordinates) {
+      if (animStyle === 'green') {
+        showCollectAnimation(marker.coordinates)
+      } else {
+        showRemovalAnimation(marker.coordinates)
+      }
+    }
+
+    confirmedMarkersStore.update(ms => ms.filter(m => m.id !== markerId))
+    markerVisibilityStore.update(settings => {
+      const { [markerId]: removed, ...rest } = settings
+      return rest
+    })
+    removeMarkerFromLayer(markerId)
+
+    // Deselect if this was the selected marker
+    if ($selectedMarkerStore?.id === markerId) {
+      selectedMarkerStore.set(null)
+      controlStore.update(c => ({ ...c, showMarkerMenu: false }))
+    }
+  }
+
+  // Haversine distance (meters) between two [lng, lat] and {latitude, longitude}
+  function haversineDistanceLngLat(lngLat, coords) {
+    const toRad = (deg) => (deg * Math.PI) / 180
+    const R = 6371000
+    const dLat = toRad(coords.latitude - lngLat[1])
+    const dLon = toRad(coords.longitude - lngLat[0])
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lngLat[1])) * Math.cos(toRad(coords.latitude)) * Math.sin(dLon / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
+  // Track recently-collected IDs to avoid double-triggers
+  const recentlyCollected = new Set()
+
+  let collectionModeUnsubscribe = null
+  let vehicleUnsubscribe = null
+
+  function startCollectionWatcher() {
+    if (vehicleUnsubscribe) return // already watching
+
+    vehicleUnsubscribe = userVehicleStore.subscribe(vehicle => {
+      if (!vehicle?.coordinates?.latitude) return
+
+      let collectionState
+      const unsub = collectionModeStore.subscribe(s => collectionState = s)
+      unsub()
+
+      if (!collectionState?.enabled) return
+
+      const { radius, targetIconClasses, animationStyle } = collectionState
+      const userCoords = vehicle.coordinates
+
+      let currentMarkers = []
+      const munsub = confirmedMarkersStore.subscribe(m => currentMarkers = m)
+      munsub()
+
+      for (const m of currentMarkers) {
+        if (recentlyCollected.has(m.id)) continue
+        if (!m.coordinates) continue
+
+        // Check if marker type matches targets
+        const iconClass = m.iconClass || 'default'
+        if (!targetIconClasses.has(iconClass)) continue
+
+        const dist = haversineDistanceLngLat(m.coordinates, userCoords)
+        if (dist <= radius) {
+          recentlyCollected.add(m.id)
+          collectMarkerById(m.id, animationStyle)
+          // Mark dot green on the route planner
+          collectionRouteStore.markCollected(m.id)
+
+          // Clean up the set after a delay
+          setTimeout(() => recentlyCollected.delete(m.id), 5000)
+        }
+      }
+    })
+  }
+
+  function stopCollectionWatcher() {
+    if (vehicleUnsubscribe) {
+      vehicleUnsubscribe()
+      vehicleUnsubscribe = null
+    }
+    recentlyCollected.clear()
+  }
+
   async function placeMarkerAtCurrentLocation() {
     if (!map) return
 
@@ -960,6 +1084,15 @@
         showRemovalAnimation(event.coordinates)
       }
     })
+
+    // Watch collection mode toggle to start/stop watcher
+    collectionModeUnsubscribe = collectionModeStore.subscribe((state) => {
+      if (state.enabled) {
+        startCollectionWatcher()
+      } else {
+        stopCollectionWatcher()
+      }
+    })
   })
 
   onDestroy(() => {
@@ -969,6 +1102,8 @@
     if (remoteRippleUnsubscribe) remoteRippleUnsubscribe()
     if (remoteEditUnsubscribe) remoteEditUnsubscribe()
     if (remoteDeleteUnsubscribe) remoteDeleteUnsubscribe()
+    if (collectionModeUnsubscribe) collectionModeUnsubscribe()
+    stopCollectionWatcher()
 
     if (map && map.getStyle && typeof map.getLayer === "function") {
       try {
@@ -1178,5 +1313,54 @@
       opacity: 0;
       filter: blur(10px);
     }
+  }
+
+  /* ═══════════════════════════════════════════════════════ */
+  /*  Collection Mode — green gather animation              */
+  /* ═══════════════════════════════════════════════════════ */
+  :global(.marker-collect-gather) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(2);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(34, 197, 94, 0.6);
+    background: radial-gradient(
+      circle,
+      rgba(34, 197, 94, 0.15) 0%,
+      transparent 70%
+    );
+    animation: marker-collect-ring 0.8s ease-in forwards;
+  }
+
+  :global(.marker-collect-dot) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(34, 197, 94, 0.95);
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.9), 0 0 40px rgba(34, 197, 94, 0.4);
+    animation: marker-collect-snap 0.9s ease-out forwards;
+  }
+
+  @keyframes -global-marker-collect-ring {
+    0%   { transform: translate(-50%, -50%) scale(2); opacity: 0.8; }
+    60%  { transform: translate(-50%, -50%) scale(0.4); opacity: 1; border-color: rgba(34, 197, 94, 0.9); }
+    80%  { transform: translate(-50%, -50%) scale(0.1); opacity: 0.6; }
+    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  }
+
+  @keyframes -global-marker-collect-snap {
+    0%   { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    55%  { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    65%  { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+    75%  { transform: translate(-50%, -50%) scale(0.9); opacity: 1; }
+    85%  { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
   }
 </style>
