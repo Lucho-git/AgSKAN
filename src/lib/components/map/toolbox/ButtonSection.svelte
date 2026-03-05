@@ -385,7 +385,7 @@
       <div
         class="mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
           ? 'scale-100 opacity-90'
-          : 'h-50 scale-0 overflow-hidden opacity-0'}"
+          : 'h-50 scale-0 overflow-hidden opacity-0'} {markerStyle === 3 ? 'trail-below' : ''}"
       >
         <!-- Refresh Map Button -->
         <button
@@ -1175,6 +1175,19 @@
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
+  }
+
+  /* When variation 3 is active, move trail button below markers */
+  :global(.trail-below) .trail-btn-row-a {
+    order: 20;
+  }
+
+  :global(.trail-below) .dropdown-divider {
+    order: 10;
+  }
+
+  :global(.trail-below) .marker-grid {
+    order: 15;
   }
 
   .pause-btn-a {
