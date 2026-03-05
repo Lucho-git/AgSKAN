@@ -10,9 +10,10 @@
 
   // ✅ IMPORT COMMAND STORE
   import { commands } from "$lib/stores/commandStore"
+  import { trailPausedStore } from "$lib/stores/currentTrailStore"
 
   import SVGComponents from "$lib/vehicles/index.js"
-  import { Play, Route, ChevronRight } from "lucide-svelte"
+  import { Play, Square, Route, ChevronRight, Pause } from "lucide-svelte"
 
   export let trailReplayAPI = null
   export let currentVehicleType = "Tractor"
@@ -46,6 +47,19 @@
       // Auto-close toolbox when starting trail recording
       dispatch("close")
     }
+  }
+
+  function pauseTrailing() {
+    commands.trail.pause()
+  }
+
+  function resumeTrailing() {
+    commands.trail.resume()
+  }
+
+  function stopTrailing() {
+    commands.trail.stop()
+    dispatch("close")
   }
 
   function openTrailViewer() {
@@ -101,38 +115,70 @@
 
   <!-- Start/Stop Trail Recording Button -->
   <div class="trail-recording-section">
-    <button
-      class="trail-recording-btn"
-      class:recording={$userVehicleTrailing}
-      on:click={toggleTrailing}
-    >
-      <div class="trail-icon">
-        <svg
-          class={$userVehicleTrailing ? "animate-trail" : ""}
-          fill="currentColor"
-          width="24px"
-          height="24px"
-          viewBox="0 0 32 32"
-          version="1.1"
-          xmlns="http://www.w3.org/2000/svg"
+    {#if $userVehicleTrailing}
+      <!-- Active: show pause/resume + stop side by side -->
+      <div class="trail-active-controls">
+        <button
+          class="trail-control-btn pause-resume-btn"
+          class:paused={$trailPausedStore}
+          on:click={() => $trailPausedStore ? resumeTrailing() : pauseTrailing()}
         >
-          <title>trail</title>
-          <path
-            d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-          ></path>
-        </svg>
+          <div class="trail-icon">
+            {#if $trailPausedStore}
+              <Play size={20} />
+            {:else}
+              <Pause size={20} />
+            {/if}
+          </div>
+          <div class="btn-content">
+            <span class="btn-title">
+              {$trailPausedStore ? "Resume" : "Pause"}
+            </span>
+            <span class="btn-subtitle">
+              {$trailPausedStore ? "Continue recording" : "Temporarily pause"}
+            </span>
+          </div>
+        </button>
+
+        <button
+          class="trail-control-btn stop-btn"
+          on:click={stopTrailing}
+        >
+          <div class="trail-icon">
+            <Square size={20} />
+          </div>
+          <div class="btn-content">
+            <span class="btn-title">Stop</span>
+            <span class="btn-subtitle">Save trail</span>
+          </div>
+        </button>
       </div>
-      <div class="btn-content">
-        <span class="btn-title">
-          {$userVehicleTrailing ? "Stop Recording" : "Start Recording"}
-        </span>
-        <span class="btn-subtitle">
-          {$userVehicleTrailing
-            ? "Recording active..."
-            : "Begin trail recording"}
-        </span>
-      </div>
-    </button>
+    {:else}
+      <button
+        class="trail-recording-btn"
+        on:click={toggleTrailing}
+      >
+        <div class="trail-icon">
+          <svg
+            fill="currentColor"
+            width="24px"
+            height="24px"
+            viewBox="0 0 32 32"
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>trail</title>
+            <path
+              d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+            ></path>
+          </svg>
+        </div>
+        <div class="btn-content">
+          <span class="btn-title">Start Recording</span>
+          <span class="btn-subtitle">Begin trail recording</span>
+        </div>
+      </button>
+    {/if}
   </div>
 
   <!-- Trail Viewer Button -->
@@ -278,15 +324,66 @@
     transform: translateY(-1px);
   }
 
-  .trail-recording-btn.recording {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.3);
-    border-left-color: #ef4444;
+  /* Active trail: pause/resume + stop side by side */
+  .trail-active-controls {
+    display: flex;
+    gap: 8px;
   }
 
-  .trail-recording-btn.recording:hover {
+  .trail-control-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+  }
+
+  .trail-control-btn .trail-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .pause-resume-btn {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    border-left: 3px solid #3b82f6;
+  }
+  .pause-resume-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+  }
+  .pause-resume-btn .trail-icon {
+    color: #3b82f6;
+  }
+
+  .pause-resume-btn.paused {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    border-left-color: #f59e0b;
+  }
+  .pause-resume-btn.paused:hover {
+    background: rgba(245, 158, 11, 0.2);
+  }
+  .pause-resume-btn.paused .trail-icon {
+    color: #f59e0b;
+  }
+
+  .stop-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    border-left: 3px solid #ef4444;
+  }
+  .stop-btn:hover {
     background: rgba(239, 68, 68, 0.2);
-    border-color: rgba(239, 68, 68, 0.4);
+  }
+  .stop-btn .trail-icon {
+    color: #ef4444;
   }
 
   .trail-icon {
@@ -296,11 +393,7 @@
     flex-shrink: 0;
   }
 
-  .trail-recording-btn.recording .trail-icon {
-    color: #ef4444;
-  }
-
-  .trail-recording-btn:not(.recording) .trail-icon {
+  .trail-recording-btn .trail-icon {
     color: #22c55e;
   }
 

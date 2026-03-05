@@ -5,6 +5,7 @@
   import { toast } from "svelte-sonner"
   import { trailsApi } from "$lib/api/trailsApi"
   import { get } from "svelte/store"
+  import * as mapboxgl from "mapbox-gl"
 
   import {
     userVehicleStore,
@@ -16,6 +17,8 @@
     coordinateBufferStore,
     pendingCoordinatesStore,
     pendingClosuresStore,
+    trailPausedStore,
+    trailPausePointStore,
   } from "$lib/stores/currentTrailStore"
 
   import {
@@ -47,6 +50,17 @@
 
   // Prevent infinite sync loop
   let isSyncing = false
+
+  // Pause marker on the map
+  let pauseMarker = null
+
+  /** Remove the pause marker from the map if it exists */
+  function removePauseMarker() {
+    if (pauseMarker) {
+      pauseMarker.remove()
+      pauseMarker = null
+    }
+  }
 
   let cleanup = {
     coordinateBufferUnsubscribe: null,
@@ -91,6 +105,12 @@
             } else {
               await startTrail()
             }
+            break
+          case COMMANDS.TRAIL_PAUSE:
+            pauseTrail()
+            break
+          case COMMANDS.TRAIL_RESUME:
+            resumeTrail()
             break
           case COMMANDS.SYNC_TRIGGER:
             await syncPendingChanges()
@@ -161,6 +181,7 @@
     }
 
     stopRetryInterval()
+    removePauseMarker()
     userVehicleTrailing.set(false)
   })
 
@@ -203,6 +224,41 @@
       console.error("Error creating trail:", error)
       toast.error(`Failed to start trail: ${error.message}`)
     }
+  }
+
+  // ============================================
+  // TRAIL PAUSE / RESUME
+  // ============================================
+
+  function pauseTrail() {
+    if (!$userVehicleTrailing || $trailPausedStore) return
+
+    // Record where we paused
+    const coords = $userVehicleStore.coordinates
+    if (coords?.latitude && coords?.longitude) {
+      trailPausePointStore.set({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        timestamp: Date.now(),
+      })
+    }
+
+    trailPausedStore.set(true)
+    toast.info("Trail paused", {
+      description: "Recording paused — resume when ready",
+      duration: 3000,
+    })
+  }
+
+  function resumeTrail() {
+    if (!$userVehicleTrailing || !$trailPausedStore) return
+
+    // Distance check is now handled by the UI layer (ButtonSection)
+    // which shows a confirmation modal before dispatching TRAIL_RESUME
+
+    trailPausedStore.set(false)
+    trailPausePointStore.set(null)
+    toast.success("Trail resumed", { duration: 2000 })
   }
 
   async function stopTrail() {
@@ -391,8 +447,11 @@
   }
 
   function resetTrailState() {
+    removePauseMarker()
     currentTrailStore.set(null)
     userVehicleTrailing.set(false)
+    trailPausedStore.set(false)
+    trailPausePointStore.set(null)
   }
 
   // ============================================

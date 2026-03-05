@@ -164,3 +164,14 @@ export const unsavedCoordinatesStore = createUnsavedCoordinatesStore()
 export const unsavedTrailsStore = createUnsavedTrailsStore()
 export const pendingCoordinatesStore = createPendingCoordinatesStore()
 export const pendingClosuresStore = createPendingClosuresStore()
+
+// Trail pause state
+export const trailPausedStore = writable<boolean>(false)
+
+// Coordinates where the trail was paused (for map marker + resume distance check)
+export interface PausePoint {
+    latitude: number
+    longitude: number
+    timestamp: number
+}
+export const trailPausePointStore = writable<PausePoint | null>(null)

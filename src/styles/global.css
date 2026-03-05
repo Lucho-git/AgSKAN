@@ -3,3 +3,26 @@
   width: 200px;
   height: 200px;
 }
+
+/* Trail pause marker */
+.trail-pause-marker {
+  pointer-events: none;
+}
+
+.trail-pause-marker .pause-marker-ring {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.2);
+  border: 2px solid rgba(245, 158, 11, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pauseMarkerPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+@keyframes pauseMarkerPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+}

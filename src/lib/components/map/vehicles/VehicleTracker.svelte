@@ -9,6 +9,7 @@
     otherVehiclesDataChanges,
   } from "$lib/stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
+  import { trailPausedStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
   // ✅ IMPORT COMMAND STORE
@@ -1339,7 +1340,7 @@
 
       // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
       if (coordinatesChanged || headingChanged || timeElapsed) {
-        if ($userVehicleTrailing) {
+        if ($userVehicleTrailing && !$trailPausedStore) {
           coordinateBufferStore.set({
             coordinates: { latitude, longitude },
             timestamp: currentTime,

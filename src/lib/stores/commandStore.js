@@ -9,6 +9,8 @@ export const COMMANDS = {
   TRAIL_START: 'trail.start',
   TRAIL_STOP: 'trail.stop',
   TRAIL_TOGGLE: 'trail.toggle',
+  TRAIL_PAUSE: 'trail.pause',
+  TRAIL_RESUME: 'trail.resume',
 }
 
 function createCommandStore() {
@@ -45,5 +47,7 @@ export const commands = {
     start: () => commandStore.dispatch(COMMANDS.TRAIL_START),
     stop: () => commandStore.dispatch(COMMANDS.TRAIL_STOP),
     toggle: () => commandStore.dispatch(COMMANDS.TRAIL_TOGGLE),
+    pause: () => commandStore.dispatch(COMMANDS.TRAIL_PAUSE),
+    resume: () => commandStore.dispatch(COMMANDS.TRAIL_RESUME),
   }
 }
