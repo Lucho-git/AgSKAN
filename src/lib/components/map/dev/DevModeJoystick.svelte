@@ -31,6 +31,11 @@
     { value: 30, label: "Drive (30 m/s)" },
     { value: 80, label: "Fast (80 m/s)" },
     { value: 200, label: "Fly (200 m/s)" },
+    { value: 1000, label: "Warp (1 km/s)" },
+    { value: 5000, label: "Hyper (5 km/s)" },
+    { value: 10000, label: "Ludicrous (10 km/s)" },
+    { value: 50000, label: "Absurd (50 km/s)" },
+    { value: 200000, label: "Plaid (200 km/s)" },
   ]
 
   $: currentSpeedLabel =
@@ -223,7 +228,10 @@
           class="joystick-knob"
           style="transform: translate({knobX}px, {knobY}px)"
         >
-          <Navigation size={20} style="transform: rotate({$devPositionStore.heading}deg)" />
+          <Navigation
+            size={20}
+            style="transform: rotate({$devPositionStore.heading}deg)"
+          />
         </div>
       </div>
 

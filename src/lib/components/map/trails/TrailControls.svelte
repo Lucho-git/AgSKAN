@@ -121,7 +121,8 @@
         <button
           class="trail-control-btn pause-resume-btn"
           class:paused={$trailPausedStore}
-          on:click={() => $trailPausedStore ? resumeTrailing() : pauseTrailing()}
+          on:click={() =>
+            $trailPausedStore ? resumeTrailing() : pauseTrailing()}
         >
           <div class="trail-icon">
             {#if $trailPausedStore}
@@ -140,10 +141,7 @@
           </div>
         </button>
 
-        <button
-          class="trail-control-btn stop-btn"
-          on:click={stopTrailing}
-        >
+        <button class="trail-control-btn stop-btn" on:click={stopTrailing}>
           <div class="trail-icon">
             <Square size={20} />
           </div>
@@ -154,10 +152,7 @@
         </button>
       </div>
     {:else}
-      <button
-        class="trail-recording-btn"
-        on:click={toggleTrailing}
-      >
+      <button class="trail-recording-btn" on:click={toggleTrailing}>
         <div class="trail-icon">
           <svg
             fill="currentColor"

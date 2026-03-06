@@ -906,7 +906,6 @@ export const trailsApi = {
             // Validate each coordinate in the batch
             for (let i = 0; i < coordinatesBatch.length; i++) {
                 const coord = coordinatesBatch[i];
-                console.log(`🔍 Validating coordinate ${i}:`, coord);
 
                 if (!coord.coordinates) {
                     console.error(`❌ Coordinate ${i} missing 'coordinates' field:`, coord);

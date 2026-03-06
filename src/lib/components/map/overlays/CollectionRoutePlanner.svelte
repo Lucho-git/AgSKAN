@@ -19,22 +19,37 @@
   export let map
 
   // ── Source / layer IDs ──
-  const LASSO_SRC       = "collection-lasso-source"
-  const LASSO_FILL      = "collection-lasso-fill"
-  const LASSO_LINE      = "collection-lasso-line"
-  const DOTS_SRC        = "collection-dots-source"
-  const DOTS_LAYER      = "collection-dots-layer"
-  const DONE_SRC        = "collection-done-source"
-  const DONE_LINE       = "collection-done-line"
-  const REMAIN_SRC      = "collection-remain-source"
-  const REMAIN_LINE     = "collection-remain-line"
-  const ARROWS_SRC      = "collection-arrows-source"
-  const ARROWS_LAYER    = "collection-arrows-layer"
-  const TETHER_SRC      = "collection-tether-source"
-  const TETHER_LINE     = "collection-tether-line"
+  const LASSO_SRC = "collection-lasso-source"
+  const LASSO_FILL = "collection-lasso-fill"
+  const LASSO_LINE = "collection-lasso-line"
+  const DOTS_SRC = "collection-dots-source"
+  const DOTS_LAYER = "collection-dots-layer"
+  const DONE_SRC = "collection-done-source"
+  const DONE_LINE = "collection-done-line"
+  const REMAIN_SRC = "collection-remain-source"
+  const REMAIN_LINE = "collection-remain-line"
+  const ARROWS_SRC = "collection-arrows-source"
+  const ARROWS_LAYER = "collection-arrows-layer"
+  const TETHER_SRC = "collection-tether-source"
+  const TETHER_LINE = "collection-tether-line"
 
-  const ALL_LAYERS  = [LASSO_FILL, LASSO_LINE, DOTS_LAYER, DONE_LINE, REMAIN_LINE, ARROWS_LAYER, TETHER_LINE]
-  const ALL_SOURCES = [LASSO_SRC, DOTS_SRC, DONE_SRC, REMAIN_SRC, ARROWS_SRC, TETHER_SRC]
+  const ALL_LAYERS = [
+    LASSO_FILL,
+    LASSO_LINE,
+    DOTS_LAYER,
+    DONE_LINE,
+    REMAIN_LINE,
+    ARROWS_LAYER,
+    TETHER_LINE,
+  ]
+  const ALL_SOURCES = [
+    LASSO_SRC,
+    DOTS_SRC,
+    DONE_SRC,
+    REMAIN_SRC,
+    ARROWS_SRC,
+    TETHER_SRC,
+  ]
 
   // ── Local drawing state ──
   let drawing = false
@@ -43,12 +58,12 @@
 
   // ── Navigation state ──
   let vehicleUnsub = null
-  let fullRouteCoords = []  // ordered [lng,lat][] for the full route (set once)
+  let fullRouteCoords = [] // ordered [lng,lat][] for the full route (set once)
   let orderedMarkers = []
-  let breadcrumbs = []       // actual GPS positions recorded while navigating
-  let nextWaypointIdx = 0    // index into orderedMarkers
+  let breadcrumbs = [] // actual GPS positions recorded while navigating
+  let nextWaypointIdx = 0 // index into orderedMarkers
   const WAYPOINT_REACH_M = 25 // how close (m) before we consider a waypoint reached
-  const BREADCRUMB_MIN_M = 2  // min distance between breadcrumb samples
+  const BREADCRUMB_MIN_M = 2 // min distance between breadcrumb samples
 
   // ── Store subscription ──
   let storeUnsub
@@ -75,7 +90,10 @@
         prevPhase = $s.phase
       }
       // Update dot colors when a marker is collected
-      if ($s.phase === "navigating" && $s.collectedIds.size !== prevCollectedCount) {
+      if (
+        $s.phase === "navigating" &&
+        $s.collectedIds.size !== prevCollectedCount
+      ) {
         prevCollectedCount = $s.collectedIds.size
         refreshDotColors($s.collectedIds)
       }
@@ -96,7 +114,10 @@
     // Leaving any phase — generic cleanup
     if (from === "drawing") {
       drawing = false
-      if (map) { map.dragPan?.enable(); map.dragRotate?.enable() }
+      if (map) {
+        map.dragPan?.enable()
+        map.dragRotate?.enable()
+      }
       detachMapListeners()
     }
     if (from === "navigating") {
@@ -151,7 +172,10 @@
     map.dragPan.disable()
     map.dragRotate.disable()
 
-    const lngLat = e.lngLat || (e.touches?.[0] && map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
+    const lngLat =
+      e.lngLat ||
+      (e.touches?.[0] &&
+        map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
     if (!lngLat) return
 
     touchPoints = [[lngLat.lng, lngLat.lat]]
@@ -165,7 +189,10 @@
 
   function onPointerMove(e) {
     if (!drawing) return
-    const lngLat = e.lngLat || (e.touches?.[0] && map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
+    const lngLat =
+      e.lngLat ||
+      (e.touches?.[0] &&
+        map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
     if (!lngLat) return
     touchPoints = [...touchPoints, [lngLat.lng, lngLat.lat]]
     updateLassoDisplay()
@@ -191,9 +218,16 @@
     if (!map?.getSource(LASSO_SRC)) return
     map.getSource(LASSO_SRC).setData({
       type: "FeatureCollection",
-      features: touchPoints.length >= 2
-        ? [{ type: "Feature", geometry: { type: "LineString", coordinates: touchPoints }, properties: {} }]
-        : [],
+      features:
+        touchPoints.length >= 2
+          ? [
+              {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: touchPoints },
+                properties: {},
+              },
+            ]
+          : [],
     })
   }
 
@@ -201,7 +235,13 @@
     if (!map?.getSource(LASSO_SRC)) return
     map.getSource(LASSO_SRC).setData({
       type: "FeatureCollection",
-      features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [closedRing] }, properties: {} }],
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [closedRing] },
+          properties: {},
+        },
+      ],
     })
   }
 
@@ -210,20 +250,32 @@
   // ─────────────────────────────────────────────
   function processLasso(closedRing) {
     let polygon
-    try { polygon = turf.polygon([closedRing]) } catch { collectionRouteStore.cancelDrawing(); return }
+    try {
+      polygon = turf.polygon([closedRing])
+    } catch {
+      collectionRouteStore.cancelDrawing()
+      return
+    }
 
     let targetClasses
-    const cmUnsub = collectionModeStore.subscribe(s => (targetClasses = s.targetIconClasses)); cmUnsub()
+    const cmUnsub = collectionModeStore.subscribe(
+      (s) => (targetClasses = s.targetIconClasses),
+    )
+    cmUnsub()
 
     let allMarkers
-    const mUnsub = confirmedMarkersStore.subscribe(m => (allMarkers = m)); mUnsub()
+    const mUnsub = confirmedMarkersStore.subscribe((m) => (allMarkers = m))
+    mUnsub()
 
-    const matching = (allMarkers || []).filter(m => {
+    const matching = (allMarkers || []).filter((m) => {
       if (!targetClasses.has(m.iconClass)) return false
       return turf.booleanPointInPolygon(turf.point(m.coordinates), polygon)
     })
 
-    if (matching.length === 0) { collectionRouteStore.cancelDrawing(); return }
+    if (matching.length === 0) {
+      collectionRouteStore.cancelDrawing()
+      return
+    }
 
     // Transition to "selected"
     collectionRouteStore.finishSelection(closedRing, matching)
@@ -250,7 +302,11 @@
     const features = orderedMarkers.map((m, i) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: m.coordinates },
-      properties: { order: i + 1, markerId: m.id, collected: collectedIds.has(m.id) },
+      properties: {
+        order: i + 1,
+        markerId: m.id,
+        collected: collectedIds.has(m.id),
+      },
     }))
     setSourceData(DOTS_SRC, features)
   }
@@ -260,9 +316,15 @@
   // ─────────────────────────────────────────────
   function handleStartNavigation() {
     let state
-    const u = collectionRouteStore.subscribe(s => (state = s)); u()
+    const u = collectionRouteStore.subscribe((s) => (state = s))
+    u()
 
-    if (!state || state.phase !== "selected" || state.selectedMarkers.length === 0) return
+    if (
+      !state ||
+      state.phase !== "selected" ||
+      state.selectedMarkers.length === 0
+    )
+      return
 
     // Get vehicle position
     const userCoords = getUserCoords()
@@ -279,7 +341,11 @@
     // Distance
     let totalDist = 0
     for (let i = 1; i < route.length; i++) {
-      totalDist += turf.distance(turf.point(route[i-1]), turf.point(route[i]), { units: "meters" })
+      totalDist += turf.distance(
+        turf.point(route[i - 1]),
+        turf.point(route[i]),
+        { units: "meters" },
+      )
     }
 
     // Reset breadcrumb state
@@ -290,7 +356,7 @@
     collectionRouteStore.startNavigation(route, Math.round(totalDist))
 
     // Auto-enable collection mode when navigation starts
-    collectionModeStore.update(s => ({ ...s, enabled: true }))
+    collectionModeStore.update((s) => ({ ...s, enabled: true }))
 
     // Render everything
     renderNavigation(route, orderedMarkers, userCoords)
@@ -306,10 +372,18 @@
     const ordered = []
     let current = startCoord || markers[0].coordinates
     while (remaining.length > 0) {
-      let bestIdx = 0, bestDist = Infinity
+      let bestIdx = 0,
+        bestDist = Infinity
       for (let i = 0; i < remaining.length; i++) {
-        const d = turf.distance(turf.point(current), turf.point(remaining[i].coordinates), { units: "meters" })
-        if (d < bestDist) { bestDist = d; bestIdx = i }
+        const d = turf.distance(
+          turf.point(current),
+          turf.point(remaining[i].coordinates),
+          { units: "meters" },
+        )
+        if (d < bestDist) {
+          bestDist = d
+          bestIdx = i
+        }
       }
       const next = remaining.splice(bestIdx, 1)[0]
       ordered.push(next)
@@ -336,9 +410,18 @@
     setSourceData(DOTS_SRC, dotFeatures)
 
     // Full route as "remaining" line (solid purple)
-    setSourceData(REMAIN_SRC, routeCoords.length >= 2
-      ? [{ type: "Feature", geometry: { type: "LineString", coordinates: routeCoords }, properties: {} }]
-      : [])
+    setSourceData(
+      REMAIN_SRC,
+      routeCoords.length >= 2
+        ? [
+            {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: routeCoords },
+              properties: {},
+            },
+          ]
+        : [],
+    )
 
     // Done line starts empty
     setSourceData(DONE_SRC, [])
@@ -349,11 +432,16 @@
 
     // Tether line from vehicle to nearest route point
     if (userCoords) {
-      setSourceData(TETHER_SRC, [{
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: [userCoords, routeCoords[0] || userCoords] },
-        properties: {},
-      }])
+      setSourceData(TETHER_SRC, [
+        {
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: [userCoords, routeCoords[0] || userCoords],
+          },
+          properties: {},
+        },
+      ])
     }
   }
 
@@ -367,7 +455,11 @@
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i]
       const [lon2, lat2] = coords[i + 1]
-      const segDist = turf.distance(turf.point(coords[i]), turf.point(coords[i+1]), { units: "meters" })
+      const segDist = turf.distance(
+        turf.point(coords[i]),
+        turf.point(coords[i + 1]),
+        { units: "meters" },
+      )
       distSinceLast += segDist
       while (distSinceLast >= intervalMeters) {
         const along = segDist - (distSinceLast - intervalMeters)
@@ -391,7 +483,7 @@
   // ─────────────────────────────────────────────
   function startVehicleTracking() {
     stopVehicleTracking()
-    vehicleUnsub = userVehicleStore.subscribe(v => {
+    vehicleUnsub = userVehicleStore.subscribe((v) => {
       if (!v?.coordinates?.latitude || !v?.coordinates?.longitude) return
       const vCoord = [v.coordinates.longitude, v.coordinates.latitude]
       updateVehicleProgress(vCoord)
@@ -412,7 +504,11 @@
         breadcrumbs = [vehicleCoord]
       } else {
         const last = breadcrumbs[breadcrumbs.length - 1]
-        const moved = turf.distance(turf.point(last), turf.point(vehicleCoord), { units: "meters" })
+        const moved = turf.distance(
+          turf.point(last),
+          turf.point(vehicleCoord),
+          { units: "meters" },
+        )
         if (moved >= BREADCRUMB_MIN_M) {
           breadcrumbs = [...breadcrumbs, vehicleCoord]
         }
@@ -421,7 +517,11 @@
       // ── Check if we've reached the current target waypoint ──
       while (nextWaypointIdx < orderedMarkers.length) {
         const wp = orderedMarkers[nextWaypointIdx].coordinates
-        const distToWp = turf.distance(turf.point(vehicleCoord), turf.point(wp), { units: "meters" })
+        const distToWp = turf.distance(
+          turf.point(vehicleCoord),
+          turf.point(wp),
+          { units: "meters" },
+        )
         if (distToWp <= WAYPOINT_REACH_M) {
           nextWaypointIdx++
         } else {
@@ -431,23 +531,29 @@
 
       // ── Done line: actual breadcrumb trail (curvy grey path) ──
       if (breadcrumbs.length >= 2) {
-        setSourceData(DONE_SRC, [{
-          type: "Feature",
-          geometry: { type: "LineString", coordinates: breadcrumbs },
-          properties: {},
-        }])
+        setSourceData(DONE_SRC, [
+          {
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: breadcrumbs },
+            properties: {},
+          },
+        ])
       }
 
       // ── Remaining line: straight from vehicle → next wp → wp+1 → … → last wp ──
-      const remainWaypoints = orderedMarkers.slice(nextWaypointIdx).map(m => m.coordinates)
+      const remainWaypoints = orderedMarkers
+        .slice(nextWaypointIdx)
+        .map((m) => m.coordinates)
       const remainCoords = [vehicleCoord, ...remainWaypoints]
 
       if (remainCoords.length >= 2) {
-        setSourceData(REMAIN_SRC, [{
-          type: "Feature",
-          geometry: { type: "LineString", coordinates: remainCoords },
-          properties: {},
-        }])
+        setSourceData(REMAIN_SRC, [
+          {
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: remainCoords },
+            properties: {},
+          },
+        ])
 
         // Arrows on remaining portion
         const arrowFeatures = generateArrows(remainCoords, 70)
@@ -455,18 +561,25 @@
 
         // Distance remaining
         const remainLine = turf.lineString(remainCoords)
-        const remainDist = Math.round(turf.length(remainLine, { units: "meters" }))
-        collectionRouteStore.update(s => ({ ...s, routeDistanceM: remainDist }))
+        const remainDist = Math.round(
+          turf.length(remainLine, { units: "meters" }),
+        )
+        collectionRouteStore.update((s) => ({
+          ...s,
+          routeDistanceM: remainDist,
+        }))
       } else {
         // All waypoints reached
         setSourceData(REMAIN_SRC, [])
         setSourceData(ARROWS_SRC, [])
-        collectionRouteStore.update(s => ({ ...s, routeDistanceM: 0 }))
+        collectionRouteStore.update((s) => ({ ...s, routeDistanceM: 0 }))
       }
 
       // Clear old tether (no longer used)
       setSourceData(TETHER_SRC, [])
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -474,19 +587,27 @@
   // ─────────────────────────────────────────────
   function getUserCoords() {
     let coords = null
-    const u = userVehicleStore.subscribe(v => {
+    const u = userVehicleStore.subscribe((v) => {
       if (v?.coordinates?.latitude && v?.coordinates?.longitude)
         coords = [v.coordinates.longitude, v.coordinates.latitude]
-    }); u()
+    })
+    u()
     return coords
   }
 
   function setSourceData(srcId, features) {
     try {
       if (map?.getSource(srcId)) {
-        map.getSource(srcId).setData({ type: "FeatureCollection", features: Array.isArray(features) ? features : [] })
+        map
+          .getSource(srcId)
+          .setData({
+            type: "FeatureCollection",
+            features: Array.isArray(features) ? features : [],
+          })
       }
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -496,24 +617,43 @@
     if (!map || !map.isStyleLoaded()) return
 
     function addSrc(id) {
-      if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } })
+      if (!map.getSource(id))
+        map.addSource(id, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        })
     }
     ALL_SOURCES.forEach(addSrc)
 
     // Lasso polygon
     if (!map.getLayer(LASSO_FILL)) {
-      map.addLayer({ id: LASSO_FILL, type: "fill", source: LASSO_SRC,
+      map.addLayer({
+        id: LASSO_FILL,
+        type: "fill",
+        source: LASSO_SRC,
         filter: ["==", "$type", "Polygon"],
-        paint: { "fill-color": "#a855f7", "fill-opacity": 0.15 } })
+        paint: { "fill-color": "#a855f7", "fill-opacity": 0.15 },
+      })
     }
     if (!map.getLayer(LASSO_LINE)) {
-      map.addLayer({ id: LASSO_LINE, type: "line", source: LASSO_SRC,
-        paint: { "line-color": "#a855f7", "line-width": 2.5, "line-dasharray": [4, 3] } })
+      map.addLayer({
+        id: LASSO_LINE,
+        type: "line",
+        source: LASSO_SRC,
+        paint: {
+          "line-color": "#a855f7",
+          "line-width": 2.5,
+          "line-dasharray": [4, 3],
+        },
+      })
     }
 
     // Preview / stop dots — color changes from purple to green when collected
     if (!map.getLayer(DOTS_LAYER)) {
-      map.addLayer({ id: DOTS_LAYER, type: "circle", source: DOTS_SRC,
+      map.addLayer({
+        id: DOTS_LAYER,
+        type: "circle",
+        source: DOTS_SRC,
         paint: {
           "circle-radius": 8,
           "circle-color": ["case", ["get", "collected"], "#22c55e", "#7c3aed"],
@@ -521,26 +661,46 @@
           "circle-stroke-color": "#fff",
           "circle-stroke-width": 2,
           "circle-stroke-opacity": 0.45,
-        } })
+        },
+      })
     }
 
     // Done (completed) line — faded
     if (!map.getLayer(DONE_LINE)) {
-      map.addLayer({ id: DONE_LINE, type: "line", source: DONE_SRC,
+      map.addLayer({
+        id: DONE_LINE,
+        type: "line",
+        source: DONE_SRC,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#6b21a8", "line-width": 4, "line-opacity": 0.3 } })
+        paint: {
+          "line-color": "#6b21a8",
+          "line-width": 4,
+          "line-opacity": 0.3,
+        },
+      })
     }
 
     // Remaining line — solid purple
     if (!map.getLayer(REMAIN_LINE)) {
-      map.addLayer({ id: REMAIN_LINE, type: "line", source: REMAIN_SRC,
+      map.addLayer({
+        id: REMAIN_LINE,
+        type: "line",
+        source: REMAIN_SRC,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#c084fc", "line-width": 4, "line-opacity": 0.85 } })
+        paint: {
+          "line-color": "#c084fc",
+          "line-width": 4,
+          "line-opacity": 0.85,
+        },
+      })
     }
 
     // Direction arrows
     if (!map.getLayer(ARROWS_LAYER)) {
-      map.addLayer({ id: ARROWS_LAYER, type: "symbol", source: ARROWS_SRC,
+      map.addLayer({
+        id: ARROWS_LAYER,
+        type: "symbol",
+        source: ARROWS_SRC,
         layout: {
           "text-field": "›",
           "text-size": 22,
@@ -556,14 +716,24 @@
           "text-opacity": 0.85,
           "text-halo-color": ["get", "color"],
           "text-halo-width": 1,
-        } })
+        },
+      })
     }
 
     // Vehicle tether line — dashed
     if (!map.getLayer(TETHER_LINE)) {
-      map.addLayer({ id: TETHER_LINE, type: "line", source: TETHER_SRC,
+      map.addLayer({
+        id: TETHER_LINE,
+        type: "line",
+        source: TETHER_SRC,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#e9d5ff", "line-width": 2, "line-dasharray": [3, 3], "line-opacity": 0.6 } })
+        paint: {
+          "line-color": "#e9d5ff",
+          "line-width": 2,
+          "line-dasharray": [3, 3],
+          "line-opacity": 0.6,
+        },
+      })
     }
   }
 
@@ -571,12 +741,15 @@
   //  CLEANUP
   // ─────────────────────────────────────────────
   function clearAllSourceData() {
-    ALL_SOURCES.forEach(id => setSourceData(id, []))
+    ALL_SOURCES.forEach((id) => setSourceData(id, []))
   }
 
   function cleanupAll() {
     drawing = false
-    if (map) { map.dragPan?.enable(); map.dragRotate?.enable() }
+    if (map) {
+      map.dragPan?.enable()
+      map.dragRotate?.enable()
+    }
     detachMapListeners()
     stopVehicleTracking()
     clearAllSourceData()
@@ -596,8 +769,13 @@
     <div class="overlay-card">
       <div class="overlay-icon pulse">✏️</div>
       <p class="overlay-text">Draw around the markers you want to collect</p>
-      <p class="overlay-hint">Drag your finger across the map to lasso an area</p>
-      <button class="overlay-btn cancel-btn" on:click={() => collectionRouteStore.cancelDrawing()}>
+      <p class="overlay-hint">
+        Drag your finger across the map to lasso an area
+      </p>
+      <button
+        class="overlay-btn cancel-btn"
+        on:click={() => collectionRouteStore.cancelDrawing()}
+      >
         Cancel
       </button>
     </div>
@@ -609,11 +787,15 @@
     <div class="overlay-card">
       <div class="overlay-icon">📍</div>
       <p class="overlay-text">
-        <strong>{$collectionRouteStore.selectedMarkers.length}</strong> marker{$collectionRouteStore.selectedMarkers.length !== 1 ? "s" : ""} selected
+        <strong>{$collectionRouteStore.selectedMarkers.length}</strong>
+        marker{$collectionRouteStore.selectedMarkers.length !== 1 ? "s" : ""} selected
       </p>
       <p class="overlay-hint">Tap Start to calculate the optimal route</p>
       <div class="overlay-actions">
-        <button class="overlay-btn cancel-btn" on:click={() => collectionRouteStore.cancelDrawing()}>
+        <button
+          class="overlay-btn cancel-btn"
+          on:click={() => collectionRouteStore.cancelDrawing()}
+        >
           Cancel
         </button>
         <button class="overlay-btn start-btn" on:click={handleStartNavigation}>
@@ -627,7 +809,9 @@
 {#if phase === "navigating"}
   <div class="nav-hud">
     <div class="hud-stat">
-      <span class="hud-value">{$collectionRouteStore.selectedMarkers.length}</span>
+      <span class="hud-value"
+        >{$collectionRouteStore.selectedMarkers.length}</span
+      >
       <span class="hud-label">stops</span>
     </div>
     <div class="hud-divider"></div>
@@ -641,7 +825,9 @@
       </span>
       <span class="hud-label">remaining</span>
     </div>
-    <button class="hud-close" on:click={() => collectionRouteStore.clearRoute()}>✕</button>
+    <button class="hud-close" on:click={() => collectionRouteStore.clearRoute()}
+      >✕</button
+    >
   </div>
 {/if}
 
@@ -679,8 +865,13 @@
     animation: icon-pulse 1.2s ease-in-out infinite;
   }
   @keyframes icon-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
   }
 
   .overlay-text {

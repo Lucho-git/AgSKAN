@@ -22,7 +22,10 @@
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
-  import { getIconImageName as getIconImageNameUtil, findMarkerByIconClass } from "$lib/data/markerDefinitions"
+  import {
+    getIconImageName as getIconImageNameUtil,
+    findMarkerByIconClass,
+  } from "$lib/data/markerDefinitions"
 
   export let map
   export let mapLoaded = false
@@ -34,32 +37,36 @@
    */
   function appendFloatingLabel(container, text) {
     if (!text) return
-    const label = document.createElement('div')
-    label.className = 'marker-floating-label'
+    const label = document.createElement("div")
+    label.className = "marker-floating-label"
     label.textContent = text
     container.appendChild(label)
   }
 
-  function showPlacementRipple(lngLat, color = 'rgba(247, 219, 92', markerName = '') {
+  function showPlacementRipple(
+    lngLat,
+    color = "rgba(247, 219, 92",
+    markerName = "",
+  ) {
     if (!map) return
-    console.log('🫧 Ripple at', lngLat, 'color:', color)
-    const el = document.createElement('div')
-    el.className = 'marker-ripple-container'
+    console.log("🫧 Ripple at", lngLat, "color:", color)
+    const el = document.createElement("div")
+    el.className = "marker-ripple-container"
 
-    const isConfirm = color.includes('34, 197, 94')
+    const isConfirm = color.includes("34, 197, 94")
 
     if (isConfirm) {
       // Soft gather — thin ring contracts inward, sharp dot snap + outward pulse
-      const ring = document.createElement('div')
-      ring.className = 'marker-confirm-gather'
+      const ring = document.createElement("div")
+      ring.className = "marker-confirm-gather"
       ring.style.borderColor = `${color}, 0.5)`
       ring.style.boxShadow = `0 0 12px ${color}, 0.2)`
-      const dot = document.createElement('div')
-      dot.className = 'marker-confirm-gather-dot'
+      const dot = document.createElement("div")
+      dot.className = "marker-confirm-gather-dot"
       dot.style.background = `${color}, 0.95)`
       dot.style.boxShadow = `0 0 14px ${color}, 0.9), 0 0 35px ${color}, 0.5)`
-      const pulse = document.createElement('div')
-      pulse.className = 'marker-confirm-gather-pulse'
+      const pulse = document.createElement("div")
+      pulse.className = "marker-confirm-gather-pulse"
       pulse.style.borderColor = `${color}, 0.6)`
       el.appendChild(ring)
       el.appendChild(dot)
@@ -67,17 +74,18 @@
 
       if (markerName) appendFloatingLabel(el, `${markerName} Placed`)
 
-      const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat(lngLat).addTo(map)
-      pulse.addEventListener('animationend', () => ripple.remove())
+      const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat(lngLat)
+        .addTo(map)
+      pulse.addEventListener("animationend", () => ripple.remove())
     } else {
       // Gold placement: two expanding rings
-      const ring1 = document.createElement('div')
-      ring1.className = 'marker-ripple-ring'
+      const ring1 = document.createElement("div")
+      ring1.className = "marker-ripple-ring"
       ring1.style.borderColor = `${color}, 0.9)`
       ring1.style.background = `${color}, 0.18)`
-      const ring2 = document.createElement('div')
-      ring2.className = 'marker-ripple-ring marker-ripple-ring--delayed'
+      const ring2 = document.createElement("div")
+      ring2.className = "marker-ripple-ring marker-ripple-ring--delayed"
       ring2.style.borderColor = `${color}, 0.6)`
       ring2.style.background = `${color}, 0.08)`
       el.appendChild(ring1)
@@ -85,65 +93,66 @@
 
       if (markerName) appendFloatingLabel(el, `${markerName} Placed`)
 
-      const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat(lngLat)
         .addTo(map)
 
-      ring2.addEventListener('animationend', () => ripple.remove())
+      ring2.addEventListener("animationend", () => ripple.remove())
     }
   }
 
-  function showRemovalAnimation(lngLat, markerName = '') {
+  function showRemovalAnimation(lngLat, markerName = "") {
     if (!map) return
-    const el = document.createElement('div')
-    el.className = 'marker-ripple-container'
+    const el = document.createElement("div")
+    el.className = "marker-ripple-container"
 
-    const puff = document.createElement('div')
-    puff.className = 'marker-removal-puff'
+    const puff = document.createElement("div")
+    puff.className = "marker-removal-puff"
     el.appendChild(puff)
 
     if (markerName) appendFloatingLabel(el, `${markerName} Deleted`)
 
-    const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+    const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
       .setLngLat(lngLat)
       .addTo(map)
-    puff.addEventListener('animationend', () => ripple.remove())
+    puff.addEventListener("animationend", () => ripple.remove())
   }
 
-  function showCollectAnimation(lngLat, markerName = '') {
+  function showCollectAnimation(lngLat, markerName = "") {
     if (!map) return
-    const el = document.createElement('div')
-    el.className = 'marker-ripple-container'
+    const el = document.createElement("div")
+    el.className = "marker-ripple-container"
 
-    const gather = document.createElement('div')
-    gather.className = 'marker-collect-gather'
+    const gather = document.createElement("div")
+    gather.className = "marker-collect-gather"
     el.appendChild(gather)
 
-    const dot = document.createElement('div')
-    dot.className = 'marker-collect-dot'
+    const dot = document.createElement("div")
+    dot.className = "marker-collect-dot"
     el.appendChild(dot)
 
     if (markerName) appendFloatingLabel(el, `${markerName} Collected`)
 
-    const ripple = new mapboxgl.Marker({ element: el, anchor: 'center' })
+    const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
       .setLngLat(lngLat)
       .addTo(map)
-    dot.addEventListener('animationend', () => ripple.remove())
+    dot.addEventListener("animationend", () => ripple.remove())
   }
 
-  function showEditRipple(lngLat, markerName = '') {
+  function showEditRipple(lngLat, markerName = "") {
     if (!map) return
-    const el = document.createElement('div')
-    el.className = 'marker-ripple-container'
-    const ring = document.createElement('div')
-    ring.className = 'marker-edit-pulse'
+    const el = document.createElement("div")
+    el.className = "marker-ripple-container"
+    const ring = document.createElement("div")
+    ring.className = "marker-edit-pulse"
     el.appendChild(ring)
 
     if (markerName) appendFloatingLabel(el, markerName)
 
-    const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
-      .setLngLat(lngLat).addTo(map)
-    ring.addEventListener('animationend', () => m.remove())
+    const m = new mapboxgl.Marker({ element: el, anchor: "center" })
+      .setLngLat(lngLat)
+      .addTo(map)
+    ring.addEventListener("animationend", () => m.remove())
   }
 
   const mapContext = getContext("map")
@@ -821,7 +830,11 @@
 
       // Green ripple on confirmation
       const markerDef = findMarkerByIconClass(iconClass)
-      showPlacementRipple(coordinates, 'rgba(34, 197, 94', markerDef?.name || 'Marker')
+      showPlacementRipple(
+        coordinates,
+        "rgba(34, 197, 94",
+        markerDef?.name || "Marker",
+      )
 
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
@@ -839,7 +852,7 @@
       const { id, coordinates } = $selectedMarkerStore
       const iconClass = getCurrentIconClass(id)
       const markerDef = findMarkerByIconClass(iconClass)
-      const markerName = markerDef?.name || 'Marker'
+      const markerName = markerDef?.name || "Marker"
 
       // Play removal animation before removing
       if (coordinates) {
@@ -871,27 +884,27 @@
   // ═══════════════════════════════════════════════════════
 
   /** Delete a marker by ID without requiring it to be selected first */
-  export function collectMarkerById(markerId, animStyle = 'red') {
+  export function collectMarkerById(markerId, animStyle = "red") {
     const markers = /** @type {any[]} */ ([])
-    const unsub = confirmedMarkersStore.subscribe(m => markers.push(...m))
+    const unsub = confirmedMarkersStore.subscribe((m) => markers.push(...m))
     unsub()
 
-    const marker = markers.find(m => m.id === markerId)
+    const marker = markers.find((m) => m.id === markerId)
     if (!marker) return
 
     // Play animation
     const markerDef = findMarkerByIconClass(marker.iconClass)
-    const markerName = markerDef?.name || 'Marker'
+    const markerName = markerDef?.name || "Marker"
     if (marker.coordinates) {
-      if (animStyle === 'green') {
+      if (animStyle === "green") {
         showCollectAnimation(marker.coordinates, markerName)
       } else {
         showRemovalAnimation(marker.coordinates, markerName)
       }
     }
 
-    confirmedMarkersStore.update(ms => ms.filter(m => m.id !== markerId))
-    markerVisibilityStore.update(settings => {
+    confirmedMarkersStore.update((ms) => ms.filter((m) => m.id !== markerId))
+    markerVisibilityStore.update((settings) => {
       const { [markerId]: removed, ...rest } = settings
       return rest
     })
@@ -900,7 +913,7 @@
     // Deselect if this was the selected marker
     if ($selectedMarkerStore?.id === markerId) {
       selectedMarkerStore.set(null)
-      controlStore.update(c => ({ ...c, showMarkerMenu: false }))
+      controlStore.update((c) => ({ ...c, showMarkerMenu: false }))
     }
   }
 
@@ -910,8 +923,11 @@
     const R = 6371000
     const dLat = toRad(coords.latitude - lngLat[1])
     const dLon = toRad(coords.longitude - lngLat[0])
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lngLat[1])) * Math.cos(toRad(coords.latitude)) * Math.sin(dLon / 2) ** 2
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lngLat[1])) *
+        Math.cos(toRad(coords.latitude)) *
+        Math.sin(dLon / 2) ** 2
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   }
 
@@ -924,11 +940,11 @@
   function startCollectionWatcher() {
     if (vehicleUnsubscribe) return // already watching
 
-    vehicleUnsubscribe = userVehicleStore.subscribe(vehicle => {
+    vehicleUnsubscribe = userVehicleStore.subscribe((vehicle) => {
       if (!vehicle?.coordinates?.latitude) return
 
       let collectionState
-      const unsub = collectionModeStore.subscribe(s => collectionState = s)
+      const unsub = collectionModeStore.subscribe((s) => (collectionState = s))
       unsub()
 
       if (!collectionState?.enabled) return
@@ -937,7 +953,9 @@
       const userCoords = vehicle.coordinates
 
       let currentMarkers = []
-      const munsub = confirmedMarkersStore.subscribe(m => currentMarkers = m)
+      const munsub = confirmedMarkersStore.subscribe(
+        (m) => (currentMarkers = m),
+      )
       munsub()
 
       for (const m of currentMarkers) {
@@ -945,7 +963,7 @@
         if (!m.coordinates) continue
 
         // Check if marker type matches targets
-        const iconClass = m.iconClass || 'default'
+        const iconClass = m.iconClass || "default"
         if (!targetIconClasses.has(iconClass)) continue
 
         const dist = haversineDistanceLngLat(m.coordinates, userCoords)
@@ -1006,7 +1024,11 @@
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
     // Green ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94', defaultMarker?.name || 'Marker')
+    showPlacementRipple(
+      [coordinates.longitude, coordinates.latitude],
+      "rgba(34, 197, 94",
+      defaultMarker?.name || "Marker",
+    )
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -1051,7 +1073,11 @@
     markerVisibilityStore.setMarkerVisibility(id, "always")
 
     // Green ripple - quick-drop is auto-confirmed
-    showPlacementRipple([coordinates.longitude, coordinates.latitude], 'rgba(34, 197, 94', extraMarker?.name || 'Marker')
+    showPlacementRipple(
+      [coordinates.longitude, coordinates.latitude],
+      "rgba(34, 197, 94",
+      extraMarker?.name || "Marker",
+    )
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
@@ -1096,7 +1122,7 @@
 
     remoteRippleUnsubscribe = remoteMarkerRippleStore.subscribe((event) => {
       if (event && event.coordinates) {
-        showPlacementRipple(event.coordinates, 'rgba(34, 197, 94')
+        showPlacementRipple(event.coordinates, "rgba(34, 197, 94")
       }
     })
 
@@ -1190,10 +1216,22 @@
   }
 
   @keyframes -global-marker-label-float {
-    0%   { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.85); }
-    10%  { opacity: 1; transform: translateX(-50%) translateY(-14px) scale(1); }
-    55%  { opacity: 1; transform: translateX(-50%) translateY(-28px); }
-    100% { opacity: 0; transform: translateX(-50%) translateY(-48px) scale(0.92); }
+    0% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-8px) scale(0.85);
+    }
+    10% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-14px) scale(1);
+    }
+    55% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-28px);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-48px) scale(0.92);
+    }
   }
 
   :global(.marker-ripple-container) {
@@ -1213,7 +1251,7 @@
     border-radius: 50%;
     border: 2.5px solid rgba(247, 219, 92, 0.7);
     background: rgba(247, 219, 92, 0.1);
-    animation: marker-ripple 1.0s ease-out forwards;
+    animation: marker-ripple 1s ease-out forwards;
   }
 
   :global(.marker-ripple-ring--delayed) {
@@ -1250,7 +1288,7 @@
     border: 2px solid rgba(34, 197, 94, 0.5);
     background: transparent;
     box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
-    animation: marker-gather-ring 1.0s ease-in forwards;
+    animation: marker-gather-ring 1s ease-in forwards;
   }
 
   :global(.marker-confirm-gather-dot) {
@@ -1262,7 +1300,9 @@
     height: 18px;
     border-radius: 50%;
     background: rgba(34, 197, 94, 0.95);
-    box-shadow: 0 0 14px rgba(34, 197, 94, 0.9), 0 0 35px rgba(34, 197, 94, 0.5);
+    box-shadow:
+      0 0 14px rgba(34, 197, 94, 0.9),
+      0 0 35px rgba(34, 197, 94, 0.5);
     animation: marker-gather-dot 1.1s ease-out forwards;
   }
 
@@ -1280,25 +1320,69 @@
   }
 
   @keyframes -global-marker-gather-ring {
-    0% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
-    20% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; border-width: 2px; }
-    70% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.7; border-width: 3px; }
-    85% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(1.2);
+      opacity: 0;
+    }
+    20% {
+      transform: translate(-50%, -50%) scale(1.2);
+      opacity: 0.5;
+      border-width: 2px;
+    }
+    70% {
+      transform: translate(-50%, -50%) scale(0.2);
+      opacity: 0.7;
+      border-width: 3px;
+    }
+    85% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
   }
 
   @keyframes -global-marker-gather-dot {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    65% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    72% { transform: translate(-50%, -50%) scale(3); opacity: 1; box-shadow: 0 0 20px rgba(34, 197, 94, 1), 0 0 50px rgba(34, 197, 94, 0.6); }
-    82% { transform: translate(-50%, -50%) scale(2); opacity: 0.9; }
-    90% { transform: translate(-50%, -50%) scale(2.4); opacity: 0.7; }
-    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    65% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    72% {
+      transform: translate(-50%, -50%) scale(3);
+      opacity: 1;
+      box-shadow:
+        0 0 20px rgba(34, 197, 94, 1),
+        0 0 50px rgba(34, 197, 94, 0.6);
+    }
+    82% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0.9;
+    }
+    90% {
+      transform: translate(-50%, -50%) scale(2.4);
+      opacity: 0.7;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
   }
 
   @keyframes -global-marker-gather-pulse {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0.8; }
-    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0.8;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 0;
+    }
   }
 
   /* ===== EDIT: Blue gentle pulse ===== */
@@ -1318,10 +1402,23 @@
   }
 
   @keyframes -global-marker-edit-pulse {
-    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
-    15% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.8; }
-    45% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.6; box-shadow: 0 0 18px rgba(59, 130, 246, 0.35); }
-    100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(0.4);
+      opacity: 0;
+    }
+    15% {
+      transform: translate(-50%, -50%) scale(0.6);
+      opacity: 0.8;
+    }
+    45% {
+      transform: translate(-50%, -50%) scale(1.5);
+      opacity: 0.6;
+      box-shadow: 0 0 18px rgba(59, 130, 246, 0.35);
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.2);
+      opacity: 0;
+    }
   }
 
   /* Removal: Smoke puff — expands and dissipates */
@@ -1399,23 +1496,56 @@
     height: 16px;
     border-radius: 50%;
     background: rgba(34, 197, 94, 0.95);
-    box-shadow: 0 0 16px rgba(34, 197, 94, 0.9), 0 0 40px rgba(34, 197, 94, 0.4);
+    box-shadow:
+      0 0 16px rgba(34, 197, 94, 0.9),
+      0 0 40px rgba(34, 197, 94, 0.4);
     animation: marker-collect-snap 0.9s ease-out forwards;
   }
 
   @keyframes -global-marker-collect-ring {
-    0%   { transform: translate(-50%, -50%) scale(2); opacity: 0.8; }
-    60%  { transform: translate(-50%, -50%) scale(0.4); opacity: 1; border-color: rgba(34, 197, 94, 0.9); }
-    80%  { transform: translate(-50%, -50%) scale(0.1); opacity: 0.6; }
-    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0.8;
+    }
+    60% {
+      transform: translate(-50%, -50%) scale(0.4);
+      opacity: 1;
+      border-color: rgba(34, 197, 94, 0.9);
+    }
+    80% {
+      transform: translate(-50%, -50%) scale(0.1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
   }
 
   @keyframes -global-marker-collect-snap {
-    0%   { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    55%  { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    65%  { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
-    75%  { transform: translate(-50%, -50%) scale(0.9); opacity: 1; }
-    85%  { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
-    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+    0% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    55% {
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+    }
+    65% {
+      transform: translate(-50%, -50%) scale(1.3);
+      opacity: 1;
+    }
+    75% {
+      transform: translate(-50%, -50%) scale(0.9);
+      opacity: 1;
+    }
+    85% {
+      transform: translate(-50%, -50%) scale(1.1);
+      opacity: 0.8;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 0;
+    }
   }
 </style>

@@ -1,7 +1,10 @@
 <!-- src/lib/components/map/MapEventManager.svelte -->
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
-  import { confirmedMarkersStore, collectionRouteStore } from "$lib/stores/markerStore"
+  import {
+    confirmedMarkersStore,
+    collectionRouteStore,
+  } from "$lib/stores/markerStore"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
 
   export let map

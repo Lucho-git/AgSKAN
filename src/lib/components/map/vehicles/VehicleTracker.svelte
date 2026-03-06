@@ -24,10 +24,7 @@
   import backgroundService from "$lib/services/backgroundService"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
-  import {
-    devModeEnabled,
-    devPositionStore,
-  } from "$lib/stores/devModeStore"
+  import { devModeEnabled, devPositionStore } from "$lib/stores/devModeStore"
 
   export let map
   export let disableAutoZoom = false
@@ -575,7 +572,7 @@
       duration: $devModeEnabled ? 60 : 600,
       essential: true,
       easing: $devModeEnabled
-        ? (t) => t   // linear for dev mode
+        ? (t) => t // linear for dev mode
         : (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
     }
 
@@ -1115,7 +1112,11 @@
       const t = Math.min(elapsed / duration, 1)
 
       // Linear for dev (smooth at high update rate), eased for GPS
-      const progress = isDevMode ? t : (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t)
+      const progress = isDevMode
+        ? t
+        : t < 0.5
+          ? 2 * t * t
+          : -1 + (4 - 2 * t) * t
 
       const lng = currentLngLat.lng + lngDiff * progress
       const lat = currentLngLat.lat + latDiff * progress
@@ -1390,7 +1391,9 @@
           } else {
             // Marker was created without coordinates (new user, first visit).
             // Now that geolocation has provided coordinates, place it on the map.
-            console.log("📍 Placing user marker on map for first time (new account)")
+            console.log(
+              "📍 Placing user marker on map for first time (new account)",
+            )
             userMarkerData.marker
               .setLngLat([longitude, latitude])
               .setRotation(updatedHeading || 0)

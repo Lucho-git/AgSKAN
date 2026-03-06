@@ -3,7 +3,10 @@
   import { createEventDispatcher } from "svelte"
   import { Magnet, MapPin, Route, Trash2 } from "lucide-svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
-  import { collectionModeStore, collectionRouteStore } from "$lib/stores/markerStore"
+  import {
+    collectionModeStore,
+    collectionRouteStore,
+  } from "$lib/stores/markerStore"
   import { getActiveMarkers } from "$lib/data/markerDefinitions"
 
   const dispatch = createEventDispatcher()
@@ -49,7 +52,9 @@
       {#if $collectionModeStore.enabled}
         Markers within <strong>{$collectionModeStore.radius}m</strong> will be
         auto-collected as you move.
-        <span class="target-count">{selectedCount} type{selectedCount !== 1 ? "s" : ""} targeted</span>
+        <span class="target-count"
+          >{selectedCount} type{selectedCount !== 1 ? "s" : ""} targeted</span
+        >
       {:else}
         Drive near markers to automatically collect and remove them.
       {/if}
@@ -64,8 +69,8 @@
         <button
           class="chip"
           class:chip-active={$collectionModeStore.radius === r}
-          on:click={() => collectionModeStore.setRadius(r)}
-        >{r}m</button>
+          on:click={() => collectionModeStore.setRadius(r)}>{r}m</button
+        >
       {/each}
     </div>
   </div>
@@ -107,7 +112,9 @@
       <div class="route-result">
         <div class="route-stat">
           <span class="stat-value">{routeMarkerCount}</span>
-          <span class="stat-label">marker{routeMarkerCount !== 1 ? "s" : ""}</span>
+          <span class="stat-label"
+            >marker{routeMarkerCount !== 1 ? "s" : ""}</span
+          >
         </div>
       </div>
       <p class="group-hint" style="text-align:center;">
@@ -117,7 +124,8 @@
       <div class="route-result">
         <div class="route-stat">
           <span class="stat-value">{routeMarkerCount}</span>
-          <span class="stat-label">stop{routeMarkerCount !== 1 ? "s" : ""}</span>
+          <span class="stat-label">stop{routeMarkerCount !== 1 ? "s" : ""}</span
+          >
         </div>
         <div class="route-stat">
           <span class="stat-value">{formatDistance(routeDistanceM)}</span>
@@ -410,8 +418,13 @@
     animation: dot-pulse 1s ease-in-out infinite;
   }
   @keyframes dot-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
   }
 
   .route-result {

@@ -31,6 +31,15 @@
   import { session, initializeSession } from "$lib/stores/sessionStore"
 
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
+  import {
+    persistPendingCoordinate,
+    deletePersistedCoordinate,
+    clearPersistedCoordinates,
+    loadPersistedCoordinates,
+    persistPendingClosure,
+    clearPersistedClosure,
+    loadPersistedClosures,
+  } from "$lib/services/db"
 
   import TrailView from "./TrailView.svelte"
 
@@ -68,6 +77,8 @@
     commandStoreUnsubscribe: null,
     onlineListener: null,
     offlineListener: null,
+    pagehideListener: null,
+    beforeunloadListener: null,
   }
 
   onMount(async () => {
@@ -84,6 +95,12 @@
 
     window.addEventListener("online", cleanup.onlineListener)
     window.addEventListener("offline", cleanup.offlineListener)
+
+    // Flush pending data to IndexedDB on page hide / unload (crash safety)
+    cleanup.pagehideListener = () => flushPendingToIndexedDB()
+    cleanup.beforeunloadListener = () => flushPendingToIndexedDB()
+    window.addEventListener("pagehide", cleanup.pagehideListener)
+    window.addEventListener("beforeunload", cleanup.beforeunloadListener)
 
     // Subscribe to command store
     cleanup.commandStoreUnsubscribe = commandStore.subscribe(
@@ -123,6 +140,12 @@
 
     await initializeSession()
     await checkOpenTrails()
+
+    // Recover any pending data that survived a previous crash.
+    // Must run AFTER checkOpenTrails so currentTrailStore exists and we can
+    // merge recovered coordinates into the visible trail path.
+    await recoverPersistedData()
+
     await checkOtherActiveTrails()
     await fetchOperationTrails()
 
@@ -175,6 +198,15 @@
     if (cleanup.offlineListener) {
       window.removeEventListener("offline", cleanup.offlineListener)
     }
+    if (cleanup.pagehideListener) {
+      window.removeEventListener("pagehide", cleanup.pagehideListener)
+    }
+    if (cleanup.beforeunloadListener) {
+      window.removeEventListener("beforeunload", cleanup.beforeunloadListener)
+    }
+
+    // Flush on destroy too (normal navigation away)
+    flushPendingToIndexedDB()
 
     if (supabaseChannel) {
       supabaseChannel.unsubscribe()
@@ -350,10 +382,11 @@
             throw new Error(`Failed to sync coordinates: ${syncResult.message}`)
           }
 
-          // Remove synced coordinates from pending store
+          // Remove synced coordinates from pending store AND IndexedDB
           pendingCoordinatesStore.update((pending) =>
             pending.filter((c) => c.trail_id !== trailId),
           )
+          clearPersistedCoordinates(trailId)
 
           console.log(
             `✅ Synced ${pendingCoords.length} coordinates before closure`,
@@ -409,12 +442,14 @@
         // If ANY error, queue the entire closure for retry
         console.log("📴 Queueing trail closure (failed):", trailId)
 
-        pendingClosuresStore.add({
+        const closurePayload = {
           trailId,
           trailData,
           pathData,
           pendingCoordinates: pendingCoords,
-        })
+        }
+        pendingClosuresStore.add(closurePayload)
+        persistPendingClosure(closurePayload)
 
         resetTrailState()
 
@@ -465,6 +500,11 @@
       trail_id: $currentTrailStore?.id,
     }
 
+    // ── Write-ahead log: persist to IndexedDB BEFORE network send ──
+    // This guarantees the data survives even if the fetch hangs forever
+    // and the user closes/refreshes the page before the catch block runs.
+    const dbRowId = await persistPendingCoordinate(coordinateWithTimestamp)
+
     try {
       const result = await trailsApi.saveCoordinates(
         selectedOperation.id,
@@ -476,7 +516,12 @@
         throw new Error(result.message || "Failed to save coordinate")
       }
 
-      // Success - reset failure counter
+      // Success — remove from write-ahead log
+      if (dbRowId != null) {
+        deletePersistedCoordinate(dbRowId)
+      }
+
+      // Reset failure counter
       consecutiveFailures = 0
 
       if (hasShownConnectionWarning) {
@@ -497,7 +542,7 @@
         console.warn("❌ Failed to save coordinate, queuing:", error)
       }
 
-      // Queue the coordinate
+      // Add to in-memory retry queue (already persisted by write-ahead above)
       pendingCoordinatesStore.add(coordinateWithTimestamp)
 
       // Update failure counter
@@ -572,10 +617,11 @@
               throw new Error(result.message)
             }
 
-            // Only remove if successful
+            // Only remove if successful — from memory AND IndexedDB
             pendingCoordinatesStore.update((pending) =>
               pending.filter((c) => c.trail_id !== trailId),
             )
+            clearPersistedCoordinates(trailId)
 
             syncedCoords += trailCoords.length
             console.log(
@@ -630,8 +676,9 @@
               throw new Error(result.message)
             }
 
-            // Only remove if successful
+            // Only remove if successful — from memory AND IndexedDB
             pendingClosuresStore.remove(closure.trailId)
+            clearPersistedClosure(closure.trailId)
             syncedClosures++
 
             // Add to historical trails
@@ -710,6 +757,138 @@
 
     console.log("🔄 Retrying failed operations...")
     await syncPendingChanges()
+  }
+
+  // ============================================
+  // INDEXEDDB RECOVERY & FLUSH
+  // ============================================
+
+  /**
+   * On mount (AFTER checkOpenTrails), load any pending coordinates / closures
+   * that were persisted to IndexedDB during a previous session (crash, tab
+   * close, etc.) and:
+   *  1. Seed the in-memory retry stores so the retry loop syncs them to server.
+   *  2. Merge them into currentTrailStore.path so the trail renders immediately.
+   */
+  async function recoverPersistedData() {
+    try {
+      const [savedCoords, savedClosures] = await Promise.all([
+        loadPersistedCoordinates(),
+        loadPersistedClosures(),
+      ])
+
+      if (savedCoords.length > 0) {
+        console.log(
+          `🔄 Recovered ${savedCoords.length} pending coordinates from IndexedDB`,
+        )
+
+        // 1. Add to retry queue for server sync
+        pendingCoordinatesStore.update((existing) => {
+          const existingKeys = new Set(
+            existing.map((c) => `${c.trail_id}_${c.timestamp}`),
+          )
+          const newOnes = savedCoords.filter(
+            (c) => !existingKeys.has(`${c.trail_id}_${c.timestamp}`),
+          )
+          return [...existing, ...newOnes]
+        })
+
+        // 2. Merge into the visible trail path so the trail renders on the map
+        const currentTrail = get(currentTrailStore)
+        if (currentTrail) {
+          const trailId = currentTrail.id
+          const coordsForThisTrail = savedCoords.filter(
+            (c) => c.trail_id === trailId,
+          )
+
+          if (coordsForThisTrail.length > 0) {
+            // Build a set of existing timestamps to avoid duplicates
+            const existingTimestamps = new Set(
+              (currentTrail.path || []).map((p) => p.timestamp),
+            )
+
+            const newPathPoints = coordsForThisTrail
+              .filter((c) => !existingTimestamps.has(c.timestamp))
+              .map((c) => ({
+                coordinates: c.coordinates,
+                timestamp: c.timestamp,
+              }))
+
+            if (newPathPoints.length > 0) {
+              currentTrailStore.update((trail) => {
+                if (!trail) return trail
+                const merged = [...(trail.path || []), ...newPathPoints].sort(
+                  (a, b) => a.timestamp - b.timestamp,
+                )
+                return { ...trail, path: merged }
+              })
+
+              console.log(
+                `🗺️ Merged ${newPathPoints.length} recovered points into visible trail`,
+              )
+            }
+          }
+        }
+      }
+
+      if (savedClosures.length > 0) {
+        console.log(
+          `🔄 Recovered ${savedClosures.length} pending closures from IndexedDB`,
+        )
+        pendingClosuresStore.update((existing) => {
+          const existingIds = new Set(existing.map((c) => c.trailId))
+          const newOnes = savedClosures.filter(
+            (c) => !existingIds.has(c.trailId),
+          )
+          return [...existing, ...newOnes]
+        })
+      }
+
+      if (savedCoords.length > 0 || savedClosures.length > 0) {
+        toast.info("Recovered unsaved trail data", {
+          description: `${savedCoords.length} coordinates and ${savedClosures.length} trail closures from previous session`,
+          duration: 5000,
+        })
+
+        // Sync immediately — don't wait for the 10s retry interval
+        console.log("⚡ Triggering immediate sync for recovered data")
+        syncPendingChanges()
+      }
+    } catch (e) {
+      console.warn("⚠️ Failed to recover persisted trail data:", e)
+    }
+  }
+
+  /**
+   * Synchronously-safe flush: write the current in-memory pending stores into
+   * IndexedDB.  Called on pagehide / beforeunload / onDestroy so the data
+   * survives even if the network request hasn't completed yet.
+   *
+   * Note: IndexedDB writes are async but browsers guarantee that writes
+   * initiated during pagehide will complete before the page is discarded.
+   */
+  function flushPendingToIndexedDB() {
+    try {
+      const coords = get(pendingCoordinatesStore)
+      const closures = get(pendingClosuresStore)
+
+      // Persist each pending coordinate (idempotent — add() auto-increments so
+      // duplicates are possible, but recoverPersistedData de-dupes on load)
+      for (const coord of coords) {
+        persistPendingCoordinate(coord)
+      }
+      for (const closure of closures) {
+        persistPendingClosure(closure)
+      }
+
+      if (coords.length > 0 || closures.length > 0) {
+        console.log(
+          `💾 Flushed ${coords.length} coordinates + ${closures.length} closures to IndexedDB`,
+        )
+      }
+    } catch (e) {
+      console.warn("⚠️ Failed to flush pending data to IndexedDB:", e)
+    }
   }
 
   // ============================================

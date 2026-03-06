@@ -22,6 +22,13 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
+  import {
+    persistPendingMarkerChange,
+    persistPendingMarkerDeletion,
+    clearAllPersistedMarkerData,
+    loadPersistedMarkerChanges,
+    loadPersistedMarkerDeletions,
+  } from "$lib/services/db"
 
   export let map
 
@@ -53,6 +60,8 @@
       isOnline = navigator.onLine
       window.addEventListener("online", handleOnline)
       window.addEventListener("offline", handleOffline)
+      window.addEventListener("pagehide", handlePageHide)
+      window.addEventListener("beforeunload", handlePageHide)
     }
 
     // Subscribe to real-time changes - FILTER OUT OUR OWN CHANGES
@@ -108,8 +117,10 @@
       .subscribe()
 
     // Initial load - MUST happen before setting up change tracking
-    loadMarkersFromServer().then(() => {
-      // Only start tracking changes AFTER initial load
+    loadMarkersFromServer().then(async () => {
+      // Recover any persisted offline changes from a previous session
+      await recoverPersistedMarkerData()
+      // Only start tracking changes AFTER initial load + recovery
       setupChangeTracking()
     })
 
@@ -274,9 +285,15 @@
     if (browser) {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
+      window.removeEventListener("pagehide", handlePageHide)
+      window.removeEventListener("beforeunload", handlePageHide)
     }
     if (channel) supabase.removeChannel(channel)
+
+    // Flush instead of cancelling — persist any debounced changes to IndexedDB
     if (debouncedSync) debouncedSync.cancel()
+    flushPendingMarkersToIndexedDB()
+
     if (markersUnsubscribe) markersUnsubscribe()
   })
 
@@ -308,6 +325,7 @@
         lastKnown.notes !== marker.notes
       ) {
         pendingChanges.add(id)
+        persistPendingMarkerChange(marker) // Persist to IndexedDB immediately
         console.log(`✏️ Tracked change for marker ${id}`)
       }
     }
@@ -317,6 +335,7 @@
       for (const [id] of lastKnownState) {
         if (!currentMap.has(id)) {
           pendingDeletions.add(id)
+          persistPendingMarkerDeletion(id) // Persist to IndexedDB immediately
           console.log(`🗑️ Tracked deletion for marker ${id}`)
         }
       }
@@ -344,6 +363,9 @@
     pendingMarkerChangesStore.set(new Set())
     pendingMarkerDeletionsStore.set(new Set())
 
+    // Clear IndexedDB queues after successful sync
+    clearAllPersistedMarkerData()
+
     // Mark as initialized after first successful load
     if (!isInitialized) {
       isInitialized = true
@@ -367,6 +389,99 @@
     isOnline = false
     console.log("📴 Gone offline - will queue changes")
     toast.info("Gone offline - changes will be saved when reconnected")
+  }
+
+  function handlePageHide() {
+    flushPendingMarkersToIndexedDB()
+  }
+
+  // ── IndexedDB recovery & flush ────────────────────────────────
+
+  /**
+   * On mount, load any pending marker changes / deletions that were persisted
+   * to IndexedDB during a previous session and merge them into the in-memory
+   * pending sets so the normal sync flow picks them up.
+   */
+  async function recoverPersistedMarkerData() {
+    try {
+      const [savedChanges, savedDeletions] = await Promise.all([
+        loadPersistedMarkerChanges(),
+        loadPersistedMarkerDeletions(),
+      ])
+
+      if (savedChanges.length > 0) {
+        console.log(
+          `🔄 Recovered ${savedChanges.length} pending marker changes from IndexedDB`,
+        )
+
+        // Merge recovered markers into the confirmed store so trackChangedMarkers
+        // will pick them up as diffs against lastKnownState.
+        confirmedMarkersStore.update((current) => {
+          const currentMap = new Map(current.map((m) => [m.id, m]))
+          for (const marker of savedChanges) {
+            currentMap.set(marker.id, marker) // overwrite with recovered version
+          }
+          return [...currentMap.values()]
+        })
+      }
+
+      if (savedDeletions.length > 0) {
+        console.log(
+          `🔄 Recovered ${savedDeletions.length} pending marker deletions from IndexedDB`,
+        )
+
+        // Add deletion IDs to in-memory pending set
+        for (const id of savedDeletions) {
+          pendingDeletions.add(id)
+        }
+        pendingMarkerDeletionsStore.set(new Set(pendingDeletions))
+      }
+
+      if (savedChanges.length > 0 || savedDeletions.length > 0) {
+        toast.info("Recovered unsaved marker data", {
+          description: `${savedChanges.length} changes and ${savedDeletions.length} deletions from previous session`,
+          duration: 5000,
+        })
+
+        // Trigger a sync attempt if we're online
+        if (isOnline) {
+          debouncedSync()
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Failed to recover persisted marker data:", e)
+    }
+  }
+
+  /**
+   * Persist current in-memory pending changes/deletions to IndexedDB.
+   * Called on pagehide/beforeunload/destroy for crash safety.
+   */
+  function flushPendingMarkersToIndexedDB() {
+    try {
+      const currentMarkers = get(confirmedMarkersStore)
+
+      // Persist pending changes
+      for (const markerId of pendingChanges) {
+        const marker = currentMarkers.find((m) => m.id === markerId)
+        if (marker) {
+          persistPendingMarkerChange(marker)
+        }
+      }
+
+      // Persist pending deletions
+      for (const markerId of pendingDeletions) {
+        persistPendingMarkerDeletion(markerId)
+      }
+
+      if (pendingChanges.size > 0 || pendingDeletions.size > 0) {
+        console.log(
+          `💾 Flushed ${pendingChanges.size} marker changes + ${pendingDeletions.size} deletions to IndexedDB`,
+        )
+      }
+    } catch (e) {
+      console.warn("⚠️ Failed to flush pending marker data to IndexedDB:", e)
+    }
   }
 
   async function loadMarkersFromServer() {

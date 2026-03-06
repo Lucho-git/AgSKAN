@@ -1,6 +1,7 @@
 <!-- src/lib/components/map/trails/ActiveTrailManager.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, getContext } from "svelte"
+  import { get } from "svelte/store"
   import * as mapboxgl from "mapbox-gl"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
@@ -498,6 +499,7 @@
 
   let currentTrailUnsubscribe: (() => void) | null = null
   let otherActiveTrailsUnsubscribe: (() => void) | null = null
+  let styleLoadHandler: (() => void) | null = null
 
   onMount(() => {
     currentTrailUnsubscribe = currentTrailStore.subscribe((currentTrail) => {
@@ -517,6 +519,31 @@
         }
       },
     )
+
+    // Listen for EVERY style load — this fires on the initial style load AND
+    // after SatelliteManager calls setStyle() (e.g. switching to google_satellite).
+    // setStyle() wipes all sources/layers and resets isStyleLoaded(), so we
+    // must re-render trail data once the new style is ready.
+    // NOTE: map.once("load") does NOT work here because "load" only fires once
+    // for the initial style; setStyle() fires "style.load" instead.
+    if (map) {
+      styleLoadHandler = () => {
+        const currentTrail = get(currentTrailStore)
+        if (currentTrail && currentTrail.path) {
+          updateCurrentTrail(currentTrail)
+        }
+        const activeTrails = get(otherActiveTrailStore)
+        if (activeTrails && activeTrails.length > 0) {
+          updateCombinedActiveTrailsIncremental()
+        }
+      }
+      map.on("style.load", styleLoadHandler)
+
+      // If style is already loaded (no future style.load event coming), render now
+      if (map.isStyleLoaded()) {
+        styleLoadHandler()
+      }
+    }
   })
 
   onDestroy(() => {
@@ -525,6 +552,10 @@
     }
     if (otherActiveTrailsUnsubscribe) {
       otherActiveTrailsUnsubscribe()
+    }
+    if (styleLoadHandler && map) {
+      map.off("style.load", styleLoadHandler)
+      styleLoadHandler = null
     }
 
     lastSegmentIndices.clear()

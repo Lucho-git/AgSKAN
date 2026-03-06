@@ -360,7 +360,11 @@
 
     // Green ripple on confirmation
     const markerDef = findMarkerByIconClass(iconClass)
-    showPlacementRipple(coordinates, 'rgba(34, 197, 94', markerDef?.name || 'Marker')
+    showPlacementRipple(
+      coordinates,
+      "rgba(34, 197, 94",
+      markerDef?.name || "Marker",
+    )
 
     if (map && map.getSource("markers")) {
       const source = map.getSource("markers")
@@ -433,10 +437,12 @@
     if ($selectedMarkerStore?.coordinates) {
       const oldDef = findMarkerByIconClass(currentMarker.iconClass)
       const newDef = findMarkerByIconClass(newIconClass)
-      const oldName = oldDef?.name || 'Marker'
-      const newName = newDef?.name || 'Marker'
+      const oldName = oldDef?.name || "Marker"
+      const newName = newDef?.name || "Marker"
       const iconChanged = currentMarker.iconClass !== newIconClass
-      const labelText = iconChanged ? `${oldName} → ${newName}` : `${newName} Edited`
+      const labelText = iconChanged
+        ? `${oldName} → ${newName}`
+        : `${newName} Edited`
       showEditRipple($selectedMarkerStore.coordinates, labelText)
     }
 
