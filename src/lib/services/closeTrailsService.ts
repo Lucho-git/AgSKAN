@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { simplifyPath } from "$lib/utils/pathSimplification"
+import { filterGpsGlitches } from "$lib/utils/gpsGlitchFilter"
 
 interface Point {
   longitude: number
@@ -29,12 +30,21 @@ export async function closeTrailWithPath(
   let detailedPathString = null
 
   if (path && path.length > 0) {
-    const detailedLineString = path
+    // Filter GPS glitches before building path strings
+    const { clean: cleanPath, glitchCount } = filterGpsGlitches(path)
+    if (glitchCount > 0) {
+      console.log(
+        `Trail ${trail_id}: removed ${glitchCount} GPS glitch(es) from ${path.length} points → ${cleanPath.length} clean`,
+      )
+    }
+    const filteredPath = cleanPath.length >= 2 ? cleanPath : path // fallback if filter is too aggressive
+
+    const detailedLineString = filteredPath
       .map((point) => `${point.longitude} ${point.latitude} ${point.timestamp}`)
       .join(",")
     detailedPathString = `SRID=4326;LINESTRING M(${detailedLineString})`
 
-    const pathForSimplification = path.map((point) => ({
+    const pathForSimplification = filteredPath.map((point) => ({
       coordinates: `(${point.longitude},${point.latitude})`,
     }))
 

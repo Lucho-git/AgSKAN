@@ -76,6 +76,18 @@
   const SPEED_HISTORY_SIZE = 5
   const SPEED_SMOOTHING_ALPHA = 0.6
 
+  // ── GPS glitch filter thresholds ──
+  const GPS_MAX_ACCURACY_M = 200          // Reject if reported accuracy > 200m (WiFi/cell)
+  const GPS_MAX_SPEED_KMH = 250           // Reject if implied speed > 250 km/h
+  const GPS_SPEED_GATE_MAX_GAP_S = 60     // Only apply speed gate if time gap < 60s
+  const GPS_SNAP_BACK_THRESHOLD = 3       // Consecutive rejections before snap-back kicks in
+  const GPS_SNAP_BACK_DISTANCE_M = 500    // Min jump distance to trigger snap-back check
+  let lastAcceptedCoords = null
+  let lastAcceptedTime = null
+  let priorAcceptedCoords = null           // The accepted point BEFORE lastAccepted (for snap-back)
+  let priorAcceptedTime = null
+  let consecutiveRejectionsFromLast = 0    // Track consecutive rejections from current lastAccepted
+
   let previousVisibility = { vehicles: true, vehicleLabels: true }
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
@@ -789,7 +801,14 @@
     geolocateControl.on("geolocate", (e) => {
       if ($devModeEnabled) return // Dev mode overrides real GPS
       const { coords } = e
-      streamMarkerPosition(coords)
+      // Pass accuracy through so the GPS filter can use it
+      streamMarkerPosition({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        heading: coords.heading,
+        speed: coords.speed,
+        accuracy: coords.accuracy,
+      })
     })
 
     userVehicleUnsubscribe = userVehicleStore.subscribe((value) => {
@@ -1292,18 +1311,157 @@
     streamMarkerPosition($devPositionStore)
   }
 
+  /**
+   * Show a red floating "GPS Rejected" label at the given coordinates on the map.
+   * Mirrors the marker-floating-label pattern but uses a dedicated red variant.
+   */
+  function showGpsRejectedLabel(longitude, latitude, reason) {
+    if (!map) return
+    const el = document.createElement('div')
+    el.style.pointerEvents = 'none'
+    el.style.width = '0'
+    el.style.height = '0'
+    el.style.position = 'relative'
+
+    const label = document.createElement('div')
+    label.className = 'gps-rejected-label'
+    label.textContent = 'GPS Rejected'
+    label.title = reason
+    el.appendChild(label)
+
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat([longitude, latitude])
+      .addTo(map)
+
+    setTimeout(() => marker.remove(), 2200)
+  }
+
+  /**
+   * Hybrid GPS glitch filter.
+   * Returns { accepted: true } or { accepted: false, reason: string }.
+   *
+   * Rules:
+   *  1. If accuracy > GPS_MAX_ACCURACY_M → reject (WiFi/cell tower fix)
+   *  2. If implied speed > GPS_MAX_SPEED_KMH AND time gap < GPS_SPEED_GATE_MAX_GAP_S → reject
+   *  3. Snap-back detection: if we've been rejecting GPS_SNAP_BACK_THRESHOLD
+   *     consecutive points from the current anchor, the anchor itself was a
+   *     glitch — roll back to the prior anchor and re-evaluate this point.
+   *  4. Otherwise → accept
+   */
+  function filterGpsCoordinate(latitude, longitude, accuracy, timestamp) {
+    // Gate 1: Accuracy (skip for dev mode which has no accuracy)
+    if (accuracy != null && accuracy > GPS_MAX_ACCURACY_M) {
+      return {
+        accepted: false,
+        reason: `Accuracy too low: ${Math.round(accuracy)}m (max ${GPS_MAX_ACCURACY_M}m)`,
+      }
+    }
+
+    // Gate 2: Speed (only when we have a previous accepted point)
+    if (lastAcceptedCoords && lastAcceptedTime) {
+      const gapSeconds = (timestamp - lastAcceptedTime) / 1000
+
+      if (gapSeconds > 0 && gapSeconds < GPS_SPEED_GATE_MAX_GAP_S) {
+        const distance = calculateDistance(
+          lastAcceptedCoords.latitude,
+          lastAcceptedCoords.longitude,
+          latitude,
+          longitude,
+        )
+        const impliedSpeedKmh = (distance / gapSeconds) * 3.6
+
+        if (impliedSpeedKmh > GPS_MAX_SPEED_KMH) {
+          consecutiveRejectionsFromLast++
+
+          // Gate 3: Snap-back detection
+          // If we've rejected N points in a row from the current anchor,
+          // the anchor was the glitch. Roll back to prior anchor.
+          if (
+            consecutiveRejectionsFromLast >= GPS_SNAP_BACK_THRESHOLD &&
+            priorAcceptedCoords &&
+            priorAcceptedTime
+          ) {
+            // Check if this point is valid from the PRIOR anchor
+            const priorGap = (timestamp - priorAcceptedTime) / 1000
+            const priorDist = calculateDistance(
+              priorAcceptedCoords.latitude,
+              priorAcceptedCoords.longitude,
+              latitude,
+              longitude,
+            )
+            const priorSpeed = priorGap > 0 ? (priorDist / priorGap) * 3.6 : 0
+
+            // If valid from prior anchor, OR it's been a long gap, snap back
+            if (priorSpeed <= GPS_MAX_SPEED_KMH || priorGap >= GPS_SPEED_GATE_MAX_GAP_S) {
+              console.warn(`🔄 GPS snap-back: rolling back anchor (${consecutiveRejectionsFromLast} consecutive rejections). Prior anchor was the glitch.`)
+              // Roll back — the lastAccepted was the glitch
+              lastAcceptedCoords = priorAcceptedCoords
+              lastAcceptedTime = priorAcceptedTime
+              consecutiveRejectionsFromLast = 0
+              // Accept this point
+              return { accepted: true }
+            }
+          }
+
+          return {
+            accepted: false,
+            reason: `Implied speed ${Math.round(impliedSpeedKmh)} km/h over ${gapSeconds.toFixed(1)}s gap (max ${GPS_MAX_SPEED_KMH} km/h). Distance: ${Math.round(distance)}m`,
+          }
+        }
+      }
+      // If gap >= GPS_SPEED_GATE_MAX_GAP_S, skip speed check — but apply snap-back distance check
+      else if (gapSeconds >= GPS_SPEED_GATE_MAX_GAP_S) {
+        const distance = calculateDistance(
+          lastAcceptedCoords.latitude,
+          lastAcceptedCoords.longitude,
+          latitude,
+          longitude,
+        )
+        // For long-gap points that jump far, we can't reject yet —
+        // but mark it as suspicious so snap-back can catch it if
+        // the next points all reject from this new position
+      }
+    }
+
+    // Reset rejection counter on acceptance
+    consecutiveRejectionsFromLast = 0
+    return { accepted: true }
+  }
+
   function streamMarkerPosition(coords) {
-    const { latitude, longitude, heading, speed } = coords
+    const { latitude, longitude, heading, speed, accuracy } = coords
+
+    const currentTime = Date.now()
+
+    // ── GPS glitch filter (skip in dev mode) ──
+    if (!$devModeEnabled) {
+      const filterResult = filterGpsCoordinate(latitude, longitude, accuracy, currentTime)
+      if (!filterResult.accepted) {
+        console.warn(`🚫 GPS coordinate rejected: ${filterResult.reason}`, {
+          lat: latitude,
+          lng: longitude,
+          accuracy,
+          lastAccepted: lastAcceptedCoords,
+          timeSinceLastMs: lastAcceptedTime ? currentTime - lastAcceptedTime : null,
+        })
+        showGpsRejectedLabel(longitude, latitude, filterResult.reason)
+        return // Drop this coordinate entirely
+      }
+    }
+
+    // Coordinate accepted — update tracking state
+    priorAcceptedCoords = lastAcceptedCoords
+    priorAcceptedTime = lastAcceptedTime
+    lastAcceptedCoords = { latitude, longitude }
+    lastAcceptedTime = currentTime
 
     const calculatedSpeed = calculateSpeedFromGPS(
       latitude,
       longitude,
-      Date.now(),
+      currentTime,
     )
 
     currentSpeed = Math.round(calculatedSpeed)
-
-    const currentTime = Date.now()
 
     const vehicleData = {
       coordinates: { latitude, longitude },

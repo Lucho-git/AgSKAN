@@ -1215,6 +1215,28 @@
     animation: marker-label-float 1.8s ease-out forwards;
   }
 
+  /* Red variant for GPS rejection labels (created by VehicleTracker) */
+  :global(.gps-rejected-label) {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%) translateY(-8px);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #ff4444;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 68, 68, 0.35);
+    box-shadow: 0 2px 8px rgba(255, 68, 68, 0.3);
+    pointer-events: none;
+    z-index: 50;
+    animation: marker-label-float 2s ease-out forwards;
+  }
+
   @keyframes -global-marker-label-float {
     0% {
       opacity: 0;
