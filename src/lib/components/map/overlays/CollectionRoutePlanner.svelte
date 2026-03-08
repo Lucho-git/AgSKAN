@@ -62,7 +62,7 @@
   let orderedMarkers = []
   let breadcrumbs = [] // actual GPS positions recorded while navigating
   let nextWaypointIdx = 0 // index into orderedMarkers
-  const WAYPOINT_REACH_M = 25 // how close (m) before we consider a waypoint reached
+  $: waypointReachM = $collectionModeStore.radius || 25 // match the collection radius
   const BREADCRUMB_MIN_M = 2 // min distance between breadcrumb samples
 
   // ── Store subscription ──
@@ -522,7 +522,7 @@
           turf.point(wp),
           { units: "meters" },
         )
-        if (distToWp <= WAYPOINT_REACH_M) {
+        if (distToWp <= waypointReachM) {
           nextWaypointIdx++
         } else {
           break

@@ -1237,6 +1237,9 @@
       const { openTrail, trailData } = result
 
       if (openTrail) {
+        const pathLen = trailData ? trailData.length : 0
+        console.log(`📡 checkOpenTrails: Found open trail ${openTrail.id}, pathLen=${pathLen}, color=${openTrail.trail_color}, width=${openTrail.trail_width}`)
+        console.log(`📡 checkOpenTrails: Setting currentTrailStore NOW`)
         currentTrailStore.set({
           ...openTrail,
           start_time: openTrail.start_time,
@@ -1244,6 +1247,7 @@
           trail_width: openTrail.trail_width,
           path: trailData || [],
         })
+        console.log(`📡 checkOpenTrails: currentTrailStore SET, map.isStyleLoaded=${map?.isStyleLoaded?.() ?? 'no map'}`)
 
         userVehicleTrailing.set(true)
 

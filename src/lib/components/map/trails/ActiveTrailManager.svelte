@@ -175,7 +175,10 @@
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
+    console.log(`🔍 ATM updateCombinedIncremental: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map(t => (Array.isArray(t.path) ? t.path.length : 'geojson')).join(', ')}]`)
+
     if (allActiveTrails.length === 0) {
+      console.log('🔍 ATM updateCombinedIncremental: No trails, returning early')
       return
     }
 
@@ -183,6 +186,7 @@
       COMBINED_ACTIVE_SOURCE_ID,
     ) as mapboxgl.GeoJSONSource
     if (!source) {
+      console.log('🔍 ATM updateCombinedIncremental: No source exists, calling rebuildCombinedActiveTrails')
       rebuildCombinedActiveTrails()
       return
     }
@@ -319,6 +323,8 @@
       ...($currentTrailStore ? [$currentTrailStore] : []),
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
+
+    console.log(`🔨 ATM rebuildCombinedActiveTrails: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map(t => (Array.isArray(t.path) ? t.path.length : 'geojson')).join(', ')}]`)
 
     if (allActiveTrails.length === 0) {
       const layersToRemove = [
@@ -501,21 +507,38 @@
   let otherActiveTrailsUnsubscribe: (() => void) | null = null
   let styleLoadHandler: (() => void) | null = null
 
+  // Track whether style.load has fired. We use this instead of map.isStyleLoaded()
+  // because isStyleLoaded() checks if ALL resources (tiles, sprites, glyphs) are loaded,
+  // but we only need the style JSON to be parsed (style.load) to add sources/layers.
+  // isStyleLoaded() can return false for a long time after style.load has fired.
+  let styleReady = false
+
   onMount(() => {
     currentTrailUnsubscribe = currentTrailStore.subscribe((currentTrail) => {
-      if (map && map.isStyleLoaded()) {
-        if (currentTrail && currentTrail.path) {
+      const hasPath = currentTrail && currentTrail.path
+      const pathLen = hasPath ? (Array.isArray(currentTrail.path) ? currentTrail.path.length : 'geojson') : 0
+      console.log(`🔔 ATM currentTrailStore subscription fired: styleReady=${styleReady}, hasPath=${!!hasPath}, pathLen=${pathLen}, trailId=${currentTrail?.id || 'null'}`)
+      if (map && styleReady) {
+        if (hasPath) {
+          console.log(`🔔 ATM → calling updateCurrentTrail`)
           updateCurrentTrail(currentTrail)
+        } else {
+          console.log(`🔔 ATM → skipped: no path data`)
         }
+      } else {
+        console.log(`🔔 ATM → BLOCKED: map=${!!map}, styleReady=${styleReady}`)
       }
     })
 
     otherActiveTrailsUnsubscribe = otherActiveTrailStore.subscribe(
       (activeTrails) => {
-        if (map && map.isStyleLoaded()) {
+        console.log(`🔔 ATM otherActiveTrailStore subscription fired: styleReady=${styleReady}, trailCount=${activeTrails?.length || 0}`)
+        if (map && styleReady) {
           if (activeTrails && activeTrails.length > 0) {
             updateCombinedActiveTrailsIncremental()
           }
+        } else {
+          console.log(`🔔 ATM other trails → BLOCKED: map=${!!map}, styleReady=${styleReady}`)
         }
       },
     )
@@ -524,24 +547,35 @@
     // after SatelliteManager calls setStyle() (e.g. switching to google_satellite).
     // setStyle() wipes all sources/layers and resets isStyleLoaded(), so we
     // must re-render trail data once the new style is ready.
-    // NOTE: map.once("load") does NOT work here because "load" only fires once
-    // for the initial style; setStyle() fires "style.load" instead.
     if (map) {
       styleLoadHandler = () => {
+        styleReady = true
         const currentTrail = get(currentTrailStore)
+        const activeTrails = get(otherActiveTrailStore)
+        const currentPathLen = currentTrail?.path ? (Array.isArray(currentTrail.path) ? currentTrail.path.length : 'geojson') : 0
+        console.log(`🎨 ATM style.load handler fired: styleReady=true, currentTrail=${currentTrail?.id || 'null'}, pathLen=${currentPathLen}, otherTrails=${activeTrails?.length || 0}`)
         if (currentTrail && currentTrail.path) {
           updateCurrentTrail(currentTrail)
         }
-        const activeTrails = get(otherActiveTrailStore)
         if (activeTrails && activeTrails.length > 0) {
           updateCombinedActiveTrailsIncremental()
         }
       }
       map.on("style.load", styleLoadHandler)
 
-      // If style is already loaded (no future style.load event coming), render now
-      if (map.isStyleLoaded()) {
-        styleLoadHandler()
+      // Detect if style has ALREADY loaded (e.g. component re-mount after style.load fired).
+      // map.isStyleLoaded() checks ALL resources — too strict.
+      // map.getStyle() with layers means the style JSON is parsed and we can add sources/layers.
+      try {
+        const style = map.getStyle()
+        if (style && style.layers && style.layers.length > 0) {
+          console.log(`🎨 ATM: Style already has ${style.layers.length} layers, calling handler immediately`)
+          styleLoadHandler()
+        } else {
+          console.log(`🎨 ATM: Style not ready yet (no layers), waiting for style.load`)
+        }
+      } catch (e) {
+        console.log(`🎨 ATM: getStyle() failed, waiting for style.load`)
       }
     }
   })
