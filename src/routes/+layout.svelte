@@ -295,7 +295,44 @@
       console.log("Not a native platform. Skipping native configuration.")
     }
 
+    // ── Swipe-to-collapse for loading / promise toasts ──
+    // Sonner disables swiping on loading toasts. We detect swipe-up
+    // ourselves and collapse them to a small spinner circle.
+    // When the promise resolves (type changes), the collapsed CSS
+    // stops matching and the compact result toast shows briefly.
+    let swipeTarget: HTMLElement | null = null
+    let swipeStartY = 0
+
+    function onSwipeStart(e: PointerEvent) {
+      const el = (e.target as HTMLElement)?.closest?.(
+        '[data-sonner-toast][data-type="loading"]',
+      ) as HTMLElement | null
+      if (!el || el.classList.contains("toast-collapsed-spinner")) return
+      swipeTarget = el
+      swipeStartY = e.clientY
+    }
+
+    function onSwipeMove(e: PointerEvent) {
+      if (!swipeTarget) return
+      const deltaY = swipeStartY - e.clientY // positive = swiped up
+      if (deltaY > 30) {
+        swipeTarget.classList.add("toast-collapsed-spinner")
+        swipeTarget = null
+      }
+    }
+
+    function onSwipeEnd() {
+      swipeTarget = null
+    }
+
+    document.addEventListener("pointerdown", onSwipeStart, true)
+    document.addEventListener("pointermove", onSwipeMove, true)
+    document.addEventListener("pointerup", onSwipeEnd, true)
+
     return () => {
+      document.removeEventListener("pointerdown", onSwipeStart, true)
+      document.removeEventListener("pointermove", onSwipeMove, true)
+      document.removeEventListener("pointerup", onSwipeEnd, true)
       if (unsubscribeSession) {
         console.log("Cleaning up session subscription in root layout.")
         unsubscribeSession()
@@ -334,5 +371,177 @@
     ></div>
   {/if}
   <slot />
-  <Toaster expand={true} position="top-center" richColors />
+  <Toaster
+    expand={true}
+    position="top-center"
+    toastOptions={{
+      class: "toast-dark-heavy-border",
+    }}
+  />
 </main>
+
+<style>
+  /* ═══════════════════════════════════════════════════════════ */
+  /*  TOAST THEME: Dark Heavy + Full Border                     */
+  /*  0.85 black, heavy blur(20px), full colored border         */
+  /*  Matches: resume-modal, trail-modal, vehicle-panel         */
+  /* ═══════════════════════════════════════════════════════════ */
+
+  :global([data-sonner-toast].toast-dark-heavy-border) {
+    background: rgba(0, 0, 0, 0.85) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 14px !important;
+    color: #ffffff !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
+    font-family: "Inter", sans-serif !important;
+    padding: 8px 14px !important;
+  }
+
+  :global([data-sonner-toast][data-type="success"].toast-dark-heavy-border) {
+    border-color: #22c55e !important;
+  }
+  :global([data-sonner-toast][data-type="error"].toast-dark-heavy-border) {
+    border-color: #ef4444 !important;
+  }
+  :global([data-sonner-toast][data-type="warning"].toast-dark-heavy-border) {
+    border-color: #f59e0b !important;
+  }
+  :global([data-sonner-toast][data-type="info"].toast-dark-heavy-border) {
+    border-color: #3b82f6 !important;
+  }
+  :global([data-sonner-toast][data-type="loading"].toast-dark-heavy-border) {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+  }
+
+  /* Text styles */
+  :global([data-sonner-toast].toast-dark-heavy-border [data-title]) {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.3 !important;
+  }
+
+  :global([data-sonner-toast].toast-dark-heavy-border [data-description]) {
+    display: none !important;
+  }
+
+  /* Compact icon */
+  :global([data-sonner-toast].toast-dark-heavy-border [data-icon]) {
+    flex-shrink: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  :global([data-sonner-toast].toast-dark-heavy-border [data-icon] svg) {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  /* Compact content area */
+  :global([data-sonner-toast].toast-dark-heavy-border [data-content]) {
+    flex: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Button styles */
+  :global([data-sonner-toast].toast-dark-heavy-border [data-button]) {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #f7db5c !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+
+  :global([data-sonner-toast].toast-dark-heavy-border [data-close-button]) {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+
+  /* Icon colors */
+  :global([data-sonner-toast][data-type="success"].toast-dark-heavy-border [data-icon]) {
+    color: #22c55e !important;
+  }
+  :global([data-sonner-toast][data-type="error"].toast-dark-heavy-border [data-icon]) {
+    color: #ef4444 !important;
+  }
+  :global([data-sonner-toast][data-type="warning"].toast-dark-heavy-border [data-icon]) {
+    color: #f59e0b !important;
+  }
+  :global([data-sonner-toast][data-type="info"].toast-dark-heavy-border [data-icon]) {
+    color: #3b82f6 !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /*  Loading toast: swipe-to-collapse into spinner circle      */
+  /*  When promise resolves, type changes → compact result      */
+  /* ═══════════════════════════════════════════════════════════ */
+
+  /* Collapsed spinner — small centered circle */
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner) {
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 0 !important;
+    max-height: 44px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin: 0 auto !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  /* Hide everything except spinner icon */
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-content]),
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-button]),
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-close-button]) {
+    display: none !important;
+  }
+
+  /* Center and size the spinner */
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-icon]) {
+    width: 22px !important;
+    height: 22px !important;
+    margin: 0 !important;
+  }
+
+  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-icon] svg) {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /*  Override sonner mobile breakpoint:                        */
+  /*  Default is 600px — tighten to 480px so tablets get the    */
+  /*  fixed-width toast instead of full-width stretch.           */
+  /* ═══════════════════════════════════════════════════════════ */
+
+  /* Reset sonner's 600px mobile layout for 481–600px range */
+  @media (min-width: 481px) and (max-width: 600px) {
+    :global([data-sonner-toaster]) {
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+      width: var(--width) !important;
+    }
+
+    :global([data-sonner-toaster] [data-sonner-toast]) {
+      left: auto !important;
+      right: auto !important;
+      width: var(--width) !important;
+    }
+  }
+</style>

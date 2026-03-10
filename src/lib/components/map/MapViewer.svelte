@@ -603,6 +603,7 @@
       >
         <Menu size={28} />
       </button>
+      <span class="toolbox-badge">Tools</span>
     </div>
 
     <!-- ButtonSection with event dispatching -->
@@ -752,13 +753,39 @@
 
   .toolbox-trigger-button:hover {
     background-color: #f7db5c;
+    color: #000000;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
   }
 
   .toolbox-trigger-button.active {
-    background-color: #f7db5c;
+    background-color: rgba(0, 0, 0, 0.5);
     border-color: #000000;
+    color: #f7db5c;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  }
+
+  .toolbox-badge {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f7db5c;
+    border: 1.5px solid #000;
+    border-radius: 10px;
+    padding: 2px 8px;
+    z-index: 12;
+    white-space: nowrap;
+    height: 18px;
+    pointer-events: none;
+    font-size: 8px;
+    font-weight: 900;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
   }
 
   :global(.mapboxgl-ctrl-logo) {
