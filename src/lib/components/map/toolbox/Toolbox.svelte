@@ -101,6 +101,11 @@
     activePanel = "marker"
   }
 
+  export function switchToFlashPanel() {
+    console.log("🔧 Toolbox: Switching to flash panel")
+    activePanel = "flash"
+  }
+
   function showTrailPanel() {
     activePanel = "trail"
   }

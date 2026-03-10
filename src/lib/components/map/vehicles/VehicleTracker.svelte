@@ -7,6 +7,7 @@
     userVehicleTrailing,
     otherVehiclesStore,
     otherVehiclesDataChanges,
+    broadcastMessageEvent,
   } from "$lib/stores/vehicleStore"
   import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
   import { trailPausedStore } from "$lib/stores/currentTrailStore"
@@ -17,6 +18,7 @@
 
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
+  import VehicleCompassButton from "./VehicleCompassButton.svelte"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { toast } from "svelte-sonner"
   import "$lib/../styles/global.css"
@@ -24,11 +26,13 @@
   import backgroundService from "$lib/services/backgroundService"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
+  import { supabase } from "$lib/supabaseClient"
   import { devModeEnabled, devPositionStore } from "$lib/stores/devModeStore"
 
   export let map
   export let disableAutoZoom = false
   export let onOpenVehicleControls = null
+  export let onOpenFlashPanel = null
 
   let globalSelectionContext = null
   let globalSelectionState = null
@@ -68,6 +72,12 @@
 
   let selectedVehicleId = null
 
+  let mapBearing = 0
+
+  let userBroadcastMarker = null
+  let broadcastDismissTimer = null
+  let otherBroadcastMarkers = {} // { vehicleId: { marker, timer } }
+
   let contextCheckInterval = null
 
   let lastSpeedCalcPosition = null
@@ -98,6 +108,7 @@
 
   let userVehicleUnsubscribe
   let unsubscribeOtherVehiclesDataChanges
+  let unsubscribeBroadcastMessages
   let lastClientCoordinates = null
   let lastClientHeading = null
 
@@ -939,11 +950,9 @@
       setupBackgroundService()
     }
 
-    // Add Navigation Control (compass)
-    const navigationControl = new mapboxgl.NavigationControl({
-      showCompass: true,
-      showZoom: false, // Set to true if you also want zoom buttons
-      visualizePitch: true,
+    // Track map bearing for HUD compass indicator
+    map.on('rotate', () => {
+      mapBearing = map.getBearing()
     })
 
     geolocateControl = new mapboxgl.GeolocateControl({
@@ -961,7 +970,6 @@
     })
 
     map.addControl(geolocateControl, "bottom-right")
-    map.addControl(navigationControl, "bottom-right")
 
     map.on("load", () => {
       if (!disableAutoZoom) {
@@ -989,6 +997,10 @@
     unsubscribeOtherVehiclesDataChanges =
       otherVehiclesDataChanges.subscribe(processChanges)
 
+    unsubscribeBroadcastMessages = broadcastMessageEvent.subscribe((evt) => {
+      if (evt) showOtherVehicleBroadcast(evt)
+    })
+
     if (!isMobileApp && typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange)
     }
@@ -1008,12 +1020,31 @@
       userInitialsMarker = null
     }
 
+    if (userBroadcastMarker) {
+      userBroadcastMarker.remove()
+      userBroadcastMarker = null
+    }
+    if (broadcastDismissTimer) {
+      clearTimeout(broadcastDismissTimer)
+      broadcastDismissTimer = null
+    }
+
     if (userVehicleUnsubscribe) {
       userVehicleUnsubscribe()
     }
     if (unsubscribeOtherVehiclesDataChanges) {
       unsubscribeOtherVehiclesDataChanges()
     }
+    if (unsubscribeBroadcastMessages) {
+      unsubscribeBroadcastMessages()
+    }
+
+    // Clean up other vehicle broadcast bubbles
+    Object.values(otherBroadcastMarkers).forEach(({ marker, timer }) => {
+      if (timer) clearTimeout(timer)
+      if (marker) marker.remove()
+    })
+    otherBroadcastMarkers = {}
 
     if (!isMobileApp && typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
@@ -1208,6 +1239,11 @@
                 last_update,
                 speed,
               )
+          }
+
+          // Move broadcast bubble if one exists for this vehicle
+          if (otherBroadcastMarkers[vehicle_id]?.marker) {
+            otherBroadcastMarkers[vehicle_id].marker.setLngLat([longitude, latitude])
           }
         }
 
@@ -1778,6 +1814,11 @@
                   )
               }
             }
+
+            // Keep broadcast bubble following the user
+            if (userBroadcastMarker) {
+              userBroadcastMarker.setLngLat([longitude, latitude])
+            }
           } else {
             // Marker was created without coordinates (new user, first visit).
             // Now that geolocation has provided coordinates, place it on the map.
@@ -1839,6 +1880,286 @@
     toggleFirstPersonMode()
   }
 
+  function handleResetNorth() {
+    if (map) {
+      map.easeTo({ bearing: 0, duration: 500 })
+    }
+  }
+
+  function handleOpenFlashPanel() {
+    if (onOpenFlashPanel) onOpenFlashPanel()
+  }
+
+  function createBroadcastBubbleElement(message, onClose) {
+    const el = document.createElement('div')
+    el.style.cssText = `
+      pointer-events: auto;
+      user-select: none;
+      animation: broadcastFadeIn 0.3s ease-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    `
+
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = `position: relative;`
+
+    const bubble = document.createElement('div')
+    bubble.style.cssText = `
+      background: rgba(255, 255, 255, 0.95);
+      color: #1a1a1a;
+      font-size: 13px;
+      font-weight: 600;
+      font-style: italic;
+      padding: 8px 14px;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      white-space: nowrap;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      text-align: center;
+    `
+    bubble.textContent = `\u201c${message}\u201d`
+
+    const closeBtn = document.createElement('button')
+    closeBtn.textContent = '\u00d7'
+    closeBtn.style.cssText = `
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 24px;
+      padding: 0;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    `
+    closeBtn.addEventListener('click', onClose)
+
+    wrapper.appendChild(bubble)
+    wrapper.appendChild(closeBtn)
+
+    const tail = document.createElement('div')
+    tail.style.cssText = `
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 10px solid rgba(255, 255, 255, 0.95);
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+    `
+    el.appendChild(tail)
+    el.appendChild(wrapper)
+
+    // Add fade-in keyframe globally (once)
+    if (!document.getElementById('broadcast-anim-style')) {
+      const styleSheet = document.createElement('style')
+      styleSheet.id = 'broadcast-anim-style'
+      styleSheet.textContent = `@keyframes broadcastFadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`
+      document.head.appendChild(styleSheet)
+    }
+
+    return el
+  }
+
+  function showOtherVehicleBroadcast({ sender_id, sender_name, message }) {
+    // Find the marker for this vehicle
+    const vehicleData = otherVehicleMarkers.find((v) => v.vehicleId === sender_id)
+    if (!vehicleData) return
+
+    const lngLat = vehicleData.marker.getLngLat()
+    if (!lngLat) return
+
+    // Remove existing broadcast bubble for this vehicle
+    if (otherBroadcastMarkers[sender_id]) {
+      if (otherBroadcastMarkers[sender_id].timer) {
+        clearTimeout(otherBroadcastMarkers[sender_id].timer)
+      }
+      if (otherBroadcastMarkers[sender_id].marker) {
+        otherBroadcastMarkers[sender_id].marker.remove()
+      }
+      delete otherBroadcastMarkers[sender_id]
+    }
+
+    const el = createBroadcastBubbleElement(message, () => {
+      if (otherBroadcastMarkers[sender_id]) {
+        if (otherBroadcastMarkers[sender_id].timer) {
+          clearTimeout(otherBroadcastMarkers[sender_id].timer)
+        }
+        otherBroadcastMarkers[sender_id].marker.remove()
+        delete otherBroadcastMarkers[sender_id]
+      }
+    })
+
+    const broadcastMarker = new mapboxgl.Marker({
+      element: el,
+      anchor: 'top',
+      offset: [0, 24],
+    })
+      .setLngLat(lngLat)
+      .addTo(map)
+
+    // Auto-dismiss after 5 minutes
+    const timer = setTimeout(() => {
+      if (otherBroadcastMarkers[sender_id]) {
+        el.style.transition = 'opacity 0.5s ease-out'
+        el.style.opacity = '0'
+        setTimeout(() => {
+          if (otherBroadcastMarkers[sender_id]) {
+            otherBroadcastMarkers[sender_id].marker.remove()
+            delete otherBroadcastMarkers[sender_id]
+          }
+        }, 500)
+      }
+    }, 300000)
+
+    otherBroadcastMarkers[sender_id] = { marker: broadcastMarker, timer }
+  }
+
+  function handleBroadcast(message) {
+    if (!userMarkerData?.marker) return
+    const lngLat = userMarkerData.marker.getLngLat()
+    if (!lngLat) return
+
+    // Remove existing broadcast bubble if present
+    if (userBroadcastMarker) {
+      userBroadcastMarker.remove()
+      userBroadcastMarker = null
+    }
+    if (broadcastDismissTimer) {
+      clearTimeout(broadcastDismissTimer)
+      broadcastDismissTimer = null
+    }
+
+    const el = createBroadcastBubbleElement(message, () => {
+      if (broadcastDismissTimer) {
+        clearTimeout(broadcastDismissTimer)
+        broadcastDismissTimer = null
+      }
+      if (userBroadcastMarker) {
+        userBroadcastMarker.remove()
+        userBroadcastMarker = null
+      }
+    })
+
+    userBroadcastMarker = new mapboxgl.Marker({
+      element: el,
+      anchor: 'top',
+      offset: [0, 24],
+    })
+      .setLngLat(lngLat)
+      .addTo(map)
+
+    // Auto-dismiss after 5 minutes
+    broadcastDismissTimer = setTimeout(() => {
+      if (userBroadcastMarker) {
+        el.style.transition = 'opacity 0.5s ease-out'
+        el.style.opacity = '0'
+        setTimeout(() => {
+          if (userBroadcastMarker) {
+            userBroadcastMarker.remove()
+            userBroadcastMarker = null
+          }
+        }, 500)
+      }
+      broadcastDismissTimer = null
+    }, 300000)
+
+    // Broadcast to other users via realtime channel
+    try {
+      const masterMapId = $profileStore?.master_map_id
+      if (masterMapId) {
+        const broadcastChannel = supabase.channel(`vehicle_updates_${masterMapId}`)
+        broadcastChannel.send({
+          type: 'broadcast',
+          event: 'broadcast_message',
+          payload: {
+            sender_name: $profileStore?.full_name || 'Someone',
+            message: message,
+            sender_id: $profileStore?.id,
+          },
+        })
+      }
+    } catch (err) {
+      console.error('Failed to broadcast message:', err)
+    }
+  }
+
+  function handleFirstPersonVehicle(vehicleId) {
+    // Start tracking the selected vehicle, then enable first person
+    startTrackingVehicle(vehicleId)
+    if (!isFirstPersonMode) {
+      isFirstPersonMode = true
+      lastTrackedHeading = null
+
+      const vehicle = getVehicleById(vehicleId)
+      if (vehicle) {
+        const parsedCoords = parseCoordinates(vehicle.coordinates)
+        if (parsedCoords) {
+          updateCameraForTrackedVehicle(
+            vehicleId,
+            parsedCoords.longitude,
+            parsedCoords.latitude,
+            vehicle.heading,
+          )
+        }
+      }
+
+      toast.success("First-person mode enabled", {
+        description: "Camera will rotate with vehicle heading",
+        action: {
+          label: "Disable",
+          onClick: () => {
+            isFirstPersonMode = false
+            map.easeTo({ bearing: 0, duration: 1000 })
+            toast.info("First-person mode disabled")
+          },
+        },
+      })
+    }
+  }
+
+  // Build vehicle list for the HUD vehicle picker
+  function buildVehicleList() {
+    const allVehicles = [
+      {
+        id: $userVehicleStore.vehicle_id,
+        name: "You",
+        isCurrentUser: true,
+        coordinates: $userVehicleStore.coordinates,
+        last_update: $userVehicleStore.last_update,
+        vehicleType: $userVehicleStore.vehicle_marker?.type || "SimpleTractor",
+        bodyColor: $userVehicleStore.vehicle_marker?.bodyColor || "red",
+      },
+      ...$otherVehiclesStore.map((v) => ({
+        id: v.vehicle_id,
+        name: v.full_name || getVehicleDisplayName(v),
+        isCurrentUser: false,
+        coordinates: v.coordinates,
+        last_update: v.last_update,
+        vehicleType: v.vehicle_marker?.type || "SimpleTractor",
+        bodyColor: v.vehicle_marker?.bodyColor || "red",
+      })),
+    ].filter((v) => parseCoordinates(v.coordinates) !== null)
+
+    return allVehicles
+  }
+
+  $: vehicleList = buildVehicleList()
+  // Re-trigger when stores change
+  $: if ($otherVehiclesStore || $userVehicleStore) {
+    vehicleList = buildVehicleList()
+  }
+
   function handleZoomToVehicle(event) {
     zoomToVehicle(event.detail.vehicle)
   }
@@ -1887,6 +2208,17 @@
   on:toggleFirstPerson={handleToggleFirstPerson}
   on:zoomToVehicle={handleZoomToVehicle}
   on:instantZoomToVehicle={handleInstantZoomToVehicle}
+/>
+
+<VehicleCompassButton
+  {onOpenVehicleControls}
+  {currentSpeed}
+  {mapBearing}
+  vehicles={vehicleList}
+  onTrueNorth={handleResetNorth}
+  onFirstPersonVehicle={handleFirstPersonVehicle}
+  onFlashMe={handleOpenFlashPanel}
+  onBroadcast={handleBroadcast}
 />
 
 <VehicleDetailsPanel

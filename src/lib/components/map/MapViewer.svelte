@@ -269,6 +269,14 @@
     }
   }
 
+  function handleOpenFlashPanel() {
+    console.log("⚡ Opening flash panel from HUD")
+    toolboxOpen = true
+    if (toolboxRef) {
+      toolboxRef.switchToFlashPanel()
+    }
+  }
+
   // Drawing callbacks
   function handleDrawingComplete() {
     console.log("Drawing completed")
@@ -633,6 +641,7 @@
       {map}
       disableAutoZoom={initialLocation}
       onOpenVehicleControls={handleOpenVehicleControls}
+      onOpenFlashPanel={handleOpenFlashPanel}
     />
     <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
     <EmOverlays {map} />
