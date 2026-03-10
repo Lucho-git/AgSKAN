@@ -127,7 +127,9 @@
           }
         })
         if (generated > 0) {
-          console.log(`🎯 Generated ${generated} arrow markers for historical trails`)
+          console.log(
+            `🎯 Generated ${generated} arrow markers for historical trails`,
+          )
         }
       }
 
@@ -139,7 +141,8 @@
       const historicalMarkerLayers = allLayers
         .filter(
           (layer) =>
-            (layer.id.includes("-markers") || layer.id.includes("-centerline")) &&
+            (layer.id.includes("-markers") ||
+              layer.id.includes("-centerline")) &&
             layer.id.startsWith("trail-layer-"),
         )
         .map((layer) => layer.id)
@@ -288,7 +291,7 @@
     ]
 
     console.log(
-      `✅ Added historical trail ${trail.id}${markerCount > 0 ? ` with ${markerCount} arrow markers` : ' (arrows deferred)'}`,
+      `✅ Added historical trail ${trail.id}${markerCount > 0 ? ` with ${markerCount} arrow markers` : " (arrows deferred)"}`,
     )
 
     return layerId

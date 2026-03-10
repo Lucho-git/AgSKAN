@@ -52,6 +52,8 @@
   let lastBroadcastTime = 0
   let otherVehicleMarkers = []
   let currentSpeed = 0
+
+  const tagStyle = 7
   let isMobileApp = false
   let isBackground = false
   let appState = "web"
@@ -75,18 +77,19 @@
   const MIN_MOVEMENT_THRESHOLD_M = 0.8
   const SPEED_HISTORY_SIZE = 5
   const SPEED_SMOOTHING_ALPHA = 0.6
+  const STALE_SPEED_THRESHOLD_MS = 30000 // 30s — treat speed as 0 if no update since
 
   // ── GPS glitch filter thresholds ──
-  const GPS_MAX_ACCURACY_M = 200          // Reject if reported accuracy > 200m (WiFi/cell)
-  const GPS_MAX_SPEED_KMH = 250           // Reject if implied speed > 250 km/h
-  const GPS_SPEED_GATE_MAX_GAP_S = 60     // Only apply speed gate if time gap < 60s
-  const GPS_SNAP_BACK_THRESHOLD = 3       // Consecutive rejections before snap-back kicks in
-  const GPS_SNAP_BACK_DISTANCE_M = 500    // Min jump distance to trigger snap-back check
+  const GPS_MAX_ACCURACY_M = 200 // Reject if reported accuracy > 200m (WiFi/cell)
+  const GPS_MAX_SPEED_KMH = 250 // Reject if implied speed > 250 km/h
+  const GPS_SPEED_GATE_MAX_GAP_S = 60 // Only apply speed gate if time gap < 60s
+  const GPS_SNAP_BACK_THRESHOLD = 3 // Consecutive rejections before snap-back kicks in
+  const GPS_SNAP_BACK_DISTANCE_M = 500 // Min jump distance to trigger snap-back check
   let lastAcceptedCoords = null
   let lastAcceptedTime = null
-  let priorAcceptedCoords = null           // The accepted point BEFORE lastAccepted (for snap-back)
+  let priorAcceptedCoords = null // The accepted point BEFORE lastAccepted (for snap-back)
   let priorAcceptedTime = null
-  let consecutiveRejectionsFromLast = 0    // Track consecutive rejections from current lastAccepted
+  let consecutiveRejectionsFromLast = 0 // Track consecutive rejections from current lastAccepted
 
   let previousVisibility = { vehicles: true, vehicleLabels: true }
 
@@ -353,10 +356,117 @@
     return (names[0][0] + names[names.length - 1][0]).toUpperCase()
   }
 
-  function createInitialsMarkerElement(initials, vehicleColor = null) {
+  // 3-day inactivity threshold (ms)
+  const INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000
+
+  function isVehicleInactive(lastUpdate) {
+    if (!lastUpdate) return true
+    const ts =
+      typeof lastUpdate === "string"
+        ? new Date(lastUpdate).getTime()
+        : lastUpdate
+    return Date.now() - ts > INACTIVE_THRESHOLD_MS
+  }
+
+  /** Return the number of days since last update */
+  function getAwayDays(lastUpdate) {
+    if (!lastUpdate) return 0
+    const ts =
+      typeof lastUpdate === "string"
+        ? new Date(lastUpdate).getTime()
+        : lastUpdate
+    return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000))
+  }
+
+  /** Check if a vehicle's speed data is stale (no update in 30s) */
+  function isSpeedStale(lastUpdate) {
+    if (!lastUpdate) return true
+    const ts = typeof lastUpdate === 'string' ? new Date(lastUpdate).getTime() : lastUpdate
+    return Date.now() - ts > STALE_SPEED_THRESHOLD_MS
+  }
+
+  /**
+   * Build the active-vehicle tag content into EL based on tagStyle.
+   * If lastUpdate is stale (>30s), speed is forced to 0.
+   */
+  function renderActiveTag(el, initials, speed, lastUpdate = null) {
+    const effectiveSpeed = isSpeedStale(lastUpdate) ? 0 : (speed || 0)
+    const s = effectiveSpeed.toFixed(1)
+    el.innerHTML = ''
+
+    switch (tagStyle) {
+      case 1: // mid-dot
+        el.textContent = `${initials} \u00B7 ${s}`
+        break
+
+      case 2: // pipe
+        el.textContent = `${initials} | ${s}`
+        break
+
+      case 3: // km suffix
+        el.textContent = `${initials} ${s}km`
+        break
+
+      case 4: { // two-line
+        const nameLine = document.createElement('div')
+        nameLine.textContent = initials
+        nameLine.style.cssText = 'font-weight: 700; font-size: 11px; line-height: 1.1;'
+        el.appendChild(nameLine)
+        const speedLine = document.createElement('div')
+        speedLine.textContent = `${s} km/h`
+        speedLine.style.cssText = 'font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;'
+        el.appendChild(speedLine)
+        break
+      }
+
+      case 5: { // pill badge — two segments
+        const left = document.createElement('span')
+        left.textContent = initials
+        left.style.cssText = 'padding: 1px 5px; border-radius: 6px; background: rgba(255,255,255,0.2);'
+        el.appendChild(left)
+        const gap = document.createTextNode(' ')
+        el.appendChild(gap)
+        const right = document.createElement('span')
+        right.textContent = s
+        right.style.cssText = 'padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,0.25);'
+        el.appendChild(right)
+        break
+      }
+
+      case 6: // speed only when moving (single line)
+        el.textContent = parseFloat(s) > 0 ? `${initials} \u00B7 ${s}` : initials
+        break
+
+      case 7: { // smart two-line: two-line when moving, initials only when stopped
+        if (parseFloat(s) > 0) {
+          const nameLine = document.createElement('div')
+          nameLine.textContent = initials
+          nameLine.style.cssText = 'font-weight: 700; font-size: 11px; line-height: 1.1;'
+          el.appendChild(nameLine)
+          const speedLine = document.createElement('div')
+          speedLine.textContent = `${s} km/h`
+          speedLine.style.cssText = 'font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;'
+          el.appendChild(speedLine)
+        } else {
+          el.textContent = initials
+        }
+        break
+      }
+
+      default:
+        el.textContent = `${initials} \u00B7 ${s}`
+    }
+  }
+
+  function createInitialsMarkerElement(
+    initials,
+    vehicleColor = null,
+    inactive = false,
+    lastUpdate = null,
+    speed = 0,
+  ) {
     const el = document.createElement("div")
     el.className = "fm-initials-marker"
-    el.textContent = initials
 
     let backgroundColor = "rgba(0, 0, 0, 0.85)"
 
@@ -373,8 +483,32 @@
       backgroundColor = colorMap[vehicleColor] || backgroundColor
     }
 
+    // If inactive, desaturate the tag background
+    const bgColor = inactive ? "rgba(120, 120, 120, 0.85)" : backgroundColor
+
+    if (inactive) {
+      // Two-line layout: initials on top, Away (XD) below
+      const days = getAwayDays(lastUpdate)
+
+      el.innerHTML = ""
+      const nameLine = document.createElement("div")
+      nameLine.textContent = initials
+      nameLine.style.cssText =
+        "font-weight: 700; font-size: 11px; line-height: 1.1;"
+
+      const awayLine = document.createElement("div")
+      awayLine.textContent = days > 0 ? `Away (${days}D)` : "Away"
+      awayLine.style.cssText =
+        "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.8;"
+
+      el.appendChild(nameLine)
+      el.appendChild(awayLine)
+    } else {
+      renderActiveTag(el, initials, speed, lastUpdate)
+    }
+
     el.style.cssText = `
-      background: ${backgroundColor};
+      background: ${bgColor};
       color: white;
       font-size: 11px;
       font-weight: 700;
@@ -387,12 +521,14 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       user-select: none;
       line-height: 1;
+      text-align: center;
+      ${inactive ? "opacity: 0.75;" : ""}
     `
 
     return el
   }
 
-  function updateInitialsMarkerColor(marker, vehicleColor) {
+  function updateInitialsMarkerColor(marker, vehicleColor, inactive = false) {
     if (!marker) return
 
     const el = marker.getElement()
@@ -408,7 +544,42 @@
       HotPink: "rgba(236, 72, 153, 0.95)",
     }
 
-    el.style.background = colorMap[vehicleColor] || "rgba(0, 0, 0, 0.85)"
+    el.style.background = inactive
+      ? "rgba(120, 120, 120, 0.85)"
+      : colorMap[vehicleColor] || "rgba(0, 0, 0, 0.85)"
+    el.style.opacity = inactive ? "0.75" : "1"
+  }
+
+  function updateInitialsMarkerText(
+    marker,
+    initials,
+    inactive = false,
+    lastUpdate = null,
+    speed = 0,
+  ) {
+    if (!marker) return
+    const el = marker.getElement()
+    if (!el) return
+
+    if (inactive) {
+      const days = getAwayDays(lastUpdate)
+
+      el.innerHTML = ""
+      const nameLine = document.createElement("div")
+      nameLine.textContent = initials
+      nameLine.style.cssText =
+        "font-weight: 700; font-size: 11px; line-height: 1.1;"
+
+      const awayLine = document.createElement("div")
+      awayLine.textContent = days > 0 ? `Away (${days}D)` : "Away"
+      awayLine.style.cssText =
+        "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.8;"
+
+      el.appendChild(nameLine)
+      el.appendChild(awayLine)
+    } else {
+      renderActiveTag(el, initials, speed, lastUpdate)
+    }
   }
 
   function getVehicleById(vehicleId) {
@@ -882,6 +1053,7 @@
         is_flashing,
         flash_started_at,
         flash_reason,
+        last_update,
       } = change
 
       const [longitude, latitude] = coordinates
@@ -973,6 +1145,9 @@
         const existingData = otherVehicleMarkers[existingIndex]
         const { marker, component, initialsMarker } = existingData
 
+        // Determine inactive state for this vehicle
+        const inactive = isVehicleInactive(last_update)
+
         if (
           update_types.includes("vehicle_marker_changed") ||
           update_types.includes("flash_state_changed")
@@ -991,12 +1166,29 @@
             vehicleSwath: vehicle_marker.swath,
             isFlashing: is_flashing || false,
             flashReason: flash_reason || null,
+            isInactive: inactive,
           })
 
           if (initialsMarker) {
-            updateInitialsMarkerColor(initialsMarker, vehicle_marker.bodyColor)
+            updateInitialsMarkerColor(
+              initialsMarker,
+              vehicle_marker.bodyColor,
+              inactive,
+            )
+            const initials = getUserInitials(full_name)
+            if (initials)
+              updateInitialsMarkerText(
+                initialsMarker,
+                initials,
+                inactive,
+                last_update,
+                speed,
+              )
           }
         }
+
+        // Always update inactive state even on position-only changes
+        component.$set({ isInactive: inactive })
 
         if (
           update_types.includes("position_changed") ||
@@ -1006,6 +1198,16 @@
 
           if (initialsMarker) {
             animateMarker(initialsMarker, longitude, latitude, 0)
+            // Update speed in the tag
+            const initials = getUserInitials(full_name)
+            if (initials)
+              updateInitialsMarkerText(
+                initialsMarker,
+                initials,
+                inactive,
+                last_update,
+                speed,
+              )
           }
         }
 
@@ -1013,6 +1215,9 @@
         component.$set({ isSelected })
       } else {
         console.log(`🆕 Creating new vehicle marker for ${vehicle_id}`)
+
+        const inactive = isVehicleInactive(last_update)
+
         const { element, component } = createMarkerElement(
           vehicle_marker,
           false,
@@ -1029,7 +1234,7 @@
         marker.setLngLat([longitude, latitude]).setRotation(heading).addTo(map)
 
         const isSelected = selectedVehicleId === vehicle_id
-        component.$set({ isSelected })
+        component.$set({ isSelected, isInactive: inactive })
 
         const vehiclesVisible = $layerVisibilityStore.vehicles
         element.style.display = vehiclesVisible ? "block" : "none"
@@ -1041,6 +1246,9 @@
             const initialsEl = createInitialsMarkerElement(
               initials,
               vehicle_marker.bodyColor,
+              inactive,
+              last_update,
+              speed,
             )
             initialsMarker = new mapboxgl.Marker({
               element: initialsEl,
@@ -1317,15 +1525,15 @@
    */
   function showGpsRejectedLabel(longitude, latitude, reason) {
     if (!map) return
-    const el = document.createElement('div')
-    el.style.pointerEvents = 'none'
-    el.style.width = '0'
-    el.style.height = '0'
-    el.style.position = 'relative'
+    const el = document.createElement("div")
+    el.style.pointerEvents = "none"
+    el.style.width = "0"
+    el.style.height = "0"
+    el.style.position = "relative"
 
-    const label = document.createElement('div')
-    label.className = 'gps-rejected-label'
-    label.textContent = 'GPS Rejected'
+    const label = document.createElement("div")
+    label.className = "gps-rejected-label"
+    label.textContent = "GPS Rejected"
     label.title = reason
     el.appendChild(label)
 
@@ -1392,8 +1600,13 @@
             const priorSpeed = priorGap > 0 ? (priorDist / priorGap) * 3.6 : 0
 
             // If valid from prior anchor, OR it's been a long gap, snap back
-            if (priorSpeed <= GPS_MAX_SPEED_KMH || priorGap >= GPS_SPEED_GATE_MAX_GAP_S) {
-              console.warn(`🔄 GPS snap-back: rolling back anchor (${consecutiveRejectionsFromLast} consecutive rejections). Prior anchor was the glitch.`)
+            if (
+              priorSpeed <= GPS_MAX_SPEED_KMH ||
+              priorGap >= GPS_SPEED_GATE_MAX_GAP_S
+            ) {
+              console.warn(
+                `🔄 GPS snap-back: rolling back anchor (${consecutiveRejectionsFromLast} consecutive rejections). Prior anchor was the glitch.`,
+              )
               // Roll back — the lastAccepted was the glitch
               lastAcceptedCoords = priorAcceptedCoords
               lastAcceptedTime = priorAcceptedTime
@@ -1435,14 +1648,21 @@
 
     // ── GPS glitch filter (skip in dev mode) ──
     if (!$devModeEnabled) {
-      const filterResult = filterGpsCoordinate(latitude, longitude, accuracy, currentTime)
+      const filterResult = filterGpsCoordinate(
+        latitude,
+        longitude,
+        accuracy,
+        currentTime,
+      )
       if (!filterResult.accepted) {
         console.warn(`🚫 GPS coordinate rejected: ${filterResult.reason}`, {
           lat: latitude,
           lng: longitude,
           accuracy,
           lastAccepted: lastAcceptedCoords,
-          timeSinceLastMs: lastAcceptedTime ? currentTime - lastAcceptedTime : null,
+          timeSinceLastMs: lastAcceptedTime
+            ? currentTime - lastAcceptedTime
+            : null,
         })
         showGpsRejectedLabel(longitude, latitude, filterResult.reason)
         return // Drop this coordinate entirely
@@ -1545,6 +1765,18 @@
 
             if (userInitialsMarker) {
               animateMarker(userInitialsMarker, longitude, latitude, 0)
+              // Update speed in the user's tag
+              if ($profileStore?.full_name) {
+                const initials = getUserInitials($profileStore.full_name)
+                if (initials)
+                  updateInitialsMarkerText(
+                    userInitialsMarker,
+                    initials,
+                    false,
+                    Date.now(),
+                    currentSpeed,
+                  )
+              }
             }
           } else {
             // Marker was created without coordinates (new user, first visit).
@@ -1623,6 +1855,25 @@
   }
 
   export { selectedVehicleId }
+  // Re-render every visible initials tag when tagStyle changes
+  function refreshAllTags() {
+    // User's own tag
+    if (userInitialsMarker && $profileStore?.full_name) {
+      const initials = getUserInitials($profileStore.full_name)
+      if (initials) updateInitialsMarkerText(userInitialsMarker, initials, false, $userVehicleStore.last_update, currentSpeed)
+    }
+    // Other vehicles' tags
+    otherVehicleMarkers.forEach(({ initialsMarker, vehicleId }) => {
+      if (!initialsMarker) return
+      const v = $otherVehiclesStore.find(v => v.vehicle_id === vehicleId)
+      if (!v) return
+      const initials = getUserInitials(v.full_name)
+      if (!initials) return
+      const inactive = isVehicleInactive(v.last_update)
+      updateInitialsMarkerText(initialsMarker, initials, inactive, v.last_update, v.speed || 0)
+    })
+  }
+
 </script>
 
 <VehicleControls

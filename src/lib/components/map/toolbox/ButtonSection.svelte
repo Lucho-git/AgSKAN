@@ -390,9 +390,11 @@
               {:else if defaultMarker.class === "custom-svg"}
                 <IconSVG icon={defaultMarker.id} size="22px" />
               {:else if defaultMarker.class?.startsWith("ionic-")}
-                <ion-icon name={defaultMarker.id} style="font-size: 22px;"></ion-icon>
+                <ion-icon name={defaultMarker.id} style="font-size: 22px;"
+                ></ion-icon>
               {:else if defaultMarker.class?.startsWith("at-")}
-                <i class={`${defaultMarker.class}`} style="font-size: 22px;"></i>
+                <i class={`${defaultMarker.class}`} style="font-size: 22px;"
+                ></i>
               {:else}
                 <MapPin size={18} />
               {/if}
@@ -410,9 +412,11 @@
                 {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
                   <IconSVG icon={extraMarker.id} size="22px" />
                 {:else if extraMarker?.class?.startsWith("ionic-")}
-                  <ion-icon name={extraMarker.id} style="font-size: 22px;"></ion-icon>
+                  <ion-icon name={extraMarker.id} style="font-size: 22px;"
+                  ></ion-icon>
                 {:else if extraMarker?.class?.startsWith("at-")}
-                  <i class={`${extraMarker.class}`} style="font-size: 22px;"></i>
+                  <i class={`${extraMarker.class}`} style="font-size: 22px;"
+                  ></i>
                 {:else}
                   <MapPin size={18} />
                 {/if}
@@ -421,7 +425,7 @@
           {/each}
           <button
             class="marker-slot marker-slot-add btn btn-circle"
-            on:click={() => dispatch('openMarkerSettings')}
+            on:click={() => dispatch("openMarkerSettings")}
             title="Add or edit quick-drop markers"
           >
             <Plus size={18} />
@@ -431,241 +435,262 @@
 
       <!-- Dropdown menu column -->
       <div class="flex flex-col items-end">
-      <!-- Chevron toggle -->
-      <button
-        class="top-button btn {isCircular
-          ? 'btn-circle'
-          : 'btn-square'} btn-lg"
-        on:click={toggleExpanded}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-8 w-8 transition-transform duration-300 {isExpanded
-            ? 'rotate-180'
-            : ''}"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+        <!-- Chevron toggle -->
+        <button
+          class="top-button btn {isCircular
+            ? 'btn-circle'
+            : 'btn-square'} btn-lg"
+          on:click={toggleExpanded}
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
-
-      <!-- Button list container -->
-      <div
-        class="mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
-          ? 'scale-100 opacity-90'
-          : 'h-50 scale-0 overflow-hidden opacity-0'} trail-below"
-      >
-        <!-- Refresh Map Button -->
-        <div class="relative">
-          <button
-            class="menu-button btn {isCircular
-              ? 'btn-circle'
-              : 'btn-square'} btn-lg bg-white hover:bg-opacity-90 {isRefreshing
-              ? 'refreshing'
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8 transition-transform duration-300 {isExpanded
+              ? 'rotate-180'
               : ''}"
-            on:click={() => { handleRefresh(); pulseBadge('refresh'); }}
-            disabled={isRefreshing}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <RotateCcw size={24} class={isRefreshing ? "spinning" : ""} />
-          </button>
-          <span class="static-badge" class:pulse={pulsedBadge === 'refresh'}>Refresh</span>
-        </div>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
 
-        <!-- Locate Home Button -->
-        <div class="relative">
-          <button
-            class="menu-button btn {isCircular
-              ? 'btn-circle'
-              : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
-            on:click={() => { handleLocateHome(); pulseBadge('home'); }}
-          >
-            <Home size={24} />
-          </button>
-          <span class="static-badge" class:pulse={pulsedBadge === 'home'}>Home</span>
-        </div>
-
-        <!-- ══════════════════════════════════════ -->
-        <!-- TRAIL BUTTON                            -->
-        <!-- ══════════════════════════════════════ -->
-
-        <div class="trail-btn-row-a">
-          {#if $userVehicleTrailing}
-            <!-- Pause / Resume -->
-            <button
-              class="menu-button pause-btn-a btn btn-circle"
-              class:pause-active={$trailPausedStore}
-              on:click={() =>
-                $trailPausedStore ? resumeTrailing() : pauseTrailing()}
-              title={$trailPausedStore ? "Resume trail" : "Pause trail"}
-            >
-              {#if $trailPausedStore}
-                <Play size={18} />
-              {:else}
-                <Pause size={18} />
-              {/if}
-            </button>
-          {/if}
-
+        <!-- Button list container -->
+        <div
+          class="mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
+            ? 'scale-100 opacity-90'
+            : 'h-50 scale-0 overflow-hidden opacity-0'} trail-below"
+        >
+          <!-- Refresh Map Button -->
           <div class="relative">
             <button
               class="menu-button btn {isCircular
                 ? 'btn-circle'
-                : 'btn-square'} btn-lg {$userVehicleTrailing
-                ? 'trailing-active'
+                : 'btn-square'} btn-lg bg-white hover:bg-opacity-90 {isRefreshing
+                ? 'refreshing'
                 : ''}"
               on:click={() => {
-                if ($userVehicleTrailing) { stopTrailing(); } else { toggleTrailing(); pulseBadge('record'); }
+                handleRefresh()
+                pulseBadge("refresh")
+              }}
+              disabled={isRefreshing}
+            >
+              <RotateCcw size={24} class={isRefreshing ? "spinning" : ""} />
+            </button>
+            <span class="static-badge" class:pulse={pulsedBadge === "refresh"}
+              >Refresh</span
+            >
+          </div>
+
+          <!-- Locate Home Button -->
+          <div class="relative">
+            <button
+              class="menu-button btn {isCircular
+                ? 'btn-circle'
+                : 'btn-square'} btn-lg bg-white hover:bg-opacity-90"
+              on:click={() => {
+                handleLocateHome()
+                pulseBadge("home")
               }}
             >
-              {#if $userVehicleTrailing}
-                <!-- Animated trail icon - plays while trailing, pauses when paused -->
-                <svg
-                  width="36px"
-                  height="36px"
-                  viewBox="0 0 32 32"
-                  class="trail-draw-a"
-                  class:trail-draw-paused={$trailPausedStore}
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-                  ></path>
-                </svg>
-              {:else}
-                <svg
-                  fill="currentColor"
-                  width="36px"
-                  height="36px"
-                  viewBox="0 0 32 32"
-                  version="1.1"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <title>trail</title>
-                  <path
-                    d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
-                  ></path>
-                </svg>
-              {/if}
+              <Home size={24} />
             </button>
+            <span class="static-badge" class:pulse={pulsedBadge === "home"}
+              >Home</span
+            >
+          </div>
 
-            {#if showBadge}
+          <!-- ══════════════════════════════════════ -->
+          <!-- TRAIL BUTTON                            -->
+          <!-- ══════════════════════════════════════ -->
+
+          <div class="trail-btn-row-a">
+            {#if $userVehicleTrailing}
+              <!-- Pause / Resume -->
               <button
-                class="trail-status-badge {$trailPausedStore
-                  ? 'amber'
-                  : badgeColor}"
-                on:click={() => openTrailInfoModal()}
-                title={hasUnsyncedChanges
-                  ? "Unsynced data — tap for details"
-                  : "Trail details"}
+                class="menu-button pause-btn-a btn btn-circle"
+                class:pause-active={$trailPausedStore}
+                on:click={() =>
+                  $trailPausedStore ? resumeTrailing() : pauseTrailing()}
+                title={$trailPausedStore ? "Resume trail" : "Pause trail"}
               >
                 {#if $trailPausedStore}
-                  <Pause size={10} />
-                {:else if hasUnsyncedChanges}
-                  <WifiOff size={12} />
+                  <Play size={18} />
                 {:else}
-                  <Wifi size={12} />
+                  <Pause size={18} />
                 {/if}
-                <span>{totalTrailPoints}</span>
               </button>
             {/if}
 
-            <!-- Status pill underneath trailing button -->
-            {#if $userVehicleTrailing}
-              <button
-                class="trail-status-pill-a"
-                class:paused-pill-a={$trailPausedStore}
-                on:click={() => stopTrailing()}
-                title="Stop trailing"
-              >
-                <span class="pill-a-text"
-                  >{$trailPausedStore ? "Paused" : "Trailing"}</span
-                >
-              </button>
-            {/if}
-
-            {#if !$userVehicleTrailing}
-              <span class="static-badge" class:pulse={pulsedBadge === 'record'}>Record</span>
-            {/if}
-          </div>
-        </div>
-
-        <!-- ── Divider + Marker buttons (only when < 3 markers) ── -->
-        {#if totalMarkerCount < 3}
-          <div class="dropdown-divider"></div>
-
-          <div class="marker-grid">
-            <div class="marker-btn-wrap">
+            <div class="relative">
               <button
                 class="menu-button btn {isCircular
                   ? 'btn-circle'
-                  : 'btn-square'} btn-lg"
-                class:marker-just-dropped={flashedMarkerKey === "primary"}
-                on:click={dropPrimaryMarker}
-                title="Drop {defaultMarker?.name || 'Default'} marker"
+                  : 'btn-square'} btn-lg {$userVehicleTrailing
+                  ? 'trailing-active'
+                  : ''}"
+                on:click={() => {
+                  if ($userVehicleTrailing) {
+                    stopTrailing()
+                  } else {
+                    toggleTrailing()
+                    pulseBadge("record")
+                  }
+                }}
               >
-                <div class="marker-icon-container">
-                  {#if defaultMarker.id === "default"}
-                    <IconSVG icon="mapbox-marker" size="26px" />
-                  {:else if defaultMarker.class === "custom-svg"}
-                    <IconSVG icon={defaultMarker.id} size="26px" />
-                  {:else if defaultMarker.class?.startsWith("ionic-")}
-                    <ion-icon name={defaultMarker.id} style="font-size: 26px;"
-                    ></ion-icon>
-                  {:else if defaultMarker.class?.startsWith("at-")}
-                    <i class={`${defaultMarker.class}`} style="font-size: 26px;"
-                    ></i>
-                  {:else}
-                    <MapPin size={20} />
-                  {/if}
-                </div>
+                {#if $userVehicleTrailing}
+                  <!-- Animated trail icon - plays while trailing, pauses when paused -->
+                  <svg
+                    width="36px"
+                    height="36px"
+                    viewBox="0 0 32 32"
+                    class="trail-draw-a"
+                    class:trail-draw-paused={$trailPausedStore}
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                    ></path>
+                  </svg>
+                {:else}
+                  <svg
+                    fill="currentColor"
+                    width="36px"
+                    height="36px"
+                    viewBox="0 0 32 32"
+                    version="1.1"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <title>trail</title>
+                    <path
+                      d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                    ></path>
+                  </svg>
+                {/if}
               </button>
-              {#if flashedMarkerKey === "primary"}
-                <span class="marker-flash-badge">Placed!</span>
+
+              {#if showBadge}
+                <button
+                  class="trail-status-badge {$trailPausedStore
+                    ? 'amber'
+                    : badgeColor}"
+                  on:click={() => openTrailInfoModal()}
+                  title={hasUnsyncedChanges
+                    ? "Unsynced data — tap for details"
+                    : "Trail details"}
+                >
+                  {#if $trailPausedStore}
+                    <Pause size={10} />
+                  {:else if hasUnsyncedChanges}
+                    <WifiOff size={12} />
+                  {:else}
+                    <Wifi size={12} />
+                  {/if}
+                  <span>{totalTrailPoints}</span>
+                </button>
+              {/if}
+
+              <!-- Status pill underneath trailing button -->
+              {#if $userVehicleTrailing}
+                <button
+                  class="trail-status-pill-a"
+                  class:paused-pill-a={$trailPausedStore}
+                  on:click={() => stopTrailing()}
+                  title="Stop trailing"
+                >
+                  <span class="pill-a-text"
+                    >{$trailPausedStore ? "Paused" : "Trailing"}</span
+                  >
+                </button>
+              {/if}
+
+              {#if !$userVehicleTrailing}
+                <span
+                  class="static-badge"
+                  class:pulse={pulsedBadge === "record"}>Record</span
+                >
               {/if}
             </div>
-            {#each extraMarkers as extraMarker}
-              {@const eKey = `extra-${extraMarker.id}-${extraMarker.class}`}
+          </div>
+
+          <!-- ── Divider + Marker buttons (only when < 3 markers) ── -->
+          {#if totalMarkerCount < 3}
+            <div class="dropdown-divider"></div>
+
+            <div class="marker-grid">
               <div class="marker-btn-wrap">
                 <button
                   class="menu-button btn {isCircular
                     ? 'btn-circle'
                     : 'btn-square'} btn-lg"
-                  class:marker-just-dropped={flashedMarkerKey === eKey}
-                  on:click={() => dropExtraMarker(extraMarker)}
-                  title="Drop {extraMarker?.name || 'Marker'}"
+                  class:marker-just-dropped={flashedMarkerKey === "primary"}
+                  on:click={dropPrimaryMarker}
+                  title="Drop {defaultMarker?.name || 'Default'} marker"
                 >
                   <div class="marker-icon-container">
-                    {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                      <IconSVG icon={extraMarker.id} size="26px" />
-                    {:else if extraMarker?.class?.startsWith("ionic-")}
-                      <ion-icon name={extraMarker.id} style="font-size: 26px;"
+                    {#if defaultMarker.id === "default"}
+                      <IconSVG icon="mapbox-marker" size="26px" />
+                    {:else if defaultMarker.class === "custom-svg"}
+                      <IconSVG icon={defaultMarker.id} size="26px" />
+                    {:else if defaultMarker.class?.startsWith("ionic-")}
+                      <ion-icon name={defaultMarker.id} style="font-size: 26px;"
                       ></ion-icon>
-                    {:else if extraMarker?.class?.startsWith("at-")}
-                      <i class={`${extraMarker.class}`} style="font-size: 26px;"
+                    {:else if defaultMarker.class?.startsWith("at-")}
+                      <i
+                        class={`${defaultMarker.class}`}
+                        style="font-size: 26px;"
                       ></i>
                     {:else}
                       <MapPin size={20} />
                     {/if}
                   </div>
                 </button>
-                {#if flashedMarkerKey === eKey}
+                {#if flashedMarkerKey === "primary"}
                   <span class="marker-flash-badge">Placed!</span>
                 {/if}
               </div>
-            {/each}
-          </div>
-        {/if}
+              {#each extraMarkers as extraMarker}
+                {@const eKey = `extra-${extraMarker.id}-${extraMarker.class}`}
+                <div class="marker-btn-wrap">
+                  <button
+                    class="menu-button btn {isCircular
+                      ? 'btn-circle'
+                      : 'btn-square'} btn-lg"
+                    class:marker-just-dropped={flashedMarkerKey === eKey}
+                    on:click={() => dropExtraMarker(extraMarker)}
+                    title="Drop {extraMarker?.name || 'Marker'}"
+                  >
+                    <div class="marker-icon-container">
+                      {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+                        <IconSVG icon={extraMarker.id} size="26px" />
+                      {:else if extraMarker?.class?.startsWith("ionic-")}
+                        <ion-icon name={extraMarker.id} style="font-size: 26px;"
+                        ></ion-icon>
+                      {:else if extraMarker?.class?.startsWith("at-")}
+                        <i
+                          class={`${extraMarker.class}`}
+                          style="font-size: 26px;"
+                        ></i>
+                      {:else}
+                        <MapPin size={20} />
+                      {/if}
+                    </div>
+                  </button>
+                  {#if flashedMarkerKey === eKey}
+                    <span class="marker-flash-badge">Placed!</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
-    </div>
-
   </div>
 </div>
 

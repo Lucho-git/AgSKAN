@@ -191,10 +191,14 @@
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
-    console.log(`🔍 ATM updateCombinedIncremental: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map(t => (Array.isArray(t.path) ? t.path.length : 'geojson')).join(', ')}]`)
+    console.log(
+      `🔍 ATM updateCombinedIncremental: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map((t) => (Array.isArray(t.path) ? t.path.length : "geojson")).join(", ")}]`,
+    )
 
     if (allActiveTrails.length === 0) {
-      console.log('🔍 ATM updateCombinedIncremental: No trails, returning early')
+      console.log(
+        "🔍 ATM updateCombinedIncremental: No trails, returning early",
+      )
       return
     }
 
@@ -202,7 +206,9 @@
       COMBINED_ACTIVE_SOURCE_ID,
     ) as mapboxgl.GeoJSONSource
     if (!source) {
-      console.log('🔍 ATM updateCombinedIncremental: No source exists, calling rebuildCombinedActiveTrails')
+      console.log(
+        "🔍 ATM updateCombinedIncremental: No source exists, calling rebuildCombinedActiveTrails",
+      )
       rebuildCombinedActiveTrails()
       return
     }
@@ -340,7 +346,9 @@
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
-    console.log(`🔨 ATM rebuildCombinedActiveTrails: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map(t => (Array.isArray(t.path) ? t.path.length : 'geojson')).join(', ')}]`)
+    console.log(
+      `🔨 ATM rebuildCombinedActiveTrails: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map((t) => (Array.isArray(t.path) ? t.path.length : "geojson")).join(", ")}]`,
+    )
 
     if (allActiveTrails.length === 0) {
       const layersToRemove = [
@@ -548,8 +556,14 @@
   onMount(() => {
     currentTrailUnsubscribe = currentTrailStore.subscribe((currentTrail) => {
       const hasPath = currentTrail && currentTrail.path
-      const pathLen = hasPath ? (Array.isArray(currentTrail.path) ? currentTrail.path.length : 'geojson') : 0
-      console.log(`🔔 ATM currentTrailStore subscription fired: styleReady=${styleReady}, hasPath=${!!hasPath}, pathLen=${pathLen}, trailId=${currentTrail?.id || 'null'}`)
+      const pathLen = hasPath
+        ? Array.isArray(currentTrail.path)
+          ? currentTrail.path.length
+          : "geojson"
+        : 0
+      console.log(
+        `🔔 ATM currentTrailStore subscription fired: styleReady=${styleReady}, hasPath=${!!hasPath}, pathLen=${pathLen}, trailId=${currentTrail?.id || "null"}`,
+      )
       if (map && styleReady) {
         if (hasPath) {
           console.log(`🔔 ATM → calling updateCurrentTrail`)
@@ -564,13 +578,17 @@
 
     otherActiveTrailsUnsubscribe = otherActiveTrailStore.subscribe(
       (activeTrails) => {
-        console.log(`🔔 ATM otherActiveTrailStore subscription fired: styleReady=${styleReady}, trailCount=${activeTrails?.length || 0}`)
+        console.log(
+          `🔔 ATM otherActiveTrailStore subscription fired: styleReady=${styleReady}, trailCount=${activeTrails?.length || 0}`,
+        )
         if (map && styleReady) {
           if (activeTrails && activeTrails.length > 0) {
             updateCombinedActiveTrailsIncremental()
           }
         } else {
-          console.log(`🔔 ATM other trails → BLOCKED: map=${!!map}, styleReady=${styleReady}`)
+          console.log(
+            `🔔 ATM other trails → BLOCKED: map=${!!map}, styleReady=${styleReady}`,
+          )
         }
       },
     )
@@ -584,8 +602,14 @@
         styleReady = true
         const currentTrail = get(currentTrailStore)
         const activeTrails = get(otherActiveTrailStore)
-        const currentPathLen = currentTrail?.path ? (Array.isArray(currentTrail.path) ? currentTrail.path.length : 'geojson') : 0
-        console.log(`🎨 ATM style.load handler fired: styleReady=true, currentTrail=${currentTrail?.id || 'null'}, pathLen=${currentPathLen}, otherTrails=${activeTrails?.length || 0}`)
+        const currentPathLen = currentTrail?.path
+          ? Array.isArray(currentTrail.path)
+            ? currentTrail.path.length
+            : "geojson"
+          : 0
+        console.log(
+          `🎨 ATM style.load handler fired: styleReady=true, currentTrail=${currentTrail?.id || "null"}, pathLen=${currentPathLen}, otherTrails=${activeTrails?.length || 0}`,
+        )
         if (currentTrail && currentTrail.path) {
           updateCurrentTrail(currentTrail)
         }
@@ -601,10 +625,14 @@
       try {
         const style = map.getStyle()
         if (style && style.layers && style.layers.length > 0) {
-          console.log(`🎨 ATM: Style already has ${style.layers.length} layers, calling handler immediately`)
+          console.log(
+            `🎨 ATM: Style already has ${style.layers.length} layers, calling handler immediately`,
+          )
           styleLoadHandler()
         } else {
-          console.log(`🎨 ATM: Style not ready yet (no layers), waiting for style.load`)
+          console.log(
+            `🎨 ATM: Style not ready yet (no layers), waiting for style.load`,
+          )
         }
       } catch (e) {
         console.log(`🎨 ATM: getStyle() failed, waiting for style.load`)

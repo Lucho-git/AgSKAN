@@ -13,6 +13,7 @@
   export let isSelected = false
   export let isFlashing = false
   export let flashReason = null
+  export let isInactive = false
 
   $: vehicle = SVGComponents[userVehicle] || SVGComponents.tractor
 
@@ -40,6 +41,7 @@
   class:fm-vehicle-selected={isSelected && !isFlashing}
   class:fm-vehicle-flashing={isFlashing}
   class:fm-vehicle-flashing-help={isFlashing && isHelpSignal}
+  class:fm-vehicle-inactive={isInactive && !isFlashing}
   style="--flash-color: {flashColor}"
 >
   <div
@@ -439,6 +441,12 @@
     }
   }
 
+  /* Inactive / away state — desaturate but keep colour hint */
+  .fm-vehicle-marker-container.fm-vehicle-inactive {
+    filter: saturate(0.3) brightness(0.65);
+    opacity: 0.7;
+  }
+
   .fm-user-marker {
     position: relative;
     z-index: 1;
@@ -455,7 +463,8 @@
   }
 
   @keyframes fmVehicleSelectWobble {
-    0%, 100% {
+    0%,
+    100% {
       transform: scale(1);
     }
     25% {
@@ -470,7 +479,8 @@
   }
 
   @keyframes fmVehicleFlashWobble {
-    0%, 100% {
+    0%,
+    100% {
       transform: scale(1);
     }
     50% {

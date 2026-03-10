@@ -468,16 +468,24 @@
   }
 
   /* Icon colors */
-  :global([data-sonner-toast][data-type="success"].toast-dark-heavy-border [data-icon]) {
+  :global(
+    [data-sonner-toast][data-type="success"].toast-dark-heavy-border [data-icon]
+  ) {
     color: #22c55e !important;
   }
-  :global([data-sonner-toast][data-type="error"].toast-dark-heavy-border [data-icon]) {
+  :global(
+    [data-sonner-toast][data-type="error"].toast-dark-heavy-border [data-icon]
+  ) {
     color: #ef4444 !important;
   }
-  :global([data-sonner-toast][data-type="warning"].toast-dark-heavy-border [data-icon]) {
+  :global(
+    [data-sonner-toast][data-type="warning"].toast-dark-heavy-border [data-icon]
+  ) {
     color: #f59e0b !important;
   }
-  :global([data-sonner-toast][data-type="info"].toast-dark-heavy-border [data-icon]) {
+  :global(
+    [data-sonner-toast][data-type="info"].toast-dark-heavy-border [data-icon]
+  ) {
     color: #3b82f6 !important;
   }
 
@@ -506,20 +514,35 @@
   }
 
   /* Hide everything except spinner icon */
-  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-content]),
-  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-button]),
-  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-close-button]) {
+  :global(
+    [data-sonner-toast][data-type="loading"].toast-collapsed-spinner
+      [data-content]
+  ),
+  :global(
+    [data-sonner-toast][data-type="loading"].toast-collapsed-spinner
+      [data-button]
+  ),
+  :global(
+    [data-sonner-toast][data-type="loading"].toast-collapsed-spinner
+      [data-close-button]
+  ) {
     display: none !important;
   }
 
   /* Center and size the spinner */
-  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-icon]) {
+  :global(
+    [data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-icon]
+  ) {
     width: 22px !important;
     height: 22px !important;
     margin: 0 !important;
   }
 
-  :global([data-sonner-toast][data-type="loading"].toast-collapsed-spinner [data-icon] svg) {
+  :global(
+    [data-sonner-toast][data-type="loading"].toast-collapsed-spinner
+      [data-icon]
+      svg
+  ) {
     width: 22px !important;
     height: 22px !important;
   }

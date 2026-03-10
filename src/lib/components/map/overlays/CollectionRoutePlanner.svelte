@@ -598,12 +598,10 @@
   function setSourceData(srcId, features) {
     try {
       if (map?.getSource(srcId)) {
-        map
-          .getSource(srcId)
-          .setData({
-            type: "FeatureCollection",
-            features: Array.isArray(features) ? features : [],
-          })
+        map.getSource(srcId).setData({
+          type: "FeatureCollection",
+          features: Array.isArray(features) ? features : [],
+        })
       }
     } catch {
       /* noop */
