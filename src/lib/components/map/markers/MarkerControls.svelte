@@ -465,7 +465,7 @@
 
 <style>
   .marker-controls {
-    padding: 16px;
+    padding: 0;
     height: 100%;
     overflow: hidden;
     display: flex;
@@ -475,7 +475,12 @@
   .main-panel {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 12px;
   }
 
   .quick-instructions {
@@ -518,14 +523,14 @@
   .crosshair-button {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 14px;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
   }
 
@@ -572,12 +577,12 @@
   .default-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .default-section h5 {
     margin: 0;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: white;
   }
@@ -589,13 +594,13 @@
       rgba(96, 165, 250, 0.1)
     );
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 16px;
-    padding: 16px;
+    border-radius: 12px;
+    padding: 10px 12px;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     width: 100%;
   }
 
@@ -616,13 +621,13 @@
   .marker-icon-display {
     background: rgba(255, 255, 255, 0.1);
     border: 2px solid rgba(96, 165, 250, 0.4);
-    border-radius: 12px;
-    padding: 10px;
+    border-radius: 10px;
+    padding: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 60px;
-    height: 60px;
+    width: 48px;
+    height: 48px;
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.9);
     box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
@@ -732,7 +737,7 @@
   .extra-marker-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
   }
 
   .extra-marker-row .default-marker-button {
@@ -741,13 +746,14 @@
   }
 
   .remove-extra-btn {
-    background: none;
-    border: 1px solid rgba(255, 100, 100, 0.4);
-    color: rgba(255, 100, 100, 0.8);
-    font-size: 14px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #ef4444;
+    font-size: 16px;
     font-weight: 600;
-    width: 28px;
-    height: 28px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -755,27 +761,30 @@
     justify-content: center;
     flex-shrink: 0;
     transition: all 0.2s ease;
+    padding: 0;
   }
 
   .remove-extra-btn:hover {
     color: #fff;
-    background: rgba(255, 100, 100, 0.6);
-    border-color: rgba(255, 100, 100, 0.8);
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.6);
+    transform: scale(1.1);
   }
 
   .sub-panel {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     height: 100%;
     overflow: hidden;
+    padding: 12px;
   }
 
   .sub-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-bottom: 8px;
+    gap: 10px;
+    padding-bottom: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
   }
@@ -811,6 +820,9 @@
   .scrollable-content {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .marker-grid {
@@ -892,74 +904,29 @@
 
   /* Mobile Responsive */
   @media (max-width: 768px) {
-    .marker-controls {
-      padding: 12px;
-    }
-
-    .main-panel {
-      gap: 16px;
-    }
-
-    .default-marker-button {
-      padding: 14px;
-      gap: 12px;
-    }
-
-    .marker-icon-display {
-      width: 52px;
-      height: 52px;
-      padding: 8px;
-    }
-
     .marker-grid {
-      gap: 10px;
+      gap: 8px;
     }
 
     .marker-option {
-      padding: 10px;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .marker-controls {
-      padding: 10px;
-    }
-
-    .main-panel {
-      gap: 14px;
-    }
-
-    .default-marker-button {
-      padding: 12px;
-      gap: 10px;
-    }
-
-    .marker-icon-display {
-      width: 48px;
-      height: 48px;
-      padding: 6px;
-    }
-
-    .marker-name {
-      font-size: 13px;
-    }
-
-    .change-hint {
-      font-size: 10px;
+      padding: 8px;
     }
   }
 
   /* Scrollbar styling */
-  .scrollable-content::-webkit-scrollbar {
+  .scrollable-content::-webkit-scrollbar,
+  .main-panel::-webkit-scrollbar {
     width: 4px;
   }
 
-  .scrollable-content::-webkit-scrollbar-track {
+  .scrollable-content::-webkit-scrollbar-track,
+  .main-panel::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
   }
 
-  .scrollable-content::-webkit-scrollbar-thumb {
+  .scrollable-content::-webkit-scrollbar-thumb,
+  .main-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
   }

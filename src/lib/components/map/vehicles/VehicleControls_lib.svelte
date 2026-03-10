@@ -457,35 +457,36 @@
             </p>
           </div>
         {:else}
-          <div class="preset-grid">
+          <div class="preset-quick-grid">
             {#each $vehiclePresetStore as preset (preset.id)}
-              <button class="preset-card" on:click={() => loadPreset(preset)}>
-                <div class="preset-header">
-                  <div class="preset-icon">
-                    {#if SVGComponents[preset.type]}
-                      <svelte:component
-                        this={SVGComponents[preset.type]}
-                        bodyColor={preset.body_color}
-                        size="40px"
-                      />
-                    {:else}
-                      <div class="fallback-icon-small">🚜</div>
-                    {/if}
-                  </div>
-                  <!-- 🆕 Delete button -->
-                  <button
-                    class="preset-delete"
-                    on:click={(e) => deletePreset(e, preset.id, preset.name)}
-                    title="Delete preset"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+              <button
+                class="preset-quick-card"
+                class:selected={selectedVehicle === preset.type &&
+                  selectedColor === preset.body_color &&
+                  selectedSwath === preset.swath}
+                on:click={() => loadPreset(preset)}
+              >
+                <button
+                  class="preset-quick-delete"
+                  on:click={(e) => deletePreset(e, preset.id, preset.name)}
+                  title="Delete preset"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <div class="preset-quick-icon">
+                  {#if SVGComponents[preset.type]}
+                    <svelte:component
+                      this={SVGComponents[preset.type]}
+                      bodyColor={preset.body_color}
+                      size="32px"
+                    />
+                  {:else}
+                    <div class="fallback-icon-small">🚜</div>
+                  {/if}
                 </div>
-                <div class="preset-info">
-                  <div class="preset-name">{preset.name}</div>
-                  <div class="preset-specs">
-                    {preset.body_color} • {preset.swath}m
-                  </div>
+                <div class="preset-quick-name">{preset.name}</div>
+                <div class="preset-quick-specs">
+                  {preset.body_color} • {preset.swath}m
                 </div>
               </button>
             {/each}
@@ -517,13 +518,13 @@
                     selectedSwath === preset.swath}
                   on:click={() => loadPreset(preset)}
                 >
-                  <!-- 🆕 Delete button in quick preset -->
+                  <!-- Delete button in quick preset -->
                   <button
                     class="preset-quick-delete"
                     on:click={(e) => deletePreset(e, preset.id, preset.name)}
                     title="Delete preset"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={14} />
                   </button>
 
                   <div class="preset-quick-icon">
@@ -669,7 +670,7 @@
 
 <style>
   .vehicle-controls {
-    padding: 16px;
+    padding: 0;
     height: 100%;
     overflow: hidden;
     display: flex;
@@ -679,18 +680,24 @@
   .main-panel {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 10px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 12px;
+    padding-bottom: 0;
   }
 
   .current-vehicle {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
   }
 
   .vehicle-preview {
@@ -700,8 +707,8 @@
       rgba(96, 165, 250, 0.1)
     );
     border: 2px solid rgba(96, 165, 250, 0.4);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -734,7 +741,7 @@
   }
 
   .vehicle-name {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: white;
   }
@@ -782,19 +789,19 @@
   .quick-actions {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
   }
 
   .action-button {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 10px 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
   }
 
@@ -815,13 +822,13 @@
 
   .action-icon {
     border-radius: 8px;
-    padding: 8px;
+    padding: 5px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
   }
 
   .vehicle-icon-action {
@@ -870,27 +877,32 @@
   }
 
   .confirm-section {
+    position: sticky;
+    bottom: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 16px;
-    margin-top: auto;
+    padding: 8px 12px;
+    margin: 0 -12px;
+    background: #0a0a0a;
+    z-index: 5;
+    flex-shrink: 0;
   }
 
   .main-confirm-btn {
     background: rgba(34, 197, 94, 0.2);
     border: 1px solid rgba(34, 197, 94, 0.4);
-    border-radius: 12px;
-    padding: 14px 16px;
+    border-radius: 10px;
+    padding: 10px 14px;
     color: #22c55e;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
-    min-height: 48px;
+    min-height: 40px;
   }
 
   .main-confirm-btn:hover {
@@ -913,16 +925,17 @@
   .sub-panel {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     height: 100%;
     overflow: hidden;
+    padding: 12px;
   }
 
   .sub-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-bottom: 8px;
+    gap: 10px;
+    padding-bottom: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
   }
@@ -950,7 +963,7 @@
 
   .sub-header h4 {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: white;
   }
@@ -958,6 +971,9 @@
   .scrollable-content {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .empty-state {
@@ -965,20 +981,20 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px 20px;
+    padding: 24px 16px;
     text-align: center;
   }
 
   .empty-icon {
     color: rgba(255, 255, 255, 0.3);
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .empty-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.8);
-    margin: 0 0 8px;
+    margin: 0 0 6px;
   }
 
   .empty-description {
@@ -989,95 +1005,15 @@
     line-height: 1.5;
   }
 
-  .preset-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding-bottom: 20px;
-  }
-
-  .preset-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 16px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .preset-card:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .preset-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .preset-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 40px;
-  }
-
-  .preset-delete {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 6px;
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ef4444;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0;
-  }
-
-  .preset-delete:hover {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: rgba(239, 68, 68, 0.5);
-    transform: scale(1.1);
-  }
-
-  .preset-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .preset-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: white;
-    text-align: left;
-  }
-
-  .preset-specs {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    text-align: left;
-  }
-
   .presets-in-vehicles-section {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .section-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 0 12px;
+    padding: 6px 0 8px;
     color: rgba(255, 255, 255, 0.6);
     font-size: 11px;
     font-weight: 600;
@@ -1088,8 +1024,8 @@
   .preset-quick-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
+    gap: 8px;
+    margin-bottom: 12px;
   }
 
   .preset-quick-card {
@@ -1099,14 +1035,14 @@
       rgba(251, 191, 36, 0.05)
     );
     border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 10px;
+    padding: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     position: relative;
   }
 
@@ -1131,17 +1067,17 @@
     box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
   }
 
-  /* 🆕 NEW: Delete button for quick presets */
+  /* Delete button for quick presets — large touch target */
   .preset-quick-delete {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.4);
+    top: 2px;
+    right: 2px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.35);
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    min-width: 24px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1155,15 +1091,15 @@
   .preset-quick-delete:hover {
     background: rgba(239, 68, 68, 0.3);
     border-color: rgba(239, 68, 68, 0.6);
-    transform: scale(1.15);
+    transform: scale(1.1);
   }
 
   .preset-quick-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
-    margin-bottom: 4px;
+    height: 28px;
+    margin-bottom: 2px;
   }
 
   .preset-quick-name {
@@ -1192,7 +1128,7 @@
       rgba(255, 255, 255, 0.1),
       transparent
     );
-    margin: 16px 0;
+    margin: 10px 0;
   }
 
   .all-vehicles-section {
@@ -1202,21 +1138,21 @@
   .vehicle-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding-bottom: 20px;
+    gap: 8px;
+    padding-bottom: 16px;
   }
 
   .vehicle-option {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 10px;
+    padding: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
   }
 
   .vehicle-option:hover {
@@ -1251,25 +1187,25 @@
   .color-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding-bottom: 20px;
+    gap: 10px;
+    padding-bottom: 16px;
   }
 
   .color-option {
     border: 2px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 60px;
+    min-height: 48px;
     position: relative;
   }
 
   .color-option:hover {
-    transform: scale(1.05);
+    transform: scale(1.03);
     border-color: rgba(255, 255, 255, 0.4);
   }
 
@@ -1290,23 +1226,27 @@
   .swath-controls {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-    padding: 20px 0;
+    gap: 14px;
+    padding: 8px 0;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .swath-display {
     text-align: center;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .swath-value-large {
-    font-size: 32px;
+    font-size: 24px;
     font-weight: 700;
     color: #60a5fa;
-    margin-bottom: 8px;
+    margin-bottom: 2px;
   }
 
   .swath-category {
@@ -1407,17 +1347,18 @@
   .confirm-btn {
     background: rgba(96, 165, 250, 0.2);
     border: 1px solid rgba(96, 165, 250, 0.4);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 10px;
     color: #60a5fa;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .confirm-btn:hover {
@@ -1428,43 +1369,36 @@
 
   @media (max-width: 768px) {
     .vehicle-controls {
-      padding: 12px;
+      padding: 0;
     }
 
-    .preset-grid,
     .preset-quick-grid {
-      gap: 10px;
+      gap: 8px;
     }
   }
 
   @media (max-width: 480px) {
     .vehicle-controls {
-      padding: 10px;
-    }
-
-    .preset-card {
-      padding: 14px;
-    }
-
-    .preset-name {
-      font-size: 13px;
-    }
-
-    .preset-specs {
-      font-size: 11px;
+      padding: 0;
     }
   }
 
-  .scrollable-content::-webkit-scrollbar {
+  .scrollable-content::-webkit-scrollbar,
+  .main-panel::-webkit-scrollbar,
+  .swath-controls::-webkit-scrollbar {
     width: 4px;
   }
 
-  .scrollable-content::-webkit-scrollbar-track {
+  .scrollable-content::-webkit-scrollbar-track,
+  .main-panel::-webkit-scrollbar-track,
+  .swath-controls::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
   }
 
-  .scrollable-content::-webkit-scrollbar-thumb {
+  .scrollable-content::-webkit-scrollbar-thumb,
+  .main-panel::-webkit-scrollbar-thumb,
+  .swath-controls::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
   }

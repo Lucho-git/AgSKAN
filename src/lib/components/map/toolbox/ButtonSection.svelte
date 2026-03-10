@@ -51,13 +51,8 @@
   // Locked to A. Other variations (B = bottom-right position) removed.
   // To experiment again, restore cycleVariation() and variation templates from git history.
 
-  // ── Marker button style variation (1-3) ──
-  // 1 = Yellow (trail below), 2 = Yellow standard, 3 = Glass (trail below)
-  let markerStyle = 1
-  const MARKER_STYLE_COUNT = 3
-  function cycleMarkerStyle() {
-    markerStyle = (markerStyle % MARKER_STYLE_COUNT) + 1
-  }
+  // ── Marker button style ──
+  // Locked to Yellow (trail below). Other variations removed.
 
   // ── "Placed!" flash badge state ──
   // Tracks which marker key just got dropped (null = none)
@@ -378,8 +373,64 @@
 
   <!-- ── Top-right column: dropdown + marker grid stacked ── -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end gap-3">
-    <!-- Dropdown menu column -->
-    <div class="flex flex-col items-end">
+    <!-- Chevron row: compact marker grid (left) + chevron toggle (right) -->
+    <div class="flex items-start gap-3">
+      {#if totalMarkerCount >= 3}
+        <!-- Compact 2-col grid to left of chevron -->
+        <div class="marker-grid-panel">
+          <button
+            class="marker-slot btn btn-circle"
+            class:marker-just-dropped={flashedMarkerKey === "primary"}
+            on:click={dropPrimaryMarker}
+            title="Drop {defaultMarker?.name || 'Default'} marker"
+          >
+            <div class="marker-icon-container fan-icon">
+              {#if defaultMarker.id === "default"}
+                <IconSVG icon="mapbox-marker" size="22px" />
+              {:else if defaultMarker.class === "custom-svg"}
+                <IconSVG icon={defaultMarker.id} size="22px" />
+              {:else if defaultMarker.class?.startsWith("ionic-")}
+                <ion-icon name={defaultMarker.id} style="font-size: 22px;"></ion-icon>
+              {:else if defaultMarker.class?.startsWith("at-")}
+                <i class={`${defaultMarker.class}`} style="font-size: 22px;"></i>
+              {:else}
+                <MapPin size={18} />
+              {/if}
+            </div>
+          </button>
+          {#each extraMarkers as extraMarker}
+            {@const eKey = `extra-${extraMarker.id}-${extraMarker.class}`}
+            <button
+              class="marker-slot btn btn-circle"
+              class:marker-just-dropped={flashedMarkerKey === eKey}
+              on:click={() => dropExtraMarker(extraMarker)}
+              title="Drop {extraMarker?.name || 'Marker'}"
+            >
+              <div class="marker-icon-container fan-icon">
+                {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+                  <IconSVG icon={extraMarker.id} size="22px" />
+                {:else if extraMarker?.class?.startsWith("ionic-")}
+                  <ion-icon name={extraMarker.id} style="font-size: 22px;"></ion-icon>
+                {:else if extraMarker?.class?.startsWith("at-")}
+                  <i class={`${extraMarker.class}`} style="font-size: 22px;"></i>
+                {:else}
+                  <MapPin size={18} />
+                {/if}
+              </div>
+            </button>
+          {/each}
+          <button
+            class="marker-slot marker-slot-add btn btn-circle"
+            on:click={() => dispatch('openMarkerSettings')}
+            title="Add or edit quick-drop markers"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+      {/if}
+
+      <!-- Dropdown menu column -->
+      <div class="flex flex-col items-end">
       <!-- Chevron toggle -->
       <button
         class="top-button btn {isCircular
@@ -409,9 +460,7 @@
       <div
         class="mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
           ? 'scale-100 opacity-90'
-          : 'h-50 scale-0 overflow-hidden opacity-0'} {markerStyle === 1 || markerStyle === 3
-          ? 'trail-below'
-          : ''}"
+          : 'h-50 scale-0 overflow-hidden opacity-0'} trail-below"
       >
         <!-- Refresh Map Button -->
         <div class="relative">
@@ -547,24 +596,11 @@
           </div>
         </div>
 
-        <!-- ── Divider + style toggle ── -->
-        <div class="dropdown-divider">
-          <button
-            class="divider-cycle-btn"
-            on:click={cycleMarkerStyle}
-            title="Marker style {markerStyle}/{MARKER_STYLE_COUNT} — click to change"
-          >
-            {markerStyle}
-          </button>
-        </div>
+        <!-- ── Divider + Marker buttons (only when < 3 markers) ── -->
+        {#if totalMarkerCount < 3}
+          <div class="dropdown-divider"></div>
 
-        <!-- ══════════════════════════════════════════════ -->
-        <!-- MARKER BUTTONS — 3 style variations           -->
-        <!-- ══════════════════════════════════════════════ -->
-
-        <div class="marker-grid" class:marker-grid-2col={totalMarkerCount > 3}>
-          {#if markerStyle === 1}
-            <!-- V1: Yellow (trail below) — yellow circles, trail button at bottom -->
+          <div class="marker-grid">
             <div class="marker-btn-wrap">
               <button
                 class="menu-button btn {isCircular
@@ -624,179 +660,12 @@
                 {/if}
               </div>
             {/each}
-          {:else if markerStyle === 2}
-            <!-- V2: Yellow standard — same yellow circles, default order -->
-            <div class="marker-btn-wrap">
-              <button
-                class="menu-button btn {isCircular
-                  ? 'btn-circle'
-                  : 'btn-square'} btn-lg"
-                class:marker-just-dropped={flashedMarkerKey === "primary"}
-                on:click={dropPrimaryMarker}
-                title="Drop {defaultMarker?.name || 'Default'} marker"
-              >
-                <div class="marker-icon-container">
-                  {#if defaultMarker.id === "default"}
-                    <IconSVG icon="mapbox-marker" size="26px" />
-                  {:else if defaultMarker.class === "custom-svg"}
-                    <IconSVG icon={defaultMarker.id} size="26px" />
-                  {:else if defaultMarker.class?.startsWith("ionic-")}
-                    <ion-icon name={defaultMarker.id} style="font-size: 26px;"
-                    ></ion-icon>
-                  {:else if defaultMarker.class?.startsWith("at-")}
-                    <i class={`${defaultMarker.class}`} style="font-size: 26px;"
-                    ></i>
-                  {:else}
-                    <MapPin size={20} />
-                  {/if}
-                </div>
-              </button>
-              {#if flashedMarkerKey === "primary"}
-                <span class="marker-flash-badge">Placed!</span>
-              {/if}
-            </div>
-            {#each extraMarkers as extraMarker}
-              {@const eKey = `extra-${extraMarker.id}-${extraMarker.class}`}
-              <div class="marker-btn-wrap">
-                <button
-                  class="menu-button btn {isCircular
-                    ? 'btn-circle'
-                    : 'btn-square'} btn-lg"
-                  class:marker-just-dropped={flashedMarkerKey === eKey}
-                  on:click={() => dropExtraMarker(extraMarker)}
-                  title="Drop {extraMarker?.name || 'Marker'}"
-                >
-                  <div class="marker-icon-container">
-                    {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                      <IconSVG icon={extraMarker.id} size="26px" />
-                    {:else if extraMarker?.class?.startsWith("ionic-")}
-                      <ion-icon name={extraMarker.id} style="font-size: 26px;"
-                      ></ion-icon>
-                    {:else if extraMarker?.class?.startsWith("at-")}
-                      <i class={`${extraMarker.class}`} style="font-size: 26px;"
-                      ></i>
-                    {:else}
-                      <MapPin size={20} />
-                    {/if}
-                  </div>
-                </button>
-                {#if flashedMarkerKey === eKey}
-                  <span class="marker-flash-badge">Placed!</span>
-                {/if}
-              </div>
-            {/each}
-          {:else if markerStyle === 3}
-            <!-- V3: Glass (trail below) — frosted dark circles, trail button at bottom -->
-            <div class="marker-btn-wrap">
-              <button
-                class="marker-v5 btn btn-circle"
-                class:marker-just-dropped={flashedMarkerKey === "primary"}
-                on:click={dropPrimaryMarker}
-                title="Drop {defaultMarker?.name || 'Default'} marker"
-              >
-                <div class="marker-icon-container">
-                  {#if defaultMarker.id === "default"}
-                    <IconSVG icon="mapbox-marker" size="26px" />
-                  {:else if defaultMarker.class === "custom-svg"}
-                    <IconSVG icon={defaultMarker.id} size="26px" />
-                  {:else if defaultMarker.class?.startsWith("ionic-")}
-                    <ion-icon name={defaultMarker.id} style="font-size: 26px;"
-                    ></ion-icon>
-                  {:else if defaultMarker.class?.startsWith("at-")}
-                    <i class={`${defaultMarker.class}`} style="font-size: 26px;"
-                    ></i>
-                  {:else}
-                    <MapPin size={20} />
-                  {/if}
-                </div>
-              </button>
-              {#if flashedMarkerKey === "primary"}
-                <span class="marker-flash-badge">Placed!</span>
-              {/if}
-            </div>
-            {#each extraMarkers as extraMarker}
-              {@const eKey = `extra-${extraMarker.id}-${extraMarker.class}`}
-              <div class="marker-btn-wrap">
-                <button
-                  class="marker-v5 btn btn-circle"
-                  class:marker-just-dropped={flashedMarkerKey === eKey}
-                  on:click={() => dropExtraMarker(extraMarker)}
-                  title="Drop {extraMarker?.name || 'Marker'}"
-                >
-                  <div class="marker-icon-container">
-                    {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-                      <IconSVG icon={extraMarker.id} size="26px" />
-                    {:else if extraMarker?.class?.startsWith("ionic-")}
-                      <ion-icon name={extraMarker.id} style="font-size: 26px;"
-                      ></ion-icon>
-                    {:else if extraMarker?.class?.startsWith("at-")}
-                      <i class={`${extraMarker.class}`} style="font-size: 26px;"
-                      ></i>
-                    {:else}
-                      <MapPin size={20} />
-                    {/if}
-                  </div>
-                </button>
-                {#if flashedMarkerKey === eKey}
-                  <span class="marker-flash-badge">Placed!</span>
-                {/if}
-              </div>
-            {/each}
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
     </div>
-
-    <!-- ── BACKUP: Original marker grid panel (circle grid below dropdown) ──
-         Keeping for reference. Replaced by inline marker buttons in dropdown.
-    <div class="marker-grid-panel">
-      <button
-        class="marker-slot btn btn-circle"
-        on:click={dropPrimaryMarker}
-        title="Drop {defaultMarker?.name || 'Default'} marker"
-      >
-        <div class="marker-icon-container fan-icon">
-          {#if defaultMarker.id === "default"}
-            <IconSVG icon="mapbox-marker" size="26px" />
-          {:else if defaultMarker.class === "custom-svg"}
-            <IconSVG icon={defaultMarker.id} size="26px" />
-          {:else if defaultMarker.class?.startsWith("ionic-")}
-            <ion-icon name={defaultMarker.id} style="font-size: 26px;"></ion-icon>
-          {:else if defaultMarker.class?.startsWith("at-")}
-            <i class={`${defaultMarker.class}`} style="font-size: 26px;"></i>
-          {:else}
-            <MapPin size={20} />
-          {/if}
-        </div>
-      </button>
-      {#each extraMarkers as extraMarker}
-        <button
-          class="marker-slot btn btn-circle"
-          on:click={() => dropExtraMarker(extraMarker)}
-          title="Drop {extraMarker?.name || 'Marker'}"
-        >
-          <div class="marker-icon-container fan-icon">
-            {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
-              <IconSVG icon={extraMarker.id} size="26px" />
-            {:else if extraMarker?.class?.startsWith("ionic-")}
-              <ion-icon name={extraMarker.id} style="font-size: 26px;"></ion-icon>
-            {:else if extraMarker?.class?.startsWith("at-")}
-              <i class={`${extraMarker.class}`} style="font-size: 26px;"></i>
-            {:else}
-              <MapPin size={20} />
-            {/if}
-          </div>
-        </button>
-      {/each}
-      <button
-        class="marker-slot marker-slot-add btn btn-circle"
-        on:click={() => dispatch('openMarkerSettings')}
-        title="Add or edit quick-drop markers"
-      >
-        <Plus size={20} />
-      </button>
     </div>
-    END BACKUP -->
+
   </div>
 </div>
 
@@ -882,30 +751,6 @@
     justify-content: center;
   }
 
-  .divider-cycle-btn {
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.12);
-    border: 1.5px solid rgba(0, 0, 0, 0.2);
-    color: rgba(0, 0, 0, 0.45);
-    font-size: 9px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    line-height: 1;
-  }
-
-  .divider-cycle-btn:hover {
-    background: rgba(0, 0, 0, 0.25);
-    color: rgba(0, 0, 0, 0.7);
-    transform: scale(1.15);
-  }
-
   /* ═══════════════════════════════════════════════════════ */
   /*  Marker grid — centers buttons & goes 2-col when >3   */
   /* ═══════════════════════════════════════════════════════ */
@@ -916,10 +761,6 @@
     justify-content: center;
     align-self: flex-end; /* anchor to right edge like other buttons */
     width: 60px; /* fixed width — won't shift when trail row widens */
-  }
-
-  .marker-grid.marker-grid-2col {
-    width: 128px; /* two buttons + gap */
   }
 
   /* Wrapper for each marker button + flash badge */
@@ -980,35 +821,6 @@
     opacity: 0.55;
     pointer-events: none;
     transition: opacity 0.3s ease;
-  }
-
-  /* ═══════════════════════════════════════════════════════ */
-  /*  V2 (Glass) — frosted dark circle, black border        */
-  /* ═══════════════════════════════════════════════════════ */
-  .marker-v5 {
-    width: 4rem;
-    height: 4rem;
-    min-height: 4rem;
-    padding: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(12px);
-    border: 2px solid #000000;
-    color: rgba(255, 255, 255, 0.85);
-    transition: all 0.2s ease;
-  }
-
-  /* Shrink when 2-col grid */
-  .marker-grid-2col .marker-v5 {
-    width: 3.5rem;
-    height: 3.5rem;
-    min-height: 3.5rem;
-  }
-
-  .marker-v5:hover {
-    background: rgba(0, 0, 0, 0.8);
-    border-color: #000000;
-    color: #f7db5c;
-    transform: scale(1.06);
   }
 
   .menu-button.refreshing {
@@ -1216,7 +1028,7 @@
     overflow: visible !important;
   }
 
-  /* ── Marker Grid Panel (below dropdown column) ── */
+  /* ── Marker Grid Panel (to left of chevron button) ── */
   .marker-grid-panel {
     display: grid;
     grid-template-columns: repeat(2, 44px);
@@ -1225,7 +1037,8 @@
     background: rgba(0, 0, 0, 0.65);
     border: 2px solid rgba(247, 219, 92, 0.4);
     border-radius: 16px;
-    justify-self: end;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   /* Single marker: single column */
