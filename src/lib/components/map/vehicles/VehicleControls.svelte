@@ -18,6 +18,7 @@
   import SVGComponents from "$lib/vehicles/index.js"
 
   export let map
+  export let currentSpeed = 0
   export let trackedVehicleId = null
   export let isTrackingVehicle = false
   export let isFirstPersonMode = false
@@ -97,6 +98,7 @@
         vehicle_marker: $userVehicleStore.vehicle_marker,
         coordinates: $userVehicleStore.coordinates,
         heading: $userVehicleStore.heading,
+        speed: currentSpeed,
         is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
@@ -151,9 +153,12 @@
 
   function toggleUnifiedMenu() {
     showUnifiedMenu = !showUnifiedMenu
-    if (showUnifiedMenu) {
-      sortedVehicles = calculateSortedVehicles()
-    }
+  }
+
+  // Reactively recalculate sorted vehicles whenever the menu is open and store data changes
+  // Explicitly reference stores so Svelte tracks them as dependencies
+  $: if (showUnifiedMenu && ($otherVehiclesStore || true) && ($userVehicleStore || true) && (currentSpeed !== undefined)) {
+    sortedVehicles = calculateSortedVehicles()
   }
 
   function closeUnifiedMenu() {
@@ -258,6 +263,16 @@
     )
   }
 
+  /** Get effective speed — 0 if data is stale (>30s) */
+  function getEffectiveSpeed(vehicle) {
+    if (!vehicle.last_update) return 0
+    const ts = typeof vehicle.last_update === 'string'
+      ? new Date(vehicle.last_update).getTime()
+      : vehicle.last_update
+    if (Date.now() - ts > 30000) return 0
+    return vehicle.speed || 0
+  }
+
   function getTrackedVehicleName(vehicle) {
     if (!vehicle) return "Unknown"
     if (vehicle.isCurrentUser) return "You"
@@ -268,23 +283,34 @@
     isTrackingVehicle && trackedVehicleId
       ? getVehicleById(trackedVehicleId)
       : null
+
+  // Count of actively online vehicles (updated in 5-min window)
+  $: onlineCount = (() => {
+    const others = $otherVehiclesStore.filter(v => isVehicleOnline(v)).length
+    // Include current user if they have coordinates
+    const selfOnline = $userVehicleStore.coordinates ? 1 : 0
+    return others + selfOnline
+  })()
 </script>
 
 <!-- Vehicle Controls Button -->
 {#if !isTrackingVehicle && !showUnifiedMenu}
   <button
-    class="fixed bottom-4 left-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border-none bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
+    class="fixed bottom-4 left-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
     on:click={toggleUnifiedMenu}
     aria-label="Open vehicle menu"
   >
-    <Users size={20} />
+    <Users size={28} />
+    {#if onlineCount > 0}
+      <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1 text-[10px] font-bold text-white shadow">{onlineCount}</span>
+    {/if}
   </button>
 {/if}
 
 <!-- Expanded Vehicle Menu -->
 {#if showUnifiedMenu}
   <div
-    class="menu-expanded fixed bottom-4 left-3 z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
+    class="menu-expanded fixed bottom-4 left-4 z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
     style="width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->
@@ -388,6 +414,14 @@
                       {formatLastUpdate(vehicle.last_update)}
                     </p>
                   </div>
+                  <!-- Speed tag -->
+                  {#if getEffectiveSpeed(vehicle) > 0}
+                    <div class="flex flex-shrink-0 items-center self-center">
+                      <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+                        {getEffectiveSpeed(vehicle).toFixed(1)} km/h
+                      </span>
+                    </div>
+                  {/if}
                   <div class="relative flex-shrink-0">
                     <div
                       class="h-2 w-2 rounded-full {vehicle.isCurrentUser
@@ -494,18 +528,21 @@
 <!-- Tracking Bar -->
 {#if isTrackingVehicle && !showUnifiedMenu && trackedVehicle}
   <div
-    class="tracking-bar fixed bottom-4 left-3 z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
+    class="tracking-bar fixed bottom-4 left-4 z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
     style="transform-origin: left center;"
   >
     <!-- Users Icon Button -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
-      class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/10"
+      class="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/10"
       on:click={toggleUnifiedMenu}
       title="Open vehicle menu"
     >
       <Users size={20} />
+      {#if onlineCount > 0}
+        <span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-500 px-0.5 text-[9px] font-bold text-white shadow">{onlineCount}</span>
+      {/if}
     </div>
 
     <!-- Separator -->
