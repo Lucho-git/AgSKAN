@@ -354,7 +354,7 @@
           on:click={() => openExtraMarkerSelector(-1)}
         >
           <span class="plus-icon">+</span>
-          <span>Add another quick-drop marker</span>
+          <span>Add quick-drop marker</span>
         </button>
       </div>
     </div>

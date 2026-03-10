@@ -1,17 +1,40 @@
 <!-- src/lib/components/map/vehicles/VehicleFlashController.svelte -->
-<script>
-  import { createEventDispatcher } from "svelte"
-  import { userVehicleStore } from "$lib/stores/vehicleStore"
-  import { toast } from "svelte-sonner"
-  import { onMount, onDestroy } from "svelte"
 
-  const dispatch = createEventDispatcher()
+<!-- Module-level: shared across all instances, survives destroy/recreate -->
+<script context="module">
+  import { toast } from "svelte-sonner"
+  import { get } from "svelte/store"
 
   const FLASH_DURATION_MS = 5 * 60 * 1000 // 5 minutes
   const FLASH_TOAST_ID = "flash-toast"
 
-  let timeoutId = null
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let autoStopTimeoutId = null
+  /** @type {ReturnType<typeof setInterval> | null} */
   let toastIntervalId = null
+  let flashToastActive = false
+
+  function clearAllFlashTimers() {
+    flashToastActive = false
+    if (toastIntervalId) {
+      clearInterval(toastIntervalId)
+      toastIntervalId = null
+    }
+    if (autoStopTimeoutId) {
+      clearTimeout(autoStopTimeoutId)
+      autoStopTimeoutId = null
+    }
+    toast.dismiss(FLASH_TOAST_ID)
+  }
+</script>
+
+<script>
+  import { createEventDispatcher } from "svelte"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
+  import { onMount, onDestroy } from "svelte"
+
+  const dispatch = createEventDispatcher()
+
   let selectedReason = "full"
 
   $: isFlashing = $userVehicleStore.is_flashing
@@ -30,19 +53,27 @@
   }
 
   function getRemainingSeconds() {
-    if (!$userVehicleStore.flash_started_at) return 0
-    const startTime = new Date($userVehicleStore.flash_started_at).getTime()
+    const store = get(userVehicleStore)
+    if (!store.flash_started_at) return 0
+    const startTime = new Date(store.flash_started_at).getTime()
     const elapsed = Date.now() - startTime
     return Math.max(0, Math.ceil((FLASH_DURATION_MS - elapsed) / 1000))
   }
 
   function showFlashToast() {
-    const reasonData = flashReasons.find(
-      (r) => r.id === $userVehicleStore.flash_reason,
-    )
+    // Kill any existing toast/interval first
+    clearAllFlashTimers()
+
+    const store = get(userVehicleStore)
+    const reasonData = flashReasons.find((r) => r.id === store.flash_reason)
     const reasonLabel = reasonData?.label || "Unknown"
 
+    flashToastActive = true
+
     const updateToast = () => {
+      // Guard: don't re-create toast if flashing was stopped
+      if (!flashToastActive) return
+
       const remaining = getRemainingSeconds()
       toast.info(`Flashing: ${reasonLabel}`, {
         id: FLASH_TOAST_ID,
@@ -59,14 +90,6 @@
     toastIntervalId = setInterval(updateToast, 1000)
   }
 
-  function dismissFlashToast() {
-    if (toastIntervalId) {
-      clearInterval(toastIntervalId)
-      toastIntervalId = null
-    }
-    toast.dismiss(FLASH_TOAST_ID)
-  }
-
   async function startFlashing() {
     const now = new Date().toISOString()
 
@@ -77,32 +100,25 @@
       flash_reason: selectedReason,
     }))
 
-    if (timeoutId) clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => {
+    clearAllFlashTimers()
+    autoStopTimeoutId = setTimeout(() => {
       stopFlashing(true)
     }, FLASH_DURATION_MS)
 
-    setTimeout(() => {
-      showFlashToast()
-    }, 0)
-
+    showFlashToast()
     dispatch("closeToolbox")
   }
 
   async function stopFlashing(autoStopped = false) {
+    // Clear ALL timers first, before any store update or toast call
+    clearAllFlashTimers()
+
     userVehicleStore.update((vehicle) => ({
       ...vehicle,
       is_flashing: false,
       flash_started_at: null,
       flash_reason: null,
     }))
-
-    if (timeoutId) {
-      clearTimeout(timeoutId)
-      timeoutId = null
-    }
-
-    dismissFlashToast()
 
     if (autoStopped) {
       toast.info("Flash Auto-Stopped", {
@@ -121,19 +137,28 @@
       } else {
         const remaining = FLASH_DURATION_MS - elapsed
 
-        timeoutId = setTimeout(() => {
+        if (autoStopTimeoutId) clearTimeout(autoStopTimeoutId)
+        autoStopTimeoutId = setTimeout(() => {
           stopFlashing(true)
         }, remaining)
 
-        showFlashToast()
+        // Only start toast updates if one isn't already running
+        if (!flashToastActive) {
+          showFlashToast()
+        }
       }
     }
   })
 
   onDestroy(() => {
-    if (timeoutId) clearTimeout(timeoutId)
-    if (toastIntervalId) clearInterval(toastIntervalId)
+    // Timers are module-level — they survive component destroy intentionally.
+    // stopFlashing() and the reactive block handle cleanup.
   })
+
+  // ── React to flash-stop from any source ──
+  $: if (!isFlashing && flashToastActive) {
+    clearAllFlashTimers()
+  }
 </script>
 
 <div class="flash-controller">

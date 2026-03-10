@@ -444,6 +444,40 @@
     z-index: 1;
   }
 
+  /* Grow-wobble on vehicle icon when selected */
+  .fm-vehicle-selected .fm-user-marker {
+    animation: fmVehicleSelectWobble 1.8s ease-in-out infinite;
+  }
+
+  /* Grow-wobble on vehicle icon when flashing */
+  .fm-vehicle-flashing .fm-user-marker {
+    animation: fmVehicleFlashWobble 0.9s ease-in-out infinite;
+  }
+
+  @keyframes fmVehicleSelectWobble {
+    0%, 100% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.08) rotate(1.5deg);
+    }
+    50% {
+      transform: scale(1.04);
+    }
+    75% {
+      transform: scale(1.08) rotate(-1.5deg);
+    }
+  }
+
+  @keyframes fmVehicleFlashWobble {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
   /* Ensure the pulse animation doesn't interfere with selection or flashing */
   .fm-vehicle-marker-container.fm-vehicle-selected .fm-pulse-circle,
   .fm-vehicle-marker-container.fm-vehicle-flashing .fm-pulse-circle {

@@ -420,14 +420,15 @@
     color: #ffffff !important;
     font-weight: 600 !important;
     font-size: 12px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
     line-height: 1.3 !important;
   }
 
   :global([data-sonner-toast].toast-dark-heavy-border [data-description]) {
-    display: none !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    line-height: 1.35 !important;
+    margin-top: 2px !important;
   }
 
   /* Compact icon */
