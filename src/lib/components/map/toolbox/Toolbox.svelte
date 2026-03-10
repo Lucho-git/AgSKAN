@@ -11,9 +11,10 @@
     Zap,
     Gamepad2,
     Magnet,
+    Radio,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
-  import { devModeEnabled } from "$lib/stores/devModeStore"
+  import { devModeEnabled, devBackgroundSimEnabled } from "$lib/stores/devModeStore"
   import { collectionModeStore } from "$lib/stores/markerStore"
 
   // Import vehicle store and components
@@ -124,6 +125,11 @@
 
   function toggleDevMode() {
     devModeEnabled.update((v) => !v)
+    closeToolbox()
+  }
+
+  function toggleBgSim() {
+    devBackgroundSimEnabled.update((v) => !v)
     closeToolbox()
   }
 
@@ -289,6 +295,15 @@
           >
             <Gamepad2 size={26} />
             <span>{$devModeEnabled ? "Exit Dev Mode" : "Dev Mode"}</span>
+          </button>
+
+          <button
+            class="tool-button"
+            class:tool-active={$devBackgroundSimEnabled}
+            on:click={toggleBgSim}
+          >
+            <Radio size={26} />
+            <span>{$devBackgroundSimEnabled ? "Exit BG Sim" : "BG Sim"}</span>
           </button>
         </div>
       {/if}

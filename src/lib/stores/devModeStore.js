@@ -15,3 +15,6 @@ export const devPositionStore = writable({
 
 // Movement speed multiplier (how fast the joystick moves the marker, in m/s)
 export const devSpeedMultiplier = writable(10)
+
+// Background simulation mode (tests background GPS pipeline from browser/emulator)
+export const devBackgroundSimEnabled = writable(false)

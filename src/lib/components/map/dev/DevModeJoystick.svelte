@@ -16,37 +16,39 @@
   let isDragging = false
   let knobX = 0
   let knobY = 0
-  let animationFrame = null
   let moveInterval = null
 
-  // Max distance the knob can travel from center (px)
-  const MAX_RADIUS = 50
-  // Update rate in ms
+  const MAX_RADIUS = 40
   const UPDATE_RATE = 50
 
-  // Speed options (m/s → approx km/h display)
-  const SPEED_OPTIONS = [
-    { value: 5, label: "Walk (5 m/s)" },
-    { value: 15, label: "Slow (15 m/s)" },
-    { value: 30, label: "Drive (30 m/s)" },
-    { value: 80, label: "Fast (80 m/s)" },
-    { value: 200, label: "Fly (200 m/s)" },
-    { value: 1000, label: "Warp (1 km/s)" },
-    { value: 5000, label: "Hyper (5 km/s)" },
-    { value: 10000, label: "Ludicrous (10 km/s)" },
-    { value: 50000, label: "Absurd (50 km/s)" },
-    { value: 200000, label: "Plaid (200 km/s)" },
-  ]
+  // Exponential slider: 0–100 → 2 m/s – 200,000 m/s
+  const SPEED_MIN = 2
+  const SPEED_MAX = 200000
+  let sliderValue = 30 // initial position (~30 → ~26 m/s)
 
-  $: currentSpeedLabel =
-    SPEED_OPTIONS.find((o) => o.value === $devSpeedMultiplier)?.label || ""
+  // Map slider 0–100 to exponential speed
+  function sliderToSpeed(v) {
+    return Math.round(SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, v / 100))
+  }
+
+  // Human-readable speed label
+  function formatSpeed(ms) {
+    if (ms >= 1000) return `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)} km/s`
+    return `${ms} m/s`
+  }
+
+  $: {
+    const spd = sliderToSpeed(sliderValue)
+    devSpeedMultiplier.set(spd)
+  }
+
+  $: speedLabel = formatSpeed($devSpeedMultiplier)
 
   function exitDevMode() {
     devModeEnabled.set(false)
     stopMovement()
   }
 
-  // Initialize dev position from current vehicle position or map center
   function initPosition() {
     const coords = $userVehicleStore?.coordinates
     if (coords?.latitude && coords?.longitude) {
@@ -67,22 +69,16 @@
     }
   }
 
-  // Convert knob displacement to heading (degrees) and magnitude (0-1)
   function getDirectionFromKnob() {
     const distance = Math.sqrt(knobX * knobX + knobY * knobY)
     if (distance < 5) return { heading: 0, magnitude: 0 }
-
-    // atan2 gives angle from positive X axis, we want heading from north
-    // knobY is inverted (negative = up = north)
     const angleRad = Math.atan2(knobX, -knobY)
     let heading = (angleRad * 180) / Math.PI
     if (heading < 0) heading += 360
-
     const magnitude = Math.min(distance / MAX_RADIUS, 1)
     return { heading, magnitude }
   }
 
-  // Move the simulated position based on current joystick state
   function tickMovement() {
     const { heading, magnitude } = getDirectionFromKnob()
     if (magnitude < 0.05) {
@@ -92,8 +88,6 @@
 
     const speed = $devSpeedMultiplier * magnitude
     const distanceMeters = speed * (UPDATE_RATE / 1000)
-
-    // Convert to lat/lng offset
     const headingRad = (heading * Math.PI) / 180
     const latOffset = (distanceMeters * Math.cos(headingRad)) / 111320
     const lngOffset =
@@ -104,7 +98,7 @@
       latitude: p.latitude + latOffset,
       longitude: p.longitude + lngOffset,
       heading: Math.round(heading),
-      speed: Math.round(speed * 3.6), // m/s to km/h
+      speed: Math.round(speed * 3.6),
     }))
   }
 
@@ -123,7 +117,6 @@
     devPositionStore.update((p) => ({ ...p, speed: 0 }))
   }
 
-  // --- Pointer / Touch handling ---
   function handlePointerDown(e) {
     isDragging = true
     updateKnob(e)
@@ -148,17 +141,13 @@
     const rect = joystickContainer.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
-
     let dx = e.clientX - centerX
     let dy = e.clientY - centerY
-
-    // Clamp to max radius
     const dist = Math.sqrt(dx * dx + dy * dy)
     if (dist > MAX_RADIUS) {
       dx = (dx / dist) * MAX_RADIUS
       dy = (dy / dist) * MAX_RADIUS
     }
-
     knobX = dx
     knobY = dy
   }
@@ -173,272 +162,220 @@
 </script>
 
 {#if $devModeEnabled}
-  <div class="dev-mode-overlay">
-    <!-- Header bar -->
-    <div class="dev-header">
-      <div class="dev-badge">
-        <Navigation size={14} />
-        <span>DEV MODE</span>
-      </div>
-      <div class="dev-coords">
-        {#if $devPositionStore.latitude}
-          {$devPositionStore.latitude.toFixed(6)}, {$devPositionStore.longitude.toFixed(
-            6,
-          )}
-        {/if}
-      </div>
-      <button class="dev-exit" on:click={exitDevMode}>
-        <X size={18} />
-      </button>
-    </div>
-
-    <!-- Speed selector -->
-    <div class="dev-speed-bar">
-      {#each SPEED_OPTIONS as option}
-        <button
-          class="speed-btn"
-          class:active={$devSpeedMultiplier === option.value}
-          on:click={() => devSpeedMultiplier.set(option.value)}
-        >
-          {option.value}
+  <div class="dev-overlay">
+    <!-- Compact card -->
+    <div class="dev-card">
+      <!-- Top row: badge + stats + exit -->
+      <div class="dev-top">
+        <span class="dev-badge">DEV</span>
+        <span class="dev-stat">{$devPositionStore.heading}°</span>
+        <span class="dev-stat">{$devPositionStore.speed} km/h</span>
+        <button class="dev-exit" on:click={exitDevMode}>
+          <X size={14} />
         </button>
-      {/each}
-      <span class="speed-label">{currentSpeedLabel}</span>
-    </div>
+      </div>
 
-    <!-- Joystick -->
-    <div class="joystick-area">
+      <!-- Joystick -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div
-        class="joystick-ring"
+        class="joy-ring"
         bind:this={joystickContainer}
         on:pointerdown={handlePointerDown}
         on:pointermove={handlePointerMove}
         on:pointerup={handlePointerUp}
         on:pointercancel={handlePointerUp}
       >
-        <!-- Cardinal labels -->
-        <span class="cardinal north">N</span>
-        <span class="cardinal south">S</span>
-        <span class="cardinal east">E</span>
-        <span class="cardinal west">W</span>
-
-        <!-- Knob -->
+        <span class="c n">N</span>
+        <span class="c s">S</span>
+        <span class="c e">E</span>
+        <span class="c w">W</span>
         <div
-          class="joystick-knob"
+          class="joy-knob"
           style="transform: translate({knobX}px, {knobY}px)"
         >
           <Navigation
-            size={20}
+            size={16}
             style="transform: rotate({$devPositionStore.heading}deg)"
           />
         </div>
       </div>
 
-      <!-- Info -->
-      <div class="joystick-info">
-        <div class="info-row">
-          <span class="info-label">Heading</span>
-          <span class="info-value">{$devPositionStore.heading}°</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Speed</span>
-          <span class="info-value">{$devPositionStore.speed} km/h</span>
-        </div>
+      <!-- Speed slider -->
+      <div class="slider-row">
+        <span class="slider-label">{speedLabel}</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          bind:value={sliderValue}
+          class="speed-slider"
+        />
       </div>
     </div>
   </div>
 {/if}
 
 <style>
-  .dev-mode-overlay {
+  .dev-overlay {
     position: fixed;
-    bottom: 20px;
-    right: 12px;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 900;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
     pointer-events: auto;
   }
 
-  .dev-header {
+  .dev-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(10, 10, 10, 0.88);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    border-radius: 14px;
+    padding: 8px 14px 10px;
+    backdrop-filter: blur(10px);
+    min-width: 0;
+  }
+
+  /* Top row */
+  .dev-top {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(10, 10, 10, 0.9);
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    border-radius: 8px;
-    padding: 6px 10px;
-    backdrop-filter: blur(8px);
+    width: 100%;
   }
 
   .dev-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
     background: rgba(239, 68, 68, 0.25);
     color: rgba(239, 68, 68, 1);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    padding: 1px 6px;
+    border-radius: 3px;
   }
 
-  .dev-coords {
+  .dev-stat {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
     font-family: monospace;
-    flex: 1;
-    text-align: center;
   }
 
   .dev-exit {
+    margin-left: auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    background: rgba(239, 68, 68, 0.15);
-    color: rgba(239, 68, 68, 0.9);
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.12);
+    color: rgba(239, 68, 68, 0.85);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s;
   }
   .dev-exit:hover {
     background: rgba(239, 68, 68, 0.3);
   }
 
-  .dev-speed-bar {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(10, 10, 10, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 4px 8px;
-    backdrop-filter: blur(8px);
-  }
-
-  .speed-btn {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: transparent;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .speed-btn.active {
-    background: rgba(59, 130, 246, 0.3);
-    border-color: rgba(59, 130, 246, 0.6);
-    color: rgba(59, 130, 246, 1);
-  }
-
-  .speed-label {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-left: auto;
-  }
-
-  .joystick-area {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(10, 10, 10, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    padding: 12px;
-    backdrop-filter: blur(8px);
-  }
-
-  .joystick-ring {
+  /* Joystick */
+  .joy-ring {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.18);
     background: rgba(255, 255, 255, 0.04);
-    flex-shrink: 0;
     touch-action: none;
     user-select: none;
+    flex-shrink: 0;
   }
 
-  .cardinal {
+  .c {
     position: absolute;
-    font-size: 10px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.3);
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.25);
     pointer-events: none;
   }
-  .cardinal.north {
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  .cardinal.south {
-    bottom: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  .cardinal.east {
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .cardinal.west {
-    left: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
+  .c.n { top: 3px; left: 50%; transform: translateX(-50%); }
+  .c.s { bottom: 3px; left: 50%; transform: translateX(-50%); }
+  .c.e { right: 5px; top: 50%; transform: translateY(-50%); }
+  .c.w { left: 5px; top: 50%; transform: translateY(-50%); }
 
-  .joystick-knob {
+  .joy-knob {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 40px;
-    height: 40px;
-    margin-left: -20px;
-    margin-top: -20px;
+    width: 34px;
+    height: 34px;
+    margin-left: -17px;
+    margin-top: -17px;
     border-radius: 50%;
-    background: rgba(59, 130, 246, 0.4);
-    border: 2px solid rgba(59, 130, 246, 0.8);
+    background: rgba(59, 130, 246, 0.35);
+    border: 2px solid rgba(59, 130, 246, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     transition: transform 0.05s linear;
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
   }
 
-  .joystick-info {
+  /* Speed slider */
+  .slider-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 80px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
   }
 
-  .info-row {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .info-label {
+  .slider-label {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.4);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-weight: 700;
+    color: rgba(59, 130, 246, 0.9);
+    font-family: monospace;
+    min-width: 54px;
+    text-align: right;
+    white-space: nowrap;
   }
 
-  .info-value {
-    font-size: 16px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    font-family: monospace;
+  .speed-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      rgba(59, 130, 246, 0.3),
+      rgba(239, 68, 68, 0.5)
+    );
+    outline: none;
+  }
+
+  .speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+  }
+
+  .speed-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
   }
 </style>
