@@ -1939,8 +1939,16 @@
       padding: 0;
       text-align: center;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 10;
     `
     closeBtn.addEventListener('click', onClose)
+    closeBtn.addEventListener('touchend', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    })
 
     wrapper.appendChild(bubble)
     wrapper.appendChild(closeBtn)
