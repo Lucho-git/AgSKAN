@@ -13,6 +13,7 @@
     generateTrailIds,
     calculateZoomDependentWidth,
     createArrowMarkerConfig,
+    createArrowCenterLineConfig,
     createInitialCombinedActiveTrailsGeoJSON,
     createActiveTrailMarkers,
     splitTrailIntoSegments,
@@ -46,6 +47,7 @@
   const COMBINED_ACTIVE_LAYER_ID = "all-active-trails-layer"
   const COMBINED_ACTIVE_MARKERS_SOURCE_ID = "all-active-trails-markers-source"
   const COMBINED_ACTIVE_MARKERS_ID = "all-active-trails-markers"
+  const COMBINED_ACTIVE_CENTER_LINE_ID = "all-active-trails-center-line"
 
   // ============================================
   // REACTIVE VISIBILITY UPDATES
@@ -95,9 +97,16 @@
         )
       }
 
-      // Update arrows based on both trail visibility AND arrow visibility
+      // Update arrows and center line based on both trail visibility AND arrow visibility
       const arrowVisibility =
         visible && $layerVisibilityStore.trailArrows ? "visible" : "none"
+      if (map.getLayer(COMBINED_ACTIVE_CENTER_LINE_ID)) {
+        map.setLayoutProperty(
+          COMBINED_ACTIVE_CENTER_LINE_ID,
+          "visibility",
+          arrowVisibility,
+        )
+      }
       if (map.getLayer(COMBINED_ACTIVE_MARKERS_ID)) {
         map.setLayoutProperty(
           COMBINED_ACTIVE_MARKERS_ID,
@@ -147,9 +156,16 @@
         }
       }
 
-      // Update active trail arrows
+      // Update active trail arrows and center line
       const activeArrowVisibility =
         visible && $layerVisibilityStore.activeTrails ? "visible" : "none"
+      if (map.getLayer(COMBINED_ACTIVE_CENTER_LINE_ID)) {
+        map.setLayoutProperty(
+          COMBINED_ACTIVE_CENTER_LINE_ID,
+          "visibility",
+          activeArrowVisibility,
+        )
+      }
       if (map.getLayer(COMBINED_ACTIVE_MARKERS_ID)) {
         map.setLayoutProperty(
           COMBINED_ACTIVE_MARKERS_ID,
@@ -329,6 +345,7 @@
     if (allActiveTrails.length === 0) {
       const layersToRemove = [
         COMBINED_ACTIVE_MARKERS_ID,
+        COMBINED_ACTIVE_CENTER_LINE_ID,
         COMBINED_ACTIVE_LAYER_ID,
       ]
       layersToRemove.forEach((layerId) => {
@@ -375,6 +392,7 @@
     // Remove existing layers
     const layersToRemove = [
       COMBINED_ACTIVE_MARKERS_ID,
+      COMBINED_ACTIVE_CENTER_LINE_ID,
       COMBINED_ACTIVE_LAYER_ID,
     ]
     layersToRemove.forEach((layerId) => {
@@ -443,6 +461,20 @@
       mapContext.addTrailLayerOrdered(mainLayerConfig)
     } else {
       addTrailWithFallback(mainLayerConfig)
+    }
+
+    // Arrow center line layer (thin black line along trail path)
+    const centerLineConfig = createArrowCenterLineConfig(
+      COMBINED_ACTIVE_CENTER_LINE_ID,
+      COMBINED_ACTIVE_SOURCE_ID,
+      visibility,
+      $layerVisibilityStore.trailArrows,
+    )
+
+    if (mapContext?.addTrailLayerOrdered) {
+      mapContext.addTrailLayerOrdered(centerLineConfig)
+    } else {
+      addTrailWithFallback(centerLineConfig)
     }
 
     // Arrow markers layer

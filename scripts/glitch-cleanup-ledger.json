@@ -1,0 +1,7126 @@
+{
+  "aaae1a5b-cc29-42aa-8c53-2c87f189b140": {
+    "status": "completed",
+    "name": "Ella Yaps A lot",
+    "timestamp": "2026-03-08T16:16:40.251Z",
+    "stats": {
+      "operations": 2,
+      "trails": 5,
+      "points": 123,
+      "glitches": 23,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "a1f8c4c2-c30e-4892-a1a5-d7191ae61c77": {
+    "status": "completed",
+    "name": "Homewood Main Map",
+    "timestamp": "2026-03-08T16:16:46.463Z",
+    "stats": {
+      "operations": 5,
+      "trails": 103,
+      "points": 116757,
+      "glitches": 80,
+      "affected": 21,
+      "written": 20
+    }
+  },
+  "dda7c8b3-b417-483d-b531-c296b0f20c45": {
+    "status": "completed",
+    "name": "Ryan2",
+    "timestamp": "2026-03-08T16:16:46.627Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "383b513c-13c2-4133-8c49-35eff89aa931": {
+    "status": "completed",
+    "name": "Aaron Liddell",
+    "timestamp": "2026-03-08T16:16:46.891Z",
+    "stats": {
+      "operations": 2,
+      "trails": 4,
+      "points": 36,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "42c2ab9b-a1de-4a24-bbef-46d959bd9f2b": {
+    "status": "completed",
+    "name": "Chimney",
+    "timestamp": "2026-03-08T16:16:47.064Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d4ca6760-8e57-45b6-8bc0-1ddb70f28206": {
+    "status": "completed",
+    "name": "Test1",
+    "timestamp": "2026-03-08T16:16:48.400Z",
+    "stats": {
+      "operations": 1,
+      "trails": 97,
+      "points": 86196,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "b4e2e7ce-0e92-43a4-837e-2ead836746a5": {
+    "status": "completed",
+    "name": "Gtdjsj",
+    "timestamp": "2026-03-08T16:16:48.955Z",
+    "stats": {
+      "operations": 2,
+      "trails": 27,
+      "points": 1895,
+      "glitches": 1280,
+      "affected": 3,
+      "written": 3
+    }
+  },
+  "fb6e2e3f-eb98-411a-b0f8-d1f8730664f4": {
+    "status": "completed",
+    "name": "Home Farm",
+    "timestamp": "2026-03-08T16:16:49.110Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "98d8fe2b-18d9-41fd-afe0-bdf1e84c6d36": {
+    "status": "completed",
+    "name": "Alfranco Farms",
+    "timestamp": "2026-03-08T16:20:12.164Z",
+    "stats": {
+      "operations": 35,
+      "trails": 666,
+      "points": 7841385,
+      "glitches": 2052,
+      "affected": 186,
+      "written": 185
+    }
+  },
+  "6800e271-9550-4c81-8391-34c3f4786d25": {
+    "status": "completed",
+    "name": "Kammerzell’s Farm",
+    "timestamp": "2026-03-08T16:20:12.391Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "08e0d34d-b013-49e7-9937-2ccc42f5b946": {
+    "status": "completed",
+    "name": "Kristos Map",
+    "timestamp": "2026-03-08T16:20:12.582Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 202,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f6d99428-ed95-467b-8c9e-6c1fcd53a1eb": {
+    "status": "completed",
+    "name": "SH 1-4",
+    "timestamp": "2026-03-08T16:20:12.744Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9566f5c7-e6ac-41fa-bf52-4aa506b0a4f2": {
+    "status": "completed",
+    "name": "HJ Hyde ",
+    "timestamp": "2026-03-08T16:20:13.576Z",
+    "stats": {
+      "operations": 1,
+      "trails": 9,
+      "points": 4859,
+      "glitches": 65,
+      "affected": 5,
+      "written": 4
+    }
+  },
+  "f74cd0eb-cac7-433e-9b87-d980e48a68a1": {
+    "status": "completed",
+    "name": "Big Paddock",
+    "timestamp": "2026-03-08T16:20:13.741Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c834a5b1-de77-4abe-b4cf-c3034aca7e26": {
+    "status": "completed",
+    "name": "Chesters 1",
+    "timestamp": "2026-03-08T16:20:13.908Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c06d89de-8128-4a97-8c37-e25267ef2f36": {
+    "status": "completed",
+    "name": "a1f8c4c2-c30e-4892-a1a5-d7191ae61c77",
+    "timestamp": "2026-03-08T16:20:14.077Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "de0a1e41-da84-41cd-997d-e0d7d7f11426": {
+    "status": "completed",
+    "name": "Chesters2",
+    "timestamp": "2026-03-08T16:20:14.677Z",
+    "stats": {
+      "operations": 1,
+      "trails": 5,
+      "points": 418,
+      "glitches": 17,
+      "affected": 5,
+      "written": 5
+    }
+  },
+  "23eca9fb-d8da-43d3-962f-a5317da13dc9": {
+    "status": "completed",
+    "name": "Åkrar",
+    "timestamp": "2026-03-08T16:20:14.838Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "412cf7fa-0bae-48b8-8f31-1d3bdb93585a": {
+    "status": "completed",
+    "name": "Rileys",
+    "timestamp": "2026-03-08T16:20:15.008Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8980132d-7d94-495f-9e53-96b56be7843f": {
+    "status": "completed",
+    "name": "6",
+    "timestamp": "2026-03-08T16:20:15.168Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1e09943d-51e4-4dda-a016-256e7e6f5b79": {
+    "status": "completed",
+    "name": "Bulldog",
+    "timestamp": "2026-03-08T16:20:15.327Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dc040d0c-33d3-4245-ae1f-d7a049b7f45d": {
+    "status": "completed",
+    "name": "Map 1",
+    "timestamp": "2026-03-08T16:20:15.489Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f9265c5c-2333-4601-93e0-e30b54c3c919": {
+    "status": "completed",
+    "name": "gkr",
+    "timestamp": "2026-03-08T16:38:28.283Z",
+    "stats": {
+      "operations": 24,
+      "trails": 1310,
+      "points": 18486611,
+      "glitches": 249,
+      "affected": 45,
+      "written": 45
+    }
+  },
+  "93d86101-33a8-423c-b5c5-c812c83412ed": {
+    "status": "completed",
+    "name": "H1",
+    "timestamp": "2026-03-08T16:38:40.102Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "834cd9b8-b2da-4347-a994-85e70378ceb4": {
+    "status": "completed",
+    "name": "Windarra",
+    "timestamp": "2026-03-08T16:38:40.329Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "720d04ba-38c1-4a8f-a4ae-4695b298f06f": {
+    "status": "completed",
+    "name": "Cossens",
+    "timestamp": "2026-03-08T16:38:40.551Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "47a48418-8d98-4257-aa2a-58d91fc5a0fb": {
+    "status": "completed",
+    "name": "SD",
+    "timestamp": "2026-03-08T16:38:40.775Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c9ad7530-d0ee-428c-9e95-68655178fa50": {
+    "status": "completed",
+    "name": "Stewart Avery Map",
+    "timestamp": "2026-03-08T16:40:00.084Z",
+    "stats": {
+      "operations": 5,
+      "trails": 215,
+      "points": 3433763,
+      "glitches": 148,
+      "affected": 40,
+      "written": 40
+    }
+  },
+  "a33b0659-90cf-44fd-8b34-729ad40b4e27": {
+    "status": "completed",
+    "name": "Proctor",
+    "timestamp": "2026-03-08T16:40:00.290Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0e4ba32c-0a68-4439-856c-c854b7ef7240": {
+    "status": "completed",
+    "name": "Toms Trackor Paddock",
+    "timestamp": "2026-03-08T16:40:00.479Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 33,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "df51912e-be21-4926-8af7-551fa921ba72": {
+    "status": "completed",
+    "name": "Ellas map",
+    "timestamp": "2026-03-08T16:40:00.675Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 9,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "94551bb0-6617-4aa5-8cf9-783d29340652": {
+    "status": "completed",
+    "name": "Glenvar",
+    "timestamp": "2026-03-08T16:40:00.871Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cf3e9614-5e31-486c-81bc-aba19aebe0f5": {
+    "status": "completed",
+    "name": "Glenvar",
+    "timestamp": "2026-03-08T16:40:01.524Z",
+    "stats": {
+      "operations": 1,
+      "trails": 9,
+      "points": 1340,
+      "glitches": 26,
+      "affected": 4,
+      "written": 4
+    }
+  },
+  "853e5433-214d-4d6a-b008-177a073dfd1a": {
+    "status": "completed",
+    "name": "Chillakerp",
+    "timestamp": "2026-03-08T16:40:05.823Z",
+    "stats": {
+      "operations": 1,
+      "trails": 85,
+      "points": 76561,
+      "glitches": 132,
+      "affected": 22,
+      "written": 22
+    }
+  },
+  "b3d44fcb-6d3b-4023-bab4-e8a33f4eb7d7": {
+    "status": "completed",
+    "name": "Dundomallee ",
+    "timestamp": "2026-03-08T16:40:06.033Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 82,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "489f8e7c-111b-4a57-ac1e-5b73df4a5167": {
+    "status": "completed",
+    "name": "Post Em 2024",
+    "timestamp": "2026-03-08T16:40:21.726Z",
+    "stats": {
+      "operations": 2,
+      "trails": 20,
+      "points": 306647,
+      "glitches": 14,
+      "affected": 2,
+      "written": 2
+    }
+  },
+  "8bbf88f1-2fa7-40ba-979d-8be9f7b33adc": {
+    "status": "completed",
+    "name": "Rogator ",
+    "timestamp": "2026-03-08T16:40:22.695Z",
+    "stats": {
+      "operations": 1,
+      "trails": 18,
+      "points": 9370,
+      "glitches": 32,
+      "affected": 5,
+      "written": 5
+    }
+  },
+  "60b28786-156d-41b1-8008-a7dea7f7b973": {
+    "status": "completed",
+    "name": "Parara Downs",
+    "timestamp": "2026-03-08T16:40:22.894Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "325f0ce4-f1ac-4fb3-b452-0ff31a87f5d9": {
+    "status": "completed",
+    "name": "Chilwell Farms",
+    "timestamp": "2026-03-08T16:40:23.350Z",
+    "stats": {
+      "operations": 1,
+      "trails": 5,
+      "points": 1162,
+      "glitches": 6,
+      "affected": 2,
+      "written": 2
+    }
+  },
+  "65eeefd6-e2d0-4b49-8b98-5743be690497": {
+    "status": "completed",
+    "name": "Greg Whytes Map",
+    "timestamp": "2026-03-08T16:40:23.599Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 756,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "037642cd-cdc2-4e4a-aa93-9ad5c489160a": {
+    "status": "completed",
+    "name": "A uncle Roy bend field",
+    "timestamp": "2026-03-08T16:40:23.798Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fc2fe422-3041-4c5d-afd2-7488b4a53d48": {
+    "status": "completed",
+    "name": "James Leeders Map",
+    "timestamp": "2026-03-08T16:40:23.995Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7e7858fd-e4da-44de-95ae-fa8b74f67f93": {
+    "status": "completed",
+    "name": "Sweenys ",
+    "timestamp": "2026-03-08T16:40:24.192Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a785c7ec-dd11-450f-8ec9-4c66e4eb1000": {
+    "status": "completed",
+    "name": "Jacks",
+    "timestamp": "2026-03-08T16:40:24.389Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7e809d33-8b26-419b-a3a9-2b97ba26e8a3": {
+    "status": "completed",
+    "name": "Top80",
+    "timestamp": "2026-03-08T16:40:24.581Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0d344340-0985-40dd-843f-fe04656df279": {
+    "status": "completed",
+    "name": "Yoorooga",
+    "timestamp": "2026-03-08T16:40:24.782Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "75f03fd2-3b6c-4e62-982b-345f5f2bd259": {
+    "status": "completed",
+    "name": "50acre",
+    "timestamp": "2026-03-08T16:40:24.977Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a5371d23-26b8-4ab7-8bb1-3ebf50f93f6f": {
+    "status": "completed",
+    "name": "Bluewell ",
+    "timestamp": "2026-03-08T16:40:25.166Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9d42c87f-0441-4b2d-8357-5364dcb51186": {
+    "status": "completed",
+    "name": "Winch",
+    "timestamp": "2026-03-08T16:40:25.362Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4bf2462a-cf11-4445-98de-36f726d1b99b": {
+    "status": "completed",
+    "name": "Mountain View",
+    "timestamp": "2026-03-08T16:40:25.560Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7ebcc9f2-1ee5-4aff-8e2f-772e8cb2b03d": {
+    "status": "completed",
+    "name": "Bungulla farms",
+    "timestamp": "2026-03-08T16:40:25.751Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "15e9f4a7-fd26-4699-a73a-1919d10471a0": {
+    "status": "completed",
+    "name": "NJB",
+    "timestamp": "2026-03-08T16:40:25.950Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "db11bd15-18c1-47d7-ad43-47569b7f34ae": {
+    "status": "completed",
+    "name": "Nardoosouth",
+    "timestamp": "2026-03-08T16:40:26.146Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5e9a0d92-8c1b-4e30-8f2a-271f10c4e94e": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:40:40.975Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "67915bfd-b37b-49d7-9891-3f75c3329501": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:40:41.173Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 4,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "93799735-6819-45a2-b224-aec1529b5281": {
+    "status": "completed",
+    "name": "Bore paddock ",
+    "timestamp": "2026-03-08T16:40:41.360Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "411a72dc-8a40-4a70-aca6-4dd60df4b809": {
+    "status": "completed",
+    "name": "Aff",
+    "timestamp": "2026-03-08T16:40:41.551Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "59b64b66-12be-47ec-ad61-9e3c2db1daee": {
+    "status": "completed",
+    "name": "Bonnie Doon",
+    "timestamp": "2026-03-08T16:40:41.746Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e065ca2c-ff79-4d3a-8cef-32a49aef8aa7": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:40:41.940Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 4,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "57565d81-ec90-4f14-b537-71455a228e3b": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:40:42.130Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "48951425-bfd3-41ef-8a6f-3ca5ffada1ab": {
+    "status": "completed",
+    "name": "Kitto Ag",
+    "timestamp": "2026-03-08T16:40:42.312Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1b280106-1cc2-4487-af71-1e6719b7d3f8": {
+    "status": "completed",
+    "name": "Redheart ",
+    "timestamp": "2026-03-08T16:40:42.500Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 3,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9f818369-8653-44f0-8fd4-7a536c55d9f3": {
+    "status": "completed",
+    "name": "Kiga ",
+    "timestamp": "2026-03-08T16:40:42.861Z",
+    "stats": {
+      "operations": 1,
+      "trails": 6,
+      "points": 239,
+      "glitches": 5,
+      "affected": 2,
+      "written": 2
+    }
+  },
+  "b81347fe-91e9-4dd6-a1ae-7eb1a7f79fb2": {
+    "status": "completed",
+    "name": "Col’s map",
+    "timestamp": "2026-03-08T16:40:43.041Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2706c36d-c509-4011-b32b-21c1bf8ccc31": {
+    "status": "completed",
+    "name": "Demo",
+    "timestamp": "2026-03-08T16:45:38.590Z",
+    "stats": {
+      "operations": 71,
+      "trails": 1371,
+      "points": 11240535,
+      "glitches": 4905,
+      "affected": 232,
+      "written": 230
+    }
+  },
+  "40e29adf-8bd2-4980-a0ee-9b2c36f8f73f": {
+    "status": "completed",
+    "name": "Bargo ",
+    "timestamp": "2026-03-08T16:45:38.779Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 8,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "34bca59f-2a70-40ed-9eac-fa943091c0c8": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:45:38.962Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f266c0a0-2c62-4bbf-b537-229231a14e19": {
+    "status": "completed",
+    "name": "Hillcrest farms ",
+    "timestamp": "2026-03-08T16:45:39.144Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fa247374-473f-4df4-ba37-8bbf29712f99": {
+    "status": "completed",
+    "name": "Hillcrest ",
+    "timestamp": "2026-03-08T16:45:39.330Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0fd4cccd-e489-47d4-a799-b228b7f31a08": {
+    "status": "completed",
+    "name": "CP3",
+    "timestamp": "2026-03-08T16:45:39.517Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 7,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "38da7e7b-7a8d-43ec-8abe-1371210f5f96": {
+    "status": "completed",
+    "name": "Lawaluk",
+    "timestamp": "2026-03-08T16:45:39.705Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "24f7401f-1dd2-4491-bfd5-cbcfed3a9e9a": {
+    "status": "completed",
+    "name": "Hime",
+    "timestamp": "2026-03-08T16:45:39.898Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 12,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1f5cad2c-408f-4480-9fd1-7955f12aa2d6": {
+    "status": "completed",
+    "name": "R & A Giorgiante",
+    "timestamp": "2026-03-08T16:45:40.084Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 61,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1ac9b133-2164-425b-a840-c83d66af2895": {
+    "status": "completed",
+    "name": "The block ",
+    "timestamp": "2026-03-08T16:45:40.270Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 5,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cecd7348-e960-41ee-9fc1-428c3226f79c": {
+    "status": "completed",
+    "name": "Kimbolton north",
+    "timestamp": "2026-03-08T16:45:40.452Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0b52854e-216f-47f1-b2e0-c408732c51db": {
+    "status": "completed",
+    "name": "Fairfield’s ",
+    "timestamp": "2026-03-08T16:45:40.656Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a2a8fd2f-6e12-4182-87db-206768244f05": {
+    "status": "completed",
+    "name": "Langdene ",
+    "timestamp": "2026-03-08T16:45:40.842Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f79db15b-81be-443c-b092-55f64b724096": {
+    "status": "completed",
+    "name": "Home ",
+    "timestamp": "2026-03-08T16:45:41.029Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6e08d53e-70e2-4be2-b1d9-6b354f70375a": {
+    "status": "completed",
+    "name": "Byron Painters Map",
+    "timestamp": "2026-03-08T16:45:41.235Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d9db666d-de74-46bc-b31e-2ef7b1ef1c44": {
+    "status": "completed",
+    "name": "Willersdorf farms ",
+    "timestamp": "2026-03-08T16:45:41.428Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cd898faa-66c3-4fe8-8c7d-b12a5ecc11d8": {
+    "status": "completed",
+    "name": "Gkr farms ",
+    "timestamp": "2026-03-08T16:45:41.610Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "40764a24-c4ea-4f34-afa6-52d71d05b3b7": {
+    "status": "completed",
+    "name": "Brooklyn",
+    "timestamp": "2026-03-08T16:45:41.790Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 37,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e6fe48d0-baba-4d38-9252-8caac0e77e32": {
+    "status": "completed",
+    "name": "Hyden farm",
+    "timestamp": "2026-03-08T16:45:41.973Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "52215776-1079-44c7-9b34-ee185650937d": {
+    "status": "completed",
+    "name": "Wattle Grove ",
+    "timestamp": "2026-03-08T16:45:42.171Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f568ed5e-3aef-4e3c-96ba-dac4d2d4308f": {
+    "status": "completed",
+    "name": "Raywood",
+    "timestamp": "2026-03-08T16:45:42.356Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9f6b0082-518e-4b36-81f5-b445ba6dae78": {
+    "status": "completed",
+    "name": "Minarooba",
+    "timestamp": "2026-03-08T16:45:42.554Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f8d8d24f-1347-4fa7-8a6f-123e410b6655": {
+    "status": "completed",
+    "name": "Dairy ",
+    "timestamp": "2026-03-08T16:45:42.744Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 85,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d4e1378b-cb96-4ce1-a56c-b3aba34908f3": {
+    "status": "completed",
+    "name": "Hope vale",
+    "timestamp": "2026-03-08T16:45:42.923Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 23,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fba3459b-8317-471f-b981-e63fa7f067b5": {
+    "status": "completed",
+    "name": "Moocaboola",
+    "timestamp": "2026-03-08T16:45:43.109Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "356677d3-f942-47d6-9941-86acde67f6bf": {
+    "status": "completed",
+    "name": "Linda valley ",
+    "timestamp": "2026-03-08T16:45:43.292Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 25,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "343f9858-65bc-44b1-bbbf-6707d639ffa3": {
+    "status": "completed",
+    "name": "Kaen",
+    "timestamp": "2026-03-08T16:45:43.475Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "75986c90-4d8a-4c3a-985b-4159c3d47e5c": {
+    "status": "completed",
+    "name": "Heathfield",
+    "timestamp": "2026-03-08T16:45:43.660Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 66,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "24f2762c-8ef5-43e3-9f1d-a87333e6b43e": {
+    "status": "completed",
+    "name": "Pest Management Paddock",
+    "timestamp": "2026-03-08T16:45:43.858Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8a28e15f-58f1-474d-9b18-a9bf62565e2d": {
+    "status": "completed",
+    "name": "Hesston Farms",
+    "timestamp": "2026-03-08T16:45:44.175Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 857,
+      "glitches": 7,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "a9f8b93b-7563-486e-a9bf-fde4825574e2": {
+    "status": "completed",
+    "name": "Ryan Skamp",
+    "timestamp": "2026-03-08T16:45:44.384Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 44,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "33800b40-6e48-4634-8def-5a7fa3020124": {
+    "status": "completed",
+    "name": "37.84107° S, 141.75277° E",
+    "timestamp": "2026-03-08T16:45:44.570Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 58,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3de8608e-b118-4776-a38b-041272d73e39": {
+    "status": "completed",
+    "name": "Nodgeraling ",
+    "timestamp": "2026-03-08T16:45:44.757Z",
+    "stats": {
+      "operations": 1,
+      "trails": 8,
+      "points": 1900,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f9ebcf5a-5135-4ff6-b766-4356b31c4e50": {
+    "status": "completed",
+    "name": "Farm",
+    "timestamp": "2026-03-08T16:45:44.940Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 99,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "64d8e18d-5c2c-4138-9012-7673c3ec4eb0": {
+    "status": "completed",
+    "name": "Tallarook ",
+    "timestamp": "2026-03-08T16:45:45.127Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 8,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a8f5bd58-0c97-4574-b80f-a29a3099330d": {
+    "status": "completed",
+    "name": "Shepards Place",
+    "timestamp": "2026-03-08T16:45:45.310Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 23,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "86e3a31f-d782-4859-a906-26a098709cfb": {
+    "status": "completed",
+    "name": "D5",
+    "timestamp": "2026-03-08T16:45:45.571Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 119,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "b04d992e-0486-4366-8e59-672aaf9ece09": {
+    "status": "completed",
+    "name": "Rams",
+    "timestamp": "2026-03-08T16:45:45.758Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "587f45d4-3f28-49e8-91d8-ed8c9efeaf30": {
+    "status": "completed",
+    "name": "Jindarra",
+    "timestamp": "2026-03-08T16:47:16.574Z",
+    "stats": {
+      "operations": 7,
+      "trails": 267,
+      "points": 2701967,
+      "glitches": 581,
+      "affected": 100,
+      "written": 100
+    }
+  },
+  "ec5068c8-5a22-46c2-8e23-fe9717f239d7": {
+    "status": "completed",
+    "name": "BowmanFarming",
+    "timestamp": "2026-03-08T16:47:37.660Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "483dfa0c-1932-4104-9c13-1f90a85b6fbf": {
+    "status": "completed",
+    "name": "Yarra Station",
+    "timestamp": "2026-03-08T16:47:38.011Z",
+    "stats": {
+      "operations": 1,
+      "trails": 6,
+      "points": 99,
+      "glitches": 2,
+      "affected": 2,
+      "written": 2
+    }
+  },
+  "0231b3bb-e97b-438b-9f16-5e1db91af790": {
+    "status": "completed",
+    "name": "Ipads Map",
+    "timestamp": "2026-03-08T16:47:38.197Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "97e35753-9d58-4a96-958a-0457f91d8804": {
+    "status": "completed",
+    "name": "Horseshoe Park",
+    "timestamp": "2026-03-08T16:47:38.388Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 13,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "55dd04af-be39-40e8-9b66-5624c615fc56": {
+    "status": "completed",
+    "name": "Breakaway",
+    "timestamp": "2026-03-08T16:47:38.608Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d0948c0e-f297-4e70-9ef0-e00c4b871053": {
+    "status": "completed",
+    "name": "Wandels",
+    "timestamp": "2026-03-08T16:47:38.806Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d8653378-6659-45a7-8413-22bea37c81ef": {
+    "status": "completed",
+    "name": "Shae Langley",
+    "timestamp": "2026-03-08T16:47:38.989Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "daeaf275-d1b1-48f5-8a75-7c55b8f3749a": {
+    "status": "completed",
+    "name": "Trees suck",
+    "timestamp": "2026-03-08T16:47:39.174Z",
+    "stats": {
+      "operations": 1,
+      "trails": 23,
+      "points": 415,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eacc16f2-6020-42d7-bb43-fc755d1ad5f1": {
+    "status": "completed",
+    "name": "Sheltons",
+    "timestamp": "2026-03-08T16:47:39.357Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "67bbf55b-c4b0-414b-9e0b-d59a84e6c3a8": {
+    "status": "completed",
+    "name": "Coorong Pastoral",
+    "timestamp": "2026-03-08T16:47:54.995Z",
+    "stats": {
+      "operations": 3,
+      "trails": 838,
+      "points": 514200,
+      "glitches": 646,
+      "affected": 142,
+      "written": 125
+    }
+  },
+  "3cfabca5-44a4-41a3-a9ce-2185619614bc": {
+    "status": "completed",
+    "name": "woolaganup",
+    "timestamp": "2026-03-08T16:47:55.774Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 6472,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "7f8aa63e-b4a5-47dc-b0f7-cc993a7097ea": {
+    "status": "completed",
+    "name": "Capolinga",
+    "timestamp": "2026-03-08T16:47:56.069Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1d4a303f-fe97-4c8c-9fac-790be7124ba0": {
+    "status": "completed",
+    "name": "wingarra",
+    "timestamp": "2026-03-08T16:47:56.250Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 97,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6e757d4d-f6dc-4d89-a078-629712677120": {
+    "status": "completed",
+    "name": "Uep ",
+    "timestamp": "2026-03-08T16:47:56.431Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b446d3aa-b88a-40a4-b1d1-aa2e65b8b083": {
+    "status": "completed",
+    "name": "Tooled - Trigalana",
+    "timestamp": "2026-03-08T16:47:56.636Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 334,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "67db551b-e188-48eb-82d4-cda4fcc1cc43": {
+    "status": "completed",
+    "name": "B5.5",
+    "timestamp": "2026-03-08T16:47:56.816Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d12037ce-6afe-43e0-bb2d-d3d84c346003": {
+    "status": "completed",
+    "name": "Test ",
+    "timestamp": "2026-03-08T16:47:57.007Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "29fb2259-5b1a-45c1-b277-ce8a82dc467e": {
+    "status": "completed",
+    "name": "Colbert",
+    "timestamp": "2026-03-08T16:47:57.187Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fdb9ae01-53f1-43ff-8760-6f930076f1c5": {
+    "status": "completed",
+    "name": "Rathscar West",
+    "timestamp": "2026-03-08T16:47:57.376Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c0ae50ed-61fa-414b-a6b5-a0a4e1f457e8": {
+    "status": "completed",
+    "name": "Test ",
+    "timestamp": "2026-03-08T16:47:57.560Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 4,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2813ca56-b412-42fd-9999-6449e3c2fe58": {
+    "status": "completed",
+    "name": "Gunningbland ",
+    "timestamp": "2026-03-08T16:47:57.744Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 207,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "015f3f95-d42e-4e09-8fa4-aab0d9dbb162": {
+    "status": "completed",
+    "name": "Farm Layout",
+    "timestamp": "2026-03-08T16:47:57.931Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "805629b7-4ebe-4c40-ab0c-05c9223de01f": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:47:58.110Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e9e679a7-5b91-4d75-a401-e639e846f780": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:47:58.446Z",
+    "stats": {
+      "operations": 1,
+      "trails": 5,
+      "points": 953,
+      "glitches": 11,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "997cb835-d479-4e3a-9e20-f4d30447276b": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T16:47:58.630Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "205ef96a-31dd-4b48-9e74-3a85ae28e456": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:47:58.899Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 197,
+      "glitches": 10,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "22cce3fa-0322-4f52-a60f-0cc33c6975d2": {
+    "status": "completed",
+    "name": "Greg Whytes Map",
+    "timestamp": "2026-03-08T16:47:59.175Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 67,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bee3ec9f-9d18-45d4-8dd4-ee11ef3f46b2": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:47:59.401Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3d15775e-2280-4330-b813-ad402ac104f8": {
+    "status": "completed",
+    "name": "Elserae",
+    "timestamp": "2026-03-08T16:47:59.590Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "953d6133-b6d5-4a4e-928a-ff6db5ef22a4": {
+    "status": "completed",
+    "name": "Stevens Agri",
+    "timestamp": "2026-03-08T16:47:59.772Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1f5e8092-95df-447a-bc89-ab249d010ab3": {
+    "status": "completed",
+    "name": "Bruie ",
+    "timestamp": "2026-03-08T16:47:59.957Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 15,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bd071f51-f9bd-437b-a643-4d5750770647": {
+    "status": "completed",
+    "name": "Emin Valley",
+    "timestamp": "2026-03-08T16:48:00.137Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 8,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5c69afd4-8c32-4b3f-a21b-4ba5f3145c5f": {
+    "status": "completed",
+    "name": "Denyer Family Partnership",
+    "timestamp": "2026-03-08T16:48:00.326Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e31a3126-edea-45b7-a899-b73170ec2448": {
+    "status": "completed",
+    "name": "Denyer Family Partnership",
+    "timestamp": "2026-03-08T16:48:00.510Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "53a74ddf-ae2d-4d49-9766-26d9baef4389": {
+    "status": "completed",
+    "name": "Ben Beggs Map",
+    "timestamp": "2026-03-08T16:48:00.693Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e29ec218-d673-44e4-bc43-8c58b56811d7": {
+    "status": "completed",
+    "name": "Delete this",
+    "timestamp": "2026-03-08T16:48:01.587Z",
+    "stats": {
+      "operations": 1,
+      "trails": 20,
+      "points": 31431,
+      "glitches": 18,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "03517c4e-3695-4ca5-b159-aee4e07311ff": {
+    "status": "completed",
+    "name": "Adelaide",
+    "timestamp": "2026-03-08T16:48:01.778Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 4,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "59dd6ee7-84d3-4741-bb5f-895fb780fef8": {
+    "status": "completed",
+    "name": "Wunderwy farm",
+    "timestamp": "2026-03-08T16:48:02.367Z",
+    "stats": {
+      "operations": 3,
+      "trails": 1,
+      "points": 1774,
+      "glitches": 9,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "eb023d5d-108e-4a84-bd50-ce9fbca10d2d": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:48:02.550Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "80fda443-8eb0-4742-b448-f94b8cfb3bb5": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:48:02.731Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 81,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "61d0e262-84c1-4f64-8b18-8be86ae67b09": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:48:02.917Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "586c1046-f455-4cb5-85c2-d2becda38dfa": {
+    "status": "completed",
+    "name": "All",
+    "timestamp": "2026-03-08T16:48:03.102Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 5,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e6d3519c-9006-4ef4-9f11-d9ef03717020": {
+    "status": "completed",
+    "name": "Hillcrest",
+    "timestamp": "2026-03-08T16:48:03.288Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2d37f66e-6496-4a63-bfaf-518147702e8e": {
+    "status": "completed",
+    "name": "Home ",
+    "timestamp": "2026-03-08T16:48:03.472Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 392,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cc2c64e1-9052-4006-9809-c4597114411c": {
+    "status": "completed",
+    "name": "Julz Map",
+    "timestamp": "2026-03-08T16:48:03.801Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 37,
+      "glitches": 2,
+      "affected": 2,
+      "written": 1
+    }
+  },
+  "5ea4b00a-b881-47b5-b0bb-e3f228e6789a": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:48:04.065Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 51,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "79b45cb4-cac8-45ec-bf8a-c09fc9b2e272": {
+    "status": "completed",
+    "name": "Wadrift ",
+    "timestamp": "2026-03-08T16:48:04.249Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e4f039c7-f232-4f26-994e-9fdfedcbdd35": {
+    "status": "completed",
+    "name": "Snake Pit",
+    "timestamp": "2026-03-08T16:48:04.429Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bcf2ce74-9ef2-41a3-9b9c-53e2c3740671": {
+    "status": "completed",
+    "name": "Coolakin",
+    "timestamp": "2026-03-08T16:48:04.609Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d707315b-1098-4b3c-a581-bfbf32827805": {
+    "status": "completed",
+    "name": "Abban farms",
+    "timestamp": "2026-03-08T16:48:04.853Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 1936,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "72ee20df-e373-4879-a431-fbabc9c90eb9": {
+    "status": "completed",
+    "name": "Wilson",
+    "timestamp": "2026-03-08T16:48:05.038Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "68e50ab8-d7a7-4b79-b37b-fb3240543907": {
+    "status": "completed",
+    "name": "Bailey O'Driscolls map",
+    "timestamp": "2026-03-08T16:48:05.229Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 8,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "353ddeed-dda7-4d64-aa96-cbae7f42e4ae": {
+    "status": "completed",
+    "name": "awf",
+    "timestamp": "2026-03-08T16:48:05.422Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7d6e98e4-bf17-4fd9-afc8-a79c48c1fe78": {
+    "status": "completed",
+    "name": "Hello Darkness",
+    "timestamp": "2026-03-08T16:48:05.602Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ccd447a6-471a-4766-ab3f-b28b2b2172a2": {
+    "status": "completed",
+    "name": "Map 1",
+    "timestamp": "2026-03-08T16:48:05.800Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "95615acb-155e-4756-b86f-a30721309c0a": {
+    "status": "completed",
+    "name": "Linden view",
+    "timestamp": "2026-03-08T16:48:05.987Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 3,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b71c63e4-684d-4d36-b64c-1cbae5262964": {
+    "status": "completed",
+    "name": "Bungulla farms",
+    "timestamp": "2026-03-08T16:48:06.167Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eff8b568-12dd-4e45-a959-80f54a13712f": {
+    "status": "completed",
+    "name": "Serious paddock",
+    "timestamp": "2026-03-08T16:48:06.348Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0a714f87-6c95-4c72-855b-59906e6286ce": {
+    "status": "completed",
+    "name": "Traghli",
+    "timestamp": "2026-03-08T16:48:06.543Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "20fda656-5162-45cb-bb74-9c3589268322": {
+    "status": "completed",
+    "name": "SE",
+    "timestamp": "2026-03-08T16:48:06.720Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "024927c0-56a8-4834-8be1-3b6e6b52ad77": {
+    "status": "completed",
+    "name": "Chanctonbury",
+    "timestamp": "2026-03-08T16:48:07.007Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 2614,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8850be7d-7cff-4f92-a8e2-623989609946": {
+    "status": "completed",
+    "name": "Windmill",
+    "timestamp": "2026-03-08T16:48:07.192Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 4,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b587e8b6-f1c7-4503-bf12-8e39a532e1d0": {
+    "status": "completed",
+    "name": "Glebe 1",
+    "timestamp": "2026-03-08T16:48:07.378Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 9,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "33c0258b-dede-47d6-91fc-08b5abb0fb2a": {
+    "status": "completed",
+    "name": "CH 3",
+    "timestamp": "2026-03-08T16:48:07.576Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2cf66739-dd50-4094-8ce4-eac10a635f0f": {
+    "status": "completed",
+    "name": "CH 3",
+    "timestamp": "2026-03-08T16:48:07.757Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "76e90d92-d56e-485a-9453-ef7d48497e75": {
+    "status": "completed",
+    "name": "Great north",
+    "timestamp": "2026-03-08T16:48:07.937Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "38d1fc0c-fa56-4630-99d6-7ad1885d0c2f": {
+    "status": "completed",
+    "name": "foster farm",
+    "timestamp": "2026-03-08T16:48:08.119Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 11,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eb04e34b-7aee-4255-9d08-da4a3f087e87": {
+    "status": "completed",
+    "name": "Trecorner Farm",
+    "timestamp": "2026-03-08T16:48:08.302Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a9afeb0d-fec6-4cc4-ace3-fdd717ef1b36": {
+    "status": "completed",
+    "name": "Lakeview",
+    "timestamp": "2026-03-08T16:48:08.482Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "52288bc8-db3d-41a4-8054-a39bcbf6c191": {
+    "status": "completed",
+    "name": "Farm ",
+    "timestamp": "2026-03-08T16:48:08.666Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 52,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "13c22f40-0b3e-49ef-a9a1-ccabb54f44e5": {
+    "status": "completed",
+    "name": "St Werburghs",
+    "timestamp": "2026-03-08T16:48:08.922Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 84,
+      "glitches": 3,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "688ebe4c-bde5-49c0-baae-50069a83850a": {
+    "status": "completed",
+    "name": "Nathan Mudie",
+    "timestamp": "2026-03-08T16:48:09.127Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d4a37b83-c02c-4727-88d6-7a149c252d13": {
+    "status": "completed",
+    "name": "Nangetty",
+    "timestamp": "2026-03-08T16:48:09.309Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "89475535-003c-44b3-b2d4-333388779681": {
+    "status": "completed",
+    "name": "Test ",
+    "timestamp": "2026-03-08T16:48:09.491Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 21,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a2293a17-b2b2-46fb-b3c4-8811db5e085a": {
+    "status": "completed",
+    "name": "Terra Donna ",
+    "timestamp": "2026-03-08T16:48:09.679Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9f9f2e87-24a8-4d11-86af-0de3c19ec4a4": {
+    "status": "completed",
+    "name": "Mentara Park",
+    "timestamp": "2026-03-08T16:48:09.860Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 7,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "078c282e-9a7f-4181-8e18-47625b7d386f": {
+    "status": "completed",
+    "name": "Cena",
+    "timestamp": "2026-03-08T16:48:10.041Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2020a42e-da08-4ee9-9092-668943a68afb": {
+    "status": "completed",
+    "name": "Ryan McAnananeys Map",
+    "timestamp": "2026-03-08T16:48:10.224Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "01dafb74-faae-41fa-9250-702fb98c6fbd": {
+    "status": "completed",
+    "name": "R&A Giorgiante home block",
+    "timestamp": "2026-03-08T16:48:10.422Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 509,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4b2c14e7-b87f-4a7f-82e9-6abed1a43de4": {
+    "status": "completed",
+    "name": "Victorias Map",
+    "timestamp": "2026-03-08T16:48:10.614Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5ae1b062-a6be-45d9-bd86-49ce9393cac2": {
+    "status": "completed",
+    "name": "Beermulah",
+    "timestamp": "2026-03-08T16:48:10.800Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dbadb370-78bc-482b-8f66-c7f1faeb4b60": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:48:10.984Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8b1dd8c7-ad77-4591-94b6-8e82caccd358": {
+    "status": "completed",
+    "name": "Firebreak",
+    "timestamp": "2026-03-08T16:48:11.721Z",
+    "stats": {
+      "operations": 1,
+      "trails": 8,
+      "points": 48536,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "de73bbb9-94db-4c0f-b092-6cd6eb8f46b5": {
+    "status": "completed",
+    "name": "Farm map",
+    "timestamp": "2026-03-08T16:48:11.903Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a0c6e937-1a4d-4549-ad9a-fb44d1f0992a": {
+    "status": "completed",
+    "name": "Sunny side farms ",
+    "timestamp": "2026-03-08T16:48:12.094Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 24,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f2cb9b5a-3133-492b-823f-550f6ae8a717": {
+    "status": "completed",
+    "name": "Sunnyside",
+    "timestamp": "2026-03-08T16:48:12.276Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "048bd46b-61af-49d8-b6ee-fc80408a8234": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:48:12.459Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "746f72f2-4cfe-47b4-9fd5-163bd859c931": {
+    "status": "completed",
+    "name": "Anameka",
+    "timestamp": "2026-03-08T16:48:12.640Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "780adea5-fd30-48b4-8e0e-91368500d476": {
+    "status": "completed",
+    "name": "Earth",
+    "timestamp": "2026-03-08T16:48:12.823Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b1a89218-1bff-46e8-95a2-83ec1e8341dd": {
+    "status": "completed",
+    "name": "Lancoona",
+    "timestamp": "2026-03-08T16:48:13.004Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "48a4a35d-f917-419f-bb70-ea44262df044": {
+    "status": "completed",
+    "name": "Willaba Farm",
+    "timestamp": "2026-03-08T16:48:13.189Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 647,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "901d86b7-18cc-414d-b8cb-eab4dbc59906": {
+    "status": "completed",
+    "name": "Cougar Farm",
+    "timestamp": "2026-03-08T16:48:13.535Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 1176,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "f3e51c2e-7440-42f9-af82-6a1c88e3168a": {
+    "status": "completed",
+    "name": "Heywood farms ",
+    "timestamp": "2026-03-08T16:48:13.735Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3b72c038-be5e-46c0-b477-7400ab8e300a": {
+    "status": "completed",
+    "name": "Glenronda",
+    "timestamp": "2026-03-08T16:48:13.916Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b2f9bdc5-afe6-4090-96cd-3a9fb716cd2c": {
+    "status": "completed",
+    "name": "Netherley",
+    "timestamp": "2026-03-08T16:48:14.119Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e6edf668-d168-413f-8a5b-fe2ec356a418": {
+    "status": "completed",
+    "name": "New hay",
+    "timestamp": "2026-03-08T16:48:14.311Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e9a6e85d-96b4-4918-ba25-2229577cd168": {
+    "status": "completed",
+    "name": "KarBern ",
+    "timestamp": "2026-03-08T16:48:14.506Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6ccc1532-1bda-4650-aa20-c07eed7d5a2f": {
+    "status": "completed",
+    "name": "York",
+    "timestamp": "2026-03-08T16:48:14.690Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e7c0c6ec-32dc-4ccf-aa58-55b874bda884": {
+    "status": "completed",
+    "name": "Hudson",
+    "timestamp": "2026-03-08T16:48:14.943Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 157,
+      "glitches": 6,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "5810a8f4-418a-4e03-bf77-c6cb8fc81bd3": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:48:15.127Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8de50393-f643-4d6b-8d9d-52bb3e2f6994": {
+    "status": "completed",
+    "name": "King Valley",
+    "timestamp": "2026-03-08T16:48:37.383Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 184,
+      "glitches": 18,
+      "affected": 1,
+      "written": 0
+    }
+  },
+  "8ce5dea8-3a56-4cf0-a864-b15335b89083": {
+    "status": "completed",
+    "name": "Leahy Creek",
+    "timestamp": "2026-03-08T16:48:37.576Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "656d731b-8f9f-402e-95d1-073876e32ca5": {
+    "status": "completed",
+    "name": "Home ",
+    "timestamp": "2026-03-08T16:48:37.767Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3d9d482e-6e99-4f50-9a3c-27bca5c86b39": {
+    "status": "completed",
+    "name": "Okverynice",
+    "timestamp": "2026-03-08T16:48:37.975Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 3,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f32be319-b293-4d64-a00e-39807cc444a3": {
+    "status": "completed",
+    "name": "again",
+    "timestamp": "2026-03-08T16:48:38.170Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6b127a8f-e357-412d-b963-a32a50bb07de": {
+    "status": "completed",
+    "name": "another one",
+    "timestamp": "2026-03-08T16:48:38.361Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d7afa0bb-dab6-400a-b8a0-fd6cc0d6805c": {
+    "status": "completed",
+    "name": "dsaf",
+    "timestamp": "2026-03-08T16:48:38.552Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f97706b5-352b-4b7f-bb92-7fe0e02dbbee": {
+    "status": "completed",
+    "name": "one again",
+    "timestamp": "2026-03-08T16:48:38.742Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fe8b080d-3e03-403b-b085-3da5500c0298": {
+    "status": "completed",
+    "name": "here we go",
+    "timestamp": "2026-03-08T16:48:38.933Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3ad5c70a-3867-43d4-b7fa-fa5a876ed36f": {
+    "status": "completed",
+    "name": "yiperss",
+    "timestamp": "2026-03-08T16:48:39.125Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f1bd3136-c898-44ed-b330-f562eeaac773": {
+    "status": "completed",
+    "name": "Sexy beast",
+    "timestamp": "2026-03-08T16:48:39.316Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 12,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "61a17b05-1471-486f-82b0-0ed68b5e59c6": {
+    "status": "completed",
+    "name": "dsdafa",
+    "timestamp": "2026-03-08T16:48:39.507Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "95d628ae-1f1a-4870-860a-0df33021da14": {
+    "status": "completed",
+    "name": "Oakland",
+    "timestamp": "2026-03-08T16:48:39.708Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "20a37ea5-6353-47bc-bf79-4a92f7e41178": {
+    "status": "completed",
+    "name": "Thomsons",
+    "timestamp": "2026-03-08T16:48:39.908Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "18f6e0e4-fa3a-4ff3-81de-44a600763970": {
+    "status": "completed",
+    "name": "GRDC - Demo Day",
+    "timestamp": "2026-03-08T16:48:40.717Z",
+    "stats": {
+      "operations": 1,
+      "trails": 9,
+      "points": 5424,
+      "glitches": 10,
+      "affected": 5,
+      "written": 5
+    }
+  },
+  "bf29d89e-42fc-4f6d-a6ef-9edd66a00e1e": {
+    "status": "completed",
+    "name": "Croser",
+    "timestamp": "2026-03-08T16:48:40.914Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5e5589c2-aba8-4974-acf9-f594b776e8e0": {
+    "status": "completed",
+    "name": "Farm",
+    "timestamp": "2026-03-08T16:48:41.104Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ce80279e-efaf-4e9a-9916-9cfab48814fa": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:48:41.311Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eb1e91bf-adfe-40bd-90ea-53f4904cc587": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:48:41.509Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 2,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4b8e1c0e-e235-4d8c-951b-e85b310d891f": {
+    "status": "completed",
+    "name": "OLD TALGAI",
+    "timestamp": "2026-03-08T16:48:41.700Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "98035431-aadf-42b5-8c01-fe8b182142b4": {
+    "status": "completed",
+    "name": "New Map",
+    "timestamp": "2026-03-08T16:48:41.891Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 8,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7f083798-73d2-47b7-84f9-f5b67b074441": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:48:42.084Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ad11b4ef-a500-4479-908d-299ffebbba46": {
+    "status": "completed",
+    "name": "Col's Farm",
+    "timestamp": "2026-03-08T16:48:42.484Z",
+    "stats": {
+      "operations": 2,
+      "trails": 5,
+      "points": 592,
+      "glitches": 84,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "11c12a64-e927-4bd3-a228-162446882452": {
+    "status": "completed",
+    "name": "Browne Farming Co Pty Ltd",
+    "timestamp": "2026-03-08T16:48:42.685Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "258c26a4-e5e1-4d23-824c-ae3ed9891a03": {
+    "status": "completed",
+    "name": "New mapperino",
+    "timestamp": "2026-03-08T16:48:42.881Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2217ce6e-9612-441f-b168-bf3ec6c736e4": {
+    "status": "completed",
+    "name": "Spray topping",
+    "timestamp": "2026-03-08T16:48:43.804Z",
+    "stats": {
+      "operations": 1,
+      "trails": 8,
+      "points": 656,
+      "glitches": 63,
+      "affected": 8,
+      "written": 8
+    }
+  },
+  "5a614934-5fb5-4f0e-9ca0-eb873e2f8687": {
+    "status": "completed",
+    "name": "india",
+    "timestamp": "2026-03-08T16:48:44.001Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bd0480d8-d14e-46ea-b65d-3d3f31bff88b": {
+    "status": "completed",
+    "name": "Pynup (Kates Farm)",
+    "timestamp": "2026-03-08T16:48:44.271Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 888,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "574f569b-128e-41e3-8e12-235fe69df1e4": {
+    "status": "completed",
+    "name": "Woodlands",
+    "timestamp": "2026-03-08T16:48:44.588Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e0084c7b-ae19-4955-97a8-4a5b0c2a9163": {
+    "status": "completed",
+    "name": "Crop Topping",
+    "timestamp": "2026-03-08T16:48:46.590Z",
+    "stats": {
+      "operations": 1,
+      "trails": 14,
+      "points": 21165,
+      "glitches": 86,
+      "affected": 8,
+      "written": 8
+    }
+  },
+  "4aa37a34-186d-467d-b3f7-552b46638a5b": {
+    "status": "completed",
+    "name": "Tom's Brook",
+    "timestamp": "2026-03-08T16:49:19.628Z",
+    "stats": {
+      "operations": 6,
+      "trails": 159,
+      "points": 2302377,
+      "glitches": 257,
+      "affected": 15,
+      "written": 14
+    }
+  },
+  "6d0af712-197b-4801-9f7a-bf5b4a43641a": {
+    "status": "completed",
+    "name": "Spraying",
+    "timestamp": "2026-03-08T16:49:19.827Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "66e9a010-610c-4a56-b795-e1142cede82e": {
+    "status": "completed",
+    "name": "My Farm",
+    "timestamp": "2026-03-08T16:49:20.026Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 25,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "04762d2a-3e47-43d5-95b5-341e5a6a13a6": {
+    "status": "completed",
+    "name": "Ferndale Farming Co. ",
+    "timestamp": "2026-03-08T16:52:33.761Z",
+    "stats": {
+      "operations": 19,
+      "trails": 805,
+      "points": 8319635,
+      "glitches": 514,
+      "affected": 113,
+      "written": 113
+    }
+  },
+  "9cd3a503-958f-4391-bb60-21e2f09c6e3e": {
+    "status": "completed",
+    "name": "Tyack’s farm",
+    "timestamp": "2026-03-08T16:52:34.581Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "362ba425-12bd-4d28-b84e-0e938de161d8": {
+    "status": "completed",
+    "name": "iPhone map",
+    "timestamp": "2026-03-08T16:52:34.769Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1337fdda-4243-49a0-9211-edd5cf4ae507": {
+    "status": "completed",
+    "name": "SCF 1",
+    "timestamp": "2026-03-08T16:52:34.956Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "26bc4d0e-a17f-43e6-95df-679f219d1f4b": {
+    "status": "completed",
+    "name": "NewMAPTESTING",
+    "timestamp": "2026-03-08T16:52:35.529Z",
+    "stats": {
+      "operations": 5,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "735d7b69-f762-478c-b504-4680d6f656ca": {
+    "status": "completed",
+    "name": "Demo",
+    "timestamp": "2026-03-08T16:52:35.816Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5dda0791-52df-4984-8bb8-b4b4bf66d9bb": {
+    "status": "completed",
+    "name": "LAHARNA FARMS",
+    "timestamp": "2026-03-08T16:56:34.877Z",
+    "stats": {
+      "operations": 10,
+      "trails": 806,
+      "points": 6508129,
+      "glitches": 6494,
+      "affected": 375,
+      "written": 375
+    }
+  },
+  "db0127de-f049-4510-a61c-45b3190eb652": {
+    "status": "completed",
+    "name": "SRCV",
+    "timestamp": "2026-03-08T16:56:35.060Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 360,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "003d71c2-c64b-4ad7-a27c-ad76e04b5657": {
+    "status": "completed",
+    "name": "Glenora",
+    "timestamp": "2026-03-08T16:56:35.218Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2dd86e5b-0685-4a27-b50f-5cb926b4bfa4": {
+    "status": "completed",
+    "name": "Harvest weeds",
+    "timestamp": "2026-03-08T16:56:35.373Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b05cc2e8-3d2a-4176-8eb2-75b3ba1b9167": {
+    "status": "completed",
+    "name": "Betts",
+    "timestamp": "2026-03-08T16:56:35.532Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "52ad52fc-9dc6-40da-9f45-bb947fc60cf5": {
+    "status": "completed",
+    "name": "Testmap",
+    "timestamp": "2026-03-08T16:56:35.691Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a76c050f-fa29-41ea-8e55-2c726ea64cbf": {
+    "status": "completed",
+    "name": "Harvest24",
+    "timestamp": "2026-03-08T16:56:44.433Z",
+    "stats": {
+      "operations": 5,
+      "trails": 12,
+      "points": 549256,
+      "glitches": 84,
+      "affected": 4,
+      "written": 4
+    }
+  },
+  "9906aa3f-a8eb-41e6-b4b5-c7a53122f444": {
+    "status": "completed",
+    "name": "Annadale Farms",
+    "timestamp": "2026-03-08T16:56:44.705Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d3ea36a3-2b15-40c3-9c33-ff70e8385711": {
+    "status": "completed",
+    "name": "Harvest 2024",
+    "timestamp": "2026-03-08T16:56:44.911Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dc7984db-7c23-4a57-a80e-191a5baf8e02": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:56:45.097Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4de6f7b4-a7e0-473c-a775-fe5e92ac1738": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:56:45.359Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 23,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2f079d18-bdf3-40e1-852a-50ad7cfa18b7": {
+    "status": "completed",
+    "name": "Tomeos ",
+    "timestamp": "2026-03-08T16:56:45.538Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eb605641-8a55-4f45-b48f-5a501441ab41": {
+    "status": "completed",
+    "name": "Northern Wagara",
+    "timestamp": "2026-03-08T16:56:45.731Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3c9d2044-01df-4613-ba19-5d0b4784ed4e": {
+    "status": "completed",
+    "name": "Illtamura",
+    "timestamp": "2026-03-08T16:56:46.104Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 27,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "3bb7a5c8-963f-4ed6-894f-a1b79ff51c18": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T16:56:46.373Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cf9605de-bad6-4da5-a2ca-23945034a901": {
+    "status": "completed",
+    "name": "Barber Farms",
+    "timestamp": "2026-03-08T16:56:46.525Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b481a57f-5f20-4708-9be8-de3640dc20bb": {
+    "status": "completed",
+    "name": "Contracting",
+    "timestamp": "2026-03-08T16:56:46.677Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ab470705-ae8b-41d1-aede-cbc97030a542": {
+    "status": "completed",
+    "name": "Craigilea ",
+    "timestamp": "2026-03-08T16:56:46.833Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f0ba13f0-b7d6-4a2f-904a-7651cd143a72": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T16:56:46.990Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f3cee041-65ad-449f-85a5-b927ccc6433b": {
+    "status": "completed",
+    "name": "Home place ",
+    "timestamp": "2026-03-08T16:56:47.251Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0ffc1161-b0fe-41d1-b0b8-ca01b452c199": {
+    "status": "completed",
+    "name": "Maylands",
+    "timestamp": "2026-03-08T16:56:47.443Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d3415e58-19b4-40b2-ab14-dadd120f6237": {
+    "status": "completed",
+    "name": "Woodbine",
+    "timestamp": "2026-03-08T16:56:47.703Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f39071aa-03e7-4535-a8a4-7da311792928": {
+    "status": "completed",
+    "name": "Merrimu Driveway",
+    "timestamp": "2026-03-08T16:56:47.853Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "86323704-c140-428a-8470-b8c0392800b2": {
+    "status": "completed",
+    "name": "Connor Hawkins",
+    "timestamp": "2026-03-08T16:56:48.003Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1a0ad8c2-fc6d-4144-9937-bac154e27451": {
+    "status": "completed",
+    "name": "EDL",
+    "timestamp": "2026-03-08T16:56:48.157Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c58bcd15-4a74-40d5-bb46-9e1f25f44da5": {
+    "status": "completed",
+    "name": "One",
+    "timestamp": "2026-03-08T16:56:48.310Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0e4569d0-3673-42d6-9e70-33513fee2ea7": {
+    "status": "completed",
+    "name": "Waddington Park",
+    "timestamp": "2026-03-08T16:56:48.464Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cf1769f3-6c92-48fc-8164-1cddcf936e41": {
+    "status": "completed",
+    "name": "Heddles",
+    "timestamp": "2026-03-08T16:56:48.724Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 203,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "87908d8b-7315-4b59-a754-2ee91b5aeff8": {
+    "status": "completed",
+    "name": "Windouran ",
+    "timestamp": "2026-03-08T16:56:48.908Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "39f81527-5a90-411c-be94-e58ea2096241": {
+    "status": "completed",
+    "name": "farm ",
+    "timestamp": "2026-03-08T16:56:49.097Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a5767494-5f66-4f2c-bc8b-53166ee970ee": {
+    "status": "completed",
+    "name": "old farm",
+    "timestamp": "2026-03-08T16:56:49.282Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "908aa418-eb23-45a3-b6ab-3293a64ed699": {
+    "status": "completed",
+    "name": "Sandplain ",
+    "timestamp": "2026-03-08T16:56:49.461Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2e98593b-4a0e-4b98-9855-b241ccf95084": {
+    "status": "completed",
+    "name": "Prater Farm",
+    "timestamp": "2026-03-08T16:56:49.644Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "95446119-449b-4388-969f-0b906ed6db00": {
+    "status": "completed",
+    "name": "Crozier Rd",
+    "timestamp": "2026-03-08T16:56:52.573Z",
+    "stats": {
+      "operations": 3,
+      "trails": 10,
+      "points": 47555,
+      "glitches": 25,
+      "affected": 5,
+      "written": 5
+    }
+  },
+  "9be11620-d019-4f86-9ba0-836bf29465bb": {
+    "status": "completed",
+    "name": "Dandaloo",
+    "timestamp": "2026-03-08T16:56:52.944Z",
+    "stats": {
+      "operations": 3,
+      "trails": 1,
+      "points": 145,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3f6a4943-0f9d-404f-ab04-ea684f8f4ba3": {
+    "status": "completed",
+    "name": "Farm",
+    "timestamp": "2026-03-08T16:56:53.239Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "26833a06-d1b5-456e-9ea9-529c93755c77": {
+    "status": "completed",
+    "name": "Bookabie",
+    "timestamp": "2026-03-08T16:56:53.418Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f3acf0d7-50db-4b8c-a047-8d36f8ae5142": {
+    "status": "completed",
+    "name": "BIRKBY ",
+    "timestamp": "2026-03-08T16:56:53.600Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a472aa23-9b33-4fae-a123-37159002e804": {
+    "status": "completed",
+    "name": "Friends",
+    "timestamp": "2026-03-08T16:56:53.782Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0080edea-ce42-4661-bd0c-20adeaab1f06": {
+    "status": "completed",
+    "name": "Weemilah",
+    "timestamp": "2026-03-08T16:56:53.963Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c76a094b-f638-48e4-97b7-37f1ff519b17": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T16:56:54.162Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a62e0579-bc4b-4972-96ee-89ea354875e7": {
+    "status": "completed",
+    "name": "JC Dempster ",
+    "timestamp": "2026-03-08T16:56:54.345Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 17,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2c0cbac7-45d8-4b0f-8376-cfc63e612c41": {
+    "status": "completed",
+    "name": "Jumburra",
+    "timestamp": "2026-03-08T16:56:54.527Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2f946cda-7246-4da6-b4c8-e2a6e104426d": {
+    "status": "completed",
+    "name": "Nolin Family Farms",
+    "timestamp": "2026-03-08T16:56:54.785Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6c75f8f7-ec94-4e01-8ac4-942aa03a68de": {
+    "status": "completed",
+    "name": "Northside",
+    "timestamp": "2026-03-08T16:57:06.207Z",
+    "stats": {
+      "operations": 1,
+      "trails": 90,
+      "points": 883092,
+      "glitches": 81,
+      "affected": 13,
+      "written": 13
+    }
+  },
+  "3a2a459b-f6f8-44eb-96a4-4739036d6bf6": {
+    "status": "completed",
+    "name": "Warranella farm",
+    "timestamp": "2026-03-08T16:57:06.479Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c9cc6bd7-9339-450b-90e9-43dfe2dec2af": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T16:57:06.662Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7a9b32d7-1ef3-4585-8fc2-2a74434305d7": {
+    "status": "completed",
+    "name": "Courtabie",
+    "timestamp": "2026-03-08T16:57:06.854Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cc8c3404-2fcc-4e21-b072-b5886ab0d1e5": {
+    "status": "completed",
+    "name": "DEMO",
+    "timestamp": "2026-03-08T16:57:07.122Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f80c2c85-42c6-45c9-a044-56a77b7f53e4": {
+    "status": "completed",
+    "name": "Glenferrie",
+    "timestamp": "2026-03-08T16:57:07.352Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 11,
+      "glitches": 3,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "4c28a298-37b3-4408-ac83-c77e18389ce1": {
+    "status": "completed",
+    "name": "Mayfields ",
+    "timestamp": "2026-03-08T16:57:07.544Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e1c0fce1-e984-41ca-b7d7-34e68c5a96b8": {
+    "status": "completed",
+    "name": "Cadoux block ",
+    "timestamp": "2026-03-08T16:57:07.729Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "62a88b9d-4670-4464-ba6a-8ce24c553b04": {
+    "status": "completed",
+    "name": "Joes",
+    "timestamp": "2026-03-08T16:57:07.995Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9dbac4f6-2d71-4358-b77f-afba6a8094a7": {
+    "status": "completed",
+    "name": "Pines",
+    "timestamp": "2026-03-08T16:57:08.147Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0a855ca8-dd30-43e6-8a58-aed52267d6b3": {
+    "status": "completed",
+    "name": "Evofarm",
+    "timestamp": "2026-03-08T16:57:08.299Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cc9b6745-2c5b-4f0b-ac9f-79df8f3f0c75": {
+    "status": "completed",
+    "name": "PJ & MA Sutherland ",
+    "timestamp": "2026-03-08T16:57:08.458Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dfdfbbf9-7ef1-4527-902b-fe3568a48d61": {
+    "status": "completed",
+    "name": "Grms Corner",
+    "timestamp": "2026-03-08T16:57:08.627Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1e3d1dfc-d5ca-4d65-b0fa-1e64616ac64f": {
+    "status": "completed",
+    "name": "Avenway",
+    "timestamp": "2026-03-08T16:57:27.422Z",
+    "stats": {
+      "operations": 3,
+      "trails": 52,
+      "points": 1038918,
+      "glitches": 227,
+      "affected": 6,
+      "written": 6
+    }
+  },
+  "4f0b70da-ba11-408b-ac24-fdf311ff06e5": {
+    "status": "completed",
+    "name": "Ryan Skamp",
+    "timestamp": "2026-03-08T16:57:27.616Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "62f64b38-ec9e-44c8-b0a8-191a12cc3a87": {
+    "status": "completed",
+    "name": "Eric's Map",
+    "timestamp": "2026-03-08T16:57:27.879Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 300,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7caf1824-a1b0-4537-8a9e-744b671cbc16": {
+    "status": "completed",
+    "name": "Lake Brown",
+    "timestamp": "2026-03-08T16:57:28.156Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 5509,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5c98e686-a57a-435e-aa3b-640525abd3fd": {
+    "status": "completed",
+    "name": "Mannavale",
+    "timestamp": "2026-03-08T16:58:22.489Z",
+    "stats": {
+      "operations": 22,
+      "trails": 295,
+      "points": 2091378,
+      "glitches": 428,
+      "affected": 33,
+      "written": 33
+    }
+  },
+  "566a66a6-c7c6-4707-ae82-af62d325ef4c": {
+    "status": "completed",
+    "name": "Grace Farm",
+    "timestamp": "2026-03-08T16:58:22.849Z",
+    "stats": {
+      "operations": 3,
+      "trails": 2,
+      "points": 589,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "84d21c66-ec96-4e15-aee0-8c5d6553b1de": {
+    "status": "completed",
+    "name": "Pankee",
+    "timestamp": "2026-03-08T16:58:51.197Z",
+    "stats": {
+      "operations": 8,
+      "trails": 105,
+      "points": 1166950,
+      "glitches": 578,
+      "affected": 22,
+      "written": 22
+    }
+  },
+  "d1a9c408-8c5e-4c3d-bb4b-15e0c5765964": {
+    "status": "completed",
+    "name": "Wandella",
+    "timestamp": "2026-03-08T16:58:51.396Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eafd14b8-f662-4194-b63f-987fd994ae1d": {
+    "status": "completed",
+    "name": "Test Map",
+    "timestamp": "2026-03-08T16:58:51.585Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6f9d7f67-7158-4de8-8c3c-92b950704427": {
+    "status": "completed",
+    "name": "Farm helpers map",
+    "timestamp": "2026-03-08T16:58:51.790Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "42c3c6d1-1840-4125-bc25-01243c0e1880": {
+    "status": "completed",
+    "name": "Y2",
+    "timestamp": "2026-03-08T16:58:51.989Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ecc3be79-caa4-4068-936b-fae21e9447e3": {
+    "status": "completed",
+    "name": "Langdene",
+    "timestamp": "2026-03-08T16:58:52.184Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5b9640d5-75ed-42ce-8e16-57ef965e1de9": {
+    "status": "completed",
+    "name": "The Pines",
+    "timestamp": "2026-03-08T16:58:52.373Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1322cfeb-8b88-4ec9-ba04-b5e97d2a1867": {
+    "status": "completed",
+    "name": "finally",
+    "timestamp": "2026-03-08T16:58:52.568Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b52d5521-2254-49d1-84fe-d43d1d867c72": {
+    "status": "completed",
+    "name": "Monelle Ag",
+    "timestamp": "2026-03-08T16:58:52.765Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "54e44e50-017f-439d-b292-7076328cfa14": {
+    "status": "completed",
+    "name": "Kitto Ag",
+    "timestamp": "2026-03-08T16:58:52.957Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6425d050-4fb0-4da2-a46f-2f984a0f57de": {
+    "status": "completed",
+    "name": "St Albans",
+    "timestamp": "2026-03-08T16:58:53.153Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e2358737-6089-40c5-99a2-0bbed4c5250c": {
+    "status": "completed",
+    "name": "Wilgie Farm",
+    "timestamp": "2026-03-08T17:00:19.300Z",
+    "stats": {
+      "operations": 15,
+      "trails": 689,
+      "points": 6247356,
+      "glitches": 977,
+      "affected": 31,
+      "written": 31
+    }
+  },
+  "afaeba02-2014-4cd7-94d0-1bb603f496ff": {
+    "status": "completed",
+    "name": "asdfadsfasdf",
+    "timestamp": "2026-03-08T17:00:19.498Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "76cda97b-465a-4be5-bfbc-cf6dd325cc27": {
+    "status": "completed",
+    "name": "dsafadsfsadf",
+    "timestamp": "2026-03-08T17:00:19.690Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a6619d56-f9b4-438b-b29c-df4def8164c4": {
+    "status": "completed",
+    "name": "wooou",
+    "timestamp": "2026-03-08T17:00:19.882Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d9ec56ad-2d45-4942-958a-5a92cf0921c7": {
+    "status": "completed",
+    "name": "teseres",
+    "timestamp": "2026-03-08T17:00:20.073Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "300635d8-7766-4ec9-a23e-e7197b917b92": {
+    "status": "completed",
+    "name": "Luchos Test Map",
+    "timestamp": "2026-03-08T17:00:20.354Z",
+    "stats": {
+      "operations": 2,
+      "trails": 3,
+      "points": 20,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "79e59732-d983-4c77-85d7-9273a2b82b69": {
+    "status": "completed",
+    "name": "eefsdafasdf",
+    "timestamp": "2026-03-08T17:00:20.512Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fb80b010-31cc-43b5-9539-825cd68bc488": {
+    "status": "completed",
+    "name": "asdfasdf",
+    "timestamp": "2026-03-08T17:00:20.676Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dbf1dfde-c00a-4e41-83c6-d80298c6ea2d": {
+    "status": "completed",
+    "name": "sdafsadfasd",
+    "timestamp": "2026-03-08T17:00:20.838Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9d542a39-7b72-4d82-9d5e-13cf7ae30451": {
+    "status": "completed",
+    "name": "sadfasd",
+    "timestamp": "2026-03-08T17:00:21.004Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5907e6a1-a5fb-4bef-860c-fa66376e663c": {
+    "status": "completed",
+    "name": "asdfsdaf",
+    "timestamp": "2026-03-08T17:00:21.159Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c0e3ee46-9668-49c6-b88b-9e9048b15a45": {
+    "status": "completed",
+    "name": "Test Map",
+    "timestamp": "2026-03-08T17:00:21.363Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e78a2ce0-36eb-462a-bb5f-17b360f68b4f": {
+    "status": "completed",
+    "name": "Colenso",
+    "timestamp": "2026-03-08T17:00:21.640Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "db96ca88-755e-455e-a41d-36570f01edc0": {
+    "status": "completed",
+    "name": "St Albans",
+    "timestamp": "2026-03-08T17:00:21.800Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b4b0c8f8-8b86-4622-9d06-086fa3b5170c": {
+    "status": "completed",
+    "name": "Goldfields Road",
+    "timestamp": "2026-03-08T17:00:21.958Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a4261ed3-b0cc-47d5-9350-010a600c3ee5": {
+    "status": "completed",
+    "name": "Hesston-Westend",
+    "timestamp": "2026-03-08T17:00:22.124Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f4f55f0e-8340-4748-a0ca-eb9f7ffb3123": {
+    "status": "completed",
+    "name": "Hesston Farms",
+    "timestamp": "2026-03-08T17:01:07.288Z",
+    "stats": {
+      "operations": 3,
+      "trails": 67,
+      "points": 1736507,
+      "glitches": 59,
+      "affected": 12,
+      "written": 12
+    }
+  },
+  "dc62dd9d-b9e3-463a-ab7c-2c8963de0319": {
+    "status": "completed",
+    "name": "St Albans",
+    "timestamp": "2026-03-08T17:01:07.460Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f90f5c22-c9ad-4221-9528-ffa2c6249c85": {
+    "status": "completed",
+    "name": "TEST",
+    "timestamp": "2026-03-08T17:01:07.625Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "19b90e0f-cb36-4dc8-a277-385b7736663a": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T17:01:07.799Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "07a711f8-da50-4790-a430-7f09ff9624af": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T17:01:07.962Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b0d4b915-0421-426f-a484-bc3227208d4a": {
+    "status": "completed",
+    "name": "testehr",
+    "timestamp": "2026-03-08T17:01:08.126Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9a16f6d6-2efd-477c-8157-164278b2d5f0": {
+    "status": "completed",
+    "name": "eryteryher",
+    "timestamp": "2026-03-08T17:01:08.295Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8d4d9367-2140-4fea-8808-6cd766355f42": {
+    "status": "completed",
+    "name": "Harwood Farms WA",
+    "timestamp": "2026-03-08T17:03:53.934Z",
+    "stats": {
+      "operations": 35,
+      "trails": 953,
+      "points": 10294103,
+      "glitches": 2348,
+      "affected": 89,
+      "written": 89
+    }
+  },
+  "de421864-9bad-468a-9d6c-9a812c87922d": {
+    "status": "completed",
+    "name": "Boundary Test Map",
+    "timestamp": "2026-03-08T17:03:54.123Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e442c96e-0119-4125-ab1e-58bb644b04c8": {
+    "status": "completed",
+    "name": "Ema",
+    "timestamp": "2026-03-08T17:06:24.175Z",
+    "stats": {
+      "operations": 4,
+      "trails": 280,
+      "points": 3741632,
+      "glitches": 235,
+      "affected": 57,
+      "written": 57
+    }
+  },
+  "3c7ed12a-c135-40b0-a7f1-6500195de3d2": {
+    "status": "completed",
+    "name": "Jaloran Farsms",
+    "timestamp": "2026-03-08T17:06:24.471Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 450,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "72fe2db3-dee3-4d8e-9d8c-e5e2d4d2d22c": {
+    "status": "completed",
+    "name": "Woolareen",
+    "timestamp": "2026-03-08T17:06:24.629Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e34c06b3-b10b-4707-b524-3e1eeda700f7": {
+    "status": "completed",
+    "name": "2025 Spraying",
+    "timestamp": "2026-03-08T17:07:45.266Z",
+    "stats": {
+      "operations": 5,
+      "trails": 1066,
+      "points": 4859591,
+      "glitches": 659,
+      "affected": 82,
+      "written": 82
+    }
+  },
+  "e89fb9c5-ae66-4f1d-ae4e-185dabf7ad71": {
+    "status": "completed",
+    "name": "SKAN Farm ",
+    "timestamp": "2026-03-08T17:07:45.435Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 40,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a7b3f9a9-410a-4ea1-902d-c8d5c995de32": {
+    "status": "completed",
+    "name": "Karribee",
+    "timestamp": "2026-03-08T17:07:45.588Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ff52cdc6-8d91-4753-a269-34bade85c6e3": {
+    "status": "completed",
+    "name": "Katoomba",
+    "timestamp": "2026-03-08T17:07:45.742Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f8563d56-f523-4501-97a4-e640972fcf11": {
+    "status": "completed",
+    "name": "Woodstock",
+    "timestamp": "2026-03-08T17:07:46.020Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "125d6b8a-3577-459c-98fa-8bb377ba90d2": {
+    "status": "completed",
+    "name": "Willingvale",
+    "timestamp": "2026-03-08T17:07:46.206Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4fdced65-0541-4fbc-b1b8-2676d5a3e5bb": {
+    "status": "completed",
+    "name": "Binnu",
+    "timestamp": "2026-03-08T17:07:46.468Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2085f818-cfac-4067-8a46-ce30b2aa8a2c": {
+    "status": "completed",
+    "name": "Minjup",
+    "timestamp": "2026-03-08T17:07:46.620Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9adc29f7-ba78-450e-9dbd-a1d804af45a5": {
+    "status": "completed",
+    "name": "Rushworth",
+    "timestamp": "2026-03-08T17:07:46.883Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7359118a-4452-482a-9e69-09412e5ec96f": {
+    "status": "completed",
+    "name": "Currans",
+    "timestamp": "2026-03-08T17:07:47.071Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0f98f1fc-6ac3-41c2-80a1-77f6c1b85b47": {
+    "status": "completed",
+    "name": "Birds ",
+    "timestamp": "2026-03-08T17:07:47.336Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "84d73ad8-0e05-4f17-8388-5a03819f5d34": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T17:07:47.489Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6b0a1798-90f0-447f-bafc-0926ed0b19f6": {
+    "status": "completed",
+    "name": "Oakland",
+    "timestamp": "2026-03-08T17:07:47.638Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6f5ab0d9-cdef-486b-b2bb-39cb7e93292a": {
+    "status": "completed",
+    "name": "Oakland",
+    "timestamp": "2026-03-08T17:07:47.903Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "95b6fc34-85e4-4e15-8e1b-f78fdf72321a": {
+    "status": "completed",
+    "name": "Hurrell farm",
+    "timestamp": "2026-03-08T17:07:48.164Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e3cb11d0-a54e-4e27-8804-c4c4ef9e5d36": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T17:07:48.945Z",
+    "stats": {
+      "operations": 2,
+      "trails": 17,
+      "points": 24734,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9b561bb2-7d82-47d8-8d3d-6c481ecf4bcf": {
+    "status": "completed",
+    "name": "Wevenor Nth",
+    "timestamp": "2026-03-08T17:07:49.097Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e0e1f67a-a3b1-43a3-804b-a4978cda39e9": {
+    "status": "completed",
+    "name": "Matthews Cootra Trust",
+    "timestamp": "2026-03-08T17:08:05.411Z",
+    "stats": {
+      "operations": 2,
+      "trails": 173,
+      "points": 1784636,
+      "glitches": 4,
+      "affected": 3,
+      "written": 3
+    }
+  },
+  "76e61842-9843-4a71-8884-d1c73c0abd95": {
+    "status": "completed",
+    "name": "Home farm",
+    "timestamp": "2026-03-08T17:08:05.578Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "561fb519-2bc7-4f3f-a1b3-d1b1cc71a52a": {
+    "status": "completed",
+    "name": "Steeredale Farms",
+    "timestamp": "2026-03-08T17:08:05.856Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7a0e7c60-c9fb-4f51-9574-c8f29e0a602c": {
+    "status": "completed",
+    "name": "Brads Farm",
+    "timestamp": "2026-03-08T17:08:06.050Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b0f4dd18-7e28-4155-8fc0-b427b0df7244": {
+    "status": "completed",
+    "name": "Reseed",
+    "timestamp": "2026-03-08T17:08:06.431Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 546,
+      "glitches": 8,
+      "affected": 2,
+      "written": 2
+    }
+  },
+  "dc996d18-82a9-41c6-9637-c3c29465a1ab": {
+    "status": "completed",
+    "name": "Dump",
+    "timestamp": "2026-03-08T17:08:06.626Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "86593334-455c-449b-8a1c-85f43872a85a": {
+    "status": "completed",
+    "name": "fielder downs",
+    "timestamp": "2026-03-08T17:08:06.812Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fe0b250d-9f80-49b4-90e7-faa27cf34b8a": {
+    "status": "completed",
+    "name": "Dantori Farms",
+    "timestamp": "2026-03-08T17:08:07.005Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "86c53713-905f-4a95-8297-c17037b7f84f": {
+    "status": "completed",
+    "name": "HR Allen",
+    "timestamp": "2026-03-08T17:08:09.002Z",
+    "stats": {
+      "operations": 3,
+      "trails": 7,
+      "points": 25717,
+      "glitches": 41,
+      "affected": 5,
+      "written": 5
+    }
+  },
+  "2fd7727a-1e64-4490-81cb-bf4bc4722c09": {
+    "status": "completed",
+    "name": "Wexford",
+    "timestamp": "2026-03-08T17:08:09.462Z",
+    "stats": {
+      "operations": 4,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "606ebe99-f578-4e08-a433-81480118b9d8": {
+    "status": "completed",
+    "name": "Kelly ag ",
+    "timestamp": "2026-03-08T17:08:09.811Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 210,
+      "glitches": 9,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "2df4862c-d6f4-4388-ac0b-8c6d02d40212": {
+    "status": "completed",
+    "name": "BPC FARMS",
+    "timestamp": "2026-03-08T17:08:13.842Z",
+    "stats": {
+      "operations": 1,
+      "trails": 69,
+      "points": 179546,
+      "glitches": 41,
+      "affected": 7,
+      "written": 7
+    }
+  },
+  "61b3932a-972f-46be-a628-f62fc4c766be": {
+    "status": "completed",
+    "name": "Jims",
+    "timestamp": "2026-03-08T17:08:14.005Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7093c574-0033-4d72-8128-c542a665199d": {
+    "status": "completed",
+    "name": "Home",
+    "timestamp": "2026-03-08T17:08:14.159Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9cc4cca8-6240-4d68-b994-372fccf00b69": {
+    "status": "completed",
+    "name": "Menzals",
+    "timestamp": "2026-03-08T17:08:14.382Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5e0c7d9c-5870-4551-b05d-745ae05275ab": {
+    "status": "completed",
+    "name": "Okeh",
+    "timestamp": "2026-03-08T17:08:14.652Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "223effed-1992-4a15-bb25-7e95d81d3567": {
+    "status": "completed",
+    "name": "Lochleigh",
+    "timestamp": "2026-03-08T17:08:14.836Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8d79a50c-62c7-4c73-a9ed-1ee7e532c0b3": {
+    "status": "completed",
+    "name": "M&E Mincherton ",
+    "timestamp": "2026-03-08T17:08:34.309Z",
+    "stats": {
+      "operations": 7,
+      "trails": 109,
+      "points": 2563788,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b6fbd78d-758c-445c-bcd6-304db1d1cac7": {
+    "status": "completed",
+    "name": "Oakleigh Ag",
+    "timestamp": "2026-03-08T17:08:36.044Z",
+    "stats": {
+      "operations": 3,
+      "trails": 40,
+      "points": 147872,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4d0ffa6c-de2f-472a-9280-c81a7068a033": {
+    "status": "completed",
+    "name": "Mickeys ",
+    "timestamp": "2026-03-08T17:08:36.624Z",
+    "stats": {
+      "operations": 2,
+      "trails": 4,
+      "points": 647,
+      "glitches": 16,
+      "affected": 3,
+      "written": 3
+    }
+  },
+  "790288cb-9038-47a3-9ea6-bf90174916dc": {
+    "status": "completed",
+    "name": "M&E Minchertyon",
+    "timestamp": "2026-03-08T17:08:36.775Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d584c4e0-c36b-4592-8699-3dee588739dd": {
+    "status": "completed",
+    "name": "Oakleigh Ag",
+    "timestamp": "2026-03-08T17:08:37.035Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b7addae4-2bfe-439c-b83e-7dbc59c3a052": {
+    "status": "completed",
+    "name": "Locklandpark ",
+    "timestamp": "2026-03-08T17:08:37.217Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "71d646ac-3f83-4da4-a67e-a6ed177fb155": {
+    "status": "completed",
+    "name": "Shire of Kulin",
+    "timestamp": "2026-03-08T17:08:37.408Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e2830c90-a13a-467f-b68d-57389d6cb61e": {
+    "status": "completed",
+    "name": "Daliak Estate",
+    "timestamp": "2026-03-08T17:10:25.881Z",
+    "stats": {
+      "operations": 31,
+      "trails": 301,
+      "points": 3732411,
+      "glitches": 207,
+      "affected": 42,
+      "written": 42
+    }
+  },
+  "7f65cfd0-91c9-4bc9-9216-8b5e8ce332e7": {
+    "status": "completed",
+    "name": "Chester’s ",
+    "timestamp": "2026-03-08T17:11:05.644Z",
+    "stats": {
+      "operations": 14,
+      "trails": 75,
+      "points": 1641220,
+      "glitches": 196,
+      "affected": 15,
+      "written": 15
+    }
+  },
+  "87f7fbcc-b14a-4e26-9e16-258907a0d6f3": {
+    "status": "completed",
+    "name": "Snodgrass ",
+    "timestamp": "2026-03-08T17:11:05.819Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ec0f53db-bfe1-41cf-9b01-f5fd2b8aefea": {
+    "status": "completed",
+    "name": "Yellowwood",
+    "timestamp": "2026-03-08T17:11:05.993Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a26b9929-ed51-496b-9bf3-3f35e1eb835c": {
+    "status": "completed",
+    "name": "Eureka",
+    "timestamp": "2026-03-08T17:11:06.159Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dfe27cba-a073-42d8-971b-12f08b31ca3f": {
+    "status": "completed",
+    "name": "Legume Crests",
+    "timestamp": "2026-03-08T17:12:18.777Z",
+    "stats": {
+      "operations": 19,
+      "trails": 428,
+      "points": 3167453,
+      "glitches": 228,
+      "affected": 49,
+      "written": 49
+    }
+  },
+  "0a71c6fa-e260-4e41-8c4d-de51dc484e48": {
+    "status": "completed",
+    "name": "Tom's Farm",
+    "timestamp": "2026-03-08T17:12:20.644Z",
+    "stats": {
+      "operations": 3,
+      "trails": 11,
+      "points": 16337,
+      "glitches": 53,
+      "affected": 6,
+      "written": 6
+    }
+  },
+  "bb2d1e7a-12fd-4c3e-b87b-9c8772294eb2": {
+    "status": "completed",
+    "name": "Moroney Pty Ltd",
+    "timestamp": "2026-03-08T17:12:20.844Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0cb15671-e1cc-472d-9ad3-11ec5a431a84": {
+    "status": "completed",
+    "name": "Monavale ",
+    "timestamp": "2026-03-08T17:12:21.044Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 22,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8c8f4800-e732-4af7-9db6-65ec37e363f0": {
+    "status": "completed",
+    "name": "Hollands farm",
+    "timestamp": "2026-03-08T17:12:21.439Z",
+    "stats": {
+      "operations": 3,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a248c1df-9906-4a14-8418-0a1a28826fef": {
+    "status": "completed",
+    "name": "Key Dam",
+    "timestamp": "2026-03-08T17:12:21.634Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e6065d19-7e30-470b-8aa9-41245802879e": {
+    "status": "completed",
+    "name": "Abban farms",
+    "timestamp": "2026-03-08T17:12:21.835Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c156b3a9-9695-4905-8475-3eb2fdf7a1af": {
+    "status": "completed",
+    "name": "Kainton",
+    "timestamp": "2026-03-08T17:12:22.110Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "903dcdd6-790f-49cb-8542-7a52c31c9a74": {
+    "status": "completed",
+    "name": "Tolarno Farm",
+    "timestamp": "2026-03-08T17:12:34.547Z",
+    "stats": {
+      "operations": 5,
+      "trails": 229,
+      "points": 963073,
+      "glitches": 40,
+      "affected": 14,
+      "written": 14
+    }
+  },
+  "05aea14c-5ab9-42de-83bc-b1b95ccc2099": {
+    "status": "completed",
+    "name": "Fidge",
+    "timestamp": "2026-03-08T17:12:34.831Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5b8147a8-9321-4600-841a-8a73403870df": {
+    "status": "completed",
+    "name": "Inverway",
+    "timestamp": "2026-03-08T17:12:34.992Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "196b4efa-8be3-44ef-96fe-40bb7efd62a6": {
+    "status": "completed",
+    "name": "Shire of Kulin",
+    "timestamp": "2026-03-08T17:12:35.262Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e443212e-aa67-480a-98f3-d084e7b7d733": {
+    "status": "completed",
+    "name": "Brookong ",
+    "timestamp": "2026-03-08T17:12:35.449Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "defd584f-5460-4076-81bb-f33a2f873d86": {
+    "status": "completed",
+    "name": "Treedale",
+    "timestamp": "2026-03-08T17:12:55.416Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2ddcbd57-f5ed-4560-926d-0800a9350c66": {
+    "status": "completed",
+    "name": "Farm 1",
+    "timestamp": "2026-03-08T17:12:55.606Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9f69dc75-7309-4824-92c4-6b9042ae0523": {
+    "status": "completed",
+    "name": "Lane",
+    "timestamp": "2026-03-08T17:12:55.878Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e90c8e34-2d65-4864-8a45-c8654adb5b07": {
+    "status": "completed",
+    "name": "Snowtown",
+    "timestamp": "2026-03-08T17:12:56.066Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "61072ec5-b848-4e44-b683-9dc8434f8cfb": {
+    "status": "completed",
+    "name": "Muribee",
+    "timestamp": "2026-03-08T17:12:56.252Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 140,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "60c57cc5-a30a-4498-9eb8-55974dcc2fb0": {
+    "status": "completed",
+    "name": "AR Brown & Co",
+    "timestamp": "2026-03-08T17:15:36.279Z",
+    "stats": {
+      "operations": 14,
+      "trails": 532,
+      "points": 2207663,
+      "glitches": 114,
+      "affected": 48,
+      "written": 48
+    }
+  },
+  "af3a9053-8045-448d-bb15-169ffc8e29a0": {
+    "status": "completed",
+    "name": "Kitschke Ag",
+    "timestamp": "2026-03-08T17:19:32.533Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 129,
+      "glitches": 8,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "c5a6b2c0-2107-459b-a023-58950df21657": {
+    "status": "completed",
+    "name": "South Bunyinbar",
+    "timestamp": "2026-03-08T17:19:32.708Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e3b42b1e-1097-4302-98ee-6a78410f4538": {
+    "status": "completed",
+    "name": "Langwarnor",
+    "timestamp": "2026-03-08T17:19:35.432Z",
+    "stats": {
+      "operations": 3,
+      "trails": 80,
+      "points": 344186,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7b0529aa-b585-4a09-bccb-b64bdeb7f98b": {
+    "status": "completed",
+    "name": "KY PASTORAL",
+    "timestamp": "2026-03-08T17:19:35.688Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 17,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f674634b-2f89-470e-9542-3835d1e795b8": {
+    "status": "completed",
+    "name": "Kia Ora",
+    "timestamp": "2026-03-08T17:19:35.856Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "88fcfae3-0379-44b3-83fa-8ed76e3af276": {
+    "status": "completed",
+    "name": "Kurtis",
+    "timestamp": "2026-03-08T17:19:36.032Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "93ff8b83-a61d-49a3-a3e2-113152bc86b5": {
+    "status": "completed",
+    "name": "Oulnina",
+    "timestamp": "2026-03-08T17:19:36.208Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ad9e28b8-44a4-48d8-936c-c732abe79632": {
+    "status": "completed",
+    "name": "Kiranda",
+    "timestamp": "2026-03-08T17:19:37.283Z",
+    "stats": {
+      "operations": 1,
+      "trails": 6,
+      "points": 8118,
+      "glitches": 13,
+      "affected": 4,
+      "written": 4
+    }
+  },
+  "90662149-965e-431a-8a4d-296b930392c4": {
+    "status": "completed",
+    "name": "Bolinda",
+    "timestamp": "2026-03-08T17:19:37.532Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b70bef68-e456-4cb7-bd23-c6e7677a359f": {
+    "status": "completed",
+    "name": "Air strip",
+    "timestamp": "2026-03-08T17:19:37.695Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1cf2de94-9060-4029-888d-49425f2e4212": {
+    "status": "completed",
+    "name": "Westana Farms",
+    "timestamp": "2026-03-08T17:19:38.133Z",
+    "stats": {
+      "operations": 3,
+      "trails": 1,
+      "points": 477,
+      "glitches": 1,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "952fd068-eaa9-4519-9392-8efc93a87610": {
+    "status": "completed",
+    "name": "Boyle Farms",
+    "timestamp": "2026-03-08T17:19:38.292Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e99d851c-e073-4458-8284-1fd5d2526ea0": {
+    "status": "completed",
+    "name": ".I.",
+    "timestamp": "2026-03-08T17:19:38.536Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7084d03b-7cde-4745-b860-b7ad1715b11a": {
+    "status": "completed",
+    "name": "Burlong Farm",
+    "timestamp": "2026-03-08T17:19:38.702Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e36de814-d34f-4b8f-8193-5aa98e246677": {
+    "status": "completed",
+    "name": "Stepnell Farms",
+    "timestamp": "2026-03-08T17:19:38.946Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f838a06d-9884-4d36-8251-e7a564c3d516": {
+    "status": "completed",
+    "name": "Ballard Hay",
+    "timestamp": "2026-03-08T17:19:39.106Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "92273be1-ebe9-4b92-9e32-e388d9f1e38a": {
+    "status": "completed",
+    "name": "Adam Bush",
+    "timestamp": "2026-03-08T17:19:39.270Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "df25639b-f54b-4960-898e-f8d975ed9f0c": {
+    "status": "completed",
+    "name": "Symonds",
+    "timestamp": "2026-03-08T17:16:01.339Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f287a1fd-baf4-4e1e-92c8-693219ef2054": {
+    "status": "completed",
+    "name": "finally",
+    "timestamp": "2026-03-08T17:16:01.497Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e2ebb715-5afd-4932-b0ee-8367ec6405b3": {
+    "status": "completed",
+    "name": "Ackworth / Oakhurst",
+    "timestamp": "2026-03-08T17:16:02.679Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6129,
+      "glitches": 36,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "3c0eb9b9-cc74-46f1-93de-0776517949dc": {
+    "status": "completed",
+    "name": "Wondaree",
+    "timestamp": "2026-03-08T17:16:02.943Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "099e6898-83aa-47c1-becd-11f2ea3fcb86": {
+    "status": "completed",
+    "name": "100 acre",
+    "timestamp": "2026-03-08T17:16:03.176Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 76,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e4a5070e-0835-4f28-a6d0-3e1d452e02ba": {
+    "status": "completed",
+    "name": "Trees",
+    "timestamp": "2026-03-08T17:16:03.403Z",
+    "stats": {
+      "operations": 2,
+      "trails": 2,
+      "points": 130,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b39486a6-3760-4111-95a9-3da47d17b62b": {
+    "status": "completed",
+    "name": "tree killing in cows paddock",
+    "timestamp": "2026-03-08T17:16:03.640Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1d8db2bd-b385-42bd-bc72-c7ba8ecea7c1": {
+    "status": "completed",
+    "name": "Fencing map",
+    "timestamp": "2026-03-08T17:16:03.793Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8054c8a0-c251-433d-a6e5-f97c2740bd9d": {
+    "status": "completed",
+    "name": "Fencing ",
+    "timestamp": "2026-03-08T17:16:03.951Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1437e59b-b5e9-4a06-a666-ca8caf592218": {
+    "status": "completed",
+    "name": "fds",
+    "timestamp": "2026-03-08T17:16:04.108Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8de0bcf5-ad7e-45a5-85a5-8154f4f0158d": {
+    "status": "completed",
+    "name": "1",
+    "timestamp": "2026-03-08T17:16:04.264Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "faa78201-cb1e-490c-ad0c-c3c06f0f4474": {
+    "status": "completed",
+    "name": "Nth Rail",
+    "timestamp": "2026-03-08T17:16:04.492Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "cf3592b7-d0a4-49f5-b6fc-eac4a5dcea1e": {
+    "status": "completed",
+    "name": "Nth Rail",
+    "timestamp": "2026-03-08T17:16:04.652Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d4e97022-d61d-4511-ba6f-5fd23eaedc3c": {
+    "status": "completed",
+    "name": "testing",
+    "timestamp": "2026-03-08T17:16:04.807Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1a978b3e-103b-4168-9e6d-f617f865dc24": {
+    "status": "completed",
+    "name": "testing",
+    "timestamp": "2026-03-08T17:16:04.962Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "97058fee-67b4-4cd5-a426-da5ce9cf6d83": {
+    "status": "completed",
+    "name": "dsada",
+    "timestamp": "2026-03-08T17:16:05.120Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f30be3ec-8e35-43ed-a3c2-6b5cf30b7bb4": {
+    "status": "completed",
+    "name": "das",
+    "timestamp": "2026-03-08T17:16:05.359Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a6ee3ab8-9788-44b9-81e2-c6c183bd110f": {
+    "status": "completed",
+    "name": "fsd",
+    "timestamp": "2026-03-08T17:16:05.511Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f80a65dd-717d-42fe-b9cb-3216a9b105b9": {
+    "status": "completed",
+    "name": "das",
+    "timestamp": "2026-03-08T17:16:05.667Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c6193386-721f-4b15-ad45-e81c5f8517bf": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T17:16:05.819Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "59c4cb99-e289-4942-9ba7-44b8a2b5a75b": {
+    "status": "completed",
+    "name": "das",
+    "timestamp": "2026-03-08T17:16:05.980Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a6206d2d-a9f2-4a69-ae59-ddd5c2a1cf3c": {
+    "status": "completed",
+    "name": "fsdfs",
+    "timestamp": "2026-03-08T17:16:06.134Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "fe1e9b92-b0b4-4705-8d2e-a6b841c596b4": {
+    "status": "completed",
+    "name": "dsadas",
+    "timestamp": "2026-03-08T17:16:06.291Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "36fc2321-3025-4011-8d05-1cd794b85a5f": {
+    "status": "completed",
+    "name": "dfsdfs",
+    "timestamp": "2026-03-08T17:16:06.447Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "121d9f6f-6c1f-41b8-a7a1-99d41083e1be": {
+    "status": "completed",
+    "name": "asdf",
+    "timestamp": "2026-03-08T17:16:06.601Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "102a79eb-d96a-4170-b09c-ea81303a5c86": {
+    "status": "completed",
+    "name": "dsafsdf",
+    "timestamp": "2026-03-08T17:16:06.752Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9eb1857d-089c-478c-899d-d964ede7c97b": {
+    "status": "completed",
+    "name": "asdfsda",
+    "timestamp": "2026-03-08T17:16:06.903Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b618d046-3734-410d-a5a1-8076de22bf80": {
+    "status": "completed",
+    "name": "dsafafsd",
+    "timestamp": "2026-03-08T17:16:07.140Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "35287f03-5370-4773-9782-88e1c65b74d1": {
+    "status": "completed",
+    "name": "Waralakin ",
+    "timestamp": "2026-03-08T17:16:07.294Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6ca13f26-1a94-43ff-8045-2ea9cc244be1": {
+    "status": "completed",
+    "name": "asdfasd",
+    "timestamp": "2026-03-08T17:16:07.527Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "dcecf7c0-2d89-4e53-a3e9-b41704ceffc2": {
+    "status": "completed",
+    "name": "sadf",
+    "timestamp": "2026-03-08T17:16:07.690Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "db5219b2-a258-4d5d-81cb-ea9d9c45fbbd": {
+    "status": "completed",
+    "name": "sadfsdaf",
+    "timestamp": "2026-03-08T17:16:08.012Z",
+    "stats": {
+      "operations": 3,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0ccff6f6-8bc0-4b24-9477-9c687e4475ec": {
+    "status": "completed",
+    "name": "Blah",
+    "timestamp": "2026-03-08T17:16:08.253Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4fbfede1-6a38-4a19-8251-1542bd8afc34": {
+    "status": "completed",
+    "name": "dsa",
+    "timestamp": "2026-03-08T17:16:08.411Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1cf7bf2b-4d96-4fda-a141-23a817e1ac2d": {
+    "status": "completed",
+    "name": "Test Farm",
+    "timestamp": "2026-03-08T17:16:08.564Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "89be000f-55e5-4594-aa64-bee5c9300383": {
+    "status": "completed",
+    "name": "dsa",
+    "timestamp": "2026-03-08T17:16:08.719Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9bcef3e5-3538-4311-ada6-2311b5e1908e": {
+    "status": "completed",
+    "name": "sdafa",
+    "timestamp": "2026-03-08T17:16:08.874Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5e28ea68-3c81-4cd3-94aa-c4a885b1fdbb": {
+    "status": "completed",
+    "name": "asdfsa",
+    "timestamp": "2026-03-08T17:16:09.035Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "31ef8965-318d-409b-9560-05356308bb43": {
+    "status": "completed",
+    "name": "asdfasdf",
+    "timestamp": "2026-03-08T17:16:09.190Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1e19b924-7325-415f-9a6c-4c1b18f7ec6e": {
+    "status": "completed",
+    "name": "asdfasd",
+    "timestamp": "2026-03-08T17:16:09.348Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a0e941fe-2211-448b-9274-adddb540de82": {
+    "status": "completed",
+    "name": "sadfasdf",
+    "timestamp": "2026-03-08T17:16:09.500Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bd6fa096-3f4b-4708-bbd0-127bbfbf3811": {
+    "status": "completed",
+    "name": "asdfas",
+    "timestamp": "2026-03-08T17:16:09.653Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "332e4c1b-dad2-49a4-9455-1c2950e697a1": {
+    "status": "completed",
+    "name": "sdafsad",
+    "timestamp": "2026-03-08T17:16:09.807Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "10dd19c6-40f1-4585-bb32-acd06b1beaa3": {
+    "status": "completed",
+    "name": "ssdasdasdsadwwda",
+    "timestamp": "2026-03-08T17:16:09.972Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7c8cb275-f779-47ed-b22c-125a9da22ac9": {
+    "status": "completed",
+    "name": "Selkirk",
+    "timestamp": "2026-03-08T17:16:10.131Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7613f135-7ce5-41f4-a7ad-a4e5110b4c83": {
+    "status": "completed",
+    "name": "NFB AG",
+    "timestamp": "2026-03-08T17:16:23.040Z",
+    "stats": {
+      "operations": 4,
+      "trails": 95,
+      "points": 905997,
+      "glitches": 52,
+      "affected": 6,
+      "written": 6
+    }
+  },
+  "25eb17d0-faa9-4f98-8e6f-f7727a9750dc": {
+    "status": "completed",
+    "name": "Ehejej",
+    "timestamp": "2026-03-08T17:16:23.211Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5922325d-001c-4a16-927c-de333d628598": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T17:16:23.393Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "55248538-cf80-4649-9cd3-9a8ad09b77fc": {
+    "status": "completed",
+    "name": "dsadaw",
+    "timestamp": "2026-03-08T17:16:23.567Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "26b251a7-71d5-4809-9160-ae950031583a": {
+    "status": "completed",
+    "name": "Ggj",
+    "timestamp": "2026-03-08T17:16:23.733Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 12,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "41b2d181-a9b4-4a1d-a5be-08a03b626bda": {
+    "status": "completed",
+    "name": "asr",
+    "timestamp": "2026-03-08T17:16:23.893Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5ab780cd-4876-45a8-8e12-1015a488c5ae": {
+    "status": "completed",
+    "name": "Lime farm",
+    "timestamp": "2026-03-08T17:16:24.061Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "db7ecd96-05e8-4f95-854b-1a470821c7cb": {
+    "status": "completed",
+    "name": "dsa",
+    "timestamp": "2026-03-08T17:16:24.225Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5dcdc508-3c94-482d-a302-23add059a1e3": {
+    "status": "completed",
+    "name": "Fallow ",
+    "timestamp": "2026-03-08T17:16:24.490Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 343,
+      "glitches": 30,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "b1110645-3c82-487e-8852-9a78088c9455": {
+    "status": "completed",
+    "name": "Minora",
+    "timestamp": "2026-03-08T17:16:24.652Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e59ec95d-cc1a-4728-b08e-1a6ca834867a": {
+    "status": "completed",
+    "name": "Ange",
+    "timestamp": "2026-03-08T17:16:24.814Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f3a1686e-2b04-49ce-bbc3-a4361fdb67d0": {
+    "status": "completed",
+    "name": "Dowerin ",
+    "timestamp": "2026-03-08T17:16:24.975Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bbf44d1e-a7aa-4b05-a7f2-6a00afbd5e9b": {
+    "status": "completed",
+    "name": "AgriArend Solutions",
+    "timestamp": "2026-03-08T17:16:25.142Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "d373c815-7090-4d16-babe-1ed8e6cd7a92": {
+    "status": "completed",
+    "name": "Jaloran Farms",
+    "timestamp": "2026-03-08T17:16:26.094Z",
+    "stats": {
+      "operations": 2,
+      "trails": 3,
+      "points": 56470,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "720d0188-3928-4a21-9397-6a8789df8ad7": {
+    "status": "completed",
+    "name": "Jaloran ",
+    "timestamp": "2026-03-08T17:16:26.263Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1434e477-9fd9-4b7f-b467-21734ac6c525": {
+    "status": "completed",
+    "name": "Aaron 1",
+    "timestamp": "2026-03-08T17:16:26.423Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1ffc477e-f805-4d12-891b-3408a60bf4e3": {
+    "status": "completed",
+    "name": "Test",
+    "timestamp": "2026-03-08T17:16:26.580Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "14a5946f-1c09-44cd-853a-f40268d53afd": {
+    "status": "completed",
+    "name": "B4 Pinks",
+    "timestamp": "2026-03-08T17:16:54.896Z",
+    "stats": {
+      "operations": 26,
+      "trails": 208,
+      "points": 803160,
+      "glitches": 142,
+      "affected": 54,
+      "written": 54
+    }
+  },
+  "0e6a43d2-ba2e-4365-876c-82a72963a463": {
+    "status": "completed",
+    "name": "Mia",
+    "timestamp": "2026-03-08T17:16:55.063Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8340d670-ccd2-495e-8c11-2ddf9927833a": {
+    "status": "completed",
+    "name": "Mia",
+    "timestamp": "2026-03-08T17:16:55.228Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "918a0c5d-ba4e-4eb8-a576-bd89440fc3fe": {
+    "status": "completed",
+    "name": "Wariin",
+    "timestamp": "2026-03-08T17:16:55.396Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a12b0412-5632-41ed-b20e-b7926a7e9be7": {
+    "status": "completed",
+    "name": "Anameka Home",
+    "timestamp": "2026-03-08T17:18:39.837Z",
+    "stats": {
+      "operations": 4,
+      "trails": 217,
+      "points": 3908516,
+      "glitches": 470,
+      "affected": 44,
+      "written": 44
+    }
+  },
+  "3d9b2e89-961b-4bb3-8e1d-21f185bc1987": {
+    "status": "completed",
+    "name": "Vogt farms ",
+    "timestamp": "2026-03-08T17:18:40.001Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "13df3eb2-66a8-441c-8b6b-3eb4354c8039": {
+    "status": "completed",
+    "name": "Rams",
+    "timestamp": "2026-03-08T17:18:40.158Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f8884bb6-e07f-44bd-bc06-bb38db6d8c84": {
+    "status": "completed",
+    "name": "Westmere",
+    "timestamp": "2026-03-08T17:18:40.318Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "464eda97-bcdd-4dd0-bd4d-d78857d390ec": {
+    "status": "completed",
+    "name": "Bin",
+    "timestamp": "2026-03-08T17:18:40.477Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "295bd7a8-1773-4a22-b10f-3f2a05b7bca2": {
+    "status": "completed",
+    "name": "Mid West",
+    "timestamp": "2026-03-08T17:18:40.634Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ac2c0a36-35fa-4a41-a472-81982da7516b": {
+    "status": "completed",
+    "name": "A",
+    "timestamp": "2026-03-08T17:18:40.796Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b7972037-ad5b-4908-9dae-59b50805c55c": {
+    "status": "completed",
+    "name": "Westmere",
+    "timestamp": "2026-03-08T17:18:40.953Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "31ba6b2a-df45-49df-95de-8face68ced9d": {
+    "status": "completed",
+    "name": "North field operations",
+    "timestamp": "2026-03-08T17:18:41.112Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "56c76979-0554-4777-830a-cad841163d2c": {
+    "status": "completed",
+    "name": "Elouera farms",
+    "timestamp": "2026-03-08T17:18:41.283Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1e384dce-62f2-499c-ae44-2f7eefc519ae": {
+    "status": "completed",
+    "name": "Cormint Road ",
+    "timestamp": "2026-03-08T17:18:41.447Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a2b50b16-78da-440e-a731-5ab87bab933a": {
+    "status": "completed",
+    "name": "Avon",
+    "timestamp": "2026-03-08T17:18:41.612Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 75,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "f16e4e64-76ba-4179-9b20-bb0769a38f48": {
+    "status": "completed",
+    "name": "Urea no 11,12,22,20",
+    "timestamp": "2026-03-08T17:18:41.782Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 287,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a147bc5d-1c93-4b34-9404-88d794c0b735": {
+    "status": "completed",
+    "name": "Urea ",
+    "timestamp": "2026-03-08T17:18:41.948Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e38a4e8c-f9c6-47f5-9c50-69e73c045f8a": {
+    "status": "completed",
+    "name": "Urea",
+    "timestamp": "2026-03-08T17:18:42.109Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "1c069666-1ee2-4e47-b03d-1a30acdbac9d": {
+    "status": "completed",
+    "name": "AgSKAN Farms",
+    "timestamp": "2026-03-08T17:18:42.352Z",
+    "stats": {
+      "operations": 2,
+      "trails": 1,
+      "points": 191,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "793803f8-7023-4876-b007-c492f22eece8": {
+    "status": "completed",
+    "name": "Romalee",
+    "timestamp": "2026-03-08T17:18:42.512Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a10716fd-44b7-491a-ba21-40fdd57e109b": {
+    "status": "completed",
+    "name": "Romalee",
+    "timestamp": "2026-03-08T17:18:42.672Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "89a4abe5-0e7f-42dc-a664-c46a55ce8c5a": {
+    "status": "completed",
+    "name": "Cg 1",
+    "timestamp": "2026-03-08T17:18:42.831Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "27322ae0-de37-4395-a356-71fe0101d42b": {
+    "status": "completed",
+    "name": " Cg2",
+    "timestamp": "2026-03-08T17:18:43.065Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "a3345ac0-da6f-4763-bba5-f7f55817c466": {
+    "status": "completed",
+    "name": "Ch3",
+    "timestamp": "2026-03-08T17:18:43.224Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e44d932c-22f4-4770-b133-198021cd0eb4": {
+    "status": "completed",
+    "name": "condygold farms",
+    "timestamp": "2026-03-08T17:18:43.384Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5ca624c5-d232-490f-9352-7ab3817838ad": {
+    "status": "completed",
+    "name": "L Shape",
+    "timestamp": "2026-03-08T17:18:43.545Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b4567709-c955-4fa2-be1b-10417e54d7dc": {
+    "status": "completed",
+    "name": "sfsadfas",
+    "timestamp": "2026-03-08T17:18:43.706Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "daeb3ef5-4baf-4f86-b7c9-5c664e12f9b3": {
+    "status": "completed",
+    "name": "Farm #1",
+    "timestamp": "2026-03-08T17:18:43.876Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3d09cb35-815b-48a6-88d9-0d57f64b4d9e": {
+    "status": "completed",
+    "name": "WRE",
+    "timestamp": "2026-03-08T17:18:44.142Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "b2429bd7-e5df-49bc-9133-787871560e40": {
+    "status": "completed",
+    "name": "Fire breaks",
+    "timestamp": "2026-03-08T17:18:44.566Z",
+    "stats": {
+      "operations": 1,
+      "trails": 4,
+      "points": 286,
+      "glitches": 39,
+      "affected": 3,
+      "written": 3
+    }
+  },
+  "7a39f386-8f56-467c-a932-4bbc19162e40": {
+    "status": "completed",
+    "name": "Kwongan",
+    "timestamp": "2026-03-08T17:18:44.732Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "36848aa4-7446-40fc-ae3f-7b125290bdc4": {
+    "status": "completed",
+    "name": "Big mill",
+    "timestamp": "2026-03-08T17:18:44.889Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "61e11650-583c-44e5-91aa-c91a23a5a5c2": {
+    "status": "completed",
+    "name": "Tank on the hill",
+    "timestamp": "2026-03-08T17:18:45.047Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "e80b08f8-9047-4a18-ab86-64ed42bb9380": {
+    "status": "completed",
+    "name": "Apple Test Map",
+    "timestamp": "2026-03-08T17:18:45.203Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "6c8565f2-9a56-41b5-8592-9f6a5960293c": {
+    "status": "completed",
+    "name": "New map",
+    "timestamp": "2026-03-08T17:18:45.362Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0109aba8-2c0f-44f4-a6de-883e6f64e867": {
+    "status": "completed",
+    "name": "Priory park ",
+    "timestamp": "2026-03-08T17:18:45.518Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "471484bb-7d0d-43d0-9a88-1f8d7a7cd726": {
+    "status": "completed",
+    "name": "Priory park",
+    "timestamp": "2026-03-08T17:18:57.050Z",
+    "stats": {
+      "operations": 2,
+      "trails": 55,
+      "points": 1148185,
+      "glitches": 10,
+      "affected": 4,
+      "written": 4
+    }
+  },
+  "9dc68be7-a633-4635-909b-318e7b6bf255": {
+    "status": "completed",
+    "name": "Hydillowah",
+    "timestamp": "2026-03-08T17:18:57.207Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9137d985-cc85-434a-b448-7471bc2c7fe1": {
+    "status": "completed",
+    "name": "Taylor's East ",
+    "timestamp": "2026-03-08T17:18:57.364Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5cf5ade0-df80-4b0c-b762-e3c986a19c4d": {
+    "status": "completed",
+    "name": "barfield",
+    "timestamp": "2026-03-08T17:18:57.530Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 337,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "3b799041-5fc5-4f52-9256-e4299f5dbac4": {
+    "status": "completed",
+    "name": "LD JF HALL& SONS",
+    "timestamp": "2026-03-08T17:18:57.783Z",
+    "stats": {
+      "operations": 2,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "bb1e7e4f-c8dd-4e05-8c82-2ff704ac98f6": {
+    "status": "completed",
+    "name": "Mid west 2025",
+    "timestamp": "2026-03-08T17:18:57.951Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 280,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "4333ff88-eda1-480e-af14-21ab553a7395": {
+    "status": "completed",
+    "name": "test",
+    "timestamp": "2026-03-08T17:18:58.109Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "0f42fdb4-2032-4884-9aa1-afb79c2a1ec3": {
+    "status": "completed",
+    "name": "Lassie creek station ",
+    "timestamp": "2026-03-08T17:18:58.272Z",
+    "stats": {
+      "operations": 1,
+      "trails": 1,
+      "points": 6,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "ceeab616-b7ee-43c3-abca-303648569cb6": {
+    "status": "completed",
+    "name": "Rocky gully shyt",
+    "timestamp": "2026-03-08T17:18:58.516Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 131,
+      "glitches": 2,
+      "affected": 1,
+      "written": 1
+    }
+  },
+  "18411ca2-39cd-4956-ac43-90bb85a35560": {
+    "status": "completed",
+    "name": "Wheat and wool ag ",
+    "timestamp": "2026-03-08T17:18:58.673Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "2fa8f160-c7bb-407a-a548-d42767c2ce6b": {
+    "status": "completed",
+    "name": "ju",
+    "timestamp": "2026-03-08T17:18:58.837Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "eda51f77-9eb8-44d3-8709-eaca73ad90dd": {
+    "status": "completed",
+    "name": "Paddock names ",
+    "timestamp": "2026-03-08T17:18:58.994Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "7c268875-6ac5-446c-a3a3-e8e1e6275a58": {
+    "status": "completed",
+    "name": "Willingvale",
+    "timestamp": "2026-03-08T17:18:59.181Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "95415ef5-d576-4fb2-bf8d-2148fda05742": {
+    "status": "completed",
+    "name": "House paddock",
+    "timestamp": "2026-03-08T17:18:59.360Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 15,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "c7332c14-97d3-4a79-84f3-4cdfa449f0fe": {
+    "status": "completed",
+    "name": "Riches ",
+    "timestamp": "2026-03-08T17:18:59.521Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "52132d3d-8e26-42fa-8e6c-5848f0ad1378": {
+    "status": "completed",
+    "name": "Woodlands ",
+    "timestamp": "2026-03-08T17:18:59.679Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "43107234-2f57-44b6-bbff-245a2c061261": {
+    "status": "completed",
+    "name": "DK Ag Clients ",
+    "timestamp": "2026-03-08T17:18:59.838Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "03d0ad66-ec81-42e1-bf5e-e5b219b663cc": {
+    "status": "completed",
+    "name": "Near plane ",
+    "timestamp": "2026-03-08T17:19:00.001Z",
+    "stats": {
+      "operations": 1,
+      "trails": 3,
+      "points": 78,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "88bf7367-51a2-4f83-935b-8a39e6481480": {
+    "status": "completed",
+    "name": "Rockhole",
+    "timestamp": "2026-03-08T17:19:00.157Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "29660378-7738-4742-92ab-46da1c1c48c2": {
+    "status": "completed",
+    "name": "DYSART STATION",
+    "timestamp": "2026-03-08T17:19:00.649Z",
+    "stats": {
+      "operations": 5,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "9e2b5710-0019-4261-ba51-9efba5525cc0": {
+    "status": "completed",
+    "name": "DKSH Talbot trial",
+    "timestamp": "2026-03-08T17:19:00.808Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "5136b5d0-704a-4a48-a3c2-fc60df115aa3": {
+    "status": "completed",
+    "name": "SLR",
+    "timestamp": "2026-03-08T17:19:00.965Z",
+    "stats": {
+      "operations": 1,
+      "trails": 2,
+      "points": 301,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  },
+  "8925bd25-30c5-4845-8e85-f0d3fdf40b5f": {
+    "status": "completed",
+    "name": "Karabein ",
+    "timestamp": "2026-03-08T17:19:01.125Z",
+    "stats": {
+      "operations": 1,
+      "trails": 0,
+      "points": 0,
+      "glitches": 0,
+      "affected": 0,
+      "written": 0
+    }
+  }
+}

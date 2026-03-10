@@ -12,6 +12,7 @@
     generateTrailIds,
     calculateZoomDependentWidth,
     createArrowMarkerConfig,
+    createArrowCenterLineConfig,
     createTrailGeoJSON,
     generateArrowMarkersIncremental,
     type TrailCoordinate,
@@ -107,7 +108,30 @@
     if (!map || !map.getStyle || !map.getStyle()) return
 
     try {
-      // Update historical trail arrows
+      // When enabling arrows, generate markers for all historical trails that have empty sources
+      if (visible) {
+        let generated = 0
+        $historicalTrailStore.forEach((trail) => {
+          const { sourceId } = generateTrailIds(trail.id)
+          const markersSourceId = `${sourceId}-markers`
+          const source = map.getSource(markersSourceId)
+          if (source && trail.path) {
+            const { markers } = generateMarkersForTrail(trail)
+            if (markers.length > 0) {
+              ;(source as any).setData({
+                type: "FeatureCollection",
+                features: markers,
+              })
+              generated += markers.length
+            }
+          }
+        })
+        if (generated > 0) {
+          console.log(`🎯 Generated ${generated} arrow markers for historical trails`)
+        }
+      }
+
+      // Update historical trail arrows visibility
       const historicalArrowVisibility =
         visible && $layerVisibilityStore.historicalTrails ? "visible" : "none"
 
@@ -115,7 +139,7 @@
       const historicalMarkerLayers = allLayers
         .filter(
           (layer) =>
-            layer.id.includes("-markers") &&
+            (layer.id.includes("-markers") || layer.id.includes("-centerline")) &&
             layer.id.startsWith("trail-layer-"),
         )
         .map((layer) => layer.id)
@@ -149,9 +173,10 @@
 
     const markersSourceId = `${sourceId}-markers`
     const markersLayerId = `${layerId}-markers`
+    const centerLineLayerId = `${layerId}-centerline`
 
     // Remove existing layers
-    const layersToRemove = [markersLayerId, layerId]
+    const layersToRemove = [markersLayerId, centerLineLayerId, layerId]
     layersToRemove.forEach((layer) => {
       if (map.getLayer(layer)) {
         map.removeLayer(layer)
@@ -173,36 +198,18 @@
 
     const geoJsonData = createTrailGeoJSON(trail.path)
 
-    // Generate arrow markers for historical trail
-    let coordinates: [number, number][]
-    let startTimestamp = 0
+    // Only generate arrow markers if arrows are currently enabled
+    // This is the expensive calculation — skip it when arrows are off (the default)
+    let markersGeoJSON
+    let markerCount = 0
 
-    if ("type" in trail.path && trail.path.type === "LineString") {
-      coordinates = trail.path.coordinates as [number, number][]
-      startTimestamp = 0
+    if ($layerVisibilityStore.trailArrows) {
+      const { markers } = generateMarkersForTrail(trail)
+      markersGeoJSON = { type: "FeatureCollection", features: markers }
+      markerCount = markers.length
     } else {
-      const trailCoords = trail.path as TrailCoordinate[]
-      const sorted = [...trailCoords].sort((a, b) => a.timestamp - b.timestamp)
-      coordinates = sorted.map((c) => [
-        c.coordinates.longitude,
-        c.coordinates.latitude,
-      ])
-      startTimestamp = sorted[0]?.timestamp || 0
-    }
-
-    const { markers } = generateArrowMarkersIncremental(
-      coordinates,
-      0,
-      TRAIL_CONFIG.ARROW_INTERVAL_METERS,
-      trail.id,
-      trail.trail_color || "#FF0000",
-      startTimestamp,
-      0,
-    )
-
-    const markersGeoJSON = {
-      type: "FeatureCollection",
-      features: markers,
+      // Empty source — markers will be generated lazily when arrows are toggled on
+      markersGeoJSON = { type: "FeatureCollection", features: [] }
     }
 
     map.addSource(sourceId, {
@@ -242,6 +249,20 @@
       addTrailWithFallback(mainLayerConfig)
     }
 
+    // Arrow center line layer (thin black line along trail path)
+    const centerLineConfig = createArrowCenterLineConfig(
+      centerLineLayerId,
+      sourceId,
+      visibility,
+      $layerVisibilityStore.trailArrows,
+    )
+
+    if (mapContext?.addTrailLayerOrdered) {
+      mapContext.addTrailLayerOrdered(centerLineConfig)
+    } else {
+      addTrailWithFallback(centerLineConfig)
+    }
+
     // Arrow markers layer
     const markerLayerConfig = createArrowMarkerConfig(
       markersLayerId,
@@ -262,14 +283,47 @@
 
     historicalDirectionalLayers = [
       ...historicalDirectionalLayers,
+      centerLineLayerId,
       markersLayerId,
     ]
 
     console.log(
-      `✅ Added historical trail ${trail.id} with ${markers.length} arrow markers`,
+      `✅ Added historical trail ${trail.id}${markerCount > 0 ? ` with ${markerCount} arrow markers` : ' (arrows deferred)'}`,
     )
 
     return layerId
+  }
+
+  /**
+   * Extract coordinates from a trail and generate arrow markers.
+   * Factored out so it can be called from addTrail() or lazily from updateArrowVisibility().
+   */
+  function generateMarkersForTrail(trail: Trail): { markers: any[] } {
+    let coordinates: [number, number][]
+    let startTimestamp = 0
+
+    if ("type" in trail.path && trail.path.type === "LineString") {
+      coordinates = trail.path.coordinates as [number, number][]
+      startTimestamp = 0
+    } else {
+      const trailCoords = trail.path as TrailCoordinate[]
+      const sorted = [...trailCoords].sort((a, b) => a.timestamp - b.timestamp)
+      coordinates = sorted.map((c) => [
+        c.coordinates.longitude,
+        c.coordinates.latitude,
+      ])
+      startTimestamp = sorted[0]?.timestamp || 0
+    }
+
+    return generateArrowMarkersIncremental(
+      coordinates,
+      0,
+      TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+      trail.id,
+      trail.trail_color || "#FF0000",
+      startTimestamp,
+      0,
+    )
   }
 
   export function removeTrail(trailId: string) {
@@ -278,9 +332,11 @@
 
     const markersSourceId = `${sourceId}-markers`
     const markersLayerId = `${layerId}-markers`
+    const centerLineLayerId = `${layerId}-centerline`
 
     const layersToRemove = [
       markersLayerId,
+      centerLineLayerId,
       highlightLayerId,
       highlightBackgroundLayerId,
       layerId,

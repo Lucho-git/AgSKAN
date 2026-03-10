@@ -15,7 +15,7 @@ export const TRAIL_CONFIG = {
     DEFAULT_OPACITY: 0.5,
     LOAD_DELAY: 10,
     SEGMENT_DURATION: 900000, // 15 minutes in milliseconds
-    ARROW_INTERVAL_METERS: 10, // Fixed real-world distance between arrows
+    ARROW_INTERVAL_METERS: 30, // Fixed real-world distance between arrows
 }
 
 // ============================================
@@ -246,6 +246,36 @@ export function generateArrowMarkersIncremental(
 }
 
 // ============================================
+// ARROW CENTER LINE CONFIGURATION
+// ============================================
+
+export function createArrowCenterLineConfig(
+    layerId: string,
+    sourceId: string,
+    visibility: string,
+    arrowsEnabled: boolean,
+) {
+    const lineVisibility =
+        visibility === "visible" && arrowsEnabled ? "visible" : "none"
+
+    return {
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        layout: {
+            "line-join": "round",
+            "line-cap": "round",
+            visibility: lineVisibility,
+        },
+        paint: {
+            "line-color": "#000000",
+            "line-width": calculateZoomDependentWidth(0.3, 1),
+            "line-opacity": 0.8,
+        },
+    }
+}
+
+// ============================================
 // ARROW MARKER LAYER CONFIGURATION
 // ============================================
 
@@ -264,8 +294,8 @@ export function createArrowMarkerConfig(
         type: "symbol",
         source: sourceId,
         layout: {
-            "text-field": "›",
-            "text-size": calculateZoomDependentTextSize(3, 1),
+            "text-field": "➤",
+            "text-size": calculateZoomDependentTextSize(3, 3),
             "text-rotate": ["+", ["get", "bearing"], 90],
             "text-rotation-alignment": "map",
             "text-pitch-alignment": "map",
@@ -277,9 +307,10 @@ export function createArrowMarkerConfig(
         },
         paint: {
             "text-color": ["get", "color"],
-            "text-opacity": 0.8,
-            "text-halo-color": ["get", "color"],
+            "text-opacity": 1,
+            "text-halo-color": "rgba(0, 0, 0, 0.8)",
             "text-halo-width": 1,
+            "text-halo-blur": 0,
         },
     }
 }
@@ -443,6 +474,7 @@ export function createActiveTrailMarkers(
     trailsWithChangedCoords: Set<string> = new Set(),
     previousArrowMarkers: ArrowMarker[] = [],
     trailDistanceState: Map<string, TrailDistanceState> = new Map(),
+    spacingMeters: number = TRAIL_CONFIG.ARROW_INTERVAL_METERS,
 ) {
     // Early exit if arrows are disabled - saves processing
     if (!arrowsEnabled) {
@@ -502,7 +534,7 @@ export function createActiveTrailMarkers(
                     generateArrowMarkersIncremental(
                         coordinates,
                         existingState.lastCoordIndex,
-                        TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+                        spacingMeters,
                         trail.id,
                         trail.trail_color || "#FF0000",
                         startTimestamp,
@@ -525,7 +557,7 @@ export function createActiveTrailMarkers(
                 const { markers, finalDistance } = generateArrowMarkersIncremental(
                     coordinates,
                     0,
-                    TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+                    spacingMeters,
                     trail.id,
                     trail.trail_color || "#FF0000",
                     startTimestamp,
