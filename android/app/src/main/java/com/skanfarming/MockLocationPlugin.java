@@ -38,7 +38,7 @@ public class MockLocationPlugin extends Plugin {
         double lat = call.getDouble("latitude", -33.8688);   // Default: Sydney
         double lng = call.getDouble("longitude", 151.2093);
         long intervalMs = call.getInt("intervalMs", 3000);    // 3 s default
-        double stepMeters = call.getDouble("stepMeters", 15); // 15 m per tick
+        double stepMeters = call.getDouble("stepMeters", 15.0); // 15 m per tick
         String pattern = call.getString("pattern", "rectangle"); // rectangle | circle
 
         Log.i(TAG, "Starting mock location: lat=" + lat + " lng=" + lng

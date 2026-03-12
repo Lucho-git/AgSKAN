@@ -62,6 +62,9 @@ public class MockLocationService extends Service {
     private int legIndex = 0;   // which leg of the rectangle (0-3)
     private int legTicks = 0;   // ticks along current leg
     private static final int TICKS_PER_LEG = 20; // ~300 m per leg at 15 m step
+    private boolean mockProviderReady = false;
+    private int consecutiveFailures = 0;
+    private static final int MAX_FAILURES = 3;
 
     private final Runnable tickRunnable = new Runnable() {
         @Override
@@ -105,10 +108,21 @@ public class MockLocationService extends Service {
             currentHeading = 0f;
 
             startForeground(NOTIFICATION_ID, buildNotification("Simulating GPS movement…"));
-            setupMockProvider();
-            startSimulation();
-            sRunning = true;
-            Log.i(TAG, "Mock location simulation STARTED at " + currentLat + ", " + currentLng);
+            mockProviderReady = setupMockProvider();
+            if (mockProviderReady) {
+                startSimulation();
+                sRunning = true;
+                Log.i(TAG, "Mock location simulation STARTED at " + currentLat + ", " + currentLng);
+            } else {
+                Log.e(TAG, "Mock provider setup FAILED — stopping. Enable Developer Options → Select mock location app → AgSKAN");
+                updateNotification("❌ Enable mock location app in Developer Options");
+                sRunning = false;
+                // Stop after a short delay so the notification is visible
+                new Handler(getMainLooper()).postDelayed(() -> {
+                    stopForeground(true);
+                    stopSelf();
+                }, 5000);
+            }
         } else if (ACTION_STOP.equals(action)) {
             stopSimulation();
             sRunning = false;
@@ -131,7 +145,7 @@ public class MockLocationService extends Service {
 
     // ─── Mock provider setup ───────────────────────────────────────────
 
-    private void setupMockProvider() {
+    private boolean setupMockProvider() {
         try {
             // Remove existing mock provider if any
             try {
@@ -156,10 +170,13 @@ public class MockLocationService extends Service {
             }
             locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true);
             Log.i(TAG, "Mock GPS provider registered");
+            return true;
         } catch (SecurityException e) {
             Log.e(TAG, "Cannot set mock location — is this app selected as 'Mock location app' in Developer Options?", e);
+            return false;
         } catch (Exception e) {
             Log.e(TAG, "Failed to register mock provider", e);
+            return false;
         }
     }
 
@@ -210,10 +227,20 @@ public class MockLocationService extends Service {
 
         try {
             locationManager.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc);
+            consecutiveFailures = 0; // reset on success
             if (tickCount % 10 == 0) {
                 Log.d(TAG, "📍 Tick #" + tickCount + " → " +
                     String.format("%.6f, %.6f", currentLat, currentLng) +
                     " hdg=" + currentHeading + " leg=" + legIndex);
+            }
+        } catch (SecurityException e) {
+            consecutiveFailures++;
+            Log.e(TAG, "Failed to inject location (" + consecutiveFailures + "/" + MAX_FAILURES + ")", e);
+            if (consecutiveFailures >= MAX_FAILURES) {
+                Log.e(TAG, "Too many injection failures — stopping simulation. Enable mock location app in Developer Options.");
+                updateNotification("❌ Mock location permission denied — stopped");
+                sRunning = false;
+                if (handler != null) handler.removeCallbacks(tickRunnable);
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to inject location", e);
@@ -282,5 +309,12 @@ public class MockLocationService extends Service {
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .build();
+    }
+
+    private void updateNotification(String text) {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) {
+            nm.notify(NOTIFICATION_ID, buildNotification(text));
+        }
     }
 }
