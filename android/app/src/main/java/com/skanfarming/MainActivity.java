@@ -8,9 +8,17 @@ import com.getcapacitor.Plugin;
 import android.content.Intent;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
+import android.os.Bundle;
 
 // ModifiedMainActivityForSocialLoginPlugin is VERY VERY important !!!!!!
 public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        // Register the MockLocation native plugin so JS can call it
+        registerPlugin(MockLocationPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {

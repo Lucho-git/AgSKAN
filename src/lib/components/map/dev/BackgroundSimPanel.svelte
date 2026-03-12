@@ -1,15 +1,23 @@
 <!-- src/lib/components/map/dev/BackgroundSimPanel.svelte -->
 <script>
   import { onDestroy } from "svelte"
-  import { Radio, Play, Square, MapPin, RotateCw, ArrowLeft, ArrowRight } from "lucide-svelte"
+  import { Radio, Play, Square, MapPin, RotateCw, ArrowLeft, ArrowRight, Smartphone, Monitor } from "lucide-svelte"
   import {
     devBackgroundSimEnabled,
     devPositionStore,
   } from "$lib/stores/devModeStore"
   import { userVehicleStore } from "$lib/stores/vehicleStore"
   import backgroundService from "$lib/services/backgroundService"
+  import mockLocationService from "$lib/services/mockLocationService"
+  import { Capacitor } from "@capacitor/core"
 
   export let map = null
+
+  // Platform detection
+  const isMobileApp = Capacitor.isNativePlatform()
+
+  // Simulation mode: 'js' (existing, works on web) or 'native' (new, works in real background)
+  let simMode = isMobileApp ? 'native' : 'js'
 
   // Simulation state
   let isRunning = false
@@ -87,6 +95,12 @@
   function startSimulation() {
     if (isRunning) return
 
+    if (simMode === 'native') {
+      startNativeSimulation()
+      return
+    }
+
+    // ── JS mode (existing behaviour) ──
     const origin = getOrigin()
     originLat = origin.lat
     originLng = origin.lng
@@ -126,6 +140,13 @@
 
   function stopSimulation() {
     if (!isRunning) return
+
+    if (simMode === 'native') {
+      stopNativeSimulation()
+      return
+    }
+
+    // ── JS mode (existing behaviour) ──
     isRunning = false
 
     if (tickInterval) {
@@ -139,6 +160,56 @@
 
     // Fire foreground lifecycle through real backgroundService
     backgroundService.simulateForeground()
+  }
+
+  // ── Native GPS simulation (Android mock location provider) ──
+  // Runs as a ForegroundService — persists even when WebView is frozen.
+  // Tests the FULL pipeline: mock GPS → backgroundGeolocation → native HTTP → DB → CDC → observer
+
+  let nativeSimError = null
+
+  async function startNativeSimulation() {
+    const origin = getOrigin()
+    nativeSimError = null
+
+    const stepMeters = speed * (intervalMs / 1000)
+    const nativePattern = pattern === "circle" ? "circle" : "rectangle"
+
+    const success = await mockLocationService.startSimulation(
+      origin.lat,
+      origin.lng,
+      { intervalMs, stepMeters, pattern: nativePattern },
+    )
+
+    if (success) {
+      isRunning = true
+      tickCount = 0
+      elapsedSeconds = 0
+      elapsedTimer = setInterval(() => elapsedSeconds++, 1000)
+      // Poll the native service for status every 5s
+      tickInterval = setInterval(async () => {
+        const running = await mockLocationService.isRunning()
+        if (!running && isRunning) {
+          stopNativeSimulation()
+        }
+      }, 5000)
+    } else {
+      nativeSimError = 'Failed to start. Check Developer Options → "Select mock location app" → AgSKAN'
+    }
+  }
+
+  async function stopNativeSimulation() {
+    await mockLocationService.stopSimulation()
+    isRunning = false
+    nativeSimError = null
+    if (tickInterval) {
+      clearInterval(tickInterval)
+      tickInterval = null
+    }
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer)
+      elapsedTimer = null
+    }
   }
 
   function generateAndSendLocation() {
@@ -271,6 +342,8 @@
 
   onDestroy(() => {
     if (isRunning) stopSimulation()
+    // Also ensure native sim is stopped if somehow still running
+    if (isMobileApp) mockLocationService.stopSimulation().catch(() => {})
   })
 </script>
 
@@ -294,6 +367,42 @@
       {/if}
     </div>
 
+    <!-- Mode selector (JS vs Native) -->
+    {#if isMobileApp}
+      <div class="bgsim-row">
+        <span class="bgsim-label">Mode</span>
+        <button
+          class="bgsim-btn"
+          class:active={simMode === 'native'}
+          disabled={isRunning}
+          on:click={() => simMode = 'native'}
+        >
+          <Smartphone size={11} /> Native GPS
+        </button>
+        <button
+          class="bgsim-btn"
+          class:active={simMode === 'js'}
+          disabled={isRunning}
+          on:click={() => simMode = 'js'}
+        >
+          <Monitor size={11} /> JS (web)
+        </button>
+      </div>
+    {/if}
+
+    {#if nativeSimError}
+      <div class="bgsim-error">{nativeSimError}</div>
+    {/if}
+
+    {#if simMode === 'native' && !isRunning}
+      <div class="bgsim-note">
+        Native mode injects mock GPS into the system. The phone's background 
+        geolocation plugin picks it up as real GPS — test the full pipeline
+        even after minimizing the app. Requires Developer Options → 
+        "Mock location app" → AgSKAN.
+      </div>
+    {/if}
+
     <!-- Pattern selector -->
     <div class="bgsim-row">
       {#each PATTERNS as p}
@@ -308,6 +417,7 @@
       {/each}
     </div>
 
+    {#if simMode !== 'native'}
     <!-- Interval selector -->
     <div class="bgsim-row">
       <span class="bgsim-label">Interval</span>
@@ -337,18 +447,19 @@
         </button>
       {/each}
     </div>
+    {/if}
 
     <!-- Start / Stop -->
     <div class="bgsim-actions">
       {#if !isRunning}
         <button class="bgsim-action start" on:click={startSimulation}>
           <Play size={16} />
-          Start Background Sim
+          {simMode === 'native' ? 'Start Native GPS Sim' : 'Start Background Sim'}
         </button>
       {:else}
         <button class="bgsim-action stop" on:click={stopSimulation}>
           <Square size={16} />
-          Stop & Return to Foreground
+          {simMode === 'native' ? 'Stop Native Sim' : 'Stop & Return to Foreground'}
         </button>
       {/if}
     </div>
@@ -509,6 +620,26 @@
   }
   .bgsim-action.stop:hover {
     background: rgba(239, 68, 68, 0.35);
+  }
+
+  .bgsim-error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: rgba(239, 68, 68, 1);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1.3;
+  }
+
+  .bgsim-note {
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    color: rgba(200, 200, 220, 0.8);
+    font-size: 9px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1.3;
   }
 
   @keyframes pulse-bg {

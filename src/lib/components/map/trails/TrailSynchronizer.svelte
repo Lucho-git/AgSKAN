@@ -48,6 +48,7 @@
 
   let supabaseChannel
   let areTrailsLoaded = false
+  let channelStatus = "CLOSED" // Track Realtime channel status
 
   // Retry mechanism for failed coordinates
   let retryIntervalId = null
@@ -180,8 +181,7 @@
       },
     )
 
-    await subscribeToTrailChanges()
-    await subscribeToTrailStreams()
+    await subscribeToTrailObservation()
     console.log("✅ TrailSynchronizer: Ready")
   })
 
@@ -209,7 +209,7 @@
     flushPendingToIndexedDB()
 
     if (supabaseChannel) {
-      supabaseChannel.unsubscribe()
+      supabase.removeChannel(supabaseChannel)
     }
 
     stopRetryInterval()
@@ -948,20 +948,43 @@
   // TRAIL SUBSCRIPTION HANDLERS
   // ============================================
 
-  async function subscribeToTrailChanges() {
+  /**
+   * Single Supabase Realtime channel for ALL trail observation.
+   * Combines both `trails` table CDC (open/close/delete) and
+   * `trail_stream` table CDC (live coordinates) into ONE channel.
+   *
+   * Previously these were two separate channels that overwrote the
+   * same `supabaseChannel` variable, causing a leak.  More critically,
+   * Supabase Realtime WebSocket connections can silently drop, and
+   * there was no monitoring or recovery.  Now we:
+   *  1. Use ONE channel with multiple `.on()` handlers
+   *  2. Monitor subscription status via the `.subscribe()` callback
+   *  3. On reconnection, do a one-time catch-up fetch so no CDC
+   *     events are missed during the disconnect window
+   */
+  async function subscribeToTrailObservation() {
     const currentVehicleId = $profileStore.id
+    const opId = selectedOperation.id
+
+    // Clean up any existing channel
+    if (supabaseChannel) {
+      try {
+        supabase.removeChannel(supabaseChannel)
+      } catch (_) { /* ignore */ }
+    }
 
     supabaseChannel = supabase
-      .channel("trail_changes")
+      .channel(`trail_observation_${opId}`)
+      // ── trails table: detect new/closed/deleted trails ──
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${selectedOperation.id}`,
+          filter: `operation_id=eq.${opId}`,
         },
-        handleTrailInsert,
+        (payload) => handleTrailInsert(payload, currentVehicleId),
       )
       .on(
         "postgres_changes",
@@ -969,9 +992,9 @@
           event: "UPDATE",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${selectedOperation.id}`,
+          filter: `operation_id=eq.${opId}`,
         },
-        handleTrailUpdate,
+        (payload) => handleTrailUpdate(payload, currentVehicleId),
       )
       .on(
         "postgres_changes",
@@ -979,17 +1002,155 @@
           event: "DELETE",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${selectedOperation.id}`,
+          filter: `operation_id=eq.${opId}`,
         },
-        handleTrailDelete,
+        (payload) => handleTrailDelete(payload, currentVehicleId),
       )
-      .subscribe()
+      // ── trail_stream table: live coordinate stream ──
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "trail_stream",
+          filter: `operation_id=eq.${opId}`,
+        },
+        handleTrailStreamInsert,
+      )
+      .subscribe((status, err) => {
+        channelStatus = status
+        if (status === "SUBSCRIBED") {
+          console.log(`🟢 [TRAIL-RT] Realtime channel subscribed for operation ${opId.slice(0,8)}`)
+        } else if (status === "CHANNEL_ERROR") {
+          console.warn(`🔴 [TRAIL-RT] Channel error — will auto-reconnect`, err)
+        } else if (status === "TIMED_OUT") {
+          console.warn(`🟡 [TRAIL-RT] Channel timed out — will auto-reconnect`)
+        } else if (status === "CLOSED") {
+          console.log(`⚪ [TRAIL-RT] Channel closed`)
+        }
 
-    function handleTrailInsert(payload) {
+        // Supabase auto-reconnects after CHANNEL_ERROR. When it succeeds,
+        // the status goes back to SUBSCRIBED. At that point, fetch any
+        // trail data that might have been missed during the disconnect.
+        if (status === "SUBSCRIBED" && channelStatus === "SUBSCRIBED") {
+          catchUpMissedTrailData(opId, currentVehicleId)
+        }
+      })
+  }
+
+  /**
+   * One-time catch-up fetch after a (re)connection to fill any gaps.
+   * Only fetches trail_stream rows from the last 5 minutes to keep it light.
+   */
+  async function catchUpMissedTrailData(opId, currentVehicleId) {
+    try {
+      // Refresh the list of active trails from the DB
+      const { data: activeTrails, error: trailsErr } = await supabase
+        .from("trails")
+        .select("id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id, detailed_path")
+        .eq("operation_id", opId)
+        .is("end_time", null)
+        .neq("vehicle_id", currentVehicleId)
+
+      if (trailsErr) {
+        console.warn("[TRAIL-RT] Catch-up: failed to fetch active trails:", trailsErr.message)
+        return
+      }
+
+      if (!activeTrails || activeTrails.length === 0) return
+
+      // Get trail IDs we know about
+      const currentIds = new Set(($otherActiveTrailStore || []).map(t => t.id))
+
+      // Add any newly discovered trails
+      for (const t of activeTrails) {
+        if (!currentIds.has(t.id)) {
+          otherActiveTrailStore.update((trails = []) => [
+            ...trails,
+            {
+              id: t.id,
+              vehicle_id: t.vehicle_id,
+              operation_id: t.operation_id,
+              start_time: t.start_time,
+              end_time: t.end_time,
+              trail_color: t.trail_color,
+              trail_width: t.trail_width,
+              task_id: t.task_id,
+              path: [],
+              detailed_path: t.detailed_path,
+            },
+          ])
+          console.log(`[TRAIL-RT] Catch-up: discovered trail ${t.id.slice(0,8)} from ${t.vehicle_id.slice(0,8)}`)
+        }
+      }
+
+      // Fetch recent trail_stream coordinates (last 5 min) for all active trails
+      const trailIds = activeTrails.map(t => t.id)
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+      const { data: recentPoints, error: pointsErr } = await supabase
+        .from("trail_stream")
+        .select("trail_id, coordinate, timestamp")
+        .in("trail_id", trailIds)
+        .gte("timestamp", fiveMinAgo)
+        .order("timestamp", { ascending: true })
+
+      if (pointsErr || !recentPoints || recentPoints.length === 0) return
+
+      // Merge into otherActiveTrailStore, deduplicating by timestamp
+      otherActiveTrailStore.update((trails) => {
+        return trails.map((trail) => {
+          const newPoints = recentPoints.filter(p => p.trail_id === trail.id)
+          if (newPoints.length === 0) return trail
+
+          const existingTimestamps = new Set(
+            (trail.path || []).map(p => {
+              const t = typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp
+              return t
+            })
+          )
+
+          let merged = 0
+          const additions = newPoints
+            .filter(p => {
+              const ts = typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp
+              return !existingTimestamps.has(ts)
+            })
+            .map(p => ({
+              coordinates: {
+                latitude: p.coordinate.coordinates[1],
+                longitude: p.coordinate.coordinates[0],
+              },
+              timestamp: typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp,
+            }))
+
+          if (additions.length === 0) return trail
+          merged = additions.length
+
+          const updatedPath = [...(trail.path || []), ...additions].sort(
+            (a, b) => {
+              const aT = typeof a.timestamp === "string" ? new Date(a.timestamp).getTime() : a.timestamp
+              const bT = typeof b.timestamp === "string" ? new Date(b.timestamp).getTime() : b.timestamp
+              return aT - bT
+            }
+          )
+
+          console.log(`[TRAIL-RT] Catch-up: merged ${merged} points into trail ${trail.id.slice(0,8)} (total=${updatedPath.length})`)
+          return { ...trail, path: updatedPath }
+        })
+      })
+    } catch (e) {
+      console.warn("[TRAIL-RT] Catch-up fetch failed:", e)
+    }
+  }
+
+  function handleTrailInsert(payload, currentVehicleId) {
       if (!payload.new) return
       const trailData = payload.new
 
       if (trailData.vehicle_id === currentVehicleId) return
+
+      console.log(`🟢 [TRAIL-RT] New trail detected: ${trailData.id?.slice(0,8)} from vehicle ${trailData.vehicle_id?.slice(0,8)}`)
 
       if (!$otherActiveTrailStore?.length) {
         otherActiveTrailStore.set([])
@@ -1012,9 +1173,9 @@
           },
         ]
       })
-    }
+  }
 
-    function handleTrailUpdate(payload) {
+  function handleTrailUpdate(payload, currentVehicleId) {
       if (!payload.new) return
       const trailData = payload.new
 
@@ -1025,6 +1186,8 @@
       if (!trailData.end_time || !trailData.path) {
         return
       }
+
+      console.log(`🟡 [TRAIL-RT] Trail closed: ${trailData.id?.slice(0,8)}`)
 
       fetchTrailAsGeoJSON(trailData.id)
         .then((geoJsonPath) => {
@@ -1068,7 +1231,7 @@
             error,
           )
         })
-    }
+  }
 
     async function fetchTrailAsGeoJSON(trailId) {
       const { data: pathData, error: pathError } = await supabase.rpc(
@@ -1083,12 +1246,14 @@
       return pathData
     }
 
-    function handleTrailDelete(payload) {
+  function handleTrailDelete(payload, currentVehicleId) {
       if (!payload.old) return
 
       const trailData = payload.old
 
       if (trailData.vehicle_id === currentVehicleId) return
+
+      console.log(`🔴 [TRAIL-RT] Trail deleted: ${trailData.id?.slice(0,8)}`)
 
       toast.info(`Trail deleted by another user`, {
         description: `${trailData.trail_width}m ${trailData.trail_color.toLowerCase()} trail`,
@@ -1111,79 +1276,64 @@
           )
         }
       }
-    }
   }
 
-  async function subscribeToTrailStreams() {
-    supabaseChannel = supabase
-      .channel("trail_stream_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "trail_stream",
-          filter: `operation_id=eq.${selectedOperation.id}`,
-        },
-        (payload) => {
-          if (!payload.new) {
-            return
-          }
+  function handleTrailStreamInsert(payload) {
+      if (!payload.new) {
+        return
+      }
 
-          const { trail_id, coordinate, timestamp } = payload.new
+      const { trail_id, coordinate, timestamp } = payload.new
 
-          if (!$otherActiveTrailStore?.length) {
-            return
-          }
+      if (!$otherActiveTrailStore?.length) {
+        return
+      }
 
-          const isActiveTrail = $otherActiveTrailStore.some(
-            (trail) => trail.id === trail_id,
-          )
-          if (!isActiveTrail) {
-            return
-          }
-
-          otherActiveTrailStore.update((trails) => {
-            return trails.map((trail) => {
-              if (trail.id === trail_id) {
-                const normalizedTimestamp =
-                  typeof timestamp === "string"
-                    ? new Date(timestamp).getTime()
-                    : timestamp
-
-                const newCoordinate = {
-                  coordinates: {
-                    latitude: coordinate.coordinates[1],
-                    longitude: coordinate.coordinates[0],
-                  },
-                  timestamp: normalizedTimestamp,
-                }
-
-                const updatedPath = [...trail.path, newCoordinate].sort(
-                  (a, b) => {
-                    const aTime =
-                      typeof a.timestamp === "string"
-                        ? new Date(a.timestamp).getTime()
-                        : a.timestamp
-                    const bTime =
-                      typeof b.timestamp === "string"
-                        ? new Date(b.timestamp).getTime()
-                        : b.timestamp
-                    return aTime - bTime
-                  },
-                )
-
-                return {
-                  ...trail,
-                  path: updatedPath,
-                }
-              }
-              return trail
-            })
-          })
-        },
+      const isActiveTrail = $otherActiveTrailStore.some(
+        (trail) => trail.id === trail_id,
       )
-      .subscribe()
+      if (!isActiveTrail) {
+        return
+      }
+
+      otherActiveTrailStore.update((trails) => {
+        return trails.map((trail) => {
+          if (trail.id === trail_id) {
+            const normalizedTimestamp =
+              typeof timestamp === "string"
+                ? new Date(timestamp).getTime()
+                : timestamp
+
+            const newCoordinate = {
+              coordinates: {
+                latitude: coordinate.coordinates[1],
+                longitude: coordinate.coordinates[0],
+              },
+              timestamp: normalizedTimestamp,
+            }
+
+            const updatedPath = [...trail.path, newCoordinate].sort(
+              (a, b) => {
+                const aTime =
+                  typeof a.timestamp === "string"
+                    ? new Date(a.timestamp).getTime()
+                    : a.timestamp
+                const bTime =
+                  typeof b.timestamp === "string"
+                    ? new Date(b.timestamp).getTime()
+                    : b.timestamp
+                return aTime - bTime
+              },
+            )
+
+            return {
+              ...trail,
+              path: updatedPath,
+            }
+          }
+          return trail
+        })
+      })
   }
 
   // ============================================
