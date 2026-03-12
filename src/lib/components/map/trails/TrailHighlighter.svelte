@@ -293,12 +293,29 @@ font-size: 12px;
 
     const animationBorderSourceId = `animation-border-source-${trail.id}`
 
-    if (map.getSource(animationSourceId)) {
-      map.removeSource(animationSourceId)
-    }
+    const animationLayerId = `animation-layer-${trail.id}`
 
-    if (map.getSource(animationBorderSourceId)) {
-      map.removeSource(animationBorderSourceId)
+    const animationBorderLayerId = `animation-border-layer-${trail.id}`
+
+    // Must remove layers BEFORE sources (Mapbox throws if source has dependent layers)
+    try {
+      if (map.getLayer(animationLayerId)) {
+        map.removeLayer(animationLayerId)
+      }
+
+      if (map.getLayer(animationBorderLayerId)) {
+        map.removeLayer(animationBorderLayerId)
+      }
+
+      if (map.getSource(animationSourceId)) {
+        map.removeSource(animationSourceId)
+      }
+
+      if (map.getSource(animationBorderSourceId)) {
+        map.removeSource(animationBorderSourceId)
+      }
+    } catch (error) {
+      console.warn("Error cleaning up animation layers/sources:", error)
     }
 
     const emptyGeoJSON = {
@@ -484,6 +501,9 @@ font-size: 12px;
   }
 
   function handleProgressClick(event: MouseEvent) {
+    // Ignore clicks that originated from the range slider itself
+    if (event.target instanceof HTMLInputElement) return
+
     if (
       !progressContainer ||
       !animationState.isReady ||
@@ -1613,10 +1633,9 @@ font-size: 12px;
                   max="1"
                   step="0.001"
                   bind:value={animationState.progress}
-                  on:mousedown={handleSliderStart}
-                  on:mouseup={handleSliderEnd}
-                  on:touchstart={handleSliderStart}
-                  on:touchend={handleSliderEnd}
+                  on:pointerdown={handleSliderStart}
+                  on:change={handleSliderEnd}
+                  on:click|stopPropagation
                   on:input={(e) => {
                     if (isSliderActive) {
                       const newProgress = parseFloat(e.target.value)

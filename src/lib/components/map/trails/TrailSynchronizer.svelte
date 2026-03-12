@@ -306,20 +306,73 @@
       return
     }
 
-    const pathData = $currentTrailStore.path.map((point) => ({
+    const trailId = $currentTrailStore.id
+
+    // ── Merge background-synced trail_stream points from the DB ─────────
+    // The native HTTP engine may have POSTed coordinates directly to
+    // trail_stream (via background_sync RPC) while JS was frozen.
+    // The local $currentTrailStore.path only has the JS-collected points.
+    // Fetch ALL trail_stream rows from the DB and merge them so the
+    // close_trail_fast RPC receives the complete path.
+    let pathData = $currentTrailStore.path.map((point) => ({
       latitude: point.coordinates.latitude,
       longitude: point.coordinates.longitude,
       timestamp: point.timestamp,
     }))
 
-    const trailId = $currentTrailStore.id
+    try {
+      const { data: dbPoints, error: dbErr } = await supabase
+        .from("trail_stream")
+        .select("coordinate, timestamp")
+        .eq("trail_id", trailId)
+        .order("timestamp", { ascending: true })
+
+      if (!dbErr && dbPoints && dbPoints.length > 0) {
+        const existingTimestamps = new Set(pathData.map((p) => p.timestamp))
+
+        const extraPoints = dbPoints
+          .filter((row) => {
+            const ts =
+              typeof row.timestamp === "string"
+                ? new Date(row.timestamp).getTime()
+                : row.timestamp
+            return !existingTimestamps.has(ts)
+          })
+          .map((row) => ({
+            latitude: row.coordinate.coordinates[1],
+            longitude: row.coordinate.coordinates[0],
+            timestamp:
+              typeof row.timestamp === "string"
+                ? new Date(row.timestamp).getTime()
+                : row.timestamp,
+          }))
+
+        if (extraPoints.length > 0) {
+          console.log(
+            `📡 Merged ${extraPoints.length} background-synced trail_stream points (JS had ${pathData.length})`,
+          )
+          pathData = [...pathData, ...extraPoints].sort(
+            (a, b) => a.timestamp - b.timestamp,
+          )
+        } else {
+          console.log(
+            `📡 trail_stream had ${dbPoints.length} points, all already in JS store`,
+          )
+        }
+      }
+    } catch (fetchErr) {
+      console.warn(
+        "⚠️ Could not fetch trail_stream points, using JS-only path:",
+        fetchErr,
+      )
+    }
 
     console.log(
       "🛑 Stopping trail:",
       trailId,
       "with",
       pathData.length,
-      "points",
+      "points (after merge)",
     )
 
     // Check for insufficient data

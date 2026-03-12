@@ -90,12 +90,22 @@
         prevPhase = $s.phase
       }
       // Update dot colors when a marker is collected
+      // AND re-run vehicle progress to advance the route line past collected waypoints
       if (
         $s.phase === "navigating" &&
         $s.collectedIds.size !== prevCollectedCount
       ) {
         prevCollectedCount = $s.collectedIds.size
         refreshDotColors($s.collectedIds)
+
+        // Trigger a route-line update so collected waypoints are skipped immediately
+        let v
+        const vUnsub = userVehicleStore.subscribe((val) => (v = val))
+        vUnsub()
+        if (v?.coordinates?.latitude && v?.coordinates?.longitude) {
+          const vCoord = [v.coordinates.longitude, v.coordinates.latitude]
+          updateVehicleProgress(vCoord)
+        }
       }
     })
   })
@@ -515,8 +525,23 @@
       }
 
       // ── Check if we've reached the current target waypoint ──
+      // Also skip any waypoints whose markers have already been collected
+      // (the collection system in MarkerManager may collect them before
+      //  the route planner's own proximity check fires)
+      let collectedIds
+      const cUnsub = collectionRouteStore.subscribe((s) => (collectedIds = s.collectedIds))
+      cUnsub()
+
       while (nextWaypointIdx < orderedMarkers.length) {
-        const wp = orderedMarkers[nextWaypointIdx].coordinates
+        const marker = orderedMarkers[nextWaypointIdx]
+        const wp = marker.coordinates
+
+        // Skip if this marker was already collected by the collection system
+        if (collectedIds.has(marker.id)) {
+          nextWaypointIdx++
+          continue
+        }
+
         const distToWp = turf.distance(
           turf.point(vehicleCoord),
           turf.point(wp),

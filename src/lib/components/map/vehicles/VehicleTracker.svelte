@@ -1,6 +1,7 @@
 <!-- src/lib/components/map/vehicles/VehicleTracker.svelte -->
 <script>
   import { onMount, onDestroy, getContext } from "svelte"
+  import { get } from "svelte/store"
   import * as mapboxgl from "mapbox-gl"
   import {
     userVehicleStore,
@@ -9,7 +10,7 @@
     otherVehiclesDataChanges,
     broadcastMessageEvent,
   } from "$lib/stores/vehicleStore"
-  import { coordinateBufferStore } from "$lib/stores/currentTrailStore"
+  import { coordinateBufferStore, currentTrailStore } from "$lib/stores/currentTrailStore"
   import { trailPausedStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -27,6 +28,7 @@
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
+  import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public"
   import { devModeEnabled, devPositionStore } from "$lib/stores/devModeStore"
 
   export let map
@@ -850,6 +852,192 @@
     }
   }
 
+  /**
+   * Configure transistorsoft's native HTTP sync when entering background.
+   * The native plugin (OkHttp on Android) will POST each GPS location
+   * to the Supabase RPC function background_sync() — even after Android freezes JS.
+   * 
+   * This ALWAYS configures (not just when trailing):
+   *   - vehicle_state is ALWAYS updated (so other users see this vehicle)
+   *   - trail_stream is updated ONLY when trailing
+   */
+  async function configureNativeSyncForBackground() {
+    try {
+      // Get current auth token + refresh token (always needed for native sync)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const authToken = sessionData?.session?.access_token
+      const refreshToken = sessionData?.session?.refresh_token
+      if (!authToken) {
+        console.warn("[BG-DIAG] No auth token — native sync not configured")
+        return
+      }
+
+      // Determine trailing state — native sync handles both trailing and non-trailing
+      const isTrailing = $userVehicleTrailing && !$trailPausedStore
+      const currentTrail = $currentTrailStore
+      const operationId = isTrailing ? (currentTrail?.operation_id || $userVehicleStore?.operation_id || '') : ''
+      const trailId = isTrailing ? (currentTrail?.id || '') : ''
+
+      const success = await backgroundService.configureNativeSync({
+        supabaseUrl: PUBLIC_SUPABASE_URL,
+        anonKey: PUBLIC_SUPABASE_ANON_KEY,
+        authToken,
+        refreshToken,
+        operationId,
+        trailId,
+        vehicleId: $userVehicleStore?.vehicle_id || '',
+        masterMapId: $profileStore?.master_map_id || '',
+        isTrailing,
+      })
+
+      if (success) {
+        console.log(`[BG-DIAG] ✅ Native sync ready (trailing=${isTrailing}) — position will update natively even after JS freezes`)
+      }
+    } catch (error) {
+      console.error("[BG-DIAG] Error configuring native sync:", error)
+    }
+  }
+
+  /**
+   * On foreground return, catch up on any trail points that were saved
+   * natively while JavaScript was frozen. Refresh the local trail store
+   * so the map shows all background-recorded points.
+   */
+  async function handleForegroundCatchup(foregroundData) {
+    try {
+      // ── Refresh the Supabase session FIRST ──────────────────────────
+      // While the WebView was frozen, autoRefreshToken couldn't run.
+      // If the background session exceeded ~1 hour the JWT is expired.
+      // Calling refreshSession() uses the long-lived refresh token to
+      // get a new access token so every subsequent API call succeeds.
+      const bgMs = foregroundData.duration?.milliseconds || 0
+      if (bgMs > 30_000) {
+        // Only bother if we were in background for >30s
+        try {
+          const { data: refreshData, error: refreshErr } =
+            await supabase.auth.refreshSession()
+          if (refreshErr) {
+            console.warn("[BG-DIAG] ⚠️ Session refresh failed:", refreshErr.message)
+          } else if (refreshData?.session) {
+            console.log("[BG-DIAG] ✅ Session refreshed after background return")
+
+            // Update the native HTTP engine's authorization with the fresh tokens
+            // so any remaining queued native POSTs use a valid JWT.
+            await backgroundService.updateAuthToken(
+              refreshData.session.access_token,
+              refreshData.session.refresh_token,
+            )
+          }
+        } catch (sessionErr) {
+          console.warn("[BG-DIAG] Session refresh exception:", sessionErr)
+        }
+      }
+
+      // Check for any un-synced locations (failed native POSTs)
+      const storedLocations = await backgroundService.getStoredLocations()
+      if (storedLocations.length > 0) {
+        console.log(`[BG-DIAG] ⚠️ ${storedLocations.length} un-synced locations found, processing...`)
+        // Process each stored location through the normal pipeline
+        for (const loc of storedLocations) {
+          if (loc.coords) {
+            streamMarkerPosition({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              heading: loc.coords.heading || 0,
+              speed: loc.coords.speed || 0,
+              accuracy: loc.coords.accuracy || null,
+            })
+          }
+        }
+        // Clear the plugin's stored locations after processing
+        try {
+          const BackgroundGeolocation = (await import('@transistorsoft/capacitor-background-geolocation')).default
+          await BackgroundGeolocation.destroyLocations()
+          console.log("[BG-DIAG] Cleared stored locations after processing")
+        } catch (e) {
+          console.warn("[BG-DIAG] Could not clear stored locations:", e)
+        }
+      }
+
+      // If native sync was active (trail points were POSTed directly to Supabase),
+      // the local trail store may be behind. Log how many were handled by JS vs native.
+      const jsCount = foregroundData.locationUpdateCount || 0
+      const bgDuration = foregroundData.duration?.milliseconds || 0
+      if (bgDuration > 60000 && backgroundService.nativeSyncEnabled) {
+        // Was in background for >60s — native HTTP likely took over from frozen JS
+        console.log(`[BG-DIAG] Background session: ${jsCount} JS locations + native HTTP sync active`)
+        toast.info("Background trail sync active", {
+          description: `Trail points were saved directly to the server while the app was in background`,
+          duration: 5000,
+        })
+      }
+
+      // ── Merge background-synced trail_stream points into currentTrailStore ──
+      // When native HTTP sync was active, trail_stream has points that
+      // $currentTrailStore.path doesn't know about (JS was frozen).
+      // Fetch them from the DB and merge so the trail renders fully and
+      // the user can close the trail with the complete path.
+      const currentTrail = get(currentTrailStore)
+      if (currentTrail && currentTrail.id && backgroundService.nativeSyncEnabled) {
+        try {
+          const { data: dbPoints, error: dbErr } = await supabase
+            .from("trail_stream")
+            .select("coordinate, timestamp")
+            .eq("trail_id", currentTrail.id)
+            .order("timestamp", { ascending: true })
+
+          if (!dbErr && dbPoints && dbPoints.length > 0) {
+            const existingTimestamps = new Set(
+              (currentTrail.path || []).map((p) => p.timestamp),
+            )
+
+            let merged = 0
+            const newPathPoints = dbPoints
+              .filter((row) => {
+                const ts =
+                  typeof row.timestamp === "string"
+                    ? new Date(row.timestamp).getTime()
+                    : row.timestamp
+                return !existingTimestamps.has(ts)
+              })
+              .map((row) => ({
+                coordinates: {
+                  latitude: row.coordinate.coordinates[1],
+                  longitude: row.coordinate.coordinates[0],
+                },
+                timestamp:
+                  typeof row.timestamp === "string"
+                    ? new Date(row.timestamp).getTime()
+                    : row.timestamp,
+              }))
+
+            if (newPathPoints.length > 0) {
+              currentTrailStore.update((trail) => {
+                if (!trail) return trail
+                const allPoints = [...(trail.path || []), ...newPathPoints].sort(
+                  (a, b) => a.timestamp - b.timestamp,
+                )
+                return { ...trail, path: allPoints }
+              })
+              merged = newPathPoints.length
+              console.log(
+                `[BG-DIAG] 🗺️ Merged ${merged} background-synced trail_stream points into currentTrailStore (JS had ${currentTrail.path?.length || 0})`,
+              )
+            } else {
+              console.log(
+                `[BG-DIAG] trail_stream had ${dbPoints.length} points, all already in currentTrailStore`,
+              )
+            }
+          }
+        } catch (mergeErr) {
+          console.warn("[BG-DIAG] Could not merge trail_stream points:", mergeErr)
+        }
+      }
+    } catch (error) {
+      console.error("[BG-DIAG] Error in foreground catchup:", error)
+    }
+  }
+
   async function setupBackgroundService() {
     if (!isMobileApp) return
 
@@ -864,24 +1052,65 @@
         })
       }
 
+      // Register the native sync configurator as a pre-start hook so it runs
+      // BEFORE BackgroundGeolocation.start() triggers an HTTP flush of queued locations.
+      // This eliminates the race condition where start() flushed with the OLD config.
+      backgroundService.registerPreStartHook(() => configureNativeSyncForBackground())
+
+      // Register a token refresh callback for the heartbeat-based proactive refresh.
+      // When the JWT is >45 min old, the heartbeat handler calls this to get a new token
+      // without waiting for a 401 to trigger the native Authorization auto-refresh.
+      backgroundService.setTokenRefreshCallback(async () => {
+        try {
+          const { data, error } = await supabase.auth.refreshSession()
+          if (error || !data?.session) {
+            console.warn("[BG-DIAG] 🔑 Token refresh callback failed:", error?.message)
+            return null
+          }
+          return {
+            accessToken: data.session.access_token,
+            refreshToken: data.session.refresh_token,
+          }
+        } catch (e) {
+          console.warn("[BG-DIAG] 🔑 Token refresh callback exception:", e)
+          return null
+        }
+      })
+
       removeBackgroundListener = backgroundService.addListener(
         (event, data) => {
           if (event === "background") {
             isBackground = true
             appState = "mobile-background"
+            console.log(`[BG-DIAG] 🟣 VehicleTracker received 'background' event | permission=${data.backgroundPermissionGranted}`)
+
+            // NOTE: Native sync is now configured via the pre-start hook (registered above)
+            // which runs BEFORE start(). No need to call configureNativeSyncForBackground() here.
           } else if (event === "foreground") {
+            console.log(`[BG-DIAG] 🟢 VehicleTracker received 'foreground' event | duration=${data.duration?.formatted} | locations=${data.locationUpdateCount}`)
             isBackground = false
             appState = "mobile-foreground"
+
+            // Fetch any trail points that were saved natively while JS was frozen
+            handleForegroundCatchup(data)
 
             if (data.duration && data.locationUpdateCount >= 2) {
               toast.info(`App returned to foreground`, {
                 description: `Recorded ${data.locationUpdateCount} location updates in ${data.duration.formatted}`,
                 duration: 5000,
               })
+            } else if (data.duration) {
+              toast.info(`App returned to foreground`, {
+                description: `${data.duration.formatted} in background, ${data.locationUpdateCount} location update(s)`,
+                duration: 5000,
+              })
             }
           } else if (event === "location" && isBackground) {
+            console.log(`[BG-DIAG] 📍 VehicleTracker received background location | devMode=${$devModeEnabled} | coords=[${data.coords.latitude.toFixed(5)}, ${data.coords.longitude.toFixed(5)}] | acc=${data.coords.accuracy}m`)
             if ($devModeEnabled) return // Dev mode overrides real GPS
             streamMarkerPosition(data.coords)
+          } else if (event === "location" && !isBackground) {
+            console.log(`[BG-DIAG] ⚠️ VehicleTracker got location but isBackground=false, DROPPING`)
           } else if (event === "permissionChange") {
             if (data.backgroundPermissionGranted) {
               toast.success("Background location enabled", {

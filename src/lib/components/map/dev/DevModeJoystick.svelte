@@ -220,7 +220,7 @@
   .dev-overlay {
     position: fixed;
     bottom: 24px;
-    left: 50%;
+    left: 75%;
     transform: translateX(-50%);
     z-index: 900;
     pointer-events: auto;

@@ -19,8 +19,9 @@
   let elapsedTimer = null
 
   // Route pattern
-  let pattern = "circle" // circle | backforth | random | straight
+  let pattern = "drive" // circle | backforth | random | straight | drive
   const PATTERNS = [
+    { value: "drive", label: "🚗 Drive" },
     { value: "circle", label: "Circle" },
     { value: "backforth", label: "Back & Forth" },
     { value: "random", label: "Random Walk" },
@@ -29,7 +30,7 @@
 
   // Config
   let intervalMs = 3000 // Simulated GPS update interval (ms)
-  let speed = 8 // Simulated speed m/s (typical farming = 3-12 m/s)
+  let speed = 22 // Simulated speed m/s (default to road speed ~80km/h)
   let radiusMeters = 200 // Circle radius
 
   const INTERVAL_OPTIONS = [
@@ -45,8 +46,18 @@
     { value: 5, label: "Walk (5 m/s)" },
     { value: 8, label: "Tractor (8 m/s)" },
     { value: 15, label: "Ute (15 m/s)" },
-    { value: 30, label: "Drive (30 m/s)" },
+    { value: 22, label: "Road (80km/h)" },
+    { value: 30, label: "Hwy (110km/h)" },
   ]
+
+  // Drive pattern state — simulates a road trip with turns, speed variation
+  let driveHeading = 0
+  let driveLat = 0
+  let driveLng = 0
+  let driveSegmentTicks = 0
+  let driveSegmentLength = 0
+  let driveTargetHeading = 0
+  let driveTotalDistKm = 0
 
   // Track origin point for patterns
   let originLat = null
@@ -86,6 +97,15 @@
     tickCount = 0
     elapsedSeconds = 0
     isRunning = true
+
+    // Initialize drive pattern state
+    driveLat = originLat
+    driveLng = originLng
+    driveHeading = Math.random() * 360 // Random initial heading
+    driveSegmentTicks = 0
+    driveSegmentLength = 0
+    driveTargetHeading = driveHeading
+    driveTotalDistKm = 0
 
     // Fire background lifecycle through real backgroundService
     backgroundService.simulateBackground()
@@ -172,6 +192,45 @@
       const totalDist = distPerTick * tickCount
       lat = originLat + totalDist / 111320
       lng = originLng
+
+    } else if (pattern === "drive") {
+      // Realistic road driving: long segments with gentle turns, speed variation
+      // Simulates a country road trip covering real distance (km not meters)
+
+      driveSegmentTicks++
+
+      // Start a new road segment? (each segment = a stretch of road between turns)
+      if (driveSegmentTicks >= driveSegmentLength || driveSegmentLength === 0) {
+        driveSegmentTicks = 0
+        // Road segment length: 8-25 ticks (24s to 75s at 3s interval)
+        driveSegmentLength = 8 + Math.floor(Math.random() * 17)
+        // Pick a new heading: gentle turns (±15-60°), occasional bigger turns (intersections)
+        const turnAngle = Math.random() < 0.15
+          ? (30 + Math.random() * 60) * (Math.random() < 0.5 ? 1 : -1) // sharp turn
+          : (5 + Math.random() * 25) * (Math.random() < 0.5 ? 1 : -1)  // gentle curve
+        driveTargetHeading = ((driveHeading + turnAngle) % 360 + 360) % 360
+      }
+
+      // Smoothly interpolate heading toward target (like turning a steering wheel)
+      const headingDiff = ((driveTargetHeading - driveHeading + 540) % 360) - 180
+      const turnRate = Math.min(Math.abs(headingDiff), 5) * Math.sign(headingDiff) // max 5°/tick
+      driveHeading = ((driveHeading + turnRate) % 360 + 360) % 360
+      heading = driveHeading
+
+      // Speed variation: ±15% to simulate real driving (accel/decel around turns)
+      const speedVariation = 1 + (Math.random() - 0.5) * 0.3
+      const actualSpeed = speed * speedVariation
+      const actualDist = actualSpeed * (intervalMs / 1000)
+
+      // Move in the current heading direction
+      const headingRad = driveHeading * Math.PI / 180
+      driveLat += (actualDist * Math.cos(headingRad)) / 111320
+      driveLng += (actualDist * Math.sin(headingRad)) / (111320 * Math.cos(driveLat * Math.PI / 180))
+
+      driveTotalDistKm += actualDist / 1000
+
+      lat = driveLat
+      lng = driveLng
     }
 
     // Add tiny GPS noise (±2m)
@@ -227,6 +286,9 @@
         <span class="bgsim-status running">RUNNING</span>
         <span class="bgsim-elapsed">{formatElapsed(elapsedSeconds)}</span>
         <span class="bgsim-count">{tickCount} pts</span>
+        {#if pattern === "drive" && driveTotalDistKm > 0}
+          <span class="bgsim-dist">{driveTotalDistKm.toFixed(1)}km</span>
+        {/if}
       {:else}
         <span class="bgsim-status idle">IDLE</span>
       {/if}
@@ -359,6 +421,13 @@
     color: rgba(168, 85, 247, 0.8);
     font-family: monospace;
     margin-left: auto;
+  }
+
+  .bgsim-dist {
+    font-size: 11px;
+    color: rgba(34, 197, 94, 0.8);
+    font-family: monospace;
+    font-weight: 600;
   }
 
   .bgsim-row {

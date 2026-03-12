@@ -24,6 +24,8 @@
   let previousVehicleData = null
   let lastBroadcastFlashState = null // Track last broadcast flash state
   const DATABASE_UPDATE_INTERVAL = 10000 // 10 seconds
+  const POLL_INTERVAL_MS = 60000 // 60 seconds – safety-net only (prefer postgres_changes)
+  let pollInterval = null
 
   async function fetchUserVehicleData(userId) {
     const { data, error } = await supabase
@@ -134,6 +136,84 @@
     })
 
     return changes.filter((change) => change.update_types.length > 0)
+  }
+
+  /**
+   * Polling fallback: periodically query vehicle_state so observers
+   * always see recent positions even when broadcast (JS-only) and
+   * postgres_changes (requires Realtime publication) both fail.
+   * Critical for background-sync scenarios where the native HTTP
+   * engine writes directly to the DB.
+   */
+  async function pollVehicleStates() {
+    const userId = $profileStore.id
+    const masterMapId = $profileStore.master_map_id
+
+    if (!masterMapId || !userId) return
+
+    try {
+      const { data, error } = await supabase
+        .from("vehicle_state")
+        .select("*")
+        .eq("master_map_id", masterMapId)
+        .neq("vehicle_id", userId)
+
+      if (error) {
+        console.warn("⚠️ Poll vehicle_state error:", error)
+        return
+      }
+
+      if (!data || data.length === 0) return
+
+      let hasUpdate = false
+      serverOtherVehiclesData.update((vehicles) => {
+        for (const row of data) {
+          const idx = vehicles.findIndex(
+            (v) => v.vehicle_id === row.vehicle_id,
+          )
+          if (idx !== -1) {
+            const existing = vehicles[idx]
+            // Only update if polled data is newer
+            const existingTs =
+              typeof existing.last_update === "string"
+                ? new Date(existing.last_update).getTime()
+                : existing.last_update || 0
+            const newTs =
+              typeof row.last_update === "string"
+                ? new Date(row.last_update).getTime()
+                : row.last_update || 0
+
+            if (newTs > existingTs) {
+              vehicles[idx] = {
+                ...existing,
+                ...row,
+                full_name: existing.full_name,
+                selected_operation_id: existing.selected_operation_id,
+                current_operation: existing.current_operation,
+                operation_name: existing.operation_name,
+                operation_id: existing.operation_id,
+              }
+              hasUpdate = true
+            }
+          } else {
+            vehicles.push(row)
+            hasUpdate = true
+          }
+        }
+        return vehicles
+      })
+
+      if (hasUpdate) {
+        console.log(`🔄 [POLL] vehicle_state poll found newer data`)
+        const changes = compareData(
+          $serverOtherVehiclesData,
+          $otherVehiclesStore,
+        )
+        otherVehiclesDataChanges.set(changes)
+      }
+    } catch (e) {
+      console.warn("⚠️ Poll vehicle_state exception:", e)
+    }
   }
 
   async function broadcastVehicleState(vehicleData) {
@@ -362,6 +442,7 @@
       .channel(`vehicle_updates_${masterMapId}`)
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         if (payload.payload.vehicle_id !== userId) {
+          console.log(`📡 [BROADCAST] vehicle_update from ${payload.payload.vehicle_id?.slice(0,8)}`)
           serverOtherVehiclesData.update((vehicles) => {
             const existingVehicleIndex = vehicles.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
@@ -430,6 +511,7 @@
         },
         (payload) => {
           if (payload.new.vehicle_id !== userId) {
+            console.log(`🛢️ [CDC] postgres_changes vehicle_state from ${payload.new.vehicle_id?.slice(0,8)} | coords=${payload.new.coordinates} | last_update=${payload.new.last_update}`)
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
@@ -468,6 +550,10 @@
       )
       .subscribe()
 
+    // Reliable polling fallback — catches background-sync DB writes
+    // even when broadcast + postgres_changes both miss
+    pollInterval = setInterval(pollVehicleStates, POLL_INTERVAL_MS)
+
     unsubscribe = userVehicleStore.subscribe(async (vehicleData) => {
       await broadcastVehicleState(vehicleData)
       await updateDatabaseVehicleState(vehicleData)
@@ -477,6 +563,10 @@
   })
 
   onDestroy(() => {
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
     if (channel) {
       supabase.removeChannel(channel)
     }
