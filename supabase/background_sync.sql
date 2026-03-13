@@ -14,6 +14,15 @@
 --   3. Click "Run"
 -- ============================================================
 
+-- Drop the OLD 10-parameter overload first.
+-- PostgreSQL treats different parameter lists as separate functions,
+-- so CREATE OR REPLACE won't replace the old one — it creates a second
+-- overload, causing PostgREST PGRST203 "ambiguous function" errors.
+DROP FUNCTION IF EXISTS public.background_sync(
+  double precision, double precision, double precision, double precision,
+  text, text, text, text, text, text
+);
+
 CREATE OR REPLACE FUNCTION public.background_sync(
   p_lat double precision,
   p_lng double precision,
@@ -24,7 +33,14 @@ CREATE OR REPLACE FUNCTION public.background_sync(
   p_trail_id text DEFAULT NULL,
   p_vehicle_id text DEFAULT NULL,
   p_master_map_id text DEFAULT NULL,
-  p_is_trailing text DEFAULT 'false'
+  p_is_trailing text DEFAULT 'false',
+  -- Accept (and ignore) the Android mock-location flag.
+  -- When the transistorsoft plugin records a location from a mock GPS
+  -- provider, Android's Location.isFromMockProvider() = true gets injected
+  -- into the HTTP POST body alongside the locationTemplate fields.
+  -- PostgREST requires an exact function-signature match, so without this
+  -- parameter the RPC call returns 404.
+  mock boolean DEFAULT NULL
 ) RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -98,7 +114,7 @@ $$;
 -- Allow authenticated users to call this function
 GRANT EXECUTE ON FUNCTION public.background_sync(
   double precision, double precision, double precision, double precision,
-  text, text, text, text, text, text
+  text, text, text, text, text, text, boolean
 ) TO authenticated;
 
 -- ============================================================

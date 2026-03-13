@@ -239,11 +239,27 @@ public class MockLocationService extends Service {
             if (consecutiveFailures >= MAX_FAILURES) {
                 Log.e(TAG, "Too many injection failures — stopping simulation. Enable mock location app in Developer Options.");
                 updateNotification("❌ Mock location permission denied — stopped");
+                stopSelf();
+            }
+        } catch (IllegalArgumentException e) {
+            // "gps provider is not a test provider" — happens after force-close:
+            // Android kills the process but restarts the ForegroundService, and the
+            // test provider registration is lost. Stop immediately.
+            Log.w(TAG, "Test provider lost (app was force-closed?) — stopping service", e);
+            sRunning = false;
+            if (handler != null) handler.removeCallbacks(tickRunnable);
+            stopForeground(true);
+            stopSelf();
+        } catch (Exception e) {
+            consecutiveFailures++;
+            Log.e(TAG, "Failed to inject location (" + consecutiveFailures + "/" + MAX_FAILURES + ")", e);
+            if (consecutiveFailures >= MAX_FAILURES) {
+                Log.e(TAG, "Too many injection failures — stopping service.");
                 sRunning = false;
                 if (handler != null) handler.removeCallbacks(tickRunnable);
+                stopForeground(true);
+                stopSelf();
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to inject location", e);
         }
     }
 

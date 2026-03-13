@@ -489,6 +489,12 @@ class BackgroundService {
         autoSyncThreshold: 0,
         batchSync: false,
         method: 'POST',
+        // httpRootProperty '.' makes the rendered locationTemplate the root of the
+        // HTTP body, which is required for PostgREST RPC calls (params at root).
+        // CAVEAT: when the location comes from a mock GPS provider, the transistorsoft
+        // plugin injects an extra `mock: true` field into the body alongside the
+        // template fields. The background_sync SQL function accepts this param and
+        // ignores it — without that, PostgREST returns 404 (signature mismatch).
         httpRootProperty: '.',
         locationTemplate,
         headers: {

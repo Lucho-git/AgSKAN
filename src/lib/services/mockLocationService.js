@@ -18,7 +18,10 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
-const MockLocation = Capacitor.isNativePlatform()
+// Mock location injection is Android-only (native Java ForegroundService).
+// On iOS there's no native implementation — skip registration entirely
+// to avoid Capacitor returning {code: 'UNIMPLEMENTED'}.
+const MockLocation = Capacitor.getPlatform() === 'android'
   ? registerPlugin('MockLocation')
   : null
 
