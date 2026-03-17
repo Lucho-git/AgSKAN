@@ -64,7 +64,11 @@
   $: formattedPlanName =
     currentPlan === "FREE"
       ? "Free Plan"
-      : currentPlan.charAt(0) + currentPlan.slice(1).toLowerCase() + " Plan"
+      : currentPlan
+
+  $: nextBillingFormatted = subscriptionData?.next_billing_date
+    ? new Date(subscriptionData.next_billing_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
 </script>
 
 <svelte:head>
@@ -119,18 +123,18 @@
             <h4 class="text-lg font-semibold text-contrast-content">
               {formattedPlanName}
             </h4>
-            {#if isPaidPlan}
+            {#if isPaidPlan && nextBillingFormatted}
               <p class="text-sm text-contrast-content/60">
-                Next billing: February 25, 2025
+                Next billing: {nextBillingFormatted}
               </p>
-            {:else}
+            {:else if !isPaidPlan}
               <p class="text-sm text-contrast-content/60">
                 No billing - Free forever
               </p>
             {/if}
           </div>
           <div class="badge badge-outline badge-lg">
-            {currentPlan}
+            {isPaidPlan ? 'Pro' : 'Free'}
           </div>
         </div>
       </div>
@@ -152,24 +156,27 @@
         Plan Details
       </h3>
 
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="grid gap-4">
         <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-          <label class="mb-1 block text-sm text-contrast-content/60">
-            Team Members
-          </label>
-          <p class="font-medium text-contrast-content">
-            {planQuantity}
-            {planQuantity === "1" ? "seat" : "seats"} available
-          </p>
-        </div>
-
-        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-          <label class="mb-1 block text-sm text-contrast-content/60">
-            Features
-          </label>
-          <p class="font-medium text-contrast-content">
-            {currentPlan === "FREE" ? "Basic tracking" : "Advanced features"}
-          </p>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="mb-1 text-sm text-contrast-content/60">
+                Team Members
+              </p>
+              <p class="font-medium text-contrast-content">
+                {planQuantity}
+                {planQuantity === "1" ? "seat" : "seats"} available
+              </p>
+            </div>
+            <div class="rounded-lg bg-base-content/10 p-2">
+              <Icon
+                icon="solar:users-group-two-rounded-bold-duotone"
+                width="18"
+                height="18"
+                class="text-base-content"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

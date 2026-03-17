@@ -1,8 +1,7 @@
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
-  import SettingsModule from "$lib/components/map/toolbox/SettingsModule.svelte"
-  import { ArrowRight, AlertTriangle, Check, Minus, Plus, Users, X, Zap } from "lucide-svelte"
+  import { ArrowRight, AlertTriangle, Check, Minus, Plus, Users, X, Zap, CreditCard, CalendarDays, Shield } from "lucide-svelte"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
   import { subscriptionApi } from "$lib/api/subscriptionApi"
@@ -24,7 +23,8 @@
   let hasEverHadSubscription = data.hasEverHadSubscription || false
   let subscriptionData = data.subscriptionData
 
-  $: currentPlanName = subscriptionData?.appSubscription?.name || "Free Plan"
+  $: currentPlanName = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.nickname
+    || (currentPlanId === 'pro' ? 'AgSKAN Pro' : 'Free Plan')
   $: isFreePlan =
     currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
 
@@ -287,145 +287,99 @@
   </section>
 {:else}
   <!-- Active Customer - Show Current Subscription -->
-  <section class="min-h-screen bg-base-100">
-    <div class="container mx-auto px-4 py-8">
-      <h1
-        class="mb-8 text-center font-sans text-2xl font-bold text-base-content"
+  <div>
+    <!-- Header -->
+    <div
+      class="flex items-center justify-between border-b border-base-300 bg-base-100 p-5"
+    >
+      <h2
+        class="flex items-center gap-2 text-xl font-semibold text-contrast-content"
       >
-        Billing & Subscription
-      </h1>
+        <div class="rounded-lg bg-base-content/10 p-1.5">
+          <CreditCard size={18} class="text-base-content" />
+        </div>
+        Billing
+      </h2>
+    </div>
 
-      <div class="mx-auto max-w-4xl">
-        <SettingsModule
-          title="Subscription Details"
-          editable={false}
-          fields={[
-            {
-              id: "planName",
-              label: "Current Plan",
-              initialValue: currentPlanName,
-            },
-            {
-              id: "planStatus",
-              label: "Status",
-              initialValue:
-                subscriptionData?.stripeSubscription?.status ?? "N/A",
-            },
-            {
-              id: "quantity",
-              label: "Machine Licenses",
-              initialValue:
-                subscriptionData?.stripeSubscription?.quantity?.toString() ??
-                "1",
-            },
-            ...(subscriptionData?.stripeSubscription?.plan?.interval
-              ? [
-                  {
-                    id: "interval",
-                    label: "Billing Cycle",
-                    initialValue:
-                      subscriptionData.stripeSubscription.plan.interval ===
-                      "year"
-                        ? "Annual"
-                        : "Monthly",
-                  },
-                ]
-              : []),
-            {
-              id: "nextBilling",
-              label: "Next Billing Date",
-              initialValue: subscriptionData?.stripeSubscription
-                ?.current_period_end
-                ? new Date(
-                    subscriptionData.stripeSubscription.current_period_end *
-                      1000,
-                  ).toLocaleDateString()
-                : "N/A",
-            },
-          ]}
+    <!-- Content -->
+    <div class="mx-auto max-w-lg space-y-6 p-6">
+      <!-- Subscription Overview -->
+      <div>
+        <h3
+          class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
         >
-          <div class="flex flex-col gap-2" slot="buttons">
-            <button
-              class="btn btn-outline btn-sm min-w-[145px]"
-              on:click={openStripePortal}
-              disabled={portalLoading}
-            >
-              {#if portalLoading}
-                <span class="loading loading-spinner loading-xs mr-2"></span>
-              {/if}
-              Manage Subscription
-            </button>
+          <div class="rounded-lg bg-base-content/10 p-1.5">
+            <Zap size={16} class="text-base-content" />
           </div>
-        </SettingsModule>
+          Subscription
+        </h3>
 
-        {#if isFreePlan}
-          <div class="mt-12">
-            <h2
-              class="mb-6 text-center font-sans text-xl font-bold text-base-content"
-            >
-              Reactivate Pro Features
-            </h2>
-            <p
-              class="mx-auto mb-8 max-w-xl text-center text-contrast-content/70"
-            >
-              Get back to collaborating with your team and unlock all the
-              features you had before.
-            </p>
-            <!-- Show the same clean Pro card for upgrade -->
-            <div class="mx-auto max-w-lg">
-              <div
-                class="relative rounded-xl border-2 border-base-content bg-base-200 p-6 shadow-xl md:p-8"
-              >
-                <div
-                  class="absolute -top-4 left-6 rounded-full bg-base-content px-3 py-1 text-xs font-bold uppercase text-base-100"
-                >
-                  Reactivate
-                </div>
-
-                <h3
-                  class="mb-2 mt-6 font-sans text-2xl font-bold text-base-content"
-                >
-                  AgSKAN Pro
-                </h3>
-
-                <div class="mb-6">
-                  <div class="flex items-end">
-                    <span class="text-3xl font-bold text-base-content"
-                      >{CURRENCY_SYMBOL}{Math.round(BASE_PRICE * 2)}</span
-                    >
-                    <span class="ml-1 text-contrast-content/60">/month</span>
-                  </div>
-
-                  <div
-                    class="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-2.5"
-                  >
-                    <div
-                      class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-success/20 text-success"
-                    >
-                      <Zap size={14} />
-                    </div>
-                    <p class="text-sm font-medium text-success">
-                      Pick up right where you left off with full team access.
-                    </p>
-                  </div>
-                </div>
-
-                <a href="/account/subscribe/{stripePriceIds.yearly.standard}?seats=2">
-                  <button
-                    class="group flex w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-3 text-lg font-medium text-secondary-content shadow-lg shadow-secondary/30 transition-all duration-300 hover:bg-secondary/90 hover:shadow-xl hover:shadow-secondary/40"
-                  >
-                    Reactivate Pro
-                    <ArrowRight
-                      size={16}
-                      class="transition-transform group-hover:translate-x-1"
-                    />
-                  </button>
-                </a>
+        <div class="grid gap-4">
+          <!-- Plan Card -->
+          <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-contrast-content/60">Current Plan</p>
+                <p class="font-medium text-contrast-content">{currentPlanName}</p>
+              </div>
+              <div class="badge badge-lg" class:badge-success={subscriptionData?.stripeSubscription?.status === 'active'} class:badge-warning={subscriptionData?.stripeSubscription?.status === 'trialing'} class:badge-error={subscriptionData?.stripeSubscription?.status === 'past_due'}>
+                {subscriptionData?.stripeSubscription?.status === 'trialing' ? 'Trial' : subscriptionData?.stripeSubscription?.status === 'active' ? 'Active' : subscriptionData?.stripeSubscription?.status ?? 'N/A'}
               </div>
             </div>
           </div>
-        {/if}
+
+          <!-- Seats Card -->
+          <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-contrast-content/60">Operator Seats</p>
+                <p class="font-medium text-contrast-content">
+                  {subscriptionData?.stripeSubscription?.quantity ?? '1'} {(subscriptionData?.stripeSubscription?.quantity ?? 1) === 1 ? 'seat' : 'seats'}
+                </p>
+              </div>
+              <div class="rounded-lg bg-base-content/10 p-2">
+                <Users size={18} class="text-base-content" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Next Billing Card -->
+          <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-contrast-content/60">Next Billing Date</p>
+                <p class="font-medium text-contrast-content">
+                  {subscriptionData?.stripeSubscription?.current_period_end
+                    ? new Date(subscriptionData.stripeSubscription.current_period_end * 1000).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : 'N/A'}
+                </p>
+              </div>
+              <div class="rounded-lg bg-base-content/10 p-2">
+                <CalendarDays size={18} class="text-base-content" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manage Subscription -->
+      <div class="border-t border-base-300 pt-6">
+        <button
+          class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-content shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          on:click={openStripePortal}
+          disabled={portalLoading}
+        >
+          {#if portalLoading}
+            <span class="loading loading-spinner loading-xs"></span>
+          {/if}
+          <Shield size={16} />
+          Manage Subscription & Billing
+        </button>
+        <p class="mt-2 text-center text-xs text-contrast-content/50">
+          Update payment method, change seats, view invoices, or cancel
+        </p>
       </div>
     </div>
-  </section>
+  </div>
 {/if}
