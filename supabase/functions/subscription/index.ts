@@ -22,7 +22,7 @@ const pricingPlans = [
     },
     {
         id: "pro",
-        stripe_product_id: "prod_QUxgzq6c3meKyZ"
+        stripe_product_id: "prod_U9qgyqB2m0KN8p"
     }
 ];
 

@@ -9,6 +9,99 @@ import { supabaseServiceRole } from "$lib/supabaseAdmin.server"
 
 const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" })
 
+// Pro plan limits
+const PRO_MARKER_LIMIT = 999999
+const PRO_TRAIL_LIMIT = 999999
+const FREE_MARKER_LIMIT = 100
+const FREE_TRAIL_LIMIT = 100000
+
+/**
+ * Look up the internal user_id from a Stripe customer ID
+ */
+async function getUserIdFromCustomer(stripeCustomerId: string): Promise<string> {
+  const { data, error: err } = await supabaseServiceRole
+    .from("stripe_customers")
+    .select("user_id")
+    .eq("stripe_customer_id", stripeCustomerId)
+    .single()
+
+  if (err || !data) {
+    throw new Error(`No user found for stripe_customer_id: ${stripeCustomerId}`)
+  }
+  return data.user_id
+}
+
+/**
+ * Extract subscription data from a Stripe Subscription object
+ * and map it to our user_subscriptions table shape
+ */
+function mapSubscriptionToUpdate(subscription: Stripe.Subscription) {
+  const item = subscription.items.data[0]
+  const interval = item?.price.recurring?.interval || "year"
+  const seats = item?.quantity || 1
+  const status = subscription.status // trialing, active, past_due, canceled, unpaid, incomplete, etc.
+
+  // Determine our plan name from status
+  const isActive = ["trialing", "active"].includes(status)
+  const planName = isActive
+    ? (item?.price.nickname || "AgSKAN Pro Annual (Standard)")
+    : "FREE"
+
+  return {
+    subscription: planName,
+    subscription_status: status,
+    stripe_subscription_id: subscription.id,
+    current_seats: isActive ? seats : 0,
+    marker_limit: isActive ? PRO_MARKER_LIMIT : FREE_MARKER_LIMIT,
+    trail_limit: isActive ? PRO_TRAIL_LIMIT : FREE_TRAIL_LIMIT,
+    payment_interval: interval,
+    next_billing_date: subscription.current_period_end
+      ? new Date(subscription.current_period_end * 1000).toISOString()
+      : null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+/**
+ * Upsert subscription data into user_subscriptions
+ */
+async function upsertSubscription(userId: string, data: Record<string, any>) {
+  // Try update first
+  const { error: updateError, count } = await supabaseServiceRole
+    .from("user_subscriptions")
+    .update(data)
+    .eq("user_id", userId)
+
+  if (updateError) {
+    console.error("Error updating subscription:", updateError)
+    throw new Error(`Failed to update subscription: ${updateError.message}`)
+  }
+
+  console.log("Successfully updated user_subscriptions:", { user_id: userId, ...data })
+}
+
+/**
+ * Downgrade a user back to free plan
+ */
+async function downgradeToFree(userId: string, stripeSubscriptionId?: string) {
+  const data: Record<string, any> = {
+    subscription: "FREE",
+    subscription_status: "free",
+    current_seats: 1,
+    marker_limit: FREE_MARKER_LIMIT,
+    trail_limit: FREE_TRAIL_LIMIT,
+    payment_interval: null,
+    next_billing_date: null,
+    updated_at: new Date().toISOString(),
+  }
+  if (stripeSubscriptionId) {
+    data.stripe_subscription_id = stripeSubscriptionId
+  }
+
+  await upsertSubscription(userId, data)
+  console.log("User downgraded to FREE:", userId)
+}
+
 export async function POST({ request }: RequestEvent) {
   const body = await request.text()
   const signature = request.headers.get("stripe-signature")
@@ -19,90 +112,159 @@ export async function POST({ request }: RequestEvent) {
   }
 
   try {
-    console.log("Verifying Stripe signature...")
     const event = stripe.webhooks.constructEvent(
       body,
       signature,
       PRIVATE_STRIPE_WEBHOOK_SECRET,
     )
 
-    console.log("Received Stripe webhook eventer:", {
-      type: event.type,
-      id: event.id,
-      created: new Date(event.created * 1000).toISOString(),
-      data: JSON.stringify(event.data.object, null, 2),
-    })
+    console.log(`[Stripe Webhook] ${event.type} (${event.id})`)
 
     switch (event.type) {
-      case "customer.subscription.updated": {
+      // ─── NEW SUBSCRIPTION (after checkout or API creation) ───
+      case "customer.subscription.created": {
         const subscription = event.data.object as Stripe.Subscription
+        const userId = await getUserIdFromCustomer(subscription.customer as string)
+        const updateData = mapSubscriptionToUpdate(subscription)
 
-        console.log("Processing subscription update:", {
-          customer_id: subscription.customer,
-          subscription_id: subscription.id,
+        console.log("[Webhook] Subscription CREATED:", {
+          user_id: userId,
           status: subscription.status,
-          current_period_end: new Date(
-            subscription.current_period_end * 1000,
-          ).toISOString(),
+          trial_end: subscription.trial_end
+            ? new Date(subscription.trial_end * 1000).toISOString()
+            : null,
         })
 
-        console.log(
-          "Looking up user from stripe_customer_id:",
-          subscription.customer,
-        )
-        const { data: customerData, error: customerError } =
-          await supabaseServiceRole
-            .from("stripe_customers")
-            .select("user_id")
-            .eq("stripe_customer_id", subscription.customer)
-            .single()
-
-        if (customerError) {
-          console.error("Error fetching customer data:", customerError)
-          throw new Error(
-            `No customer found for stripe_customer_id: ${subscription.customer}`,
-          )
-        }
-
-        console.log("Found user:", customerData)
-
-        const interval =
-          subscription.items.data[0]?.price.recurring?.interval || "month"
-
-        const updateData = {
-          subscription: subscription.items.data[0]?.price.nickname || null,
-          current_seats: subscription.items.data[0]?.quantity || 1,
-          updated_at: new Date().toISOString(),
-          next_billing_date: new Date(
-            subscription.current_period_end * 1000,
-          ).toISOString(),
-          payment_interval: interval,
-        }
-
-        console.log("Updating subscription with data:", {
-          user_id: customerData.user_id,
-          ...updateData,
-        })
-
-        const { error: updateError } = await supabaseServiceRole
-          .from("user_subscriptions")
-          .update(updateData)
-          .eq("user_id", customerData.user_id)
-
-        if (updateError) {
-          console.error("Error updating subscription:", updateError)
-          throw new Error(
-            `Failed to update subscription: ${updateError.message}`,
-          )
-        }
-
-        console.log("Successfully updated subscription:", {
-          user_id: customerData.user_id,
-          subscription_id: subscription.id,
-          update_time: new Date().toISOString(),
-        })
+        await upsertSubscription(userId, updateData)
         break
       }
+
+      // ─── SUBSCRIPTION UPDATED (seat changes, plan changes, renewals) ───
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription
+        const userId = await getUserIdFromCustomer(subscription.customer as string)
+        const updateData = mapSubscriptionToUpdate(subscription)
+
+        console.log("[Webhook] Subscription UPDATED:", {
+          user_id: userId,
+          status: subscription.status,
+          seats: updateData.current_seats,
+        })
+
+        await upsertSubscription(userId, updateData)
+        break
+      }
+
+      // ─── SUBSCRIPTION DELETED (cancelled and period ended) ───
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription
+        const userId = await getUserIdFromCustomer(subscription.customer as string)
+
+        console.log("[Webhook] Subscription DELETED:", {
+          user_id: userId,
+          subscription_id: subscription.id,
+        })
+
+        await downgradeToFree(userId, subscription.id)
+        break
+      }
+
+      // ─── CHECKOUT COMPLETED (first-time purchase) ───
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session
+
+        // Only handle subscription checkouts
+        if (session.mode !== "subscription" || !session.subscription) break
+
+        const userId = await getUserIdFromCustomer(session.customer as string)
+
+        // Fetch the full subscription object from Stripe
+        const subscription = await stripe.subscriptions.retrieve(
+          session.subscription as string,
+        )
+        const updateData = mapSubscriptionToUpdate(subscription)
+
+        console.log("[Webhook] Checkout COMPLETED:", {
+          user_id: userId,
+          subscription_id: subscription.id,
+          status: subscription.status,
+        })
+
+        await upsertSubscription(userId, updateData)
+        break
+      }
+
+      // ─── INVOICE PAID (renewal success, confirms active) ───
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice
+
+        // Only handle subscription invoices
+        if (!invoice.subscription || !invoice.customer) break
+
+        const userId = await getUserIdFromCustomer(invoice.customer as string)
+
+        // Fetch fresh subscription data
+        const subscription = await stripe.subscriptions.retrieve(
+          invoice.subscription as string,
+        )
+        const updateData = mapSubscriptionToUpdate(subscription)
+
+        console.log("[Webhook] Invoice PAID:", {
+          user_id: userId,
+          subscription_id: subscription.id,
+          amount: invoice.amount_paid,
+        })
+
+        await upsertSubscription(userId, updateData)
+        break
+      }
+
+      // ─── INVOICE PAYMENT FAILED (card declined, etc.) ───
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice
+
+        if (!invoice.subscription || !invoice.customer) break
+
+        const userId = await getUserIdFromCustomer(invoice.customer as string)
+
+        // Fetch fresh subscription — status will be 'past_due' or 'unpaid'
+        const subscription = await stripe.subscriptions.retrieve(
+          invoice.subscription as string,
+        )
+        const updateData = mapSubscriptionToUpdate(subscription)
+
+        console.log("[Webhook] Invoice PAYMENT FAILED:", {
+          user_id: userId,
+          subscription_id: subscription.id,
+          status: subscription.status,
+          attempt: invoice.attempt_count,
+        })
+
+        // Update status — mapSubscriptionToUpdate handles the logic:
+        // 'past_due' keeps pro access (grace period), 'unpaid'/'canceled' downgrades
+        await upsertSubscription(userId, updateData)
+        break
+      }
+
+      // ─── TRIAL ENDING SOON (3 days before trial ends) ───
+      case "customer.subscription.trial_will_end": {
+        const subscription = event.data.object as Stripe.Subscription
+        const userId = await getUserIdFromCustomer(subscription.customer as string)
+
+        console.log("[Webhook] Trial ending soon:", {
+          user_id: userId,
+          trial_end: subscription.trial_end
+            ? new Date(subscription.trial_end * 1000).toISOString()
+            : null,
+        })
+
+        // No DB change needed — just logging for now.
+        // Could trigger an email notification here in the future.
+        break
+      }
+
+      default:
+        console.log(`[Webhook] Unhandled event type: ${event.type}`)
     }
 
     return json({ received: true })
@@ -110,7 +272,6 @@ export async function POST({ request }: RequestEvent) {
     console.error("Error processing webhook:", {
       error: err instanceof Error ? err.message : "Unknown error",
       stack: err instanceof Error ? err.stack : undefined,
-      body: body.slice(0, 500),
     })
 
     throw error(400, err instanceof Error ? err.message : "Unknown error")

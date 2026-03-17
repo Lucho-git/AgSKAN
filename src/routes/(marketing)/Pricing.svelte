@@ -31,8 +31,8 @@
 
   const validKeys = variants.map((v) => v.key)
 
-  // Default to V3; override via ?variant= URL param
-  let activeVariant: Variant = "3"
+  // Default to V11; override via ?variant= URL param
+  let activeVariant: Variant = "11"
 
   $: {
     if (browser) {

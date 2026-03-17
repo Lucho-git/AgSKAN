@@ -35,10 +35,9 @@ export const pricingPlans = [
     },
     priceIntervalName: { monthly: "per month", yearly: "per year" },
     stripe_price_id: {
-      monthly: "price_1PkkO8K3At0l0k1HqvxEEBw2",
-      yearly: "price_1PdxlVK3At0l0k1HoEgkFynm",
+      yearly: "price_1TBWyrK3At0l0k1HoyC9bStL",
     },
-    stripe_product_id: "prod_QUxgzq6c3meKyZ",
+    stripe_product_id: "prod_U9qgyqB2m0KN8p",
     features: [
       "Invite others to share your map",
       "Customizable # of seats",

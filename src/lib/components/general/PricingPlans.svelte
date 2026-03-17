@@ -6,20 +6,14 @@
 
   export let currentPlanId: string | null = null
 
-  const billingPeriod = writable("yearly")
+  const billingPeriod = writable<"monthly" | "yearly">("yearly")
   const useFullPrice = writable(true)
-  const discountPriceId = "price_1PdxlUK3At0l0k1Hu6tlYnHe"
-  const fullPriceId = "price_1PdxlVK3At0l0k1HoEgkFynm"
-  const monthlyPriceId = "price_1PkkO8K3At0l0k1HqvxEEBw2"
+  const standardPriceId = "price_1TBWyrK3At0l0k1HoyC9bStL"
+  const testPriceId = "price_1TBWz2K3At0l0k1H7fXrH3nf"
 
   const additionalDiscountActive = false // Set this to false when the promotion ends
 
-  $: stripe_price_id =
-    $billingPeriod === "monthly"
-      ? monthlyPriceId
-      : $useFullPrice
-        ? fullPriceId
-        : fullPriceId
+  $: stripe_price_id = standardPriceId
 
   const pricingPlans = [
     {
@@ -35,7 +29,7 @@
         monthly: "no credit card required",
         yearly: "no credit card required",
       },
-      stripe_price_id: { monthly: null, yearly: null },
+      stripe_price_id: { monthly: null as string | null, yearly: null as string | null },
       features: [
         "Join other maps with unlimited resources",
         "1 Map Creation",
@@ -56,10 +50,10 @@
       },
       priceIntervalName: { monthly: "per month", yearly: "per year" },
       stripe_price_id: {
-        monthly: monthlyPriceId,
-        yearly: "price_1PdxlVK3At0l0k1HoEgkFynm",
+        monthly: standardPriceId,
+        yearly: standardPriceId,
       },
-      stripe_product_id: "prod_QUxgzq6c3meKyZ",
+      stripe_product_id: "prod_U9qgyqB2m0KN8p",
       features: [
         "Invite others to share your map",
         "Customizable # of seats",

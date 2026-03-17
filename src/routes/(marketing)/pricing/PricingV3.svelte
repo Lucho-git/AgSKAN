@@ -4,7 +4,7 @@
    * Big heading, giant price, CTA, 3 highlight cards, then full feature grid.
    * Consolidated from V1 + V3 + V5.
    */
-  import { AlertTriangle, ArrowRight, Check, Headphones, Minus, Plus, Shield, Wifi } from "lucide-svelte"
+  import { AlertTriangle, ArrowRight, Check, Headphones, Minus, Plus, Shield, Users, Wifi } from "lucide-svelte"
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
 
@@ -21,6 +21,7 @@
   $: pricePerSeatMonth = BASE_PRICE * (2 / 3)
   $: totalMonthly = Math.round(machineCount * pricePerSeatMonth)
   $: totalAnnual = Math.round(machineCount * pricePerSeatMonth * 12)
+  $: pricePerOperator = Math.round(pricePerSeatMonth)
 
   function increment() { if (machineCount < 20) machineCount++ }
   function decrement() { if (machineCount > 1) machineCount-- }
@@ -33,10 +34,10 @@
 
   $: proFeatures = [
     `Track ${machineCount} operator${machineCount > 1 ? "s" : ""} live`,
-    "Background location & coverage trails",
+    "Records coverage in the background",
     "Rock picking path tool",
     "Unlimited paddocks & pins",
-    "Offline tracking & replay",
+    "Offline Ready",
     "Shareable map reports",
     "Priority phone support",
     "All future features included",
@@ -56,71 +57,76 @@
     {#if mounted}
       <!-- Top: Price hero -->
       <div class="mx-auto max-w-2xl text-center" in:animationDelay={0}>
-        <div class="mb-4 inline-block rounded-full bg-secondary/15 px-4 py-1.5 text-sm font-semibold text-secondary">
-          Try free for 1 month
+        <div class="mb-4 inline-block rounded-full bg-secondary px-4 py-1.5 text-sm font-bold text-secondary-content">
+          1 month free trial
         </div>
 
         <h2 class="mb-3 font-sans text-3xl font-bold text-contrast-content md:text-5xl">
           One Plan. One Price.
         </h2>
-        <p class="mx-auto mb-8 max-w-md text-contrast-content/70">
-          Just pick your team size — everything's included, no hidden fees.
+        <p class="mx-auto mb-8 max-w-md text-lg text-contrast-content/70">
+          $1 a day per operator. Just pick your team size — everything's included, no hidden fees.
         </p>
 
-        <!-- Team size selector -->
-        <div class="mb-6 flex items-center justify-center">
-          <div class="flex items-center gap-3 rounded-lg bg-base-100 p-1.5 shadow-md md:p-2">
-            <span class="whitespace-nowrap pl-2 text-sm font-medium text-contrast-content">
-              Team size:
-            </span>
-            <button
-              class="flex h-8 w-8 items-center justify-center rounded-lg border border-base-300 bg-base-100 text-base-content/60 transition-colors hover:bg-base-content hover:text-base-100"
-              on:click={decrement}
-            >
-              <Minus size={14} />
-            </button>
-            <div class="w-14 text-center">
-              <span class="text-lg font-bold text-base-content">{machineCount}</span>
-              <span class="-mt-1 block text-xs text-base-content/60">operator{machineCount > 1 ? "s" : ""}</span>
+      </div>
+
+      <!-- Interactive counter card -->
+      <div class="mx-auto max-w-lg" in:animationDelay={100}>
+        <div class="rounded-2xl border-2 border-base-content bg-base-100 p-8 shadow-xl md:p-10">
+          <!-- Counter -->
+          <div class="mb-6 text-center">
+            <div class="mb-2 flex items-center justify-center gap-2 text-sm font-medium text-contrast-content/60">
+              <Users size={16} />
+              How many operators?
             </div>
-            <button
-              class="flex h-8 w-8 items-center justify-center rounded-lg border border-base-300 bg-base-100 text-base-content/60 transition-colors hover:bg-base-content hover:text-base-100"
-              on:click={increment}
-            >
-              <Plus size={14} />
-            </button>
+            <div class="flex items-center justify-center gap-6">
+              <button
+                class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
+                on:click={decrement}
+              >
+                <Minus size={20} />
+              </button>
+              <div class="w-24 text-center">
+                <span class="text-6xl font-bold tabular-nums text-contrast-content">{machineCount}</span>
+                <span class="-mt-1 block text-sm text-contrast-content/50">
+                  operator{machineCount > 1 ? "s" : ""}
+                </span>
+              </div>
+              <button
+                class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
+                on:click={increment}
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            {#if machineCount === 1}
+              <div class="mt-3 flex items-center justify-center gap-1.5 text-xs text-warning">
+                <AlertTriangle size={12} />
+                <span>Recommended: at least 2 operators for full team features</span>
+              </div>
+            {/if}
           </div>
-        </div>
-        {#if machineCount === 1}
-          <div class="-mt-4 mb-2 flex items-center justify-center gap-1.5 text-xs text-warning">
-            <AlertTriangle size={12} />
-            <span>Recommended: at least 2 operators for full team features</span>
-          </div>
-        {/if}
 
-        <!-- Giant price -->
-        <div class="mb-2" in:animationDelay={100}>
-          <div class="flex items-end justify-center">
-            <span class="text-6xl font-bold tracking-tight text-contrast-content md:text-7xl">
-              {CURRENCY_SYMBOL}{totalMonthly}
-            </span>
-            <span class="mb-2 ml-1 text-xl text-contrast-content/50">/mo</span>
+          <!-- Price breakdown -->
+          <div class="mb-6 rounded-xl bg-base-200 p-5 text-center">
+            <div class="flex items-end justify-center">
+              <span class="text-5xl font-bold tracking-tight text-contrast-content">{CURRENCY_SYMBOL}{totalMonthly}</span>
+              <span class="mb-1 ml-1 text-contrast-content/50">/mo</span>
+            </div>
+            <p class="mt-2 text-sm text-contrast-content/50">
+              {machineCount} × {CURRENCY_SYMBOL}{pricePerOperator}/mo = {CURRENCY_SYMBOL}{totalAnnual}/year
+            </p>
           </div>
-          <p class="mt-2 text-contrast-content/50">
-            Billed at {CURRENCY_SYMBOL}{totalAnnual}/year
-          </p>
-        </div>
 
-        <!-- CTA -->
-        <div class="mx-auto mt-8 max-w-sm" in:animationDelay={150}>
+          <!-- CTA -->
           <button
             class="group flex w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-3.5 text-lg font-medium text-secondary-content shadow-lg shadow-secondary/30 transition-all duration-300 hover:bg-secondary/90 hover:shadow-xl hover:shadow-secondary/40"
             on:click={() => goto("/login?tab=sign_up")}
           >
-            Start Your Free Month
+            Try {machineCount} operator{machineCount > 1 ? "s" : ""} free for 1 month
             <ArrowRight size={16} class="transition-transform group-hover:translate-x-1" />
           </button>
-          <p class="mt-3 text-xs text-contrast-content/50">
+          <p class="mt-3 text-center text-xs text-contrast-content/50">
             Cancel anytime
           </p>
         </div>
@@ -161,7 +167,7 @@
         <div class="flex flex-col items-center gap-4 rounded-xl bg-base-100 p-5 shadow-md sm:flex-row sm:justify-between">
           <div>
             <span class="font-sans font-bold text-contrast-content">Just want to explore?</span>
-            <p class="text-sm text-contrast-content/60">1 operator, no credit card, no expiry.</p>
+            <span class="ml-2 text-sm text-contrast-content/60">Free solo account</span>
           </div>
           <button
             class="group btn btn-outline flex-shrink-0 border-base-content text-sm text-base-content hover:bg-base-content hover:text-base-100"

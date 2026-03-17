@@ -39,9 +39,17 @@ async function getOrCreateCustomer(userId: string, email: string, profileData: a
         throw new Error(`Database error: ${queryError.message}`)
     }
 
-    // If customer exists, return the ID
+    // If customer exists, update with latest profile data and return the ID
     if (customers && customers.length > 0) {
-        return customers[0].stripe_customer_id
+        const existingId = customers[0].stripe_customer_id
+        const updateData: Stripe.CustomerUpdateParams = {}
+        if (profileData.mobile) updateData.phone = profileData.mobile
+        if (profileData.email) updateData.email = profileData.email
+        if (profileData.full_name) updateData.name = profileData.full_name
+        if (Object.keys(updateData).length > 0) {
+            await stripe.customers.update(existingId, updateData)
+        }
+        return existingId
     }
 
     // Create a new customer in Stripe
@@ -54,6 +62,7 @@ async function getOrCreateCustomer(userId: string, email: string, profileData: a
 
     // Add additional customer data if available
     if (profileData.full_name) customerData.name = profileData.full_name
+    if (profileData.mobile) customerData.phone = profileData.mobile
     if (profileData.company_name) customerData.metadata!.company = profileData.company_name
     if (profileData.website) {
         // Remove http(s) for Stripe requirements
@@ -133,7 +142,7 @@ serve(async (req) => {
         // Get the user's profile data
         const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, company_name, website")
+            .select("full_name, company_name, website, mobile, email")
             .eq("id", user.id)
             .single()
 
@@ -151,22 +160,28 @@ serve(async (req) => {
             line_items: [
                 {
                     price: priceId,
-                    quantity: seats
+                    quantity: seats,
+                    adjustable_quantity: {
+                        enabled: true,
+                        minimum: 1,
+                        maximum: 50,
+                    },
                 }
             ],
             mode: 'subscription',
             success_url: successUrl,
             cancel_url: cancelUrl,
-            allow_promotion_codes: true
-        }
-
-        // Apply discount code if provided
-        if (discount && discountcode === 'test') {
-            // Example: Apply a specific coupon
-            sessionParams.discounts = [{ coupon: 'test_coupon' }]
-        } else if (discount) {
-            // Example: Apply a default discount
-            sessionParams.discounts = [{ coupon: 'default_discount' }]
+            allow_promotion_codes: true,
+            subscription_data: {
+                trial_period_days: 30,
+            },
+            automatic_tax: {
+                enabled: true,
+            },
+            customer_update: {
+                address: 'auto',
+                name: 'auto',
+            },
         }
 
         // Create checkout session

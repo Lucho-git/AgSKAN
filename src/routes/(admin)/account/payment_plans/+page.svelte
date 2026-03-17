@@ -94,27 +94,8 @@
   {:else}
     <div class="py-2">
       <h1 class="mb-4 text-center text-4xl font-bold">Select a Plan</h1>
-      <!-- Custom component to override the free plan button -->
       <div class="relative">
         <PricingSection currentPlanId="none" useFullPrice={true} />
-
-        <!-- Overlay to catch the free plan button click -->
-        <div
-          class="pointer-events-none absolute left-0 top-0 z-10 h-full w-full"
-        >
-          <div class="grid h-full md:grid-cols-2">
-            <div class="relative">
-              <!-- Free plan button overlay -->
-              <button
-                class="pointer-events-auto absolute bottom-[calc(50%-80px)] left-1/2 h-12 w-[90%] -translate-x-1/2 opacity-0"
-                on:click={activateFreePlan}
-                aria-label="Get Started with Free Plan"
-              />
-            </div>
-            <div></div>
-            <!-- Pro plan column - don't intercept -->
-          </div>
-        </div>
       </div>
     </div>
   {/if}
