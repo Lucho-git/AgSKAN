@@ -1,14 +1,18 @@
 // /supabase/functions/stripe-webhook/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import Stripe from "https://esm.sh/stripe@12.0.0?dts"
+import Stripe from "https://esm.sh/stripe@14?target=deno"
 
 const stripeApiKey = Deno.env.get('PRIVATE_STRIPE_API_KEY')
 const stripeWebhookSecret = Deno.env.get('PRIVATE_STRIPE_WEBHOOK_SECRET')
 const supabaseUrl = Deno.env.get('PUBLIC_SUPABASE_URL')
 const supabaseServiceRole = Deno.env.get('PRIVATE_SUPABASE_SERVICE_ROLE')
 
-const stripe = new Stripe(stripeApiKey!, { apiVersion: '2023-10-16' })
+const stripe = new Stripe(stripeApiKey!, {
+    apiVersion: '2023-10-16',
+    httpClient: Stripe.createFetchHttpClient(),
+})
+const cryptoProvider = Stripe.createSubtleCryptoProvider()
 const supabase = createClient(supabaseUrl!, supabaseServiceRole!)
 
 // Plan limits
@@ -118,8 +122,14 @@ serve(async (req) => {
             return new Response(JSON.stringify({ error: "Missing signature" }), { status: 400 })
         }
 
-        // Verify webhook signature
-        const event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret!)
+        // Verify webhook signature (async for Deno's Web Crypto API)
+        const event = await stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            stripeWebhookSecret!,
+            undefined,
+            cryptoProvider
+        )
 
         console.log(`[Stripe Webhook] ${event.type} (${event.id})`)
 
