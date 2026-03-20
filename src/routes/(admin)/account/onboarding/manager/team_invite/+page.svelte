@@ -13,10 +13,11 @@
     Cloud,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
-  // Generate a random map ID for demonstration
-  const mapId = "e99d851c-e073-4458-8284-1fd5d2526ea0"
-  const shareLink = `https://www.skanfarming.com.au/login?map_id=${mapId}`
+  // Use the actual connected map ID
+  $: mapId = $connectedMapStore?.id || ""
+  $: shareLink = `https://www.skanfarming.com.au/login?map_id=${mapId}`
 
   let completionStatus = null // 'loading' | 'success' | null
 
