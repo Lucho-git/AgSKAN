@@ -18,6 +18,7 @@ const defaultSettings = {
         "class": "default"
     },
     extraMarkers: [] as { id: string; class: string; name: string }[],
+    devToolsEnabled: false, // Show Dev Mode & BG Sim buttons in map toolbox
 };
 
 export const userSettingsStore = writable(defaultSettings);

@@ -288,23 +288,25 @@
             <span>Rock Picking</span>
           </button>
 
-          <button
-            class="tool-button"
-            class:tool-active={$devModeEnabled}
-            on:click={toggleDevMode}
-          >
-            <Gamepad2 size={26} />
-            <span>{$devModeEnabled ? "Exit Dev Mode" : "Dev Mode"}</span>
-          </button>
+          {#if $userSettingsStore.devToolsEnabled}
+            <button
+              class="tool-button"
+              class:tool-active={$devModeEnabled}
+              on:click={toggleDevMode}
+            >
+              <Gamepad2 size={26} />
+              <span>{$devModeEnabled ? "Exit Dev Mode" : "Dev Mode"}</span>
+            </button>
 
-          <button
-            class="tool-button"
-            class:tool-active={$devBackgroundSimEnabled}
-            on:click={toggleBgSim}
-          >
-            <Radio size={26} />
-            <span>{$devBackgroundSimEnabled ? "Exit BG Sim" : "BG Sim"}</span>
-          </button>
+            <button
+              class="tool-button"
+              class:tool-active={$devBackgroundSimEnabled}
+              on:click={toggleBgSim}
+            >
+              <Radio size={26} />
+              <span>{$devBackgroundSimEnabled ? "Exit BG Sim" : "BG Sim"}</span>
+            </button>
+          {/if}
         </div>
       {/if}
     </div>

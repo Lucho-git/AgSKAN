@@ -630,6 +630,59 @@ export const userSettingsApi = {
 
 
     /**
+     * Updates dev tools visibility setting
+     */
+    async updateDevToolsEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save dev tools setting");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    dev_tools_enabled: enabled,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving dev tools setting:", error);
+                return {
+                    success: false,
+                    message: "Failed to save dev tools setting",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                devToolsEnabled: enabled,
+            }));
+
+            return {
+                success: true,
+                message: "Dev tools setting updated"
+            };
+        } catch (error) {
+            console.error("Error in updateDevToolsEnabled:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving dev tools setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
      * Deletes the user's account
      */
     async deleteAccount(currentPassword: string) {

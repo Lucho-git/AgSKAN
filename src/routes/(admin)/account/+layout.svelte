@@ -190,6 +190,7 @@
             user_settings.default_imagery_source ?? "mapbox",
           defaultMarker: user_settings.default_marker,
           extraMarkers: user_settings.extra_markers ?? [],
+          devToolsEnabled: user_settings.dev_tools_enabled ?? false,
         })
       } else {
         // If no user settings exist, use defaults
@@ -205,6 +206,7 @@
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",
+          devToolsEnabled: false,
         })
       }
 
