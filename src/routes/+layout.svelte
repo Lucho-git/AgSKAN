@@ -24,6 +24,10 @@
   // Adjust this import path based on your setup
   import { supabase } from "$lib/stores/sessionStore"
 
+  // Native geolocation patch — replaces browser API with Capacitor plugin
+  // to avoid iOS WKWebView "Localhost" location prompt
+  import { patchGeolocationForNative } from "$lib/utils/nativeGeolocationPatch"
+
   // --- Theme Colors for System Bars ---
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
@@ -225,6 +229,9 @@
   }
 
   onMount(async () => {
+    // Patch navigator.geolocation FIRST, before any map/location code runs
+    patchGeolocationForNative()
+
     console.log(
       "+++++ ROOT LAYOUT ONMOUNT (iOS Native + Android JS Theme Handling) +++++",
     )
