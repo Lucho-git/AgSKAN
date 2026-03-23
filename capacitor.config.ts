@@ -10,7 +10,7 @@ const config: CapacitorConfig = {
         iosScheme: 'https',
         cleartext: true,
         allowNavigation: ['*'],
-        hostname: 'app.skanfarming.com.au',
+        hostname: 'localhost',
     },
     plugins: {
         SplashScreen: {
