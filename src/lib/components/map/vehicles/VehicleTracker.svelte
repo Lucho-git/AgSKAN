@@ -245,7 +245,7 @@
     )
 
     if (userMarkerData?.component) {
-      const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
+      const isSelected = selectedVehicleId != null && selectedVehicleId === $userVehicleStore.vehicle_id
       userMarkerData.component.$set({ isSelected })
       console.log("🚗 Updated user marker selection:", isSelected)
     }
@@ -1631,6 +1631,19 @@
   function updateUserMarker(vehicleMarker) {
     if (userMarkerData && previousVehicleMarker) {
       if (vehicleMarker.type === previousVehicleMarker.type) {
+        // Keep data-vehicle-id in sync when vehicle_id changes (e.g. null → UUID after async load)
+        if (userMarkerData.marker) {
+          const el = userMarkerData.marker.getElement()
+          const currentVehicleId = $userVehicleStore.vehicle_id
+          if (el && currentVehicleId && el.getAttribute("data-vehicle-id") !== currentVehicleId) {
+            el.setAttribute("data-vehicle-id", currentVehicleId)
+            console.log("🔄 Updated data-vehicle-id attribute to:", currentVehicleId)
+            // Also refresh isSelected since vehicle_id just became valid
+            const isSelected = selectedVehicleId != null && selectedVehicleId === currentVehicleId
+            userMarkerData.component.$set({ isSelected })
+          }
+        }
+
         const propsChanged =
           vehicleMarker.bodyColor !== previousVehicleMarker.bodyColor ||
           vehicleMarker.size !== previousVehicleMarker.size ||
@@ -1736,7 +1749,7 @@
       }
     }
 
-    const isSelected = selectedVehicleId === $userVehicleStore.vehicle_id
+    const isSelected = selectedVehicleId != null && selectedVehicleId === $userVehicleStore.vehicle_id
     component.$set({ isSelected })
 
     userMarkerData = { marker, component }

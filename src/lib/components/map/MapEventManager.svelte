@@ -384,6 +384,7 @@
   function handleMapClick(event) {
     if (longPressJustCompleted || isDragging) {
       console.log("🚫 Click ignored - long press or drag detected")
+      longPressJustCompleted = false
       return
     }
 
@@ -430,6 +431,7 @@
       console.log(
         "🚫 Touch end ignored - long press, drag, or movement detected",
       )
+      longPressJustCompleted = false
       resetMapLevelTouchTracking()
       return
     }
@@ -531,11 +533,9 @@
         console.log("⏰ Long press timer fired")
         longPressJustCompleted = true
         onLongPress(event.lngLat)
-
-        setTimeout(() => {
-          longPressJustCompleted = false
-          console.log("🧊 Long press flag reset")
-        }, 300)
+        // Don't auto-reset longPressJustCompleted on a timer.
+        // It will be consumed by handleMouseUp / handleMapTouchEnd / handleMapClick
+        // when the user lifts their finger, no matter how long they hold.
       }
       longPressTimer = null
     }, longPressThreshold)
@@ -572,11 +572,10 @@
   }
 
   function handleMouseUp(event) {
-    if (longPressStartTime && longPressJustCompleted) {
-      const timeSinceStart = Date.now() - longPressStartTime
-      if (timeSinceStart >= longPressThreshold - 50) {
-        console.log("🚫 Preventing mouseup/touchend after long press")
-      }
+    if (longPressJustCompleted) {
+      console.log("🚫 Preventing mouseup/touchend after long press")
+      // Reset the flag now that the gesture is complete
+      longPressJustCompleted = false
     }
 
     setTimeout(() => {

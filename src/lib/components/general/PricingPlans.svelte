@@ -29,7 +29,10 @@
         monthly: "no credit card required",
         yearly: "no credit card required",
       },
-      stripe_price_id: { monthly: null as string | null, yearly: null as string | null },
+      stripe_price_id: {
+        monthly: null as string | null,
+        yearly: null as string | null,
+      },
       features: [
         "Join other maps with unlimited resources",
         "1 Map Creation",

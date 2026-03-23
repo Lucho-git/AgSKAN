@@ -5,9 +5,6 @@
 
 <div class="container mx-auto px-4">
   <div class="py-16">
-    <PricingSection
-      {currentPlanId}
-      ignoreUrlParams={true}
-    />
+    <PricingSection {currentPlanId} ignoreUrlParams={true} />
   </div>
 </div>

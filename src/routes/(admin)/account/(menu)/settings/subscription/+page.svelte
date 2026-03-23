@@ -61,13 +61,14 @@
   })
 
   // Reactive values based on loaded data
-  $: formattedPlanName =
-    currentPlan === "FREE"
-      ? "Free Plan"
-      : currentPlan
+  $: formattedPlanName = currentPlan === "FREE" ? "Free Plan" : currentPlan
 
   $: nextBillingFormatted = subscriptionData?.next_billing_date
-    ? new Date(subscriptionData.next_billing_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(subscriptionData.next_billing_date).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
     : null
 </script>
 
@@ -134,7 +135,7 @@
             {/if}
           </div>
           <div class="badge badge-outline badge-lg">
-            {isPaidPlan ? 'Pro' : 'Free'}
+            {isPaidPlan ? "Pro" : "Free"}
           </div>
         </div>
       </div>
@@ -160,9 +161,7 @@
         <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="mb-1 text-sm text-contrast-content/60">
-                Team Members
-              </p>
+              <p class="mb-1 text-sm text-contrast-content/60">Team Members</p>
               <p class="font-medium text-contrast-content">
                 {planQuantity}
                 {planQuantity === "1" ? "seat" : "seats"} available

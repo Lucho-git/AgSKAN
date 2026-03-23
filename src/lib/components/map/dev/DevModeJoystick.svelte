@@ -302,10 +302,26 @@
     color: rgba(255, 255, 255, 0.25);
     pointer-events: none;
   }
-  .c.n { top: 3px; left: 50%; transform: translateX(-50%); }
-  .c.s { bottom: 3px; left: 50%; transform: translateX(-50%); }
-  .c.e { right: 5px; top: 50%; transform: translateY(-50%); }
-  .c.w { left: 5px; top: 50%; transform: translateY(-50%); }
+  .c.n {
+    top: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .c.s {
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .c.e {
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .c.w {
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
 
   .joy-knob {
     position: absolute;

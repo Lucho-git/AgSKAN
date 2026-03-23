@@ -1,7 +1,19 @@
 <script lang="ts">
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
-  import { ArrowRight, AlertTriangle, Check, Minus, Plus, Users, X, Zap, CreditCard, CalendarDays, Shield } from "lucide-svelte"
+  import {
+    ArrowRight,
+    AlertTriangle,
+    Check,
+    Minus,
+    Plus,
+    Users,
+    X,
+    Zap,
+    CreditCard,
+    CalendarDays,
+    Shield,
+  } from "lucide-svelte"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
   import { subscriptionApi } from "$lib/api/subscriptionApi"
@@ -23,8 +35,9 @@
   let hasEverHadSubscription = data.hasEverHadSubscription || false
   let subscriptionData = data.subscriptionData
 
-  $: currentPlanName = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.nickname
-    || (currentPlanId === 'pro' ? 'AgSKAN Pro' : 'Free Plan')
+  $: currentPlanName =
+    subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.nickname ||
+    (currentPlanId === "pro" ? "AgSKAN Pro" : "Free Plan")
   $: isFreePlan =
     currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
 
@@ -47,10 +60,7 @@
   }
 
   // Pricing calculations (annual only)
-  $: pricePerSeat =
-    isTestDiscount
-      ? BASE_PRICE * 0.25
-      : BASE_PRICE * (2 / 3)
+  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE * (2 / 3)
 
   $: totalMonthly = Math.round(machineCount * pricePerSeat)
   $: totalAnnual = Math.round(machineCount * pricePerSeat * 12)
@@ -321,10 +331,24 @@
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-contrast-content/60">Current Plan</p>
-                <p class="font-medium text-contrast-content">{currentPlanName}</p>
+                <p class="font-medium text-contrast-content">
+                  {currentPlanName}
+                </p>
               </div>
-              <div class="badge badge-lg" class:badge-success={subscriptionData?.stripeSubscription?.status === 'active'} class:badge-warning={subscriptionData?.stripeSubscription?.status === 'trialing'} class:badge-error={subscriptionData?.stripeSubscription?.status === 'past_due'}>
-                {subscriptionData?.stripeSubscription?.status === 'trialing' ? 'Trial' : subscriptionData?.stripeSubscription?.status === 'active' ? 'Active' : subscriptionData?.stripeSubscription?.status ?? 'N/A'}
+              <div
+                class="badge badge-lg"
+                class:badge-success={subscriptionData?.stripeSubscription
+                  ?.status === "active"}
+                class:badge-warning={subscriptionData?.stripeSubscription
+                  ?.status === "trialing"}
+                class:badge-error={subscriptionData?.stripeSubscription
+                  ?.status === "past_due"}
+              >
+                {subscriptionData?.stripeSubscription?.status === "trialing"
+                  ? "Trial"
+                  : subscriptionData?.stripeSubscription?.status === "active"
+                    ? "Active"
+                    : (subscriptionData?.stripeSubscription?.status ?? "N/A")}
               </div>
             </div>
           </div>
@@ -335,7 +359,10 @@
               <div>
                 <p class="text-sm text-contrast-content/60">Operator Seats</p>
                 <p class="font-medium text-contrast-content">
-                  {subscriptionData?.stripeSubscription?.quantity ?? '1'} {(subscriptionData?.stripeSubscription?.quantity ?? 1) === 1 ? 'seat' : 'seats'}
+                  {subscriptionData?.stripeSubscription?.quantity ?? "1"}
+                  {(subscriptionData?.stripeSubscription?.quantity ?? 1) === 1
+                    ? "seat"
+                    : "seats"}
                 </p>
               </div>
               <div class="rounded-lg bg-base-content/10 p-2">
@@ -348,11 +375,20 @@
           <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm text-contrast-content/60">Next Billing Date</p>
+                <p class="text-sm text-contrast-content/60">
+                  Next Billing Date
+                </p>
                 <p class="font-medium text-contrast-content">
                   {subscriptionData?.stripeSubscription?.current_period_end
-                    ? new Date(subscriptionData.stripeSubscription.current_period_end * 1000).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
-                    : 'N/A'}
+                    ? new Date(
+                        subscriptionData.stripeSubscription.current_period_end *
+                          1000,
+                      ).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : "N/A"}
                 </p>
               </div>
               <div class="rounded-lg bg-base-content/10 p-2">

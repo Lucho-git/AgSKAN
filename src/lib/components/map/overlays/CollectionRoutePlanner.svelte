@@ -529,7 +529,9 @@
       // (the collection system in MarkerManager may collect them before
       //  the route planner's own proximity check fires)
       let collectedIds
-      const cUnsub = collectionRouteStore.subscribe((s) => (collectedIds = s.collectedIds))
+      const cUnsub = collectionRouteStore.subscribe(
+        (s) => (collectedIds = s.collectedIds),
+      )
       cUnsub()
 
       while (nextWaypointIdx < orderedMarkers.length) {

@@ -14,121 +14,121 @@ import { Geolocation } from '@capacitor/geolocation'
 let patched = false
 
 export function patchGeolocationForNative(): void {
-  if (patched) return
-  if (!Capacitor.isNativePlatform()) return
+    if (patched) return
+    if (!Capacitor.isNativePlatform()) return
 
-  patched = true
+    patched = true
 
-  const nativeGetCurrentPosition: typeof navigator.geolocation.getCurrentPosition = (
-    successCallback,
-    errorCallback,
-    options
-  ) => {
-    Geolocation.getCurrentPosition({
-      enableHighAccuracy: options?.enableHighAccuracy ?? true,
-      timeout: options?.timeout ?? 10000,
-      maximumAge: options?.maximumAge ?? 0,
-    })
-      .then((pos) => {
-        // Build a GeolocationPosition-like object
-        const position: GeolocationPosition = {
-          coords: {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            altitude: pos.coords.altitude,
-            accuracy: pos.coords.accuracy,
-            altitudeAccuracy: pos.coords.altitudeAccuracy,
-            heading: pos.coords.heading,
-            speed: pos.coords.speed,
-          },
-          timestamp: pos.timestamp,
-        } as GeolocationPosition
-        successCallback(position)
-      })
-      .catch((err) => {
-        if (errorCallback) {
-          errorCallback({
-            code: 2, // POSITION_UNAVAILABLE
-            message: err?.message ?? 'Native geolocation error',
-            PERMISSION_DENIED: 1,
-            POSITION_UNAVAILABLE: 2,
-            TIMEOUT: 3,
-          } as GeolocationPositionError)
-        }
-      })
-  }
-
-  // Track active watches so clearWatch works
-  const watchMap = new Map<number, string>()
-  let nextWatchId = 1000
-
-  const nativeWatchPosition: typeof navigator.geolocation.watchPosition = (
-    successCallback,
-    errorCallback,
-    options
-  ) => {
-    const watchId = nextWatchId++
-
-    Geolocation.watchPosition(
-      {
-        enableHighAccuracy: options?.enableHighAccuracy ?? true,
-        timeout: options?.timeout ?? 10000,
-        maximumAge: options?.maximumAge ?? 0,
-      },
-      (pos, err) => {
-        if (err) {
-          if (errorCallback) {
-            errorCallback({
-              code: 2,
-              message: err.message ?? 'Native watch error',
-              PERMISSION_DENIED: 1,
-              POSITION_UNAVAILABLE: 2,
-              TIMEOUT: 3,
-            } as GeolocationPositionError)
-          }
-          return
-        }
-        if (pos) {
-          const position: GeolocationPosition = {
-            coords: {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              altitude: pos.coords.altitude,
-              accuracy: pos.coords.accuracy,
-              altitudeAccuracy: pos.coords.altitudeAccuracy,
-              heading: pos.coords.heading,
-              speed: pos.coords.speed,
-            },
-            timestamp: pos.timestamp,
-          } as GeolocationPosition
-          successCallback(position)
-        }
-      }
-    ).then((callbackId) => {
-      watchMap.set(watchId, callbackId)
-    })
-
-    return watchId
-  }
-
-  const nativeClearWatch: typeof navigator.geolocation.clearWatch = (watchId) => {
-    const callbackId = watchMap.get(watchId)
-    if (callbackId) {
-      Geolocation.clearWatch({ id: callbackId })
-      watchMap.delete(watchId)
+    const nativeGetCurrentPosition: typeof navigator.geolocation.getCurrentPosition = (
+        successCallback,
+        errorCallback,
+        options
+    ) => {
+        Geolocation.getCurrentPosition({
+            enableHighAccuracy: options?.enableHighAccuracy ?? true,
+            timeout: options?.timeout ?? 10000,
+            maximumAge: options?.maximumAge ?? 0,
+        })
+            .then((pos) => {
+                // Build a GeolocationPosition-like object
+                const position: GeolocationPosition = {
+                    coords: {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        altitude: pos.coords.altitude,
+                        accuracy: pos.coords.accuracy,
+                        altitudeAccuracy: pos.coords.altitudeAccuracy,
+                        heading: pos.coords.heading,
+                        speed: pos.coords.speed,
+                    },
+                    timestamp: pos.timestamp,
+                } as GeolocationPosition
+                successCallback(position)
+            })
+            .catch((err) => {
+                if (errorCallback) {
+                    errorCallback({
+                        code: 2, // POSITION_UNAVAILABLE
+                        message: err?.message ?? 'Native geolocation error',
+                        PERMISSION_DENIED: 1,
+                        POSITION_UNAVAILABLE: 2,
+                        TIMEOUT: 3,
+                    } as GeolocationPositionError)
+                }
+            })
     }
-  }
 
-  // Override the browser geolocation with native implementations
-  Object.defineProperty(navigator, 'geolocation', {
-    value: {
-      getCurrentPosition: nativeGetCurrentPosition,
-      watchPosition: nativeWatchPosition,
-      clearWatch: nativeClearWatch,
-    },
-    writable: false,
-    configurable: true,
-  })
+    // Track active watches so clearWatch works
+    const watchMap = new Map<number, string>()
+    let nextWatchId = 1000
 
-  console.log('[AgSKAN] Patched navigator.geolocation → native Capacitor plugin')
+    const nativeWatchPosition: typeof navigator.geolocation.watchPosition = (
+        successCallback,
+        errorCallback,
+        options
+    ) => {
+        const watchId = nextWatchId++
+
+        Geolocation.watchPosition(
+            {
+                enableHighAccuracy: options?.enableHighAccuracy ?? true,
+                timeout: options?.timeout ?? 10000,
+                maximumAge: options?.maximumAge ?? 0,
+            },
+            (pos, err) => {
+                if (err) {
+                    if (errorCallback) {
+                        errorCallback({
+                            code: 2,
+                            message: err.message ?? 'Native watch error',
+                            PERMISSION_DENIED: 1,
+                            POSITION_UNAVAILABLE: 2,
+                            TIMEOUT: 3,
+                        } as GeolocationPositionError)
+                    }
+                    return
+                }
+                if (pos) {
+                    const position: GeolocationPosition = {
+                        coords: {
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude,
+                            altitude: pos.coords.altitude,
+                            accuracy: pos.coords.accuracy,
+                            altitudeAccuracy: pos.coords.altitudeAccuracy,
+                            heading: pos.coords.heading,
+                            speed: pos.coords.speed,
+                        },
+                        timestamp: pos.timestamp,
+                    } as GeolocationPosition
+                    successCallback(position)
+                }
+            }
+        ).then((callbackId) => {
+            watchMap.set(watchId, callbackId)
+        })
+
+        return watchId
+    }
+
+    const nativeClearWatch: typeof navigator.geolocation.clearWatch = (watchId) => {
+        const callbackId = watchMap.get(watchId)
+        if (callbackId) {
+            Geolocation.clearWatch({ id: callbackId })
+            watchMap.delete(watchId)
+        }
+    }
+
+    // Override the browser geolocation with native implementations
+    Object.defineProperty(navigator, 'geolocation', {
+        value: {
+            getCurrentPosition: nativeGetCurrentPosition,
+            watchPosition: nativeWatchPosition,
+            clearWatch: nativeClearWatch,
+        },
+        writable: false,
+        configurable: true,
+    })
+
+    console.log('[AgSKAN] Patched navigator.geolocation → native Capacitor plugin')
 }

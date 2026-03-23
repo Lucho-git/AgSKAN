@@ -1,7 +1,14 @@
 <!-- src/lib/components/general/PricingSection.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import { AlertTriangle, ArrowRight, Check, Minus, Plus, Users } from "lucide-svelte"
+  import {
+    AlertTriangle,
+    ArrowRight,
+    Check,
+    Minus,
+    Plus,
+    Users,
+  } from "lucide-svelte"
   import { onMount } from "svelte"
   import { page } from "$app/stores"
 
@@ -37,10 +44,7 @@
     }
   }
 
-  $: pricePerSeat =
-    isTestDiscount
-      ? BASE_PRICE * 0.25
-      : BASE_PRICE * (2 / 3)
+  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE * (2 / 3)
 
   $: totalMonthly = Math.round(machineCount * pricePerSeat)
   $: totalAnnual = Math.round(machineCount * pricePerSeat * 12)
@@ -76,7 +80,8 @@
     return {
       delay,
       duration: 600,
-      css: (t: number) => `opacity: ${t}; transform: translateY(${(1 - t) * 20}px);`,
+      css: (t: number) =>
+        `opacity: ${t}; transform: translateY(${(1 - t) * 20}px);`,
     }
   }
 </script>
@@ -211,7 +216,6 @@
           {/each}
         </div>
       </div>
-
     {/if}
   </div>
 </div>
