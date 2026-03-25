@@ -25,14 +25,19 @@ export const fileApi = {
                     continue;
                 }
 
-                const fieldToInsert = {
+                const fieldToInsert: Record<string, any> = {
                     map_id: map_id,
                     name: field.name,
                     area: field.area,
                     boundary: field.boundary,
                     properties: field.properties,
-                    polygon_areas: field.polygon_areas || null, // Add polygon_areas if it exists
+                    polygon_areas: field.polygon_areas || null,
                 };
+
+                // Include farm_id if provided on the paddock
+                if (field.farm_id) {
+                    fieldToInsert.farm_id = field.farm_id;
+                }
 
                 try {
                     const { data, error } = await supabase
@@ -193,7 +198,8 @@ export const fileApi = {
             polygonAreas?: { individual_areas: number[], total_area: number },
             icon?: string,
             color?: string,
-            field_type?: string
+            field_type?: string,
+            farm_id?: string
         }
     ) {
         try {
@@ -227,6 +233,7 @@ export const fileApi = {
             if (updates.icon !== undefined) updateData.icon = updates.icon;
             if (updates.color !== undefined) updateData.color = updates.color;
             if (updates.field_type !== undefined) updateData.field_type = updates.field_type;
+            if (updates.farm_id !== undefined) updateData.farm_id = updates.farm_id;
 
             // Handle polygon areas
             if (updates.polygonAreas?.individual_areas?.length > 0) {

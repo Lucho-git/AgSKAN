@@ -288,6 +288,33 @@
     console.log("Drawing cancelled")
   }
 
+  function handleFieldSelect(event) {
+    const { index, boundary } = event.detail
+    // Highlight the field
+    if (mapFieldsRef) {
+      mapFieldsRef.handleFieldSelection(index)
+    }
+    // Zoom to field bounds
+    if (map && boundary) {
+      const coords = boundary.type === "MultiPolygon"
+        ? boundary.coordinates.flat(2)
+        : boundary.coordinates.flat(1)
+      if (coords.length > 0) {
+        const bounds = coords.reduce(
+          (b, c) => {
+            b[0][0] = Math.min(b[0][0], c[0])
+            b[0][1] = Math.min(b[0][1], c[1])
+            b[1][0] = Math.max(b[1][0], c[0])
+            b[1][1] = Math.max(b[1][1], c[1])
+            return b
+          },
+          [[Infinity, Infinity], [-Infinity, -Infinity]]
+        )
+        map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
+      }
+    }
+  }
+
   function handleToolAction(event) {
     const { type } = event.detail
 
@@ -681,6 +708,7 @@
   on:close={closeToolbox}
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
+  on:selectField={handleFieldSelect}
 />
 
 <!-- Dev Mode Joystick Overlay -->

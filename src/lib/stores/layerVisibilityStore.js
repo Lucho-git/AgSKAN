@@ -8,6 +8,8 @@ const defaultState = {
   markerDrawings: true,
   fields: true,
   fieldLabels: true,
+  fieldHectares: true,
+  fieldFarmNames: true,
   vehicles: true,
   vehicleLabels: true,
   historicalTrails: true,

@@ -9,8 +9,10 @@
   import type { PageData } from "./$types"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import { farmsStore } from "$lib/stores/farmsStore"
   import { session } from "$lib/stores/sessionStore"
   import { fileApi } from "$lib/api/fileApi" // Import the fileApi
+  import { farmApi } from "$lib/api/farmApi"
 
   import { locationApi } from "$lib/api/locationApi" // Import the locationApi
   export let data: PageData
@@ -95,6 +97,16 @@
       fields = result.fields || []
       mapFieldsStore.set(fields)
       console.log("Fields loaded successfully:", fields)
+
+      // Load farms for this map (derive map_id from the first field, or from profile)
+      if (fields.length > 0 && fields[0].map_id) {
+        const farmsResult = await farmApi.loadFarms(fields[0].map_id)
+        if (!farmsResult.error) {
+          farmsStore.set(farmsResult.farms)
+          console.log("Farms loaded successfully:", farmsResult.farms)
+        }
+      }
+
       return fields
     } catch (err) {
       console.error("Error loading fields:", err)

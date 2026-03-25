@@ -12,6 +12,7 @@
     Gamepad2,
     Magnet,
     Radio,
+    LandPlot,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import { devModeEnabled, devBackgroundSimEnabled } from "$lib/stores/devModeStore"
@@ -30,6 +31,7 @@
   import TrailControls from "$lib/components/map/trails/TrailControls.svelte"
   import LayerControls from "./LayerControls.svelte"
   import CollectionControls from "./CollectionControls.svelte"
+  import FieldControls from "./FieldControls.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
 
   export let isOpen = false
@@ -182,6 +184,9 @@
         {:else if activePanel === "collection"}
           <button class="back-button" on:click={showMainPanel}> ← </button>
           <h3>Collection Mode</h3>
+        {:else if activePanel === "fields"}
+          <button class="back-button" on:click={showMainPanel}> ← </button>
+          <h3>Fields</h3>
         {:else}
           <h3>Toolbox</h3>
         {/if}
@@ -210,6 +215,8 @@
         </div>
       {:else if activePanel === "collection"}
         <CollectionControls on:close={closeToolbox} />
+      {:else if activePanel === "fields"}
+        <FieldControls on:selectField />
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
@@ -268,6 +275,11 @@
           <button class="tool-button" on:click={showLayersPanel}>
             <Layers size={26} />
             <span>Layers</span>
+          </button>
+
+          <button class="tool-button" on:click={() => (activePanel = "fields")}>
+            <LandPlot size={26} />
+            <span>Fields</span>
           </button>
 
           <button

@@ -44,6 +44,51 @@ function findPaddockName(properties: any): string | null {
     return null;
 }
 
+// Detect farm name from feature properties or file metadata
+export function findFarmName(properties: any): string | null {
+    const possibleFarmFields = [
+        "farm", "FARM", "Farm",
+        "FARM_NAME", "farm_name", "FarmName",
+        "property_n",
+        "CLIENTNAME", "client_name", "ClientName", "client", "Client",
+        "OWNER", "owner", "Owner",
+    ];
+    for (const field of possibleFarmFields) {
+        if (properties && properties[field]) {
+            return String(properties[field]);
+        }
+    }
+    return null;
+}
+
+// Extract unique farm names from a list of paddocks
+export function detectFarmNames(paddocks: any[]): string[] {
+    const farmNames = new Set<string>();
+    for (const paddock of paddocks) {
+        const farm = findFarmName(paddock.properties);
+        if (farm) farmNames.add(farm);
+    }
+    return Array.from(farmNames);
+}
+
+// Try to infer a farm name from the original file name
+// e.g. "Wellstead_Farming-boundaries.kml" → "Wellstead Farming"
+export function farmNameFromFileName(fileName: string): string | null {
+    if (!fileName) return null;
+    // Strip extension
+    const base = fileName.replace(/\.[^/.]+$/, '');
+    // Strip common suffixes
+    const cleaned = base
+        .replace(/[-_]?boundaries$/i, '')
+        .replace(/[-_]?paddocks$/i, '')
+        .replace(/[-_]?fields$/i, '')
+        .replace(/[-_]?zones$/i, '')
+        .trim();
+    if (!cleaned) return null;
+    // Replace underscores/hyphens with spaces
+    return cleaned.replace(/[_-]+/g, ' ');
+}
+
 // Create a standard success response for all processors
 function createSuccessResponse(paddockList: any[], messagePrefix: string, additionalInfo: string = '') {
     const uniquePaddockList = resolveDuplicatePaddockNames(paddockList);

@@ -3,6 +3,7 @@
   import { onMount, onDestroy, getContext } from "svelte"
   import { get } from "svelte/store"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import { farmsStore } from "$lib/stores/farmsStore"
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { fieldStore } from "$lib/stores/fieldStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
@@ -57,6 +58,7 @@
     icon?: string
     color?: string
     field_type?: string
+    farm_id?: string
     polygon_areas?: {
       individual_areas: number[]
       total_area: number
@@ -112,6 +114,8 @@
     try {
       const fieldsVisible = $layerVisibilityStore.fields
       const labelsVisible = $layerVisibilityStore.fieldLabels
+      const hectaresVisible = $layerVisibilityStore.fieldHectares !== false
+      const farmNamesVisible = $layerVisibilityStore.fieldFarmNames !== false
 
       // Toggle field fill layers
       if (map.getLayer("fields-fill")) {
@@ -157,10 +161,32 @@
         map.setLayoutProperty(
           "fields-labels-area",
           "visibility",
-          labelsVisible && fieldsVisible ? "visible" : "none",
+          labelsVisible && fieldsVisible && hectaresVisible ? "visible" : "none",
         )
-      }
 
+        // Update text-field expression based on farm name toggle
+        if (farmNamesVisible) {
+          map.setLayoutProperty("fields-labels-area", "text-field", [
+            "case",
+            ["!=", ["get", "farm_name"], ""],
+            [
+              "format",
+              ["get", "farm_name"], { "text-color": "#a0c8e8" },
+              " \u00b7 ", { "text-color": "#a0c8e8" },
+              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+            ],
+            [
+              "format",
+              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+            ],
+          ])
+        } else {
+          map.setLayoutProperty("fields-labels-area", "text-field", [
+            "format",
+            ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+          ])
+        }
+      }
       console.log("✅ Updated field layer visibility:", {
         fields: fieldsVisible,
         labels: labelsVisible && fieldsVisible,
@@ -173,6 +199,11 @@
   }
 
   function createLabelPoints(fields: Field[]) {
+    // Build farm name lookup from farmsStore
+    const farms = get(farmsStore)
+    const farmNameById = new Map(farms.map((f) => [f.id, f.name]))
+    const hasMultipleFarms = farms.length > 1
+
     return {
       type: "FeatureCollection",
       features: fields
@@ -200,6 +231,7 @@
                     name: field.name,
                     area: Math.round(field.area * 10) / 10,
                     icon: field.icon || "🌾",
+                    farm_name: hasMultipleFarms ? (farmNameById.get(field.farm_id) || "") : "",
                   },
                 },
               ]
@@ -230,6 +262,7 @@
                       name: field.name,
                       area: Math.round(polygonArea * 10) / 10,
                       icon: field.icon || "🌾",
+                      farm_name: hasMultipleFarms ? (farmNameById.get(field.farm_id) || "") : "",
                     },
                   }
                 },
@@ -297,7 +330,20 @@
         type: "symbol",
         source: "label-points",
         layout: {
-          "text-field": ["concat", ["get", "area"], " ha"],
+          "text-field": [
+            "case",
+            ["!=", ["get", "farm_name"], ""],
+            [
+              "format",
+              ["get", "farm_name"], { "text-color": "#a0c8e8" },
+              " · ", { "text-color": "#a0c8e8" },
+              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+            ],
+            [
+              "format",
+              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+            ],
+          ],
           "text-anchor": "top",
           "text-offset": [0, 1.2],
           "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
@@ -324,7 +370,6 @@
           "text-ignore-placement": false,
         },
         paint: {
-          "text-color": "#c0ffc0",
           "text-halo-color": "#000000",
           "text-halo-width": 2,
           "text-opacity": 0.9,

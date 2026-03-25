@@ -2,6 +2,7 @@
   import { page } from "$app/stores"
   import { goto } from "$app/navigation"
   import { onMount, createEventDispatcher, tick } from "svelte"
+  import { get } from "svelte/store"
   import {
     Check,
     X,
@@ -17,7 +18,10 @@
   import { toast } from "svelte-sonner"
   import { fieldStore } from "$lib/stores/fieldStore"
   import { fileApi } from "$lib/api/fileApi"
+  import { farmApi } from "$lib/api/farmApi"
+  import { farmsStore } from "$lib/stores/farmsStore"
   import { processBoundariesApi } from "$lib/api/processBoundariesApi"
+  import { detectFarmNames, farmNameFromFileName } from "$lib/api/processBoundariesApi"
   import GeoJSONMap from "$lib/components/map/overlays/GeoJsonMap.svelte"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
@@ -37,6 +41,7 @@
     status: null | "accepted" | "rejected" | "warning"
     area?: number
     isMultiPolygon: boolean
+    farm_name?: string
   }
 
   let paddocks: Paddock[] = []
@@ -46,6 +51,8 @@
   let processingAction: string | null = null
   let loading = true
   let error: string | null = null
+  let farmName = "" // Farm name for the batch
+  let detectedFarmNames: string[] = [] // Suggestions from metadata
 
   // Pre-render all maps to avoid recreation
   let mapRefs: GeoJSONMap[] = []
@@ -79,6 +86,17 @@
             isMultiPolygon,
           }
         })
+
+        // Detect farm names from paddock metadata
+        detectedFarmNames = detectFarmNames(paddocks)
+
+        // Pre-fill farm name: metadata > filename > map name
+        if (detectedFarmNames.length === 1) {
+          farmName = detectedFarmNames[0]
+        } else {
+          const fromFile = farmNameFromFileName(fileName || '')
+          farmName = fromFile || $connectedMapStore.map_name || ""
+        }
       }
 
       console.log("✅ Processed paddocks:", paddocks.length)
@@ -222,6 +240,26 @@
       // Filter only accepted paddocks
       const acceptedPaddocks = paddocks.filter((p) => p.status === "accepted")
 
+      // Stamp farm_id onto each paddock
+      let resolvedFarmId: string | undefined
+      const trimmedFarm = farmName.trim()
+      if (trimmedFarm) {
+        const farmResult = await farmApi.getOrCreateFarm(map_id, trimmedFarm)
+        if (farmResult.farmId) {
+          resolvedFarmId = farmResult.farmId
+          const existingFarms = get(farmsStore)
+          if (!existingFarms.find((f) => f.id === resolvedFarmId)) {
+            const loadResult = await farmApi.loadFarms(map_id)
+            if (!loadResult.error) farmsStore.set(loadResult.farms)
+          }
+        }
+      }
+
+      const paddocksWithFarm = acceptedPaddocks.map((p) => ({
+        ...p,
+        farm_id: resolvedFarmId,
+      }))
+
       if (acceptedPaddocks.length === 0) {
         toast.error("No fields approved for loading")
         return
@@ -236,7 +274,7 @@
 
       // Use the real API call
       const promise = fileApi
-        .uploadFields(map_id, acceptedPaddocks)
+        .uploadFields(map_id, paddocksWithFarm)
         .then((result) => {
           if (!result.success) {
             throw new Error(result.message)
@@ -497,6 +535,39 @@
                 style="width: {progressPercentage}%"
               ></div>
             </div>
+          </div>
+
+          <!-- Farm Name Input -->
+          <div class="mx-auto mb-4 max-w-4xl md:mb-6">
+            <label for="farm-name-process" class="mb-1 block text-xs font-medium text-contrast-content md:text-sm">
+              Farm Name
+            </label>
+            <input
+              id="farm-name-process"
+              type="text"
+              bind:value={farmName}
+              placeholder="e.g. Wellstead Farming"
+              class="w-full rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content focus:outline-none focus:ring-1 focus:ring-base-content/50"
+            />
+            {#if detectedFarmNames.length > 1}
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                {#each detectedFarmNames as suggestion}
+                  <button
+                    type="button"
+                    class="rounded-full border px-2.5 py-0.5 text-xs transition-colors
+                      {farmName === suggestion
+                        ? 'border-base-content bg-base-content text-base-100'
+                        : 'border-base-300 bg-base-200 text-contrast-content hover:border-base-content/50'}"
+                    on:click={() => (farmName = suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+            <p class="mt-1 text-xs text-contrast-content/50">
+              All fields in this upload will be tagged with this farm name
+            </p>
           </div>
 
           <!-- Enhanced Field Card -->

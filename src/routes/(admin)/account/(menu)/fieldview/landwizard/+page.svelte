@@ -1,6 +1,7 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { onMount } from "svelte"
+  import { get } from "svelte/store"
   import { goto } from "$app/navigation"
 
   import * as Card from "$lib/components/ui/card/index.js"
@@ -14,6 +15,9 @@
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { fileApi } from "$lib/api/fileApi"
+  import { farmApi } from "$lib/api/farmApi"
+  import { farmsStore } from "$lib/stores/farmsStore"
+  import { detectFarmNames } from "$lib/api/processBoundariesApi"
 
   import { session } from "$lib/stores/sessionStore" // Import session store
 
@@ -26,9 +30,12 @@
     status: null | "accepted" | "rejected" | "warning"
     area?: number
     isMultiPolygon: boolean
+    farm_name?: string
   }
 
   let paddocks: Paddock[] = []
+  let farmName = "" // Farm name for the batch
+  let detectedFarmNames: string[] = [] // Suggestions from metadata
 
   onMount(() => {
     if (data.processedData?.paddocks) {
@@ -41,6 +48,12 @@
           isMultiPolygon,
         }
       })
+
+      // Detect farm names from paddock metadata
+      detectedFarmNames = detectFarmNames(paddocks)
+      farmName = detectedFarmNames.length === 1
+        ? detectedFarmNames[0]
+        : $connectedMapStore.map_name || ""
     }
   })
 
@@ -92,7 +105,28 @@
   async function finish() {
     const map_id = $connectedMapStore.id
 
-    const promise = fileApi.uploadFields(map_id, paddocks).then((result) => {
+    // Resolve farm name to farm_id
+    let resolvedFarmId: string | undefined
+    const trimmedFarm = farmName.trim()
+    if (trimmedFarm) {
+      const farmResult = await farmApi.getOrCreateFarm(map_id, trimmedFarm)
+      if (farmResult.farmId) {
+        resolvedFarmId = farmResult.farmId
+        const existingFarms = get(farmsStore)
+        if (!existingFarms.find((f) => f.id === resolvedFarmId)) {
+          const loadResult = await farmApi.loadFarms(map_id)
+          if (!loadResult.error) farmsStore.set(loadResult.farms)
+        }
+      }
+    }
+
+    // Stamp farm_id onto each paddock
+    const paddocksWithFarm = paddocks.map((p) => ({
+      ...p,
+      farm_id: resolvedFarmId,
+    }))
+
+    const promise = fileApi.uploadFields(map_id, paddocksWithFarm).then((result) => {
       if (!result.success) {
         throw new Error(result.message)
       }
@@ -145,6 +179,39 @@
       >
     </Card.Header>
     <Card.Content>
+      <!-- Farm Name Input -->
+      <div class="mx-auto mb-4 max-w-md">
+        <label for="farm-name-wizard" class="mb-1 block text-sm font-medium">
+          Farm Name
+        </label>
+        <Input
+          id="farm-name-wizard"
+          type="text"
+          bind:value={farmName}
+          placeholder="e.g. Wellstead Farming"
+          class="w-full"
+        />
+        {#if detectedFarmNames.length > 1}
+          <div class="mt-1.5 flex flex-wrap gap-1.5">
+            {#each detectedFarmNames as suggestion}
+              <button
+                type="button"
+                class="rounded-full border px-2.5 py-0.5 text-xs transition-colors
+                  {farmName === suggestion
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-muted hover:border-primary/50'}"
+                on:click={() => (farmName = suggestion)}
+              >
+                {suggestion}
+              </button>
+            {/each}
+          </div>
+        {/if}
+        <p class="mt-1 text-xs text-muted-foreground">
+          All fields in this upload will be tagged with this farm name
+        </p>
+      </div>
+
       <Carousel.Root
         bind:api
         class="mx-auto"

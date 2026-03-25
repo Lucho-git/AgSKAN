@@ -12,6 +12,8 @@
     Activity,
     Navigation,
     MessageSquare,
+    Ruler,
+    Home,
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -47,6 +49,20 @@
       id: "fieldLabels",
       name: "Field Labels",
       icon: Square,
+      color: "#34d399",
+      indent: true,
+    },
+    {
+      id: "fieldHectares",
+      name: "Hectares",
+      icon: Ruler,
+      color: "#34d399",
+      indent: true,
+    },
+    {
+      id: "fieldFarmNames",
+      name: "Farm Names",
+      icon: Home,
       color: "#34d399",
       indent: true,
     },
