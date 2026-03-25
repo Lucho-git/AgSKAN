@@ -24,6 +24,7 @@ export interface AdminMapEntry {
     total_members: number;
     seats_over_limit: number;
     seat_status: 'EXCEEDING' | 'AT_LIMIT' | 'OK';
+    owner_connected: boolean;
 
     latest_vehicle_update: string | null;
     vehicles_active_24h: number;

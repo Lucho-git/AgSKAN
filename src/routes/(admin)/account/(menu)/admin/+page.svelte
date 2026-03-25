@@ -14,7 +14,6 @@
   let filterStatus: "all" | "exceeding" | "at_limit" | "ok" = "all"
   let filterPlan: "all" | "paid" | "free" = "all"
   let lastRefreshed: Date | null = null
-  let tableStyle: "clean" | "striped" | "bordered" = "bordered"
 
   // Guard: redirect if not dev mode
   $: if (!$userSettingsStore.devToolsEnabled) {
@@ -61,6 +60,7 @@
   $: paidSeats = entries
     .filter((e) => e.subscription !== "FREE" && e.subscription_status !== "free")
     .reduce((sum, e) => sum + e.allowed_seats, 0)
+  $: headlessCount = entries.filter((e) => !e.owner_connected).length
 
   async function loadData() {
     loading = true
@@ -197,7 +197,7 @@
     </div>
   {:else}
     <!-- Summary Stats -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
       <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
         <p class="text-xs text-contrast-content/60">Total Maps</p>
         <p class="text-2xl font-bold text-contrast-content">{totalMaps}</p>
@@ -226,6 +226,10 @@
         <p class="text-xs text-contrast-content/60">Free Plans</p>
         <p class="text-2xl font-bold text-contrast-content/60">{freeCount}</p>
       </div>
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Headless</p>
+        <p class="text-2xl font-bold text-info">{headlessCount}</p>
+      </div>
     </div>
 
     <!-- Search & Filter Bar -->
@@ -245,25 +249,6 @@
         />
       </div>
       <div class="flex items-center gap-2">
-        <!-- Table style toggle -->
-        <div class="flex gap-0.5 rounded-lg bg-base-200/50 p-0.5">
-          <button
-            class="btn btn-xs gap-1 {tableStyle === 'clean' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (tableStyle = "clean")}
-            title="Clean"
-          >A</button>
-          <button
-            class="btn btn-xs gap-1 {tableStyle === 'striped' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (tableStyle = "striped")}
-            title="Striped"
-          >B</button>
-          <button
-            class="btn btn-xs gap-1 {tableStyle === 'bordered' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (tableStyle = "bordered")}
-            title="Bordered"
-          >C</button>
-        </div>
-        <div class="h-4 w-px bg-base-300"></div>
         <!-- Plan filter -->
         <div class="flex gap-0.5 rounded-lg bg-base-200/50 p-0.5">
           <button
@@ -320,37 +305,29 @@
 
     <!-- Table -->
     <div class="overflow-x-auto rounded-lg border border-base-300">
-      <table
-        class="table w-full text-xs"
-        class:table-zebra={tableStyle === "striped"}
-      >
+      <table class="table w-full text-xs">
         <thead>
-          <tr
-            class="{tableStyle === 'bordered'
-              ? 'border-b-2 border-base-300 bg-base-200/60'
-              : 'bg-base-200/40'} text-contrast-content/60"
-          >
-            <th class="w-8 {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}"></th>
-            <th class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Owner</th>
-            <th class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Map</th>
-            <th class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Plan</th>
-            <th class="text-center {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Users</th>
-            <th class="text-center {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Active 24h</th>
-            <th class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Last GPS</th>
-            <th class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">Last Sign-In</th>
+          <tr class="border-b-2 border-base-300 bg-base-200/60 text-contrast-content/60">
+            <th class="w-8 border-r border-base-300"></th>
+            <th class="border-r border-base-300">Owner</th>
+            <th class="border-r border-base-300">Map</th>
+            <th class="border-r border-base-300">Plan</th>
+            <th class="text-center border-r border-base-300">Users</th>
+            <th class="text-center border-r border-base-300">Active 24h</th>
+            <th class="border-r border-base-300">Last GPS</th>
+            <th class="border-r border-base-300">Last Sign-In</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {#each filteredEntries as entry, i (entry.master_map_id)}
             <tr
-              class="cursor-pointer transition-colors hover:bg-base-content/5
-                {tableStyle === 'bordered' ? 'border-b border-base-300' : ''}
+              class="cursor-pointer transition-colors hover:bg-base-content/5 border-b border-base-300
                 {entry.seat_status === 'EXCEEDING' ? 'bg-error/5' : ''}
                 {entry.seat_status === 'AT_LIMIT' ? 'bg-warning/5' : ''}"
               on:click={() => toggleExpand(entry.master_map_id)}
             >
-              <td class="w-8 {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="w-8 border-r border-base-300">
                 <Icon
                   icon={expandedMapId === entry.master_map_id
                     ? "solar:alt-arrow-down-bold"
@@ -360,7 +337,7 @@
                   class="text-contrast-content/40"
                 />
               </td>
-              <td class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="border-r border-base-300">
                 <div class="font-medium text-contrast-content">
                   {entry.owner_name || "Unknown"}
                 </div>
@@ -371,21 +348,24 @@
                   <div class="text-contrast-content/40">{entry.owner_phone}</div>
                 {/if}
               </td>
-              <td class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="border-r border-base-300">
                 <div class="text-contrast-content">{entry.map_name || "Unnamed"}</div>
                 {#if entry.company_name}
                   <div class="text-contrast-content/50">{entry.company_name}</div>
                 {/if}
               </td>
-              <td class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="border-r border-base-300">
                 <span class="badge badge-xs {subBadge(entry.subscription)}">
                   {entry.subscription}
                 </span>
                 {#if entry.founder}
                   <span class="badge badge-xs badge-secondary ml-0.5">F</span>
                 {/if}
+                {#if !entry.owner_connected}
+                  <span class="badge badge-xs badge-info ml-0.5">Headless</span>
+                {/if}
               </td>
-              <td class="text-center {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="text-center border-r border-base-300">
                 <span
                   class="font-semibold"
                   class:text-error={entry.seat_status === "EXCEEDING"}
@@ -394,17 +374,17 @@
                   {entry.connected_vehicles}/{entry.allowed_seats}
                 </span>
               </td>
-              <td class="text-center {tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="text-center border-r border-base-300">
                 <span class="text-contrast-content/70">
                   {entry.vehicles_active_24h}
                 </span>
               </td>
-              <td class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="border-r border-base-300">
                 <span class="text-contrast-content/70">
                   {timeAgo(entry.latest_vehicle_update)}
                 </span>
               </td>
-              <td class="{tableStyle === 'bordered' ? 'border-r border-base-300' : ''}">
+              <td class="border-r border-base-300">
                 <span class="text-contrast-content/70">
                   {timeAgo(entry.latest_member_sign_in)}
                 </span>
