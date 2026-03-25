@@ -3,6 +3,7 @@
   import { Capacitor } from "@capacitor/core"
   import { PUBLIC_APP_VERSION } from "$env/static/public"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
 
@@ -14,6 +15,50 @@
   let showDeleteConfirm = false
   let showDeleteSuccess = false
   let confirmText = ""
+
+  // Developer mode
+  $: devToolsEnabled = $userSettingsStore.devToolsEnabled
+  let showDevPasswordModal = false
+  let devPassword = ""
+  let devPasswordError = ""
+
+  function handleDevToggleClick() {
+    if (devToolsEnabled) {
+      // Disabling — no password needed
+      toggleDevTools(false)
+    } else {
+      // Enabling — prompt for password
+      devPassword = ""
+      devPasswordError = ""
+      showDevPasswordModal = true
+    }
+  }
+
+  function handleDevPasswordSubmit() {
+    if (devPassword === "agskan") {
+      showDevPasswordModal = false
+      devPassword = ""
+      devPasswordError = ""
+      toggleDevTools(true)
+    } else {
+      devPasswordError = "Incorrect password"
+    }
+  }
+
+  async function toggleDevTools(newValue: boolean) {
+    // Optimistic update
+    userSettingsStore.update((s) => ({ ...s, devToolsEnabled: newValue }))
+    const result = await userSettingsApi.updateDevToolsEnabled(newValue)
+    if (result.success) {
+      toast.success(
+        newValue ? "Developer mode enabled" : "Developer mode disabled",
+      )
+    } else {
+      // Revert
+      userSettingsStore.update((s) => ({ ...s, devToolsEnabled: !newValue }))
+      toast.error("Failed to update setting")
+    }
+  }
 
   // App information
   const appInfo = {
@@ -268,6 +313,47 @@
     </div>
   </div>
 
+  <!-- Developer Mode -->
+  <div class="space-y-4">
+    <h3 class="flex items-center gap-2 font-medium text-contrast-content">
+      <Icon
+        icon="solar:code-bold-duotone"
+        width="16"
+        height="16"
+        class="text-warning"
+      />
+      Developer Mode
+    </h3>
+
+    <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-start gap-3">
+          <Icon
+            icon="solar:bug-bold-duotone"
+            width="20"
+            height="20"
+            class="mt-0.5 text-warning"
+          />
+          <div>
+            <p class="text-sm font-medium text-contrast-content">
+              Enable Developer Mode
+            </p>
+            <p class="mt-1 text-xs text-contrast-content/60">
+              Unlocks the Admin dashboard, Dev Mode & Background Simulation tools
+              in the map toolbox.
+            </p>
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          class="toggle toggle-warning"
+          checked={devToolsEnabled}
+          on:change={handleDevToggleClick}
+        />
+      </div>
+    </div>
+  </div>
+
   <!-- Attribution -->
   <div class="border-t border-base-300 pt-4 text-center">
     <p class="text-sm text-contrast-content/60">
@@ -382,6 +468,59 @@
       on:click={() => {
         showDeleteConfirm = false
         confirmText = ""
+      }}
+    ></div>
+  </div>
+{/if}
+
+<!-- Developer Password Modal -->
+{#if showDevPasswordModal}
+  <div class="modal modal-open">
+    <div class="modal-box max-w-sm">
+      <h3 class="flex items-center gap-2 text-lg font-bold text-warning">
+        <Icon icon="solar:lock-password-bold-duotone" width="20" height="20" />
+        Developer Access
+      </h3>
+      <p class="py-3 text-sm text-contrast-content/70">
+        Enter the developer password to enable admin features.
+      </p>
+      <form on:submit|preventDefault={handleDevPasswordSubmit}>
+        <input
+          type="password"
+          placeholder="Password"
+          class="input input-bordered w-full"
+          class:input-error={devPasswordError}
+          bind:value={devPassword}
+          autofocus
+        />
+        {#if devPasswordError}
+          <p class="mt-1 text-xs text-error">{devPasswordError}</p>
+        {/if}
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-outline"
+            on:click={() => {
+              showDevPasswordModal = false
+              devPassword = ""
+              devPasswordError = ""
+            }}
+          >
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-warning gap-2">
+            <Icon icon="solar:lock-keyhole-unlocked-bold-duotone" width="16" height="16" />
+            Unlock
+          </button>
+        </div>
+      </form>
+    </div>
+    <div
+      class="modal-backdrop"
+      on:click={() => {
+        showDevPasswordModal = false
+        devPassword = ""
+        devPasswordError = ""
       }}
     ></div>
   </div>

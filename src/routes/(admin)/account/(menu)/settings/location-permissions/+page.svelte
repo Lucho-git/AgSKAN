@@ -6,8 +6,6 @@
   import { Capacitor } from "@capacitor/core"
   import { Geolocation } from "@capacitor/geolocation"
   import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
-  import { userSettingsStore } from "$lib/stores/userSettingsStore"
-  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
@@ -15,25 +13,6 @@
   // Permission states
   let locationPermissionStatus = "Unknown"
   let backgroundLocationStatus = "Unknown"
-
-  // Dev tools toggle
-  $: devToolsEnabled = $userSettingsStore.devToolsEnabled
-
-  async function toggleDevTools() {
-    const newValue = !devToolsEnabled
-    // Optimistic update
-    userSettingsStore.update((s) => ({ ...s, devToolsEnabled: newValue }))
-    const result = await userSettingsApi.updateDevToolsEnabled(newValue)
-    if (result.success) {
-      toast.success(
-        newValue ? "Developer tools enabled" : "Developer tools disabled",
-      )
-    } else {
-      // Revert
-      userSettingsStore.update((s) => ({ ...s, devToolsEnabled: !newValue }))
-      toast.error("Failed to update setting")
-    }
-  }
 
   // Web geolocation state
   let webLocationSupported = false
@@ -420,52 +399,6 @@
       </div>
     </div>
   {/if}
-
-  <!-- Developer Tools Section -->
-  <div>
-    <h3
-      class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
-    >
-      <div class="rounded-lg bg-base-content/10 p-1.5">
-        <Icon
-          icon="solar:code-bold-duotone"
-          width="18"
-          height="18"
-          class="text-warning"
-        />
-      </div>
-      Developer Tools
-    </h3>
-
-    <div
-      class="rounded-lg border border-base-300 bg-base-200/10 p-4"
-    >
-      <div class="flex items-center justify-between gap-4">
-        <div class="flex items-start gap-3">
-          <Icon
-            icon="solar:bug-bold-duotone"
-            width="20"
-            height="20"
-            class="mt-0.5 text-warning"
-          />
-          <div>
-            <p class="text-sm font-medium text-contrast-content">
-              Show Dev Tools
-            </p>
-            <p class="mt-1 text-xs text-contrast-content/60">
-              Show Dev Mode and Background Simulation buttons in the map toolbox.
-            </p>
-          </div>
-        </div>
-        <input
-          type="checkbox"
-          class="toggle toggle-warning"
-          checked={devToolsEnabled}
-          on:change={toggleDevTools}
-        />
-      </div>
-    </div>
-  </div>
 
   <!-- Information Section -->
   <div class="rounded-lg border border-base-300 bg-base-200/10 p-4">

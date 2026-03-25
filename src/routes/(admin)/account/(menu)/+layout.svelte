@@ -15,6 +15,7 @@
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   import CrispChatWidget from "$lib/components/general/CrispChatWidget.svelte"
 
@@ -162,6 +163,16 @@
       path: "app",
       webOnly: true,
     },
+    {
+      href: "/account/admin",
+      icon: "solar:shield-keyhole-bold-duotone",
+      label: "Admin",
+      labelId: "admin",
+      topBarIcon: "solar:shield-keyhole-bold-duotone",
+      topBarLabel: "Admin Dashboard",
+      path: "admin",
+      devOnly: true,
+    },
   ]
 
   // Directly determine the current section from the URL path
@@ -228,10 +239,12 @@
     return false
   }
 
-  // Filter menu items based on platform
-  $: filteredMenuItems = menuItems.filter(
-    (item) => !(item.webOnly && browser && Capacitor.isNativePlatform()),
-  )
+  // Filter menu items based on platform and dev mode
+  $: filteredMenuItems = menuItems.filter((item) => {
+    if (item.webOnly && browser && Capacitor.isNativePlatform()) return false
+    if (item.devOnly && !$userSettingsStore.devToolsEnabled) return false
+    return true
+  })
 
   // Wait for stores to be populated
   $: storesReady =
