@@ -1047,7 +1047,7 @@
       // Refresh the list of active trails from the DB
       const { data: activeTrails, error: trailsErr } = await supabase
         .from("trails")
-        .select("id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id, detailed_path")
+        .select("id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id")
         .eq("operation_id", opId)
         .is("end_time", null)
         .neq("vehicle_id", currentVehicleId)
@@ -1077,7 +1077,6 @@
               trail_width: t.trail_width,
               task_id: t.task_id,
               path: [],
-              detailed_path: t.detailed_path,
             },
           ])
           console.log(`[TRAIL-RT] Catch-up: discovered trail ${t.id.slice(0,8)} from ${t.vehicle_id.slice(0,8)}`)
@@ -1169,7 +1168,6 @@
             trail_color: trailData.trail_color,
             trail_width: trailData.trail_width,
             path: [],
-            detailed_path: trailData.detailed_path,
           },
         ]
       })
@@ -1209,7 +1207,6 @@
             trail_color: trailData.trail_color,
             trail_width: trailData.trail_width,
             path: geoJsonPath,
-            detailed_path: trailData.detailed_path,
             trail_distance: trailData.trail_distance,
             trail_hectares: trailData.trail_hectares,
             trail_hectares_overlap: trailData.trail_hectares_overlap,
@@ -1523,7 +1520,7 @@
               path: normalizedTrailData.sort(
                 (a, b) => a.timestamp - b.timestamp,
               ),
-              detailed_path: null,
+
             }
           })
 

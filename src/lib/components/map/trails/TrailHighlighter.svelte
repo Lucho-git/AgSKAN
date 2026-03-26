@@ -1313,14 +1313,20 @@ font-size: 12px;
     }
   }
 
-  function toggleNavigationUI() {
+  function toggleNavigationUI(forceOpen = false) {
     if (!$historicalTrailStore.length) {
       toast.error("No trails available. Create some trails first!")
 
       return
     }
 
-    showNavigationUI = !showNavigationUI
+    // If forceOpen is true, only open (don't toggle off)
+    if (forceOpen) {
+      if (showNavigationUI) return // already open, do nothing
+      showNavigationUI = true
+    } else {
+      showNavigationUI = !showNavigationUI
+    }
 
     if (!showNavigationUI) {
       $historicalTrailStore.forEach((t) => {

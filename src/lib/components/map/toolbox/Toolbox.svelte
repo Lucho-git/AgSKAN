@@ -19,7 +19,9 @@
     devModeEnabled,
     devBackgroundSimEnabled,
   } from "$lib/stores/devModeStore"
-  import { collectionModeStore } from "$lib/stores/markerStore"
+  import { collectionModeStore, confirmedMarkersStore } from "$lib/stores/markerStore"
+  import { historicalTrailStore } from "$lib/stores/otherTrailStore"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
 
   // Import vehicle store and components
   import { userVehicleStore } from "$lib/stores/vehicleStore"
@@ -60,6 +62,15 @@
 
   // Check if vehicle is currently flashing
   $: isFlashing = $userVehicleStore.is_flashing || false
+
+  // Trail count for badge
+  $: trailCount = ($historicalTrailStore || []).filter((t) => t.end_time).length
+
+  // Marker count for badge
+  $: markerCount = ($confirmedMarkersStore || []).length
+
+  // Field count for badge
+  $: fieldCount = ($mapFieldsStore || []).length
 
   function getDefaultMarker() {
     return (
@@ -200,15 +211,16 @@
       {#if activePanel === "satellite"}
         <SatelliteControls {satelliteManager} />
       {:else if activePanel === "marker"}
-        <MarkerControls on:close={closeToolbox} />
+        <MarkerControls on:close={closeToolbox} on:selectMarker />
       {:else if activePanel === "vehicle"}
         <VehicleControls on:close={closeToolbox} />
       {:else if activePanel === "trail"}
         <TrailControls
-          {trailReplayAPI}
           on:openTrailViewer={() => dispatch("openTrailViewer")}
           on:switchToVehicle={handleSwitchToVehicle}
           on:close={closeToolbox}
+          on:selectTrail
+          on:replayTrail
         />
       {:else if activePanel === "layers"}
         <LayerControls />
@@ -234,7 +246,7 @@
                 <Truck size={32} />
               {/if}
             </div>
-            <span>Select Vehicle</span>
+            <span>Vehicle</span>
           </button>
 
           <button class="tool-button" on:click={showMarkerPanel}>
@@ -253,8 +265,29 @@
                 <MapPin size={32} />
               {/if}
             </div>
-            <span>Marker</span>
+            <span>Markers</span>
+            {#if markerCount > 0}
+              <span class="tool-badge marker-badge">{markerCount}</span>
+            {/if}
           </button>
+
+          <button class="tool-button" on:click={handleTrailControls}>
+            <Route size={26} />
+            <span>Trails</span>
+            {#if trailCount > 0}
+              <span class="tool-badge trail-badge">{trailCount}</span>
+            {/if}
+          </button>
+
+          <button class="tool-button" on:click={() => (activePanel = "fields")}>
+            <LandPlot size={26} />
+            <span>Fields</span>
+            {#if fieldCount > 0}
+              <span class="tool-badge field-badge">{fieldCount}</span>
+            {/if}
+          </button>
+
+          <div class="tool-grid-separator"></div>
 
           <button
             class="tool-button"
@@ -265,11 +298,6 @@
             <span>Measure</span>
           </button>
 
-          <button class="tool-button" on:click={handleTrailControls}>
-            <Route size={26} />
-            <span>Trails</span>
-          </button>
-
           <button class="tool-button" on:click={showSatellitePanel}>
             <Satellite size={26} />
             <span>Satellite</span>
@@ -278,11 +306,6 @@
           <button class="tool-button" on:click={showLayersPanel}>
             <Layers size={26} />
             <span>Layers</span>
-          </button>
-
-          <button class="tool-button" on:click={() => (activePanel = "fields")}>
-            <LandPlot size={26} />
-            <span>Fields</span>
           </button>
 
           <button
@@ -411,6 +434,7 @@
   }
 
   .tool-button {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -498,6 +522,50 @@
     text-align: center;
     line-height: 1.2;
     margin-top: 2px;
+  }
+
+  /* Badge on tool buttons */
+  .tool-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    margin: 0;
+  }
+
+  .trail-badge {
+    background: rgba(96,165,250,0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(96,165,250,0.3);
+  }
+
+  .marker-badge {
+    background: rgba(244,114,182,0.2);
+    color: #f472b6;
+    border: 1px solid rgba(244,114,182,0.3);
+  }
+
+  .field-badge {
+    background: rgba(74,222,128,0.2);
+    color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.3);
+  }
+
+  /* Separator between primary and secondary tools */
+  .tool-grid-separator {
+    grid-column: 1 / -1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 0;
   }
 
   .vehicle-icon-container,

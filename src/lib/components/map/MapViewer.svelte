@@ -257,6 +257,38 @@
     }
   }
 
+  // Handle trail selected from My Trails list — fly to and highlight
+  function handleTrailSelect(event) {
+    const { trail, index } = event.detail
+    if (!trail) return
+    if (trailHighlighter?.highlighterAPI) {
+      const api = trailHighlighter.highlighterAPI
+      // Ensure navigation UI is open (don't toggle it off if already open)
+      if (api.toggleNavigationUI) api.toggleNavigationUI(true)
+      if (api.navigateToTrail) api.navigateToTrail(index)
+    }
+  }
+
+  // Handle replay button from My Trails list — open viewer and start playback
+  function handleTrailReplay(event) {
+    const { trail, index } = event.detail
+    if (!trail) return
+    if (trailHighlighter?.highlighterAPI) {
+      const api = trailHighlighter.highlighterAPI
+      // Ensure navigation UI is open (don't toggle it off if already open)
+      if (api.toggleNavigationUI) api.toggleNavigationUI(true)
+      // Navigate to the trail, then play after a short delay for animation setup
+      if (api.navigateToTrail) {
+        api.navigateToTrail(index).then(() => {
+          setTimeout(() => {
+            if (api.playTrail) api.playTrail(index)
+          }, 500)
+        })
+      }
+    }
+    closeToolbox()
+  }
+
   function handleOpenVehicleControls() {
     console.log("🚗 Opening vehicle controls from vehicle panel icon click")
     toolboxOpen = true
@@ -320,6 +352,29 @@
         map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
       }
     }
+  }
+
+  function handleMarkerSelect(event) {
+    const marker = event.detail
+    if (map && marker?.coordinates) {
+      map.flyTo({
+        center: marker.coordinates,
+        zoom: 17,
+        duration: 800,
+      })
+    }
+    // Actually select the marker on the map (highlight it + show edit panel)
+    if (markerManagerRef && marker?.id) {
+      markerManagerRef.handleMarkerSelection({
+        features: [
+          {
+            properties: { id: marker.id },
+            geometry: { coordinates: marker.coordinates },
+          },
+        ],
+      })
+    }
+    // Don't close toolbox — keep menu open like field selection
   }
 
   function handleToolAction(event) {
@@ -716,6 +771,9 @@
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
   on:selectField={handleFieldSelect}
+  on:selectMarker={handleMarkerSelect}
+  on:selectTrail={handleTrailSelect}
+  on:replayTrail={handleTrailReplay}
 />
 
 <!-- Dev Mode Joystick Overlay -->

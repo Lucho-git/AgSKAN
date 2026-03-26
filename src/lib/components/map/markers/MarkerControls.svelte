@@ -1,19 +1,24 @@
 <!-- src/lib/components/map/markers/MarkerControls.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from "svelte"
-  import { Target, ChevronRight } from "lucide-svelte"
+  import { Target, ChevronRight, MapPin } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { markerPlacementModeEnabled } from "$lib/stores/controlStore"
+  import { confirmedMarkersStore } from "$lib/stores/markerStore"
   import { getActiveMarkers, getAllMarkers } from "$lib/data/markerDefinitions"
+  import MyMarkers from "$lib/components/map/toolbox/MyMarkers.svelte"
 
   const dispatch = createEventDispatcher()
 
   // Active sub-panel state
-  let activeSubPanel = null // null, 'markers', 'extra-markers'
+  let activeSubPanel = null // null, 'markers', 'extra-markers', 'my-markers'
   let editingExtraIndex = -1 // -1 = adding new, 0+ = editing existing
+
+  // Marker count
+  $: myMarkerCount = ($confirmedMarkersStore || []).length
 
   // Marker placement state - now reactive to store
   $: markerPlacementMode = $markerPlacementModeEnabled
@@ -357,6 +362,21 @@
           <span>Add quick-drop marker</span>
         </button>
       </div>
+
+      <!-- My Markers Button -->
+      <div class="my-markers-section">
+        <button
+          class="my-markers-button"
+          on:click={() => showSubPanel("my-markers")}
+        >
+          <MapPin size={20} />
+          <span>My Markers</span>
+          {#if myMarkerCount > 0}
+            <span class="my-markers-badge">{myMarkerCount}</span>
+          {/if}
+          <ChevronRight size={18} />
+        </button>
+      </div>
     </div>
   {:else if activeSubPanel === "markers"}
     <!-- Marker Selection -->
@@ -458,6 +478,17 @@
             <span>All markers loaded ({allMarkerIcons.length} total)</span>
           </div>
         {/if}
+      </div>
+    </div>
+  {:else if activeSubPanel === "my-markers"}
+    <!-- My Markers Panel -->
+    <div class="sub-panel">
+      <div class="sub-header">
+        <button class="back-btn" on:click={hideSubPanel}>←</button>
+        <h4>My Markers</h4>
+      </div>
+      <div class="my-markers-container">
+        <MyMarkers on:selectMarker />
       </div>
     </div>
   {/if}
@@ -732,6 +763,58 @@
     background: rgba(168, 85, 247, 0.15);
     color: rgba(168, 85, 247, 0.8);
     flex-shrink: 0;
+  }
+
+  /* My Markers Section */
+  .my-markers-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 16px;
+  }
+
+  .my-markers-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 12px;
+    color: #a0c8e8;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 48px;
+  }
+
+  .my-markers-button span {
+    flex: 1;
+    text-align: left;
+  }
+
+  .my-markers-badge {
+    background: rgba(244,114,182,0.2);
+    color: #f472b6;
+    border: 1px solid rgba(244,114,182,0.3);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex: none;
+    text-align: center;
+  }
+
+  .my-markers-button:hover {
+    background: rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.4);
+  }
+
+  .my-markers-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .extra-marker-row {
