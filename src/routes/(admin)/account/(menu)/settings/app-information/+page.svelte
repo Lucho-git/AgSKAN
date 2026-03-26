@@ -339,8 +339,8 @@
               Enable Developer Mode
             </p>
             <p class="mt-1 text-xs text-contrast-content/60">
-              Unlocks the Admin dashboard, Dev Mode & Background Simulation tools
-              in the map toolbox.
+              Unlocks the Admin dashboard, Dev Mode & Background Simulation
+              tools in the map toolbox.
             </p>
           </div>
         </div>
@@ -509,7 +509,11 @@
             Cancel
           </button>
           <button type="submit" class="btn btn-warning gap-2">
-            <Icon icon="solar:lock-keyhole-unlocked-bold-duotone" width="16" height="16" />
+            <Icon
+              icon="solar:lock-keyhole-unlocked-bold-duotone"
+              width="16"
+              height="16"
+            />
             Unlock
           </button>
         </div>

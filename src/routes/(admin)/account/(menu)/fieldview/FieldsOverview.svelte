@@ -67,7 +67,8 @@
     const unassigned: any[] = []
     for (const field of sortedFields) {
       if (field.farm_id && farmById.has(field.farm_id)) {
-        if (!fieldsByFarmId.has(field.farm_id)) fieldsByFarmId.set(field.farm_id, [])
+        if (!fieldsByFarmId.has(field.farm_id))
+          fieldsByFarmId.set(field.farm_id, [])
         fieldsByFarmId.get(field.farm_id)!.push(field)
       } else {
         unassigned.push(field)
@@ -228,12 +229,16 @@
 
   function openDeleteFarmModal(farm: string) {
     farmToDelete = farm
-    const modal = document.getElementById(deleteFarmModalId) as HTMLDialogElement
+    const modal = document.getElementById(
+      deleteFarmModalId,
+    ) as HTMLDialogElement
     if (modal) modal.showModal()
   }
 
   function closeDeleteFarmModal() {
-    const modal = document.getElementById(deleteFarmModalId) as HTMLDialogElement
+    const modal = document.getElementById(
+      deleteFarmModalId,
+    ) as HTMLDialogElement
     if (modal) modal.close()
   }
 
@@ -279,7 +284,9 @@
     const farmFields = farmId
       ? fields.filter((f) => f.farm_id === farmId)
       : fields.filter((f) => !f.farm_id)
-    const allSelected = farmFields.every((f) => selectedFieldIds.has(f.field_id))
+    const allSelected = farmFields.every((f) =>
+      selectedFieldIds.has(f.field_id),
+    )
     if (allSelected) {
       farmFields.forEach((f) => selectedFieldIds.delete(f.field_id))
     } else {
@@ -288,9 +295,10 @@
     selectedFieldIds = selectedFieldIds
   }
 
-  $: resolvedTargetFarm = migrationTargetFarm === '__new__'
-    ? migrationNewFarmName.trim()
-    : migrationTargetFarm
+  $: resolvedTargetFarm =
+    migrationTargetFarm === "__new__"
+      ? migrationNewFarmName.trim()
+      : migrationTargetFarm
 
   $: canMigrate = selectedFieldIds.size > 0 && resolvedTargetFarm.length > 0
 
@@ -306,7 +314,7 @@
       const mapId = $connectedMapStore.id
       let targetFarmId: string | null = null
 
-      if (migrationTargetFarm === '__new__') {
+      if (migrationTargetFarm === "__new__") {
         // Create new farm
         const createResult = await farmApi.createFarm(mapId, resolvedTargetFarm)
         if (createResult.success && createResult.farm) {
@@ -319,7 +327,9 @@
         }
       } else {
         // Find the existing farm_id from the name
-        const farm = ($farmsStore || []).find((f) => f.name === resolvedTargetFarm)
+        const farm = ($farmsStore || []).find(
+          (f) => f.name === resolvedTargetFarm,
+        )
         targetFarmId = farm?.id || null
       }
 
@@ -351,8 +361,8 @@
         all.map((f) =>
           selectedFieldIds.has(f.field_id)
             ? { ...f, farm_id: targetFarmId }
-            : f
-        )
+            : f,
+        ),
       )
 
       if (errorCount === 0) {
@@ -405,12 +415,10 @@
 
       if (errorCount === 0) {
         toast.success(
-          `All ${successCount} fields from "${farmToDelete}" deleted`
+          `All ${successCount} fields from "${farmToDelete}" deleted`,
         )
       } else if (successCount > 0) {
-        toast.success(
-          `${successCount} fields deleted, ${errorCount} failed`
-        )
+        toast.success(`${successCount} fields deleted, ${errorCount} failed`)
       } else {
         toast.error("Failed to delete fields. Please try again.")
       }
@@ -721,14 +729,14 @@
         {@const farmFieldCount = farmEntry ? farmEntry[1].length : 0}
         <p class="mb-4 text-contrast-content">
           Are you sure you want to delete all <strong>{farmFieldCount}</strong>
-          {farmFieldCount === 1 ? 'field' : 'fields'} from
+          {farmFieldCount === 1 ? "field" : "fields"} from
           <strong>"{farmToDelete}"</strong>? Your trail and operational data
           will remain intact.
         </p>
         <div class="rounded-lg border border-error/30 bg-error/10 p-3">
           <p class="text-sm text-error">
-            <strong>Warning:</strong> This will permanently delete all fields
-            belonging to this farm.
+            <strong>Warning:</strong> This will permanently delete all fields belonging
+            to this farm.
           </p>
         </div>
       {/if}
@@ -794,7 +802,8 @@
           {#if migrationSourceFarm}
             <button
               class="text-xs text-info hover:underline"
-              on:click={() => migrationSourceFarm && selectAllInFarm(migrationSourceFarm)}
+              on:click={() =>
+                migrationSourceFarm && selectAllInFarm(migrationSourceFarm)}
             >
               Toggle all
             </button>
@@ -809,17 +818,23 @@
           }) as field (field.field_id)}
             <label
               class="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-base-200"
-              style={selectedFieldIds.has(field.field_id) ? 'background: oklch(var(--in) / 0.05)' : ''}
+              style={selectedFieldIds.has(field.field_id)
+                ? "background: oklch(var(--in) / 0.05)"
+                : ""}
             >
               <input
                 type="checkbox"
-                class="checkbox checkbox-sm checkbox-info"
+                class="checkbox-info checkbox checkbox-sm"
                 checked={selectedFieldIds.has(field.field_id)}
                 on:change={() => toggleFieldSelection(field.field_id)}
               />
               <FieldIcon geojson={createGeoJSON(field.boundary)} size={24} />
-              <span class="flex-1 text-sm text-contrast-content">{field.name}</span>
-              <span class="text-xs text-contrast-content/50">{field.area.toFixed(1)} ha</span>
+              <span class="flex-1 text-sm text-contrast-content"
+                >{field.name}</span
+              >
+              <span class="text-xs text-contrast-content/50"
+                >{field.area.toFixed(1)} ha</span
+              >
             </label>
           {/each}
         </div>
@@ -836,9 +851,12 @@
               <button
                 class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors
                   {migrationTargetFarm === groupName
-                    ? 'border-info bg-info/10 text-info'
-                    : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-                on:click={() => { migrationTargetFarm = groupName; migrationNewFarmName = '' }}
+                  ? 'border-info bg-info/10 text-info'
+                  : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+                on:click={() => {
+                  migrationTargetFarm = groupName
+                  migrationNewFarmName = ""
+                }}
               >
                 {#if migrationTargetFarm === groupName}
                   <Check class="h-4 w-4" />
@@ -853,18 +871,18 @@
           <button
             class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors
               {migrationTargetFarm === '__new__'
-                ? 'border-info bg-info/10 text-info'
-                : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-            on:click={() => migrationTargetFarm = '__new__'}
+              ? 'border-info bg-info/10 text-info'
+              : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+            on:click={() => (migrationTargetFarm = "__new__")}
           >
-            {#if migrationTargetFarm === '__new__'}
+            {#if migrationTargetFarm === "__new__"}
               <Check class="h-4 w-4" />
             {:else}
               <span class="ml-0.5 text-base opacity-50">+</span>
             {/if}
             New farm name
           </button>
-          {#if migrationTargetFarm === '__new__'}
+          {#if migrationTargetFarm === "__new__"}
             <Input
               bind:value={migrationNewFarmName}
               placeholder="Enter new farm name"
@@ -893,7 +911,8 @@
             <span class="loading loading-spinner loading-sm"></span>
             Moving...
           {:else}
-            Move {selectedFieldIds.size} {selectedFieldIds.size === 1 ? 'field' : 'fields'}
+            Move {selectedFieldIds.size}
+            {selectedFieldIds.size === 1 ? "field" : "fields"}
           {/if}
         </button>
       </form>
@@ -1030,7 +1049,9 @@
     {#each farmGroups as [groupFarmName, groupFields, groupFarmId] (groupFarmName)}
       <!-- Farm group header -->
       {#if hasMultipleFarms}
-        <div class="flex w-full items-center border-b border-base-300 bg-base-content/5">
+        <div
+          class="flex w-full items-center border-b border-base-300 bg-base-content/5"
+        >
           <button
             class="flex flex-1 items-center gap-2 px-6 py-3 text-left transition-colors hover:bg-base-content/10"
             on:click={() => toggleFarm(groupFarmName)}
@@ -1041,9 +1062,14 @@
               <ChevronUp class="h-4 w-4 text-contrast-content/60" />
             {/if}
             <LandPlot class="h-3.5 w-3.5 text-base-content" />
-            <span class="text-sm font-semibold text-contrast-content">{groupFarmName}</span>
-            <span class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content">
-              {groupFields.length} {groupFields.length === 1 ? 'field' : 'fields'}
+            <span class="text-sm font-semibold text-contrast-content"
+              >{groupFarmName}</span
+            >
+            <span
+              class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
+            >
+              {groupFields.length}
+              {groupFields.length === 1 ? "field" : "fields"}
             </span>
             <span class="ml-auto text-xs text-contrast-content/50">
               {groupFields.reduce((sum, f) => sum + f.area, 0).toFixed(1)} ha
@@ -1066,194 +1092,204 @@
         </div>
       {/if}
 
-    {#if !hasMultipleFarms || !collapsedFarms.has(groupFarmName)}
-    <!-- Table View (Desktop) -->
-    {#if !isMobile}
-      <table class="w-full">
-        {#if !hasMultipleFarms}
-        <thead>
-          <tr class="border-b border-base-300 bg-base-200">
-            <th
-              class="px-6 py-4 text-left text-sm font-medium text-contrast-content/70"
-              >Field</th
-            >
-            <th
-              class="px-6 py-4 text-center text-sm font-medium text-contrast-content/70"
-              >Area (ha)</th
-            >
-            <th
-              class="px-6 py-4 text-right text-sm font-medium text-contrast-content/70"
-              >Actions</th
-            >
-          </tr>
-        </thead>
-        {/if}
-        <tbody>
-          {#each groupFields as field (field.field_id)}
-            <tr
-              class="group border-b border-base-300/50 transition-colors hover:bg-base-200/50"
-            >
-              <td class="px-6 py-4">
-                <div class="flex items-center space-x-3">
-                  <div class="relative">
-                    <FieldIcon
-                      geojson={createGeoJSON(field.boundary)}
-                      size={40}
-                    />
-                  </div>
-                  <div>
-                    <div class="font-medium text-contrast-content">
-                      {field.name}
-                    </div>
-                    {#if field.createdAt}
-                      <div class="text-xs text-contrast-content/60">
-                        Added {new Date(field.createdAt).toLocaleDateString()}
+      {#if !hasMultipleFarms || !collapsedFarms.has(groupFarmName)}
+        <!-- Table View (Desktop) -->
+        {#if !isMobile}
+          <table class="w-full">
+            {#if !hasMultipleFarms}
+              <thead>
+                <tr class="border-b border-base-300 bg-base-200">
+                  <th
+                    class="px-6 py-4 text-left text-sm font-medium text-contrast-content/70"
+                    >Field</th
+                  >
+                  <th
+                    class="px-6 py-4 text-center text-sm font-medium text-contrast-content/70"
+                    >Area (ha)</th
+                  >
+                  <th
+                    class="px-6 py-4 text-right text-sm font-medium text-contrast-content/70"
+                    >Actions</th
+                  >
+                </tr>
+              </thead>
+            {/if}
+            <tbody>
+              {#each groupFields as field (field.field_id)}
+                <tr
+                  class="group border-b border-base-300/50 transition-colors hover:bg-base-200/50"
+                >
+                  <td class="px-6 py-4">
+                    <div class="flex items-center space-x-3">
+                      <div class="relative">
+                        <FieldIcon
+                          geojson={createGeoJSON(field.boundary)}
+                          size={40}
+                        />
                       </div>
-                    {/if}
-                  </div>
-                </div>
-              </td>
-              <td class="px-6 py-4 text-center">
-                <span class="text-lg font-semibold text-base-content"
-                  >{field.area.toFixed(1)}</span
-                >
-                <span class="ml-1 text-xs text-contrast-content/60">ha</span>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex justify-end gap-2">
-                  <button
-                    class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                    aria-label="Edit field"
-                    on:click={() => openEditModal(field)}
-                  >
-                    <SquarePen class="h-4 w-4 text-contrast-content" />
-                  </button>
-                  <button
-                    class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                    aria-label="Go to field"
-                    on:click={() => handleLocateField(field.field_id)}
-                  >
-                    <MapPinned class="h-4 w-4 text-contrast-content" />
-                  </button>
-                  <button
-                    class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-error/20 hover:text-error"
-                    aria-label="Delete field"
-                    on:click={() => openDeleteModal(field)}
-                  >
-                    <Trash2 class="h-4 w-4 text-contrast-content" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-
-      <!-- List View (Mobile) -->
-    {:else}
-      <div class="divide-y divide-base-300">
-        {#each groupFields as field (field.field_id)}
-          <div class="px-6 py-4">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <FieldIcon geojson={createGeoJSON(field.boundary)} size={36} />
-                <div>
-                  <div class="font-medium text-contrast-content">
-                    {field.name}
-                  </div>
-                  <div class="text-xs text-contrast-content/60">
-                    {field.area.toFixed(1)} ha
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <button
-                  class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                  on:click={() => handleLocateField(field.field_id)}
-                  aria-label="View field"
-                >
-                  <Eye class="h-4 w-4 text-contrast-content" />
-                </button>
-
-                <div class="dropdown dropdown-end">
-                  <label tabindex="0" class="btn btn-ghost btn-sm">
-                    <MoreHorizontal class="h-4 w-4 text-contrast-content" />
-                  </label>
-                  <ul
-                    tabindex="0"
-                    class="menu dropdown-content z-[1] w-40 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
-                  >
-                    <li>
-                      <button on:click={() => toggleDetails(field.field_id)}>
-                        <Info class="h-4 w-4" /> Details
-                      </button>
-                    </li>
-                    <li>
-                      <button on:click={() => openEditModal(field)}>
-                        <SquarePen class="h-4 w-4" /> Edit
-                      </button>
-                    </li>
-                    <li>
+                      <div>
+                        <div class="font-medium text-contrast-content">
+                          {field.name}
+                        </div>
+                        {#if field.createdAt}
+                          <div class="text-xs text-contrast-content/60">
+                            Added {new Date(
+                              field.createdAt,
+                            ).toLocaleDateString()}
+                          </div>
+                        {/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-center">
+                    <span class="text-lg font-semibold text-base-content"
+                      >{field.area.toFixed(1)}</span
+                    >
+                    <span class="ml-1 text-xs text-contrast-content/60">ha</span
+                    >
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex justify-end gap-2">
                       <button
+                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
+                        aria-label="Edit field"
+                        on:click={() => openEditModal(field)}
+                      >
+                        <SquarePen class="h-4 w-4 text-contrast-content" />
+                      </button>
+                      <button
+                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
+                        aria-label="Go to field"
                         on:click={() => handleLocateField(field.field_id)}
                       >
-                        <MapPinned class="h-4 w-4" /> View on map
+                        <MapPinned class="h-4 w-4 text-contrast-content" />
                       </button>
-                    </li>
-                    <li>
                       <button
+                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-error/20 hover:text-error"
+                        aria-label="Delete field"
                         on:click={() => openDeleteModal(field)}
-                        class="text-error hover:bg-error/10"
                       >
-                        <Trash2 class="h-4 w-4" /> Delete
+                        <Trash2 class="h-4 w-4 text-contrast-content" />
                       </button>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
 
-            <!-- Expandable details section -->
-            {#if expandedDetails.has(field.field_id)}
-              <div
-                class="ml-12 mt-3 space-y-2 border-l-2 border-base-300 pl-4 text-sm"
-              >
-                <div class="flex justify-between">
-                  <span class="text-contrast-content/60">Area:</span>
-                  <span class="text-contrast-content"
-                    >{field.area.toFixed(1)} ha</span
-                  >
-                </div>
-                {#if field.createdAt}
-                  <div class="flex justify-between">
-                    <span class="text-contrast-content/60">Created:</span>
-                    <span class="text-contrast-content"
-                      >{new Date(field.createdAt).toLocaleDateString()}</span
+          <!-- List View (Mobile) -->
+        {:else}
+          <div class="divide-y divide-base-300">
+            {#each groupFields as field (field.field_id)}
+              <div class="px-6 py-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <FieldIcon
+                      geojson={createGeoJSON(field.boundary)}
+                      size={36}
+                    />
+                    <div>
+                      <div class="font-medium text-contrast-content">
+                        {field.name}
+                      </div>
+                      <div class="text-xs text-contrast-content/60">
+                        {field.area.toFixed(1)} ha
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
+                      on:click={() => handleLocateField(field.field_id)}
+                      aria-label="View field"
                     >
+                      <Eye class="h-4 w-4 text-contrast-content" />
+                    </button>
+
+                    <div class="dropdown dropdown-end">
+                      <label tabindex="0" class="btn btn-ghost btn-sm">
+                        <MoreHorizontal class="h-4 w-4 text-contrast-content" />
+                      </label>
+                      <ul
+                        tabindex="0"
+                        class="menu dropdown-content z-[1] w-40 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
+                      >
+                        <li>
+                          <button
+                            on:click={() => toggleDetails(field.field_id)}
+                          >
+                            <Info class="h-4 w-4" /> Details
+                          </button>
+                        </li>
+                        <li>
+                          <button on:click={() => openEditModal(field)}>
+                            <SquarePen class="h-4 w-4" /> Edit
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            on:click={() => handleLocateField(field.field_id)}
+                          >
+                            <MapPinned class="h-4 w-4" /> View on map
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            on:click={() => openDeleteModal(field)}
+                            class="text-error hover:bg-error/10"
+                          >
+                            <Trash2 class="h-4 w-4" /> Delete
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Expandable details section -->
+                {#if expandedDetails.has(field.field_id)}
+                  <div
+                    class="ml-12 mt-3 space-y-2 border-l-2 border-base-300 pl-4 text-sm"
+                  >
+                    <div class="flex justify-between">
+                      <span class="text-contrast-content/60">Area:</span>
+                      <span class="text-contrast-content"
+                        >{field.area.toFixed(1)} ha</span
+                      >
+                    </div>
+                    {#if field.createdAt}
+                      <div class="flex justify-between">
+                        <span class="text-contrast-content/60">Created:</span>
+                        <span class="text-contrast-content"
+                          >{new Date(
+                            field.createdAt,
+                          ).toLocaleDateString()}</span
+                        >
+                      </div>
+                    {/if}
+                    <div class="flex justify-between pt-2">
+                      <button
+                        class="btn btn-outline btn-xs h-7 px-2 text-xs"
+                        on:click={() => openEditModal(field)}
+                      >
+                        <SquarePen class="mr-1 h-3 w-3" /> Edit
+                      </button>
+                      <button
+                        class="btn btn-outline btn-xs h-7 px-2 text-xs"
+                        on:click={() => handleLocateField(field.field_id)}
+                      >
+                        <MapPinned class="mr-1 h-3 w-3" /> View on map
+                      </button>
+                    </div>
                   </div>
                 {/if}
-                <div class="flex justify-between pt-2">
-                  <button
-                    class="btn btn-outline btn-xs h-7 px-2 text-xs"
-                    on:click={() => openEditModal(field)}
-                  >
-                    <SquarePen class="mr-1 h-3 w-3" /> Edit
-                  </button>
-                  <button
-                    class="btn btn-outline btn-xs h-7 px-2 text-xs"
-                    on:click={() => handleLocateField(field.field_id)}
-                  >
-                    <MapPinned class="mr-1 h-3 w-3" /> View on map
-                  </button>
-                </div>
               </div>
-            {/if}
+            {/each}
           </div>
-        {/each}
-      </div>
-    {/if}
-    {/if}
+        {/if}
+      {/if}
     {/each}
   {:else if farmName && fields.length > 0 && !isExpanded}
     <!-- Collapsed summary view -->

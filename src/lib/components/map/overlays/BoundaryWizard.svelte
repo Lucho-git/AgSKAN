@@ -14,7 +14,10 @@
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { processBoundariesApi } from "$lib/api/processBoundariesApi"
-  import { detectFarmNames, farmNameFromFileName } from "$lib/api/processBoundariesApi"
+  import {
+    detectFarmNames,
+    farmNameFromFileName,
+  } from "$lib/api/processBoundariesApi"
   import { fileApi } from "$lib/api/fileApi"
   import { farmApi } from "$lib/api/farmApi"
   import { farmsStore } from "$lib/stores/farmsStore"
@@ -465,7 +468,10 @@
 
     <!-- Farm Name Input -->
     <div class="mb-4 md:mb-6">
-      <label for="farm-name" class="mb-1 block text-sm font-medium text-contrast-content">
+      <label
+        for="farm-name"
+        class="mb-1 block text-sm font-medium text-contrast-content"
+      >
         Farm Name
       </label>
       <input
@@ -482,8 +488,8 @@
               type="button"
               class="rounded-full border px-2.5 py-0.5 text-xs transition-colors
                 {farmName === suggestion
-                  ? 'border-base-content bg-base-content text-base-100'
-                  : 'border-base-300 bg-base-200 text-contrast-content hover:border-base-content/50'}"
+                ? 'border-base-content bg-base-content text-base-100'
+                : 'border-base-300 bg-base-200 text-contrast-content hover:border-base-content/50'}"
               on:click={() => (farmName = suggestion)}
             >
               {suggestion}

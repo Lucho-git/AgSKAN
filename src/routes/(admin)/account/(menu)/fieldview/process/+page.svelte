@@ -21,7 +21,10 @@
   import { farmApi } from "$lib/api/farmApi"
   import { farmsStore } from "$lib/stores/farmsStore"
   import { processBoundariesApi } from "$lib/api/processBoundariesApi"
-  import { detectFarmNames, farmNameFromFileName } from "$lib/api/processBoundariesApi"
+  import {
+    detectFarmNames,
+    farmNameFromFileName,
+  } from "$lib/api/processBoundariesApi"
   import GeoJSONMap from "$lib/components/map/overlays/GeoJsonMap.svelte"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
@@ -94,7 +97,7 @@
         if (detectedFarmNames.length === 1) {
           farmName = detectedFarmNames[0]
         } else {
-          const fromFile = farmNameFromFileName(fileName || '')
+          const fromFile = farmNameFromFileName(fileName || "")
           farmName = fromFile || $connectedMapStore.map_name || ""
         }
       }
@@ -539,7 +542,10 @@
 
           <!-- Farm Name Input -->
           <div class="mx-auto mb-4 max-w-4xl md:mb-6">
-            <label for="farm-name-process" class="mb-1 block text-xs font-medium text-contrast-content md:text-sm">
+            <label
+              for="farm-name-process"
+              class="mb-1 block text-xs font-medium text-contrast-content md:text-sm"
+            >
               Farm Name
             </label>
             <input
@@ -556,8 +562,8 @@
                     type="button"
                     class="rounded-full border px-2.5 py-0.5 text-xs transition-colors
                       {farmName === suggestion
-                        ? 'border-base-content bg-base-content text-base-100'
-                        : 'border-base-300 bg-base-200 text-contrast-content hover:border-base-content/50'}"
+                      ? 'border-base-content bg-base-content text-base-100'
+                      : 'border-base-300 bg-base-200 text-contrast-content hover:border-base-content/50'}"
                     on:click={() => (farmName = suggestion)}
                   >
                     {suggestion}

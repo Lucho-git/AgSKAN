@@ -29,8 +29,10 @@
       return true
     })
     .filter((e) => {
-      if (filterPlan === "free") return e.subscription === "FREE" || e.subscription_status === "free"
-      if (filterPlan === "paid") return e.subscription !== "FREE" && e.subscription_status !== "free"
+      if (filterPlan === "free")
+        return e.subscription === "FREE" || e.subscription_status === "free"
+      if (filterPlan === "paid")
+        return e.subscription !== "FREE" && e.subscription_status !== "free"
       return true
     })
     .filter((e) => {
@@ -58,7 +60,9 @@
     (e) => e.subscription === "FREE" || e.subscription_status === "free",
   ).length
   $: paidSeats = entries
-    .filter((e) => e.subscription !== "FREE" && e.subscription_status !== "free")
+    .filter(
+      (e) => e.subscription !== "FREE" && e.subscription_status !== "free",
+    )
     .reduce((sum, e) => sum + e.allowed_seats, 0)
   $: headlessCount = entries.filter((e) => !e.owner_connected).length
 
@@ -126,11 +130,14 @@
   })
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success("Copied to clipboard")
-    }).catch(() => {
-      toast.error("Failed to copy")
-    })
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        toast.success("Copied to clipboard")
+      })
+      .catch(() => {
+        toast.error("Failed to copy")
+      })
   }
 </script>
 
@@ -156,7 +163,7 @@
     Admin Dashboard
   </h2>
   <button
-    class="btn btn-sm btn-outline gap-1"
+    class="btn btn-outline btn-sm gap-1"
     on:click={loadData}
     disabled={loading}
   >
@@ -244,7 +251,7 @@
         <input
           type="text"
           placeholder="Search by name, email, company, or map..."
-          class="input input-bordered input-sm w-full pl-9"
+          class="input input-sm input-bordered w-full pl-9"
           bind:value={searchQuery}
         />
       </div>
@@ -252,41 +259,55 @@
         <!-- Plan filter -->
         <div class="flex gap-0.5 rounded-lg bg-base-200/50 p-0.5">
           <button
-            class="btn btn-xs {filterPlan === 'all' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (filterPlan = "all")}
-          >All</button>
+            class="btn btn-xs {filterPlan === 'all'
+              ? 'btn-neutral'
+              : 'btn-ghost'}"
+            on:click={() => (filterPlan = "all")}>All</button
+          >
           <button
-            class="btn btn-xs {filterPlan === 'paid' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (filterPlan = "paid")}
-          >Paid</button>
+            class="btn btn-xs {filterPlan === 'paid'
+              ? 'btn-neutral'
+              : 'btn-ghost'}"
+            on:click={() => (filterPlan = "paid")}>Paid</button
+          >
           <button
-            class="btn btn-xs {filterPlan === 'free' ? 'btn-neutral' : 'btn-ghost'}"
-            on:click={() => (filterPlan = "free")}
-          >Free</button>
+            class="btn btn-xs {filterPlan === 'free'
+              ? 'btn-neutral'
+              : 'btn-ghost'}"
+            on:click={() => (filterPlan = "free")}>Free</button
+          >
         </div>
         <div class="h-4 w-px bg-base-300"></div>
         <!-- Status filter -->
         <div class="flex gap-1">
           <button
-            class="btn btn-xs {filterStatus === 'all' ? 'btn-neutral' : 'btn-ghost'}"
+            class="btn btn-xs {filterStatus === 'all'
+              ? 'btn-neutral'
+              : 'btn-ghost'}"
             on:click={() => (filterStatus = "all")}
           >
             All
           </button>
           <button
-            class="btn btn-xs {filterStatus === 'exceeding' ? 'btn-error' : 'btn-ghost'}"
+            class="btn btn-xs {filterStatus === 'exceeding'
+              ? 'btn-error'
+              : 'btn-ghost'}"
             on:click={() => (filterStatus = "exceeding")}
           >
             Exceeding
           </button>
           <button
-            class="btn btn-xs {filterStatus === 'at_limit' ? 'btn-warning' : 'btn-ghost'}"
+            class="btn btn-xs {filterStatus === 'at_limit'
+              ? 'btn-warning'
+              : 'btn-ghost'}"
             on:click={() => (filterStatus = "at_limit")}
           >
             At Limit
           </button>
           <button
-            class="btn btn-xs {filterStatus === 'ok' ? 'btn-success' : 'btn-ghost'}"
+            class="btn btn-xs {filterStatus === 'ok'
+              ? 'btn-success'
+              : 'btn-ghost'}"
             on:click={() => (filterStatus = "ok")}
           >
             OK
@@ -296,7 +317,9 @@
     </div>
 
     <!-- Results count -->
-    <div class="flex items-center justify-between text-xs text-contrast-content/50">
+    <div
+      class="flex items-center justify-between text-xs text-contrast-content/50"
+    >
       <span>{filteredEntries.length} of {totalMaps} maps</span>
       {#if lastRefreshed}
         <span>Last refreshed: {lastRefreshed.toLocaleTimeString()}</span>
@@ -307,13 +330,15 @@
     <div class="overflow-x-auto rounded-lg border border-base-300">
       <table class="table w-full text-xs">
         <thead>
-          <tr class="border-b-2 border-base-300 bg-base-200/60 text-contrast-content/60">
+          <tr
+            class="border-b-2 border-base-300 bg-base-200/60 text-contrast-content/60"
+          >
             <th class="w-8 border-r border-base-300"></th>
             <th class="border-r border-base-300">Owner</th>
             <th class="border-r border-base-300">Map</th>
             <th class="border-r border-base-300">Plan</th>
-            <th class="text-center border-r border-base-300">Users</th>
-            <th class="text-center border-r border-base-300">Active 24h</th>
+            <th class="border-r border-base-300 text-center">Users</th>
+            <th class="border-r border-base-300 text-center">Active 24h</th>
             <th class="border-r border-base-300">Last GPS</th>
             <th class="border-r border-base-300">Last Sign-In</th>
             <th>Status</th>
@@ -322,7 +347,7 @@
         <tbody>
           {#each filteredEntries as entry, i (entry.master_map_id)}
             <tr
-              class="cursor-pointer transition-colors hover:bg-base-content/5 border-b border-base-300
+              class="cursor-pointer border-b border-base-300 transition-colors hover:bg-base-content/5
                 {entry.seat_status === 'EXCEEDING' ? 'bg-error/5' : ''}
                 {entry.seat_status === 'AT_LIMIT' ? 'bg-warning/5' : ''}"
               on:click={() => toggleExpand(entry.master_map_id)}
@@ -345,13 +370,19 @@
                   {entry.owner_email || "—"}
                 </div>
                 {#if entry.owner_phone}
-                  <div class="text-contrast-content/40">{entry.owner_phone}</div>
+                  <div class="text-contrast-content/40">
+                    {entry.owner_phone}
+                  </div>
                 {/if}
               </td>
               <td class="border-r border-base-300">
-                <div class="text-contrast-content">{entry.map_name || "Unnamed"}</div>
+                <div class="text-contrast-content">
+                  {entry.map_name || "Unnamed"}
+                </div>
                 {#if entry.company_name}
-                  <div class="text-contrast-content/50">{entry.company_name}</div>
+                  <div class="text-contrast-content/50">
+                    {entry.company_name}
+                  </div>
                 {/if}
               </td>
               <td class="border-r border-base-300">
@@ -359,13 +390,13 @@
                   {entry.subscription}
                 </span>
                 {#if entry.founder}
-                  <span class="badge badge-xs badge-secondary ml-0.5">F</span>
+                  <span class="badge badge-secondary badge-xs ml-0.5">F</span>
                 {/if}
                 {#if !entry.owner_connected}
-                  <span class="badge badge-xs badge-info ml-0.5">Headless</span>
+                  <span class="badge badge-info badge-xs ml-0.5">Headless</span>
                 {/if}
               </td>
-              <td class="text-center border-r border-base-300">
+              <td class="border-r border-base-300 text-center">
                 <span
                   class="font-semibold"
                   class:text-error={entry.seat_status === "EXCEEDING"}
@@ -374,7 +405,7 @@
                   {entry.connected_vehicles}/{entry.allowed_seats}
                 </span>
               </td>
-              <td class="text-center border-r border-base-300">
+              <td class="border-r border-base-300 text-center">
                 <span class="text-contrast-content/70">
                   {entry.vehicles_active_24h}
                 </span>
@@ -390,7 +421,9 @@
                 </span>
               </td>
               <td>
-                <span class="badge badge-xs {seatStatusBadge(entry.seat_status)}">
+                <span
+                  class="badge badge-xs {seatStatusBadge(entry.seat_status)}"
+                >
                   {seatStatusLabel(entry.seat_status)}
                 </span>
               </td>
@@ -402,17 +435,28 @@
                 <td colspan="9" class="bg-base-200/10 p-0">
                   <div class="px-4 pb-4 pt-3">
                     <!-- Map ID row -->
-                    <div class="mb-3 flex items-center gap-2 rounded bg-base-200/40 px-3 py-1.5">
-                      <span class="text-xs font-medium text-contrast-content/50">Map ID:</span>
-                      <code class="flex-1 select-all truncate font-mono text-xs text-contrast-content/70">
+                    <div
+                      class="mb-3 flex items-center gap-2 rounded bg-base-200/40 px-3 py-1.5"
+                    >
+                      <span class="text-xs font-medium text-contrast-content/50"
+                        >Map ID:</span
+                      >
+                      <code
+                        class="flex-1 select-all truncate font-mono text-xs text-contrast-content/70"
+                      >
                         {entry.master_map_id}
                       </code>
                       <button
                         class="btn btn-ghost btn-xs"
-                        on:click|stopPropagation={() => copyToClipboard(entry.master_map_id)}
+                        on:click|stopPropagation={() =>
+                          copyToClipboard(entry.master_map_id)}
                         title="Copy Map ID"
                       >
-                        <Icon icon="solar:copy-bold-duotone" width="14" height="14" />
+                        <Icon
+                          icon="solar:copy-bold-duotone"
+                          width="14"
+                          height="14"
+                        />
                       </button>
                     </div>
 
@@ -420,73 +464,132 @@
                     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       <!-- Owner Card -->
                       <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4 class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50">
-                          <Icon icon="solar:user-bold-duotone" width="12" height="12" />
+                        <h4
+                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+                        >
+                          <Icon
+                            icon="solar:user-bold-duotone"
+                            width="12"
+                            height="12"
+                          />
                           Owner
                         </h4>
-                        <p class="text-sm font-medium text-contrast-content">{entry.owner_name || "—"}</p>
-                        <p class="text-xs text-contrast-content/60">{entry.owner_email || "—"}</p>
+                        <p class="text-sm font-medium text-contrast-content">
+                          {entry.owner_name || "—"}
+                        </p>
+                        <p class="text-xs text-contrast-content/60">
+                          {entry.owner_email || "—"}
+                        </p>
                         {#if entry.owner_phone}
-                          <p class="text-xs text-contrast-content/50">{entry.owner_phone}</p>
+                          <p class="text-xs text-contrast-content/50">
+                            {entry.owner_phone}
+                          </p>
                         {/if}
                         {#if entry.company_name}
-                          <p class="text-xs text-contrast-content/50">{entry.company_name}</p>
+                          <p class="text-xs text-contrast-content/50">
+                            {entry.company_name}
+                          </p>
                         {/if}
-                        <div class="mt-2 space-y-0.5 text-xs text-contrast-content/50">
-                          <p>Last sign-in: {timeAgo(entry.owner_last_sign_in)}</p>
+                        <div
+                          class="mt-2 space-y-0.5 text-xs text-contrast-content/50"
+                        >
+                          <p>
+                            Last sign-in: {timeAgo(entry.owner_last_sign_in)}
+                          </p>
                           <p>Joined: {formatDate(entry.owner_created_at)}</p>
                         </div>
                       </div>
 
                       <!-- Map & Subscription Card -->
                       <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4 class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50">
-                          <Icon icon="solar:map-bold-duotone" width="12" height="12" />
+                        <h4
+                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+                        >
+                          <Icon
+                            icon="solar:map-bold-duotone"
+                            width="12"
+                            height="12"
+                          />
                           Map & Plan
                         </h4>
-                        <p class="text-sm font-medium text-contrast-content">{entry.map_name || "Unnamed"}</p>
-                        <p class="text-xs text-contrast-content/50">Created: {formatDate(entry.map_created_at)}</p>
+                        <p class="text-sm font-medium text-contrast-content">
+                          {entry.map_name || "Unnamed"}
+                        </p>
+                        <p class="text-xs text-contrast-content/50">
+                          Created: {formatDate(entry.map_created_at)}
+                        </p>
                         <div class="mt-2 flex flex-wrap items-center gap-1">
-                          <span class="badge badge-sm {subBadge(entry.subscription)}">{entry.subscription}</span>
-                          <span class="badge badge-outline badge-sm">{entry.subscription_status}</span>
+                          <span
+                            class="badge badge-sm {subBadge(
+                              entry.subscription,
+                            )}">{entry.subscription}</span
+                          >
+                          <span class="badge badge-outline badge-sm"
+                            >{entry.subscription_status}</span
+                          >
                           {#if entry.payment_interval}
-                            <span class="badge badge-ghost badge-sm">{entry.payment_interval}</span>
+                            <span class="badge badge-ghost badge-sm"
+                              >{entry.payment_interval}</span
+                            >
                           {/if}
                           {#if entry.founder}
-                            <span class="badge badge-secondary badge-sm">Founder</span>
+                            <span class="badge badge-secondary badge-sm"
+                              >Founder</span
+                            >
                           {/if}
                         </div>
                         {#if entry.next_billing_date}
-                          <p class="mt-1 text-xs text-contrast-content/50">Next billing: {formatDate(entry.next_billing_date)}</p>
+                          <p class="mt-1 text-xs text-contrast-content/50">
+                            Next billing: {formatDate(entry.next_billing_date)}
+                          </p>
                         {/if}
                       </div>
 
                       <!-- Activity Card -->
                       <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4 class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50">
-                          <Icon icon="solar:chart-bold-duotone" width="12" height="12" />
+                        <h4
+                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+                        >
+                          <Icon
+                            icon="solar:chart-bold-duotone"
+                            width="12"
+                            height="12"
+                          />
                           Activity
                         </h4>
                         <div class="space-y-1 text-xs">
                           <div class="flex justify-between">
-                            <span class="text-contrast-content/60">Vehicles (24h / 7d / 30d)</span>
+                            <span class="text-contrast-content/60"
+                              >Vehicles (24h / 7d / 30d)</span
+                            >
                             <span class="font-medium text-contrast-content">
-                              {entry.vehicles_active_24h} / {entry.vehicles_active_7d} / {entry.vehicles_active_30d}
+                              {entry.vehicles_active_24h} / {entry.vehicles_active_7d}
+                              / {entry.vehicles_active_30d}
                             </span>
                           </div>
                           <div class="flex justify-between">
-                            <span class="text-contrast-content/60">Members (7d / 30d)</span>
+                            <span class="text-contrast-content/60"
+                              >Members (7d / 30d)</span
+                            >
                             <span class="font-medium text-contrast-content">
                               {entry.members_active_7d} / {entry.members_active_30d}
                             </span>
                           </div>
                           <div class="flex justify-between">
-                            <span class="text-contrast-content/60">Last GPS update</span>
-                            <span class="text-contrast-content">{timeAgo(entry.latest_vehicle_update)}</span>
+                            <span class="text-contrast-content/60"
+                              >Last GPS update</span
+                            >
+                            <span class="text-contrast-content"
+                              >{timeAgo(entry.latest_vehicle_update)}</span
+                            >
                           </div>
                           <div class="flex justify-between">
-                            <span class="text-contrast-content/60">Last sign-in</span>
-                            <span class="text-contrast-content">{timeAgo(entry.latest_member_sign_in)}</span>
+                            <span class="text-contrast-content/60"
+                              >Last sign-in</span
+                            >
+                            <span class="text-contrast-content"
+                              >{timeAgo(entry.latest_member_sign_in)}</span
+                            >
                           </div>
                         </div>
                       </div>
@@ -494,26 +597,39 @@
 
                     <!-- Seat usage bar -->
                     <div class="mt-3">
-                      <div class="mb-1 flex items-center justify-between text-xs">
+                      <div
+                        class="mb-1 flex items-center justify-between text-xs"
+                      >
                         <span class="text-contrast-content/60">
                           Seat Usage: {entry.connected_vehicles} / {entry.allowed_seats}
                           {#if entry.seats_over_limit > 0}
-                            <span class="text-error">(+{entry.seats_over_limit} over)</span>
+                            <span class="text-error"
+                              >(+{entry.seats_over_limit} over)</span
+                            >
                           {/if}
                         </span>
-                        <span class="badge badge-xs {seatStatusBadge(entry.seat_status)}">
+                        <span
+                          class="badge badge-xs {seatStatusBadge(
+                            entry.seat_status,
+                          )}"
+                        >
                           {seatStatusLabel(entry.seat_status)}
                         </span>
                       </div>
-                      <div class="h-2 w-full overflow-hidden rounded-full bg-base-300">
+                      <div
+                        class="h-2 w-full overflow-hidden rounded-full bg-base-300"
+                      >
                         <div
-                          class="h-full rounded-full transition-all {entry.seat_status === 'EXCEEDING'
+                          class="h-full rounded-full transition-all {entry.seat_status ===
+                          'EXCEEDING'
                             ? 'bg-error'
                             : entry.seat_status === 'AT_LIMIT'
                               ? 'bg-warning'
                               : 'bg-success'}"
                           style="width: {Math.min(
-                            (entry.connected_vehicles / Math.max(entry.allowed_seats, 1)) * 100,
+                            (entry.connected_vehicles /
+                              Math.max(entry.allowed_seats, 1)) *
+                              100,
                             100,
                           )}%"
                         ></div>
@@ -523,14 +639,24 @@
                     <!-- Members list -->
                     {#if entry.members && entry.members.length > 0}
                       <div class="mt-4">
-                        <h4 class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50">
-                          <Icon icon="solar:users-group-rounded-bold-duotone" width="12" height="12" />
+                        <h4
+                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+                        >
+                          <Icon
+                            icon="solar:users-group-rounded-bold-duotone"
+                            width="12"
+                            height="12"
+                          />
                           Connected Members ({entry.members.length})
                         </h4>
-                        <div class="overflow-x-auto rounded border border-base-300">
+                        <div
+                          class="overflow-x-auto rounded border border-base-300"
+                        >
                           <table class="table-compact table w-full text-xs">
                             <thead>
-                              <tr class="bg-base-200/30 text-contrast-content/50">
+                              <tr
+                                class="bg-base-200/30 text-contrast-content/50"
+                              >
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Last Sign-In</th>
@@ -541,15 +667,27 @@
                             <tbody>
                               {#each entry.members as member}
                                 <tr>
-                                  <td class="text-contrast-content">{member.full_name || "—"}</td>
-                                  <td class="text-contrast-content/60">{member.email || "—"}</td>
-                                  <td class="text-contrast-content/60">{timeAgo(member.last_sign_in)}</td>
-                                  <td class="text-contrast-content/60">{timeAgo(member.last_location_update)}</td>
+                                  <td class="text-contrast-content"
+                                    >{member.full_name || "—"}</td
+                                  >
+                                  <td class="text-contrast-content/60"
+                                    >{member.email || "—"}</td
+                                  >
+                                  <td class="text-contrast-content/60"
+                                    >{timeAgo(member.last_sign_in)}</td
+                                  >
+                                  <td class="text-contrast-content/60"
+                                    >{timeAgo(member.last_location_update)}</td
+                                  >
                                   <td>
                                     {#if member.is_owner}
-                                      <span class="badge badge-primary badge-xs">Owner</span>
+                                      <span class="badge badge-primary badge-xs"
+                                        >Owner</span
+                                      >
                                     {:else}
-                                      <span class="badge badge-ghost badge-xs">Member</span>
+                                      <span class="badge badge-ghost badge-xs"
+                                        >Member</span
+                                      >
                                     {/if}
                                   </td>
                                 </tr>
@@ -569,7 +707,10 @@
             {/if}
           {:else}
             <tr>
-              <td colspan="9" class="py-8 text-center text-sm text-contrast-content/50">
+              <td
+                colspan="9"
+                class="py-8 text-center text-sm text-contrast-content/50"
+              >
                 No maps match your search criteria.
               </td>
             </tr>

@@ -15,7 +15,10 @@
     LandPlot,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
-  import { devModeEnabled, devBackgroundSimEnabled } from "$lib/stores/devModeStore"
+  import {
+    devModeEnabled,
+    devBackgroundSimEnabled,
+  } from "$lib/stores/devModeStore"
   import { collectionModeStore } from "$lib/stores/markerStore"
 
   // Import vehicle store and components

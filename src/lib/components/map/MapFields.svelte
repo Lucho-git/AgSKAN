@@ -161,7 +161,9 @@
         map.setLayoutProperty(
           "fields-labels-area",
           "visibility",
-          labelsVisible && fieldsVisible && hectaresVisible ? "visible" : "none",
+          labelsVisible && fieldsVisible && hectaresVisible
+            ? "visible"
+            : "none",
         )
 
         // Update text-field expression based on farm name toggle
@@ -171,19 +173,24 @@
             ["!=", ["get", "farm_name"], ""],
             [
               "format",
-              ["get", "farm_name"], { "text-color": "#a0c8e8" },
-              " \u00b7 ", { "text-color": "#a0c8e8" },
-              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+              ["get", "farm_name"],
+              { "text-color": "#a0c8e8" },
+              " \u00b7 ",
+              { "text-color": "#a0c8e8" },
+              ["concat", ["get", "area"], " ha"],
+              { "text-color": "#c0ffc0" },
             ],
             [
               "format",
-              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+              ["concat", ["get", "area"], " ha"],
+              { "text-color": "#c0ffc0" },
             ],
           ])
         } else {
           map.setLayoutProperty("fields-labels-area", "text-field", [
             "format",
-            ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+            ["concat", ["get", "area"], " ha"],
+            { "text-color": "#c0ffc0" },
           ])
         }
       }
@@ -231,7 +238,9 @@
                     name: field.name,
                     area: Math.round(field.area * 10) / 10,
                     icon: field.icon || "🌾",
-                    farm_name: hasMultipleFarms ? (farmNameById.get(field.farm_id) || "") : "",
+                    farm_name: hasMultipleFarms
+                      ? farmNameById.get(field.farm_id) || ""
+                      : "",
                   },
                 },
               ]
@@ -262,7 +271,9 @@
                       name: field.name,
                       area: Math.round(polygonArea * 10) / 10,
                       icon: field.icon || "🌾",
-                      farm_name: hasMultipleFarms ? (farmNameById.get(field.farm_id) || "") : "",
+                      farm_name: hasMultipleFarms
+                        ? farmNameById.get(field.farm_id) || ""
+                        : "",
                     },
                   }
                 },
@@ -335,13 +346,17 @@
             ["!=", ["get", "farm_name"], ""],
             [
               "format",
-              ["get", "farm_name"], { "text-color": "#a0c8e8" },
-              " · ", { "text-color": "#a0c8e8" },
-              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+              ["get", "farm_name"],
+              { "text-color": "#a0c8e8" },
+              " · ",
+              { "text-color": "#a0c8e8" },
+              ["concat", ["get", "area"], " ha"],
+              { "text-color": "#c0ffc0" },
             ],
             [
               "format",
-              ["concat", ["get", "area"], " ha"], { "text-color": "#c0ffc0" },
+              ["concat", ["get", "area"], " ha"],
+              { "text-color": "#c0ffc0" },
             ],
           ],
           "text-anchor": "top",

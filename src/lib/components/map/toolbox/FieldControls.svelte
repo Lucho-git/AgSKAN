@@ -39,20 +39,24 @@
 
   // Close reassign menu when clicking outside
   function handleWindowClick(e) {
-    if (reassignFieldId && controlsEl && !controlsEl.querySelector('.reassign-menu')?.contains(e.target)) {
+    if (
+      reassignFieldId &&
+      controlsEl &&
+      !controlsEl.querySelector(".reassign-menu")?.contains(e.target)
+    ) {
       // Check if click was on a move button (toggle handled separately)
-      if (!e.target.closest('.icon-btn.move')) {
+      if (!e.target.closest(".icon-btn.move")) {
         reassignFieldId = null
       }
     }
   }
 
   onMount(() => {
-    window.addEventListener('click', handleWindowClick, true)
+    window.addEventListener("click", handleWindowClick, true)
   })
 
   onDestroy(() => {
-    window.removeEventListener('click', handleWindowClick, true)
+    window.removeEventListener("click", handleWindowClick, true)
   })
 
   // Build farm-grouped field list from farmsStore + mapFieldsStore
@@ -69,7 +73,8 @@
     fields.forEach((field, index) => {
       const entry = { ...field, _index: index }
       if (field.farm_id && farmById.has(field.farm_id)) {
-        if (!fieldsByFarmId.has(field.farm_id)) fieldsByFarmId.set(field.farm_id, [])
+        if (!fieldsByFarmId.has(field.farm_id))
+          fieldsByFarmId.set(field.farm_id, [])
         fieldsByFarmId.get(field.farm_id).push(entry)
       } else {
         unassigned.push(entry)
@@ -165,7 +170,7 @@
     const result = await farmApi.renameFarm(farmId, name)
     if (result.success) {
       farmsStore.update((farms) =>
-        farms.map((f) => (f.id === farmId ? { ...f, name } : f))
+        farms.map((f) => (f.id === farmId ? { ...f, name } : f)),
       )
       toast.success("Farm renamed")
     } else {
@@ -186,15 +191,19 @@
     reassignFieldId = null
     if (field.farm_id === targetFarmId) return
 
-    const result = await fileApi.updateField(field.field_id, { farm_id: targetFarmId || undefined })
+    const result = await fileApi.updateField(field.field_id, {
+      farm_id: targetFarmId || undefined,
+    })
     if (result.success) {
       // Update the field in mapFieldsStore
       mapFieldsStore.update((fields) =>
         fields.map((f) =>
-          f.field_id === field.field_id ? { ...f, farm_id: targetFarmId } : f
-        )
+          f.field_id === field.field_id ? { ...f, farm_id: targetFarmId } : f,
+        ),
       )
-      const targetName = ($farmsStore || []).find((f) => f.id === targetFarmId)?.name || "Unassigned"
+      const targetName =
+        ($farmsStore || []).find((f) => f.id === targetFarmId)?.name ||
+        "Unassigned"
       toast.success(`Moved "${field.name}" to ${targetName}`)
     } else {
       toast.error("Failed to move field")
@@ -214,7 +223,10 @@
         {@const farmKey = entry.farmId || "__unassigned"}
         <div class="farm-section">
           <div class="farm-header-row">
-            <button class="farm-header" on:click={() => toggleFarm(entry.farmId)}>
+            <button
+              class="farm-header"
+              on:click={() => toggleFarm(entry.farmId)}
+            >
               <span class="farm-chevron">
                 {#if collapsedFarms[farmKey]}
                   <ChevronRight size={14} />
@@ -235,10 +247,16 @@
                     if (e.key === "Escape") cancelRename()
                   }}
                 />
-                <button class="icon-btn confirm" on:click|stopPropagation={() => confirmRename(entry.farmId)}>
+                <button
+                  class="icon-btn confirm"
+                  on:click|stopPropagation={() => confirmRename(entry.farmId)}
+                >
                   <Check size={12} />
                 </button>
-                <button class="icon-btn cancel" on:click|stopPropagation={cancelRename}>
+                <button
+                  class="icon-btn cancel"
+                  on:click|stopPropagation={cancelRename}
+                >
                   <X size={12} />
                 </button>
               {:else}
@@ -247,7 +265,8 @@
                 {#if entry.farmId}
                   <button
                     class="icon-btn edit"
-                    on:click|stopPropagation={() => startRename(entry.farmId, entry.farmName)}
+                    on:click|stopPropagation={() =>
+                      startRename(entry.farmId, entry.farmName)}
                   >
                     <Pencil size={11} />
                   </button>
@@ -269,7 +288,10 @@
                   >
                     {#if field.boundary}
                       <span class="field-icon-mini">
-                        <FieldIcon geojson={createGeoJSON(field.boundary)} size={18} />
+                        <FieldIcon
+                          geojson={createGeoJSON(field.boundary)}
+                          size={18}
+                        />
                       </span>
                     {/if}
                     <span class="field-name">{field.name}</span>
@@ -280,7 +302,8 @@
                       <button
                         class="icon-btn move"
                         title="Move to another farm"
-                        on:click|stopPropagation={() => toggleReassignMenu(field.field_id)}
+                        on:click|stopPropagation={() =>
+                          toggleReassignMenu(field.field_id)}
                       >
                         <ArrowRightLeft size={12} />
                       </button>
@@ -322,13 +345,22 @@
           autofocus
           on:keydown={(e) => {
             if (e.key === "Enter") handleAddFarm()
-            if (e.key === "Escape") { addingFarm = false; newFarmName = "" }
+            if (e.key === "Escape") {
+              addingFarm = false
+              newFarmName = ""
+            }
           }}
         />
         <button class="icon-btn confirm" on:click={handleAddFarm}>
           <Check size={14} />
         </button>
-        <button class="icon-btn cancel" on:click={() => { addingFarm = false; newFarmName = "" }}>
+        <button
+          class="icon-btn cancel"
+          on:click={() => {
+            addingFarm = false
+            newFarmName = ""
+          }}
+        >
           <X size={14} />
         </button>
       </div>

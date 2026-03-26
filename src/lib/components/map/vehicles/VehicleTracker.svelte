@@ -10,7 +10,10 @@
     otherVehiclesDataChanges,
     broadcastMessageEvent,
   } from "$lib/stores/vehicleStore"
-  import { coordinateBufferStore, currentTrailStore } from "$lib/stores/currentTrailStore"
+  import {
+    coordinateBufferStore,
+    currentTrailStore,
+  } from "$lib/stores/currentTrailStore"
   import { trailPausedStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
 
@@ -28,7 +31,10 @@
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
-  import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public"
+  import {
+    PUBLIC_SUPABASE_URL,
+    PUBLIC_SUPABASE_ANON_KEY,
+  } from "$env/static/public"
   import { devModeEnabled, devPositionStore } from "$lib/stores/devModeStore"
 
   export let map
@@ -245,7 +251,9 @@
     )
 
     if (userMarkerData?.component) {
-      const isSelected = selectedVehicleId != null && selectedVehicleId === $userVehicleStore.vehicle_id
+      const isSelected =
+        selectedVehicleId != null &&
+        selectedVehicleId === $userVehicleStore.vehicle_id
       userMarkerData.component.$set({ isSelected })
       console.log("🚗 Updated user marker selection:", isSelected)
     }
@@ -394,7 +402,10 @@
   /** Check if a vehicle's speed data is stale (no update in 30s) */
   function isSpeedStale(lastUpdate) {
     if (!lastUpdate) return true
-    const ts = typeof lastUpdate === 'string' ? new Date(lastUpdate).getTime() : lastUpdate
+    const ts =
+      typeof lastUpdate === "string"
+        ? new Date(lastUpdate).getTime()
+        : lastUpdate
     return Date.now() - ts > STALE_SPEED_THRESHOLD_MS
   }
 
@@ -403,9 +414,9 @@
    * If lastUpdate is stale (>30s), speed is forced to 0.
    */
   function renderActiveTag(el, initials, speed, lastUpdate = null) {
-    const effectiveSpeed = isSpeedStale(lastUpdate) ? 0 : (speed || 0)
+    const effectiveSpeed = isSpeedStale(lastUpdate) ? 0 : speed || 0
     const s = effectiveSpeed.toFixed(1)
-    el.innerHTML = ''
+    el.innerHTML = ""
 
     switch (tagStyle) {
       case 1: // mid-dot
@@ -420,45 +431,55 @@
         el.textContent = `${initials} ${s}km`
         break
 
-      case 4: { // two-line
-        const nameLine = document.createElement('div')
+      case 4: {
+        // two-line
+        const nameLine = document.createElement("div")
         nameLine.textContent = initials
-        nameLine.style.cssText = 'font-weight: 700; font-size: 11px; line-height: 1.1;'
+        nameLine.style.cssText =
+          "font-weight: 700; font-size: 11px; line-height: 1.1;"
         el.appendChild(nameLine)
-        const speedLine = document.createElement('div')
+        const speedLine = document.createElement("div")
         speedLine.textContent = `${s} km/h`
-        speedLine.style.cssText = 'font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;'
+        speedLine.style.cssText =
+          "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;"
         el.appendChild(speedLine)
         break
       }
 
-      case 5: { // pill badge — two segments
-        const left = document.createElement('span')
+      case 5: {
+        // pill badge — two segments
+        const left = document.createElement("span")
         left.textContent = initials
-        left.style.cssText = 'padding: 1px 5px; border-radius: 6px; background: rgba(255,255,255,0.2);'
+        left.style.cssText =
+          "padding: 1px 5px; border-radius: 6px; background: rgba(255,255,255,0.2);"
         el.appendChild(left)
-        const gap = document.createTextNode(' ')
+        const gap = document.createTextNode(" ")
         el.appendChild(gap)
-        const right = document.createElement('span')
+        const right = document.createElement("span")
         right.textContent = s
-        right.style.cssText = 'padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,0.25);'
+        right.style.cssText =
+          "padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,0.25);"
         el.appendChild(right)
         break
       }
 
       case 6: // speed only when moving (single line)
-        el.textContent = parseFloat(s) > 0 ? `${initials} \u00B7 ${s}` : initials
+        el.textContent =
+          parseFloat(s) > 0 ? `${initials} \u00B7 ${s}` : initials
         break
 
-      case 7: { // smart two-line: two-line when moving, initials only when stopped
+      case 7: {
+        // smart two-line: two-line when moving, initials only when stopped
         if (parseFloat(s) > 0) {
-          const nameLine = document.createElement('div')
+          const nameLine = document.createElement("div")
           nameLine.textContent = initials
-          nameLine.style.cssText = 'font-weight: 700; font-size: 11px; line-height: 1.1;'
+          nameLine.style.cssText =
+            "font-weight: 700; font-size: 11px; line-height: 1.1;"
           el.appendChild(nameLine)
-          const speedLine = document.createElement('div')
+          const speedLine = document.createElement("div")
           speedLine.textContent = `${s} km/h`
-          speedLine.style.cssText = 'font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;'
+          speedLine.style.cssText =
+            "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;"
           el.appendChild(speedLine)
         } else {
           el.textContent = initials
@@ -856,7 +877,7 @@
    * Configure transistorsoft's native HTTP sync when entering background.
    * The native plugin (OkHttp on Android) will POST each GPS location
    * to the Supabase RPC function background_sync() — even after Android freezes JS.
-   * 
+   *
    * This ALWAYS configures (not just when trailing):
    *   - vehicle_state is ALWAYS updated (so other users see this vehicle)
    *   - trail_stream is updated ONLY when trailing
@@ -875,8 +896,10 @@
       // Determine trailing state — native sync handles both trailing and non-trailing
       const isTrailing = $userVehicleTrailing && !$trailPausedStore
       const currentTrail = $currentTrailStore
-      const operationId = isTrailing ? (currentTrail?.operation_id || $userVehicleStore?.operation_id || '') : ''
-      const trailId = isTrailing ? (currentTrail?.id || '') : ''
+      const operationId = isTrailing
+        ? currentTrail?.operation_id || $userVehicleStore?.operation_id || ""
+        : ""
+      const trailId = isTrailing ? currentTrail?.id || "" : ""
 
       const success = await backgroundService.configureNativeSync({
         supabaseUrl: PUBLIC_SUPABASE_URL,
@@ -885,13 +908,15 @@
         refreshToken,
         operationId,
         trailId,
-        vehicleId: $userVehicleStore?.vehicle_id || '',
-        masterMapId: $profileStore?.master_map_id || '',
+        vehicleId: $userVehicleStore?.vehicle_id || "",
+        masterMapId: $profileStore?.master_map_id || "",
         isTrailing,
       })
 
       if (success) {
-        console.log(`[BG-DIAG] ✅ Native sync ready (trailing=${isTrailing}) — position will update natively even after JS freezes`)
+        console.log(
+          `[BG-DIAG] ✅ Native sync ready (trailing=${isTrailing}) — position will update natively even after JS freezes`,
+        )
       }
     } catch (error) {
       console.error("[BG-DIAG] Error configuring native sync:", error)
@@ -917,9 +942,14 @@
           const { data: refreshData, error: refreshErr } =
             await supabase.auth.refreshSession()
           if (refreshErr) {
-            console.warn("[BG-DIAG] ⚠️ Session refresh failed:", refreshErr.message)
+            console.warn(
+              "[BG-DIAG] ⚠️ Session refresh failed:",
+              refreshErr.message,
+            )
           } else if (refreshData?.session) {
-            console.log("[BG-DIAG] ✅ Session refreshed after background return")
+            console.log(
+              "[BG-DIAG] ✅ Session refreshed after background return",
+            )
 
             // Update the native HTTP engine's authorization with the fresh tokens
             // so any remaining queued native POSTs use a valid JWT.
@@ -936,7 +966,9 @@
       // Check for any un-synced locations (failed native POSTs)
       const storedLocations = await backgroundService.getStoredLocations()
       if (storedLocations.length > 0) {
-        console.log(`[BG-DIAG] ⚠️ ${storedLocations.length} un-synced locations found, processing...`)
+        console.log(
+          `[BG-DIAG] ⚠️ ${storedLocations.length} un-synced locations found, processing...`,
+        )
         // Process each stored location through the normal pipeline
         for (const loc of storedLocations) {
           if (loc.coords) {
@@ -951,7 +983,9 @@
         }
         // Clear the plugin's stored locations after processing
         try {
-          const BackgroundGeolocation = (await import('@transistorsoft/capacitor-background-geolocation')).default
+          const BackgroundGeolocation = (
+            await import("@transistorsoft/capacitor-background-geolocation")
+          ).default
           await BackgroundGeolocation.destroyLocations()
           console.log("[BG-DIAG] Cleared stored locations after processing")
         } catch (e) {
@@ -965,7 +999,9 @@
       const bgDuration = foregroundData.duration?.milliseconds || 0
       if (bgDuration > 60000 && backgroundService.nativeSyncEnabled) {
         // Was in background for >60s — native HTTP likely took over from frozen JS
-        console.log(`[BG-DIAG] Background session: ${jsCount} JS locations + native HTTP sync active`)
+        console.log(
+          `[BG-DIAG] Background session: ${jsCount} JS locations + native HTTP sync active`,
+        )
         toast.info("Background trail sync active", {
           description: `Trail points were saved directly to the server while the app was in background`,
           duration: 5000,
@@ -978,7 +1014,11 @@
       // Fetch them from the DB and merge so the trail renders fully and
       // the user can close the trail with the complete path.
       const currentTrail = get(currentTrailStore)
-      if (currentTrail && currentTrail.id && backgroundService.nativeSyncEnabled) {
+      if (
+        currentTrail &&
+        currentTrail.id &&
+        backgroundService.nativeSyncEnabled
+      ) {
         try {
           const { data: dbPoints, error: dbErr } = await supabase
             .from("trail_stream")
@@ -1014,9 +1054,10 @@
             if (newPathPoints.length > 0) {
               currentTrailStore.update((trail) => {
                 if (!trail) return trail
-                const allPoints = [...(trail.path || []), ...newPathPoints].sort(
-                  (a, b) => a.timestamp - b.timestamp,
-                )
+                const allPoints = [
+                  ...(trail.path || []),
+                  ...newPathPoints,
+                ].sort((a, b) => a.timestamp - b.timestamp)
                 return { ...trail, path: allPoints }
               })
               merged = newPathPoints.length
@@ -1030,7 +1071,10 @@
             }
           }
         } catch (mergeErr) {
-          console.warn("[BG-DIAG] Could not merge trail_stream points:", mergeErr)
+          console.warn(
+            "[BG-DIAG] Could not merge trail_stream points:",
+            mergeErr,
+          )
         }
       }
     } catch (error) {
@@ -1055,7 +1099,9 @@
       // Register the native sync configurator as a pre-start hook so it runs
       // BEFORE BackgroundGeolocation.start() triggers an HTTP flush of queued locations.
       // This eliminates the race condition where start() flushed with the OLD config.
-      backgroundService.registerPreStartHook(() => configureNativeSyncForBackground())
+      backgroundService.registerPreStartHook(() =>
+        configureNativeSyncForBackground(),
+      )
 
       // Register a token refresh callback for the heartbeat-based proactive refresh.
       // When the JWT is >45 min old, the heartbeat handler calls this to get a new token
@@ -1064,7 +1110,10 @@
         try {
           const { data, error } = await supabase.auth.refreshSession()
           if (error || !data?.session) {
-            console.warn("[BG-DIAG] 🔑 Token refresh callback failed:", error?.message)
+            console.warn(
+              "[BG-DIAG] 🔑 Token refresh callback failed:",
+              error?.message,
+            )
             return null
           }
           return {
@@ -1082,12 +1131,16 @@
           if (event === "background") {
             isBackground = true
             appState = "mobile-background"
-            console.log(`[BG-DIAG] 🟣 VehicleTracker received 'background' event | permission=${data.backgroundPermissionGranted}`)
+            console.log(
+              `[BG-DIAG] 🟣 VehicleTracker received 'background' event | permission=${data.backgroundPermissionGranted}`,
+            )
 
             // NOTE: Native sync is now configured via the pre-start hook (registered above)
             // which runs BEFORE start(). No need to call configureNativeSyncForBackground() here.
           } else if (event === "foreground") {
-            console.log(`[BG-DIAG] 🟢 VehicleTracker received 'foreground' event | duration=${data.duration?.formatted} | locations=${data.locationUpdateCount}`)
+            console.log(
+              `[BG-DIAG] 🟢 VehicleTracker received 'foreground' event | duration=${data.duration?.formatted} | locations=${data.locationUpdateCount}`,
+            )
             isBackground = false
             appState = "mobile-foreground"
 
@@ -1106,11 +1159,15 @@
               })
             }
           } else if (event === "location" && isBackground) {
-            console.log(`[BG-DIAG] 📍 VehicleTracker received background location | devMode=${$devModeEnabled} | coords=[${data.coords.latitude.toFixed(5)}, ${data.coords.longitude.toFixed(5)}] | acc=${data.coords.accuracy}m`)
+            console.log(
+              `[BG-DIAG] 📍 VehicleTracker received background location | devMode=${$devModeEnabled} | coords=[${data.coords.latitude.toFixed(5)}, ${data.coords.longitude.toFixed(5)}] | acc=${data.coords.accuracy}m`,
+            )
             if ($devModeEnabled) return // Dev mode overrides real GPS
             streamMarkerPosition(data.coords)
           } else if (event === "location" && !isBackground) {
-            console.log(`[BG-DIAG] ⚠️ VehicleTracker got location but isBackground=false, DROPPING`)
+            console.log(
+              `[BG-DIAG] ⚠️ VehicleTracker got location but isBackground=false, DROPPING`,
+            )
           } else if (event === "permissionChange") {
             if (data.backgroundPermissionGranted) {
               toast.success("Background location enabled", {
@@ -1180,7 +1237,7 @@
     }
 
     // Track map bearing for HUD compass indicator
-    map.on('rotate', () => {
+    map.on("rotate", () => {
       mapBearing = map.getBearing()
     })
 
@@ -1472,7 +1529,10 @@
 
           // Move broadcast bubble if one exists for this vehicle
           if (otherBroadcastMarkers[vehicle_id]?.marker) {
-            otherBroadcastMarkers[vehicle_id].marker.setLngLat([longitude, latitude])
+            otherBroadcastMarkers[vehicle_id].marker.setLngLat([
+              longitude,
+              latitude,
+            ])
           }
         }
 
@@ -1635,11 +1695,20 @@
         if (userMarkerData.marker) {
           const el = userMarkerData.marker.getElement()
           const currentVehicleId = $userVehicleStore.vehicle_id
-          if (el && currentVehicleId && el.getAttribute("data-vehicle-id") !== currentVehicleId) {
+          if (
+            el &&
+            currentVehicleId &&
+            el.getAttribute("data-vehicle-id") !== currentVehicleId
+          ) {
             el.setAttribute("data-vehicle-id", currentVehicleId)
-            console.log("🔄 Updated data-vehicle-id attribute to:", currentVehicleId)
+            console.log(
+              "🔄 Updated data-vehicle-id attribute to:",
+              currentVehicleId,
+            )
             // Also refresh isSelected since vehicle_id just became valid
-            const isSelected = selectedVehicleId != null && selectedVehicleId === currentVehicleId
+            const isSelected =
+              selectedVehicleId != null &&
+              selectedVehicleId === currentVehicleId
             userMarkerData.component.$set({ isSelected })
           }
         }
@@ -1749,7 +1818,9 @@
       }
     }
 
-    const isSelected = selectedVehicleId != null && selectedVehicleId === $userVehicleStore.vehicle_id
+    const isSelected =
+      selectedVehicleId != null &&
+      selectedVehicleId === $userVehicleStore.vehicle_id
     component.$set({ isSelected })
 
     userMarkerData = { marker, component }
@@ -2133,7 +2204,7 @@
   }
 
   function createBroadcastBubbleElement(message, onClose) {
-    const el = document.createElement('div')
+    const el = document.createElement("div")
     el.style.cssText = `
       pointer-events: auto;
       user-select: none;
@@ -2143,10 +2214,10 @@
       align-items: center;
     `
 
-    const wrapper = document.createElement('div')
+    const wrapper = document.createElement("div")
     wrapper.style.cssText = `position: relative;`
 
-    const bubble = document.createElement('div')
+    const bubble = document.createElement("div")
     bubble.style.cssText = `
       background: rgba(255, 255, 255, 0.95);
       color: #1a1a1a;
@@ -2162,8 +2233,8 @@
     `
     bubble.textContent = `\u201c${message}\u201d`
 
-    const closeBtn = document.createElement('button')
-    closeBtn.textContent = '\u00d7'
+    const closeBtn = document.createElement("button")
+    closeBtn.textContent = "\u00d7"
     closeBtn.style.cssText = `
       position: absolute;
       top: -10px;
@@ -2185,8 +2256,8 @@
       -webkit-tap-highlight-color: transparent;
       z-index: 10;
     `
-    closeBtn.addEventListener('click', onClose)
-    closeBtn.addEventListener('touchend', (e) => {
+    closeBtn.addEventListener("click", onClose)
+    closeBtn.addEventListener("touchend", (e) => {
       e.preventDefault()
       e.stopPropagation()
       onClose()
@@ -2195,7 +2266,7 @@
     wrapper.appendChild(bubble)
     wrapper.appendChild(closeBtn)
 
-    const tail = document.createElement('div')
+    const tail = document.createElement("div")
     tail.style.cssText = `
       width: 0;
       height: 0;
@@ -2211,9 +2282,9 @@
     el.appendChild(wrapper)
 
     // Add fade-in keyframe globally (once)
-    if (!document.getElementById('broadcast-anim-style')) {
-      const styleSheet = document.createElement('style')
-      styleSheet.id = 'broadcast-anim-style'
+    if (!document.getElementById("broadcast-anim-style")) {
+      const styleSheet = document.createElement("style")
+      styleSheet.id = "broadcast-anim-style"
       styleSheet.textContent = `@keyframes broadcastFadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`
       document.head.appendChild(styleSheet)
     }
@@ -2223,7 +2294,9 @@
 
   function showOtherVehicleBroadcast({ sender_id, sender_name, message }) {
     // Find the marker for this vehicle
-    const vehicleData = otherVehicleMarkers.find((v) => v.vehicleId === sender_id)
+    const vehicleData = otherVehicleMarkers.find(
+      (v) => v.vehicleId === sender_id,
+    )
     if (!vehicleData) return
 
     const lngLat = vehicleData.marker.getLngLat()
@@ -2252,7 +2325,7 @@
 
     const broadcastMarker = new mapboxgl.Marker({
       element: el,
-      anchor: 'top',
+      anchor: "top",
       offset: [0, 24],
     })
       .setLngLat(lngLat)
@@ -2261,8 +2334,8 @@
     // Auto-dismiss after 5 minutes
     const timer = setTimeout(() => {
       if (otherBroadcastMarkers[sender_id]) {
-        el.style.transition = 'opacity 0.5s ease-out'
-        el.style.opacity = '0'
+        el.style.transition = "opacity 0.5s ease-out"
+        el.style.opacity = "0"
         setTimeout(() => {
           if (otherBroadcastMarkers[sender_id]) {
             otherBroadcastMarkers[sender_id].marker.remove()
@@ -2303,7 +2376,7 @@
 
     userBroadcastMarker = new mapboxgl.Marker({
       element: el,
-      anchor: 'top',
+      anchor: "top",
       offset: [0, 24],
     })
       .setLngLat(lngLat)
@@ -2312,8 +2385,8 @@
     // Auto-dismiss after 5 minutes
     broadcastDismissTimer = setTimeout(() => {
       if (userBroadcastMarker) {
-        el.style.transition = 'opacity 0.5s ease-out'
-        el.style.opacity = '0'
+        el.style.transition = "opacity 0.5s ease-out"
+        el.style.opacity = "0"
         setTimeout(() => {
           if (userBroadcastMarker) {
             userBroadcastMarker.remove()
@@ -2328,19 +2401,21 @@
     try {
       const masterMapId = $profileStore?.master_map_id
       if (masterMapId) {
-        const broadcastChannel = supabase.channel(`vehicle_updates_${masterMapId}`)
+        const broadcastChannel = supabase.channel(
+          `vehicle_updates_${masterMapId}`,
+        )
         broadcastChannel.send({
-          type: 'broadcast',
-          event: 'broadcast_message',
+          type: "broadcast",
+          event: "broadcast_message",
           payload: {
-            sender_name: $profileStore?.full_name || 'Someone',
+            sender_name: $profileStore?.full_name || "Someone",
             message: message,
             sender_id: $profileStore?.id,
           },
         })
       }
     } catch (err) {
-      console.error('Failed to broadcast message:', err)
+      console.error("Failed to broadcast message:", err)
     }
   }
 
@@ -2431,20 +2506,32 @@
     // User's own tag
     if (userInitialsMarker && $profileStore?.full_name) {
       const initials = getUserInitials($profileStore.full_name)
-      if (initials) updateInitialsMarkerText(userInitialsMarker, initials, false, $userVehicleStore.last_update, currentSpeed)
+      if (initials)
+        updateInitialsMarkerText(
+          userInitialsMarker,
+          initials,
+          false,
+          $userVehicleStore.last_update,
+          currentSpeed,
+        )
     }
     // Other vehicles' tags
     otherVehicleMarkers.forEach(({ initialsMarker, vehicleId }) => {
       if (!initialsMarker) return
-      const v = $otherVehiclesStore.find(v => v.vehicle_id === vehicleId)
+      const v = $otherVehiclesStore.find((v) => v.vehicle_id === vehicleId)
       if (!v) return
       const initials = getUserInitials(v.full_name)
       if (!initials) return
       const inactive = isVehicleInactive(v.last_update)
-      updateInitialsMarkerText(initialsMarker, initials, inactive, v.last_update, v.speed || 0)
+      updateInitialsMarkerText(
+        initialsMarker,
+        initials,
+        inactive,
+        v.last_update,
+        v.speed || 0,
+      )
     })
   }
-
 </script>
 
 <VehicleControls

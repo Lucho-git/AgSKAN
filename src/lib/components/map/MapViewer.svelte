@@ -45,7 +45,10 @@
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
-  import { devModeEnabled, devBackgroundSimEnabled } from "$lib/stores/devModeStore"
+  import {
+    devModeEnabled,
+    devBackgroundSimEnabled,
+  } from "$lib/stores/devModeStore"
 
   // Import persistent managers
   import SatelliteManager from "$lib/components/map/toolbox/SatelliteManager.svelte"
@@ -296,9 +299,10 @@
     }
     // Zoom to field bounds
     if (map && boundary) {
-      const coords = boundary.type === "MultiPolygon"
-        ? boundary.coordinates.flat(2)
-        : boundary.coordinates.flat(1)
+      const coords =
+        boundary.type === "MultiPolygon"
+          ? boundary.coordinates.flat(2)
+          : boundary.coordinates.flat(1)
       if (coords.length > 0) {
         const bounds = coords.reduce(
           (b, c) => {
@@ -308,7 +312,10 @@
             b[1][1] = Math.max(b[1][1], c[1])
             return b
           },
-          [[Infinity, Infinity], [-Infinity, -Infinity]]
+          [
+            [Infinity, Infinity],
+            [-Infinity, -Infinity],
+          ],
         )
         map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
       }

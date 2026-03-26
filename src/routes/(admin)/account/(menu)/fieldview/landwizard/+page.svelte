@@ -51,9 +51,10 @@
 
       // Detect farm names from paddock metadata
       detectedFarmNames = detectFarmNames(paddocks)
-      farmName = detectedFarmNames.length === 1
-        ? detectedFarmNames[0]
-        : $connectedMapStore.map_name || ""
+      farmName =
+        detectedFarmNames.length === 1
+          ? detectedFarmNames[0]
+          : $connectedMapStore.map_name || ""
     }
   })
 
@@ -126,12 +127,14 @@
       farm_id: resolvedFarmId,
     }))
 
-    const promise = fileApi.uploadFields(map_id, paddocksWithFarm).then((result) => {
-      if (!result.success) {
-        throw new Error(result.message)
-      }
-      return result
-    })
+    const promise = fileApi
+      .uploadFields(map_id, paddocksWithFarm)
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.message)
+        }
+        return result
+      })
 
     toast.promise(promise, {
       loading: "Submitting paddocks...",
@@ -198,8 +201,8 @@
                 type="button"
                 class="rounded-full border px-2.5 py-0.5 text-xs transition-colors
                   {farmName === suggestion
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-muted hover:border-primary/50'}"
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-muted hover:border-primary/50'}"
                 on:click={() => (farmName = suggestion)}
               >
                 {suggestion}
