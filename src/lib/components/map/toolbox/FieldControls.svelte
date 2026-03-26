@@ -18,6 +18,7 @@
     Check,
     X,
     ArrowRightLeft,
+    Trash2,
   } from "lucide-svelte"
 
   const dispatch = createEventDispatcher()
@@ -183,6 +184,17 @@
     renamingFarmId = null
   }
 
+  async function handleDeleteFarm(farmId, farmName) {
+    if (!farmId) return
+    const result = await farmApi.deleteFarm(farmId)
+    if (result.success) {
+      farmsStore.update((farms) => farms.filter((f) => f.id !== farmId))
+      toast.success(`Farm "${farmName}" deleted`)
+    } else {
+      toast.error(result.message || "Failed to delete farm")
+    }
+  }
+
   function toggleReassignMenu(fieldId) {
     reassignFieldId = reassignFieldId === fieldId ? null : fieldId
   }
@@ -229,9 +241,9 @@
             >
               <span class="farm-chevron">
                 {#if collapsedFarms[farmKey]}
-                  <ChevronRight size={14} />
+                  <ChevronRight size={18} />
                 {:else}
-                  <ChevronDown size={14} />
+                  <ChevronDown size={18} />
                 {/if}
               </span>
 
@@ -240,6 +252,7 @@
                 <input
                   class="rename-input"
                   bind:value={renameValue}
+                  maxlength="20"
                   autofocus
                   on:click|stopPropagation
                   on:keydown|stopPropagation={(e) => {
@@ -251,13 +264,13 @@
                   class="icon-btn confirm"
                   on:click|stopPropagation={() => confirmRename(entry.farmId)}
                 >
-                  <Check size={12} />
+                  <Check size={16} />
                 </button>
                 <button
                   class="icon-btn cancel"
                   on:click|stopPropagation={cancelRename}
                 >
-                  <X size={12} />
+                  <X size={16} />
                 </button>
               {:else}
                 <span class="farm-name">{entry.farmName}</span>
@@ -268,8 +281,18 @@
                     on:click|stopPropagation={() =>
                       startRename(entry.farmId, entry.farmName)}
                   >
-                    <Pencil size={11} />
+                    <Pencil size={16} />
                   </button>
+                  {#if entry.fields.length === 0}
+                    <button
+                      class="icon-btn delete"
+                      title="Delete empty farm"
+                      on:click|stopPropagation={() =>
+                        handleDeleteFarm(entry.farmId, entry.farmName)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  {/if}
                 {/if}
               {/if}
             </button>
@@ -290,7 +313,7 @@
                       <span class="field-icon-mini">
                         <FieldIcon
                           geojson={createGeoJSON(field.boundary)}
-                          size={18}
+                          size={24}
                         />
                       </span>
                     {/if}
@@ -305,20 +328,24 @@
                         on:click|stopPropagation={() =>
                           toggleReassignMenu(field.field_id)}
                       >
-                        <ArrowRightLeft size={12} />
+                        <ArrowRightLeft size={16} />
                       </button>
                     {/if}
                   </button>
 
                   {#if reassignFieldId === field.field_id}
                     <div class="reassign-menu">
+                      <div class="reassign-header">Move "{field.name}" to:</div>
                       {#each farmEntries as target}
                         {#if target.farmId !== entry.farmId}
                           <button
                             class="reassign-option"
                             on:click={() => reassignField(field, target.farmId)}
                           >
-                            {target.farmName}
+                            <ArrowRightLeft size={14} />
+                            {target.farmName.length > 20
+                              ? target.farmName.slice(0, 20) + "…"
+                              : target.farmName}
                           </button>
                         {/if}
                       {/each}
@@ -342,6 +369,7 @@
           class="add-farm-input"
           bind:value={newFarmName}
           placeholder="Farm name"
+          maxlength="20"
           autofocus
           on:keydown={(e) => {
             if (e.key === "Enter") handleAddFarm()
@@ -352,7 +380,7 @@
           }}
         />
         <button class="icon-btn confirm" on:click={handleAddFarm}>
-          <Check size={14} />
+          <Check size={18} />
         </button>
         <button
           class="icon-btn cancel"
@@ -361,12 +389,12 @@
             newFarmName = ""
           }}
         >
-          <X size={14} />
+          <X size={18} />
         </button>
       </div>
     {:else}
       <button class="add-farm-btn" on:click={() => (addingFarm = true)}>
-        <Plus size={14} />
+        <Plus size={18} />
         <span>Add Farm</span>
       </button>
     {/if}
@@ -375,11 +403,11 @@
 
 <style>
   .field-controls {
-    padding: 8px 0;
-    overflow-y: auto;
+    padding: 0;
     max-height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
+    position: relative;
   }
 
   .empty-state {
@@ -393,42 +421,49 @@
 
   .empty-state p {
     margin: 0;
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .field-list {
     display: flex;
     flex-direction: column;
     flex: 1;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .farm-section {
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
 
   .farm-header-row {
     display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .farm-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
+    gap: 10px;
+    padding: 10px 14px;
+    background: #0f1218;
     border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     color: #a0c8e8;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     cursor: pointer;
     width: 100%;
     text-align: left;
+    min-height: 44px;
   }
 
   .farm-header:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: #151a22;
   }
 
   .farm-chevron {
@@ -445,34 +480,35 @@
   }
 
   .farm-count {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.12);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
     flex-shrink: 0;
   }
 
   .empty-farm {
-    padding: 6px 16px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.3);
+    padding: 8px 20px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.45);
     font-style: italic;
   }
 
   .field-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 12px 7px 16px;
+    gap: 10px;
+    padding: 8px 14px 8px 20px;
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 13px;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 14px;
     cursor: pointer;
     width: 100%;
     text-align: left;
     transition: background 0.15s;
+    min-height: 44px;
   }
 
   .field-row:hover {
@@ -481,8 +517,8 @@
 
   .field-row.active {
     background: rgba(0, 128, 255, 0.2);
-    border-left: 2px solid #0080ff;
-    padding-left: 14px;
+    border-left: 3px solid #0080ff;
+    padding-left: 17px;
   }
 
   .field-row-wrapper {
@@ -494,9 +530,9 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    opacity: 0.7;
+    width: 24px;
+    height: 24px;
+    opacity: 0.8;
   }
 
   .field-name {
@@ -507,8 +543,8 @@
   }
 
   .field-area {
-    font-size: 11px;
-    color: rgba(192, 255, 192, 0.6);
+    font-size: 13px;
+    color: rgba(192, 255, 192, 0.8);
     flex-shrink: 0;
   }
 
@@ -518,62 +554,92 @@
     justify-content: center;
     background: none;
     border: none;
-    padding: 2px;
+    padding: 8px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 6px;
     flex-shrink: 0;
+    min-width: 36px;
+    min-height: 36px;
   }
 
   .icon-btn.edit {
-    color: rgba(255, 255, 255, 0.3);
-    opacity: 0;
-    transition: opacity 0.15s;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .farm-header:hover .icon-btn.edit {
-    opacity: 1;
-  }
-
-  .icon-btn.edit:hover {
     color: rgba(255, 255, 255, 0.7);
   }
 
+  .icon-btn.edit:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .icon-btn.delete {
+    color: rgba(255, 100, 100, 0.6);
+  }
+
+  .farm-header:hover .icon-btn.delete {
+    color: rgba(255, 100, 100, 0.8);
+  }
+
+  .icon-btn.delete:hover {
+    color: rgba(255, 80, 80, 1);
+    background: rgba(255, 80, 80, 0.15);
+  }
+
   .icon-btn.move {
-    color: rgba(255, 255, 255, 0.25);
-    opacity: 0;
-    transition: opacity 0.15s;
-    padding: 3px;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 8px;
   }
 
   .field-row:hover .icon-btn.move {
-    opacity: 1;
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .icon-btn.move:hover {
     color: #a0c8e8;
+    background: rgba(160, 200, 232, 0.12);
   }
 
   .reassign-menu {
     background: rgba(30, 35, 45, 0.97);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
     padding: 4px 0;
-    margin: 0 12px 4px 24px;
+    margin: 2px 14px 6px 28px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     overflow: hidden;
   }
 
+  .reassign-header {
+    padding: 8px 16px 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 500;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 2px;
+  }
+
   .reassign-option {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     text-align: left;
-    padding: 6px 12px;
+    padding: 10px 16px;
     border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: none;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
     cursor: pointer;
     transition: background 0.1s;
+    min-height: 44px;
+  }
+
+  .reassign-option:last-child {
+    border-bottom: none;
   }
 
   .reassign-option:hover {
@@ -593,31 +659,35 @@
     flex: 1;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(160, 200, 232, 0.4);
-    border-radius: 4px;
+    border-radius: 6px;
     color: white;
-    font-size: 12px;
-    padding: 2px 6px;
+    font-size: 15px;
+    padding: 6px 10px;
     outline: none;
     min-width: 0;
+    min-height: 36px;
   }
 
   .add-farm-section {
-    padding: 8px 12px;
+    padding: 12px 14px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    flex-shrink: 0;
   }
 
   .add-farm-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
+    gap: 8px;
+    padding: 10px 12px;
     background: none;
-    border: 1px dashed rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
     cursor: pointer;
     width: 100%;
+    min-height: 44px;
     transition: all 0.15s;
   }
 
@@ -629,17 +699,19 @@
   .add-farm-input-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
   }
 
   .add-farm-input {
     flex: 1;
+    min-width: 0;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(160, 200, 232, 0.4);
-    border-radius: 4px;
+    border-radius: 6px;
     color: white;
-    font-size: 12px;
-    padding: 4px 8px;
+    font-size: 14px;
+    padding: 6px 10px;
     outline: none;
+    min-height: 36px;
   }
 </style>

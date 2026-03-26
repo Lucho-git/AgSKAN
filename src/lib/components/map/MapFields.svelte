@@ -70,6 +70,8 @@
   let isDestroyed = false
 
   let contextCheckInterval = null
+  let farmsUnsubscribe = null
+  let fieldsUnsubscribe = null
 
   function syncWithGlobalSelection() {
     checkGlobalSelectionContext()
@@ -206,9 +208,14 @@
   }
 
   function createLabelPoints(fields: Field[]) {
-    // Build farm name lookup from farmsStore
+    // Build farm name lookup from farmsStore (truncate to 10 chars)
     const farms = get(farmsStore)
-    const farmNameById = new Map(farms.map((f) => [f.id, f.name]))
+    const farmNameById = new Map(
+      farms.map((f) => [
+        f.id,
+        f.name.length > 12 ? f.name.slice(0, 12) + "…" : f.name,
+      ]),
+    )
     const hasMultipleFarms = farms.length > 1
 
     return {
@@ -683,6 +690,16 @@
       contextCheckInterval = null
     }
 
+    if (farmsUnsubscribe) {
+      farmsUnsubscribe()
+      farmsUnsubscribe = null
+    }
+
+    if (fieldsUnsubscribe) {
+      fieldsUnsubscribe()
+      fieldsUnsubscribe = null
+    }
+
     console.log("MapFields cleanup completed")
   }
 
@@ -698,6 +715,31 @@
     )
 
     contextCheckInterval = setInterval(syncWithGlobalSelection, 500)
+
+    // Subscribe to farmsStore changes to update labels reactively
+    let farmsInitialized = false
+    farmsUnsubscribe = farmsStore.subscribe(() => {
+      if (!farmsInitialized) {
+        farmsInitialized = true
+        return
+      }
+      if (canUseMap() && map.getSource("label-points")) {
+        updateMapLabels()
+      }
+    })
+
+    // Subscribe to mapFieldsStore changes to update labels when farm_id changes
+    let fieldsInitialized = false
+    fieldsUnsubscribe = mapFieldsStore.subscribe(() => {
+      if (!fieldsInitialized) {
+        fieldsInitialized = true
+        return
+      }
+      if (canUseMap() && map.getSource("label-points")) {
+        updateMapLabels()
+        updateMapColors()
+      }
+    })
 
     if (map.loaded()) {
       loadFields()
