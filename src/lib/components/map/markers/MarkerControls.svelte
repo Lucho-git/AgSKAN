@@ -794,9 +794,9 @@
   }
 
   .my-markers-badge {
-    background: rgba(244,114,182,0.2);
-    color: #f472b6;
-    border: 1px solid rgba(244,114,182,0.3);
+    background: rgba(167, 139, 250, 0.2);
+    color: #a78bfa;
+    border: 1px solid rgba(167, 139, 250, 0.3);
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;

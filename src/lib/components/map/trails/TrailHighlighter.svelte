@@ -4,7 +4,7 @@
 
   import type { Trail } from "$lib/types/trail"
 
-  import { historicalTrailStore } from "$lib/stores/otherTrailStore"
+  import { historicalTrailStore, selectedTrailIdStore } from "$lib/stores/otherTrailStore"
 
   import * as mapboxgl from "mapbox-gl"
 
@@ -13,12 +13,9 @@
   import { toast } from "svelte-sonner"
 
   import {
-    X,
     Trash2,
     Play,
     Pause,
-    ChevronUp,
-    ChevronDown,
     SkipBack,
     SkipForward,
     Loader2,
@@ -66,6 +63,8 @@
   let showDropdownMenu = false
 
   let showReplayPanel = false
+
+
 
   let isExpanded = false
 
@@ -138,7 +137,6 @@
   }
 
   $: if (
-    isExpanded &&
     pendingBoundsFit &&
     currentTrail &&
     animationState.isReady
@@ -153,26 +151,6 @@
       }
     }, 350)
   }
-
-  $: estimatedTime = (() => {
-    if (!currentTrail?.start_time || !currentTrail?.end_time) return "N/A"
-
-    const startTime = new Date(currentTrail.start_time)
-
-    const endTime = new Date(currentTrail.end_time)
-
-    const durationMs = endTime.getTime() - startTime.getTime()
-
-    const hours = Math.floor(durationMs / (1000 * 60 * 60))
-
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`
-    } else {
-      return `${minutes}m`
-    }
-  })()
 
   function getCurrentTrail(): Trail | null {
     return currentTrail
@@ -434,13 +412,7 @@ font-size: 12px;
   function getMenuHeight(): number {
     if (!showReplayPanel) return 0
 
-    let height = 76
-
-    if (isExpanded) {
-      height += window.innerHeight * 0.3
-    }
-
-    return Math.min(height, window.innerHeight * 0.6)
+    return 120
   }
 
   function fitTrailBounds(
@@ -555,11 +527,7 @@ font-size: 12px;
       return
     }
 
-    if (!isExpanded) {
-      isExpanded = true
-
-      pendingBoundsFit = true
-    } else if (!hasInitiallyFittedBounds) {
+    if (!hasInitiallyFittedBounds) {
       fitTrailBounds(animationState.coordinates, true, false)
 
       hasInitiallyFittedBounds = true
@@ -862,11 +830,7 @@ font-size: 12px;
       return
     }
 
-    if (!isExpanded) {
-      isExpanded = true
-
-      pendingBoundsFit = true
-    } else {
+    if (!hasInitiallyFittedBounds) {
       fitTrailBounds(animationState.coordinates, true, true)
 
       hasInitiallyFittedBounds = true
@@ -1118,6 +1082,9 @@ font-size: 12px;
   }
 
   function selectTrail(trail: Trail) {
+    // Sync selection with toolbox trail menu
+    selectedTrailIdStore.set(trail.id)
+
     const { sourceId, highlightLayerId } = generateTrailIds(trail.id)
 
     const baseWidth = trail.trail_width || 3
@@ -1230,20 +1197,24 @@ font-size: 12px;
       },
     })
 
-    createStartEndMarkers(trail)
-
     // Start pulsing the glow
-
     currentlySelectedTrailId = trail.id
 
     startPulsingGlow(trail.id)
   }
 
   function handleDeleteTrail() {
-    trailToDelete = $historicalTrailStore[currentTrailIndex]
-
+    const trail = $historicalTrailStore[currentTrailIndex]
+    if (!trail) {
+      console.warn('handleDeleteTrail: no trail at index', currentTrailIndex, 'store length:', $historicalTrailStore.length)
+      toast.error('No trail selected to delete')
+      return
+    }
+    trailToDelete = trail
     showDeleteModal = true
   }
+
+
 
   function closeReplayPanel() {
     showReplayPanel = false
@@ -1253,8 +1224,6 @@ font-size: 12px;
     stopAnimation()
 
     stopPulsingGlow()
-
-    isExpanded = false
 
     currentlySelectedTrailId = null
 
@@ -1267,48 +1236,55 @@ font-size: 12px;
 
   async function handleDeleteConfirm() {
     if (trailToDelete) {
-      const trailIdToDelete = trailToDelete.id
+      try {
+        const trailIdToDelete = trailToDelete.id
 
-      removeHighlight(trailIdToDelete)
+        removeHighlight(trailIdToDelete)
 
-      removeStartEndMarkers(trailIdToDelete)
+        removeStartEndMarkers(trailIdToDelete)
 
-      if (animationState.trailId === trailIdToDelete) {
-        stopAnimation()
-      }
-
-      if (currentlySelectedTrailId === trailIdToDelete) {
-        stopPulsingGlow()
-
-        currentlySelectedTrailId = null
-      }
-
-      const success = await deleteTrail(trailIdToDelete)
-
-      if (success) {
-        showDeleteModal = false
-
-        trailToDelete = null
-
-        if ($historicalTrailStore.length === 0) {
-          showNavigationUI = false
-
-          showReplayPanel = false
-
-          isExpanded = false
-        } else {
-          if (currentTrailIndex >= $historicalTrailStore.length) {
-            currentTrailIndex = Math.max(0, $historicalTrailStore.length - 1)
-          }
-
-          await navigateToTrail(currentTrailIndex)
+        if (animationState.trailId === trailIdToDelete) {
+          stopAnimation()
         }
-      } else {
+
+        if (currentlySelectedTrailId === trailIdToDelete) {
+          stopPulsingGlow()
+
+          currentlySelectedTrailId = null
+        }
+
+        const success = await deleteTrail(trailIdToDelete)
+
+        if (success) {
+          showDeleteModal = false
+
+          trailToDelete = null
+
+          if ($historicalTrailStore.length === 0) {
+            showNavigationUI = false
+
+            showReplayPanel = false
+
+            isExpanded = false
+          } else {
+            if (currentTrailIndex >= $historicalTrailStore.length) {
+              currentTrailIndex = Math.max(0, $historicalTrailStore.length - 1)
+            }
+
+            await navigateToTrail(currentTrailIndex)
+          }
+        } else {
+          showDeleteModal = false
+
+          trailToDelete = null
+
+          toast.error("Failed to delete trail. Please try again.")
+        }
+      } catch (err) {
+        console.error('handleDeleteConfirm error:', err)
         showDeleteModal = false
-
         trailToDelete = null
-
-        toast.error("Failed to delete trail. Please try again.")
+        toast.error("Error deleting trail. Please try again.")
       }
     }
   }
@@ -1467,20 +1443,6 @@ font-size: 12px;
     })
   }
 
-  function formatDistance(distanceInMeters: number): string {
-    if (!distanceInMeters) return "0.0 km"
-
-    const kilometers = distanceInMeters / 1000
-
-    return `${kilometers.toFixed(1)} km`
-  }
-
-  function formatHectares(hectares: number): string {
-    if (!hectares) return "0.0"
-
-    return hectares.toFixed(1)
-  }
-
   function formatPercentage(percentage: number): string {
     if (!percentage) return "0.0%"
 
@@ -1488,6 +1450,18 @@ font-size: 12px;
   }
 
   function playTrail(trailIndex: number) {
+    // Clean up previous trail state efficiently
+    stopAnimation()
+    stopPulsingGlow()
+    if (showReplayPanel) {
+      // Only remove previous trail's highlight, not all trails
+      const prevTrail = $historicalTrailStore[currentTrailIndex]
+      if (prevTrail) {
+        removeHighlight(prevTrail.id)
+        removeStartEndMarkers(prevTrail.id)
+      }
+    }
+
     currentTrailIndex = trailIndex
 
     showReplayPanel = true
@@ -1509,9 +1483,9 @@ font-size: 12px;
 
           setTimeout(() => {
             animateTrailCreation(trail)
-          }, HIGHLIGHT_CONFIG.FLIGHT_DURATION + 200)
+          }, 300)
         }
-      }, 100)
+      }, 50)
     }
   }
 
@@ -1535,10 +1509,13 @@ font-size: 12px;
     toggleNavigationUI,
 
     playTrail,
+
+    closeReplayPanel,
   }
 
   onMount(() => {
     const cleanup = () => {
+
       stopPulsingGlow()
 
       if (map && map.getStyle()) {
@@ -1566,821 +1543,203 @@ font-size: 12px;
   })
 </script>
 
-<!-- Trail Replay Panel - Only shows when opened via toolbox -->
+<!-- Trail Replay Panel -->
 {#if showReplayPanel}
-  <div class="trail-panel" class:expanded={isExpanded}>
-    <!-- Expandable Info Section -->
-    {#if isExpanded}
-      <div class="info-section">
-        <!-- Trail Header -->
-        <div class="trail-header">
-          <div class="trail-title">
-            <span class="trail-label">Trail {currentTrailIndex + 1}</span>
-            <span class="trail-date"
-              >{formatDate(
-                currentTrail?.start_time || new Date().toISOString(),
-              )}</span
-            >
-          </div>
-
-          <!-- Trail Color and Width Info -->
-          <div class="trail-info">
-            <div
-              class="trail-color-indicator"
-              style="background-color: {currentTrail?.trail_color || '#gray'}"
-            ></div>
-            <span class="trail-width">{currentTrail?.trail_width || 0}m</span>
-          </div>
-
-          <!-- Delete Button -->
-          <button class="delete-btn" on:click={handleDeleteTrail}>
-            <Trash2 size={16} />
-          </button>
-        </div>
-
-        <!-- Start/Finish Timeline with Integrated Progress Bar -->
-        <div class="timeline-section">
-          <div class="point-compact start">
-            <div class="point-marker">🚜</div>
-            <div class="point-info">
-              <span class="point-label">Start</span>
-              <span class="point-time"
-                >{currentTrail?.start_time
-                  ? new Date(currentTrail.start_time).toLocaleTimeString(
-                      "en-US",
-                      { hour: "2-digit", minute: "2-digit" },
-                    )
-                  : "N/A"}</span
-              >
-            </div>
-          </div>
-
-          <!-- Integrated Progress Bar (replaces the trail-line) -->
-          {#if animationState.isReady}
-            <div
-              class="trail-progress-container"
-              bind:this={progressContainer}
-              on:click={handleProgressClick}
-              on:keydown={() => {}}
-              role="slider"
-              tabindex="0"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow={Math.round(animationState.progress * 100)}
-            >
-              <div class="trail-progress-track">
-                <div
-                  class="trail-progress-fill"
-                  style="width: {animationState.progress * 100}%"
-                ></div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.001"
-                  bind:value={animationState.progress}
-                  on:pointerdown={handleSliderStart}
-                  on:change={handleSliderEnd}
-                  on:click|stopPropagation
-                  on:input={(e) => {
-                    if (isSliderActive) {
-                      const newProgress = parseFloat(e.target.value)
-                      animationState.progress = newProgress
-                      seekToProgress(newProgress)
-                    }
-                  }}
-                  class="trail-progress-slider"
-                  disabled={!animationState.isReady}
-                />
-              </div>
-            </div>
-          {:else}
-            <!-- Fallback static line when trail is loading -->
-            <div class="trail-line-static"></div>
-          {/if}
-
-          <div class="point-compact end">
-            <div class="point-marker">🏁</div>
-            <div class="point-info">
-              <span class="point-label">Finish</span>
-              <span class="point-time"
-                >{currentTrail?.end_time
-                  ? new Date(currentTrail.end_time).toLocaleTimeString(
-                      "en-US",
-                      { hour: "2-digit", minute: "2-digit" },
-                    )
-                  : "N/A"}</span
-              >
-            </div>
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="ve" on:click|stopPropagation on:mousedown|stopPropagation>
+    <!-- Header: accent + info + centered transport + actions -->
+    <div class="ve-header">
+      <div class="ve-accent" style="background-color: {currentTrail?.trail_color || '#888'}"></div>
+      <span class="ve-title">Trail {currentTrailIndex + 1} <span class="ve-of">of {$historicalTrailStore.length}</span></span>
+      <div class="ve-transport">
+        <button class="ve-skip" on:click={handlePrevious} disabled={$historicalTrailStore.length <= 1}><SkipBack size={20} /></button>
+        <button class="ve-play" class:playing={animationState.isPlaying} class:paused={animationState.isPaused}
+          class:loading={animationState.isLoading} disabled={animationState.isLoading || !animationState.isReady}
+          on:click={togglePlayPause}>
+          {#if animationState.isLoading}<Loader2 size={24} class="animate-spin" />
+          {:else if animationState.isPlaying}<Pause size={24} />
+          {:else}<Play size={24} />{/if}
+        </button>
+        <button class="ve-skip" on:click={handleNext} disabled={$historicalTrailStore.length <= 1}><SkipForward size={20} /></button>
+      </div>
+      <div class="ve-actions">
+        <button class="icon-btn del" on:click={handleDeleteTrail}><Trash2 size={16} /></button>
+      </div>
+    </div>
+    <!-- Progress bar with percentage -->
+    <div class="ve-prog-row">
+      {#if animationState.isReady}
+        <div class="ve-prog" bind:this={progressContainer} on:click={handleProgressClick}
+          on:keydown={() => {}} role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100"
+          aria-valuenow={Math.round(animationState.progress * 100)}>
+          <div class="ve-track">
+            <div class="fill" style="width: {animationState.progress * 100}%"></div>
+            <input type="range" min="0" max="1" step="0.001" bind:value={animationState.progress}
+              on:pointerdown={handleSliderStart} on:change={handleSliderEnd} on:click|stopPropagation
+              on:input={(e) => { if (isSliderActive) { const v = parseFloat(e.target.value); animationState.progress = v; seekToProgress(v) } }}
+              class="range-input ve-slider" disabled={!animationState.isReady} />
           </div>
         </div>
-
-        <!-- Compact Stats Grid -->
-        <div class="compact-stats">
-          <div class="stat-compact">
-            <div class="stat-icon">📏</div>
-            <div class="stat-info">
-              <span class="stat-value"
-                >{formatDistance(currentTrail?.trail_distance || 0)}</span
-              >
-              <span class="stat-label">distance</span>
-            </div>
-          </div>
-
-          <div class="stat-compact">
-            <div class="stat-icon">⏱️</div>
-            <div class="stat-info">
-              <span class="stat-value">{estimatedTime}</span>
-              <span class="stat-label">duration</span>
-            </div>
-          </div>
-
-          <div class="stat-compact">
-            <div class="stat-icon">🚜</div>
-            <div class="stat-info">
-              <span class="stat-value"
-                >{formatHectares(currentTrail?.trail_hectares || 0)}</span
-              >
-              <span class="stat-label">hectares</span>
-            </div>
-          </div>
-
-          <div class="stat-compact overlap-stat">
-            <div class="stat-icon">🔄</div>
-            <div class="stat-info">
-              <span class="stat-value"
-                >{formatHectares(currentTrail?.trail_hectares_overlap || 0)} ha</span
-              >
-              <span class="stat-label"
-                >{formatPercentage(currentTrail?.trail_percentage_overlap || 0)}
-                overlap</span
-              >
-            </div>
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    <!-- Control Bar (Always Visible) -->
-    <div class="control-bar">
-      <!-- Navigation Controls -->
-      <div class="nav-controls">
-        <button
-          class="control-btn"
-          on:click={handlePrevious}
-          disabled={$historicalTrailStore.length <= 1}
-        >
-          <SkipBack size={18} />
-        </button>
-
-        <div class="trail-indicator">
-          <span class="trail-counter"
-            >{currentTrailIndex + 1}/{$historicalTrailStore.length}</span
-          >
-        </div>
-
-        <button
-          class="control-btn"
-          on:click={handleNext}
-          disabled={$historicalTrailStore.length <= 1}
-        >
-          <SkipForward size={18} />
-        </button>
-      </div>
-
-      <!-- Play Control -->
-      <div class="play-control">
-        <button
-          class="play-btn"
-          class:playing={animationState.isPlaying}
-          class:paused={animationState.isPaused}
-          class:completed={animationState.isComplete}
-          class:loading={animationState.isLoading}
-          disabled={animationState.isLoading || !animationState.isReady}
-          on:click={togglePlayPause}
-        >
-          {#if animationState.isLoading}
-            <Loader2 size={20} class="animate-spin" />
-          {:else if animationState.isPlaying}
-            <Pause size={20} />
-          {:else if animationState.isPaused}
-            <Play size={20} />
-          {:else if animationState.isComplete}
-            <Play size={20} />
-          {:else}
-            <Play size={20} />
-          {/if}
-        </button>
-      </div>
-
-      <!-- Action Controls -->
-      <div class="action-controls">
-        <button
-          class="control-btn"
-          on:click={() => (isExpanded = !isExpanded)}
-          disabled={animationState.isLoading}
-        >
-          {#if isExpanded}
-            <ChevronDown size={18} />
-          {:else}
-            <ChevronUp size={18} />
-          {/if}
-        </button>
-
-        <button class="control-btn" on:click={closeReplayPanel}>
-          <X size={18} />
-        </button>
-      </div>
+        <span class="ve-pct">{Math.round(animationState.progress * 100)}%</span>
+      {:else}
+        <div class="ve-prog"><div class="ve-track"><div class="fill" style="width: 0%"></div></div></div>
+        <span class="ve-pct">0%</span>
+      {/if}
     </div>
   </div>
 {/if}
 
 <!-- Delete Modal -->
-{#if showDeleteModal && trailToDelete}
-  <dialog class="modal modal-open">
-    <div class="modal-box">
+{#if showDeleteModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="delete-overlay" on:click={() => (showDeleteModal = false)}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="delete-modal" on:click|stopPropagation>
       <h3 class="text-lg font-bold">Delete Trail?</h3>
       <p class="py-4">
         Are you sure you want to delete this trail? This action cannot be
         undone.
       </p>
-      <div class="modal-action">
-        <button class="btn btn-ghost" on:click={() => (showDeleteModal = false)}
-          >Cancel</button
-        >
-        <button class="btn btn-error" on:click={handleDeleteConfirm}
-          >Delete</button
-        >
+      <div class="delete-modal-actions">
+        <button class="btn btn-ghost" on:click={() => (showDeleteModal = false)}>Cancel</button>
+        <button class="btn btn-error" on:click={handleDeleteConfirm}>Delete</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop">
-      <button on:click={() => (showDeleteModal = false)}>Close</button>
-    </form>
-  </dialog>
+  </div>
 {/if}
 
 <style>
-  /* Main Trail Panel */
-  .trail-panel {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(16px);
-    color: white;
-    z-index: 1000;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  /* ═══ SHARED ═══ */
+
+  /* Shared icon button (36px min for touch) */
+  .icon-btn {
+    background: none; border: none; border-radius: 50%;
+    min-width: 36px; min-height: 36px; width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.5); cursor: pointer;
+    transition: all 0.12s; padding: 0; flex-shrink: 0;
+  }
+  .icon-btn:hover { color: white; background: rgba(255,255,255,0.1); }
+  .icon-btn.del { color: rgba(239,68,68,0.6); }
+  .icon-btn.del:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
+
+  /* Shared fill/input styles */
+  .fill {
+    position: absolute; top: 0; left: 0; height: 100%;
+    background: linear-gradient(90deg, #22c55e, #60a5fa);
+    border-radius: 2px; transition: width 0.05s linear; pointer-events: none;
+  }
+  .range-input {
+    position: absolute; top: -4px; left: 0; width: 100%; height: 12px;
+    background: transparent; cursor: pointer;
+    -webkit-appearance: none; appearance: none; outline: none; margin: 0; padding: 0;
+  }
+  .range-input:disabled { cursor: default; opacity: 0.5; }
+  .range-input::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: white; border: 2px solid #22c55e; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .range-input::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: white; border: 2px solid #22c55e; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
 
-  /* Info Section (Only visible when expanded) */
-  .info-section {
-    padding: 16px 20px 0;
-    max-height: 50vh;
-    overflow-y: auto;
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.9),
-      rgba(0, 0, 0, 0.8)
-    );
-    opacity: 0;
-    transform: translateY(-20px);
-    transition: all 0.3s ease;
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  :global(.animate-spin) { animation: spin 1s linear infinite; }
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
   }
 
-  .trail-panel.expanded .info-section {
-    opacity: 1;
-    transform: translateY(0);
-  }
 
-  .trail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    gap: 12px;
+  /* ═══ TRAIL REPLAY PANEL ═══ */
+  .ve {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(8,8,8,0.94); backdrop-filter: blur(20px);
+    color: white; z-index: 1000;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    animation: slideUp 0.25s ease-out;
+    display: flex; flex-direction: column;
   }
-
-  .trail-title {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex-shrink: 0;
+  .ve-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 10px 4px 0;
   }
-
-  .trail-label {
-    font-size: 16px;
-    font-weight: 600;
-    color: white;
+  .ve-accent {
+    width: 5px; align-self: stretch; border-radius: 0 4px 4px 0; flex-shrink: 0;
   }
-
-  .trail-date {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+  .ve-title {
+    font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9);
+    white-space: nowrap; flex-shrink: 0;
   }
-
-  /* Trail Info (Color & Width) */
-  .trail-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .trail-color-indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    flex-shrink: 0;
-  }
-
-  .trail-width {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
-  /* Timeline Section with Integrated Progress Bar */
-  .timeline-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-  }
-
-  .point-compact {
-    display: flex;
-    align-items: center;
+  .ve-of { font-weight: 600; color: rgba(255,255,255,0.4); }
+  .ve-transport {
+    display: flex; align-items: center; justify-content: center;
     gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .point-marker {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    flex-shrink: 0;
-  }
-
-  .point-compact.start .point-marker {
-    background: rgba(34, 197, 94, 0.2);
-  }
-
-  .point-compact.end .point-marker {
-    background: rgba(239, 68, 68, 0.2);
-  }
-
-  .point-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .point-label {
-    font-size: 10px;
-    font-weight: 500;
-    color: white;
-    line-height: 1;
-  }
-
-  .point-time {
-    font-size: 9px;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1;
-  }
-
-  /* Static Trail Line (fallback) */
-  .trail-line-static {
-    height: 3px;
-    background: linear-gradient(to right, #22c55e, #ef4444);
-    flex: 1;
-    margin: 0 8px;
-    border-radius: 2px;
-    opacity: 0.6;
-  }
-
-  /* Integrated Progress Bar */
-  .trail-progress-container {
-    flex: 1;
-    margin: 0 8px;
-    cursor: pointer;
-    padding: 8px 0;
-    position: relative;
-  }
-
-  .trail-progress-track {
-    position: relative;
-    height: 6px;
-    background: linear-gradient(
-      to right,
-      rgba(34, 197, 94, 0.2),
-      rgba(239, 68, 68, 0.2)
-    );
-    border-radius: 3px;
-    overflow: visible;
-  }
-
-  .trail-progress-fill {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: linear-gradient(to right, #22c55e, #ef4444);
-    border-radius: 3px;
-    transition: width 0.05s ease;
-    pointer-events: none;
-  }
-
-  .trail-progress-slider {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 6px;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 3px;
-    -webkit-appearance: none;
-    appearance: none;
-    outline: none;
-  }
-
-  .trail-progress-slider:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-
-  .trail-progress-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: white;
-    border: 2px solid #22c55e;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    transition: all 0.2s ease;
-  }
-
-  .trail-progress-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  }
-
-  .trail-progress-slider::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: white;
-    border: 2px solid #22c55e;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    transition: all 0.2s ease;
-  }
-
-  .trail-progress-slider::-moz-range-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  }
-
-  /* Delete Button */
-  .delete-btn {
-    background: rgba(239, 68, 68, 0.1);
-    border: none;
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ef4444;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-  }
-
-  .delete-btn:hover {
-    background: rgba(239, 68, 68, 0.2);
-    transform: scale(1.05);
-  }
-
-  /* Compact Stats Grid */
-  .compact-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .stat-compact {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 10px 12px;
-    border-radius: 8px;
-    border-left: 3px solid #60a5fa;
-    transition: all 0.2s ease;
-  }
-
-  .stat-compact:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .stat-compact.overlap-stat {
-    border-left-color: #f59e0b;
-  }
-
-  .stat-icon {
-    font-size: 16px;
-    width: 24px;
-    text-align: center;
-    flex-shrink: 0;
-  }
-
-  .stat-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-  }
-
-  .stat-value {
-    font-size: 13px;
-    font-weight: 600;
-    color: #60a5fa;
-    line-height: 1;
-  }
-
-  .overlap-stat .stat-value {
-    color: #f59e0b;
-  }
-
-  .stat-label {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    line-height: 1;
-  }
-
-  /* Control Bar (Always Visible) */
-  .control-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background: rgba(0, 0, 0, 0.95);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
-  }
-
-  .nav-controls,
-  .action-controls {
-    display: flex;
-    gap: 8px;
-    flex: 1;
-    align-items: center;
-  }
-
-  .action-controls {
-    justify-content: flex-end;
-  }
-
-  .play-control {
-    display: flex;
-    justify-content: center;
     flex: 1;
   }
-
-  /* Trail Indicator */
-  .trail-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 60px;
+  .ve-play {
+    background: rgba(34,197,94,0.18); border: none; border-radius: 50%;
+    min-width: 46px; min-height: 46px; width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    color: #22c55e; cursor: pointer; transition: all 0.12s; flex-shrink: 0;
+  }
+  .ve-play:hover:not(:disabled) { background: rgba(34,197,94,0.28); transform: scale(1.06); }
+  .ve-play:disabled { opacity: 0.4; cursor: default; }
+  .ve-play.playing { background: rgba(234,179,8,0.18); color: #eab308; }
+  .ve-play.paused { background: rgba(96,165,250,0.18); color: #60a5fa; }
+  .ve-play.loading { background: rgba(156,163,175,0.1); color: #6b7280; }
+  .ve-skip {
+    background: none; border: none; border-radius: 50%;
+    min-width: 40px; min-height: 40px; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.75); cursor: pointer; transition: all 0.12s; padding: 0; flex-shrink: 0;
+  }
+  .ve-skip:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
+  .ve-skip:disabled { opacity: 0.25; cursor: default; }
+  .ve-actions {
+    display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+  }
+  .ve-prog-row { display: flex; align-items: center; gap: 10px; padding: 4px 14px 10px; }
+  .ve-prog { flex: 1; cursor: pointer; padding: 6px 0; position: relative; }
+  .ve-track {
+    position: relative; height: 6px;
+    background: rgba(255,255,255,0.08); border-radius: 3px; overflow: visible;
+  }
+  .ve-track .fill { border-radius: 3px; }
+  .ve-slider { top: -5px; height: 16px; }
+  .ve-pct {
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5);
+    min-width: 32px; text-align: right; font-variant-numeric: tabular-nums;
   }
 
-  .trail-counter {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.1);
-    padding: 4px 8px;
-    border-radius: 12px;
-  }
 
-  .control-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 50%;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.8);
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
 
-  .control-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    transform: scale(1.05);
-  }
 
-  .control-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .play-btn {
-    background: rgba(34, 197, 94, 0.2);
-    border: none;
-    border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #22c55e;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .play-btn:hover:not(:disabled) {
-    background: rgba(34, 197, 94, 0.3);
-    transform: scale(1.1);
-  }
-
-  .play-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .play-btn.playing {
-    background: rgba(234, 179, 8, 0.2);
-    color: #eab308;
-  }
-
-  .play-btn.playing:hover:not(:disabled) {
-    background: rgba(234, 179, 8, 0.3);
-  }
-
-  .play-btn.paused {
-    background: rgba(59, 130, 246, 0.2);
-    color: #3b82f6;
-  }
-
-  .play-btn.paused:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.3);
-  }
-
-  .play-btn.completed {
-    background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
-  }
-
-  .play-btn.completed:hover:not(:disabled) {
-    background: rgba(34, 197, 94, 0.3);
-  }
-
-  .play-btn.loading {
-    background: rgba(156, 163, 175, 0.2);
-    color: #9ca3af;
-  }
-
-  /* Loading Animation */
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .animate-spin {
-    animation: spin 1s linear infinite;
-  }
-
-  /* Scrollbar Styling */
-  .info-section::-webkit-scrollbar {
-    width: 2px;
-  }
-
-  .info-section::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .info-section::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 1px;
-  }
-
-  /* Mobile Responsiveness */
-  @media (max-width: 768px) {
-    .info-section {
-      max-height: 40vh;
-      padding: 12px 16px 0;
-    }
-
-    .compact-stats {
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-
-    .stat-compact {
-      padding: 8px 10px;
-    }
-
-    .control-bar {
-      padding: 10px 16px;
-    }
-
-    .control-btn {
-      width: 32px;
-      height: 32px;
-    }
-
-    .play-btn {
-      width: 40px;
-      height: 40px;
-    }
-
-    .trail-counter {
-      font-size: 11px;
-      padding: 3px 6px;
-    }
-
-    .delete-btn {
-      width: 28px;
-      height: 28px;
-    }
-
-    .trail-progress-container {
-      padding: 6px 0;
-    }
-
-    .trail-progress-slider::-webkit-slider-thumb {
-      width: 14px;
-      height: 14px;
-    }
-
-    .trail-progress-slider::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-    }
-  }
-
+  /* ═══ MOBILE ═══ */
   @media (max-width: 480px) {
-    .info-section {
-      max-height: 35vh;
-    }
-
-    .trail-header {
-      margin-bottom: 12px;
-    }
-
-    .compact-stats {
-      margin-bottom: 12px;
-    }
-
-    .nav-controls,
-    .action-controls {
-      gap: 6px;
-    }
-
-    .point-marker {
-      width: 20px;
-      height: 20px;
-      font-size: 10px;
-    }
-
-    .point-label {
-      font-size: 9px;
-    }
-
-    .point-time {
-      font-size: 8px;
-    }
+    .ve-play { min-width: 42px; min-height: 42px; width: 42px; height: 42px; }
+    .ve-skip { min-width: 36px; min-height: 36px; width: 36px; height: 36px; }
   }
+
+  /* ═══ DELETE MODAL ═══ */
+  .delete-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+  }
+  .delete-modal {
+    background: #1d232a; color: white; border-radius: 16px;
+    padding: 24px; max-width: 400px; width: calc(100% - 32px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    animation: scaleIn 0.15s ease-out;
+  }
+  .delete-modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 </style>

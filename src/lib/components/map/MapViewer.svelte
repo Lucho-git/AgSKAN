@@ -251,6 +251,10 @@
   // Handle trail viewer opening
   function handleOpenTrailViewer() {
     if (trailHighlighter?.highlighterAPI?.toggleNavigationUI) {
+      // Register trail as active selection so other menus (fields/markers/vehicles) dismiss
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection('trail', 'viewer', trailHighlighter)
+      }
       trailHighlighter.highlighterAPI.toggleNavigationUI()
     } else {
       toast.error("Trail viewer not available")
@@ -263,6 +267,10 @@
     if (!trail) return
     if (trailHighlighter?.highlighterAPI) {
       const api = trailHighlighter.highlighterAPI
+      // Register trail as active selection so other menus dismiss
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection('trail', `select-${index}`, trailHighlighter)
+      }
       // Ensure navigation UI is open (don't toggle it off if already open)
       if (api.toggleNavigationUI) api.toggleNavigationUI(true)
       if (api.navigateToTrail) api.navigateToTrail(index)
@@ -275,18 +283,16 @@
     if (!trail) return
     if (trailHighlighter?.highlighterAPI) {
       const api = trailHighlighter.highlighterAPI
+      // Register trail as active selection so other menus dismiss
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection('trail', `replay-${index}`, trailHighlighter)
+      }
       // Ensure navigation UI is open (don't toggle it off if already open)
       if (api.toggleNavigationUI) api.toggleNavigationUI(true)
-      // Navigate to the trail, then play after a short delay for animation setup
-      if (api.navigateToTrail) {
-        api.navigateToTrail(index).then(() => {
-          setTimeout(() => {
-            if (api.playTrail) api.playTrail(index)
-          }, 500)
-        })
-      }
+      // Directly start playback — playTrail handles navigation + animation
+      if (api.playTrail) api.playTrail(index)
     }
-    closeToolbox()
+    // Keep toolbox open — don't call closeToolbox()
   }
 
   function handleOpenVehicleControls() {
@@ -686,6 +692,7 @@
       {markerManagerRef}
       {mapFieldsRef}
       {vehicleTrackerRef}
+      trailHighlighterRef={trailHighlighter}
       onLongPress={handleLongPress}
     />
 

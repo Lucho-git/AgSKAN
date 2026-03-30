@@ -19,7 +19,10 @@
     devModeEnabled,
     devBackgroundSimEnabled,
   } from "$lib/stores/devModeStore"
-  import { collectionModeStore, confirmedMarkersStore } from "$lib/stores/markerStore"
+  import {
+    collectionModeStore,
+    confirmedMarkersStore,
+  } from "$lib/stores/markerStore"
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
 
@@ -543,21 +546,21 @@
   }
 
   .trail-badge {
-    background: rgba(96,165,250,0.2);
+    background: rgba(96, 165, 250, 0.2);
     color: #60a5fa;
-    border: 1px solid rgba(96,165,250,0.3);
+    border: 1px solid rgba(96, 165, 250, 0.3);
   }
 
   .marker-badge {
-    background: rgba(244,114,182,0.2);
-    color: #f472b6;
-    border: 1px solid rgba(244,114,182,0.3);
+    background: rgba(167, 139, 250, 0.2);
+    color: #a78bfa;
+    border: 1px solid rgba(167, 139, 250, 0.3);
   }
 
   .field-badge {
-    background: rgba(74,222,128,0.2);
+    background: rgba(74, 222, 128, 0.2);
     color: #4ade80;
-    border: 1px solid rgba(74,222,128,0.3);
+    border: 1px solid rgba(74, 222, 128, 0.3);
   }
 
   /* Separator between primary and secondary tools */

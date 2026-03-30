@@ -93,10 +93,7 @@
 
   <!-- Trail list (directly inline — no sub-panel) -->
   <div class="trails-container">
-    <MyTrails
-      on:selectTrail
-      on:replayTrail
-    />
+    <MyTrails on:selectTrail on:replayTrail />
   </div>
 </div>
 
@@ -245,12 +242,20 @@
   }
 
   @media (max-width: 768px) {
-    .trail-intro { padding: 10px; }
-    .intro-text { font-size: 11px; }
+    .trail-intro {
+      padding: 10px;
+    }
+    .intro-text {
+      font-size: 11px;
+    }
   }
 
   @media (max-width: 480px) {
-    .btn-title { font-size: 13px; }
-    .btn-subtitle { font-size: 10px; }
+    .btn-title {
+      font-size: 13px;
+    }
+    .btn-subtitle {
+      font-size: 10px;
+    }
   }
 </style>

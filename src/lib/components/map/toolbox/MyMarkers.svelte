@@ -203,7 +203,11 @@
     if (diffDays < 7) return `${diffDays}d ago`
     if (diffWeeks < 4) return `${diffWeeks}w ago`
     if (diffMonths < 3) return `${diffMonths}mo ago`
-    return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
+    return d.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
 
   function truncateNotes(notes, maxLen = 30) {
@@ -217,9 +221,7 @@
 
     const result = await markerApi.deleteMarker(marker.id)
     if (result.success) {
-      confirmedMarkersStore.update((ms) =>
-        ms.filter((m) => m.id !== marker.id),
-      )
+      confirmedMarkersStore.update((ms) => ms.filter((m) => m.id !== marker.id))
       toast.success(`${name} deleted`)
     } else {
       toast.error(result.message || "Failed to delete marker")
@@ -248,7 +250,10 @@
           bind:value={searchQuery}
           placeholder="Search markers or notes\u2026"
         />
-        <label class="filter-toggle" title="Show only markers with notes or drawings">
+        <label
+          class="filter-toggle"
+          title="Show only markers with notes or drawings"
+        >
           <input
             type="checkbox"
             bind:checked={filterHasNotesOrDrawing}
@@ -279,7 +284,11 @@
 
     {#if activeTab === "recent"}
       <!-- Recent Markers -->
-      <div class="marker-list" bind:this={markerListEl} on:scroll={handleRecentScroll}>
+      <div
+        class="marker-list"
+        bind:this={markerListEl}
+        on:scroll={handleRecentScroll}
+      >
         {#if recentMarkers.length === 0}
           <div class="empty-state">
             <p>No recent markers</p>
@@ -299,14 +308,10 @@
                     {:else if marker.def.class === "custom-svg"}
                       <IconSVG icon={marker.def.id} size="22px" />
                     {:else if marker.def.class?.startsWith("ionic-")}
-                      <ion-icon
-                        name={marker.def.id}
-                        style="font-size: 22px;"
+                      <ion-icon name={marker.def.id} style="font-size: 22px;"
                       ></ion-icon>
                     {:else if marker.def.class?.startsWith("at-")}
-                      <i
-                        class={`${marker.def.class}`}
-                        style="font-size: 22px;"
+                      <i class={`${marker.def.class}`} style="font-size: 22px;"
                       ></i>
                     {:else}
                       <MapPin size={22} />
@@ -322,7 +327,9 @@
                       >{truncateNotes(marker.notes)}</span
                     >
                   {:else}
-                    <span class="marker-label">{marker.def?.name || "Marker"}</span>
+                    <span class="marker-label"
+                      >{marker.def?.name || "Marker"}</span
+                    >
                   {/if}
                   <span class="marker-time"
                     >{formatDate(marker.created_at)}</span
@@ -330,7 +337,10 @@
                 </span>
 
                 {#if marker.notes || markerIdsWithDrawings.has(marker.id)}
-                  <span class="has-notes-badge" title={marker.notes ? "Has notes" : "Has drawing"}>
+                  <span
+                    class="has-notes-badge"
+                    title={marker.notes ? "Has notes" : "Has drawing"}
+                  >
                     <StickyNote size={12} />
                   </span>
                 {/if}
@@ -357,10 +367,8 @@
       <!-- Summary -->
       <div class="summary-bar">
         <span class="summary-text"
-          >{totalMarkers} marker{totalMarkers !== 1 ? "s" : ""} in {totalGroups} group{totalGroups !==
-          1
-            ? "s"
-            : ""}</span
+          >{totalMarkers} marker{totalMarkers !== 1 ? "s" : ""} in {totalGroups}
+          group{totalGroups !== 1 ? "s" : ""}</span
         >
       </div>
 
@@ -372,108 +380,112 @@
                 class="group-header"
                 on:click={() => toggleGroup(group.key)}
               >
-              <span class="group-chevron">
-                {#if collapsedGroups[group.key]}
-                  <ChevronRight size={18} />
-                {:else}
-                  <ChevronDown size={18} />
-                {/if}
-              </span>
+                <span class="group-chevron">
+                  {#if collapsedGroups[group.key]}
+                    <ChevronRight size={18} />
+                  {:else}
+                    <ChevronDown size={18} />
+                  {/if}
+                </span>
 
-              <span class="group-icon">
-                {#if group.markerDef}
-                  {#if group.markerDef.id === "default"}
-                    <IconSVG icon="mapbox-marker" size="20px" />
-                  {:else if group.markerDef.class === "custom-svg"}
-                    <IconSVG icon={group.markerDef.id} size="20px" />
-                  {:else if group.markerDef.class?.startsWith("ionic-")}
-                    <ion-icon
-                      name={group.markerDef.id}
-                      style="font-size: 20px;"
-                    ></ion-icon>
-                  {:else if group.markerDef.class?.startsWith("at-")}
-                    <i
-                      class={`${group.markerDef.class}`}
-                      style="font-size: 20px;"
-                    ></i>
+                <span class="group-icon">
+                  {#if group.markerDef}
+                    {#if group.markerDef.id === "default"}
+                      <IconSVG icon="mapbox-marker" size="20px" />
+                    {:else if group.markerDef.class === "custom-svg"}
+                      <IconSVG icon={group.markerDef.id} size="20px" />
+                    {:else if group.markerDef.class?.startsWith("ionic-")}
+                      <ion-icon
+                        name={group.markerDef.id}
+                        style="font-size: 20px;"
+                      ></ion-icon>
+                    {:else if group.markerDef.class?.startsWith("at-")}
+                      <i
+                        class={`${group.markerDef.class}`}
+                        style="font-size: 20px;"
+                      ></i>
+                    {:else}
+                      <MapPin size={20} />
+                    {/if}
                   {:else}
                     <MapPin size={20} />
                   {/if}
-                {:else}
-                  <MapPin size={20} />
-                {/if}
-              </span>
+                </span>
 
-              <span class="group-name">{group.name}</span>
-              <span class="group-count">{group.markers.length}</span>
-            </button>
-          </div>
+                <span class="group-name">{group.name}</span>
+                <span class="group-count">{group.markers.length}</span>
+              </button>
+            </div>
 
-          {#if !collapsedGroups[group.key]}
-            {#each group.markers as marker (marker.id)}
-              <div class="marker-row-wrapper">
-                <button
-                  class="marker-row"
-                  class:selected={$selectedMarkerStore?.id === marker.id}
-                  on:click={() => selectMarker(marker)}
-                >
-                  <span class="marker-icon-mini">
-                    {#if group.markerDef}
-                      {#if group.markerDef.id === "default"}
-                        <IconSVG icon="mapbox-marker" size="22px" />
-                      {:else if group.markerDef.class === "custom-svg"}
-                        <IconSVG icon={group.markerDef.id} size="22px" />
-                      {:else if group.markerDef.class?.startsWith("ionic-")}
-                        <ion-icon
-                          name={group.markerDef.id}
-                          style="font-size: 22px;"
-                        ></ion-icon>
-                      {:else if group.markerDef.class?.startsWith("at-")}
-                        <i
-                          class={`${group.markerDef.class}`}
-                          style="font-size: 22px;"
-                        ></i>
+            {#if !collapsedGroups[group.key]}
+              {#each group.markers as marker (marker.id)}
+                <div class="marker-row-wrapper">
+                  <button
+                    class="marker-row"
+                    class:selected={$selectedMarkerStore?.id === marker.id}
+                    on:click={() => selectMarker(marker)}
+                  >
+                    <span class="marker-icon-mini">
+                      {#if group.markerDef}
+                        {#if group.markerDef.id === "default"}
+                          <IconSVG icon="mapbox-marker" size="22px" />
+                        {:else if group.markerDef.class === "custom-svg"}
+                          <IconSVG icon={group.markerDef.id} size="22px" />
+                        {:else if group.markerDef.class?.startsWith("ionic-")}
+                          <ion-icon
+                            name={group.markerDef.id}
+                            style="font-size: 22px;"
+                          ></ion-icon>
+                        {:else if group.markerDef.class?.startsWith("at-")}
+                          <i
+                            class={`${group.markerDef.class}`}
+                            style="font-size: 22px;"
+                          ></i>
+                        {:else}
+                          <MapPin size={22} />
+                        {/if}
                       {:else}
                         <MapPin size={22} />
                       {/if}
-                    {:else}
-                      <MapPin size={22} />
-                    {/if}
-                  </span>
-
-                  <span class="marker-info">
-                    {#if marker.notes}
-                      <span class="marker-note"
-                        >{truncateNotes(marker.notes)}</span
-                      >
-                    {:else}
-                      <span class="marker-label">{group.name}</span>
-                    {/if}
-                    <span class="marker-time"
-                      >{formatDate(marker.created_at)}</span
-                    >
-                  </span>
-
-                  {#if marker.notes || markerIdsWithDrawings.has(marker.id)}
-                    <span class="has-notes-badge" title={marker.notes ? "Has notes" : "Has drawing"}>
-                      <StickyNote size={12} />
                     </span>
-                  {/if}
 
-                  <button
-                    class="icon-btn delete"
-                    title="Delete marker"
-                    on:click|stopPropagation={() => handleDeleteMarker(marker)}
-                  >
-                    <Trash2 size={16} />
+                    <span class="marker-info">
+                      {#if marker.notes}
+                        <span class="marker-note"
+                          >{truncateNotes(marker.notes)}</span
+                        >
+                      {:else}
+                        <span class="marker-label">{group.name}</span>
+                      {/if}
+                      <span class="marker-time"
+                        >{formatDate(marker.created_at)}</span
+                      >
+                    </span>
+
+                    {#if marker.notes || markerIdsWithDrawings.has(marker.id)}
+                      <span
+                        class="has-notes-badge"
+                        title={marker.notes ? "Has notes" : "Has drawing"}
+                      >
+                        <StickyNote size={12} />
+                      </span>
+                    {/if}
+
+                    <button
+                      class="icon-btn delete"
+                      title="Delete marker"
+                      on:click|stopPropagation={() =>
+                        handleDeleteMarker(marker)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </button>
-                </button>
-              </div>
-            {/each}
-          {/if}
-        </div>
-      {/each}
-    </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        {/each}
+      </div>
     {/if}
   {/if}
 </div>

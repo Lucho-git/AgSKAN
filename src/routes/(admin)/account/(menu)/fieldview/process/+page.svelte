@@ -243,6 +243,18 @@
       // Filter only accepted paddocks
       const acceptedPaddocks = paddocks.filter((p) => p.status === "accepted")
 
+      if (acceptedPaddocks.length === 0) {
+        toast.error("No fields approved for loading")
+        return
+      }
+
+      // Get the map ID from the connected map store
+      const map_id = $connectedMapStore.id
+      if (!map_id) {
+        toast.error("No map connected. Please connect to a map first.")
+        return
+      }
+
       // Stamp farm_id onto each paddock
       let resolvedFarmId: string | undefined
       const trimmedFarm = farmName.trim()
@@ -262,18 +274,6 @@
         ...p,
         farm_id: resolvedFarmId,
       }))
-
-      if (acceptedPaddocks.length === 0) {
-        toast.error("No fields approved for loading")
-        return
-      }
-
-      // Get the map ID from the connected map store
-      const map_id = $connectedMapStore.id
-      if (!map_id) {
-        toast.error("No map connected. Please connect to a map first.")
-        return
-      }
 
       // Use the real API call
       const promise = fileApi

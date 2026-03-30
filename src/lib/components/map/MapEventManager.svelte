@@ -12,11 +12,12 @@
   export let markerManagerRef = null
   export let mapFieldsRef = null
   export let vehicleTrackerRef = null
+  export let trailHighlighterRef = null
   export let onLongPress = () => {}
 
   // Global selection state management
   let globalSelectionState = {
-    selectedType: null, // 'vehicle', 'field', 'marker', null
+    selectedType: null, // 'vehicle', 'field', 'marker', 'trail', null
     selectedId: null,
     selectedComponent: null,
   }
@@ -96,6 +97,14 @@
     ) {
       console.log("🔄 Clearing marker selection")
       markerManagerRef.handleMarkerSelection({ features: [] })
+    } else if (
+      globalSelectionState.selectedType === "trail" &&
+      trailHighlighterRef
+    ) {
+      console.log("🔄 Clearing trail selection")
+      if (trailHighlighterRef.highlighterAPI?.closeReplayPanel) {
+        trailHighlighterRef.highlighterAPI.closeReplayPanel()
+      }
     }
   }
 
@@ -633,6 +642,11 @@
   // Export function to get current selection state
   export function getCurrentSelection() {
     return globalSelectionState
+  }
+
+  // Allow external callers (e.g. trail replay) to register as the active selection
+  export function setSelection(type, id, componentRef) {
+    setGlobalSelection(type, id, componentRef)
   }
 </script>
 

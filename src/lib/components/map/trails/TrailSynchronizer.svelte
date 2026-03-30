@@ -970,7 +970,9 @@
     if (supabaseChannel) {
       try {
         supabase.removeChannel(supabaseChannel)
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
     }
 
     supabaseChannel = supabase
@@ -1020,7 +1022,9 @@
       .subscribe((status, err) => {
         channelStatus = status
         if (status === "SUBSCRIBED") {
-          console.log(`🟢 [TRAIL-RT] Realtime channel subscribed for operation ${opId.slice(0,8)}`)
+          console.log(
+            `🟢 [TRAIL-RT] Realtime channel subscribed for operation ${opId.slice(0, 8)}`,
+          )
         } else if (status === "CHANNEL_ERROR") {
           console.warn(`🔴 [TRAIL-RT] Channel error — will auto-reconnect`, err)
         } else if (status === "TIMED_OUT") {
@@ -1047,20 +1051,27 @@
       // Refresh the list of active trails from the DB
       const { data: activeTrails, error: trailsErr } = await supabase
         .from("trails")
-        .select("id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id")
+        .select(
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id",
+        )
         .eq("operation_id", opId)
         .is("end_time", null)
         .neq("vehicle_id", currentVehicleId)
 
       if (trailsErr) {
-        console.warn("[TRAIL-RT] Catch-up: failed to fetch active trails:", trailsErr.message)
+        console.warn(
+          "[TRAIL-RT] Catch-up: failed to fetch active trails:",
+          trailsErr.message,
+        )
         return
       }
 
       if (!activeTrails || activeTrails.length === 0) return
 
       // Get trail IDs we know about
-      const currentIds = new Set(($otherActiveTrailStore || []).map(t => t.id))
+      const currentIds = new Set(
+        ($otherActiveTrailStore || []).map((t) => t.id),
+      )
 
       // Add any newly discovered trails
       for (const t of activeTrails) {
@@ -1079,12 +1090,14 @@
               path: [],
             },
           ])
-          console.log(`[TRAIL-RT] Catch-up: discovered trail ${t.id.slice(0,8)} from ${t.vehicle_id.slice(0,8)}`)
+          console.log(
+            `[TRAIL-RT] Catch-up: discovered trail ${t.id.slice(0, 8)} from ${t.vehicle_id.slice(0, 8)}`,
+          )
         }
       }
 
       // Fetch recent trail_stream coordinates (last 5 min) for all active trails
-      const trailIds = activeTrails.map(t => t.id)
+      const trailIds = activeTrails.map((t) => t.id)
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
       const { data: recentPoints, error: pointsErr } = await supabase
@@ -1099,28 +1112,37 @@
       // Merge into otherActiveTrailStore, deduplicating by timestamp
       otherActiveTrailStore.update((trails) => {
         return trails.map((trail) => {
-          const newPoints = recentPoints.filter(p => p.trail_id === trail.id)
+          const newPoints = recentPoints.filter((p) => p.trail_id === trail.id)
           if (newPoints.length === 0) return trail
 
           const existingTimestamps = new Set(
-            (trail.path || []).map(p => {
-              const t = typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp
+            (trail.path || []).map((p) => {
+              const t =
+                typeof p.timestamp === "string"
+                  ? new Date(p.timestamp).getTime()
+                  : p.timestamp
               return t
-            })
+            }),
           )
 
           let merged = 0
           const additions = newPoints
-            .filter(p => {
-              const ts = typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp
+            .filter((p) => {
+              const ts =
+                typeof p.timestamp === "string"
+                  ? new Date(p.timestamp).getTime()
+                  : p.timestamp
               return !existingTimestamps.has(ts)
             })
-            .map(p => ({
+            .map((p) => ({
               coordinates: {
                 latitude: p.coordinate.coordinates[1],
                 longitude: p.coordinate.coordinates[0],
               },
-              timestamp: typeof p.timestamp === "string" ? new Date(p.timestamp).getTime() : p.timestamp,
+              timestamp:
+                typeof p.timestamp === "string"
+                  ? new Date(p.timestamp).getTime()
+                  : p.timestamp,
             }))
 
           if (additions.length === 0) return trail
@@ -1128,13 +1150,21 @@
 
           const updatedPath = [...(trail.path || []), ...additions].sort(
             (a, b) => {
-              const aT = typeof a.timestamp === "string" ? new Date(a.timestamp).getTime() : a.timestamp
-              const bT = typeof b.timestamp === "string" ? new Date(b.timestamp).getTime() : b.timestamp
+              const aT =
+                typeof a.timestamp === "string"
+                  ? new Date(a.timestamp).getTime()
+                  : a.timestamp
+              const bT =
+                typeof b.timestamp === "string"
+                  ? new Date(b.timestamp).getTime()
+                  : b.timestamp
               return aT - bT
-            }
+            },
           )
 
-          console.log(`[TRAIL-RT] Catch-up: merged ${merged} points into trail ${trail.id.slice(0,8)} (total=${updatedPath.length})`)
+          console.log(
+            `[TRAIL-RT] Catch-up: merged ${merged} points into trail ${trail.id.slice(0, 8)} (total=${updatedPath.length})`,
+          )
           return { ...trail, path: updatedPath }
         })
       })
@@ -1144,193 +1174,193 @@
   }
 
   function handleTrailInsert(payload, currentVehicleId) {
-      if (!payload.new) return
-      const trailData = payload.new
+    if (!payload.new) return
+    const trailData = payload.new
 
-      if (trailData.vehicle_id === currentVehicleId) return
+    if (trailData.vehicle_id === currentVehicleId) return
 
-      console.log(`🟢 [TRAIL-RT] New trail detected: ${trailData.id?.slice(0,8)} from vehicle ${trailData.vehicle_id?.slice(0,8)}`)
+    console.log(
+      `🟢 [TRAIL-RT] New trail detected: ${trailData.id?.slice(0, 8)} from vehicle ${trailData.vehicle_id?.slice(0, 8)}`,
+    )
 
-      if (!$otherActiveTrailStore?.length) {
-        otherActiveTrailStore.set([])
-      }
+    if (!$otherActiveTrailStore?.length) {
+      otherActiveTrailStore.set([])
+    }
 
-      otherActiveTrailStore.update((trails = []) => {
-        return [
-          ...trails,
-          {
-            id: trailData.id,
-            vehicle_id: trailData.vehicle_id,
-            operation_id: trailData.operation_id,
-            start_time: trailData.start_time,
-            end_time: trailData.end_time,
-            task_id: trailData.task_id,
-            trail_color: trailData.trail_color,
-            trail_width: trailData.trail_width,
-            path: [],
-          },
-        ]
-      })
+    otherActiveTrailStore.update((trails = []) => {
+      return [
+        ...trails,
+        {
+          id: trailData.id,
+          vehicle_id: trailData.vehicle_id,
+          operation_id: trailData.operation_id,
+          start_time: trailData.start_time,
+          end_time: trailData.end_time,
+          task_id: trailData.task_id,
+          trail_color: trailData.trail_color,
+          trail_width: trailData.trail_width,
+          path: [],
+        },
+      ]
+    })
   }
 
   function handleTrailUpdate(payload, currentVehicleId) {
-      if (!payload.new) return
-      const trailData = payload.new
+    if (!payload.new) return
+    const trailData = payload.new
 
-      if (trailData.vehicle_id === currentVehicleId) {
-        return
-      }
-
-      if (!trailData.end_time || !trailData.path) {
-        return
-      }
-
-      console.log(`🟡 [TRAIL-RT] Trail closed: ${trailData.id?.slice(0,8)}`)
-
-      fetchTrailAsGeoJSON(trailData.id)
-        .then((geoJsonPath) => {
-          if (
-            !geoJsonPath ||
-            !geoJsonPath.coordinates ||
-            geoJsonPath.coordinates.length === 0
-          ) {
-            console.error(`  ❌ Invalid path data for trail ${trailData.id}`)
-            return
-          }
-
-          const historicalTrail = {
-            id: trailData.id,
-            vehicle_id: trailData.vehicle_id,
-            operation_id: trailData.operation_id,
-            start_time: trailData.start_time,
-            end_time: trailData.end_time,
-            trail_color: trailData.trail_color,
-            trail_width: trailData.trail_width,
-            path: geoJsonPath,
-            trail_distance: trailData.trail_distance,
-            trail_hectares: trailData.trail_hectares,
-            trail_hectares_overlap: trailData.trail_hectares_overlap,
-            trail_percentage_overlap: trailData.trail_percentage_overlap,
-            metrics_calculated: trailData.metrics_calculated,
-          }
-
-          historicalTrailStore.update((historicalTrails) => {
-            return [...historicalTrails, historicalTrail]
-          })
-
-          otherActiveTrailStore.update((trails = []) => {
-            return trails.filter((trail) => trail.id !== trailData.id)
-          })
-        })
-        .catch((error) => {
-          console.error(
-            `  ❌ Failed to fetch GeoJSON for trail ${trailData.id}:`,
-            error,
-          )
-        })
-  }
-
-    async function fetchTrailAsGeoJSON(trailId) {
-      const { data: pathData, error: pathError } = await supabase.rpc(
-        "get_trail_path_as_geojson",
-        { trail_id_param: trailId },
-      )
-
-      if (pathError || !pathData) {
-        throw new Error("Failed to fetch path")
-      }
-
-      return pathData
+    if (trailData.vehicle_id === currentVehicleId) {
+      return
     }
 
-  function handleTrailDelete(payload, currentVehicleId) {
-      if (!payload.old) return
+    if (!trailData.end_time || !trailData.path) {
+      return
+    }
 
-      const trailData = payload.old
+    console.log(`🟡 [TRAIL-RT] Trail closed: ${trailData.id?.slice(0, 8)}`)
 
-      if (trailData.vehicle_id === currentVehicleId) return
+    fetchTrailAsGeoJSON(trailData.id)
+      .then((geoJsonPath) => {
+        if (
+          !geoJsonPath ||
+          !geoJsonPath.coordinates ||
+          geoJsonPath.coordinates.length === 0
+        ) {
+          console.error(`  ❌ Invalid path data for trail ${trailData.id}`)
+          return
+        }
 
-      console.log(`🔴 [TRAIL-RT] Trail deleted: ${trailData.id?.slice(0,8)}`)
+        const historicalTrail = {
+          id: trailData.id,
+          vehicle_id: trailData.vehicle_id,
+          operation_id: trailData.operation_id,
+          start_time: trailData.start_time,
+          end_time: trailData.end_time,
+          trail_color: trailData.trail_color,
+          trail_width: trailData.trail_width,
+          path: geoJsonPath,
+          trail_distance: trailData.trail_distance,
+          trail_hectares: trailData.trail_hectares,
+          trail_hectares_overlap: trailData.trail_hectares_overlap,
+          trail_percentage_overlap: trailData.trail_percentage_overlap,
+          metrics_calculated: trailData.metrics_calculated,
+        }
 
-      toast.info(`Trail deleted by another user`, {
-        description: `${trailData.trail_width}m ${trailData.trail_color.toLowerCase()} trail`,
-      })
+        historicalTrailStore.update((historicalTrails) => {
+          return [...historicalTrails, historicalTrail]
+        })
 
-      if ($otherActiveTrailStore?.length) {
         otherActiveTrailStore.update((trails = []) => {
           return trails.filter((trail) => trail.id !== trailData.id)
         })
-      }
-
-      if ($historicalTrailStore?.length) {
-        const isInHistorical = $historicalTrailStore.some(
-          (trail) => trail.id === trailData.id,
+      })
+      .catch((error) => {
+        console.error(
+          `  ❌ Failed to fetch GeoJSON for trail ${trailData.id}:`,
+          error,
         )
+      })
+  }
 
-        if (isInHistorical) {
-          historicalTrailStore.update((trails) =>
-            trails.filter((trail) => trail.id !== trailData.id),
-          )
-        }
+  async function fetchTrailAsGeoJSON(trailId) {
+    const { data: pathData, error: pathError } = await supabase.rpc(
+      "get_trail_path_as_geojson",
+      { trail_id_param: trailId },
+    )
+
+    if (pathError || !pathData) {
+      throw new Error("Failed to fetch path")
+    }
+
+    return pathData
+  }
+
+  function handleTrailDelete(payload, currentVehicleId) {
+    if (!payload.old) return
+
+    const trailData = payload.old
+
+    if (trailData.vehicle_id === currentVehicleId) return
+
+    console.log(`🔴 [TRAIL-RT] Trail deleted: ${trailData.id?.slice(0, 8)}`)
+
+    toast.info(`Trail deleted by another user`, {
+      description: `${trailData.trail_width}m ${trailData.trail_color.toLowerCase()} trail`,
+    })
+
+    if ($otherActiveTrailStore?.length) {
+      otherActiveTrailStore.update((trails = []) => {
+        return trails.filter((trail) => trail.id !== trailData.id)
+      })
+    }
+
+    if ($historicalTrailStore?.length) {
+      const isInHistorical = $historicalTrailStore.some(
+        (trail) => trail.id === trailData.id,
+      )
+
+      if (isInHistorical) {
+        historicalTrailStore.update((trails) =>
+          trails.filter((trail) => trail.id !== trailData.id),
+        )
       }
+    }
   }
 
   function handleTrailStreamInsert(payload) {
-      if (!payload.new) {
-        return
-      }
+    if (!payload.new) {
+      return
+    }
 
-      const { trail_id, coordinate, timestamp } = payload.new
+    const { trail_id, coordinate, timestamp } = payload.new
 
-      if (!$otherActiveTrailStore?.length) {
-        return
-      }
+    if (!$otherActiveTrailStore?.length) {
+      return
+    }
 
-      const isActiveTrail = $otherActiveTrailStore.some(
-        (trail) => trail.id === trail_id,
-      )
-      if (!isActiveTrail) {
-        return
-      }
+    const isActiveTrail = $otherActiveTrailStore.some(
+      (trail) => trail.id === trail_id,
+    )
+    if (!isActiveTrail) {
+      return
+    }
 
-      otherActiveTrailStore.update((trails) => {
-        return trails.map((trail) => {
-          if (trail.id === trail_id) {
-            const normalizedTimestamp =
-              typeof timestamp === "string"
-                ? new Date(timestamp).getTime()
-                : timestamp
+    otherActiveTrailStore.update((trails) => {
+      return trails.map((trail) => {
+        if (trail.id === trail_id) {
+          const normalizedTimestamp =
+            typeof timestamp === "string"
+              ? new Date(timestamp).getTime()
+              : timestamp
 
-            const newCoordinate = {
-              coordinates: {
-                latitude: coordinate.coordinates[1],
-                longitude: coordinate.coordinates[0],
-              },
-              timestamp: normalizedTimestamp,
-            }
-
-            const updatedPath = [...trail.path, newCoordinate].sort(
-              (a, b) => {
-                const aTime =
-                  typeof a.timestamp === "string"
-                    ? new Date(a.timestamp).getTime()
-                    : a.timestamp
-                const bTime =
-                  typeof b.timestamp === "string"
-                    ? new Date(b.timestamp).getTime()
-                    : b.timestamp
-                return aTime - bTime
-              },
-            )
-
-            return {
-              ...trail,
-              path: updatedPath,
-            }
+          const newCoordinate = {
+            coordinates: {
+              latitude: coordinate.coordinates[1],
+              longitude: coordinate.coordinates[0],
+            },
+            timestamp: normalizedTimestamp,
           }
-          return trail
-        })
+
+          const updatedPath = [...trail.path, newCoordinate].sort((a, b) => {
+            const aTime =
+              typeof a.timestamp === "string"
+                ? new Date(a.timestamp).getTime()
+                : a.timestamp
+            const bTime =
+              typeof b.timestamp === "string"
+                ? new Date(b.timestamp).getTime()
+                : b.timestamp
+            return aTime - bTime
+          })
+
+          return {
+            ...trail,
+            path: updatedPath,
+          }
+        }
+        return trail
       })
+    })
   }
 
   // ============================================
@@ -1520,7 +1550,6 @@
               path: normalizedTrailData.sort(
                 (a, b) => a.timestamp - b.timestamp,
               ),
-
             }
           })
 
