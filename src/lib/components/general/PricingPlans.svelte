@@ -8,7 +8,7 @@
 
   const billingPeriod = writable<"monthly" | "yearly">("yearly")
   const useFullPrice = writable(true)
-  const standardPriceId = "price_1TBWyrK3At0l0k1HoyC9bStL"
+  const standardPriceId = "price_1TH522K3At0l0k1HVQWZXNFa"
   const testPriceId = "price_1TBWz2K3At0l0k1H7fXrH3nf"
 
   const additionalDiscountActive = false // Set this to false when the promotion ends

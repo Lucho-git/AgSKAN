@@ -41,7 +41,7 @@ export const pricingPlans = [
         },
         priceIntervalName: { monthly: "per month", yearly: "per year" },
         stripe_price_id: {
-            yearly: "price_1TBWyrK3At0l0k1HoyC9bStL",
+            yearly: "price_1TH522K3At0l0k1HVQWZXNFa",
         },
         stripe_product_id: "prod_U9qgyqB2m0KN8p",
         features: [

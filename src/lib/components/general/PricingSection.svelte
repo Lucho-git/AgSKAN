@@ -2,7 +2,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation"
   import {
-    AlertTriangle,
     ArrowRight,
     Check,
     Minus,
@@ -17,18 +16,18 @@
   export let currentPlanId: string | null = null
   export let stripePriceIds = {
     yearly: {
-      standard: "price_1TBWyrK3At0l0k1HoyC9bStL",
+      standard: "price_1TH522K3At0l0k1HVQWZXNFa",
       test: "price_1TBWz2K3At0l0k1H7fXrH3nf",
     },
   }
   export let useFullPrice = true
   export let additionalDiscountActive = false
 
-  const BASE_PRICE = 45.625
+  const BASE_PRICE = 100
   const CURRENCY_SYMBOL = "A$"
 
   let mounted = false
-  let machineCount = 2
+  let machineCount = 1
   let isTestDiscount = false
 
   onMount(() => {
@@ -44,7 +43,7 @@
     }
   }
 
-  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE * (2 / 3)
+  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE
 
   $: totalMonthly = Math.round(machineCount * pricePerSeat)
   $: totalAnnual = Math.round(machineCount * pricePerSeat * 12)
@@ -101,8 +100,7 @@
           One Plan. One Price.
         </h2>
         <p class="mx-auto mb-10 max-w-md text-lg text-contrast-content/70">
-          $1 a day per operator. Just pick your team size — everything's
-          included, no hidden fees.
+          Pick your team size — everything's included, no hidden fees.
         </p>
       </div>
 
@@ -142,16 +140,7 @@
                 <Plus size={20} />
               </button>
             </div>
-            {#if machineCount === 1}
-              <div
-                class="mt-3 flex items-center justify-center gap-1.5 text-xs text-warning"
-              >
-                <AlertTriangle size={12} />
-                <span
-                  >Recommended: at least 2 operators for full team features</span
-                >
-              </div>
-            {/if}
+
           </div>
 
           <!-- Price breakdown -->
@@ -190,9 +179,6 @@
               </button>
             </a>
           {/if}
-          <p class="mt-3 text-center text-xs text-contrast-content/50">
-            Cancel anytime
-          </p>
         </div>
       </div>
 

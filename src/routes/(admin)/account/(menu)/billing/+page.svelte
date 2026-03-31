@@ -3,12 +3,10 @@
   import type { Writable } from "svelte/store"
   import {
     ArrowRight,
-    AlertTriangle,
     Check,
     Minus,
     Plus,
     Users,
-    X,
     Zap,
     CreditCard,
     CalendarDays,
@@ -42,7 +40,7 @@
     currentPlanId === "free" || !currentPlanId || currentPlanId === "none"
 
   // Pricing logic
-  const BASE_PRICE = 45.625
+  const BASE_PRICE = 100
   const CURRENCY_SYMBOL = "A$"
 
   let mounted = false
@@ -60,7 +58,7 @@
   }
 
   // Pricing calculations (annual only)
-  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE * (2 / 3)
+  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE
 
   $: totalMonthly = Math.round(machineCount * pricePerSeat)
   $: totalAnnual = Math.round(machineCount * pricePerSeat * 12)
@@ -69,7 +67,7 @@
   // Stripe price IDs (AgSKAN Pro — annual only)
   const stripePriceIds = {
     yearly: {
-      standard: "price_1TBWyrK3At0l0k1HoyC9bStL",
+      standard: "price_1TH522K3At0l0k1HVQWZXNFa",
       test: "price_1TBWz2K3At0l0k1H7fXrH3nf",
     },
   }
@@ -155,139 +153,52 @@
     </div>
   </div>
 {:else if !isActiveCustomer}
-  <!-- Free Plan - Show V11 Counter Style Pricing -->
-  <section class="min-h-screen bg-base-100" id="pricing">
-    <div class="container mx-auto px-4 py-8">
+  <section class="bg-base-100" id="pricing">
+    <div class="container mx-auto px-4 py-12">
       {#if mounted}
-        <div class="mx-auto max-w-3xl text-center" in:animationDelay={0}>
-          <div
-            class="mb-4 inline-block rounded-full bg-secondary px-4 py-1.5 text-sm font-bold text-secondary-content"
-          >
-            1 month free trial
+        <div class="mx-auto max-w-sm text-center" in:animationDelay={0}>
+          <div class="mb-6">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-4 py-1.5 text-sm font-semibold text-secondary"><Zap size={14} />30 days free</span>
           </div>
-          <h1
-            class="mb-3 font-sans text-3xl font-bold text-contrast-content md:text-5xl"
-          >
-            Unlock Pro Features
+          <h1 class="mb-2 text-2xl font-bold text-contrast-content">
+            Your free trial is ready
           </h1>
-          <p class="mx-auto mb-10 max-w-md text-lg text-contrast-content/70">
-            $1 a day per operator. Just pick your team size — everything's
-            included, no hidden fees.
+          <p class="mb-8 text-contrast-content/60">
+            Full access to AgSKAN Pro. No obligations.
           </p>
-        </div>
 
-        <!-- Interactive counter card -->
-        <div class="mx-auto max-w-lg" in:animationDelay={100}>
-          <div
-            class="rounded-2xl border-2 border-base-content bg-base-100 p-8 shadow-xl md:p-10"
-          >
-            <!-- Counter -->
-            <div class="mb-6 text-center">
-              <div
-                class="mb-2 flex items-center justify-center gap-2 text-sm font-medium text-contrast-content/60"
-              >
-                <Users size={16} />
-                How many operators?
-              </div>
-              <div class="flex items-center justify-center gap-6">
-                <button
-                  class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
-                  on:click={decrementMachines}
-                >
-                  <Minus size={20} />
-                </button>
-                <div class="w-24 text-center">
-                  <span
-                    class="text-6xl font-bold tabular-nums text-contrast-content"
-                    >{machineCount}</span
-                  >
-                  <span class="-mt-1 block text-sm text-contrast-content/50">
-                    operator{machineCount > 1 ? "s" : ""}
-                  </span>
-                </div>
-                <button
-                  class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
-                  on:click={incrementMachines}
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
-              {#if machineCount === 1}
-                <div
-                  class="mt-3 flex items-center justify-center gap-1.5 text-xs text-warning"
-                >
-                  <AlertTriangle size={12} />
-                  <span
-                    >Recommended: at least 2 operators for full team features</span
-                  >
-                </div>
-              {/if}
+          <p class="mb-3 inline-flex items-center gap-1.5 text-sm text-contrast-content/50"><Users size={14} />How many operators?</p>
+          <div class="mb-10 flex items-center justify-center gap-6">
+            <button class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100" on:click={decrementMachines}><Minus size={20} /></button>
+            <div class="w-20 text-center">
+              <span class="text-6xl font-bold tabular-nums text-contrast-content">{machineCount}</span>
+              <span class="block text-xs text-contrast-content/50">operator{machineCount > 1 ? "s" : ""}</span>
             </div>
+            <button class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100" on:click={incrementMachines}><Plus size={20} /></button>
+          </div>
 
-            <!-- Price breakdown -->
-            <div class="mb-6 rounded-xl bg-base-200 p-5 text-center">
-              <div class="flex items-end justify-center">
-                <span
-                  class="text-5xl font-bold tracking-tight text-contrast-content"
-                  >{CURRENCY_SYMBOL}{totalMonthly}</span
-                >
-                <span class="mb-1 ml-1 text-contrast-content/50">/mo</span>
-              </div>
-              <p class="mt-2 text-sm text-contrast-content/50">
-                {machineCount} × {CURRENCY_SYMBOL}{pricePerOperator}/mo = {CURRENCY_SYMBOL}{totalAnnual}/year
-              </p>
-            </div>
+          <!-- Minimal features -->
+          <div class="mb-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-contrast-content/50">
+            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Live tracking</span>
+            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Coverage recording</span>
+            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Offline ready</span>
+          </div>
 
-            <!-- CTA -->
+          <div class="mb-4">
             <a href={proUpgradeUrl}>
-              <button
-                class="group flex w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 py-3.5 text-lg font-medium text-secondary-content shadow-lg shadow-secondary/30 transition-all duration-300 hover:bg-secondary/90 hover:shadow-xl hover:shadow-secondary/40"
-              >
-                Try {machineCount} operator{machineCount > 1 ? "s" : ""} free for
-                1 month
-                <ArrowRight
-                  size={16}
-                  class="transition-transform group-hover:translate-x-1"
-                />
+              <button class="group w-full rounded-xl bg-secondary px-6 py-4 text-lg font-semibold text-secondary-content shadow-lg shadow-secondary/25 transition-all hover:shadow-xl hover:shadow-secondary/40">
+                Start 30-Day Free Trial
+                <ArrowRight size={18} class="ml-2 inline transition-transform group-hover:translate-x-1" />
               </button>
             </a>
-            <p class="mt-3 text-center text-xs text-contrast-content/50">
-              Cancel anytime
-            </p>
           </div>
-        </div>
-
-        <!-- Features -->
-        <div class="mx-auto mt-10 max-w-3xl" in:animationDelay={200}>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {#each proFeatures as feature, i}
-              <div
-                class="flex flex-col items-center gap-2 rounded-xl p-4 text-center shadow-md {i ===
-                0
-                  ? 'border-2 border-secondary/40 bg-secondary/5'
-                  : 'bg-base-200'}"
-              >
-                <Check size={20} style="color: #22c55e;" />
-                <span
-                  class="text-sm {i === 0
-                    ? 'font-semibold text-contrast-content'
-                    : 'text-contrast-content'}">{feature}</span
-                >
-              </div>
-            {/each}
-          </div>
+          <p class="text-xs text-contrast-content/40">Then {CURRENCY_SYMBOL}{totalMonthly}/mo · Cancel anytime</p>
         </div>
 
         {#if hasEverHadSubscription}
-          <div class="mt-12 text-center">
-            <button
-              on:click={openStripePortal}
-              class="btn btn-outline btn-sm"
-              disabled={portalLoading}
-            >
-              {#if portalLoading}
-                <span class="loading loading-spinner loading-xs mr-2"></span>
-              {/if}
+          <div class="mt-10 text-center">
+            <button on:click={openStripePortal} class="btn btn-outline btn-sm" disabled={portalLoading}>
+              {#if portalLoading}<span class="loading loading-spinner loading-xs mr-2"></span>{/if}
               View Past Invoices
             </button>
           </div>

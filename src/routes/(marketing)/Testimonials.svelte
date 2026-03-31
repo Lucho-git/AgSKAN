@@ -23,6 +23,48 @@
     mounted = true
   })
 
+  // Touch/drag support for swiping between cards
+  let touchStartX = 0
+  let touchStartY = 0
+  let isDragging = false
+  const SWIPE_THRESHOLD = 50
+
+  function handleTouchStart(e: TouchEvent | PointerEvent) {
+    if ("touches" in e) {
+      touchStartX = e.touches[0].clientX
+      touchStartY = e.touches[0].clientY
+    } else {
+      touchStartX = e.clientX
+      touchStartY = e.clientY
+    }
+    isDragging = true
+  }
+
+  function handleTouchEnd(e: TouchEvent | PointerEvent) {
+    if (!isDragging) return
+    isDragging = false
+
+    let endX: number
+    if ("changedTouches" in e) {
+      endX = e.changedTouches[0].clientX
+    } else {
+      endX = e.clientX
+    }
+
+    const deltaX = endX - touchStartX
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX < 0) {
+        // Swipe left → next card
+        goToSlide((currentIndex + 1) % testimonials.length)
+      } else {
+        // Swipe right → previous card
+        goToSlide(
+          (currentIndex - 1 + testimonials.length) % testimonials.length,
+        )
+      }
+    }
+  }
+
   const testimonials = [
     {
       name: "Kieran Popplewell",
@@ -132,9 +174,18 @@
           Real farmers. Real results. Real time saved.
         </p>
 
-        <div class="relative mx-auto max-w-6xl">
+        <div class="relative mx-auto max-w-6xl overflow-hidden">
           <!-- Carousel Container -->
-          <div class="relative mx-auto px-4">
+          <div
+            class="carousel-fade relative mx-auto px-4"
+            on:touchstart|passive={handleTouchStart}
+            on:touchend={handleTouchEnd}
+            on:pointerdown={handleTouchStart}
+            on:pointerup={handleTouchEnd}
+            role="region"
+            aria-label="Testimonials carousel"
+            style="touch-action: pan-y;"
+          >
             <div
               class="relative flex min-h-[480px] items-center justify-center"
             >
@@ -303,3 +354,22 @@
     </div>
   {/if}
 </section>
+
+<style>
+  .carousel-fade {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 8%,
+      black 92%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 8%,
+      black 92%,
+      transparent 100%
+    );
+  }
+</style>

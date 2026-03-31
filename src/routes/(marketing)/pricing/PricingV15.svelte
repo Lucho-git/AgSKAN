@@ -7,7 +7,6 @@
   import { goto } from "$app/navigation"
   import { page } from "$app/stores"
   import {
-    AlertTriangle,
     ArrowRight,
     Check,
     Minus,
@@ -23,18 +22,18 @@
   export let currentPlanId: string | null = null
   export let stripePriceIds = {
     yearly: {
-      standard: "price_1TBWyrK3At0l0k1HoyC9bStL",
+      standard: "price_1TH522K3At0l0k1HVQWZXNFa",
       test: "price_1TBWz2K3At0l0k1H7fXrH3nf",
     },
   }
   export let additionalDiscountActive = false
 
   /* ── Constants ── */
-  const BASE_PRICE = 45.625
+  const BASE_PRICE = 100
   const CURRENCY_SYMBOL = "A$"
 
   let mounted = false
-  let machineCount = 2
+  let machineCount = 1
   let isTestDiscount = false
 
   onMount(() => {
@@ -52,7 +51,7 @@
   }
 
   /* ── Price calculations ── */
-  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE * (2 / 3)
+  $: pricePerSeat = isTestDiscount ? BASE_PRICE * 0.25 : BASE_PRICE
   $: totalMonthly = Math.round(machineCount * pricePerSeat)
   $: totalAnnual = Math.round(machineCount * pricePerSeat * 12)
   $: pricePerOperator = Math.round(pricePerSeat)
@@ -119,8 +118,7 @@
           One Plan. One Price.
         </h2>
         <p class="mx-auto mb-10 max-w-md text-lg text-contrast-content/70">
-          $1 a day per operator. Just pick your team size — everything's
-          included, no hidden fees.
+          Pick your team size — everything's included, no hidden fees.
         </p>
       </div>
 
@@ -167,16 +165,6 @@
               <Plus size={20} />
             </button>
           </div>
-          {#if machineCount === 1}
-            <div
-              class="mt-3 flex items-center justify-center gap-1.5 text-xs text-warning"
-            >
-              <AlertTriangle size={12} />
-              <span
-                >Recommended: at least 2 operators for full team features</span
-              >
-            </div>
-          {/if}
         </div>
 
         <!-- Price breakdown (V11 style) -->
@@ -215,14 +203,11 @@
             </button>
           </a>
         {/if}
-        <p class="mt-3 text-center text-xs text-contrast-content/50">
-          Cancel anytime
-        </p>
       </div>
 
       <!-- ────── Pro Features Grid ────── -->
       <div class="mx-auto mt-8 max-w-3xl" in:animationDelay={200}>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
           {#each proFeatures as feature, i (feature.label)}
             <div
               class="flex flex-col items-center gap-2 rounded-xl p-4 text-center shadow-md {feature.highlight
@@ -232,7 +217,7 @@
             >
               <Check size={20} style="color: #22c55e;" />
               <span
-                class="text-sm {feature.highlight
+                class="text-xs leading-tight sm:text-sm {feature.highlight
                   ? 'font-semibold text-contrast-content'
                   : 'text-contrast-content'}">{feature.label}</span
               >
@@ -247,23 +232,24 @@
           class="rounded-xl border-2 border-base-content bg-base-100 px-5 py-3 shadow-md md:px-6 md:py-4"
         >
           <div
-            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
           >
             <!-- Left: info + features -->
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <div
-                  class="flex h-7 w-7 items-center justify-center rounded-full bg-base-content/10"
+                  class="flex h-7 w-7 items-center justify-center rounded-full bg-base-content/10 flex-shrink-0"
                 >
                   <User size={14} class="text-base-content" />
                 </div>
                 <h3 class="font-sans text-lg font-bold text-contrast-content">
                   Free Account
                 </h3>
-                <span class="text-sm text-contrast-content/50">
+                <span class="text-sm text-contrast-content/50 hidden sm:inline">
                   — No credit card, no expiry
                 </span>
               </div>
+              <p class="mt-0.5 text-xs text-contrast-content/50 sm:hidden ml-9">No credit card, no expiry</p>
               <div class="ml-9 mt-1.5 flex flex-col gap-0.5 text-sm">
                 {#each freeFeatures as feature}
                   <span
@@ -283,17 +269,9 @@
             </div>
 
             <!-- Right: CTA -->
-            <div class="flex flex-shrink-0 items-center gap-4">
-              <div class="flex items-end">
-                <span class="text-3xl font-bold text-contrast-content">
-                  {CURRENCY_SYMBOL}0
-                </span>
-                <span class="mb-0.5 ml-1 text-contrast-content/50"
-                  >/forever</span
-                >
-              </div>
+            <div class="flex flex-shrink-0 items-center">
               <button
-                class="group flex items-center gap-2 rounded-lg bg-base-content px-5 py-2 font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl"
+                class="group flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-base-content px-5 py-2.5 md:py-2 font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl"
                 on:click={() => goto("/login?tab=sign_up")}
               >
                 Get Started Free

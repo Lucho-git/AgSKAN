@@ -16,7 +16,7 @@
       // If there's an error, show it and redirect
       if (data.error) {
         toast.error(data.error)
-        setTimeout(() => goto("/account/payment_plans"), 2000)
+        setTimeout(() => goto("/account/billing"), 2000)
         return
       }
 
@@ -65,7 +65,7 @@
     } catch (error) {
       console.error("Error:", error)
       toast.error(error.message || "An unexpected error occurred")
-      setTimeout(() => goto("/account/payment_plans"), 2000)
+      setTimeout(() => goto("/account/billing"), 2000)
     }
   })
 </script>
