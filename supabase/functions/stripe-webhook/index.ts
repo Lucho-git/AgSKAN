@@ -22,19 +22,70 @@ const FREE_MARKER_LIMIT = 100
 const FREE_TRAIL_LIMIT = 100000
 
 /**
- * Look up user_id from a Stripe customer ID
+ * Look up user_id from a Stripe customer ID.
+ * Falls back to Stripe metadata and email lookup if no stripe_customers row exists
+ * (e.g. customers created via Payment Links).
  */
 async function getUserIdFromCustomer(stripeCustomerId: string): Promise<string> {
+    // 1. Direct lookup in stripe_customers table
     const { data, error } = await supabase
         .from("stripe_customers")
         .select("user_id")
         .eq("stripe_customer_id", stripeCustomerId)
         .single()
 
-    if (error || !data) {
-        throw new Error(`No user found for stripe_customer_id: ${stripeCustomerId}`)
+    if (data?.user_id) {
+        return data.user_id
     }
-    return data.user_id
+
+    console.log(`[Webhook] No stripe_customers entry for ${stripeCustomerId}, trying fallbacks...`)
+
+    // Fetch the Stripe customer object for metadata / email
+    const customer = await stripe.customers.retrieve(stripeCustomerId)
+    if (customer.deleted) {
+        throw new Error(`Stripe customer ${stripeCustomerId} is deleted`)
+    }
+
+    let userId: string | null = null
+
+    // 2. Check Stripe customer metadata for user_id
+    if (customer.metadata?.user_id) {
+        userId = customer.metadata.user_id
+        console.log(`[Webhook] Found user_id in Stripe metadata: ${userId}`)
+    }
+
+    // 3. Fall back to email lookup in profiles table
+    if (!userId && customer.email) {
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", customer.email)
+            .single()
+
+        if (profile?.id) {
+            userId = profile.id
+            console.log(`[Webhook] Found user by email ${customer.email}: ${userId}`)
+        }
+    }
+
+    if (!userId) {
+        throw new Error(
+            `No user found for stripe_customer_id: ${stripeCustomerId} (email: ${customer.email ?? 'none'})`
+        )
+    }
+
+    // Auto-create the missing stripe_customers entry so future events resolve instantly
+    const { error: insertError } = await supabase
+        .from("stripe_customers")
+        .upsert({ user_id: userId, stripe_customer_id: stripeCustomerId })
+
+    if (insertError) {
+        console.error("[Webhook] Failed to backfill stripe_customers:", insertError)
+    } else {
+        console.log(`[Webhook] Backfilled stripe_customers: ${userId} -> ${stripeCustomerId}`)
+    }
+
+    return userId
 }
 
 /**

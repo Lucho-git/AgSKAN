@@ -65,12 +65,24 @@
   $: pricePerOperator = Math.round(pricePerSeat)
 
   // Stripe price IDs (AgSKAN Pro — annual only)
+  const OLD_PRICE_ID = "price_1TBWyrK3At0l0k1HoyC9bStL" // $365/yr legacy
+  const NEW_PRICE_ID = "price_1TH522K3At0l0k1HVQWZXNFa" // $1200/yr ($100/mo)
   const stripePriceIds = {
     yearly: {
-      standard: "price_1TH522K3At0l0k1HVQWZXNFa",
+      standard: NEW_PRICE_ID,
       test: "price_1TBWz2K3At0l0k1H7fXrH3nf",
     },
   }
+
+  // Detect which plan an active subscriber is on
+  $: activePriceId = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.id
+  $: isOnOldPlan = activePriceId === OLD_PRICE_ID
+  $: isOnNewPlan = activePriceId === NEW_PRICE_ID
+  $: activeUnitAmount = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.unit_amount // cents per year
+  $: activeMonthlyPerSeat = activeUnitAmount ? Math.round(activeUnitAmount / 100 / 12) : null
+  $: activeSeats = subscriptionData?.stripeSubscription?.quantity ?? 1
+  $: activeTotalMonthly = activeMonthlyPerSeat ? activeMonthlyPerSeat * activeSeats : null
+  $: activeTotalYearly = activeUnitAmount ? Math.round((activeUnitAmount / 100) * activeSeats) : null
 
   $: stripePriceId = isTestDiscount
     ? stripePriceIds.yearly.test
@@ -245,6 +257,9 @@
                 <p class="font-medium text-contrast-content">
                   {currentPlanName}
                 </p>
+                {#if isOnOldPlan}
+                  <p class="mt-0.5 text-xs text-contrast-content/40">Legacy plan</p>
+                {/if}
               </div>
               <div
                 class="badge badge-lg"
@@ -270,10 +285,8 @@
               <div>
                 <p class="text-sm text-contrast-content/60">Operator Seats</p>
                 <p class="font-medium text-contrast-content">
-                  {subscriptionData?.stripeSubscription?.quantity ?? "1"}
-                  {(subscriptionData?.stripeSubscription?.quantity ?? 1) === 1
-                    ? "seat"
-                    : "seats"}
+                  {activeSeats}
+                  {activeSeats === 1 ? "seat" : "seats"}
                 </p>
               </div>
               <div class="rounded-lg bg-base-content/10 p-2">
@@ -281,6 +294,27 @@
               </div>
             </div>
           </div>
+
+          <!-- Pricing Card -->
+          {#if activeMonthlyPerSeat}
+            <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-contrast-content/60">Cost</p>
+                  <p class="font-medium text-contrast-content">
+                    {CURRENCY_SYMBOL}{activeTotalMonthly}/mo
+                    <span class="text-sm font-normal text-contrast-content/50">({CURRENCY_SYMBOL}{activeMonthlyPerSeat} × {activeSeats} seat{activeSeats === 1 ? "" : "s"})</span>
+                  </p>
+                  <p class="mt-0.5 text-xs text-contrast-content/40">
+                    {CURRENCY_SYMBOL}{activeTotalYearly}/yr billed annually
+                  </p>
+                </div>
+                <div class="rounded-lg bg-base-content/10 p-2">
+                  <CreditCard size={18} class="text-base-content" />
+                </div>
+              </div>
+            </div>
+          {/if}
 
           <!-- Next Billing Card -->
           <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
