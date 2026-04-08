@@ -26,6 +26,7 @@
   } from "$lib/stores/operationStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore" // 🆕 NEW
+  import { resetMapStores } from "$lib/stores/resetMapStores"
 
   // Import map API
   import { mapApi } from "$lib/api/mapApi"
@@ -60,6 +61,9 @@
       if (!pendingMapId) return false
 
       console.log(`Found pending map ID: ${pendingMapId}`)
+
+      // Clear stale map data before connecting
+      resetMapStores()
 
       // Connect to the map using existing API
       const result = await mapApi.connectToMap(pendingMapId)
@@ -455,16 +459,20 @@
       // 🆕 NEW: Update trails metadata store
       trailsMetaDataStore.set(trailsWithOperations)
 
-      // Update operations stores
-      if (operations?.length) {
-        operationStore.set([...operations].reverse())
+      // Update operations stores (always set, even if empty)
+      operationStore.set(operations?.length ? [...operations].reverse() : [])
 
+      if (operations?.length) {
         const selectedOp = operations.find(
           (op) => op.id === profile.selected_operation_id,
         )
         if (selectedOp) {
           selectedOperationStore.set(selectedOp)
+        } else {
+          selectedOperationStore.set(operations[0])
         }
+      } else {
+        selectedOperationStore.set(null)
       }
 
       return {

@@ -8,6 +8,7 @@
     operationStore,
     selectedOperationStore,
   } from "$lib/stores/operationStore"
+  import { resetMapStores } from "$lib/stores/resetMapStores"
   import { toast } from "svelte-sonner"
   import { mapApi } from "$lib/api/mapApi"
   import { operationApi } from "$lib/api/operationApi"
@@ -251,6 +252,9 @@
     loadingAction = `connect-${mapId}`
 
     try {
+      // Clear stale data from previous map before loading new one
+      resetMapStores()
+
       const result = await mapApi.connectToMap(trimmedMapId)
 
       if (result.success && result.data) {
@@ -264,15 +268,11 @@
 
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
+        trailsMetaDataStore.set(trailsMetadata || [])
 
-        if (trailsMetadata) {
-          trailsMetaDataStore.set(trailsMetadata)
-        }
-
-        if (operations && operations.length > 0) {
-          operationStore.set(operations)
-          selectedOperationStore.set(operation || operations[0])
-        }
+        // Always set operation stores (even if empty)
+        operationStore.set(operations || [])
+        selectedOperationStore.set(operation || (operations?.[0] ?? null))
 
         // 🆕 NEW: Update recent maps
         if ($profileStore) {
@@ -315,22 +315,8 @@
       const result = await mapApi.disconnectFromMap()
 
       if (result.success) {
-        connectedMapStore.set({
-          id: null,
-          map_name: null,
-          master_user_id: null,
-          owner: null,
-          is_owner: false,
-          masterSubscription: null,
-          is_connected: false,
-        })
-
-        mapActivityStore.set({
-          marker_count: 0,
-          trail_count: 0,
-          connected_profiles: [],
-          vehicle_states: [],
-        })
+        // Clear ALL map-scoped stores (operations, vehicles, trails, etc.)
+        resetMapStores()
 
         toast.success("Disconnected from map")
         activeTab = "map"

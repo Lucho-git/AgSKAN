@@ -11,6 +11,7 @@
   } from "$lib/stores/operationStore.js"
   import { toast } from "svelte-sonner"
   import { mapApi } from "$lib/api/mapApi"
+  import { resetMapStores } from "$lib/stores/resetMapStores"
   import { onMount } from "svelte"
 
   let formError: string | null = null
@@ -161,6 +162,7 @@
     formError = null
 
     try {
+      resetMapStores()
       const result = await mapApi.connectToMap(joinMapId)
 
       if (!result.success) {
@@ -176,13 +178,10 @@
       connectedMapStore.set(result.data.connectedMap)
       mapActivityStore.set(result.data.mapActivity)
 
-      if (result.data.operations && result.data.operations.length > 0) {
-        operationStore.set(result.data.operations)
-
-        if (result.data.operation) {
-          selectedOperationStore.set(result.data.operation)
-        }
-      }
+      operationStore.set(result.data.operations || [])
+      selectedOperationStore.set(
+        result.data.operation || result.data.operations?.[0] || null,
+      )
 
       toast.success("Successfully joined map")
     } catch (error) {

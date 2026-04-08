@@ -10,6 +10,7 @@
     operationStore,
     selectedOperationStore,
   } from "$lib/stores/operationStore"
+  import { resetMapStores } from "$lib/stores/resetMapStores"
   import { supabase } from "$lib/supabaseClient"
   import { toast } from "svelte-sonner"
   import { mapApi } from "$lib/api/mapApi"
@@ -218,6 +219,9 @@
     operationStartTime = Date.now()
 
     try {
+      // Clear stale data from previous map before loading new one
+      resetMapStores()
+
       const result = await mapApi.connectToMap(trimmedMapId)
 
       if (result.success && result.data) {
@@ -233,15 +237,11 @@
 
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
+        trailsMetaDataStore.set(trailsMetadata || [])
 
-        if (trailsMetadata) {
-          trailsMetaDataStore.set(trailsMetadata)
-        }
-
-        if (operations && operations.length > 0) {
-          operationStore.set(operations)
-          selectedOperationStore.set(operation || operations[0])
-        }
+        // Always set operation stores (even if empty)
+        operationStore.set(operations || [])
+        selectedOperationStore.set(operation || (operations?.[0] ?? null))
 
         profileStore.update((profile) => ({
           ...profile,
@@ -326,25 +326,8 @@
       const result = await mapApi.deleteMap(mapId)
 
       if (result.success) {
-        connectedMapStore.set({
-          id: null,
-          map_name: null,
-          master_user_id: null,
-          owner: null,
-          is_owner: false,
-          masterSubscription: null,
-          is_connected: false,
-        })
-
-        mapActivityStore.set({
-          marker_count: 0,
-          trail_count: 0,
-          connected_profiles: [],
-          vehicle_states: [],
-        })
-
-        operationStore.set([])
-        selectedOperationStore.set(null)
+        // Clear ALL map-scoped stores
+        resetMapStores()
 
         toast.success("Map deleted")
         showDeleteConfirm = false
@@ -370,22 +353,8 @@
       const result = await mapApi.disconnectFromMap()
 
       if (result.success) {
-        connectedMapStore.set({
-          id: null,
-          map_name: null,
-          master_user_id: null,
-          owner: null,
-          is_owner: false,
-          masterSubscription: null,
-          is_connected: false,
-        })
-
-        mapActivityStore.set({
-          marker_count: 0,
-          trail_count: 0,
-          connected_profiles: [],
-          vehicle_states: [],
-        })
+        // Clear ALL map-scoped stores (operations, vehicles, trails, etc.)
+        resetMapStores()
 
         toast.success("Disconnected from map")
         await fetchUserMaps()

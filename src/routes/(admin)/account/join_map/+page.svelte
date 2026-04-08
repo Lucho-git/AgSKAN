@@ -16,6 +16,7 @@
   import { toast } from "svelte-sonner"
   // Import mapApi
   import { mapApi } from "$lib/api/mapApi"
+  import { resetMapStores } from "$lib/stores/resetMapStores"
 
   let formError: string | null = null
   let skipMapId = false
@@ -55,6 +56,9 @@
     formError = null
 
     try {
+      // Clear stale data from previous map before joining
+      resetMapStores()
+
       // Use mapApi instead of direct Supabase calls
       const result = await mapApi.connectToMap(joinMapId)
 
@@ -73,14 +77,11 @@
       connectedMapStore.set(result.data.connectedMap)
       mapActivityStore.set(result.data.mapActivity)
 
-      // Update operation stores if operations are included
-      if (result.data.operations && result.data.operations.length > 0) {
-        operationStore.set(result.data.operations)
-
-        if (result.data.operation) {
-          selectedOperationStore.set(result.data.operation)
-        }
-      }
+      // Always update operation stores (even if empty)
+      operationStore.set(result.data.operations || [])
+      selectedOperationStore.set(
+        result.data.operation || result.data.operations?.[0] || null,
+      )
 
       toast.success("Successfully joined map")
     } catch (error) {
