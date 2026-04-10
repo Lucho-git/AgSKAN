@@ -876,7 +876,14 @@ font-size: 12px;
 
     const currentTrail = getCurrentTrail()
 
-    if (currentTrail && map && map.getStyle()) {
+    if (currentTrail && map) {
+      try {
+        // Guard: map.getStyle() throws if the map has been destroyed (e.g. {#key} remount)
+        if (!map.getStyle()) return
+      } catch {
+        return
+      }
+
       const animationSourceId = `animation-source-${currentTrail.id}`
 
       const animationLayerId = `animation-layer-${currentTrail.id}`
@@ -1086,6 +1093,14 @@ font-size: 12px;
     selectedTrailIdStore.set(trail.id)
 
     const { sourceId, highlightLayerId } = generateTrailIds(trail.id)
+
+    // Guard: source must exist on map before we can add highlight layers
+    if (!map.getSource(sourceId)) {
+      console.warn(
+        `[TrailHighlighter] selectTrail: source "${sourceId}" not found — trail not yet rendered on map`,
+      )
+      return
+    }
 
     const baseWidth = trail.trail_width || 3
 

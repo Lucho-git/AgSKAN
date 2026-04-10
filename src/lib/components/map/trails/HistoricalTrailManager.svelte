@@ -1,6 +1,7 @@
 <!-- src/lib/components/map/trails/HistoricalTrailManager.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, getContext } from "svelte"
+  import { get } from "svelte/store"
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
   import { trailsApi } from "$lib/api/trailsApi"
@@ -330,6 +331,8 @@
   }
 
   export function removeTrail(trailId: string) {
+    if (!map) return
+
     const { sourceId, layerId, highlightLayerId, highlightBackgroundLayerId } =
       generateTrailIds(trailId)
 
@@ -346,23 +349,25 @@
     ]
 
     layersToRemove.forEach((layer) => {
-      if (map.getLayer(layer)) {
-        map.removeLayer(layer)
-        historicalTrailLayers = historicalTrailLayers.filter(
-          (id) => id !== layer,
-        )
-        historicalDirectionalLayers = historicalDirectionalLayers.filter(
-          (id) => id !== layer,
-        )
-      }
+      try {
+        if (map.getLayer(layer)) {
+          map.removeLayer(layer)
+          historicalTrailLayers = historicalTrailLayers.filter(
+            (id) => id !== layer,
+          )
+          historicalDirectionalLayers = historicalDirectionalLayers.filter(
+            (id) => id !== layer,
+          )
+        }
+      } catch { /* map may be destroyed */ }
     })
 
-    if (map.getSource(sourceId)) {
-      map.removeSource(sourceId)
-    }
-    if (map.getSource(markersSourceId)) {
-      map.removeSource(markersSourceId)
-    }
+    try {
+      if (map.getSource(sourceId)) map.removeSource(sourceId)
+    } catch { /* map may be destroyed */ }
+    try {
+      if (map.getSource(markersSourceId)) map.removeSource(markersSourceId)
+    } catch { /* map may be destroyed */ }
   }
 
   export async function deleteTrail(trailId: string) {
@@ -411,16 +416,30 @@
     }
   }
 
-  async function loadHistoricalTrails() {
-    const trails = $historicalTrailStore
+  async function waitForStyleLoaded(): Promise<void> {
+    if (!map) return
+    // If styleReady flag is already set, we're good
+    if (styleReady) return
+    return new Promise<void>((resolve) => {
+      const onStyleLoad = () => {
+        styleReady = true
+        resolve()
+      }
+      map.once("style.load", onStyleLoad)
+    })
+  }
+
+  function loadHistoricalTrails() {
+    if (!styleReady) return
+
+    const trails = get(historicalTrailStore)
 
     for (let i = 0; i < trails.length; i++) {
       const trail = trails[i]
       try {
-        addTrail(trail)
-        await new Promise((resolve) =>
-          setTimeout(resolve, TRAIL_CONFIG.LOAD_DELAY),
-        )
+        if (trail.path) {
+          addTrail(trail)
+        }
       } catch (error) {
         console.error(`Failed to load historical trail ${trail.id}:`, error)
         toast.error(
@@ -438,22 +457,27 @@
 
   let historicalTrailsUnsubscribe: (() => void) | null = null
 
+  // Track whether style.load has fired. We use this instead of map.isStyleLoaded()
+  // because isStyleLoaded() checks if ALL resources (tiles, sprites, glyphs) are loaded,
+  // but we only need the style JSON to be parsed (style.load) to add sources/layers.
+  // isStyleLoaded() can return false for a long time after style.load has fired.
+  let styleReady = false
+  let styleLoadHandler: (() => void) | null = null
+
   onMount(() => {
     console.log("🏔️ HistoricalTrailManager mounted")
 
-    loadHistoricalTrails()
-
-    let previousTrails = $historicalTrailStore
+    let previousTrails: any[] = []
     historicalTrailsUnsubscribe = historicalTrailStore.subscribe(
       (currentTrails) => {
         console.log("🏔️ HistoricalTrailManager: Store changed", {
           previousCount: previousTrails?.length,
           currentCount: currentTrails?.length,
-          mapReady: map && map.isStyleLoaded(),
+          styleReady,
         })
 
-        if (!map || !map.isStyleLoaded()) {
-          console.log("  ⏸️ Map not ready, skipping")
+        if (!map || !styleReady) {
+          console.log("  ⏸️ Style not ready, deferring — will render on style.load")
           previousTrails = [...currentTrails]
           return
         }
@@ -481,6 +505,10 @@
             )
 
             newTrails.forEach((trail) => {
+              if (!trail.path) {
+                console.warn(`  ⚠️ Skipping trail ${trail.id}: no path data`)
+                return
+              }
               console.log(`  🎨 Calling addTrail() for ${trail.id}...`)
               try {
                 const layerId = addTrail(trail)
@@ -524,6 +552,8 @@
               console.log(`  🗑️ Removing trail from map: ${trail.id}`)
               removeTrail(trail.id)
 
+              if (!map) return
+
               const animationSourceId = `animation-source-${trail.id}`
               const animationLayerId = `animation-layer-${trail.id}`
               const animationBorderSourceId = `animation-border-source-${trail.id}`
@@ -540,16 +570,16 @@
               ]
 
               layersToRemove.forEach((layerId) => {
-                if (map.getLayer(layerId)) {
-                  try {
+                try {
+                  if (map.getLayer(layerId)) {
                     map.removeLayer(layerId)
                     console.log(`    ✓ Removed layer: ${layerId}`)
-                  } catch (error) {
-                    console.warn(
-                      `    ⚠️ Error removing layer ${layerId}:`,
-                      error,
-                    )
                   }
+                } catch (error) {
+                  console.warn(
+                    `    ⚠️ Error removing layer ${layerId}:`,
+                    error,
+                  )
                 }
               })
 
@@ -560,16 +590,16 @@
               ]
 
               sourcesToRemove.forEach((sourceId) => {
-                if (map.getSource(sourceId)) {
-                  try {
+                try {
+                  if (map.getSource(sourceId)) {
                     map.removeSource(sourceId)
                     console.log(`    ✓ Removed source: ${sourceId}`)
-                  } catch (error) {
-                    console.warn(
-                      `    ⚠️ Error removing source ${sourceId}:`,
-                      error,
-                    )
                   }
+                } catch (error) {
+                  console.warn(
+                    `    ⚠️ Error removing source ${sourceId}:`,
+                    error,
+                  )
                 }
               })
             })
@@ -580,12 +610,48 @@
         previousTrails = [...currentTrails]
       },
     )
+
+    // Listen for EVERY style load — fires on the initial style load AND
+    // after SatelliteManager calls setStyle() (e.g. switching to google_satellite).
+    // setStyle() wipes all sources/layers, so we must re-render once the new style is ready.
+    if (map) {
+      styleLoadHandler = () => {
+        styleReady = true
+        console.log("🏔️ HTM style.load fired — rebuilding all historical trails")
+        // Clear tracking state since all sources/layers were wiped by setStyle
+        historicalTrailLayers = []
+        historicalDirectionalLayers = []
+        loadHistoricalTrails()
+      }
+      map.on("style.load", styleLoadHandler)
+
+      // Detect if style has ALREADY loaded (e.g. component mount after style.load fired).
+      try {
+        const style = map.getStyle()
+        if (style && style.layers && style.layers.length > 0) {
+          console.log(
+            `🏔️ HTM: Style already has ${style.layers.length} layers, marking ready`,
+          )
+          styleReady = true
+          loadHistoricalTrails()
+        } else {
+          console.log(
+            `🏔️ HTM: Style not ready yet, waiting for style.load`,
+          )
+        }
+      } catch (e) {
+        console.log(`🏔️ HTM: getStyle() failed, waiting for style.load`)
+      }
+    }
   })
 
   onDestroy(() => {
     console.log("🏔️ HistoricalTrailManager destroyed")
     if (historicalTrailsUnsubscribe) {
       historicalTrailsUnsubscribe()
+    }
+    if (styleLoadHandler && map) {
+      map.off("style.load", styleLoadHandler)
     }
   })
 

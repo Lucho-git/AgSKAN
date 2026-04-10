@@ -24,6 +24,7 @@
   import {
     historicalTrailStore,
     otherActiveTrailStore,
+    trailsLoadingStore,
   } from "$lib/stores/otherTrailStore"
 
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -215,6 +216,11 @@
     stopRetryInterval()
     removePauseMarker()
     userVehicleTrailing.set(false)
+
+    // Clear operation-scoped trail stores so stale trails don't
+    // bleed into the next operation's map.
+    historicalTrailStore.set([])
+    otherActiveTrailStore.set([])
   })
 
   // ============================================
@@ -1430,6 +1436,7 @@
   }
 
   async function fetchOperationTrails() {
+    trailsLoadingStore.set(true)
     toast.promise(
       (async () => {
         const trails = await getOperationTrails(selectedOperation.id)
@@ -1441,8 +1448,12 @@
         ])
 
         areTrailsLoaded = true
+        trailsLoadingStore.set(false)
         return trails
-      })(),
+      })().catch((err) => {
+        trailsLoadingStore.set(false)
+        throw err
+      }),
       {
         loading: `Loading trails from ${selectedOperation.name} (${selectedOperation.year})...`,
         success: (trails) =>

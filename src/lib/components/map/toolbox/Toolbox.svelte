@@ -23,11 +23,24 @@
     collectionModeStore,
     confirmedMarkersStore,
   } from "$lib/stores/markerStore"
-  import { historicalTrailStore } from "$lib/stores/otherTrailStore"
+  import { historicalTrailStore, trailsLoadingStore, visibleOperationIdsStore } from "$lib/stores/otherTrailStore"
+  import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import {
+    operationStore,
+    selectedOperationStore,
+  } from "$lib/stores/operationStore"
+  import { profileStore } from "$lib/stores/profileStore"
+  import {
+    userVehicleTrailing,
+    userVehicleStore,
+  } from "$lib/stores/vehicleStore"
+  import { operationApi } from "$lib/api/operationApi"
+  import { commandStore, COMMANDS } from "$lib/stores/commandStore"
+  import { toast } from "svelte-sonner"
+  import { ChevronDown, AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-svelte"
 
-  // Import vehicle store and components
-  import { userVehicleStore } from "$lib/stores/vehicleStore"
+  // Import vehicle components
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
@@ -75,6 +88,19 @@
   // Field count for badge
   $: fieldCount = ($mapFieldsStore || []).length
 
+  // Trail counts per operation (from metadata store)
+  $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
+    const opId = trail.operation_id
+    if (opId) {
+      counts[opId] = (counts[opId] || 0) + 1
+    }
+    return counts
+  }, /** @type {Record<string, number>} */ ({}))
+
+  function getOpTrailCount(operationId) {
+    return trailCountsByOperation[operationId] || 0
+  }
+
   function getDefaultMarker() {
     return (
       $userSettingsStore?.defaultMarker || {
@@ -88,6 +114,7 @@
   $: defaultMarker = getDefaultMarker()
 
   function closeToolbox() {
+    operationDropdownOpen = false
     dispatch("close")
   }
 
@@ -97,6 +124,7 @@
 
   function showMainPanel() {
     activePanel = null
+    operationDropdownOpen = false
   }
 
   function showSatellitePanel() {
@@ -168,6 +196,112 @@
   function handleTrailControls() {
     showTrailPanel()
   }
+
+  // Trail overlay visibility for other operations
+  function toggleVisibleOperation(opId) {
+    visibleOperationIdsStore.update(ids => {
+      const next = new Set(ids)
+      if (next.has(opId)) {
+        next.delete(opId)
+      } else {
+        next.add(opId)
+      }
+      return next
+    })
+  }
+
+  // ── Operation Switching ──────────────────────────────
+  let operationDropdownOpen = false
+  let switchingOperation = false
+  let showOperationConfirmModal = false
+  let pendingOperationId = null
+
+  function toggleOperationDropdown() {
+    operationDropdownOpen = !operationDropdownOpen
+  }
+
+  function closeOperationDropdown() {
+    operationDropdownOpen = false
+  }
+
+  async function handleOperationSwitch(operationId) {
+    if (operationId === $selectedOperationStore?.id) {
+      operationDropdownOpen = false
+      return
+    }
+
+    // If currently trailing, show confirmation modal instead of switching immediately
+    if ($userVehicleTrailing) {
+      pendingOperationId = operationId
+      operationDropdownOpen = false
+      showOperationConfirmModal = true
+      return
+    }
+
+    switchingOperation = true
+    await completeOperationSwitch(operationId)
+    switchingOperation = false
+  }
+
+  async function confirmOperationSwitch() {
+    showOperationConfirmModal = false
+    switchingOperation = true
+
+    // Stop the active trail
+    commandStore.dispatch(COMMANDS.TRAIL_STOP)
+
+    // Wait for trailing to stop
+    await new Promise((resolve) => {
+      let initial = true
+      const unsub = userVehicleTrailing.subscribe((isTrailing) => {
+        if (initial) {
+          initial = false
+          return
+        }
+        if (!isTrailing) {
+          unsub()
+          resolve(undefined)
+        }
+      })
+    })
+
+    await completeOperationSwitch(pendingOperationId)
+    pendingOperationId = null
+    switchingOperation = false
+  }
+
+  function cancelOperationSwitch() {
+    showOperationConfirmModal = false
+    pendingOperationId = null
+  }
+
+  async function completeOperationSwitch(operationId) {
+    const operation = $operationStore.find((op) => op.id === operationId)
+    if (!operation || !$profileStore?.id) return
+
+    try {
+      const result = await operationApi.updateSelectedOperation(
+        $profileStore.id,
+        operationId,
+      )
+
+      if (!result.success) {
+        toast.error(`Failed to switch operation: ${result.message}`)
+        return
+      }
+
+      selectedOperationStore.set(operation)
+      profileStore.update((p) => ({
+        ...p,
+        selected_operation_id: operationId,
+      }))
+
+      operationDropdownOpen = false
+      toast.success(`Switched to ${operation.name}`)
+    } catch (err) {
+      toast.error(`Failed to switch operation`)
+    }
+  }
 </script>
 
 {#if isOpen}
@@ -206,6 +340,61 @@
           <h3>Fields</h3>
         {:else}
           <h3>Toolbox</h3>
+          {#if $operationStore.length > 0}
+            <div class="operation-selector">
+              <button
+                class="operation-toggle op-toggle-floating"
+                class:open={operationDropdownOpen}
+                disabled={switchingOperation}
+                on:click|stopPropagation={toggleOperationDropdown}
+              >
+                <span class="op-float-badge">Operation</span>
+                <span class="operation-current-name">
+                  {switchingOperation ? "Switching..." : $selectedOperationStore?.name || "No Operation"}
+                </span>
+                <ChevronDown size={12} class={operationDropdownOpen ? "chevron-open" : ""} />
+              </button>
+              {#if operationDropdownOpen}
+                <div class="operation-dropdown">
+                  {#each $operationStore as op (op.id)}
+                    <div class="operation-option-row">
+                      <button
+                        class="operation-option flex-1"
+                        class:active={op.id === $selectedOperationStore?.id}
+                        disabled={switchingOperation}
+                        on:click={() => handleOperationSwitch(op.id)}
+                      >
+                        {#if op.id === $selectedOperationStore?.id}
+                          <div class="active-indicator"></div>
+                        {:else}
+                          <div class="inactive-indicator"></div>
+                        {/if}
+                        <span class="op-name">{op.name}</span>
+                        {#if getOpTrailCount(op.id) > 0}
+                          <span class="op-trail-count">{getOpTrailCount(op.id)} <Route size={10} /></span>
+                        {/if}
+                        <span class="op-year">{op.year}</span>
+                      </button>
+                      {#if op.id !== $selectedOperationStore?.id}
+                        <button
+                          class="eye-toggle"
+                          class:visible={$visibleOperationIdsStore.has(op.id)}
+                          on:click|stopPropagation={() => toggleVisibleOperation(op.id)}
+                          title={$visibleOperationIdsStore.has(op.id) ? "Hide trails" : "Show trails"}
+                        >
+                          {#if $visibleOperationIdsStore.has(op.id)}
+                            <Eye size={14} />
+                          {:else}
+                            <EyeOff size={14} />
+                          {/if}
+                        </button>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     </div>
@@ -277,7 +466,9 @@
           <button class="tool-button" on:click={handleTrailControls}>
             <Route size={26} />
             <span>Trails</span>
-            {#if trailCount > 0}
+            {#if $trailsLoadingStore}
+              <span class="tool-badge trail-badge trail-badge-loading"><Loader2 size={12} class="spin" /></span>
+            {:else if trailCount > 0}
               <span class="tool-badge trail-badge">{trailCount}</span>
             {/if}
           </button>
@@ -350,6 +541,26 @@
           {/if}
         </div>
       {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Operation Switch Confirmation Modal -->
+{#if showOperationConfirmModal}
+  <div class="confirm-overlay" on:click={cancelOperationSwitch} on:keydown={(e) => e.key === "Escape" && cancelOperationSwitch()}>
+    <div class="confirm-modal" on:click|stopPropagation>
+      <div class="confirm-header">
+        <AlertTriangle size={20} class="text-amber-400" />
+        <h3>Switch Operation?</h3>
+      </div>
+      <div class="confirm-body">
+        <p>You are currently recording a trail.</p>
+        <p>Switching operations will <strong>stop and save</strong> your current trail, then switch to the new operation.</p>
+      </div>
+      <div class="confirm-footer">
+        <button class="confirm-btn cancel" on:click={cancelOperationSwitch}>Cancel</button>
+        <button class="confirm-btn proceed" on:click={confirmOperationSwitch}>Stop Trail & Switch</button>
+      </div>
     </div>
   </div>
 {/if}
@@ -428,6 +639,141 @@
     font-weight: 600;
     color: #ffffff;
     flex: 1;
+  }
+
+  /* Operation Selector */
+  .operation-selector {
+    position: relative;
+  }
+
+  .operation-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 500;
+    max-width: 150px;
+    white-space: nowrap;
+  }
+
+  .operation-toggle:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  .operation-toggle.open {
+    background: rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.4);
+  }
+
+  .operation-toggle:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .operation-current-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .operation-toggle :global(.chevron-open) {
+    transform: rotate(180deg);
+  }
+
+  .operation-toggle :global(svg) {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .operation-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 180px;
+    max-width: 240px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 4px;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .operation-dropdown::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .operation-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .operation-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
+  .operation-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .operation-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .operation-option.active {
+    background: rgba(96, 165, 250, 0.15);
+    color: #93c5fd;
+  }
+
+  .operation-option:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .op-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .operation-option :global(.op-icon) {
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+
+  .operation-option.active :global(.op-icon) {
+    opacity: 1;
+    color: #93c5fd;
+  }
+
+  .op-year {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
   }
 
   .toolbox-content {
@@ -551,6 +897,21 @@
     border: 1px solid rgba(96, 165, 250, 0.3);
   }
 
+  .trail-badge-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .trail-badge-loading :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
   .marker-badge {
     background: rgba(167, 139, 250, 0.2);
     color: #a78bfa;
@@ -611,5 +972,216 @@
   .toolbox-content::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.25);
     border-radius: 2px;
+  }
+
+  /* Confirmation Modal */
+  .confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .confirm-modal {
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    width: 320px;
+    max-width: 90vw;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    animation: slideUp 0.2s ease-out;
+  }
+
+  .confirm-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .confirm-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+  }
+
+  .confirm-body {
+    padding: 14px 18px;
+  }
+
+  .confirm-body p {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+  }
+
+  .confirm-body p:last-child {
+    margin-bottom: 0;
+  }
+
+  .confirm-body strong {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .confirm-footer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 18px 16px;
+    justify-content: flex-end;
+  }
+
+  .confirm-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+  }
+
+  .confirm-btn.cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .confirm-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .confirm-btn.proceed {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fcd34d;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+  }
+
+  .confirm-btn.proceed:hover {
+    background: rgba(251, 191, 36, 0.3);
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ── Eye toggle + row styles ── */
+  .operation-option-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .operation-option-row .operation-option {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Active row has no eye toggle — add right margin to match the eye toggle width */
+  .operation-option-row:not(:has(.eye-toggle)) {
+    padding-right: 34px;
+  }
+
+  .eye-toggle {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .eye-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .eye-toggle.visible {
+    color: #60a5fa;
+  }
+
+  .eye-toggle.visible:hover {
+    background: rgba(96, 165, 250, 0.15);
+  }
+
+  .active-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #60a5fa;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(96, 165, 250, 0.5);
+  }
+
+  .inactive-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    flex-shrink: 0;
+  }
+
+  /* ── Trail count in dropdown ── */
+  .op-trail-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: rgba(96, 165, 250, 0.8);
+    background: rgba(96, 165, 250, 0.1);
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+
+  /* ── Operation header: Floating badge ── */
+  .op-toggle-floating {
+    position: relative;
+    padding: 4px 10px 4px 10px;
+    gap: 5px;
+    border-radius: 8px;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  .op-float-badge {
+    position: absolute;
+    top: -7px;
+    left: 8px;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #60a5fa;
+    background: #0d0d0d;
+    padding: 0 4px;
+    line-height: 1.2;
+  }
+
+  .op-toggle-floating.open .op-float-badge {
+    color: #93c5fd;
   }
 </style>

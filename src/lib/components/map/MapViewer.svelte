@@ -35,6 +35,8 @@
   import EmOverlays from "$lib/components/map/overlays/EmOverlays.svelte"
   import TrailSynchronizer from "$lib/components/map/trails/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/map/trails/TrailView.svelte"
+  import OverlayTrailManager from "$lib/components/map/trails/OverlayTrailManager.svelte"
+  import GhostTrailManager from "$lib/components/map/trails/GhostTrailManager.svelte"
   import DrawingHectares from "$lib/components/map/overlays/DrawingHectares.svelte"
   import CollectionRoutePlanner from "$lib/components/map/overlays/CollectionRoutePlanner.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
@@ -748,6 +750,8 @@
     <CollectionRoutePlanner {map} />
 
     <TrailView bind:this={trailHighlighter} {map} />
+    <OverlayTrailManager {map} />
+    <GhostTrailManager {map} />
 
     <!-- TrailSynchronizer with pending data event -->
     {#if selectedOperation}

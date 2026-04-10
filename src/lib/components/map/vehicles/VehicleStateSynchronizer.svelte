@@ -14,6 +14,7 @@
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { selectedOperationStore } from "$lib/stores/operationStore"
   import { vehicleDataLoaded } from "$lib/stores/loadedStore"
   import { page } from "$app/stores"
   import { toast } from "svelte-sonner"
@@ -187,11 +188,12 @@
               vehicles[idx] = {
                 ...existing,
                 ...row,
-                full_name: existing.full_name,
-                selected_operation_id: existing.selected_operation_id,
-                current_operation: existing.current_operation,
-                operation_name: existing.operation_name,
-                operation_id: existing.operation_id,
+                // Fallback to existing profile data for fields not in vehicle_state table
+                full_name: row.full_name ?? existing.full_name,
+                selected_operation_id: row.selected_operation_id ?? existing.selected_operation_id,
+                current_operation: row.current_operation ?? existing.current_operation,
+                operation_name: row.operation_name ?? existing.operation_name,
+                operation_id: row.operation_id ?? existing.operation_id,
               }
               hasUpdate = true
             }
@@ -236,6 +238,8 @@
       return
     }
 
+    const currentOp = $selectedOperationStore
+
     const vehicleStateData = {
       vehicle_id: userId,
       master_map_id: masterMapId,
@@ -245,6 +249,9 @@
       vehicle_marker,
       heading: heading !== null ? heading : null,
       speed: speed !== null && speed !== undefined ? speed : 0,
+      selected_operation_id: currentOp?.id ?? null,
+      operation_id: currentOp?.id ?? null,
+      operation_name: currentOp?.name ?? "No operation",
     }
 
     // Only include flash data if it has changed
@@ -454,12 +461,12 @@
               const updatedVehicle = {
                 ...existingVehicle,
                 ...payload.payload,
-                // Preserve profile data
-                full_name: existingVehicle.full_name,
-                selected_operation_id: existingVehicle.selected_operation_id,
-                current_operation: existingVehicle.current_operation,
-                operation_name: existingVehicle.operation_name,
-                operation_id: existingVehicle.operation_id,
+                // Fallback to existing profile data for fields not in broadcast
+                full_name: payload.payload.full_name ?? existingVehicle.full_name,
+                selected_operation_id: payload.payload.selected_operation_id ?? existingVehicle.selected_operation_id,
+                current_operation: payload.payload.current_operation ?? existingVehicle.current_operation,
+                operation_name: payload.payload.operation_name ?? existingVehicle.operation_name,
+                operation_id: payload.payload.operation_id ?? existingVehicle.operation_id,
               }
 
               // If flash data is in payload, update it; otherwise keep existing
