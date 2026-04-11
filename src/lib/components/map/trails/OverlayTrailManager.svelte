@@ -7,7 +7,11 @@
   import { onMount, onDestroy, getContext } from "svelte"
   import type { Map as MapboxMap, GeoJSONSource } from "mapbox-gl"
   import { supabase } from "$lib/supabaseClient"
-  import { visibleOperationIdsStore, overlayTrailsStore } from "$lib/stores/otherTrailStore"
+  import {
+    visibleOperationIdsStore,
+    overlayTrailsStore,
+  } from "$lib/stores/otherTrailStore"
+  import { operationStore } from "$lib/stores/operationStore"
   import { toast } from "svelte-sonner"
   import {
     calculateZoomDependentWidth,
@@ -81,7 +85,10 @@
 
       return trailsWithPaths.filter((t) => t.path)
     } catch (error) {
-      console.error(`Failed to fetch closed overlay trails for operation ${operationId}:`, error)
+      console.error(
+        `Failed to fetch closed overlay trails for operation ${operationId}:`,
+        error,
+      )
       return []
     }
   }
@@ -93,13 +100,18 @@
       // Get all open trails in this operation
       const { data: openTrails, error: trailsError } = await supabase
         .from("trails")
-        .select("id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width")
+        .select(
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
+        )
         .eq("operation_id", operationId)
         .is("end_time", null)
         .order("start_time", { ascending: false })
 
       if (trailsError) throw trailsError
-      console.log(`[OverlayTrail] fetchActiveTrails(${operationId}): openTrails query returned ${openTrails?.length ?? 0} rows`, openTrails)
+      console.log(
+        `[OverlayTrail] fetchActiveTrails(${operationId}): openTrails query returned ${openTrails?.length ?? 0} rows`,
+        openTrails,
+      )
       if (!openTrails || openTrails.length === 0) return []
 
       // Keep only the most recent trail per vehicle
@@ -109,7 +121,10 @@
         seen.add(t.vehicle_id)
         return true
       })
-      console.log(`[OverlayTrail] fetchActiveTrails: ${latestTrails.length} latest trails after dedup`, latestTrails.map(t => ({ id: t.id, vehicle_id: t.vehicle_id })))
+      console.log(
+        `[OverlayTrail] fetchActiveTrails: ${latestTrails.length} latest trails after dedup`,
+        latestTrails.map((t) => ({ id: t.id, vehicle_id: t.vehicle_id })),
+      )
 
       // Active trails don't have the `path` column populated on the `trails` table —
       // coordinates live in `trail_stream` rows. Build LineString from those directly.
@@ -123,12 +138,17 @@
               .order("timestamp", { ascending: true })
 
             if (pointsError) {
-              console.error(`[OverlayTrail] trail_stream query error for trail ${trail.id}:`, pointsError)
+              console.error(
+                `[OverlayTrail] trail_stream query error for trail ${trail.id}:`,
+                pointsError,
+              )
               return { ...trail, path: null }
             }
 
             if (!points || points.length < 2) {
-              console.log(`[OverlayTrail] trail ${trail.id}: only ${points?.length ?? 0} trail_stream points, skipping`)
+              console.log(
+                `[OverlayTrail] trail ${trail.id}: only ${points?.length ?? 0} trail_stream points, skipping`,
+              )
               return { ...trail, path: null }
             }
 
@@ -138,27 +158,41 @@
             ])
 
             const path = { type: "LineString" as const, coordinates }
-            console.log(`[OverlayTrail] trail ${trail.id}: built LineString from ${coordinates.length} trail_stream points`)
+            console.log(
+              `[OverlayTrail] trail ${trail.id}: built LineString from ${coordinates.length} trail_stream points`,
+            )
             return { ...trail, path, _isActive: true }
           } catch (e) {
-            console.error(`[OverlayTrail] exception building path for trail ${trail.id}:`, e)
+            console.error(
+              `[OverlayTrail] exception building path for trail ${trail.id}:`,
+              e,
+            )
             return { ...trail, path: null }
           }
         }),
       )
 
       const filtered = trailsWithPaths.filter((t) => t.path)
-      console.log(`[OverlayTrail] fetchActiveTrails: ${trailsWithPaths.length} fetched, ${filtered.length} with valid paths`)
+      console.log(
+        `[OverlayTrail] fetchActiveTrails: ${trailsWithPaths.length} fetched, ${filtered.length} with valid paths`,
+      )
       return filtered
     } catch (error) {
-      console.error(`Failed to fetch active overlay trails for operation ${operationId}:`, error)
+      console.error(
+        `Failed to fetch active overlay trails for operation ${operationId}:`,
+        error,
+      )
       return []
     }
   }
 
   // ── Render a single overlay trail layer ───────────────
 
-  function addOverlayTrail(trail: any, operationId: string, isActive: boolean = false) {
+  function addOverlayTrail(
+    trail: any,
+    operationId: string,
+    isActive: boolean = false,
+  ) {
     if (!map || !styleReady) return
 
     const { sourceId, layerId } = isActive
@@ -171,10 +205,23 @@
       if (map.getSource(sourceId)) map.removeSource(sourceId)
     } catch {}
 
-    console.log(`[OverlayTrail] addOverlayTrail: id=${trail.id}, isActive=${isActive}, sourceId=${sourceId}, layerId=${layerId}`, { pathType: typeof trail.path, pathKeys: trail.path ? Object.keys(trail.path) : null, pathSnippet: trail.path ? JSON.stringify(trail.path).slice(0, 200) : null })
+    console.log(
+      `[OverlayTrail] addOverlayTrail: id=${trail.id}, isActive=${isActive}, sourceId=${sourceId}, layerId=${layerId}`,
+      {
+        pathType: typeof trail.path,
+        pathKeys: trail.path ? Object.keys(trail.path) : null,
+        pathSnippet: trail.path
+          ? JSON.stringify(trail.path).slice(0, 200)
+          : null,
+      },
+    )
 
     const geoJsonData = createTrailGeoJSON(trail.path)
-    console.log(`[OverlayTrail] createTrailGeoJSON result:`, { type: geoJsonData?.type, geomType: (geoJsonData as any)?.geometry?.type, coordCount: (geoJsonData as any)?.geometry?.coordinates?.length })
+    console.log(`[OverlayTrail] createTrailGeoJSON result:`, {
+      type: geoJsonData?.type,
+      geomType: (geoJsonData as any)?.geometry?.type,
+      coordCount: (geoJsonData as any)?.geometry?.coordinates?.length,
+    })
 
     const width = calculateZoomDependentWidth(trail.trail_width || 3, 1)
 
@@ -193,12 +240,22 @@
         "line-color": trail.trail_color || "#FF0000",
         "line-width": width,
         "line-opacity": OVERLAY_OPACITY,
-        // Active trails are solid, closed trails are dashed
-        ...(isActive ? {} : { "line-dasharray": [2, 1] }),
       },
     }
 
-    if (mapContext?.addTrailLayerOrdered) {
+    // Insert overlay trails below existing trail layers so the current
+    // operation's active trails always render on top.
+    const existingLayers = map.getStyle().layers
+    const firstTrailLayer = existingLayers.find(
+      (l: any) =>
+        l.id.startsWith("trail-") ||
+        l.id.startsWith("active-trail") ||
+        l.id.startsWith("combined-active-trail"),
+    )
+
+    if (firstTrailLayer) {
+      map.addLayer(layerConfig, firstTrailLayer.id)
+    } else if (mapContext?.addTrailLayerOrdered) {
       mapContext.addTrailLayerOrdered(layerConfig)
     } else {
       map.addLayer(layerConfig)
@@ -273,7 +330,9 @@
   function unsubscribeFromOperationTrailStream(operationId: string) {
     const channel = realtimeChannels.get(operationId)
     if (channel) {
-      try { supabase.removeChannel(channel) } catch {}
+      try {
+        supabase.removeChannel(channel)
+      } catch {}
       realtimeChannels.delete(operationId)
     }
   }
@@ -310,7 +369,11 @@
 
     try {
       // New trail won't have path data yet — start with empty LineString
-      const newTrail = { ...trailData, path: { type: "LineString", coordinates: [] }, _isActive: true }
+      const newTrail = {
+        ...trailData,
+        path: { type: "LineString", coordinates: [] },
+        _isActive: true,
+      }
 
       const activeTrails = activeTrailsByOp.get(operationId) || []
       activeTrails.push(newTrail)
@@ -375,7 +438,10 @@
     const activeSourcePrefix = `${ACTIVE_OVERLAY_PREFIX}-source-${operationId}-`
 
     overlayLayers = overlayLayers.filter((layerId) => {
-      if (layerId.startsWith(layerPrefix) || layerId.startsWith(activeLayerPrefix)) {
+      if (
+        layerId.startsWith(layerPrefix) ||
+        layerId.startsWith(activeLayerPrefix)
+      ) {
         try {
           if (map.getLayer(layerId)) map.removeLayer(layerId)
         } catch {}
@@ -385,7 +451,10 @@
     })
 
     overlaySources = overlaySources.filter((sourceId) => {
-      if (sourceId.startsWith(sourcePrefix) || sourceId.startsWith(activeSourcePrefix)) {
+      if (
+        sourceId.startsWith(sourcePrefix) ||
+        sourceId.startsWith(activeSourcePrefix)
+      ) {
         try {
           if (map.getSource(sourceId)) map.removeSource(sourceId)
         } catch {}
@@ -458,54 +527,81 @@
       if (!renderedOperationIds.has(opId)) {
         renderedOperationIds.add(opId)
 
-        // Fetch closed + active trails in parallel
-        console.log(`[OverlayTrail] syncVisibleOverlays: fetching trails for operation ${opId}`)
-        const [closedTrails, activeTrails] = await Promise.all([
-          fetchClosedTrails(opId),
-          fetchActiveTrails(opId),
-        ])
-        console.log(`[OverlayTrail] syncVisibleOverlays: fetched ${closedTrails.length} closed, ${activeTrails.length} active for op ${opId}`)
-
-        // Check operation is still visible after async fetch
-        let stillVisible = false
-        const check = visibleOperationIdsStore.subscribe((ids) => {
-          stillVisible = ids.has(opId)
+        // Resolve operation name for toast
+        let opName = opId.slice(0, 8)
+        const opUnsub = operationStore.subscribe((ops) => {
+          const found = ops.find((o: any) => o.id === opId)
+          if (found) opName = found.name
         })
-        check()
+        opUnsub()
 
-        if (!stillVisible) {
-          renderedOperationIds.delete(opId)
-          continue
-        }
+        // Fetch closed + active trails in parallel, wrapped in a promise toast
+        console.log(
+          `[OverlayTrail] syncVisibleOverlays: fetching trails for operation ${opId}`,
+        )
 
-        // Store closed trails
-        overlayTrailsStore.update((store) => ({ ...store, [opId]: closedTrails }))
+        const loadPromise = (async () => {
+          const [closedTrails, activeTrails] = await Promise.all([
+            fetchClosedTrails(opId),
+            fetchActiveTrails(opId),
+          ])
+          console.log(
+            `[OverlayTrail] syncVisibleOverlays: fetched ${closedTrails.length} closed, ${activeTrails.length} active for op ${opId}`,
+          )
 
-        // Render closed trails (dashed)
-        for (const trail of closedTrails) {
-          addOverlayTrail(trail, opId, false)
-        }
+          // Check operation is still visible after async fetch
+          let stillVisible = false
+          const check = visibleOperationIdsStore.subscribe((ids) => {
+            stillVisible = ids.has(opId)
+          })
+          check()
 
-        // Track and render active trails (solid)
-        if (activeTrails.length > 0) {
-          activeTrailsByOp.set(opId, activeTrails)
-          for (const trail of activeTrails) {
-            addOverlayTrail(trail, opId, true)
+          if (!stillVisible) {
+            renderedOperationIds.delete(opId)
+            return "cancelled"
           }
-        }
 
-        // Subscribe to realtime updates for active trails
-        subscribeToOperationTrailStream(opId)
+          // Store closed trails
+          overlayTrailsStore.update((store) => ({
+            ...store,
+            [opId]: closedTrails,
+          }))
 
-        const totalCount = closedTrails.length + activeTrails.length
-        if (totalCount > 0) {
+          // Render closed trails (dashed)
+          for (const trail of closedTrails) {
+            addOverlayTrail(trail, opId, false)
+          }
+
+          // Track and render active trails (solid)
+          if (activeTrails.length > 0) {
+            activeTrailsByOp.set(opId, activeTrails)
+            for (const trail of activeTrails) {
+              addOverlayTrail(trail, opId, true)
+            }
+          }
+
+          // Subscribe to realtime updates for active trails
+          subscribeToOperationTrailStream(opId)
+
+          const totalCount = closedTrails.length + activeTrails.length
+          if (totalCount === 0) return `No trails found for ${opName}`
+
           const parts: string[] = []
-          if (closedTrails.length > 0) parts.push(`${closedTrails.length} closed`)
-          if (activeTrails.length > 0) parts.push(`${activeTrails.length} active`)
-          toast.success(`Loaded ${parts.join(" + ")} overlay trail${totalCount > 1 ? "s" : ""}`)
-        } else {
-          toast.info("No trails found for this operation")
-        }
+          if (closedTrails.length > 0)
+            parts.push(
+              `${closedTrails.length} trail${closedTrails.length > 1 ? "s" : ""}`,
+            )
+          if (activeTrails.length > 0)
+            parts.push(`${activeTrails.length} active`)
+          return `Loaded ${parts.join(" + ")} from ${opName}`
+        })()
+
+        toast.promise(loadPromise, {
+          loading: `Loading ${opName} trails...`,
+          success: (msg) =>
+            msg === "cancelled" ? "Operation hidden" : String(msg),
+          error: `Failed to load ${opName} trails`,
+        })
       }
     }
   }

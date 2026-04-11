@@ -359,15 +359,21 @@
             (id) => id !== layer,
           )
         }
-      } catch { /* map may be destroyed */ }
+      } catch {
+        /* map may be destroyed */
+      }
     })
 
     try {
       if (map.getSource(sourceId)) map.removeSource(sourceId)
-    } catch { /* map may be destroyed */ }
+    } catch {
+      /* map may be destroyed */
+    }
     try {
       if (map.getSource(markersSourceId)) map.removeSource(markersSourceId)
-    } catch { /* map may be destroyed */ }
+    } catch {
+      /* map may be destroyed */
+    }
   }
 
   export async function deleteTrail(trailId: string) {
@@ -477,7 +483,9 @@
         })
 
         if (!map || !styleReady) {
-          console.log("  ⏸️ Style not ready, deferring — will render on style.load")
+          console.log(
+            "  ⏸️ Style not ready, deferring — will render on style.load",
+          )
           previousTrails = [...currentTrails]
           return
         }
@@ -576,10 +584,7 @@
                     console.log(`    ✓ Removed layer: ${layerId}`)
                   }
                 } catch (error) {
-                  console.warn(
-                    `    ⚠️ Error removing layer ${layerId}:`,
-                    error,
-                  )
+                  console.warn(`    ⚠️ Error removing layer ${layerId}:`, error)
                 }
               })
 
@@ -617,7 +622,9 @@
     if (map) {
       styleLoadHandler = () => {
         styleReady = true
-        console.log("🏔️ HTM style.load fired — rebuilding all historical trails")
+        console.log(
+          "🏔️ HTM style.load fired — rebuilding all historical trails",
+        )
         // Clear tracking state since all sources/layers were wiped by setStyle
         historicalTrailLayers = []
         historicalDirectionalLayers = []
@@ -635,9 +642,7 @@
           styleReady = true
           loadHistoricalTrails()
         } else {
-          console.log(
-            `🏔️ HTM: Style not ready yet, waiting for style.load`,
-          )
+          console.log(`🏔️ HTM: Style not ready yet, waiting for style.load`)
         }
       } catch (e) {
         console.log(`🏔️ HTM: getStyle() failed, waiting for style.load`)

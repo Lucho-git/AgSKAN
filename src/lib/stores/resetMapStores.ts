@@ -6,10 +6,10 @@
 
 import { operationStore, selectedOperationStore } from "./operationStore"
 import {
-  otherVehiclesStore,
-  serverOtherVehiclesData,
-  otherVehiclesDataChanges,
-  broadcastMessageEvent,
+    otherVehiclesStore,
+    serverOtherVehiclesData,
+    otherVehiclesDataChanges,
+    broadcastMessageEvent,
 } from "./vehicleStore"
 import { connectedMapStore } from "./connectedMapStore"
 import { mapActivityStore } from "./mapActivityStore"
@@ -23,36 +23,36 @@ import { trailsMetaDataStore } from "./trailsMetaDataStore"
  * are never visible — even for a single render frame.
  */
 export function resetMapStores() {
-  console.log("[resetMapStores] Clearing all map-scoped stores")
+    console.log("[resetMapStores] Clearing all map-scoped stores")
 
-  // Operations
-  operationStore.set([])
-  selectedOperationStore.set(null)
+    // Operations
+    operationStore.set([])
+    selectedOperationStore.set(null)
 
-  // Vehicles
-  otherVehiclesStore.set([])
-  serverOtherVehiclesData.set([])
-  otherVehiclesDataChanges.set([])
-  broadcastMessageEvent.set(null)
+    // Vehicles
+    otherVehiclesStore.set([])
+    serverOtherVehiclesData.set([])
+    otherVehiclesDataChanges.set([])
+    broadcastMessageEvent.set(null)
 
-  // Map metadata
-  connectedMapStore.set({
-    id: null,
-    map_name: null,
-    master_user_id: null,
-    owner: null,
-    is_owner: false,
-    masterSubscription: null,
-    is_connected: false,
-  })
+    // Map metadata
+    connectedMapStore.set({
+        id: null,
+        map_name: null,
+        master_user_id: null,
+        owner: null,
+        is_owner: false,
+        masterSubscription: null,
+        is_connected: false,
+    })
 
-  mapActivityStore.set({
-    marker_count: 0,
-    trail_count: 0,
-    connected_profiles: [],
-    vehicle_states: [],
-  })
+    mapActivityStore.set({
+        marker_count: 0,
+        trail_count: 0,
+        connected_profiles: [],
+        vehicle_states: [],
+    })
 
-  // Trails metadata
-  trailsMetaDataStore.set([])
+    // Trails metadata
+    trailsMetaDataStore.set([])
 }

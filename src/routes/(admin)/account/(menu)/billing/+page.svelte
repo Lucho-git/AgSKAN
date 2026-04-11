@@ -75,14 +75,22 @@
   }
 
   // Detect which plan an active subscriber is on
-  $: activePriceId = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.id
+  $: activePriceId =
+    subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.id
   $: isOnOldPlan = activePriceId === OLD_PRICE_ID
   $: isOnNewPlan = activePriceId === NEW_PRICE_ID
-  $: activeUnitAmount = subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.unit_amount // cents per year
-  $: activeMonthlyPerSeat = activeUnitAmount ? Math.round(activeUnitAmount / 100 / 12) : null
+  $: activeUnitAmount =
+    subscriptionData?.stripeSubscription?.items?.data?.[0]?.price?.unit_amount // cents per year
+  $: activeMonthlyPerSeat = activeUnitAmount
+    ? Math.round(activeUnitAmount / 100 / 12)
+    : null
   $: activeSeats = subscriptionData?.stripeSubscription?.quantity ?? 1
-  $: activeTotalMonthly = activeMonthlyPerSeat ? activeMonthlyPerSeat * activeSeats : null
-  $: activeTotalYearly = activeUnitAmount ? Math.round((activeUnitAmount / 100) * activeSeats) : null
+  $: activeTotalMonthly = activeMonthlyPerSeat
+    ? activeMonthlyPerSeat * activeSeats
+    : null
+  $: activeTotalYearly = activeUnitAmount
+    ? Math.round((activeUnitAmount / 100) * activeSeats)
+    : null
 
   $: stripePriceId = isTestDiscount
     ? stripePriceIds.yearly.test
@@ -170,7 +178,10 @@
       {#if mounted}
         <div class="mx-auto max-w-sm text-center" in:animationDelay={0}>
           <div class="mb-6">
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-4 py-1.5 text-sm font-semibold text-secondary"><Zap size={14} />30 days free</span>
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-4 py-1.5 text-sm font-semibold text-secondary"
+              ><Zap size={14} />30 days free</span
+            >
           </div>
           <h1 class="mb-2 text-2xl font-bold text-contrast-content">
             Your free trial is ready
@@ -179,38 +190,74 @@
             Full access to AgSKAN Pro. No obligations.
           </p>
 
-          <p class="mb-3 inline-flex items-center gap-1.5 text-sm text-contrast-content/50"><Users size={14} />How many operators?</p>
+          <p
+            class="mb-3 inline-flex items-center gap-1.5 text-sm text-contrast-content/50"
+          >
+            <Users size={14} />How many operators?
+          </p>
           <div class="mb-10 flex items-center justify-center gap-6">
-            <button class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100" on:click={decrementMachines}><Minus size={20} /></button>
+            <button
+              class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
+              on:click={decrementMachines}><Minus size={20} /></button
+            >
             <div class="w-20 text-center">
-              <span class="text-6xl font-bold tabular-nums text-contrast-content">{machineCount}</span>
-              <span class="block text-xs text-contrast-content/50">operator{machineCount > 1 ? "s" : ""}</span>
+              <span
+                class="text-6xl font-bold tabular-nums text-contrast-content"
+                >{machineCount}</span
+              >
+              <span class="block text-xs text-contrast-content/50"
+                >operator{machineCount > 1 ? "s" : ""}</span
+              >
             </div>
-            <button class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100" on:click={incrementMachines}><Plus size={20} /></button>
+            <button
+              class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-base-300 bg-base-200 text-base-content/60 transition-all hover:border-base-content hover:bg-base-content hover:text-base-100"
+              on:click={incrementMachines}><Plus size={20} /></button
+            >
           </div>
 
           <!-- Minimal features -->
-          <div class="mb-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-contrast-content/50">
-            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Live tracking</span>
-            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Coverage recording</span>
-            <span class="flex items-center gap-1"><Check size={12} style="color: #22c55e;" />Offline ready</span>
+          <div
+            class="mb-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-contrast-content/50"
+          >
+            <span class="flex items-center gap-1"
+              ><Check size={12} style="color: #22c55e;" />Live tracking</span
+            >
+            <span class="flex items-center gap-1"
+              ><Check size={12} style="color: #22c55e;" />Coverage recording</span
+            >
+            <span class="flex items-center gap-1"
+              ><Check size={12} style="color: #22c55e;" />Offline ready</span
+            >
           </div>
 
           <div class="mb-4">
             <a href={proUpgradeUrl}>
-              <button class="group w-full rounded-xl bg-secondary px-6 py-4 text-lg font-semibold text-secondary-content shadow-lg shadow-secondary/25 transition-all hover:shadow-xl hover:shadow-secondary/40">
+              <button
+                class="group w-full rounded-xl bg-secondary px-6 py-4 text-lg font-semibold text-secondary-content shadow-lg shadow-secondary/25 transition-all hover:shadow-xl hover:shadow-secondary/40"
+              >
                 Start 30-Day Free Trial
-                <ArrowRight size={18} class="ml-2 inline transition-transform group-hover:translate-x-1" />
+                <ArrowRight
+                  size={18}
+                  class="ml-2 inline transition-transform group-hover:translate-x-1"
+                />
               </button>
             </a>
           </div>
-          <p class="text-xs text-contrast-content/40">Then {CURRENCY_SYMBOL}{totalMonthly}/mo · Cancel anytime</p>
+          <p class="text-xs text-contrast-content/40">
+            Then {CURRENCY_SYMBOL}{totalMonthly}/mo · Cancel anytime
+          </p>
         </div>
 
         {#if hasEverHadSubscription}
           <div class="mt-10 text-center">
-            <button on:click={openStripePortal} class="btn btn-outline btn-sm" disabled={portalLoading}>
-              {#if portalLoading}<span class="loading loading-spinner loading-xs mr-2"></span>{/if}
+            <button
+              on:click={openStripePortal}
+              class="btn btn-outline btn-sm"
+              disabled={portalLoading}
+            >
+              {#if portalLoading}<span
+                  class="loading loading-spinner loading-xs mr-2"
+                ></span>{/if}
               View Past Invoices
             </button>
           </div>
@@ -258,7 +305,9 @@
                   {currentPlanName}
                 </p>
                 {#if isOnOldPlan}
-                  <p class="mt-0.5 text-xs text-contrast-content/40">Legacy plan</p>
+                  <p class="mt-0.5 text-xs text-contrast-content/40">
+                    Legacy plan
+                  </p>
                 {/if}
               </div>
               <div
@@ -303,7 +352,12 @@
                   <p class="text-sm text-contrast-content/60">Cost</p>
                   <p class="font-medium text-contrast-content">
                     {CURRENCY_SYMBOL}{activeTotalMonthly}/mo
-                    <span class="text-sm font-normal text-contrast-content/50">({CURRENCY_SYMBOL}{activeMonthlyPerSeat} × {activeSeats} seat{activeSeats === 1 ? "" : "s"})</span>
+                    <span class="text-sm font-normal text-contrast-content/50"
+                      >({CURRENCY_SYMBOL}{activeMonthlyPerSeat} × {activeSeats} seat{activeSeats ===
+                      1
+                        ? ""
+                        : "s"})</span
+                    >
                   </p>
                   <p class="mt-0.5 text-xs text-contrast-content/40">
                     {CURRENCY_SYMBOL}{activeTotalYearly}/yr billed annually

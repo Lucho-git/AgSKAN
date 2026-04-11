@@ -657,8 +657,7 @@
     // Check if we're on a billing route and redirect if necessary
     const currentPath = $page.url.pathname
     const isBillingRoute =
-      currentPath.includes("/payment") ||
-      currentPath.includes("/select_plan")
+      currentPath.includes("/payment") || currentPath.includes("/select_plan")
 
     if (isBillingRoute) {
       console.log("Skipping billing route in native app:", currentPath)

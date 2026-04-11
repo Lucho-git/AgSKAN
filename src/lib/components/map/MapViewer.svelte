@@ -255,7 +255,7 @@
     if (trailHighlighter?.highlighterAPI?.toggleNavigationUI) {
       // Register trail as active selection so other menus (fields/markers/vehicles) dismiss
       if (mapEventManagerRef?.setSelection) {
-        mapEventManagerRef.setSelection('trail', 'viewer', trailHighlighter)
+        mapEventManagerRef.setSelection("trail", "viewer", trailHighlighter)
       }
       trailHighlighter.highlighterAPI.toggleNavigationUI()
     } else {
@@ -271,7 +271,11 @@
       const api = trailHighlighter.highlighterAPI
       // Register trail as active selection so other menus dismiss
       if (mapEventManagerRef?.setSelection) {
-        mapEventManagerRef.setSelection('trail', `select-${index}`, trailHighlighter)
+        mapEventManagerRef.setSelection(
+          "trail",
+          `select-${index}`,
+          trailHighlighter,
+        )
       }
       // Ensure navigation UI is open (don't toggle it off if already open)
       if (api.toggleNavigationUI) api.toggleNavigationUI(true)
@@ -287,7 +291,11 @@
       const api = trailHighlighter.highlighterAPI
       // Register trail as active selection so other menus dismiss
       if (mapEventManagerRef?.setSelection) {
-        mapEventManagerRef.setSelection('trail', `replay-${index}`, trailHighlighter)
+        mapEventManagerRef.setSelection(
+          "trail",
+          `replay-${index}`,
+          trailHighlighter,
+        )
       }
       // Ensure navigation UI is open (don't toggle it off if already open)
       if (api.toggleNavigationUI) api.toggleNavigationUI(true)

@@ -6,15 +6,7 @@
    */
   import { goto } from "$app/navigation"
   import { page } from "$app/stores"
-  import {
-    ArrowRight,
-    Check,
-    Minus,
-    Plus,
-    User,
-    Users,
-    X,
-  } from "lucide-svelte"
+  import { ArrowRight, Check, Minus, Plus, User, Users, X } from "lucide-svelte"
   import { onMount } from "svelte"
 
   /* ── Props (same as V11 PricingSection) ── */
@@ -235,21 +227,23 @@
             class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
           >
             <!-- Left: info + features -->
-            <div class="flex-1 min-w-0">
+            <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <div
-                  class="flex h-7 w-7 items-center justify-center rounded-full bg-base-content/10 flex-shrink-0"
+                  class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10"
                 >
                   <User size={14} class="text-base-content" />
                 </div>
                 <h3 class="font-sans text-lg font-bold text-contrast-content">
                   Free Account
                 </h3>
-                <span class="text-sm text-contrast-content/50 hidden sm:inline">
+                <span class="hidden text-sm text-contrast-content/50 sm:inline">
                   — No credit card, no expiry
                 </span>
               </div>
-              <p class="mt-0.5 text-xs text-contrast-content/50 sm:hidden ml-9">No credit card, no expiry</p>
+              <p class="ml-9 mt-0.5 text-xs text-contrast-content/50 sm:hidden">
+                No credit card, no expiry
+              </p>
               <div class="ml-9 mt-1.5 flex flex-col gap-0.5 text-sm">
                 {#each freeFeatures as feature}
                   <span
@@ -271,7 +265,7 @@
             <!-- Right: CTA -->
             <div class="flex flex-shrink-0 items-center">
               <button
-                class="group flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-base-content px-5 py-2.5 md:py-2 font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl"
+                class="group flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-5 py-2.5 font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 hover:shadow-xl md:w-auto md:py-2"
                 on:click={() => goto("/login?tab=sign_up")}
               >
                 Get Started Free

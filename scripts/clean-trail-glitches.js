@@ -30,8 +30,8 @@ const supabase = createClient(
 )
 
 // ── Filter thresholds (mirrors VehicleTracker) ──
-const GPS_MAX_SPEED_KMH = 250
-const GPS_SPEED_GATE_MAX_GAP_S = 60
+const GPS_MAX_SPEED_KMH = 500
+const GPS_SPEED_GATE_MAX_GAP_S = 180
 
 // ── CLI args ──
 const args = process.argv.slice(2)

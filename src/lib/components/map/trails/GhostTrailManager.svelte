@@ -11,9 +11,7 @@
   import { otherVehiclesDataChanges } from "$lib/stores/vehicleStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { visibleOperationIdsStore } from "$lib/stores/otherTrailStore"
-  import {
-    calculateZoomDependentWidth,
-  } from "$lib/utils/trailGeometry"
+  import { calculateZoomDependentWidth } from "$lib/utils/trailGeometry"
 
   const mapContext = getContext("map")
 
@@ -27,9 +25,9 @@
 
   // Stacked ring config: [widthMultiplier, peakAlpha] — bottom (widest) first
   const RING_CONFIG: [number, number][] = [
-    [1.0, 0.15],  // bottom ring: full swath, soft glow
-    [0.85, 0.3],  // middle ring: 85% width, medium
-    [0.7, 0.5],   // top ring: 70% width, matches active trail opacity
+    [1.0, 0.15], // bottom ring: full swath, soft glow
+    [0.85, 0.3], // middle ring: 85% width, medium
+    [0.7, 0.5], // top ring: 70% width, matches active trail opacity
   ]
 
   // Vehicle body-color → RGB (matches VehicleTracker colorMap)
@@ -88,11 +86,11 @@
       ["linear"],
       ["line-progress"],
       0,
-      `rgba(${r},${g},${b},0)`,          // tail: fully transparent
+      `rgba(${r},${g},${b},0)`, // tail: fully transparent
       0.15,
-      `rgba(${r},${g},${b},0)`,          // still invisible
+      `rgba(${r},${g},${b},0)`, // still invisible
       0.35,
-      `rgba(${r},${g},${b},${(peakAlpha * 0.3).toFixed(3)})`,  // starting to appear
+      `rgba(${r},${g},${b},${(peakAlpha * 0.3).toFixed(3)})`, // starting to appear
       0.45,
       `rgba(${r},${g},${b},${(peakAlpha * 0.85).toFixed(3)})`, // ramps up steeply
       0.6,
@@ -124,7 +122,11 @@
   /** Upsert the 3 stacked concentric ring layers for ghost mode */
   function upsertGhostRings(vid: string, trail: GhostTrail) {
     if (!map || !styleReady) return
-    try { if (!map.getStyle()) return } catch { return }
+    try {
+      if (!map.getStyle()) return
+    } catch {
+      return
+    }
 
     ensureSource(vid, trail.coords)
     const sid = sourceId(vid)
@@ -139,7 +141,9 @@
         try {
           map.setPaintProperty(lid, "line-gradient", gradient)
           map.setPaintProperty(lid, "line-width", width)
-        } catch { /* teardown race */ }
+        } catch {
+          /* teardown race */
+        }
         continue
       }
 
@@ -164,7 +168,9 @@
       if (mapContext?.addTrailLayerOrdered) {
         mapContext.addTrailLayerOrdered(config)
       } else {
-        try { map.addLayer(config) } catch (e) {
+        try {
+          map.addLayer(config)
+        } catch (e) {
           console.error(`[GhostTrail] addLayer failed for ${lid}:`, e)
         }
       }
@@ -175,7 +181,9 @@
     if (!map) return
     for (let ring = 0; ring < NUM_RINGS; ring++) {
       const lid = ringLayerId(vid, ring)
-      try { if (map.getLayer(lid)) map.removeLayer(lid) } catch {}
+      try {
+        if (map.getLayer(lid)) map.removeLayer(lid)
+      } catch {}
     }
   }
 
@@ -183,7 +191,9 @@
     if (!map) return
     removeRingLayers(vid)
     const sid = sourceId(vid)
-    try { if (map.getSource(sid)) map.removeSource(sid) } catch {}
+    try {
+      if (map.getSource(sid)) map.removeSource(sid)
+    } catch {}
     ghostTrails.delete(vid)
   }
 
@@ -199,7 +209,9 @@
     for (const vid of ghostTrails.keys()) {
       removeRingLayers(vid)
       const sid = sourceId(vid)
-      try { if (map.getSource(sid)) map.removeSource(sid) } catch {}
+      try {
+        if (map.getSource(sid)) map.removeSource(sid)
+      } catch {}
     }
   }
 

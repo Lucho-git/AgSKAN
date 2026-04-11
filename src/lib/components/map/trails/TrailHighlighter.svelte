@@ -4,7 +4,10 @@
 
   import type { Trail } from "$lib/types/trail"
 
-  import { historicalTrailStore, selectedTrailIdStore } from "$lib/stores/otherTrailStore"
+  import {
+    historicalTrailStore,
+    selectedTrailIdStore,
+  } from "$lib/stores/otherTrailStore"
 
   import * as mapboxgl from "mapbox-gl"
 
@@ -63,8 +66,6 @@
   let showDropdownMenu = false
 
   let showReplayPanel = false
-
-
 
   let isExpanded = false
 
@@ -136,11 +137,7 @@
     initializeTrailAnimation(currentTrail)
   }
 
-  $: if (
-    pendingBoundsFit &&
-    currentTrail &&
-    animationState.isReady
-  ) {
+  $: if (pendingBoundsFit && currentTrail && animationState.isReady) {
     setTimeout(() => {
       if (currentTrail && animationState.coordinates.length > 0) {
         fitTrailBounds(animationState.coordinates, true, false)
@@ -1221,15 +1218,18 @@ font-size: 12px;
   function handleDeleteTrail() {
     const trail = $historicalTrailStore[currentTrailIndex]
     if (!trail) {
-      console.warn('handleDeleteTrail: no trail at index', currentTrailIndex, 'store length:', $historicalTrailStore.length)
-      toast.error('No trail selected to delete')
+      console.warn(
+        "handleDeleteTrail: no trail at index",
+        currentTrailIndex,
+        "store length:",
+        $historicalTrailStore.length,
+      )
+      toast.error("No trail selected to delete")
       return
     }
     trailToDelete = trail
     showDeleteModal = true
   }
-
-
 
   function closeReplayPanel() {
     showReplayPanel = false
@@ -1296,7 +1296,7 @@ font-size: 12px;
           toast.error("Failed to delete trail. Please try again.")
         }
       } catch (err) {
-        console.error('handleDeleteConfirm error:', err)
+        console.error("handleDeleteConfirm error:", err)
         showDeleteModal = false
         trailToDelete = null
         toast.error("Error deleting trail. Please try again.")
@@ -1530,7 +1530,6 @@ font-size: 12px;
 
   onMount(() => {
     const cleanup = () => {
-
       stopPulsingGlow()
 
       if (map && map.getStyle()) {
@@ -1564,40 +1563,94 @@ font-size: 12px;
   <div class="ve" on:click|stopPropagation on:mousedown|stopPropagation>
     <!-- Header: accent + info + centered transport + actions -->
     <div class="ve-header">
-      <div class="ve-accent" style="background-color: {currentTrail?.trail_color || '#888'}"></div>
-      <span class="ve-title">Trail {currentTrailIndex + 1} <span class="ve-of">of {$historicalTrailStore.length}</span></span>
+      <div
+        class="ve-accent"
+        style="background-color: {currentTrail?.trail_color || '#888'}"
+      ></div>
+      <span class="ve-title"
+        >Trail {currentTrailIndex + 1}
+        <span class="ve-of">of {$historicalTrailStore.length}</span></span
+      >
       <div class="ve-transport">
-        <button class="ve-skip" on:click={handlePrevious} disabled={$historicalTrailStore.length <= 1}><SkipBack size={20} /></button>
-        <button class="ve-play" class:playing={animationState.isPlaying} class:paused={animationState.isPaused}
-          class:loading={animationState.isLoading} disabled={animationState.isLoading || !animationState.isReady}
-          on:click={togglePlayPause}>
-          {#if animationState.isLoading}<Loader2 size={24} class="animate-spin" />
+        <button
+          class="ve-skip"
+          on:click={handlePrevious}
+          disabled={$historicalTrailStore.length <= 1}
+          ><SkipBack size={20} /></button
+        >
+        <button
+          class="ve-play"
+          class:playing={animationState.isPlaying}
+          class:paused={animationState.isPaused}
+          class:loading={animationState.isLoading}
+          disabled={animationState.isLoading || !animationState.isReady}
+          on:click={togglePlayPause}
+        >
+          {#if animationState.isLoading}<Loader2
+              size={24}
+              class="animate-spin"
+            />
           {:else if animationState.isPlaying}<Pause size={24} />
           {:else}<Play size={24} />{/if}
         </button>
-        <button class="ve-skip" on:click={handleNext} disabled={$historicalTrailStore.length <= 1}><SkipForward size={20} /></button>
+        <button
+          class="ve-skip"
+          on:click={handleNext}
+          disabled={$historicalTrailStore.length <= 1}
+          ><SkipForward size={20} /></button
+        >
       </div>
       <div class="ve-actions">
-        <button class="icon-btn del" on:click={handleDeleteTrail}><Trash2 size={16} /></button>
+        <button class="icon-btn del" on:click={handleDeleteTrail}
+          ><Trash2 size={16} /></button
+        >
       </div>
     </div>
     <!-- Progress bar with percentage -->
     <div class="ve-prog-row">
       {#if animationState.isReady}
-        <div class="ve-prog" bind:this={progressContainer} on:click={handleProgressClick}
-          on:keydown={() => {}} role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100"
-          aria-valuenow={Math.round(animationState.progress * 100)}>
+        <div
+          class="ve-prog"
+          bind:this={progressContainer}
+          on:click={handleProgressClick}
+          on:keydown={() => {}}
+          role="slider"
+          tabindex="0"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={Math.round(animationState.progress * 100)}
+        >
           <div class="ve-track">
-            <div class="fill" style="width: {animationState.progress * 100}%"></div>
-            <input type="range" min="0" max="1" step="0.001" bind:value={animationState.progress}
-              on:pointerdown={handleSliderStart} on:change={handleSliderEnd} on:click|stopPropagation
-              on:input={(e) => { if (isSliderActive) { const v = parseFloat(e.target.value); animationState.progress = v; seekToProgress(v) } }}
-              class="range-input ve-slider" disabled={!animationState.isReady} />
+            <div
+              class="fill"
+              style="width: {animationState.progress * 100}%"
+            ></div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.001"
+              bind:value={animationState.progress}
+              on:pointerdown={handleSliderStart}
+              on:change={handleSliderEnd}
+              on:click|stopPropagation
+              on:input={(e) => {
+                if (isSliderActive) {
+                  const v = parseFloat(e.target.value)
+                  animationState.progress = v
+                  seekToProgress(v)
+                }
+              }}
+              class="range-input ve-slider"
+              disabled={!animationState.isReady}
+            />
           </div>
         </div>
         <span class="ve-pct">{Math.round(animationState.progress * 100)}%</span>
       {:else}
-        <div class="ve-prog"><div class="ve-track"><div class="fill" style="width: 0%"></div></div></div>
+        <div class="ve-prog">
+          <div class="ve-track"><div class="fill" style="width: 0%"></div></div>
+        </div>
         <span class="ve-pct">0%</span>
       {/if}
     </div>
@@ -1616,8 +1669,12 @@ font-size: 12px;
         undone.
       </p>
       <div class="delete-modal-actions">
-        <button class="btn btn-ghost" on:click={() => (showDeleteModal = false)}>Cancel</button>
-        <button class="btn btn-error" on:click={handleDeleteConfirm}>Delete</button>
+        <button class="btn btn-ghost" on:click={() => (showDeleteModal = false)}
+          >Cancel</button
+        >
+        <button class="btn btn-error" on:click={handleDeleteConfirm}
+          >Delete</button
+        >
       </div>
     </div>
   </div>
@@ -1628,133 +1685,312 @@ font-size: 12px;
 
   /* Shared icon button (36px min for touch) */
   .icon-btn {
-    background: none; border: none; border-radius: 50%;
-    min-width: 36px; min-height: 36px; width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    color: rgba(255,255,255,0.5); cursor: pointer;
-    transition: all 0.12s; padding: 0; flex-shrink: 0;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    min-width: 36px;
+    min-height: 36px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.12s;
+    padding: 0;
+    flex-shrink: 0;
   }
-  .icon-btn:hover { color: white; background: rgba(255,255,255,0.1); }
-  .icon-btn.del { color: rgba(239,68,68,0.6); }
-  .icon-btn.del:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
+  .icon-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .icon-btn.del {
+    color: rgba(239, 68, 68, 0.6);
+  }
+  .icon-btn.del:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+  }
 
   /* Shared fill/input styles */
   .fill {
-    position: absolute; top: 0; left: 0; height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
     background: linear-gradient(90deg, #22c55e, #60a5fa);
-    border-radius: 2px; transition: width 0.05s linear; pointer-events: none;
+    border-radius: 2px;
+    transition: width 0.05s linear;
+    pointer-events: none;
   }
   .range-input {
-    position: absolute; top: -4px; left: 0; width: 100%; height: 12px;
-    background: transparent; cursor: pointer;
-    -webkit-appearance: none; appearance: none; outline: none; margin: 0; padding: 0;
+    position: absolute;
+    top: -4px;
+    left: 0;
+    width: 100%;
+    height: 12px;
+    background: transparent;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+    margin: 0;
+    padding: 0;
   }
-  .range-input:disabled { cursor: default; opacity: 0.5; }
+  .range-input:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
   .range-input::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-    background: white; border: 2px solid #22c55e; cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #22c55e;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   }
   .range-input::-moz-range-thumb {
-    width: 14px; height: 14px; border-radius: 50%;
-    background: white; border: 2px solid #22c55e; cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #22c55e;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   }
 
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  :global(.animate-spin) { animation: spin 1s linear infinite; }
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  :global(.animate-spin) {
+    animation: spin 1s linear infinite;
+  }
   @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
-
 
   /* ═══ TRAIL REPLAY PANEL ═══ */
   .ve {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(8,8,8,0.94); backdrop-filter: blur(20px);
-    color: white; z-index: 1000;
-    border-top: 1px solid rgba(255,255,255,0.08);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(8, 8, 8, 0.94);
+    backdrop-filter: blur(20px);
+    color: white;
+    z-index: 1000;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     animation: slideUp 0.25s ease-out;
-    display: flex; flex-direction: column;
+    display: flex;
+    flex-direction: column;
   }
   .ve-header {
-    display: flex; align-items: center; gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 10px 10px 4px 0;
   }
   .ve-accent {
-    width: 5px; align-self: stretch; border-radius: 0 4px 4px 0; flex-shrink: 0;
+    width: 5px;
+    align-self: stretch;
+    border-radius: 0 4px 4px 0;
+    flex-shrink: 0;
   }
   .ve-title {
-    font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9);
-    white-space: nowrap; flex-shrink: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
-  .ve-of { font-weight: 600; color: rgba(255,255,255,0.4); }
+  .ve-of {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+  }
   .ve-transport {
-    display: flex; align-items: center; justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 6px;
     flex: 1;
   }
   .ve-play {
-    background: rgba(34,197,94,0.18); border: none; border-radius: 50%;
-    min-width: 46px; min-height: 46px; width: 46px; height: 46px;
-    display: flex; align-items: center; justify-content: center;
-    color: #22c55e; cursor: pointer; transition: all 0.12s; flex-shrink: 0;
+    background: rgba(34, 197, 94, 0.18);
+    border: none;
+    border-radius: 50%;
+    min-width: 46px;
+    min-height: 46px;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #22c55e;
+    cursor: pointer;
+    transition: all 0.12s;
+    flex-shrink: 0;
   }
-  .ve-play:hover:not(:disabled) { background: rgba(34,197,94,0.28); transform: scale(1.06); }
-  .ve-play:disabled { opacity: 0.4; cursor: default; }
-  .ve-play.playing { background: rgba(234,179,8,0.18); color: #eab308; }
-  .ve-play.paused { background: rgba(96,165,250,0.18); color: #60a5fa; }
-  .ve-play.loading { background: rgba(156,163,175,0.1); color: #6b7280; }
+  .ve-play:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.28);
+    transform: scale(1.06);
+  }
+  .ve-play:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .ve-play.playing {
+    background: rgba(234, 179, 8, 0.18);
+    color: #eab308;
+  }
+  .ve-play.paused {
+    background: rgba(96, 165, 250, 0.18);
+    color: #60a5fa;
+  }
+  .ve-play.loading {
+    background: rgba(156, 163, 175, 0.1);
+    color: #6b7280;
+  }
   .ve-skip {
-    background: none; border: none; border-radius: 50%;
-    min-width: 40px; min-height: 40px; width: 40px; height: 40px;
-    display: flex; align-items: center; justify-content: center;
-    color: rgba(255,255,255,0.75); cursor: pointer; transition: all 0.12s; padding: 0; flex-shrink: 0;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    min-width: 40px;
+    min-height: 40px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: all 0.12s;
+    padding: 0;
+    flex-shrink: 0;
   }
-  .ve-skip:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
-  .ve-skip:disabled { opacity: 0.25; cursor: default; }
+  .ve-skip:hover:not(:disabled) {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .ve-skip:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
   .ve-actions {
-    display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
   }
-  .ve-prog-row { display: flex; align-items: center; gap: 10px; padding: 4px 14px 10px; }
-  .ve-prog { flex: 1; cursor: pointer; padding: 6px 0; position: relative; }
+  .ve-prog-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 14px 10px;
+  }
+  .ve-prog {
+    flex: 1;
+    cursor: pointer;
+    padding: 6px 0;
+    position: relative;
+  }
   .ve-track {
-    position: relative; height: 6px;
-    background: rgba(255,255,255,0.08); border-radius: 3px; overflow: visible;
+    position: relative;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: visible;
   }
-  .ve-track .fill { border-radius: 3px; }
-  .ve-slider { top: -5px; height: 16px; }
+  .ve-track .fill {
+    border-radius: 3px;
+  }
+  .ve-slider {
+    top: -5px;
+    height: 16px;
+  }
   .ve-pct {
-    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5);
-    min-width: 32px; text-align: right; font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    min-width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
-
-
-
 
   /* ═══ MOBILE ═══ */
   @media (max-width: 480px) {
-    .ve-play { min-width: 42px; min-height: 42px; width: 42px; height: 42px; }
-    .ve-skip { min-width: 36px; min-height: 36px; width: 36px; height: 36px; }
+    .ve-play {
+      min-width: 42px;
+      min-height: 42px;
+      width: 42px;
+      height: 42px;
+    }
+    .ve-skip {
+      min-width: 36px;
+      min-height: 36px;
+      width: 36px;
+      height: 36px;
+    }
   }
 
   /* ═══ DELETE MODAL ═══ */
   .delete-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     animation: fadeIn 0.15s ease-out;
   }
   .delete-modal {
-    background: #1d232a; color: white; border-radius: 16px;
-    padding: 24px; max-width: 400px; width: calc(100% - 32px);
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    background: #1d232a;
+    color: white;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 400px;
+    width: calc(100% - 32px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
     animation: scaleIn 0.15s ease-out;
   }
   .delete-modal-actions {
-    display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
   }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 </style>

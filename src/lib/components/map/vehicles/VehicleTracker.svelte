@@ -99,8 +99,8 @@
 
   // ── GPS glitch filter thresholds ──
   const GPS_MAX_ACCURACY_M = 200 // Reject if reported accuracy > 200m (WiFi/cell)
-  const GPS_MAX_SPEED_KMH = 250 // Reject if implied speed > 250 km/h
-  const GPS_SPEED_GATE_MAX_GAP_S = 60 // Only apply speed gate if time gap < 60s
+  const GPS_MAX_SPEED_KMH = 500 // Reject if implied speed > 500 km/h
+  const GPS_SPEED_GATE_MAX_GAP_S = 180 // Only apply speed gate if time gap < 3 minutes
   const GPS_SNAP_BACK_THRESHOLD = 3 // Consecutive rejections before snap-back kicks in
   const GPS_SNAP_BACK_DISTANCE_M = 500 // Min jump distance to trigger snap-back check
   let lastAcceptedCoords = null

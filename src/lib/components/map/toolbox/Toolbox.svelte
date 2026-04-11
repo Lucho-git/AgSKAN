@@ -23,7 +23,11 @@
     collectionModeStore,
     confirmedMarkersStore,
   } from "$lib/stores/markerStore"
-  import { historicalTrailStore, trailsLoadingStore, visibleOperationIdsStore } from "$lib/stores/otherTrailStore"
+  import {
+    historicalTrailStore,
+    trailsLoadingStore,
+    visibleOperationIdsStore,
+  } from "$lib/stores/otherTrailStore"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import {
@@ -34,11 +38,18 @@
   import {
     userVehicleTrailing,
     userVehicleStore,
+    otherVehiclesStore,
   } from "$lib/stores/vehicleStore"
   import { operationApi } from "$lib/api/operationApi"
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
   import { toast } from "svelte-sonner"
-  import { ChevronDown, AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-svelte"
+  import {
+    ChevronDown,
+    AlertTriangle,
+    Eye,
+    EyeOff,
+    Loader2,
+  } from "lucide-svelte"
 
   // Import vehicle components
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -99,6 +110,30 @@
 
   function getOpTrailCount(operationId) {
     return trailCountsByOperation[operationId] || 0
+  }
+
+  // Trailing vehicle counts per operation
+  $: trailingVehiclesByOperation = (() => {
+    const counts = /** @type {Record<string, number>} */ ({})
+    // Count the current user if trailing
+    if ($userVehicleTrailing && $selectedOperationStore?.id) {
+      counts[$selectedOperationStore.id] =
+        (counts[$selectedOperationStore.id] || 0) + 1
+    }
+    // Count other vehicles that are trailing
+    for (const v of $otherVehiclesStore) {
+      if (v.is_trailing) {
+        const opId = v.operation_id || v.selected_operation_id
+        if (opId) {
+          counts[opId] = (counts[opId] || 0) + 1
+        }
+      }
+    }
+    return counts
+  })()
+
+  function getOpVehicleCount(operationId) {
+    return trailingVehiclesByOperation[operationId] || 0
   }
 
   function getDefaultMarker() {
@@ -199,7 +234,7 @@
 
   // Trail overlay visibility for other operations
   function toggleVisibleOperation(opId) {
-    visibleOperationIdsStore.update(ids => {
+    visibleOperationIdsStore.update((ids) => {
       const next = new Set(ids)
       if (next.has(opId)) {
         next.delete(opId)
@@ -350,53 +385,69 @@
               >
                 <span class="op-float-badge">Operation</span>
                 <span class="operation-current-name">
-                  {switchingOperation ? "Switching..." : $selectedOperationStore?.name || "No Operation"}
+                  {switchingOperation
+                    ? "Switching..."
+                    : $selectedOperationStore?.name || "No Operation"}
                 </span>
-                <ChevronDown size={12} class={operationDropdownOpen ? "chevron-open" : ""} />
+                <ChevronDown
+                  size={12}
+                  class={operationDropdownOpen ? "chevron-open" : ""}
+                />
               </button>
-              {#if operationDropdownOpen}
-                <div class="operation-dropdown">
-                  {#each $operationStore as op (op.id)}
-                    <div class="operation-option-row">
-                      <button
-                        class="operation-option flex-1"
-                        class:active={op.id === $selectedOperationStore?.id}
-                        disabled={switchingOperation}
-                        on:click={() => handleOperationSwitch(op.id)}
-                      >
-                        {#if op.id === $selectedOperationStore?.id}
-                          <div class="active-indicator"></div>
-                        {:else}
-                          <div class="inactive-indicator"></div>
-                        {/if}
-                        <span class="op-name">{op.name}</span>
-                        {#if getOpTrailCount(op.id) > 0}
-                          <span class="op-trail-count">{getOpTrailCount(op.id)} <Route size={10} /></span>
-                        {/if}
-                        <span class="op-year">{op.year}</span>
-                      </button>
-                      {#if op.id !== $selectedOperationStore?.id}
-                        <button
-                          class="eye-toggle"
-                          class:visible={$visibleOperationIdsStore.has(op.id)}
-                          on:click|stopPropagation={() => toggleVisibleOperation(op.id)}
-                          title={$visibleOperationIdsStore.has(op.id) ? "Hide trails" : "Show trails"}
-                        >
-                          {#if $visibleOperationIdsStore.has(op.id)}
-                            <Eye size={14} />
-                          {:else}
-                            <EyeOff size={14} />
-                          {/if}
-                        </button>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              {/if}
             </div>
           {/if}
         {/if}
       </div>
+      {#if operationDropdownOpen}
+        <div class="operation-dropdown">
+          {#each $operationStore as op (op.id)}
+            <div class="operation-option-row">
+              <button
+                class="operation-option flex-1"
+                class:active={op.id === $selectedOperationStore?.id}
+                disabled={switchingOperation}
+                on:click={() => handleOperationSwitch(op.id)}
+              >
+                {#if op.id === $selectedOperationStore?.id}
+                  <div class="active-indicator"></div>
+                {:else}
+                  <div class="inactive-indicator"></div>
+                {/if}
+                <span class="op-name">{op.name}</span>
+                <span class="op-badges">
+                  {#if getOpVehicleCount(op.id) > 0}
+                    <span class="op-vehicle-count"
+                      >{getOpVehicleCount(op.id)} <Truck size={10} /></span
+                    >
+                  {/if}
+                  {#if getOpTrailCount(op.id) > 0}
+                    <span class="op-trail-count"
+                      >{getOpTrailCount(op.id)} <Route size={10} /></span
+                    >
+                  {/if}
+                </span>
+                <span class="op-year">{op.year}</span>
+              </button>
+              {#if op.id !== $selectedOperationStore?.id}
+                <button
+                  class="eye-toggle"
+                  class:visible={$visibleOperationIdsStore.has(op.id)}
+                  on:click|stopPropagation={() => toggleVisibleOperation(op.id)}
+                  title={$visibleOperationIdsStore.has(op.id)
+                    ? "Hide trails"
+                    : "Show trails"}
+                >
+                  {#if $visibleOperationIdsStore.has(op.id)}
+                    <Eye size={15} />
+                  {:else}
+                    <EyeOff size={15} />
+                  {/if}
+                </button>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <div class="toolbox-content">
@@ -467,7 +518,9 @@
             <Route size={26} />
             <span>Trails</span>
             {#if $trailsLoadingStore}
-              <span class="tool-badge trail-badge trail-badge-loading"><Loader2 size={12} class="spin" /></span>
+              <span class="tool-badge trail-badge trail-badge-loading"
+                ><Loader2 size={12} class="spin" /></span
+              >
             {:else if trailCount > 0}
               <span class="tool-badge trail-badge">{trailCount}</span>
             {/if}
@@ -547,7 +600,11 @@
 
 <!-- Operation Switch Confirmation Modal -->
 {#if showOperationConfirmModal}
-  <div class="confirm-overlay" on:click={cancelOperationSwitch} on:keydown={(e) => e.key === "Escape" && cancelOperationSwitch()}>
+  <div
+    class="confirm-overlay"
+    on:click={cancelOperationSwitch}
+    on:keydown={(e) => e.key === "Escape" && cancelOperationSwitch()}
+  >
     <div class="confirm-modal" on:click|stopPropagation>
       <div class="confirm-header">
         <AlertTriangle size={20} class="text-amber-400" />
@@ -555,11 +612,18 @@
       </div>
       <div class="confirm-body">
         <p>You are currently recording a trail.</p>
-        <p>Switching operations will <strong>stop and save</strong> your current trail, then switch to the new operation.</p>
+        <p>
+          Switching operations will <strong>stop and save</strong> your current trail,
+          then switch to the new operation.
+        </p>
       </div>
       <div class="confirm-footer">
-        <button class="confirm-btn cancel" on:click={cancelOperationSwitch}>Cancel</button>
-        <button class="confirm-btn proceed" on:click={confirmOperationSwitch}>Stop Trail & Switch</button>
+        <button class="confirm-btn cancel" on:click={cancelOperationSwitch}
+          >Cancel</button
+        >
+        <button class="confirm-btn proceed" on:click={confirmOperationSwitch}
+          >Stop Trail & Switch</button
+        >
       </div>
     </div>
   </div>
@@ -604,6 +668,8 @@
     padding: 20px 16px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     background: #0d0d0d;
+    position: relative;
+    z-index: 2;
   }
 
   .header-content {
@@ -694,19 +760,18 @@
 
   .operation-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
+    top: 100%;
+    left: 0;
     right: 0;
-    min-width: 180px;
-    max-width: 240px;
-    max-height: 280px;
-    overflow-y: auto;
     background: #1a1a1a;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-    padding: 4px;
-    z-index: 10;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0 0 14px 14px;
+    padding: 6px 10px 10px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
     animation: fadeIn 0.15s ease-out;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    z-index: 1;
   }
 
   .operation-dropdown::-webkit-scrollbar {
@@ -725,16 +790,15 @@
   .operation-option {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 10px 8px;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     text-align: left;
     transition: background 0.15s ease;
   }
@@ -771,8 +835,8 @@
   }
 
   .op-year {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
     flex-shrink: 0;
   }
 
@@ -908,8 +972,12 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .marker-badge {
@@ -1085,7 +1153,11 @@
   .operation-option-row {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
+  }
+
+  .operation-option-row + .operation-option-row {
+    margin-top: 4px;
   }
 
   .operation-option-row .operation-option {
@@ -1095,35 +1167,39 @@
 
   /* Active row has no eye toggle — add right margin to match the eye toggle width */
   .operation-option-row:not(:has(.eye-toggle)) {
-    padding-right: 34px;
+    padding-right: 48px;
   }
 
   .eye-toggle {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
     transition: all 0.15s ease;
     flex-shrink: 0;
   }
 
   .eye-toggle:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.7);
   }
 
   .eye-toggle.visible {
     color: #60a5fa;
+    background: rgba(96, 165, 250, 0.12);
+    border-color: rgba(96, 165, 250, 0.35);
   }
 
   .eye-toggle.visible:hover {
-    background: rgba(96, 165, 250, 0.15);
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.5);
   }
 
   .active-indicator {
@@ -1143,7 +1219,14 @@
     flex-shrink: 0;
   }
 
-  /* ── Trail count in dropdown ── */
+  /* ── Badges row in dropdown ── */
+  .op-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
   .op-trail-count {
     display: inline-flex;
     align-items: center;
@@ -1151,7 +1234,20 @@
     font-size: 10px;
     color: rgba(96, 165, 250, 0.8);
     background: rgba(96, 165, 250, 0.1);
-    padding: 1px 5px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+
+  .op-vehicle-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: rgba(52, 211, 153, 0.9);
+    background: rgba(52, 211, 153, 0.1);
+    padding: 2px 6px;
     border-radius: 8px;
     flex-shrink: 0;
     font-weight: 600;

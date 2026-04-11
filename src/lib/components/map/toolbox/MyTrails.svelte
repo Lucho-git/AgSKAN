@@ -97,7 +97,7 @@
       // Small delay to let DOM render the expanded group
       setTimeout(() => {
         const el = document.querySelector(`[data-trail-id="${storedId}"]`)
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" })
       }, 50)
     }
   })

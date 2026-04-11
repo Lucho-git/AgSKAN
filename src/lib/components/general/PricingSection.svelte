@@ -1,13 +1,7 @@
 <!-- src/lib/components/general/PricingSection.svelte -->
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import {
-    ArrowRight,
-    Check,
-    Minus,
-    Plus,
-    Users,
-  } from "lucide-svelte"
+  import { ArrowRight, Check, Minus, Plus, Users } from "lucide-svelte"
   import { onMount } from "svelte"
   import { page } from "$app/stores"
 
@@ -140,7 +134,6 @@
                 <Plus size={20} />
               </button>
             </div>
-
           </div>
 
           <!-- Price breakdown -->

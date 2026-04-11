@@ -63,8 +63,8 @@ const mapIdx = args.indexOf('--map')
 const specificMap = mapIdx !== -1 ? args[mapIdx + 1] : null
 
 // ── Filter thresholds ──
-const GPS_MAX_SPEED_KMH = 250
-const GPS_SPEED_GATE_MAX_GAP_S = 60
+const GPS_MAX_SPEED_KMH = 500
+const GPS_SPEED_GATE_MAX_GAP_S = 180
 const SNAP_BACK_LOOK_AHEAD = 3
 const ISOLATION_DISTANCE_M = 500
 const TELEPORT_JUMP_M = 2000

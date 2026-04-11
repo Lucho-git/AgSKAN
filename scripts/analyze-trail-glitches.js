@@ -29,8 +29,8 @@ const supabase = createClient(
 
 // ── Filter thresholds (mirrors VehicleTracker) ──
 const GPS_MAX_ACCURACY_M = 200
-const GPS_MAX_SPEED_KMH = 250
-const GPS_SPEED_GATE_MAX_GAP_S = 60
+const GPS_MAX_SPEED_KMH = 500
+const GPS_SPEED_GATE_MAX_GAP_S = 180
 
 // ── Haversine distance (metres) ──
 function haversineDistance(lat1, lon1, lat2, lon2) {

@@ -169,9 +169,7 @@
       let hasUpdate = false
       serverOtherVehiclesData.update((vehicles) => {
         for (const row of data) {
-          const idx = vehicles.findIndex(
-            (v) => v.vehicle_id === row.vehicle_id,
-          )
+          const idx = vehicles.findIndex((v) => v.vehicle_id === row.vehicle_id)
           if (idx !== -1) {
             const existing = vehicles[idx]
             // Only update if polled data is newer
@@ -190,8 +188,10 @@
                 ...row,
                 // Fallback to existing profile data for fields not in vehicle_state table
                 full_name: row.full_name ?? existing.full_name,
-                selected_operation_id: row.selected_operation_id ?? existing.selected_operation_id,
-                current_operation: row.current_operation ?? existing.current_operation,
+                selected_operation_id:
+                  row.selected_operation_id ?? existing.selected_operation_id,
+                current_operation:
+                  row.current_operation ?? existing.current_operation,
                 operation_name: row.operation_name ?? existing.operation_name,
                 operation_id: row.operation_id ?? existing.operation_id,
               }
@@ -449,7 +449,9 @@
       .channel(`vehicle_updates_${masterMapId}`)
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         if (payload.payload.vehicle_id !== userId) {
-          console.log(`📡 [BROADCAST] vehicle_update from ${payload.payload.vehicle_id?.slice(0,8)}`)
+          console.log(
+            `📡 [BROADCAST] vehicle_update from ${payload.payload.vehicle_id?.slice(0, 8)}`,
+          )
           serverOtherVehiclesData.update((vehicles) => {
             const existingVehicleIndex = vehicles.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
@@ -462,11 +464,19 @@
                 ...existingVehicle,
                 ...payload.payload,
                 // Fallback to existing profile data for fields not in broadcast
-                full_name: payload.payload.full_name ?? existingVehicle.full_name,
-                selected_operation_id: payload.payload.selected_operation_id ?? existingVehicle.selected_operation_id,
-                current_operation: payload.payload.current_operation ?? existingVehicle.current_operation,
-                operation_name: payload.payload.operation_name ?? existingVehicle.operation_name,
-                operation_id: payload.payload.operation_id ?? existingVehicle.operation_id,
+                full_name:
+                  payload.payload.full_name ?? existingVehicle.full_name,
+                selected_operation_id:
+                  payload.payload.selected_operation_id ??
+                  existingVehicle.selected_operation_id,
+                current_operation:
+                  payload.payload.current_operation ??
+                  existingVehicle.current_operation,
+                operation_name:
+                  payload.payload.operation_name ??
+                  existingVehicle.operation_name,
+                operation_id:
+                  payload.payload.operation_id ?? existingVehicle.operation_id,
               }
 
               // If flash data is in payload, update it; otherwise keep existing
@@ -496,9 +506,12 @@
       })
       .on("broadcast", { event: "broadcast_message" }, (payload) => {
         if (payload.payload.sender_id !== userId) {
-          toast.info(`${payload.payload.sender_name} says: \u201c${payload.payload.message}\u201d`, {
-            duration: 10000,
-          })
+          toast.info(
+            `${payload.payload.sender_name} says: \u201c${payload.payload.message}\u201d`,
+            {
+              duration: 10000,
+            },
+          )
           // Pass to VehicleTracker via store so it can show bubble on map
           broadcastMessageEvent.set({
             sender_id: payload.payload.sender_id,
@@ -518,7 +531,9 @@
         },
         (payload) => {
           if (payload.new.vehicle_id !== userId) {
-            console.log(`🛢️ [CDC] postgres_changes vehicle_state from ${payload.new.vehicle_id?.slice(0,8)} | coords=${payload.new.coordinates} | last_update=${payload.new.last_update}`)
+            console.log(
+              `🛢️ [CDC] postgres_changes vehicle_state from ${payload.new.vehicle_id?.slice(0, 8)} | coords=${payload.new.coordinates} | last_update=${payload.new.last_update}`,
+            )
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
