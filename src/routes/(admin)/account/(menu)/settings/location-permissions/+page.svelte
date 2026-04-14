@@ -6,6 +6,8 @@
   import { Capacitor } from "@capacitor/core"
   import { Geolocation } from "@capacitor/geolocation"
   import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
@@ -164,6 +166,10 @@
     } else {
       checkWebGeolocationSupport()
     }
+    // Initialize settings defaults from store
+    if ($userSettingsStore) {
+      // noop here — UI binds directly where needed
+    }
   })
 </script>
 
@@ -317,6 +323,64 @@
             <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
             {backgroundLocationStatus === "granted" ? "Granted" : "Enable"}
           </button>
+        </div>
+      </div>
+    </div>
+    <!-- GPS Frequency Setting -->
+    <div class="mt-4">
+      <h3 class="mb-3 flex items-center gap-2 font-medium text-contrast-content">
+        <div class="rounded-lg bg-base-content/10 p-1.5">
+          <Icon
+            icon="solar:settings-bold-duotone"
+            width="16"
+            height="16"
+            class="text-base-content"
+          />
+        </div>
+        GPS Frequency
+      </h3>
+
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-medium text-contrast-content">Location ping interval</p>
+              <p class="text-xs text-contrast-content/60">How many seconds between each GPS location ping.</p>
+            </div>
+            <span class="text-sm font-semibold text-primary tabular-nums">
+              {$userSettingsStore?.gpsIntervalSeconds ?? 2}s
+            </span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            class="range range-primary range-sm w-full"
+            value={$userSettingsStore?.gpsIntervalSeconds ?? 2}
+            on:change={async (e) => {
+              const newVal = parseInt(e.currentTarget.value)
+              const oldVal = $userSettingsStore?.gpsIntervalSeconds ?? 2
+              userSettingsStore.update(s => ({ ...s, gpsIntervalSeconds: newVal }))
+              try {
+                const res = await userSettingsApi.updateGpsIntervalSeconds(newVal)
+                if (!res?.success) throw new Error('save failed')
+                toast.success(`GPS interval set to ${newVal}s`)
+              } catch (err) {
+                userSettingsStore.update(s => ({ ...s, gpsIntervalSeconds: oldVal }))
+                toast.error('Failed to save GPS interval')
+              }
+            }}
+            on:input={(e) => {
+              const newVal = parseInt(e.currentTarget.value)
+              userSettingsStore.update(s => ({ ...s, gpsIntervalSeconds: newVal }))
+            }}
+          />
+          <div class="flex justify-between text-xs text-contrast-content/40 mt-1">
+            <span>1s</span>
+            <span>5s</span>
+            <span>10s</span>
+          </div>
         </div>
       </div>
     </div>

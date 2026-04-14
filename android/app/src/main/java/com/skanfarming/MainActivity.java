@@ -15,8 +15,9 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Register the MockLocation native plugin so JS can call it
+        // Register custom native plugins so JS can call them
         registerPlugin(MockLocationPlugin.class);
+        registerPlugin(RawGpsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

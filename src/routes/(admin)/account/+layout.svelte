@@ -195,6 +195,12 @@
           defaultMarker: user_settings.default_marker,
           extraMarkers: user_settings.extra_markers ?? [],
           devToolsEnabled: user_settings.dev_tools_enabled ?? false,
+          // New GPS settings
+          enableFull1Hz: user_settings.enable_full_1hz ?? false,
+          showGpsPopups: user_settings.show_gps_popups ?? false,
+          gpsIntervalSeconds: user_settings.gps_interval_seconds ?? 2,
+          showGpsAcceptedPopups: user_settings.show_gps_accepted_popups ?? false,
+          showGpsRejectedPopups: user_settings.show_gps_rejected_popups ?? false,
         })
       } else {
         // If no user settings exist, use defaults
@@ -211,6 +217,12 @@
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",
           devToolsEnabled: false,
+          // New GPS defaults
+          enableFull1Hz: false,
+          showGpsPopups: false,
+          gpsIntervalSeconds: 2,
+          showGpsAcceptedPopups: false,
+          showGpsRejectedPopups: false,
         })
       }
 

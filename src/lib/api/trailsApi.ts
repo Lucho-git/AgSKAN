@@ -947,7 +947,7 @@ export const trailsApi = {
 
             const { data, error } = await supabase
                 .from("trail_stream")
-                .insert(coordinatesForInsert)
+                .upsert(coordinatesForInsert, { onConflict: 'trail_id,timestamp', ignoreDuplicates: true })
                 .select();
 
             if (error) {

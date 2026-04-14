@@ -60,6 +60,58 @@
     }
   }
 
+  // Location settings (1Hz + popup toggles)
+  $: full1HzEnabled = $userSettingsStore.enableFull1Hz
+  $: gpsAcceptedPopupsEnabled = $userSettingsStore.showGpsAcceptedPopups
+  $: gpsRejectedPopupsEnabled = $userSettingsStore.showGpsRejectedPopups
+
+  async function handleFull1HzToggle() {
+    const newValue = !($userSettingsStore.enableFull1Hz)
+    // optimistic update
+    userSettingsStore.update((s) => ({ ...s, enableFull1Hz: newValue }))
+    try {
+      if (userSettingsApi?.updateEnableFull1Hz) {
+        const res = await userSettingsApi.updateEnableFull1Hz(newValue)
+        if (!res?.success) throw new Error("update failed")
+      } else if (userSettingsApi?.updateSetting) {
+        const res = await userSettingsApi.updateSetting("enable_full_1hz", newValue)
+        if (!res?.success) throw new Error("update failed")
+      } else {
+        console.warn("No userSettingsApi method to persist setting; stored locally only")
+      }
+      toast.success(newValue ? "Full 1Hz GPS enabled" : "Full 1Hz GPS disabled")
+    } catch (err) {
+      userSettingsStore.update((s) => ({ ...s, enableFull1Hz: !newValue }))
+      toast.error("Failed to update Full 1Hz GPS setting")
+    }
+  }
+
+  async function handleGpsAcceptedPopupsToggle() {
+    const newValue = !($userSettingsStore.showGpsAcceptedPopups)
+    userSettingsStore.update((s) => ({ ...s, showGpsAcceptedPopups: newValue }))
+    try {
+      const res = await userSettingsApi.updateShowGpsAcceptedPopups(newValue)
+      if (!res?.success) throw new Error("update failed")
+      toast.success(newValue ? "GPS accepted popups enabled" : "GPS accepted popups disabled")
+    } catch (err) {
+      userSettingsStore.update((s) => ({ ...s, showGpsAcceptedPopups: !newValue }))
+      toast.error("Failed to update GPS accepted popups setting")
+    }
+  }
+
+  async function handleGpsRejectedPopupsToggle() {
+    const newValue = !($userSettingsStore.showGpsRejectedPopups)
+    userSettingsStore.update((s) => ({ ...s, showGpsRejectedPopups: newValue }))
+    try {
+      const res = await userSettingsApi.updateShowGpsRejectedPopups(newValue)
+      if (!res?.success) throw new Error("update failed")
+      toast.success(newValue ? "GPS rejected popups enabled" : "GPS rejected popups disabled")
+    } catch (err) {
+      userSettingsStore.update((s) => ({ ...s, showGpsRejectedPopups: !newValue }))
+      toast.error("Failed to update GPS rejected popups setting")
+    }
+  }
+
   // App information
   const appInfo = {
     version: APP_VERSION,
@@ -315,6 +367,98 @@
 
   <!-- Developer Mode -->
   <div class="space-y-4">
+    <!-- Location Permissions -->
+    <div class="space-y-4">
+      <h3 class="flex items-center gap-2 font-medium text-contrast-content">
+        <Icon
+          icon="solar:location-pin-bold-duotone"
+          width="16"
+          height="16"
+          class="text-base-content/60"
+        />
+        Location Permissions
+      </h3>
+
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <Icon
+              icon="solar:gps-dot-bold-duotone"
+              width="20"
+              height="20"
+              class="mt-0.5 text-primary"
+            />
+            <div>
+              <p class="text-sm font-medium text-contrast-content">
+                Full 1Hz GPS (native)
+              </p>
+              <p class="mt-1 text-xs text-contrast-content/60">
+                When enabled, the app will apply native 1Hz GPS updates as they
+                arrive. Default: off.
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-primary"
+            checked={full1HzEnabled}
+            on:change={handleFull1HzToggle}
+          />
+        </div>
+
+        <div class="mt-3 flex items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <Icon
+              icon="solar:check-circle-bold-duotone"
+              width="20"
+              height="20"
+              class="mt-0.5 text-success"
+            />
+            <div>
+              <p class="text-sm font-medium text-contrast-content">
+                Show GPS Accepted popups
+              </p>
+              <p class="mt-1 text-xs text-contrast-content/60">
+                Show visual "GPS Accepted" popups when a fix passes the filter.
+                Default: off.
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-success"
+            checked={gpsAcceptedPopupsEnabled}
+            on:change={handleGpsAcceptedPopupsToggle}
+          />
+        </div>
+
+        <div class="mt-3 flex items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <Icon
+              icon="solar:close-circle-bold-duotone"
+              width="20"
+              height="20"
+              class="mt-0.5 text-error"
+            />
+            <div>
+              <p class="text-sm font-medium text-contrast-content">
+                Show GPS Rejected popups
+              </p>
+              <p class="mt-1 text-xs text-contrast-content/60">
+                Show visual "GPS Rejected" popups when a fix is filtered out.
+                Default: off.
+              </p>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            class="toggle toggle-error"
+            checked={gpsRejectedPopupsEnabled}
+            on:change={handleGpsRejectedPopupsToggle}
+          />
+        </div>
+      </div>
+    </div>
     <h3 class="flex items-center gap-2 font-medium text-contrast-content">
       <Icon
         icon="solar:code-bold-duotone"

@@ -104,7 +104,8 @@ BEGIN
       v_ts,
       CASE WHEN p_operation_id IS NOT NULL AND p_operation_id != '' 
            THEN p_operation_id::uuid ELSE NULL END
-    );
+    )
+    ON CONFLICT (trail_id, timestamp) DO NOTHING;
   END IF;
 
   RETURN json_build_object('ok', true);

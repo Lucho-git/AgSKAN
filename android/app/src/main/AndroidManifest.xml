@@ -61,6 +61,12 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- Raw GPS foreground service (bypasses FLP for true 1Hz GNSS fixes) -->
+        <service
+            android:name=".RawGpsService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
     </application>
 
     <!-- Permissions -->

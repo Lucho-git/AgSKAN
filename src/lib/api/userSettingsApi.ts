@@ -683,6 +683,181 @@ export const userSettingsApi = {
     },
 
     /**
+     * Enable/disable full 1Hz native GPS updates
+     */
+    async updateEnableFull1Hz(enableFull1Hz: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    enable_full_1hz: enableFull1Hz,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving enable_full_1hz:', error);
+                return { success: false, message: 'Failed to save setting', errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, enableFull1Hz }));
+
+            return { success: true, message: 'Full 1Hz setting updated' };
+        } catch (error) {
+            console.error('Error in updateEnableFull1Hz:', error);
+            return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
+     * Toggle showing GPS popups
+     */
+    async updateShowGpsPopups(showGpsPopups: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    show_gps_popups: showGpsPopups,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving show_gps_popups:', error);
+                return { success: false, message: 'Failed to save setting', errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, showGpsPopups }));
+
+            return { success: true, message: 'GPS popups setting updated' };
+        } catch (error) {
+            console.error('Error in updateShowGpsPopups:', error);
+            return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
+     * Update GPS interval in seconds (1-10)
+     */
+    async updateGpsIntervalSeconds(gpsIntervalSeconds: number) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    gps_interval_seconds: gpsIntervalSeconds,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving gps_interval_seconds:', error);
+                return { success: false, message: 'Failed to save setting', errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, gpsIntervalSeconds }));
+
+            return { success: true, message: 'GPS interval setting updated' };
+        } catch (error) {
+            console.error('Error in updateGpsIntervalSeconds:', error);
+            return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
+     * Toggle showing GPS accepted popups
+     */
+    async updateShowGpsAcceptedPopups(showGpsAcceptedPopups: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    show_gps_accepted_popups: showGpsAcceptedPopups,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving show_gps_accepted_popups:', error);
+                return { success: false, message: 'Failed to save setting', errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, showGpsAcceptedPopups }));
+
+            return { success: true, message: 'GPS accepted popups setting updated' };
+        } catch (error) {
+            console.error('Error in updateShowGpsAcceptedPopups:', error);
+            return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
+     * Toggle showing GPS rejected popups
+     */
+    async updateShowGpsRejectedPopups(showGpsRejectedPopups: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    show_gps_rejected_popups: showGpsRejectedPopups,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving show_gps_rejected_popups:', error);
+                return { success: false, message: 'Failed to save setting', errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, showGpsRejectedPopups }));
+
+            return { success: true, message: 'GPS rejected popups setting updated' };
+        } catch (error) {
+            console.error('Error in updateShowGpsRejectedPopups:', error);
+            return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
      * Deletes the user's account
      */
     async deleteAccount(currentPassword: string) {

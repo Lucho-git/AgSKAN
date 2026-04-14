@@ -23,11 +23,16 @@
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleCompassButton from "./VehicleCompassButton.svelte"
+  import NativeGeolocationAdapter from "../controls/NativeGeolocationAdapter.js"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { toast } from "svelte-sonner"
   import "$lib/../styles/global.css"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
+  import foregroundGpsService from "$lib/services/foregroundGpsService"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  let _prevEnableFull1Hz = null
+  let _prevGpsIntervalSeconds = null
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
@@ -77,6 +82,13 @@
 
   let isFirstPersonMode = false
   let lastTrackedHeading = null
+  let isMapboxTracking = false
+  // Buffer latest native position so Mapbox-driven 'geolocate' can apply it
+  // as the authoritative UI update to keep marker and camera perfectly aligned.
+  let latestNativePos = null
+  // When true, Mapbox's GeolocateControl is actively tracking the user
+  // and should be allowed to drive the camera. While true, avoid calling
+  // our own `updateCameraForTrackedVehicle` to prevent competing eases.
 
   let selectedVehicleId = null
 
@@ -98,7 +110,7 @@
   const STALE_SPEED_THRESHOLD_MS = 30000 // 30s — treat speed as 0 if no update since
 
   // ── GPS glitch filter thresholds ──
-  const GPS_MAX_ACCURACY_M = 200 // Reject if reported accuracy > 200m (WiFi/cell)
+  const GPS_MAX_ACCURACY_M = 100 // Reject if reported accuracy > 100m (WiFi/cell)
   const GPS_MAX_SPEED_KMH = 500 // Reject if implied speed > 500 km/h
   const GPS_SPEED_GATE_MAX_GAP_S = 180 // Only apply speed gate if time gap < 3 minutes
   const GPS_SNAP_BACK_THRESHOLD = 3 // Consecutive rejections before snap-back kicks in
@@ -113,16 +125,56 @@
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const MINIMUM_BROADCAST_INTERVAL = 15000 // 15 seconds
+  // UI update throttle for native high-rate fixes (ms)
+  const USER_UI_UPDATE_INTERVAL_MS = 1000 // show marker updates every 1s (align with native 1Hz)
+  // Default emit interval used by NativeGeolocationAdapter (ms)
+  const NATIVE_ADAPTER_DEFAULT_EMIT_MS = 1000
+  // Low non-zero emit interval to forward native fixes rapidly while in 1Hz UI mode
+  const NATIVE_ADAPTER_LOW_EMIT_MS = 250
+  // Heading smoothing (exponential) applied to reduce jitter
+  const HEADING_SMOOTHING_ALPHA = 0.4
+
+  let lastUiUpdateTime = 0
+  let lastSmoothedHeading = null
 
   let userVehicleUnsubscribe
+  let userSettingsUnsubscribe
   let unsubscribeOtherVehiclesDataChanges
   let unsubscribeBroadcastMessages
   let lastClientCoordinates = null
   let lastClientHeading = null
+  let full1HzIntervalId = null
+  let removeForegroundGpsListener = null // unsubscribe for raw GPS foreground listener
 
   // Track running animation frames per marker so we can cancel on new update
   const markerAnimFrames = new WeakMap()
   let previousVehicleMarker = null
+
+  // ── 1Hz debug overlay state ──
+  let debugOverlayData = {
+    rawLat: null,
+    rawLng: null,
+    appliedLat: null,
+    appliedLng: null,
+    nativeEventCount: 0,
+    uniqueCoordCount: 0,
+    lastChangedAt: null,
+    prevRawLat: null,
+    prevRawLng: null,
+    accuracy: null,
+    heading: null,
+    speed: null,
+    timestamp: null,
+    source: null,
+    // Frequency tracking: events per second over a rolling window
+    recentEventTimes: [],   // timestamps of recent events
+    recentUniqueTimes: [],  // timestamps of recent unique-coord events
+    eventsPerSec: 0,
+    uniquePerSec: 0,
+  }
+  // Tick counter to force Svelte re-render of "Xs ago" in the overlay
+  let debugOverlayTick = 0
+  let debugOverlayTickId = null
 
   $: {
     if (map && $layerVisibilityStore) {
@@ -978,7 +1030,7 @@
               heading: loc.coords.heading || 0,
               speed: loc.coords.speed || 0,
               accuracy: loc.coords.accuracy || null,
-            })
+            }, false, 'catchup')
           }
         }
         // Clear the plugin's stored locations after processing
@@ -1158,16 +1210,60 @@
                 duration: 5000,
               })
             }
-          } else if (event === "location" && isBackground) {
-            console.log(
-              `[BG-DIAG] 📍 VehicleTracker received background location | devMode=${$devModeEnabled} | coords=[${data.coords.latitude.toFixed(5)}, ${data.coords.longitude.toFixed(5)}] | acc=${data.coords.accuracy}m`,
-            )
+          } else if (event === "location") {
+            // Handle native plugin locations both in background AND foreground on mobile.
+            // We intentionally process these on native builds so transistorsoft
+            // becomes the single source of truth for GPS updates (avoids WebView throttling).
+            try {
+              console.log(
+                `[BG-DIAG] 📍 VehicleTracker received location | bg=${isBackground} | devMode=${$devModeEnabled} | coords=[${data.coords?.latitude?.toFixed?.(5)}, ${data.coords?.longitude?.toFixed?.(5)}] | acc=${data.coords?.accuracy}m`,
+              )
+            } catch (e) {
+              // fallthrough if formatting fails
+            }
             if ($devModeEnabled) return // Dev mode overrides real GPS
-            streamMarkerPosition(data.coords)
-          } else if (event === "location" && !isBackground) {
-            console.log(
-              `[BG-DIAG] ⚠️ VehicleTracker got location but isBackground=false, DROPPING`,
-            )
+            if (data && data.coords) {
+              // Always record the latest native coordinate.
+              // By default we buffer while Mapbox is actively controlling the camera
+              // so the Mapbox UI (spinner/first-fix) and our marker/camera move together.
+              // When the user enables full 1Hz UI updates, however, we apply native
+              // fixes immediately even if Mapbox is tracking (bypass the buffer).
+              latestNativePos = data.coords
+
+              // Raw overlay data is now updated inside streamMarkerPosition (proven Svelte-reactive path)
+
+              const applyImmediately = $userSettingsStore?.enableFull1Hz || !isMapboxTracking
+
+              if ($devModeEnabled) console.log("[1Hz-DIAG] native location received | applyImmediately=", applyImmediately, "bg=", isBackground, "devMode=", $devModeEnabled, "rawGpsActive=", !!removeForegroundGpsListener)
+
+              // When raw GPS foreground service is active, TransistorSoft only
+              // buffers latestNativePos (already set above) but does NOT drive
+              // the UI — raw GPS is the sole source to avoid stale duplicates.
+              if (removeForegroundGpsListener) return
+
+              if (applyImmediately) {
+                // Force UI update bypassing throttle
+                streamMarkerPosition(data.coords, true, 'native')
+
+                // If the user is tracking their vehicle, ensure the camera follows.
+                try {
+                  const userVehicleId = $userVehicleStore.vehicle_id
+                  if (isTrackingVehicle && trackedVehicleId === userVehicleId) {
+                    updateCameraForTrackedVehicle(
+                      userVehicleId,
+                      data.coords.longitude,
+                      data.coords.latitude,
+                      data.coords.heading || 0,
+                    )
+                  }
+                } catch (e) {
+                  console.warn("Error updating camera for tracked vehicle:", e)
+                }
+              } else {
+                // Mapbox control is actively tracking: buffer and wait for
+                // Mapbox's 'geolocate' event to apply the buffered coordinate.
+              }
+            }
           } else if (event === "permissionChange") {
             if (data.backgroundPermissionGranted) {
               toast.success("Background location enabled", {
@@ -1245,7 +1341,9 @@
       positionOptions: {
         enableHighAccuracy: true,
       },
-      trackUserLocation: true,
+      // Only let the GeolocateControl actively track in web builds.
+      // On native builds we rely on transistorsoft for continuous native GPS.
+      trackUserLocation: !isMobileApp,
       showUserHeading: true,
       showAccuracyCircle: true,
       showUserLocation: false,
@@ -1255,26 +1353,112 @@
       },
     })
 
-    map.addControl(geolocateControl, "bottom-right")
+    // Use Mapbox's GeolocateControl everywhere so we get the exact UI/UX.
+    // On native builds, supply a custom `geolocation` adapter that forwards
+    // to the native backgroundService so Mapbox's control still uses our
+    // native GPS stream but renders the exact Mapbox elements.
+    if (!isMobileApp) {
+      map.addControl(geolocateControl, "bottom-right")
+    } else {
+      // Wire Mapbox control tracking events so we can yield camera control
+      // to Mapbox while it is actively tracking (prevents double-easing).
+      try {
+        if (typeof geolocateControl.on === "function") {
+          geolocateControl.on("trackuserlocationstart", () => {
+            isMapboxTracking = true
+            console.log(
+              "GeolocateControl: trackuserlocationstart — yielding camera to Mapbox",
+            )
+          })
+          geolocateControl.on("trackuserlocationend", () => {
+            isMapboxTracking = false
+            console.log(
+              "GeolocateControl: trackuserlocationend — resuming app camera control",
+            )
+          })
+          geolocateControl.on("error", (err) => {
+            isMapboxTracking = false
+            console.warn("GeolocateControl error:", err)
+          })
+        }
+      } catch (e) {
+        console.warn("Failed to attach GeolocateControl tracking listeners", e)
+      }
+      try {
+        // Re-create control with native adapter and active tracking
+        geolocateControl = new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserHeading: true,
+          showAccuracyCircle: true,
+          // Prevent Mapbox from drawing its default user dot — we render our
+          // custom user marker. Keep heading/circle disabled visually.
+          showUserLocation: false,
+          className: "custom-geolocate-control",
+          fitBoundsOptions: { maxZoom: 16 },
+          geolocation: NativeGeolocationAdapter,
+        })
+        map.addControl(geolocateControl, "bottom-right")
+        // Adapter emits are now handled event-driven; avoid hardcoding UI interval here.
+      } catch (e) {
+        console.warn("Failed to add native-backed GeolocateControl:", e)
+      }
+    }
 
     map.on("load", () => {
       if (!disableAutoZoom) {
-        geolocateControl.trigger()
+        // Auto-center using GeolocateControl on both web and native builds.
+        // On native this will invoke our adapter which listens to the
+        // native backgroundService stream and will show Mapbox's spinner
+        // while waiting for the first native fix.
+        try {
+          geolocateControl.trigger()
+          // If user requested strict 1Hz UI updates, notify them when the
+          // map finishes loading so it's clear the strict mode is active.
+          // No toast for 1Hz mode — keep UI quiet unless user explicitly wants feedback
+        } catch (e) {
+          console.warn("GeolocateControl.trigger() failed:", e)
+        }
       }
     })
 
-    geolocateControl.on("geolocate", (e) => {
-      if ($devModeEnabled) return // Dev mode overrides real GPS
-      const { coords } = e
-      // Pass accuracy through so the GPS filter can use it
-      streamMarkerPosition({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        heading: coords.heading,
-        speed: coords.speed,
-        accuracy: coords.accuracy,
-      })
-    })
+    // Only use the GeolocateControl event handler for non-native (web) platforms.
+    // Attach GeolocateControl 'geolocate' handler for ALL platforms.
+    // When Mapbox emits a geolocate event we treat it as the authoritative
+    // UI update and force an immediate marker/camera update so both move
+    // in sync (event-driven rather than relying on fixed intervals).
+    try {
+      if (geolocateControl && typeof geolocateControl.on === "function") {
+        geolocateControl.on("geolocate", (e) => {
+          if ($devModeEnabled) return // Dev mode overrides real GPS
+          // When raw GPS foreground service is active, skip Mapbox geolocate
+          // events — raw GPS is the sole coordinate source in 1Hz mode.
+          if (removeForegroundGpsListener) return
+
+          // Prefer the latest native position buffer if available so the
+          // Mapbox UI (spinner/first-fix) and our marker/camera are aligned.
+          const coordsToApply = latestNativePos || e.coords || null
+          if (!coordsToApply) return
+
+          streamMarkerPosition(
+            {
+              latitude: coordsToApply.latitude,
+              longitude: coordsToApply.longitude,
+              heading: coordsToApply.heading,
+              speed: coordsToApply.speed,
+              accuracy: coordsToApply.accuracy,
+            },
+            true,
+            'geolocate',
+          )
+
+          // Clear buffer after applying
+          latestNativePos = null
+        })
+      }
+    } catch (err) {
+      console.warn("Failed to attach geolocate handler:", err)
+    }
 
     userVehicleUnsubscribe = userVehicleStore.subscribe((value) => {
       updateUserMarker(value.vehicle_marker)
@@ -1287,9 +1471,131 @@
       if (evt) showOtherVehicleBroadcast(evt)
     })
 
+    // Subscribe to user settings to:
+    // 1. Always start the foreground GPS service on native (using slider interval)
+    // 2. Optionally enable the 1Hz interval timer when enableFull1Hz is on
+    // Falls back to TransistorSoft/Mapbox if foreground service errors.
+    userSettingsUnsubscribe = userSettingsStore.subscribe((s) => {
+      try {
+        const enabled = !!s?.enableFull1Hz
+        const newIntervalSeconds = s?.gpsIntervalSeconds || 2
+        if ($devModeEnabled) console.log("[GPS-DIAG] userSettings subscription invoked", { enableFull1Hz: enabled, gpsIntervalSeconds: newIntervalSeconds, latestNativePosExists: !!latestNativePos })
+
+        // ── Foreground GPS service (always-on for native) ──
+        // Start service if on native and not yet running
+        if (isMobileApp && !removeForegroundGpsListener) {
+          const intervalMs = newIntervalSeconds * 1000
+          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
+            if (started) {
+              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
+            } else {
+              console.warn('[GPS-DIAG] foregroundGpsService failed to start — falling back to default location sources')
+            }
+          }).catch(e => {
+            console.warn('[GPS-DIAG] foregroundGpsService error — falling back to default location sources:', e)
+          })
+          removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
+            if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
+            latestNativePos = data.coords
+            streamMarkerPosition(data.coords, true, 'raw-gps')
+          })
+        }
+
+        // When GPS interval changes while service is running, restart with new interval
+        if (isMobileApp && removeForegroundGpsListener && _prevGpsIntervalSeconds !== null && _prevGpsIntervalSeconds !== newIntervalSeconds) {
+          if ($devModeEnabled) console.log(`[GPS-DIAG] GPS interval changed ${_prevGpsIntervalSeconds}s → ${newIntervalSeconds}s — restarting foreground service`)
+          const intervalMs = newIntervalSeconds * 1000
+          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then(() => {
+            if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService RESTARTED with interval', intervalMs)
+          }).catch(e => console.warn('Failed to restart foregroundGpsService:', e))
+        }
+        _prevGpsIntervalSeconds = newIntervalSeconds
+
+        // ── 1Hz interval timer (optional, controlled by enableFull1Hz toggle) ──
+        if (enabled && !full1HzIntervalId) {
+          const buildCoords = (src) => {
+            if (!src) return null
+            return {
+              latitude: src.latitude,
+              longitude: src.longitude,
+              heading: src.heading ?? lastClientHeading ?? null,
+              speed: src.speed ?? currentSpeed ?? 0,
+              accuracy: src.accuracy ?? null,
+            }
+          }
+
+          const immediateSrc = latestNativePos || lastAcceptedCoords || lastClientCoordinates
+          const immediateCoords = buildCoords(immediateSrc)
+          if (immediateCoords) {
+            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz immediate tick using", { usingLatestNative: !!latestNativePos, usingLastAccepted: !!(lastAcceptedCoords && !latestNativePos) })
+            streamMarkerPosition(immediateCoords, true, 'interval')
+          }
+
+          full1HzIntervalId = setInterval(() => {
+            // When raw GPS foreground service is active, it fires directly —
+            // skip the interval-based fallback to avoid duplicate/stale updates.
+            if (removeForegroundGpsListener) return
+            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz interval tick", { latestNativePosExists: !!latestNativePos })
+            const src = latestNativePos || lastAcceptedCoords || lastClientCoordinates
+            const coordsToUse = buildCoords(src)
+            if (coordsToUse) {
+              if (!latestNativePos && $devModeEnabled) console.log("[GPS-DIAG] interval using FALLBACK coords (stale)")
+              streamMarkerPosition(coordsToUse, true, 'interval')
+            }
+          }, 1000)
+          if ($devModeEnabled) console.log("🚀 Full 1Hz UI updates ENABLED")
+          // Disable adapter-side throttling so Mapbox watchers receive every native fix
+          try {
+            NativeGeolocationAdapter.setEmitInterval(NATIVE_ADAPTER_LOW_EMIT_MS)
+            if ($devModeEnabled) console.log('[GPS-DIAG] NativeGeolocationAdapter throttling set to', NATIVE_ADAPTER_LOW_EMIT_MS)
+          } catch (e) {
+            console.warn('Failed to set NativeGeolocationAdapter emit interval:', e)
+          }
+          // Start debug overlay refresh tick (computes rolling frequency + forces re-render)
+          if (!debugOverlayTickId) {
+            debugOverlayTickId = setInterval(() => {
+              debugOverlayTick++
+              const WINDOW_MS = 5000
+              const cutoff = Date.now() - WINDOW_MS
+              const recentEvents = debugOverlayData.recentEventTimes.filter(t => t > cutoff)
+              const recentUniques = debugOverlayData.recentUniqueTimes.filter(t => t > cutoff)
+              debugOverlayData = {
+                ...debugOverlayData,
+                recentEventTimes: recentEvents,
+                recentUniqueTimes: recentUniques,
+                eventsPerSec: recentEvents.length / (WINDOW_MS / 1000),
+                uniquePerSec: recentUniques.length / (WINDOW_MS / 1000),
+              }
+            }, 1000)
+          }
+        } else if (!enabled && full1HzIntervalId) {
+          clearInterval(full1HzIntervalId)
+          full1HzIntervalId = null
+          if ($devModeEnabled) console.log("🛑 Full 1Hz UI updates DISABLED")
+          // Restore adapter emit interval to default
+          try {
+            NativeGeolocationAdapter.setEmitInterval(NATIVE_ADAPTER_DEFAULT_EMIT_MS)
+            if ($devModeEnabled) console.log('[GPS-DIAG] NativeGeolocationAdapter throttling RESTORED to', NATIVE_ADAPTER_DEFAULT_EMIT_MS)
+          } catch (e) {
+            console.warn('Failed to restore NativeGeolocationAdapter throttling:', e)
+          }
+          // Stop debug overlay tick and reset counters
+          if (debugOverlayTickId) {
+            clearInterval(debugOverlayTickId)
+            debugOverlayTickId = null
+          }
+          debugOverlayData = { rawLat: null, rawLng: null, appliedLat: null, appliedLng: null, nativeEventCount: 0, uniqueCoordCount: 0, lastChangedAt: null, prevRawLat: null, prevRawLng: null, accuracy: null, heading: null, speed: null, timestamp: null, source: null, recentEventTimes: [], recentUniqueTimes: [], eventsPerSec: 0, uniquePerSec: 0 }
+        }
+      } catch (e) {
+        console.warn("Error handling userSettings subscription:", e)
+      }
+    })
+
     if (!isMobileApp && typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange)
     }
+
+    // (removed diagnostic toast for Full 1Hz toggles)
   })
 
   onDestroy(() => {
@@ -1324,6 +1630,19 @@
     if (unsubscribeBroadcastMessages) {
       unsubscribeBroadcastMessages()
     }
+    if (userSettingsUnsubscribe) {
+      userSettingsUnsubscribe()
+      userSettingsUnsubscribe = null
+    }
+
+    if (full1HzIntervalId) {
+      clearInterval(full1HzIntervalId)
+      full1HzIntervalId = null
+    }
+    if (debugOverlayTickId) {
+      clearInterval(debugOverlayTickId)
+      debugOverlayTickId = null
+    }
 
     // Clean up other vehicle broadcast bubbles
     Object.values(otherBroadcastMarkers).forEach(({ marker, timer }) => {
@@ -1340,7 +1659,13 @@
       removeBackgroundListener()
     }
 
+    if (removeForegroundGpsListener) {
+      removeForegroundGpsListener()
+      removeForegroundGpsListener = null
+    }
+
     if (isMobileApp) {
+      foregroundGpsService.stop().catch(() => {})
       backgroundService.cleanup()
     }
 
@@ -1865,14 +2190,14 @@
 
   // ✅ Dev mode: pipe synthetic position into the normal GPS pipeline
   $: if ($devModeEnabled && $devPositionStore.latitude != null) {
-    streamMarkerPosition($devPositionStore)
+    streamMarkerPosition($devPositionStore, false, 'devmode')
   }
 
   /**
    * Show a red floating "GPS Rejected" label at the given coordinates on the map.
    * Mirrors the marker-floating-label pattern but uses a dedicated red variant.
    */
-  function showGpsRejectedLabel(longitude, latitude, reason) {
+  function showGpsRejectedLabel(longitude, latitude, category, accuracy, reason) {
     if (!map) return
     const el = document.createElement("div")
     el.style.pointerEvents = "none"
@@ -1882,8 +2207,11 @@
 
     const label = document.createElement("div")
     label.className = "gps-rejected-label"
-    label.textContent = "GPS Rejected"
-    label.title = reason
+    // Prefer a concise display: category + numeric accuracy (if provided)
+    const cat = category ? String(category).toUpperCase() : "GPS"
+    const accText = typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
+    label.textContent = `GPS Rejected — ${cat}${accText}`
+    label.title = reason || `${cat} rejection`
     el.appendChild(label)
 
     const marker = new mapboxgl.Marker({ element: el })
@@ -1891,6 +2219,45 @@
       .addTo(map)
 
     setTimeout(() => marker.remove(), 2200)
+  }
+
+  /**
+   * Brief green popup used during testing to indicate an accepted GPS fix.
+   * Shown every N accepted points to help verify acceptance logic.
+   */
+  function showGpsAcceptedLabel(longitude, latitude, accuracy) {
+    if (!map) return
+    const el = document.createElement("div")
+    el.style.pointerEvents = "none"
+    el.style.width = "0"
+    el.style.height = "0"
+    el.style.position = "relative"
+
+    const label = document.createElement("div")
+    // Use the same base class as the rejected label so layout matches,
+    // and add an extra class to indicate positive state.
+    label.className = "gps-rejected-label gps-accepted"
+    const accText = typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
+    label.textContent = `GPS Accepted — OK${accText}`
+    label.title = `Accepted GPS fix${accText}`
+    // Positive color variant while preserving general rejected-label layout
+    label.style.cssText = `
+      background: linear-gradient(180deg, rgba(72,187,120,0.98), rgba(34,139,34,0.95));
+      color: white;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      pointer-events: none;
+    `
+    el.appendChild(label)
+
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat([longitude, latitude])
+      .addTo(map)
+
+    setTimeout(() => marker.remove(), 1200)
   }
 
   /**
@@ -1906,114 +2273,78 @@
    *  4. Otherwise → accept
    */
   function filterGpsCoordinate(latitude, longitude, accuracy, timestamp) {
-    // Gate 1: Accuracy (skip for dev mode which has no accuracy)
+    // Only enforce an accuracy gate. All other filters (speed, snap-back)
+    // have been removed per request so native fixes are not rejected
+    // except when accuracy indicates a likely cell/WiFi-derived fix.
     if (accuracy != null && accuracy > GPS_MAX_ACCURACY_M) {
       return {
         accepted: false,
         reason: `Accuracy too low: ${Math.round(accuracy)}m (max ${GPS_MAX_ACCURACY_M}m)`,
+        category: "accuracy",
+        accuracy,
       }
     }
 
-    // Gate 2: Speed (only when we have a previous accepted point)
-    if (lastAcceptedCoords && lastAcceptedTime) {
-      const gapSeconds = (timestamp - lastAcceptedTime) / 1000
-
-      if (gapSeconds > 0 && gapSeconds < GPS_SPEED_GATE_MAX_GAP_S) {
-        const distance = calculateDistance(
-          lastAcceptedCoords.latitude,
-          lastAcceptedCoords.longitude,
-          latitude,
-          longitude,
-        )
-        const impliedSpeedKmh = (distance / gapSeconds) * 3.6
-
-        if (impliedSpeedKmh > GPS_MAX_SPEED_KMH) {
-          consecutiveRejectionsFromLast++
-
-          // Gate 3: Snap-back detection
-          // If we've rejected N points in a row from the current anchor,
-          // the anchor was the glitch. Roll back to prior anchor.
-          if (
-            consecutiveRejectionsFromLast >= GPS_SNAP_BACK_THRESHOLD &&
-            priorAcceptedCoords &&
-            priorAcceptedTime
-          ) {
-            // Check if this point is valid from the PRIOR anchor
-            const priorGap = (timestamp - priorAcceptedTime) / 1000
-            const priorDist = calculateDistance(
-              priorAcceptedCoords.latitude,
-              priorAcceptedCoords.longitude,
-              latitude,
-              longitude,
-            )
-            const priorSpeed = priorGap > 0 ? (priorDist / priorGap) * 3.6 : 0
-
-            // If valid from prior anchor, OR it's been a long gap, snap back
-            if (
-              priorSpeed <= GPS_MAX_SPEED_KMH ||
-              priorGap >= GPS_SPEED_GATE_MAX_GAP_S
-            ) {
-              console.warn(
-                `🔄 GPS snap-back: rolling back anchor (${consecutiveRejectionsFromLast} consecutive rejections). Prior anchor was the glitch.`,
-              )
-              // Roll back — the lastAccepted was the glitch
-              lastAcceptedCoords = priorAcceptedCoords
-              lastAcceptedTime = priorAcceptedTime
-              consecutiveRejectionsFromLast = 0
-              // Accept this point
-              return { accepted: true }
-            }
-          }
-
-          return {
-            accepted: false,
-            reason: `Implied speed ${Math.round(impliedSpeedKmh)} km/h over ${gapSeconds.toFixed(1)}s gap (max ${GPS_MAX_SPEED_KMH} km/h). Distance: ${Math.round(distance)}m`,
-          }
-        }
-      }
-      // If gap >= GPS_SPEED_GATE_MAX_GAP_S, skip speed check — but apply snap-back distance check
-      else if (gapSeconds >= GPS_SPEED_GATE_MAX_GAP_S) {
-        const distance = calculateDistance(
-          lastAcceptedCoords.latitude,
-          lastAcceptedCoords.longitude,
-          latitude,
-          longitude,
-        )
-        // For long-gap points that jump far, we can't reject yet —
-        // but mark it as suspicious so snap-back can catch it if
-        // the next points all reject from this new position
-      }
-    }
-
-    // Reset rejection counter on acceptance
-    consecutiveRejectionsFromLast = 0
     return { accepted: true }
   }
 
-  function streamMarkerPosition(coords) {
+  function streamMarkerPosition(coords, forceUpdate = false, source = 'unknown') {
     const { latitude, longitude, heading, speed, accuracy } = coords
 
     const currentTime = Date.now()
 
-    // ── GPS glitch filter (skip in dev mode) ──
+    if ($devModeEnabled) console.log("[1Hz-DIAG] streamMarkerPosition called", { forceUpdate, enableFull1Hz: $userSettingsStore?.enableFull1Hz, now: currentTime, lastUiUpdateTime, source })
+
+    // ── Update raw overlay data BEFORE filtering (shows what we received) ──
+    if ($userSettingsStore?.enableFull1Hz) {
+      const prevLat = debugOverlayData.rawLat
+      const prevLng = debugOverlayData.rawLng
+      const coordChanged =
+        prevLat !== latitude || prevLng !== longitude
+      const now = Date.now()
+      // Push timestamps for rolling-window frequency calculation
+      const recentEvents = [...debugOverlayData.recentEventTimes, now]
+      const recentUniques = coordChanged
+        ? [...debugOverlayData.recentUniqueTimes, now]
+        : debugOverlayData.recentUniqueTimes
+      debugOverlayData = {
+        ...debugOverlayData,
+        rawLat: latitude,
+        rawLng: longitude,
+        prevRawLat: prevLat,
+        prevRawLng: prevLng,
+        accuracy: accuracy,
+        heading: heading,
+        speed: speed,
+        nativeEventCount: debugOverlayData.nativeEventCount + 1,
+        uniqueCoordCount: debugOverlayData.uniqueCoordCount + (coordChanged ? 1 : 0),
+        lastChangedAt: coordChanged ? now : debugOverlayData.lastChangedAt,
+        timestamp: now,
+        source: source,
+        recentEventTimes: recentEvents,
+        recentUniqueTimes: recentUniques,
+      }
+    }
+
+    // Run the hybrid filter (skipped in dev mode)
     if (!$devModeEnabled) {
-      const filterResult = filterGpsCoordinate(
-        latitude,
-        longitude,
-        accuracy,
-        currentTime,
-      )
+      const filterResult = filterGpsCoordinate(latitude, longitude, accuracy, currentTime)
       if (!filterResult.accepted) {
-        console.warn(`🚫 GPS coordinate rejected: ${filterResult.reason}`, {
+        // Keep rejection logging minimal — only warn when accuracy fails
+        console.warn("🚫 GPS coordinate rejected (accuracy):", {
           lat: latitude,
           lng: longitude,
           accuracy,
-          lastAccepted: lastAcceptedCoords,
-          timeSinceLastMs: lastAcceptedTime
-            ? currentTime - lastAcceptedTime
-            : null,
         })
-        showGpsRejectedLabel(longitude, latitude, filterResult.reason)
+        if ($userSettingsStore?.showGpsRejectedPopups) {
+          showGpsRejectedLabel(
+            longitude,
+            latitude,
+            filterResult.category || "gps",
+            filterResult.accuracy != null ? filterResult.accuracy : accuracy,
+            filterResult.reason,
+          )
+        }
         return // Drop this coordinate entirely
       }
     }
@@ -2023,6 +2354,11 @@
     priorAcceptedTime = lastAcceptedTime
     lastAcceptedCoords = { latitude, longitude }
     lastAcceptedTime = currentTime
+
+    // Show a positive acceptance label for every accepted GPS fix (testing aid)
+    if ($userSettingsStore?.showGpsAcceptedPopups) {
+      showGpsAcceptedLabel(longitude, latitude, accuracy)
+    }
 
     const calculatedSpeed = calculateSpeedFromGPS(
       latitude,
@@ -2041,6 +2377,42 @@
 
     const updatedHeading = heading !== null ? Math.round(heading) : heading
 
+    // Simple heading smoothing to reduce jitter on small heading fluctuations
+    let smoothedHeading = updatedHeading
+    if (updatedHeading !== null && updatedHeading !== undefined) {
+      if (lastSmoothedHeading === null) {
+        lastSmoothedHeading = updatedHeading
+      } else {
+        // exponential smoothing
+        lastSmoothedHeading = Math.round(
+          HEADING_SMOOTHING_ALPHA * updatedHeading +
+            (1 - HEADING_SMOOTHING_ALPHA) * lastSmoothedHeading,
+        )
+      }
+      smoothedHeading = lastSmoothedHeading
+    }
+
+    // Throttle UI updates so marker/camera updates happen ~every USER_UI_UPDATE_INTERVAL_MS
+    // Allow callers (Mapbox geolocate events) to force an immediate update so
+    // the camera and marker move together at the exact same time.
+    if (
+      !forceUpdate &&
+      !$userSettingsStore?.enableFull1Hz &&
+      currentTime - lastUiUpdateTime < USER_UI_UPDATE_INTERVAL_MS
+    ) {
+      // still update internal accepted anchor and speed, but skip UI/store churn
+      if ($devModeEnabled) console.log("[1Hz-DIAG] throttled - skipping UI update", { now: currentTime, lastUiUpdateTime, intervalMs: USER_UI_UPDATE_INTERVAL_MS })
+      return
+    }
+    lastUiUpdateTime = currentTime
+
+    if ($devModeEnabled) console.log("[1Hz-DIAG] performing UI update", { latitude, longitude, accuracy, smoothedHeading: heading })
+
+    // Update overlay with the coords that actually reached UI
+    if ($userSettingsStore?.enableFull1Hz) {
+      debugOverlayData = { ...debugOverlayData, appliedLat: latitude, appliedLng: longitude }
+    }
+
     if (
       isTrackingVehicle &&
       trackedVehicleId === $userVehicleStore.vehicle_id
@@ -2057,12 +2429,12 @@
           $userVehicleStore.vehicle_id,
           longitude,
           latitude,
-          updatedHeading,
+          smoothedHeading,
         )
       }
     }
 
-    updateUserVehicleData(currentTime, vehicleData, updatedHeading)
+    updateUserVehicleData(currentTime, vehicleData, smoothedHeading)
   }
 
   function updateUserVehicleData(currentTime, vehicleData, updatedHeading) {
@@ -2567,3 +2939,145 @@
   {zoomToVehicle}
   {onOpenVehicleControls}
 />
+
+{#if $userSettingsStore?.enableFull1Hz}
+  <div class="hz-debug-overlay">
+    <div class="hz-debug-title">1Hz GPS Debug</div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Source</span>
+      <span class="hz-debug-value hz-source">{debugOverlayData.source ?? '—'}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Raw Lat</span>
+      <span class="hz-debug-value" class:hz-changed={debugOverlayData.rawLat !== debugOverlayData.prevRawLat && debugOverlayData.prevRawLat !== null}>
+        {debugOverlayData.rawLat?.toFixed(7) ?? '—'}
+      </span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Raw Lng</span>
+      <span class="hz-debug-value" class:hz-changed={debugOverlayData.rawLng !== debugOverlayData.prevRawLng && debugOverlayData.prevRawLng !== null}>
+        {debugOverlayData.rawLng?.toFixed(7) ?? '—'}
+      </span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Accuracy</span>
+      <span class="hz-debug-value">{debugOverlayData.accuracy != null ? `${Math.round(debugOverlayData.accuracy)}m` : '—'}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Heading</span>
+      <span class="hz-debug-value">{debugOverlayData.heading != null ? `${Math.round(debugOverlayData.heading)}°` : '—'}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Speed</span>
+      <span class="hz-debug-value">{debugOverlayData.speed != null ? `${(debugOverlayData.speed * 3.6).toFixed(1)} km/h` : '—'}</span>
+    </div>
+    <div class="hz-debug-divider"></div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Applied Lat</span>
+      <span class="hz-debug-value">{debugOverlayData.appliedLat?.toFixed(7) ?? '—'}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Applied Lng</span>
+      <span class="hz-debug-value">{debugOverlayData.appliedLng?.toFixed(7) ?? '—'}</span>
+    </div>
+    <div class="hz-debug-divider"></div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Events</span>
+      <span class="hz-debug-value">{debugOverlayData.nativeEventCount}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Unique coords</span>
+      <span class="hz-debug-value">{debugOverlayData.uniqueCoordCount}</span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Dup ratio</span>
+      <span class="hz-debug-value">
+        {#if debugOverlayData.nativeEventCount > 0}
+          {Math.round((1 - debugOverlayData.uniqueCoordCount / debugOverlayData.nativeEventCount) * 100)}%
+        {:else}
+          —
+        {/if}
+      </span>
+    </div>
+    <div class="hz-debug-divider"></div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Events/sec</span>
+      <span class="hz-debug-value">
+        <span style="display:none">{debugOverlayTick}</span>
+        {debugOverlayData.eventsPerSec.toFixed(1)}
+      </span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Unique/sec</span>
+      <span class="hz-debug-value">
+        {debugOverlayData.uniquePerSec.toFixed(1)}
+      </span>
+    </div>
+    <div class="hz-debug-row">
+      <span class="hz-debug-label">Last change</span>
+      <span class="hz-debug-value">
+        {#if debugOverlayData.lastChangedAt}
+          {Math.round((Date.now() - debugOverlayData.lastChangedAt) / 1000)}s ago
+        {:else}
+          —
+        {/if}
+      </span>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .hz-debug-overlay {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.88);
+    color: #e0e0e0;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+    min-width: 200px;
+    line-height: 1.5;
+  }
+  .hz-debug-title {
+    color: #60a5fa;
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .hz-debug-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .hz-debug-label {
+    color: #9ca3af;
+  }
+  .hz-debug-value {
+    color: #f0f0f0;
+    font-weight: 600;
+    text-align: right;
+    transition: color 0.15s;
+  }
+  .hz-debug-value.hz-changed {
+    color: #34d399;
+  }
+  .hz-debug-divider {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin: 4px 0;
+  }
+  .hz-source {
+    color: #fbbf24;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+</style>

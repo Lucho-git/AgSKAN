@@ -39,21 +39,33 @@ class BackgroundService {
     try {
       // Check permission first
       await this.checkBackgroundPermission();
-      
+
       const permissionState = this.backgroundPermissionGranted;
-      
+
       // Configure the plugin with error handling
       try {
         await this.configureBackgroundGeolocation();
       } catch (configError) {
         console.error("Error during background geolocation configuration:", configError);
       }
-      
+
       // Set up app state listeners
       this.setupAppStateListeners();
-      
+
       this.isInitialized = true;
-      
+
+      // Start native tracking immediately when running on a native device.
+      // Keeping transistorsoft running in foreground ensures we use the
+      // native LocationRequest (1Hz) instead of the WebView geolocation API.
+      if (this.backgroundPermissionGranted) {
+        try {
+          await this.startBackgroundTracking();
+          console.log("[BG-DIAG] Native tracking started on init");
+        } catch (startErr) {
+          console.warn("[BG-DIAG] Could not start tracking on init:", startErr);
+        }
+      }
+
       return permissionState;
     } catch (error) {
       console.error("Error initializing background service:", error);
@@ -88,7 +100,11 @@ class BackgroundService {
         debug: false,
         logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
         desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
-        distanceFilter: 10,
+        // Fire on every native fix (0 = no distance filter) so we can get high-rate updates
+        distanceFilter: 0,
+        // Request 1s native update interval on Android (maps to LocationRequest.setInterval)
+        locationUpdateInterval: 1000,
+        fastestLocationUpdateInterval: 1000,
         locationAuthorizationRequest: 'Always',
         
         // Background behavior
@@ -367,7 +383,8 @@ class BackgroundService {
     setTimeout(async () => {
       // Disable native HTTP sync first (stop POSTing to Supabase)
       await this.disableNativeSync();
-      this.stopBackgroundTracking();
+      // Keep native tracking running in foreground so we continue to
+      // receive native 1Hz updates and avoid WebView throttling.
       this.isBackground = false;
     }, 200);
     

@@ -19,6 +19,12 @@ const defaultSettings = {
     },
     extraMarkers: [] as { id: string; class: string; name: string }[],
     devToolsEnabled: false, // Show Dev Mode & BG Sim buttons in map toolbox
+    // GPS-related settings
+    enableFull1Hz: false, // Enable native 1Hz UI updates
+    showGpsPopups: false, // Show GPS Accepted/Rejected popups (legacy)
+    gpsIntervalSeconds: 2, // GPS ping interval in seconds (1-10)
+    showGpsAcceptedPopups: false, // Show "GPS Accepted" popups
+    showGpsRejectedPopups: false, // Show "GPS Rejected" popups
 };
 
 export const userSettingsStore = writable(defaultSettings);
