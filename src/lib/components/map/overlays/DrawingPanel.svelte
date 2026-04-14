@@ -1,6 +1,7 @@
 <!-- src/lib/components/map/overlays/DrawingPanel.svelte -->
 <script>
   import { Square, Trash2, Pen, Eye, EyeOff, Edit2 } from "lucide-svelte"
+  import area from "@turf/area"
   import { supabase } from "$lib/supabaseClient"
   import { profileStore } from "$lib/stores/profileStore"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
@@ -273,6 +274,16 @@
   function getDrawingTypeLabel(type) {
     return type === "polygon" ? "Area" : "Line"
   }
+
+  function getDrawingHectares(drawing) {
+    if (drawing.drawing_type !== "polygon" || !drawing.geometry) return null
+    try {
+      const sqMeters = area(drawing.geometry)
+      return (sqMeters / 10000).toFixed(2)
+    } catch {
+      return null
+    }
+  }
 </script>
 
 {#if showStyleEditor && editingDrawing}
@@ -342,6 +353,11 @@
                   <span class="drawing-type"
                     >{getDrawingTypeLabel(drawing.drawing_type)}</span
                   >
+                  {#if getDrawingHectares(drawing) !== null}
+                    <span class="drawing-hectares">
+                      {getDrawingHectares(drawing)} ha
+                    </span>
+                  {/if}
                   <span class="drawing-date">
                     {new Date(drawing.created_at).toLocaleDateString()}
                   </span>
@@ -556,6 +572,12 @@
     font-size: 14px;
     font-weight: 500;
     color: white;
+  }
+
+  .drawing-hectares {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(14, 165, 233, 0.9);
   }
 
   .drawing-date {
