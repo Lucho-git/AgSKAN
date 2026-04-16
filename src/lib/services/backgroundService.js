@@ -572,6 +572,20 @@ class BackgroundService {
   }
 
   /**
+   * Destroy all queued locations in the native plugin's SQLite store.
+   * Called before closing a trail to prevent late-arriving POSTs from
+   * re-creating trail_stream rows after close_trail_fast deletes them.
+   */
+  async destroyNativeLocations() {
+    try {
+      await BackgroundGeolocation.destroyLocations();
+      console.log("[BG-DIAG] Destroyed native queued locations (trail stop cleanup)");
+    } catch (error) {
+      console.warn("[BG-DIAG] Could not destroy native locations:", error);
+    }
+  }
+
+  /**
    * Update the native engine's auth token without re-configuring the full sync.
    * Called from the heartbeat proactive refresh or foreground return.
    * @param {string} accessToken - New JWT access token

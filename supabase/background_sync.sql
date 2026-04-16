@@ -94,18 +94,25 @@ BEGIN
 
   -- ════════════════════════════════════════════════════════════
   -- 2. If trailing, also record the trail coordinate
+  --    Guard: skip INSERT if the trail is already closed.
+  --    This prevents orphan trail_stream rows when the native
+  --    HTTP queue flushes AFTER close_trail_fast has run.
   -- ════════════════════════════════════════════════════════════
   IF v_is_trailing AND p_trail_id IS NOT NULL AND p_trail_id != '' THEN
-    INSERT INTO trail_stream (
-      trail_id, coordinate, timestamp, operation_id
-    ) VALUES (
-      p_trail_id::uuid,
-      ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326),
-      v_ts,
-      CASE WHEN p_operation_id IS NOT NULL AND p_operation_id != '' 
-           THEN p_operation_id::uuid ELSE NULL END
-    )
-    ON CONFLICT (trail_id, timestamp) DO NOTHING;
+    IF NOT EXISTS (
+      SELECT 1 FROM trails
+      WHERE id = p_trail_id::uuid AND end_time IS NOT NULL
+    ) THEN
+      INSERT INTO trail_stream (
+        trail_id, coordinate, timestamp, operation_id
+      ) VALUES (
+        p_trail_id::uuid,
+        ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326),
+        v_ts,
+        CASE WHEN p_operation_id IS NOT NULL AND p_operation_id != '' 
+             THEN p_operation_id::uuid ELSE NULL END
+      );
+    END IF;
   END IF;
 
   RETURN json_build_object('ok', true);

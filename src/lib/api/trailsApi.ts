@@ -947,10 +947,15 @@ export const trailsApi = {
 
             const { data, error } = await supabase
                 .from("trail_stream")
-                .upsert(coordinatesForInsert, { onConflict: 'trail_id,timestamp', ignoreDuplicates: true })
+                .insert(coordinatesForInsert)
                 .select();
 
             if (error) {
+                // Duplicate key (23505) means the data is already saved — treat as success
+                if (error.code === '23505') {
+                    console.log(`ℹ️ ${coordinatesForInsert.length} duplicate coordinates ignored (already in DB)`);
+                    return { coordinates: [] };
+                }
                 // Only log if it's NOT a network error
                 if (!error.message?.includes('Failed to fetch') &&
                     !error.message?.includes('ERR_INTERNET_DISCONNECTED')) {

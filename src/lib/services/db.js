@@ -220,3 +220,22 @@ export async function clearAllPersistedMarkerData() {
     console.warn("⚠️ Failed to clear persisted marker data:", e)
   }
 }
+
+/**
+ * Nuclear reset: clear ALL IndexedDB tables (trail coordinates, closures, markers).
+ * Used to reset to a clean testing state.
+ */
+export async function clearAllPersistedData() {
+  try {
+    await Promise.all([
+      db.PendingCoordinates.clear(),
+      db.PendingClosures.clear(),
+      db.PendingMarkerChanges.clear(),
+      db.PendingMarkerDeletions.clear(),
+      db.TrailData.clear(),
+    ])
+    console.log("🗑️ All IndexedDB tables cleared")
+  } catch (e) {
+    console.warn("⚠️ Failed to clear all persisted data:", e)
+  }
+}

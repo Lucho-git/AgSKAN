@@ -64,6 +64,31 @@ public class RawGpsService extends Service {
             long intervalMs = intent.getLongExtra("intervalMs", 1000);
             float minDistanceM = intent.getFloatExtra("minDistanceM", 0f);
 
+            // SDK 36+ requires location permission to be granted BEFORE startForeground()
+            // for a foreground service with type "location". Without this check the OS
+            // throws a SecurityException and kills the process.
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "ACCESS_FINE_LOCATION not granted — cannot start foreground service");
+                // Still must call startForeground() before stopSelf() — Android crashes
+                // with ForegroundServiceDidNotStartInTimeException if we skip it after
+                // the caller used startForegroundService(). Use a plain notification
+                // with no location type so it doesn't require the permission.
+                try {
+                    Notification fallback = new NotificationCompat.Builder(this, CHANNEL_ID)
+                            .setContentTitle("GPS")
+                            .setContentText("Stopping — no location permission")
+                            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                            .setPriority(NotificationCompat.PRIORITY_LOW)
+                            .build();
+                    startForeground(NOTIFICATION_ID, fallback);
+                } catch (Exception e) {
+                    Log.e(TAG, "Fallback startForeground also failed", e);
+                }
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+
             startForeground(NOTIFICATION_ID, buildNotification("GPS active — 1Hz mode"));
 
             boolean started = startLocationUpdates(intervalMs, minDistanceM);

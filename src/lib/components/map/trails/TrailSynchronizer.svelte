@@ -43,6 +43,7 @@
   } from "$lib/services/db"
 
   import TrailView from "./TrailView.svelte"
+  import backgroundService from "$lib/services/backgroundService"
 
   export let selectedOperation
   export let map
@@ -455,6 +456,16 @@
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
 
+        // Flush the native HTTP queue BEFORE closing the trail.
+        // TransistorSoft's SQLite store may still have queued location POSTs
+        // with the old trailId baked in. Destroying them prevents late arrivals
+        // from re-creating trail_stream rows after close_trail_fast deletes them.
+        try {
+          await backgroundService.destroyNativeLocations()
+        } catch (e) {
+          console.warn("⚠️ Could not flush native location queue:", e)
+        }
+
         // Now close the trail and AWAIT
         console.log(`🔒 Closing trail ${trailId}...`)
 
@@ -465,6 +476,25 @@
         }
 
         console.log("✅ Trail closed successfully:", trailId)
+
+        // Post-close sweep: delete any trail_stream rows that leaked through
+        // between destroyLocations() and close_trail_fast completing.
+        // Fire-and-forget with a short delay to catch late arrivals.
+        setTimeout(async () => {
+          try {
+            const { error: sweepErr } = await supabase
+              .from("trail_stream")
+              .delete()
+              .eq("trail_id", trailId)
+            if (sweepErr) {
+              console.warn("⚠️ Post-close trail_stream sweep error:", sweepErr)
+            } else {
+              console.log(`🧹 Post-close sweep: cleaned trail_stream for ${trailId}`)
+            }
+          } catch (e) {
+            console.warn("⚠️ Post-close trail_stream sweep failed:", e)
+          }
+        }, 3000)
 
         // Convert to GeoJSON and add to historical
         const lineStringPath = {
@@ -490,13 +520,7 @@
           pointCount: pathData.length,
         }
       } catch (error) {
-        // Only log if it's NOT a network error
-        if (
-          !error.message?.includes("Failed to fetch") &&
-          !error.message?.includes("ERR_INTERNET_DISCONNECTED")
-        ) {
-          console.error("❌ Trail closure error:", error)
-        }
+        console.error("❌ Trail closure error:", error.message || error)
 
         // If ANY error, queue the entire closure for retry
         console.log("📴 Queueing trail closure (failed):", trailId)

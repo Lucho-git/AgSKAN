@@ -14,6 +14,7 @@
     pendingMarkerChangesStore,
     pendingMarkerDeletionsStore,
   } from "$lib/stores/markerStore"
+  import { clearAllPersistedData } from "$lib/services/db"
   import SVGComponents from "$lib/vehicles/index.js"
   import {
     Wifi,
@@ -22,6 +23,7 @@
     X,
     AlertTriangle,
     MapPinned,
+    Trash2,
   } from "lucide-svelte"
 
   /** Current calculated speed (km/h) passed from VehicleTracker */
@@ -146,6 +148,7 @@
   let showStatsModal = false
   let vehiclePickerOpen = false
   let broadcastPickerOpen = false
+  let purging = false
 
   const broadcastMessages = [
     "Gone for lunch",
@@ -220,6 +223,28 @@
 
   function closeStatsModal() {
     showStatsModal = false
+  }
+
+  async function purgeAllData() {
+    purging = true
+    try {
+      // 1. Clear all IndexedDB tables (coordinates, closures, markers)
+      await clearAllPersistedData()
+
+      // 2. Clear in-memory stores
+      pendingCoordinatesStore.set([])
+      pendingClosuresStore.clear()
+      pendingMarkerChangesStore.set(new Set())
+      pendingMarkerDeletionsStore.set(new Set())
+      currentTrailStore.set(null)
+      userVehicleTrailing.set(false)
+
+      console.log("🗑️ All queued data purged")
+    } catch (e) {
+      console.error("❌ Purge failed:", e)
+    } finally {
+      purging = false
+    }
   }
 
   // ── Helpers ──
@@ -637,7 +662,16 @@
 
       <!-- Footer -->
       <div class="conn-modal-footer">
-        <button class="modal-btn primary full-width" on:click={closeStatsModal}>
+        <button
+          class="modal-btn danger"
+          disabled={purging}
+          on:click={purgeAllData}
+          title="Clear all queued data and reset trail state"
+        >
+          <Trash2 size={14} />
+          {purging ? 'Clearing...' : 'Purge Data'}
+        </button>
+        <button class="modal-btn primary" on:click={closeStatsModal}>
           Close
         </button>
       </div>
@@ -989,8 +1023,18 @@
     background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
     transform: translateY(-1px);
   }
-  .modal-btn.full-width {
-    flex: 1 1 100%;
+  .modal-btn.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+  }
+  .modal-btn.danger:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-1px);
+  }
+  .modal-btn.danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 
   /* Animations */

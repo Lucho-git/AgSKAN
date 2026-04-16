@@ -86,6 +86,7 @@
   // Buffer latest native position so Mapbox-driven 'geolocate' can apply it
   // as the authoritative UI update to keep marker and camera perfectly aligned.
   let latestNativePos = null
+  let latestNativeTimestamp = null
   // When true, Mapbox's GeolocateControl is actively tracking the user
   // and should be allowed to drive the camera. While true, avoid calling
   // our own `updateCameraForTrackedVehicle` to prevent competing eases.
@@ -1030,7 +1031,7 @@
               heading: loc.coords.heading || 0,
               speed: loc.coords.speed || 0,
               accuracy: loc.coords.accuracy || null,
-            }, false, 'catchup')
+            }, false, 'catchup', loc.timestamp)
           }
         }
         // Clear the plugin's stored locations after processing
@@ -1196,6 +1197,29 @@
             isBackground = false
             appState = "mobile-foreground"
 
+            // If foreground GPS service isn't running (e.g. permission was just granted),
+            // retry starting it now that we're back in the foreground.
+            if (isMobileApp && !foregroundGpsService.isRunning) {
+              const intervalMs = ($userSettingsStore?.gpsIntervalSeconds || 2) * 1000
+              console.log('[GPS-DIAG] Foreground GPS not running on resume — retrying start with interval', intervalMs)
+              foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
+                if (started) {
+                  console.log('[GPS-DIAG] foregroundGpsService STARTED after permission grant')
+                  // Register listener if not already set
+                  if (!removeForegroundGpsListener) {
+                    removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
+                      if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
+                      latestNativePos = data.coords
+                      latestNativeTimestamp = data.timestamp || null
+                      streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
+                    })
+                  }
+                } else {
+                  console.warn('[GPS-DIAG] foregroundGpsService still failed to start on resume')
+                }
+              }).catch(e => console.warn('[GPS-DIAG] foregroundGpsService retry error:', e))
+            }
+
             // Fetch any trail points that were saved natively while JS was frozen
             handleForegroundCatchup(data)
 
@@ -1229,6 +1253,7 @@
               // When the user enables full 1Hz UI updates, however, we apply native
               // fixes immediately even if Mapbox is tracking (bypass the buffer).
               latestNativePos = data.coords
+              latestNativeTimestamp = data.timestamp || null
 
               // Raw overlay data is now updated inside streamMarkerPosition (proven Svelte-reactive path)
 
@@ -1243,7 +1268,7 @@
 
               if (applyImmediately) {
                 // Force UI update bypassing throttle
-                streamMarkerPosition(data.coords, true, 'native')
+                streamMarkerPosition(data.coords, true, 'native', data.timestamp)
 
                 // If the user is tracking their vehicle, ensure the camera follows.
                 try {
@@ -1440,6 +1465,9 @@
           const coordsToApply = latestNativePos || e.coords || null
           if (!coordsToApply) return
 
+          // Use stored native GPS timestamp when available, else browser GeolocationPosition timestamp
+          const geoTimestamp = latestNativePos ? latestNativeTimestamp : (e.timestamp || null)
+
           streamMarkerPosition(
             {
               latitude: coordsToApply.latitude,
@@ -1450,10 +1478,12 @@
             },
             true,
             'geolocate',
+            geoTimestamp,
           )
 
           // Clear buffer after applying
           latestNativePos = null
+          latestNativeTimestamp = null
         })
       }
     } catch (err) {
@@ -1497,7 +1527,8 @@
           removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
             if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
             latestNativePos = data.coords
-            streamMarkerPosition(data.coords, true, 'raw-gps')
+            latestNativeTimestamp = data.timestamp || null
+            streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
           })
         }
 
@@ -1528,7 +1559,7 @@
           const immediateCoords = buildCoords(immediateSrc)
           if (immediateCoords) {
             if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz immediate tick using", { usingLatestNative: !!latestNativePos, usingLastAccepted: !!(lastAcceptedCoords && !latestNativePos) })
-            streamMarkerPosition(immediateCoords, true, 'interval')
+            streamMarkerPosition(immediateCoords, true, 'interval', latestNativePos ? latestNativeTimestamp : null)
           }
 
           full1HzIntervalId = setInterval(() => {
@@ -1540,7 +1571,7 @@
             const coordsToUse = buildCoords(src)
             if (coordsToUse) {
               if (!latestNativePos && $devModeEnabled) console.log("[GPS-DIAG] interval using FALLBACK coords (stale)")
-              streamMarkerPosition(coordsToUse, true, 'interval')
+              streamMarkerPosition(coordsToUse, true, 'interval', latestNativePos ? latestNativeTimestamp : null)
             }
           }, 1000)
           if ($devModeEnabled) console.log("🚀 Full 1Hz UI updates ENABLED")
@@ -2288,10 +2319,13 @@
     return { accepted: true }
   }
 
-  function streamMarkerPosition(coords, forceUpdate = false, source = 'unknown') {
+  function streamMarkerPosition(coords, forceUpdate = false, source = 'unknown', gpsTimestamp = null) {
     const { latitude, longitude, heading, speed, accuracy } = coords
 
     const currentTime = Date.now()
+    // Use GPS hardware timestamp for trail coordinates when available;
+    // fall back to system clock for sources that don't provide one.
+    const trailTimestamp = gpsTimestamp ? (typeof gpsTimestamp === 'string' ? new Date(gpsTimestamp).getTime() : gpsTimestamp) : currentTime
 
     if ($devModeEnabled) console.log("[1Hz-DIAG] streamMarkerPosition called", { forceUpdate, enableFull1Hz: $userSettingsStore?.enableFull1Hz, now: currentTime, lastUiUpdateTime, source })
 
@@ -2434,10 +2468,10 @@
       }
     }
 
-    updateUserVehicleData(currentTime, vehicleData, smoothedHeading)
+    updateUserVehicleData(currentTime, vehicleData, smoothedHeading, trailTimestamp)
   }
 
-  function updateUserVehicleData(currentTime, vehicleData, updatedHeading) {
+  function updateUserVehicleData(currentTime, vehicleData, updatedHeading, trailTimestamp = null) {
     if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
       const { coordinates, speed } = vehicleData
       const { latitude, longitude } = coordinates
@@ -2459,7 +2493,7 @@
         if ($userVehicleTrailing && !$trailPausedStore) {
           coordinateBufferStore.set({
             coordinates: { latitude, longitude },
-            timestamp: currentTime,
+            timestamp: trailTimestamp || currentTime,
           })
         }
 

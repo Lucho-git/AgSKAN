@@ -1,11 +1,15 @@
 package com.skanfarming;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
+
+import androidx.core.app.ActivityCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -75,6 +79,22 @@ public class RawGpsPlugin extends Plugin {
             ctx.registerReceiver(locationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             ctx.registerReceiver(locationReceiver, filter);
+        }
+
+        // Guard: SDK 36+ requires location permission BEFORE startForegroundService()
+        // for a location-type foreground service. Without this the service crashes the app.
+        if (ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "ACCESS_FINE_LOCATION not granted — skipping RawGpsService start");
+            // Clean up the receiver we just registered
+            try { ctx.unregisterReceiver(locationReceiver); } catch (Exception ignored) {}
+            locationReceiver = null;
+
+            JSObject ret = new JSObject();
+            ret.put("started", false);
+            ret.put("reason", "LOCATION_PERMISSION_NOT_GRANTED");
+            call.resolve(ret);
+            return;
         }
 
         // Start the foreground service
