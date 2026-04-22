@@ -156,7 +156,7 @@ serve(async (req) => {
         // Set up checkout session parameters
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
             customer: customerId,
-            payment_method_types: ['card'],
+            payment_method_types: ['card', 'au_becs_debit'],
             line_items: [
                 {
                     price: priceId,
@@ -176,6 +176,9 @@ serve(async (req) => {
                 trial_period_days: 30,
             },
             automatic_tax: {
+                enabled: true,
+            },
+            tax_id_collection: {
                 enabled: true,
             },
             customer_update: {

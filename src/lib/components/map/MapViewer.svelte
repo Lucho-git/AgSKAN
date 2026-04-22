@@ -341,6 +341,10 @@
 
   function handleFieldSelect(event) {
     const { index, boundary } = event.detail
+    // Register field as active selection so clicking map deselects it
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection("field", `field-${index}`, mapFieldsRef)
+    }
     // Highlight the field
     if (mapFieldsRef) {
       mapFieldsRef.handleFieldSelection(index)
@@ -372,6 +376,10 @@
 
   function handleMarkerSelect(event) {
     const marker = event.detail
+    // Register marker as active selection so clicking map deselects it
+    if (mapEventManagerRef?.setSelection && marker?.id) {
+      mapEventManagerRef.setSelection("marker", `marker-${marker.id}`, markerManagerRef)
+    }
     if (map && marker?.coordinates) {
       map.flyTo({
         center: marker.coordinates,
