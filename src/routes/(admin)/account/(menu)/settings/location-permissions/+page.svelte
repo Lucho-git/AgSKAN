@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
+  import { App } from "@capacitor/app"
   import { Geolocation } from "@capacitor/geolocation"
   import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
+  import RawGps from "$lib/plugins/rawGps"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
 
@@ -57,6 +59,23 @@
     }
   }
 
+  // Open the native app settings (iOS Settings / Android App Info)
+  async function openAppSettings() {
+    try {
+      if (Capacitor.getPlatform() === 'ios') {
+        // Use our native RawGps plugin which calls UIApplication.openSettingsURLString
+        await RawGps.openSettings()
+      } else {
+        // Android: open app detail settings
+        await App.openUrl({ url: 'android.settings.APPLICATION_DETAILS_SETTINGS' })
+      }
+      toast.info('Change permissions in Settings, then return here', { duration: 4000 })
+    } catch (err) {
+      console.error('Error opening app settings:', err)
+      toast.error('Could not open Settings')
+    }
+  }
+
   // Request location permission
   async function requestLocationPermission() {
     if (!isNativePlatform) {
@@ -73,6 +92,16 @@
       console.error("Error requesting location permission:", err)
       toast.error("Failed to update location permission")
     }
+  }
+
+  // Disable location permission (opens Settings)
+  async function disableLocationPermission() {
+    await openAppSettings()
+  }
+
+  // Disable background location permission (opens Settings)
+  async function disableBackgroundLocationPermission() {
+    await openAppSettings()
   }
 
   // Request background location permission
@@ -96,10 +125,15 @@
         { duration: 5000 },
       )
 
-      // Request the permission
+      // Request the permission — temporarily switch to 'Always' so the iOS
+      // "Always Allow" dialog is presented, then revert to 'WhenInUse' so the
+      // plugin doesn't auto-prompt on every map open.
       setTimeout(async () => {
         try {
+          await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'Always' })
           await BackgroundGeolocation.requestPermission()
+          // Revert to WhenInUse so map opens don't auto-prompt
+          await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'WhenInUse' })
 
           // Check the state after the request
           const afterState = await BackgroundGeolocation.getProviderState()
@@ -108,13 +142,15 @@
           if (wasGranted) {
             toast.success("Background location enabled")
           } else {
-            toast.warning("Background location not enabled")
+            toast.warning("Background location not enabled — you may need to select 'Always Allow' in Settings")
           }
 
           // Update UI to reflect new status
           await checkLocationPermissions()
         } catch (err) {
           console.error("Error requesting background location:", err)
+          // Ensure we revert config even on error
+          try { await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'WhenInUse' }) } catch (_) {}
           toast.error("Failed to update background location permission")
         }
       }, 2500)
@@ -160,15 +196,27 @@
     )
   }
 
+  let resumeListener = null
+
   onMount(() => {
     if (isNativePlatform) {
       checkLocationPermissions()
+      // Re-check permissions when user returns from Settings app
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) checkLocationPermissions()
+      }).then(listener => { resumeListener = listener })
     } else {
       checkWebGeolocationSupport()
     }
     // Initialize settings defaults from store
     if ($userSettingsStore) {
       // noop here — UI binds directly where needed
+    }
+  })
+
+  onDestroy(() => {
+    if (resumeListener) {
+      resumeListener.remove()
     }
   })
 </script>
@@ -281,13 +329,23 @@
               </p>
             </div>
           </div>
-          <button
-            class="btn btn-outline btn-sm gap-2"
-            on:click={requestLocationPermission}
-          >
-            <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
-            {locationPermissionStatus === "granted" ? "Granted" : "Enable"}
-          </button>
+          {#if locationPermissionStatus === "granted"}
+            <button
+              class="btn btn-outline btn-error btn-sm gap-2"
+              on:click={disableLocationPermission}
+            >
+              <Icon icon="solar:close-circle-bold-duotone" width="16" height="16" />
+              Disable
+            </button>
+          {:else}
+            <button
+              class="btn btn-outline btn-sm gap-2"
+              on:click={requestLocationPermission}
+            >
+              <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
+              Enable
+            </button>
+          {/if}
         </div>
 
         <!-- Background Location Permission -->
@@ -315,14 +373,24 @@
               </p>
             </div>
           </div>
-          <button
-            class="btn btn-outline btn-sm gap-2"
-            disabled={locationPermissionStatus !== "granted"}
-            on:click={requestBackgroundLocationPermission}
-          >
-            <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
-            {backgroundLocationStatus === "granted" ? "Granted" : "Enable"}
-          </button>
+          {#if backgroundLocationStatus === "granted"}
+            <button
+              class="btn btn-outline btn-error btn-sm gap-2"
+              on:click={disableBackgroundLocationPermission}
+            >
+              <Icon icon="solar:close-circle-bold-duotone" width="16" height="16" />
+              Disable
+            </button>
+          {:else}
+            <button
+              class="btn btn-outline btn-sm gap-2"
+              disabled={locationPermissionStatus !== "granted"}
+              on:click={requestBackgroundLocationPermission}
+            >
+              <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
+              Enable
+            </button>
+          {/if}
         </div>
       </div>
     </div>

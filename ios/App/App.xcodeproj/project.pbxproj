@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B4F42A4AF174E1C1C23DA52 /* RawGpsPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 10724B108EB0319AF34E0EB4 /* RawGpsPlugin.m */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -14,11 +15,14 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		7CDF4D2FBECF9394B44ECEA6 /* RawGpsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C44439CA0453709E9D8E257 /* RawGpsPlugin.swift */; };
 		80C57F382DE5AE2300411A2F /* PluginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C57F372DE5AE2300411A2F /* PluginViewController.swift */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		10724B108EB0319AF34E0EB4 /* RawGpsPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RawGpsPlugin.m; path = App/RawGpsPlugin.m; sourceTree = "<group>"; };
+		2C44439CA0453709E9D8E257 /* RawGpsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RawGpsPlugin.swift; path = App/RawGpsPlugin.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -62,6 +66,8 @@
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
+				2C44439CA0453709E9D8E257 /* RawGpsPlugin.swift */,
+				10724B108EB0319AF34E0EB4 /* RawGpsPlugin.m */,
 			);
 			sourceTree = "<group>";
 		};
@@ -230,6 +236,8 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				80C57F382DE5AE2300411A2F /* PluginViewController.swift in Sources */,
+				7CDF4D2FBECF9394B44ECEA6 /* RawGpsPlugin.swift in Sources */,
+				2B4F42A4AF174E1C1C23DA52 /* RawGpsPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

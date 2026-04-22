@@ -14,6 +14,7 @@ class BackgroundService {
     this.locationUpdatesInBackground = 0;
     this.appStateListener = null;
     this.backgroundPermissionGranted = false;
+    this.hasAlwaysPermission = false; // True only for status 3 (Always) — used for UI toasts
     this.locationSubscription = null;
     this.providerSubscription = null;
     this.heartbeatSubscription = null;
@@ -40,7 +41,7 @@ class BackgroundService {
       // Check permission first
       await this.checkBackgroundPermission();
 
-      const permissionState = this.backgroundPermissionGranted;
+      const hasAlwaysPermission = this.hasAlwaysPermission;
 
       // Configure the plugin with error handling
       try {
@@ -66,7 +67,7 @@ class BackgroundService {
         }
       }
 
-      return permissionState;
+      return hasAlwaysPermission;
     } catch (error) {
       console.error("Error initializing background service:", error);
       return false;
@@ -78,10 +79,14 @@ class BackgroundService {
       const providerState = await BackgroundGeolocation.getProviderState();
       console.log("Provider State:", JSON.stringify(providerState, null, 2));
       
-      // Status code 3 = AUTHORIZATION_STATUS_ALWAYS (required for background)
-      this.backgroundPermissionGranted = providerState.status === 3;
+      // Status 3 = AUTHORIZATION_STATUS_ALWAYS (background)
+      // Status 4 = AUTHORIZATION_STATUS_WHEN_IN_USE (foreground only)
+      // Both are sufficient to start tracking — we need native GPS in foreground too.
+      // True background tracking still requires status 3, but foreground 1Hz works with 4.
+      this.backgroundPermissionGranted = providerState.status === 3 || providerState.status === 4;
+      this.hasAlwaysPermission = providerState.status === 3;
       
-      console.log(`Background permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status})`);
+      console.log(`Location permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status}, always=${this.hasAlwaysPermission})`);
       return this.backgroundPermissionGranted;
     } catch (error) {
       console.error("Error checking background permission:", error);
@@ -105,7 +110,7 @@ class BackgroundService {
         // Request 1s native update interval on Android (maps to LocationRequest.setInterval)
         locationUpdateInterval: 1000,
         fastestLocationUpdateInterval: 1000,
-        locationAuthorizationRequest: 'Always',
+        locationAuthorizationRequest: 'WhenInUse',
         
         // Background behavior
         stopOnTerminate: false,
@@ -125,6 +130,7 @@ class BackgroundService {
         // ── iOS-specific: prevent auto-pause of location updates ──
         pausesLocationUpdatesAutomatically: false,
         showsBackgroundLocationIndicator: true, // Blue bar on iOS
+        disableMotionActivityUpdates: true,      // Prevent "Physical Activity" permission prompt
         
         // Android notification
         notification: {

@@ -1515,20 +1515,31 @@
         // Start service if on native and not yet running
         if (isMobileApp && !removeForegroundGpsListener) {
           const intervalMs = newIntervalSeconds * 1000
-          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
-            if (started) {
-              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
-            } else {
-              console.warn('[GPS-DIAG] foregroundGpsService failed to start — falling back to default location sources')
-            }
-          }).catch(e => {
-            console.warn('[GPS-DIAG] foregroundGpsService error — falling back to default location sources:', e)
-          })
+          // Register listener BEFORE start() so we don't miss the first fix.
+          // If start() subsequently fails, we clean up the listener so the
+          // TransistorSoft / Mapbox fallback pathways are not blocked.
           removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
             if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
             latestNativePos = data.coords
             latestNativeTimestamp = data.timestamp || null
             streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
+          })
+          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
+            if (started) {
+              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
+            } else {
+              console.warn('[GPS-DIAG] foregroundGpsService failed to start — tearing down listener, falling back to TransistorSoft/Mapbox')
+              if (removeForegroundGpsListener) {
+                removeForegroundGpsListener()
+                removeForegroundGpsListener = null
+              }
+            }
+          }).catch(e => {
+            console.warn('[GPS-DIAG] foregroundGpsService error — tearing down listener, falling back to TransistorSoft/Mapbox:', e)
+            if (removeForegroundGpsListener) {
+              removeForegroundGpsListener()
+              removeForegroundGpsListener = null
+            }
           })
         }
 

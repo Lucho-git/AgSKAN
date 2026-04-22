@@ -3,6 +3,11 @@ import Capacitor
 
 class PluginViewController: CAPBridgeViewController {
     private var currentStatusBarStyle: UIStatusBarStyle = .default
+
+    // Register custom local plugins with the Capacitor bridge
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(RawGpsPlugin())
+    }
     
     override open func viewDidLoad() {
         super.viewDidLoad()

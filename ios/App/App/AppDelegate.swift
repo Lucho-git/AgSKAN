@@ -7,7 +7,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Set window background to AgSKAN yellow so no black flash on first launch
+        window?.backgroundColor = UIColor(red: 247/255, green: 219/255, blue: 92/255, alpha: 1.0)
         return true
     }
 
