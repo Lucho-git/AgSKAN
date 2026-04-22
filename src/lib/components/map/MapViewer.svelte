@@ -200,6 +200,80 @@
         return false
       }
     },
+    // Historical trails should stay under active trail layers.
+    addHistoricalTrailLayerOrdered: (layerConfig) => {
+      if (!map || map.getLayer(layerConfig.id)) return false
+
+      try {
+        const layers = map.getStyle().layers
+        const activeInsertAnchor = layers.find((layer) =>
+          [
+            "all-active-trails-layer",
+            "all-active-trails-center-line",
+            "all-active-trails-markers",
+          ].includes(layer.id),
+        )
+
+        if (activeInsertAnchor) {
+          map.addLayer(layerConfig, activeInsertAnchor.id)
+          return true
+        }
+
+        const topTrailBoundary = layers.find((layer) =>
+          [
+            "fields-outline",
+            "fields-outline-selected",
+            "fields-labels-area",
+            "fields-labels",
+            "markers-layer",
+            "markers-selection-circle",
+            "markers-selected-layer",
+          ].includes(layer.id),
+        )
+
+        if (topTrailBoundary) {
+          map.addLayer(layerConfig, topTrailBoundary.id)
+        } else {
+          map.addLayer(layerConfig)
+        }
+        return true
+      } catch (error) {
+        console.error(
+          `Error adding historical trail layer ${layerConfig.id}:`,
+          error,
+        )
+        return false
+      }
+    },
+    // Active trails should remain on top of historical trails.
+    addActiveTrailLayerOrdered: (layerConfig) => {
+      if (!map || map.getLayer(layerConfig.id)) return false
+
+      try {
+        const layers = map.getStyle().layers
+        const topTrailBoundary = layers.find((layer) =>
+          [
+            "fields-outline",
+            "fields-outline-selected",
+            "fields-labels-area",
+            "fields-labels",
+            "markers-layer",
+            "markers-selection-circle",
+            "markers-selected-layer",
+          ].includes(layer.id),
+        )
+
+        if (topTrailBoundary) {
+          map.addLayer(layerConfig, topTrailBoundary.id)
+        } else {
+          map.addLayer(layerConfig)
+        }
+        return true
+      } catch (error) {
+        console.error(`Error adding active trail layer ${layerConfig.id}:`, error)
+        return false
+      }
+    },
   })
 
   const mapOptions = {

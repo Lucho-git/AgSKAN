@@ -247,7 +247,9 @@
       },
     }
 
-    if (mapContext?.addTrailLayerOrdered) {
+    if (mapContext?.addHistoricalTrailLayerOrdered) {
+      mapContext.addHistoricalTrailLayerOrdered(mainLayerConfig)
+    } else if (mapContext?.addTrailLayerOrdered) {
       mapContext.addTrailLayerOrdered(mainLayerConfig)
     } else {
       addTrailWithFallback(mainLayerConfig)
@@ -261,7 +263,9 @@
       $layerVisibilityStore.trailArrows,
     )
 
-    if (mapContext?.addTrailLayerOrdered) {
+    if (mapContext?.addHistoricalTrailLayerOrdered) {
+      mapContext.addHistoricalTrailLayerOrdered(centerLineConfig)
+    } else if (mapContext?.addTrailLayerOrdered) {
       mapContext.addTrailLayerOrdered(centerLineConfig)
     } else {
       addTrailWithFallback(centerLineConfig)
@@ -275,7 +279,9 @@
       $layerVisibilityStore.trailArrows,
     )
 
-    if (mapContext?.addTrailLayerOrdered) {
+    if (mapContext?.addHistoricalTrailLayerOrdered) {
+      mapContext.addHistoricalTrailLayerOrdered(markerLayerConfig)
+    } else if (mapContext?.addTrailLayerOrdered) {
       mapContext.addTrailLayerOrdered(markerLayerConfig)
     } else {
       addTrailWithFallback(markerLayerConfig)
