@@ -270,7 +270,10 @@
         }
         return true
       } catch (error) {
-        console.error(`Error adding active trail layer ${layerConfig.id}:`, error)
+        console.error(
+          `Error adding active trail layer ${layerConfig.id}:`,
+          error,
+        )
         return false
       }
     },
@@ -452,7 +455,11 @@
     const marker = event.detail
     // Register marker as active selection so clicking map deselects it
     if (mapEventManagerRef?.setSelection && marker?.id) {
-      mapEventManagerRef.setSelection("marker", `marker-${marker.id}`, markerManagerRef)
+      mapEventManagerRef.setSelection(
+        "marker",
+        `marker-${marker.id}`,
+        markerManagerRef,
+      )
     }
     if (map && marker?.coordinates) {
       map.flyTo({
