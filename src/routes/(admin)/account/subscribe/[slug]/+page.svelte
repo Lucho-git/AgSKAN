@@ -4,10 +4,7 @@
   import { goto } from "$app/navigation"
   import { session } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
-  import {
-    createCheckoutSession,
-    createFreeSubscription,
-  } from "$lib/helpers/subscriptionHelpers"
+  import { subscriptionApi } from "$lib/api/subscriptionApi"
 
   export let data
 
@@ -31,10 +28,12 @@
 
       // Free plan handling
       if (slug === "free_plan") {
-        const { error } = await createFreeSubscription({ session: $session })
+        const result = await subscriptionApi.createFreeSubscription()
 
-        if (error) {
-          throw new Error(`Failed to activate free plan: ${error}`)
+        if (!result.success) {
+          throw new Error(
+            `Failed to activate free plan: ${result.message || "Unknown error"}`,
+          )
         }
 
         toast.success("Free plan activated!")
@@ -48,20 +47,19 @@
       const discountcode = params.get("discountcode")
 
       // Create checkout session
-      const { error, stripeUrl } = await createCheckoutSession({
-        session: $session,
+      const result = await subscriptionApi.createCheckoutSession({
         priceId: slug,
         seats,
         discount,
         discountcode,
       })
 
-      if (error || !stripeUrl) {
-        throw new Error(error || "Failed to create checkout session")
+      if (!result.success || !result.stripeUrl) {
+        throw new Error(result.message || "Failed to create checkout session")
       }
 
       // Redirect to Stripe
-      window.location.href = stripeUrl
+      window.location.href = result.stripeUrl
     } catch (error) {
       console.error("Error:", error)
       toast.error(error.message || "An unexpected error occurred")

@@ -2,6 +2,6 @@
 
 ## Reporting a Vulnerability
 
-Please report any vulnerabilities via GitHub: https://github.com/CriticalMoments/CMSaasStarter/security
+Please report security issues privately to the AgSKAN maintainers.
 
-This allows us to privately fix and publish the fix before public disclosure. 
+Do not open public issues for suspected vulnerabilities, exposed credentials, customer data issues, or production access concerns. Include the affected feature, reproduction steps, and any relevant device or browser details so the issue can be triaged quickly.

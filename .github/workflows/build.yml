@@ -8,7 +8,7 @@ env:
   PRIVATE_SUPABASE_SERVICE_ROLE: 'fake_service_role'
   PRIVATE_STRIPE_WEBHOOK_SECRET: 'fake_webhook_secret' 
   PRIVATE_STRIPE_API_KEY: 'fake_api_key'
-  PUBLIC_SITE_NAME: 'SaaS Starter Build Test'
+  PUBLIC_SITE_NAME: 'AgSKAN Build Test'
   PUBLIC_VAPID_APPLICATION_SERVER_KEY: '[0,0,0,0]'
   PUBLIC_VAPID_KEY: '{"fake":"value"}'
   PRIVATE_VAPID_KEY: '{"fake":"value"}'

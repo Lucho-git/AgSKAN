@@ -62,44 +62,13 @@ export const subscriptionApi = {
      */
     async getSubscriptionData() {
         try {
-            // Check authentication
             const { data: session } = await supabase.auth.getSession();
 
             if (!session?.session?.user) {
                 throw new Error("Not authenticated");
             }
 
-            const userId = session.session.user.id;
-
-            // Get customer data using RLS
-            const { data: customers, error } = await supabase
-                .from("stripe_customers")
-                .select("stripe_customer_id")
-                .eq("user_id", userId);
-
-            if (error) {
-                throw new Error(`Error retrieving customer data: ${error.message}`);
-            }
-
-            // If no customer found, return default values
-            if (!customers || customers.length === 0) {
-                console.log('No Customer found', customers)
-                return {
-                    success: true,
-                    isActiveCustomer: false,
-                    hasEverHadSubscription: false,
-                    currentPlanId: defaultPlanId,
-                    subscriptionData: null
-                };
-            } else (
-                console.log('Customer found', customers)
-            )
-
-            // Call the subscription Edge Function with the customer ID
-            const customerId = customers[0].stripe_customer_id;
-            const subscriptionData = await this.callSubscriptionFunction(session.session.access_token, customerId);
-            console.log(subscriptionData)
-            return subscriptionData;
+            return await this.callSubscriptionFunction(session.session.access_token);
         } catch (error) {
             console.error("Error in getSubscriptionData:", error);
             return {
@@ -116,7 +85,7 @@ export const subscriptionApi = {
     /**
      * Helper to call the subscription Edge Function
      */
-    async callSubscriptionFunction(accessToken, customerId) {
+    async callSubscriptionFunction(accessToken, customerId = null) {
         try {
             const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/subscription`;
 
@@ -126,7 +95,10 @@ export const subscriptionApi = {
                     "Authorization": `Bearer ${accessToken}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ customerId })
+                body: JSON.stringify({
+                    ...(customerId ? { customerId } : {}),
+                    debugPricing: true
+                })
             });
 
             if (!response.ok) {
@@ -171,17 +143,12 @@ export const subscriptionApi = {
         discountcode?: string | null
     }) {
         try {
-            // Check authentication
             const { data: session } = await supabase.auth.getSession();
 
             if (!session?.session?.user) {
                 throw new Error("Not authenticated");
             }
 
-            // Get or create customer ID - similar pattern to createPortalSession
-            const userId = session.session.user.id;
-
-            // Call the checkout Edge Function 
             const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/create-checkout`;
 
             const response = await fetch(functionUrl, {
@@ -222,34 +189,17 @@ export const subscriptionApi = {
     /**
      * Creates a Stripe Customer Portal session for managing subscription
      */
-    async createPortalSession(returnUrl = "/account/billing") {
+    async createPortalSession(returnUrl = "/account/billing", options = {}) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+
         try {
-            // Check authentication
             const { data: session } = await supabase.auth.getSession();
 
             if (!session?.session?.user) {
                 throw new Error("Not authenticated");
             }
 
-            const userId = session.session.user.id;
-
-            // Get customer data
-            const { data: customers, error } = await supabase
-                .from("stripe_customers")
-                .select("stripe_customer_id")
-                .eq("user_id", userId);
-
-            if (error) {
-                throw new Error(`Error retrieving customer data: ${error.message}`);
-            }
-
-            // If no customer found, return error
-            if (!customers || customers.length === 0) {
-                throw new Error("No subscription found to manage");
-            }
-
-            // Call the portal Edge Function with the customer ID
-            const customerId = customers[0].stripe_customer_id;
             const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/create-portal`;
 
             const response = await fetch(functionUrl, {
@@ -258,11 +208,14 @@ export const subscriptionApi = {
                     "Authorization": `Bearer ${session.session.access_token}`,
                     "Content-Type": "application/json"
                 },
+                signal: controller.signal,
                 body: JSON.stringify({
-                    customerId,
-                    returnUrl: window.location.origin + returnUrl
+                    returnUrl: window.location.origin + returnUrl,
+                    ...options
                 })
             });
+
+            window.clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -277,9 +230,12 @@ export const subscriptionApi = {
             };
         } catch (error) {
             console.error("Error creating portal session:", error);
+            window.clearTimeout(timeoutId);
             return {
                 success: false,
-                message: error.message,
+                message: error.name === "AbortError"
+                    ? "The billing portal request timed out. Please try again, then check the create-portal Edge Function logs if it repeats."
+                    : error.message,
                 url: null
             };
         }
@@ -291,14 +247,12 @@ export const subscriptionApi = {
      */
     async createFreeSubscription() {
         try {
-            // Check authentication
             const { data: session } = await supabase.auth.getSession();
 
             if (!session?.session?.user) {
                 throw new Error("Not authenticated");
             }
 
-            // Call the Edge Function
             const functionUrl = `${PUBLIC_SUPABASE_URL}/functions/v1/create-free-subscription`;
 
             const response = await fetch(functionUrl, {
