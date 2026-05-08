@@ -10,6 +10,7 @@
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { farmsStore } from "$lib/stores/farmsStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { session } from "$lib/stores/sessionStore"
   import { fileApi } from "$lib/api/fileApi" // Import the fileApi
   import { farmApi } from "$lib/api/farmApi"
@@ -98,13 +99,18 @@
       mapFieldsStore.set(fields)
       console.log("Fields loaded successfully:", fields)
 
-      // Load farms for this map (derive map_id from the first field, or from profile)
-      if (fields.length > 0 && fields[0].map_id) {
-        const farmsResult = await farmApi.loadFarms(fields[0].map_id)
+      const mapId = $connectedMapStore?.id || fields[0]?.map_id
+      if (mapId) {
+        const farmsResult = await farmApi.loadFarms(mapId)
         if (!farmsResult.error) {
           farmsStore.set(farmsResult.farms)
           console.log("Farms loaded successfully:", farmsResult.farms)
+        } else {
+          console.error("Farms API error:", farmsResult.error)
         }
+      } else {
+        farmsStore.set([])
+        console.warn("No connected map id available for loading farms")
       }
 
       return fields
