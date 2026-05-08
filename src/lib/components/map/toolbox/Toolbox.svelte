@@ -220,6 +220,11 @@
     closeToolbox()
   }
 
+  function handleAddField(event) {
+    dispatch("addField", event.detail)
+    closeToolbox()
+  }
+
   function handleSwitchToVehicle() {
     showVehiclePanel()
   }
@@ -474,7 +479,7 @@
       {:else if activePanel === "collection"}
         <CollectionControls on:close={closeToolbox} />
       {:else if activePanel === "fields"}
-        <FieldControls on:selectField />
+        <FieldControls on:selectField on:addField={handleAddField} />
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>

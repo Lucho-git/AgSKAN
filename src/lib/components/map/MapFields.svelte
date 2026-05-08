@@ -735,9 +735,20 @@
         fieldsInitialized = true
         return
       }
+
+      if (canUseMap() && !map.getSource("fields")) {
+        loadFields()
+        return
+      }
+
       if (canUseMap() && map.getSource("label-points")) {
         updateMapLabels()
         updateMapColors()
+
+        const bounds = calculateBoundingBox(get(mapFieldsStore))
+        if (bounds) {
+          fieldBoundaryStore.set(bounds.toArray())
+        }
       }
     })
 

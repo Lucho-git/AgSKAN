@@ -17,6 +17,10 @@
     fieldBoundaryStore,
     markerBoundaryStore,
   } from "$lib/stores/homeBoundaryStore"
+  import { drawingModeEnabled } from "$lib/stores/controlStore"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import { fileApi } from "$lib/api/fileApi"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
@@ -44,6 +48,7 @@
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
+  import AddFieldOverlay from "$lib/components/map/overlays/AddFieldOverlay.svelte"
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
@@ -92,6 +97,8 @@
 
   // Toolbox state
   let toolboxOpen = false
+  let addFieldFarm = null
+  let savingAddField = false
 
   // Pending sync data for ButtonSection
   let pendingCoordinates = []
@@ -305,6 +312,7 @@
   }
 
   function handleLongPress(lngLat) {
+    if (addFieldFarm) return
     // Don't place markers while lasso-drawing a collection route
     if ($collectionRouteStore.phase === "drawing") return
     if (markerManagerRef) {
@@ -448,6 +456,93 @@
         )
         map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
       }
+    }
+  }
+
+  function handleAddField(event) {
+    addFieldFarm = event.detail
+    $drawingModeEnabled = false
+    toolboxOpen = false
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection("field", "new-field", mapFieldsRef)
+    }
+  }
+
+  function handleAddFieldCancel() {
+    addFieldFarm = null
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(null, null, null)
+    }
+  }
+
+  async function handleAddFieldComplete(event) {
+    if (savingAddField) return
+
+    const detail = event.detail || {}
+    const fieldName = detail.fieldName?.trim()
+    const mapId = $connectedMapStore?.id
+
+    if (!fieldName) {
+      toast.error("Field name is required")
+      return
+    }
+
+    if (!mapId) {
+      toast.error("No map connected. Please connect to a map first.")
+      return
+    }
+
+    savingAddField = true
+
+    const paddock = {
+      name: fieldName,
+      boundary: detail.boundary,
+      area: detail.area?.hectares || 0,
+      status: "accepted",
+      properties: {
+        FIELD_NAME: fieldName,
+        FARM_NAME: detail.farmName,
+        FIELD_AREA: detail.area?.hectares || 0,
+        AREA_SQUARE_METERS: detail.area?.squareMeters || 0,
+        PART_COUNT: detail.partCount || 1,
+        sourceType: "DrawnInApp",
+        createdFrom: "map_add_field_overlay",
+        drawnAt: new Date().toISOString(),
+      },
+      isMultiPolygon: detail.boundary?.type === "MultiPolygon",
+      polygon_areas: detail.polygonAreas || null,
+      farm_id: detail.farmId,
+    }
+
+    const promise = fileApi.uploadFields(mapId, [paddock]).then((result) => {
+      if (!result.success) {
+        throw new Error(result.message || "Failed to save field")
+      }
+      if (!result.insertedFields?.length) {
+        const rejectedReason = result.rejectedFields?.[0]?.reason
+        throw new Error(rejectedReason || "No field was saved")
+      }
+      return result
+    })
+
+    toast.promise(promise, {
+      loading: "Saving field...",
+      success: (result) => `Field "${result.insertedFields[0].name}" saved.`,
+      error: (error) => error.message,
+    })
+
+    try {
+      const result = await promise
+      const insertedField = result.insertedFields[0]
+      mapFieldsStore.update((fields) => [...fields, insertedField])
+      addFieldFarm = null
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection(null, null, null)
+      }
+    } catch (error) {
+      console.error("Error saving drawn field:", error)
+    } finally {
+      savingAddField = false
     }
   }
 
@@ -866,6 +961,16 @@
       onComplete={handleDrawingComplete}
       onCancel={handleDrawingCancel}
     />
+
+    {#if addFieldFarm}
+      <AddFieldOverlay
+        {map}
+        farm={addFieldFarm}
+        saving={savingAddField}
+        on:cancel={handleAddFieldCancel}
+        on:complete={handleAddFieldComplete}
+      />
+    {/if}
   {/if}
 </div>
 
@@ -879,6 +984,7 @@
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
   on:selectField={handleFieldSelect}
+  on:addField={handleAddField}
   on:selectMarker={handleMarkerSelect}
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}

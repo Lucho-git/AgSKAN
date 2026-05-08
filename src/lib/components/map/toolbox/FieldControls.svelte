@@ -221,6 +221,14 @@
       toast.error("Failed to move field")
     }
   }
+
+  function handleAddField(entry) {
+    reassignFieldId = null
+    dispatch("addField", {
+      farmId: entry.farmId,
+      farmName: entry.farmName,
+    })
+  }
 </script>
 
 <div class="field-controls" bind:this={controlsEl}>
@@ -353,6 +361,16 @@
                   {/if}
                 </div>
               {/each}
+            {/if}
+
+            {#if entry.farmId}
+              <button
+                class="add-field-btn"
+                on:click={() => handleAddField(entry)}
+              >
+                <Plus size={16} />
+                <span>Add New Field</span>
+              </button>
             {/if}
           {/if}
         </div>
@@ -523,6 +541,33 @@
 
   .field-row-wrapper {
     position: relative;
+  }
+
+  .add-field-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 28px);
+    margin: 6px 14px 10px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px dashed rgba(34, 197, 94, 0.42);
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.08);
+    color: #86efac;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      color 0.15s;
+  }
+
+  .add-field-btn:hover {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.7);
+    color: #bbf7d0;
   }
 
   .field-icon-mini {

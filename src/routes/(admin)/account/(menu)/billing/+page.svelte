@@ -79,8 +79,7 @@
   // Detect which plan an active subscriber is on
   $: activeSubscriptionItem =
     subscriptionData?.stripeSubscription?.items?.data?.[0]
-  $: activePrice =
-    activeSubscriptionItem?.price
+  $: activePrice = activeSubscriptionItem?.price
   $: activePlan = subscriptionData?.stripeSubscription?.plan
   $: activePriceId = getStripeId(activePrice) || getStripeId(activePlan)
   $: isOnOldPlan = activePriceId === OLD_PRICE_ID
@@ -107,26 +106,24 @@
     activeSubscriptionItem?.quantity ??
     subscriptionData?.stripeSubscription?.quantity ??
     1
-  $: activeTotalMonthly = activeMonthlyPerSeat != null
-    ? activeMonthlyPerSeat * activeSeats
-    : null
-  $: activeTotalYearly = activeYearlyPerSeat != null
-    ? activeYearlyPerSeat * activeSeats
-    : null
+  $: activeTotalMonthly =
+    activeMonthlyPerSeat != null ? activeMonthlyPerSeat * activeSeats : null
+  $: activeTotalYearly =
+    activeYearlyPerSeat != null ? activeYearlyPerSeat * activeSeats : null
   $: seatDelta = desiredSeats - activeSeats
   $: seatsChanged = seatDelta !== 0
-  $: projectedSeatMonthly = activeMonthlyPerSeat != null
-    ? activeMonthlyPerSeat * desiredSeats
-    : null
-  $: projectedSeatYearly = activeYearlyPerSeat != null
-    ? activeYearlyPerSeat * desiredSeats
-    : null
-  $: seatChangeMonthlyDelta = activeMonthlyPerSeat != null
-    ? Math.abs(seatDelta) * activeMonthlyPerSeat
-    : null
-  $: seatChangeYearlyDelta = activeYearlyPerSeat != null
-    ? Math.abs(seatDelta) * activeYearlyPerSeat
-    : null
+  $: projectedSeatMonthly =
+    activeMonthlyPerSeat != null ? activeMonthlyPerSeat * desiredSeats : null
+  $: projectedSeatYearly =
+    activeYearlyPerSeat != null ? activeYearlyPerSeat * desiredSeats : null
+  $: seatChangeMonthlyDelta =
+    activeMonthlyPerSeat != null
+      ? Math.abs(seatDelta) * activeMonthlyPerSeat
+      : null
+  $: seatChangeYearlyDelta =
+    activeYearlyPerSeat != null
+      ? Math.abs(seatDelta) * activeYearlyPerSeat
+      : null
   $: nextBillingDateLabel = subscriptionData?.stripeSubscription
     ?.current_period_end
     ? formatDateFromSeconds(
@@ -152,7 +149,10 @@
     subscriptionDiscounts: subscriptionData?.stripeSubscription?.discounts,
   }
   $: if (seatsChanged && !hasUsableSeatPrice) {
-    console.warn("[Billing] Seat estimate unavailable from Stripe payload", pricingDebug)
+    console.warn(
+      "[Billing] Seat estimate unavailable from Stripe payload",
+      pricingDebug,
+    )
   }
 
   $: stripePriceId = isTestDiscount
@@ -197,7 +197,8 @@
 
     if (typeof amount === "number" && amount > 0) return amount
 
-    const tierAmount = stripePrice?.tiers?.[0]?.unit_amount ??
+    const tierAmount =
+      stripePrice?.tiers?.[0]?.unit_amount ??
       stripePrice?.tiers?.[0]?.flat_amount
 
     if (typeof tierAmount === "number" && tierAmount > 0) return tierAmount
@@ -323,7 +324,9 @@
         toast.error(result.message || "Failed to open seat change review")
       }
     } catch (err: any) {
-      toast.error("Error: " + (err.message || "Failed to open seat change review"))
+      toast.error(
+        "Error: " + (err.message || "Failed to open seat change review"),
+      )
     } finally {
       seatUpdateLoading = false
     }
@@ -539,7 +542,9 @@
             <div class="mt-4 rounded-lg bg-base-100 p-3">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-xs font-medium uppercase text-contrast-content/50">
+                  <p
+                    class="text-xs font-medium uppercase text-contrast-content/50"
+                  >
                     New seat count
                   </p>
                   <p class="mt-1 text-sm text-contrast-content/70">
@@ -610,8 +615,7 @@
                     </p>
                     <p class="mt-1 text-xs text-contrast-content/60">
                       That is {formatCurrency(seatChangeYearlyDelta)}/yr for
-                      {Math.abs(seatDelta)} extra seat{Math.abs(seatDelta) ===
-                      1
+                      {Math.abs(seatDelta)} extra seat{Math.abs(seatDelta) === 1
                         ? ""
                         : "s"}.
                     </p>
@@ -620,8 +624,11 @@
                       {formatCurrency(projectedSeatMonthly)}/mo from {nextBillingDateLabel}
                     </p>
                     <p class="mt-1 text-xs text-contrast-content/60">
-                      Your projected subscription becomes {formatCurrency(projectedSeatYearly)}/yr
-                      for {desiredSeats} seat{desiredSeats === 1 ? "" : "s"}
+                      Your projected subscription becomes {formatCurrency(
+                        projectedSeatYearly,
+                      )}/yr for {desiredSeats} seat{desiredSeats === 1
+                        ? ""
+                        : "s"}
                       at the next billing period.
                     </p>
                   {:else if seatDelta > 0}
@@ -629,23 +636,32 @@
                       Changes will be applied immediately
                     </p>
                     <p class="mt-1 text-xs text-contrast-content/60">
-                      Estimated for {Math.abs(seatDelta)} extra seat{Math.abs(seatDelta) ===
-                      1
+                      Estimated for {Math.abs(seatDelta)} extra seat{Math.abs(
+                        seatDelta,
+                      ) === 1
                         ? ""
                         : "s"}.
                     </p>
                     <p class="mt-2 break-all text-[11px] text-warning">
-                      Billing debug: price={activePriceId ?? "missing"}, amount={activeUnitAmount ?? "missing"}, interval={activeBillingInterval ?? "missing"}, reason={billingPricing?.estimateUnavailableReason ?? "none"}
+                      Billing debug: price={activePriceId ?? "missing"}, amount={activeUnitAmount ??
+                        "missing"}, interval={activeBillingInterval ??
+                        "missing"}, reason={billingPricing?.estimateUnavailableReason ??
+                        "none"}
                     </p>
                   {:else}
                     <p class="font-medium text-contrast-content">
                       Reduced seats apply from {nextBillingDateLabel}
                     </p>
                     <p class="mt-1 text-xs text-contrast-content/60">
-                      Estimated for {desiredSeats} seat{desiredSeats === 1 ? "" : "s"}.
+                      Estimated for {desiredSeats} seat{desiredSeats === 1
+                        ? ""
+                        : "s"}.
                     </p>
                     <p class="mt-2 break-all text-[11px] text-warning">
-                      Billing debug: price={activePriceId ?? "missing"}, amount={activeUnitAmount ?? "missing"}, interval={activeBillingInterval ?? "missing"}, reason={billingPricing?.estimateUnavailableReason ?? "none"}
+                      Billing debug: price={activePriceId ?? "missing"}, amount={activeUnitAmount ??
+                        "missing"}, interval={activeBillingInterval ??
+                        "missing"}, reason={billingPricing?.estimateUnavailableReason ??
+                        "none"}
                     </p>
                   {/if}
                 </div>
