@@ -2,6 +2,12 @@
 import { supabase } from '$lib/supabaseClient';
 import type { Farm } from '$lib/stores/farmsStore';
 
+export const FARM_NAME_MAX_LENGTH = 10;
+
+function normalizeFarmName(name: string): string {
+    return name.trim().slice(0, FARM_NAME_MAX_LENGTH);
+}
+
 export const farmApi = {
 
     /**
@@ -28,15 +34,18 @@ export const farmApi = {
      */
     async createFarm(mapId: string, name: string): Promise<{ success: boolean; farm?: Farm; message?: string }> {
         try {
+            const trimmed = normalizeFarmName(name);
+            if (!trimmed) return { success: false, message: 'Farm name is empty' };
+
             const { data, error } = await supabase
                 .from('farms')
-                .insert([{ map_id: mapId, name: name.trim() }])
+                .insert([{ map_id: mapId, name: trimmed }])
                 .select('*')
                 .single();
 
             if (error) {
                 if (error.code === '23505') {
-                    return { success: false, message: `Farm "${name}" already exists on this map` };
+                    return { success: false, message: `Farm "${trimmed}" already exists on this map` };
                 }
                 throw error;
             }
@@ -53,14 +62,17 @@ export const farmApi = {
      */
     async renameFarm(farmId: string, newName: string): Promise<{ success: boolean; message?: string }> {
         try {
+            const trimmed = normalizeFarmName(newName);
+            if (!trimmed) return { success: false, message: 'Farm name is empty' };
+
             const { error } = await supabase
                 .from('farms')
-                .update({ name: newName.trim() })
+                .update({ name: trimmed })
                 .eq('id', farmId);
 
             if (error) {
                 if (error.code === '23505') {
-                    return { success: false, message: `Farm "${newName}" already exists on this map` };
+                    return { success: false, message: `Farm "${trimmed}" already exists on this map` };
                 }
                 throw error;
             }
@@ -96,7 +108,7 @@ export const farmApi = {
      */
     async getOrCreateFarm(mapId: string, name: string): Promise<{ farmId: string | null; error?: string }> {
         try {
-            const trimmed = name.trim();
+            const trimmed = normalizeFarmName(name);
             if (!trimmed) return { farmId: null, error: 'Farm name is empty' };
 
             // Try to find existing

@@ -48,7 +48,7 @@
   import FieldIcon from "$lib/components/map/overlays/FieldIcon.svelte"
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
-  import { farmApi } from "$lib/api/farmApi"
+  import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
 
   // Accept the navigation function as a prop
   export let navigateToProcess: (fileId: string, fileName: string) => void
@@ -886,6 +886,7 @@
             <Input
               bind:value={migrationNewFarmName}
               placeholder="Enter new farm name"
+              maxlength={FARM_NAME_MAX_LENGTH}
               class="w-full"
             />
           {/if}

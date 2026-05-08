@@ -15,7 +15,7 @@
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { fileApi } from "$lib/api/fileApi"
-  import { farmApi } from "$lib/api/farmApi"
+  import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
   import { farmsStore } from "$lib/stores/farmsStore"
   import { detectFarmNames } from "$lib/api/processBoundariesApi"
 
@@ -191,6 +191,7 @@
           id="farm-name-wizard"
           type="text"
           bind:value={farmName}
+          maxlength={FARM_NAME_MAX_LENGTH}
           placeholder="e.g. Wellstead Farming"
           class="w-full"
         />

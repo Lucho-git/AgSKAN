@@ -4,7 +4,7 @@
   import { createEventDispatcher, onMount, onDestroy } from "svelte"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { farmsStore } from "$lib/stores/farmsStore"
-  import { farmApi } from "$lib/api/farmApi"
+  import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
   import { fileApi } from "$lib/api/fileApi"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { toast } from "svelte-sonner"
@@ -260,7 +260,7 @@
                 <input
                   class="rename-input"
                   bind:value={renameValue}
-                  maxlength="20"
+                  maxlength={FARM_NAME_MAX_LENGTH}
                   autofocus
                   on:click|stopPropagation
                   on:keydown|stopPropagation={(e) => {
@@ -387,7 +387,7 @@
           class="add-farm-input"
           bind:value={newFarmName}
           placeholder="Farm name"
-          maxlength="20"
+          maxlength={FARM_NAME_MAX_LENGTH}
           autofocus
           on:keydown={(e) => {
             if (e.key === "Enter") handleAddFarm()

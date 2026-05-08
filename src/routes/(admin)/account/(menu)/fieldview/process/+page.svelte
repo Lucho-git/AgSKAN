@@ -18,7 +18,7 @@
   import { toast } from "svelte-sonner"
   import { fieldStore } from "$lib/stores/fieldStore"
   import { fileApi } from "$lib/api/fileApi"
-  import { farmApi } from "$lib/api/farmApi"
+  import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
   import { farmsStore } from "$lib/stores/farmsStore"
   import { processBoundariesApi } from "$lib/api/processBoundariesApi"
   import {
@@ -552,6 +552,7 @@
               id="farm-name-process"
               type="text"
               bind:value={farmName}
+              maxlength={FARM_NAME_MAX_LENGTH}
               placeholder="e.g. Wellstead Farming"
               class="w-full rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content focus:outline-none focus:ring-1 focus:ring-base-content/50"
             />
