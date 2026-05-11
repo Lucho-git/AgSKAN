@@ -15,6 +15,7 @@
     LandPlot,
     Plus,
     Pencil,
+    Search,
     Check,
     X,
     ArrowRightLeft,
@@ -32,6 +33,7 @@
   let renamingFarmId = null
   let renameValue = ""
   let reassignFieldId = null // field_id of the field whose menu is open
+  let fieldSearch = ""
   let controlsEl // root element ref for click-outside detection
 
   function createGeoJSON(boundary) {
@@ -114,10 +116,36 @@
 
   $: totalFields = ($mapFieldsStore || []).length
   $: totalFarms = ($farmsStore || []).length
+  $: searchTerm = fieldSearch.trim().toLowerCase()
+  $: isSearching = searchTerm.length > 0
+  $: visibleFarmEntries = isSearching
+    ? farmEntries
+        .map((entry) => ({
+          ...entry,
+          totalFieldCount: entry.fields.length,
+          fields: entry.fields.filter((field) =>
+            (field.name || "").toLowerCase().includes(searchTerm),
+          ),
+        }))
+        .filter((entry) => entry.fields.length > 0)
+    : farmEntries.map((entry) => ({
+        ...entry,
+        totalFieldCount: entry.fields.length,
+      }))
+  $: visibleFieldCount = visibleFarmEntries.reduce(
+    (total, entry) => total + entry.fields.length,
+    0,
+  )
 
   function toggleFarm(farmId) {
+    if (isSearching) return
     const key = farmId || "__unassigned"
     collapsedFarms = { ...collapsedFarms, [key]: !collapsedFarms[key] }
+  }
+
+  function clearFieldSearch() {
+    fieldSearch = ""
+    reassignFieldId = null
   }
 
   function selectField(field) {
@@ -237,6 +265,27 @@
 </script>
 
 <div class="field-controls" bind:this={controlsEl}>
+  <div class="field-search-row">
+    <Search size={16} />
+    <input
+      class="field-search-input"
+      bind:value={fieldSearch}
+      placeholder="Search fields"
+      aria-label="Search fields"
+      autocomplete="off"
+    />
+    {#if isSearching}
+      <button
+        class="field-search-clear"
+        on:click={clearFieldSearch}
+        title="Clear search"
+        aria-label="Clear field search"
+      >
+        <X size={16} />
+      </button>
+    {/if}
+  </div>
+
   {#if totalFarms === 0 && totalFields === 0}
     <div class="empty-state">
       <LandPlot size={32} strokeWidth={1.5} />
@@ -244,16 +293,25 @@
     </div>
   {:else}
     <div class="field-list">
-      {#each farmEntries as entry}
+      {#if isSearching && visibleFieldCount === 0}
+        <div class="empty-state compact">
+          <Search size={28} strokeWidth={1.5} />
+          <p>No matching fields</p>
+        </div>
+      {/if}
+
+      {#each visibleFarmEntries as entry}
         {@const farmKey = entry.farmId || "__unassigned"}
+        {@const farmCollapsed = isSearching ? false : collapsedFarms[farmKey]}
         <div class="farm-section">
           <div class="farm-header-row">
             <button
               class="farm-header"
+              class:searching={isSearching}
               on:click={() => toggleFarm(entry.farmId)}
             >
               <span class="farm-chevron">
-                {#if collapsedFarms[farmKey]}
+                {#if farmCollapsed}
                   <ChevronRight size={18} />
                 {:else}
                   <ChevronDown size={18} />
@@ -287,8 +345,14 @@
                 </button>
               {:else}
                 <span class="farm-name">{entry.farmName}</span>
-                <span class="farm-count">{entry.fields.length}</span>
-                {#if entry.farmId}
+                <span class="farm-count">
+                  {#if isSearching}
+                    {entry.fields.length}/{entry.totalFieldCount}
+                  {:else}
+                    {entry.fields.length}
+                  {/if}
+                </span>
+                {#if entry.farmId && !isSearching}
                   <button
                     class="icon-btn edit"
                     on:click|stopPropagation={() =>
@@ -311,7 +375,7 @@
             </button>
           </div>
 
-          {#if !collapsedFarms[farmKey]}
+          {#if !farmCollapsed}
             {#if entry.fields.length === 0}
               <div class="empty-farm">No fields</div>
             {:else}
@@ -341,7 +405,7 @@
                     >
                       <Pencil size={16} />
                     </button>
-                    {#if farmEntries.length > 1}
+                    {#if farmEntries.length > 1 && !isSearching}
                       <button
                         class="icon-btn move"
                         title="Move to another farm"
@@ -375,7 +439,7 @@
               {/each}
             {/if}
 
-            {#if entry.farmId}
+            {#if entry.farmId && !isSearching}
               <button
                 class="add-field-btn"
                 on:click={() => handleAddField(entry)}
@@ -391,7 +455,7 @@
   {/if}
 
   <!-- Add farm button -->
-  <div class="add-farm-section">
+  <div class="add-farm-section" class:searching={isSearching}>
     {#if addingFarm}
       <div class="add-farm-input-row">
         <!-- svelte-ignore a11y-autofocus -->
@@ -454,6 +518,62 @@
     font-size: 15px;
   }
 
+  .empty-state.compact {
+    padding: 24px 16px;
+  }
+
+  .field-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #0b0e13;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.48);
+    flex-shrink: 0;
+  }
+
+  .field-search-input {
+    min-width: 0;
+    flex: 1;
+    min-height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    color: white;
+    padding: 0 10px;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .field-search-input:focus {
+    border-color: rgba(160, 200, 232, 0.55);
+    box-shadow: 0 0 0 3px rgba(160, 200, 232, 0.12);
+  }
+
+  .field-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.38);
+  }
+
+  .field-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .field-search-clear:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: white;
+  }
+
   .field-list {
     display: flex;
     flex-direction: column;
@@ -494,6 +614,10 @@
 
   .farm-header:hover {
     background: #151a22;
+  }
+
+  .farm-header.searching {
+    cursor: default;
   }
 
   .farm-chevron {
@@ -737,6 +861,10 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     overflow: hidden;
     flex-shrink: 0;
+  }
+
+  .add-farm-section.searching {
+    display: none;
   }
 
   .add-farm-btn {
