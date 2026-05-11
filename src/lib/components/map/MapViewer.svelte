@@ -99,6 +99,10 @@
   let toolboxOpen = false
   let addFieldFarm = null
   let savingAddField = false
+  let fieldEditTarget = null
+  let fieldEditName = ""
+  let boundaryEditField = null
+  let savingFieldEdit = false
 
   // Pending sync data for ButtonSection
   let pendingCoordinates = []
@@ -312,7 +316,7 @@
   }
 
   function handleLongPress(lngLat) {
-    if (addFieldFarm) return
+    if (addFieldFarm || boundaryEditField) return
     // Don't place markers while lasso-drawing a collection route
     if ($collectionRouteStore.phase === "drawing") return
     if (markerManagerRef) {
@@ -424,6 +428,67 @@
     console.log("Drawing cancelled")
   }
 
+  function getBoundaryCoordinates(boundary) {
+    if (!boundary) return []
+
+    if (typeof boundary === "string") {
+      try {
+        return getBoundaryCoordinates(JSON.parse(boundary))
+      } catch (error) {
+        return []
+      }
+    }
+
+    if (boundary.type === "Feature") {
+      return getBoundaryCoordinates(boundary.geometry)
+    }
+
+    return boundary.type === "MultiPolygon"
+      ? boundary.coordinates.flat(2)
+      : boundary.coordinates?.flat(1) || []
+  }
+
+  function zoomToBoundary(boundary) {
+    if (!map || !boundary) return
+
+    const coords = getBoundaryCoordinates(boundary)
+    if (coords.length === 0) return
+
+    const bounds = coords.reduce(
+      (b, c) => {
+        b[0][0] = Math.min(b[0][0], c[0])
+        b[0][1] = Math.min(b[0][1], c[1])
+        b[1][0] = Math.max(b[1][0], c[0])
+        b[1][1] = Math.max(b[1][1], c[1])
+        return b
+      },
+      [
+        [Infinity, Infinity],
+        [-Infinity, -Infinity],
+      ],
+    )
+
+    map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
+  }
+
+  function focusField(field) {
+    if (!field) return
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(
+        "field",
+        `field-${field._index ?? field.field_id}`,
+        mapFieldsRef,
+      )
+    }
+
+    if (mapFieldsRef && field._index !== undefined) {
+      mapFieldsRef.handleFieldSelection(field._index)
+    }
+
+    zoomToBoundary(field.boundary)
+  }
+
   function handleFieldSelect(event) {
     const { index, boundary } = event.detail
     // Register field as active selection so clicking map deselects it
@@ -434,37 +499,116 @@
     if (mapFieldsRef) {
       mapFieldsRef.handleFieldSelection(index)
     }
-    // Zoom to field bounds
-    if (map && boundary) {
-      const coords =
-        boundary.type === "MultiPolygon"
-          ? boundary.coordinates.flat(2)
-          : boundary.coordinates.flat(1)
-      if (coords.length > 0) {
-        const bounds = coords.reduce(
-          (b, c) => {
-            b[0][0] = Math.min(b[0][0], c[0])
-            b[0][1] = Math.min(b[0][1], c[1])
-            b[1][0] = Math.max(b[1][0], c[0])
-            b[1][1] = Math.max(b[1][1], c[1])
-            return b
-          },
-          [
-            [Infinity, Infinity],
-            [-Infinity, -Infinity],
-          ],
-        )
-        map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 800 })
-      }
-    }
+    zoomToBoundary(boundary)
   }
 
   function handleAddField(event) {
     addFieldFarm = event.detail
+    fieldEditTarget = null
+    boundaryEditField = null
     $drawingModeEnabled = false
     toolboxOpen = false
     if (mapEventManagerRef?.setSelection) {
       mapEventManagerRef.setSelection("field", "new-field", mapFieldsRef)
+    }
+  }
+
+  function handleEditField(event) {
+    const field = event.detail?.field
+    if (!field?.field_id) {
+      toast.error("This field cannot be edited yet")
+      return
+    }
+
+    fieldEditTarget = field
+    fieldEditName = field.name || ""
+    addFieldFarm = null
+    boundaryEditField = null
+    toolboxOpen = false
+    focusField(field)
+  }
+
+  function closeFieldEditModal() {
+    if (savingFieldEdit) return
+    fieldEditTarget = null
+    fieldEditName = ""
+  }
+
+  async function saveFieldNameEdit() {
+    if (!fieldEditTarget?.field_id || savingFieldEdit) return
+
+    const nextName = fieldEditName.trim()
+    if (!nextName) {
+      toast.error("Field name is required")
+      return
+    }
+
+    const updates = {
+      name: nextName,
+      properties: {
+        ...(fieldEditTarget.properties || {}),
+        FIELD_NAME: nextName,
+      },
+    }
+
+    savingFieldEdit = true
+
+    const promise = fileApi
+      .updateField(fieldEditTarget.field_id, updates)
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.message || "Failed to update field")
+        }
+        return result
+      })
+
+    toast.promise(promise, {
+      loading: "Updating field...",
+      success: `Field renamed to "${nextName}".`,
+      error: (error) => error.message,
+    })
+
+    try {
+      await promise
+      const fieldId = fieldEditTarget.field_id
+      mapFieldsStore.update((fields) =>
+        fields.map((field) =>
+          field.field_id === fieldId ? { ...field, ...updates } : field,
+        ),
+      )
+      fieldEditTarget = null
+      fieldEditName = ""
+    } catch (error) {
+      console.error("Error updating field name:", error)
+    } finally {
+      savingFieldEdit = false
+    }
+  }
+
+  function startFieldBoundaryEdit() {
+    if (!fieldEditTarget?.boundary || savingFieldEdit) return
+
+    boundaryEditField = fieldEditTarget
+    fieldEditTarget = null
+    fieldEditName = ""
+    addFieldFarm = null
+    $drawingModeEnabled = false
+    focusField(boundaryEditField)
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(
+        "field",
+        `edit-field-${boundaryEditField.field_id}`,
+        mapFieldsRef,
+      )
+    }
+  }
+
+  function handleFieldEditCancel() {
+    if (savingFieldEdit) return
+    boundaryEditField = null
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(null, null, null)
     }
   }
 
@@ -543,6 +687,87 @@
       console.error("Error saving drawn field:", error)
     } finally {
       savingAddField = false
+    }
+  }
+
+  async function handleFieldBoundaryUpdate(event) {
+    if (savingFieldEdit) return
+
+    const targetField = boundaryEditField
+    const detail = event.detail || {}
+    const fieldName = detail.fieldName?.trim()
+
+    if (!targetField?.field_id) {
+      toast.error("Field could not be updated")
+      return
+    }
+
+    if (!fieldName) {
+      toast.error("Field name is required")
+      return
+    }
+
+    savingFieldEdit = true
+
+    const areaHectares = detail.area?.hectares || 0
+    const areaSquareMeters = detail.area?.squareMeters || 0
+    const properties = {
+      ...(targetField.properties || {}),
+      FIELD_NAME: fieldName,
+      FIELD_AREA: areaHectares,
+      AREA_SQUARE_METERS: areaSquareMeters,
+      PART_COUNT: detail.partCount || 1,
+      updatedFrom: "map_edit_field_overlay",
+      boundaryUpdatedAt: new Date().toISOString(),
+    }
+
+    const updates = {
+      name: fieldName,
+      boundary: detail.boundary,
+      area: areaHectares,
+      polygonAreas: detail.polygonAreas || null,
+      properties,
+    }
+
+    const promise = fileApi
+      .updateField(targetField.field_id, updates)
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.message || "Failed to update field")
+        }
+        return result
+      })
+
+    toast.promise(promise, {
+      loading: "Updating boundary...",
+      success: `Field "${fieldName}" updated.`,
+      error: (error) => error.message,
+    })
+
+    try {
+      await promise
+      mapFieldsStore.update((fields) =>
+        fields.map((field) =>
+          field.field_id === targetField.field_id
+            ? {
+                ...field,
+                name: updates.name,
+                boundary: updates.boundary,
+                area: updates.area,
+                polygon_areas: updates.polygonAreas,
+                properties: updates.properties,
+              }
+            : field,
+        ),
+      )
+      boundaryEditField = null
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection(null, null, null)
+      }
+    } catch (error) {
+      console.error("Error updating field boundary:", error)
+    } finally {
+      savingFieldEdit = false
     }
   }
 
@@ -970,9 +1195,73 @@
         on:cancel={handleAddFieldCancel}
         on:complete={handleAddFieldComplete}
       />
+    {:else if boundaryEditField}
+      <AddFieldOverlay
+        {map}
+        existingField={boundaryEditField}
+        saving={savingFieldEdit}
+        on:cancel={handleFieldEditCancel}
+        on:complete={handleFieldBoundaryUpdate}
+      />
     {/if}
   {/if}
 </div>
+
+{#if fieldEditTarget}
+  <div class="field-edit-modal-backdrop">
+    <section
+      class="field-edit-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="field-edit-title"
+    >
+      <div class="field-edit-modal-header">
+        <div>
+          <h2 id="field-edit-title">Edit Field</h2>
+          <p>{fieldEditTarget.name}</p>
+        </div>
+        <button
+          class="field-edit-close"
+          on:click={closeFieldEditModal}
+          disabled={savingFieldEdit}
+          aria-label="Close field editor"
+        >
+          ×
+        </button>
+      </div>
+
+      <label class="field-edit-label" for="field-edit-name">Field name</label>
+      <input
+        id="field-edit-name"
+        class="field-edit-input"
+        bind:value={fieldEditName}
+        disabled={savingFieldEdit}
+        maxlength="40"
+        on:keydown={(event) => {
+          if (event.key === "Enter") saveFieldNameEdit()
+          if (event.key === "Escape") closeFieldEditModal()
+        }}
+      />
+
+      <div class="field-edit-actions">
+        <button
+          class="field-edit-secondary"
+          on:click={startFieldBoundaryEdit}
+          disabled={savingFieldEdit || !fieldEditTarget.boundary}
+        >
+          Boundaries
+        </button>
+        <button
+          class="field-edit-primary"
+          on:click={saveFieldNameEdit}
+          disabled={savingFieldEdit || !fieldEditName.trim()}
+        >
+          {savingFieldEdit ? "Saving" : "Save Name"}
+        </button>
+      </div>
+    </section>
+  </div>
+{/if}
 
 <!-- Toolbox -->
 <Toolbox
@@ -985,6 +1274,7 @@
   on:openTrailViewer={handleOpenTrailViewer}
   on:selectField={handleFieldSelect}
   on:addField={handleAddField}
+  on:editField={handleEditField}
   on:selectMarker={handleMarkerSelect}
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}
@@ -1112,5 +1402,132 @@
 
   :global(.mapboxgl-ctrl-logo) {
     display: none !important;
+  }
+
+  .field-edit-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(4px);
+  }
+
+  .field-edit-modal {
+    width: min(440px, 100%);
+    background: rgba(10, 14, 22, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
+    color: #fff;
+    padding: 16px;
+  }
+
+  .field-edit-modal-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .field-edit-modal h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .field-edit-modal p {
+    margin: 3px 0 0;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 13px;
+  }
+
+  .field-edit-close {
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .field-edit-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .field-edit-input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    padding: 0 12px;
+    font-size: 15px;
+    outline: none;
+  }
+
+  .field-edit-input:focus {
+    border-color: rgba(14, 165, 233, 0.68);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14);
+  }
+
+  .field-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .field-edit-primary,
+  .field-edit-secondary {
+    min-height: 42px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .field-edit-primary {
+    background: rgba(34, 197, 94, 0.92);
+    color: #fff;
+    border-color: rgba(134, 239, 172, 0.45);
+  }
+
+  .field-edit-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .field-edit-primary:disabled,
+  .field-edit-secondary:disabled,
+  .field-edit-close:disabled {
+    opacity: 0.46;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 520px) {
+    .field-edit-modal-backdrop {
+      padding: 0;
+    }
+
+    .field-edit-modal {
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+    }
   }
 </style>

@@ -229,6 +229,11 @@
       farmName: entry.farmName,
     })
   }
+
+  function handleEditField(field) {
+    reassignFieldId = null
+    dispatch("editField", { field })
+  }
 </script>
 
 <div class="field-controls" bind:this={controlsEl}>
@@ -329,6 +334,13 @@
                     {#if field.area}
                       <span class="field-area">{formatArea(field.area)}</span>
                     {/if}
+                    <button
+                      class="icon-btn field-edit"
+                      title="Edit field"
+                      on:click|stopPropagation={() => handleEditField(field)}
+                    >
+                      <Pencil size={16} />
+                    </button>
                     {#if farmEntries.length > 1}
                       <button
                         class="icon-btn move"
@@ -638,11 +650,18 @@
     padding: 8px;
   }
 
-  .field-row:hover .icon-btn.move {
+  .icon-btn.field-edit {
+    color: rgba(255, 255, 255, 0.42);
+    padding: 8px;
+  }
+
+  .field-row:hover .icon-btn.move,
+  .field-row:hover .icon-btn.field-edit {
     color: rgba(255, 255, 255, 0.6);
   }
 
-  .icon-btn.move:hover {
+  .icon-btn.move:hover,
+  .icon-btn.field-edit:hover {
     color: #a0c8e8;
     background: rgba(160, 200, 232, 0.12);
   }
