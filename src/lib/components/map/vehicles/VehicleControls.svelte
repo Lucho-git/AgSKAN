@@ -25,8 +25,13 @@
 
   const dispatch = createEventDispatcher()
 
+  const RECENCY_RESORT_INTERVAL_MS = 30 * 1000
+
   let showUnifiedMenu = false
   let sortedVehicles = []
+  let sortedVehicleIds = []
+  let lastSortAt = 0
+  let lastPrioritySignature = ""
 
   function truncateName(name, maxLength = 15) {
     if (typeof window !== "undefined" && window.innerWidth < 640) {
@@ -90,8 +95,33 @@
     return null
   }
 
-  function calculateSortedVehicles() {
-    const allVehicles = [
+  function getVehicleTimestamp(vehicle) {
+    if (!vehicle?.last_update) return 0
+    return typeof vehicle.last_update === "string"
+      ? new Date(vehicle.last_update).getTime()
+      : vehicle.last_update || 0
+  }
+
+  function getRecencyBucket(vehicle) {
+    const timestamp = getVehicleTimestamp(vehicle)
+    if (!timestamp) return 5
+
+    const age = Date.now() - timestamp
+    if (age < 30 * 1000) return 0
+    if (age < 2 * 60 * 1000) return 1
+    if (age < 10 * 60 * 1000) return 2
+    if (age < 60 * 60 * 1000) return 3
+    return 4
+  }
+
+  function getStableVehicleLabel(vehicle) {
+    return `${vehicle.full_name || ""} ${getVehicleDisplayName(vehicle)}`
+      .trim()
+      .toLowerCase()
+  }
+
+  function buildVehicleList() {
+    return [
       {
         id: $userVehicleStore.vehicle_id,
         full_name: "You",
@@ -108,57 +138,134 @@
         id: vehicle.vehicle_id,
         isCurrentUser: false,
       })),
+    ].filter((vehicle) => {
+      const parsedCoords = parseCoordinates(vehicle.coordinates)
+      return parsedCoords !== null
+    })
+  }
+
+  function getPrioritySignature(vehicles) {
+    return vehicles
+      .map((vehicle) => ({
+        id: vehicle.id,
+        tracked: vehicle.id === trackedVehicleId,
+        current: Boolean(vehicle.isCurrentUser),
+        online: isVehicleOnline(vehicle),
+        trailing: Boolean(vehicle.is_trailing),
+      }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map(
+        (vehicle) =>
+          `${vehicle.id}:${vehicle.tracked ? 1 : 0}:${vehicle.current ? 1 : 0}:${vehicle.online ? 1 : 0}:${vehicle.trailing ? 1 : 0}`,
+      )
+      .join("|")
+  }
+
+  function calculateSortedVehicles(vehicles = buildVehicleList()) {
+    const previousOrder = new Map(
+      sortedVehicleIds.map((vehicleId, index) => [vehicleId, index]),
+    )
+
+    return [...vehicles].sort((a, b) => {
+      const aOnline = isVehicleOnline(a)
+      const bOnline = isVehicleOnline(b)
+      const aTrailing = Boolean(a.is_trailing)
+      const bTrailing = Boolean(b.is_trailing)
+      const aTime = getVehicleTimestamp(a)
+      const bTime = getVehicleTimestamp(b)
+
+      if (a.id === trackedVehicleId) return -1
+      if (b.id === trackedVehicleId) return 1
+
+      if (a.isCurrentUser && !b.isCurrentUser) return -1
+      if (b.isCurrentUser && !a.isCurrentUser) return 1
+
+      const aOnlineTrailing = aOnline && aTrailing
+      const bOnlineTrailing = bOnline && bTrailing
+
+      if (aOnlineTrailing && !bOnlineTrailing) return -1
+      if (bOnlineTrailing && !aOnlineTrailing) return 1
+
+      if (aOnline && !bOnline) return -1
+      if (bOnline && !aOnline) return 1
+
+      if (aTrailing && !bTrailing) return -1
+      if (bTrailing && !aTrailing) return 1
+
+      const aRecencyBucket = getRecencyBucket(a)
+      const bRecencyBucket = getRecencyBucket(b)
+
+      if (aRecencyBucket !== bRecencyBucket) {
+        return aRecencyBucket - bRecencyBucket
+      }
+
+      const aPreviousIndex = previousOrder.has(a.id)
+        ? previousOrder.get(a.id)
+        : Number.POSITIVE_INFINITY
+      const bPreviousIndex = previousOrder.has(b.id)
+        ? previousOrder.get(b.id)
+        : Number.POSITIVE_INFINITY
+
+      if (aPreviousIndex !== bPreviousIndex) {
+        return aPreviousIndex - bPreviousIndex
+      }
+
+      if (aTime !== bTime) return bTime - aTime
+
+      return getStableVehicleLabel(a).localeCompare(getStableVehicleLabel(b))
+    })
+  }
+
+  function refreshSortedVehicles() {
+    const vehicles = buildVehicleList()
+    const prioritySignature = getPrioritySignature(vehicles)
+    const now = Date.now()
+    const shouldResort =
+      sortedVehicleIds.length === 0 ||
+      prioritySignature !== lastPrioritySignature ||
+      now - lastSortAt >= RECENCY_RESORT_INTERVAL_MS
+
+    if (shouldResort) {
+      sortedVehicles = calculateSortedVehicles(vehicles)
+      sortedVehicleIds = sortedVehicles.map((vehicle) => vehicle.id)
+      lastPrioritySignature = prioritySignature
+      lastSortAt = now
+      return
+    }
+
+    const vehiclesById = new Map(
+      vehicles.map((vehicle) => [vehicle.id, vehicle]),
+    )
+    const orderedVehicles = sortedVehicleIds
+      .map((vehicleId) => vehiclesById.get(vehicleId))
+      .filter(Boolean)
+    const orderedVehicleIds = new Set(
+      orderedVehicles.map((vehicle) => vehicle.id),
+    )
+    const newVehicles = vehicles.filter(
+      (vehicle) => !orderedVehicleIds.has(vehicle.id),
+    )
+
+    sortedVehicles = [
+      ...orderedVehicles,
+      ...calculateSortedVehicles(newVehicles),
     ]
-      .filter((vehicle) => {
-        const parsedCoords = parseCoordinates(vehicle.coordinates)
-        return parsedCoords !== null
-      })
-      .sort((a, b) => {
-        const aOnline = isVehicleOnline(a)
-        const bOnline = isVehicleOnline(b)
-        const aTrailing = Boolean(a.is_trailing)
-        const bTrailing = Boolean(b.is_trailing)
-        const aTime =
-          typeof a.last_update === "string"
-            ? new Date(a.last_update).getTime()
-            : a.last_update || 0
-        const bTime =
-          typeof b.last_update === "string"
-            ? new Date(b.last_update).getTime()
-            : b.last_update || 0
-
-        if (a.id === trackedVehicleId) return -1
-        if (b.id === trackedVehicleId) return 1
-
-        if (a.isCurrentUser && !b.isCurrentUser) return -1
-        if (b.isCurrentUser && !a.isCurrentUser) return 1
-
-        const aOnlineTrailing = aOnline && aTrailing
-        const bOnlineTrailing = bOnline && bTrailing
-
-        if (aOnlineTrailing && !bOnlineTrailing) return -1
-        if (bOnlineTrailing && !aOnlineTrailing) return 1
-
-        if (aOnline && !bOnline) return -1
-        if (bOnline && !aOnline) return 1
-
-        if (aTrailing && !bTrailing) return -1
-        if (bTrailing && !aTrailing) return 1
-
-        return bTime - aTime
-      })
-
-    return allVehicles
+    sortedVehicleIds = sortedVehicles.map((vehicle) => vehicle.id)
   }
 
   function toggleUnifiedMenu() {
     showUnifiedMenu = !showUnifiedMenu
   }
 
-  // Reactively recalculate sorted vehicles whenever the menu is open and store data changes
+  // Refresh row data live, but only reorder immediately when priority state changes.
   // Explicitly reference stores so Svelte tracks them as dependencies
-  $: if (showUnifiedMenu && ($otherVehiclesStore || true) && ($userVehicleStore || true) && (currentSpeed !== undefined)) {
-    sortedVehicles = calculateSortedVehicles()
+  $: if (
+    showUnifiedMenu &&
+    ($otherVehiclesStore || true) &&
+    ($userVehicleStore || true) &&
+    currentSpeed !== undefined
+  ) {
+    refreshSortedVehicles()
   }
 
   function closeUnifiedMenu() {
@@ -266,9 +373,10 @@
   /** Get effective speed — 0 if data is stale (>30s) */
   function getEffectiveSpeed(vehicle) {
     if (!vehicle.last_update) return 0
-    const ts = typeof vehicle.last_update === 'string'
-      ? new Date(vehicle.last_update).getTime()
-      : vehicle.last_update
+    const ts =
+      typeof vehicle.last_update === "string"
+        ? new Date(vehicle.last_update).getTime()
+        : vehicle.last_update
     if (Date.now() - ts > 30000) return 0
     return vehicle.speed || 0
   }
@@ -286,7 +394,7 @@
 
   // Count of actively online vehicles (updated in 5-min window)
   $: onlineCount = (() => {
-    const others = $otherVehiclesStore.filter(v => isVehicleOnline(v)).length
+    const others = $otherVehiclesStore.filter((v) => isVehicleOnline(v)).length
     // Include current user if they have coordinates
     const selfOnline = $userVehicleStore.coordinates ? 1 : 0
     return others + selfOnline
@@ -303,7 +411,10 @@
   >
     <Users size={28} />
     {#if onlineCount > 0}
-      <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1 text-[10px] font-bold text-white shadow">{onlineCount}</span>
+      <span
+        class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1 text-[10px] font-bold text-white shadow"
+        >{onlineCount}</span
+      >
     {/if}
   </button>
 {/if}
@@ -418,7 +529,9 @@
                   <!-- Speed tag -->
                   {#if getEffectiveSpeed(vehicle) > 0}
                     <div class="flex flex-shrink-0 items-center self-center">
-                      <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+                      <span
+                        class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90"
+                      >
                         {getEffectiveSpeed(vehicle).toFixed(1)} km/h
                       </span>
                     </div>
@@ -542,7 +655,10 @@
     >
       <Users size={20} />
       {#if onlineCount > 0}
-        <span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-500 px-0.5 text-[9px] font-bold text-white shadow">{onlineCount}</span>
+        <span
+          class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-500 px-0.5 text-[9px] font-bold text-white shadow"
+          >{onlineCount}</span
+        >
       {/if}
     </div>
 
