@@ -19,6 +19,11 @@
   import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
   import { SplashScreen } from "@capacitor/splash-screen"
   import { App } from "@capacitor/app"
+  import {
+    AppUpdate,
+    AppUpdateAvailability,
+    FlexibleUpdateInstallStatus,
+  } from "@capawesome/capacitor-app-update"
 
   // Supabase import - you'll need to import your supabase client
   // Adjust this import path based on your setup
@@ -159,6 +164,12 @@
   }
 
   // --- App Update Handling ---
+  const AGSKAN_ANDROID_PACKAGE_NAME = "com.skanfarming"
+  const AGSKAN_IOS_APP_STORE_ID = "6746783538"
+
+  let nativeUpdatePromptShown = false
+  let nativeUpdateReadyPromptShown = false
+
   $: if ($updated) {
     toast.info("An update is available. Refresh to see the latest version.", {
       action: {
@@ -169,9 +180,103 @@
     })
   }
 
+  async function promptForNativeAppUpdate() {
+    const platform = Capacitor.getPlatform()
+
+    if (
+      nativeUpdatePromptShown ||
+      !Capacitor.isNativePlatform() ||
+      (platform !== "android" && platform !== "ios")
+    ) {
+      return
+    }
+
+    try {
+      const updateInfo = await AppUpdate.getAppUpdateInfo()
+
+      if (
+        updateInfo.updateAvailability !== AppUpdateAvailability.UPDATE_AVAILABLE
+      ) {
+        return
+      }
+
+      nativeUpdatePromptShown = true
+
+      toast.info("A new AgSKAN update is available.", {
+        action: {
+          label: platform === "ios" ? "App Store" : "Update",
+          onClick: async () => {
+            try {
+              if (platform === "android" && updateInfo.flexibleUpdateAllowed) {
+                await AppUpdate.startFlexibleUpdate()
+              } else if (platform === "ios") {
+                await AppUpdate.openAppStore({
+                  appId: AGSKAN_IOS_APP_STORE_ID,
+                })
+              } else {
+                await AppUpdate.openAppStore({
+                  androidPackageName: AGSKAN_ANDROID_PACKAGE_NAME,
+                })
+              }
+            } catch (error) {
+              console.error("Failed to start app update:", error)
+              toast.error("Couldn't start the app update")
+            }
+          },
+        },
+        duration: 5000000,
+      })
+    } catch (error) {
+      console.warn("Unable to check for native app updates:", error)
+    }
+  }
+
+  async function setupNativeAppUpdateListener() {
+    if (
+      !Capacitor.isNativePlatform() ||
+      Capacitor.getPlatform() !== "android"
+    ) {
+      return undefined
+    }
+
+    try {
+      return await AppUpdate.addListener(
+        "onFlexibleUpdateStateChange",
+        (state) => {
+          if (
+            !nativeUpdateReadyPromptShown &&
+            (state.installStatus === FlexibleUpdateInstallStatus.DOWNLOADED ||
+              state.installStatus === FlexibleUpdateInstallStatus.INSTALLED)
+          ) {
+            nativeUpdateReadyPromptShown = true
+
+            toast.success("AgSKAN update downloaded.", {
+              action: {
+                label: "Restart",
+                onClick: async () => {
+                  try {
+                    await AppUpdate.completeFlexibleUpdate()
+                  } catch (error) {
+                    console.error("Failed to complete app update:", error)
+                    toast.error("Couldn't restart for the update")
+                  }
+                },
+              },
+              duration: 5000000,
+            })
+          }
+        },
+      )
+    } catch (error) {
+      console.warn("Unable to listen for native app updates:", error)
+      return undefined
+    }
+  }
+
   // --- Component Lifecycle & Native Setup ---
   let unsubscribeSession: (() => void) | undefined
   let darkModeMediaQuery: MediaQueryList | undefined
+  let appUpdateListener: { remove: () => Promise<void> } | undefined
 
   const handleSystemThemeChange = (event: MediaQueryListEvent) => {
     console.log(
@@ -228,7 +333,7 @@
     }
   }
 
-  onMount(async () => {
+  onMount(() => {
     // Patch navigator.geolocation FIRST, before any map/location code runs
     patchGeolocationForNative()
 
@@ -236,71 +341,76 @@
       "+++++ ROOT LAYOUT ONMOUNT (iOS Native + Android JS Theme Handling) +++++",
     )
 
-    // Hide splash screen immediately for native platforms
-    if (Capacitor.isNativePlatform()) {
-      try {
-        await SplashScreen.hide()
-        console.log("Splash screen hidden successfully")
-      } catch (error) {
-        console.error("Error hiding splash screen:", error)
-      }
+    void (async () => {
+      // Hide splash screen immediately for native platforms
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await SplashScreen.hide()
+          console.log("Splash screen hidden successfully")
+        } catch (error) {
+          console.error("Error hiding splash screen:", error)
+        }
 
-      // Deep link handler for native platforms
-      console.log("🔗 Setting up deep link listener for native platform...")
-      App.addListener("appUrlOpen", (event) => {
-        console.log("📱 App opened via deep link:", event.url)
-        handleDeepLink(event.url)
-      })
-      console.log("✅ Deep link listener registered successfully")
-    } else {
-      console.log("🌐 Web platform detected - deep link listener not needed")
-    }
-
-    if (browser) {
-      console.log("Root layout mounted in browser, initializing session.")
-      initializeSession()
-        .then((cleanup) => {
-          if (cleanup) unsubscribeSession = cleanup
+        // Deep link handler for native platforms
+        console.log("🔗 Setting up deep link listener for native platform...")
+        App.addListener("appUrlOpen", (event) => {
+          console.log("📱 App opened via deep link:", event.url)
+          handleDeepLink(event.url)
         })
-        .catch((err) => {
-          console.error("Failed to initialize session:", err)
-        })
-    }
+        console.log("✅ Deep link listener registered successfully")
 
-    if (Capacitor.isNativePlatform()) {
-      console.log(
-        "+++++ NATIVE PLATFORM DETECTED. CONFIGURING PLATFORM-SPECIFIC SYSTEM BARS +++++",
-      )
-
-      // Simple network test
-      const networkOk = await testNetworkConnectivity()
-      if (!networkOk) {
-        console.warn(
-          "Network connectivity check failed, but continuing app initialization",
-        )
-      }
-
-      // Initialize EdgeToEdge only on Android
-      await initializeEdgeToEdge()
-
-      if (window.matchMedia) {
-        darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-        console.log(
-          "Initial system dark mode preference. Is dark mode:",
-          darkModeMediaQuery.matches,
-        )
-        await applyNativeThemeStyles(darkModeMediaQuery.matches)
-        darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
-        console.log("Added listener for system theme changes.")
+        appUpdateListener = await setupNativeAppUpdateListener()
+        await promptForNativeAppUpdate()
       } else {
-        console.warn(
-          "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
-        )
-        await applyNativeThemeStyles(false)
+        console.log("🌐 Web platform detected - deep link listener not needed")
       }
-    } else {
-      console.log("Not a native platform. Skipping native configuration.")
-    }
+
+      if (browser) {
+        console.log("Root layout mounted in browser, initializing session.")
+        initializeSession()
+          .then((cleanup) => {
+            if (cleanup) unsubscribeSession = cleanup
+          })
+          .catch((err) => {
+            console.error("Failed to initialize session:", err)
+          })
+      }
+
+      if (Capacitor.isNativePlatform()) {
+        console.log(
+          "+++++ NATIVE PLATFORM DETECTED. CONFIGURING PLATFORM-SPECIFIC SYSTEM BARS +++++",
+        )
+
+        // Simple network test
+        const networkOk = await testNetworkConnectivity()
+        if (!networkOk) {
+          console.warn(
+            "Network connectivity check failed, but continuing app initialization",
+          )
+        }
+
+        // Initialize EdgeToEdge only on Android
+        await initializeEdgeToEdge()
+
+        if (window.matchMedia) {
+          darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+          console.log(
+            "Initial system dark mode preference. Is dark mode:",
+            darkModeMediaQuery.matches,
+          )
+          await applyNativeThemeStyles(darkModeMediaQuery.matches)
+          darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
+          console.log("Added listener for system theme changes.")
+        } else {
+          console.warn(
+            "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
+          )
+          await applyNativeThemeStyles(false)
+        }
+      } else {
+        console.log("Not a native platform. Skipping native configuration.")
+      }
+    })()
 
     // ── Swipe-to-collapse for loading / promise toasts ──
     // Sonner disables swiping on loading toasts. We detect swipe-up
@@ -351,13 +461,18 @@
         )
         console.log("Removed system theme change listener.")
       }
+      appUpdateListener?.remove()
     }
   })
 </script>
 
 <svelte:head>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin="anonymous"
+  />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"

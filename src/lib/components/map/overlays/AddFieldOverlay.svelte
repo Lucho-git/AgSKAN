@@ -34,7 +34,8 @@
   $: totalArea = calculateTotalArea(draftPolygons)
   $: canCompletePolygon = mode === "draw" && hasEnoughPoints && !saving
   $: showNameRequired = fieldNameTouched && !hasFieldName
-  $: canSave = mode === "review" && draftPolygons.length > 0 && hasFieldName && !saving
+  $: canSave =
+    mode === "review" && draftPolygons.length > 0 && hasFieldName && !saving
 
   function calculateTotalArea(polygons) {
     const squareMeters = polygons.reduce(
@@ -341,7 +342,9 @@
     fieldNameTouched = true
     if (!canSave) return
 
-    const individualAreas = draftPolygons.map((polygon) => polygon.area.hectares)
+    const individualAreas = draftPolygons.map(
+      (polygon) => polygon.area.hectares,
+    )
     const boundary =
       draftPolygons.length === 1
         ? draftPolygons[0].boundary
@@ -436,7 +439,12 @@
 {/if}
 
 <div class="field-draft-panel">
-  <button class="close-badge" on:click={cancel} title="Cancel" disabled={saving}>
+  <button
+    class="close-badge"
+    on:click={cancel}
+    title="Cancel"
+    disabled={saving}
+  >
     <X size={18} />
   </button>
 
@@ -465,7 +473,11 @@
   {#if mode === "draw"}
     {#if draftPolygons.length > 0}
       <div class="field-summary-strip">
-        <span>{draftPolygons.length} part{draftPolygons.length === 1 ? "" : "s"}</span>
+        <span
+          >{draftPolygons.length} part{draftPolygons.length === 1
+            ? ""
+            : "s"}</span
+        >
         <strong>{formatArea(totalArea.hectares)}</strong>
       </div>
     {/if}
