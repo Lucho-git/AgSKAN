@@ -23,12 +23,25 @@
     try {
       console.log("Creating or updating profile for user:", sessionData.user.id)
 
+      const getMetadataString = (...values) =>
+        values.find((value) => typeof value === "string" && value.trim())?.trim() ||
+        null
+
+      const metadataFullName = getMetadataString(
+        sessionData.user.user_metadata?.full_name,
+        sessionData.user.user_metadata?.name,
+      )
+      const metadataAvatarUrl = getMetadataString(
+        sessionData.user.user_metadata?.avatar_url,
+        sessionData.user.user_metadata?.picture,
+      )
+
       // Extract all available user data
       const userData = {
         id: sessionData.user.id,
         email: sessionData.user.email,
-        full_name: sessionData.user.user_metadata?.full_name || null,
-        avatar_url: sessionData.user.user_metadata?.avatar_url || null,
+        full_name: metadataFullName,
+        avatar_url: metadataAvatarUrl,
         updated_at: new Date().toISOString(),
         onboarded: false,
         last_sign_in: new Date().toISOString(),
@@ -40,7 +53,7 @@
       // First check if profile exists
       const { data: existingProfile, error: fetchError } = await supabase
         .from("profiles")
-        .select("id, created_at, email")
+        .select("id, created_at, email, full_name, avatar_url")
         .eq("id", sessionData.user.id)
         .single()
 
@@ -52,22 +65,37 @@
       if (existingProfile) {
         console.log("Existing profile found, updating:", existingProfile)
 
+        const profileUpdates = {
+          last_sign_in: userData.last_sign_in,
+          updated_at: userData.updated_at,
+        }
+
+        if (!existingProfile.email && userData.email) {
+          profileUpdates.email = userData.email
+        }
+
+        if (!existingProfile.full_name && userData.full_name) {
+          profileUpdates.full_name = userData.full_name
+        } else if (!userData.full_name) {
+          console.warn(
+            "Auth callback did not receive a usable full_name; preserving existing profile name",
+            {
+              userId: sessionData.user.id,
+              provider: userData.provider,
+              hasExistingFullName: !!existingProfile.full_name,
+              metadataKeys: Object.keys(sessionData.user.user_metadata || {}),
+            },
+          )
+        }
+
+        if (!existingProfile.avatar_url && userData.avatar_url) {
+          profileUpdates.avatar_url = userData.avatar_url
+        }
+
         // Profile exists - just update sign in time and other fields if needed
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({
-            last_sign_in: userData.last_sign_in,
-            updated_at: userData.updated_at,
-            // Add email if it doesn't exist
-            ...(existingProfile.email ? {} : { email: userData.email }),
-            // Only update name/avatar if they're null in existing profile
-            ...(existingProfile.full_name
-              ? {}
-              : { full_name: userData.full_name }),
-            ...(existingProfile.avatar_url
-              ? {}
-              : { avatar_url: userData.avatar_url }),
-          })
+          .update(profileUpdates)
           .eq("id", sessionData.user.id)
 
         if (updateError) {
