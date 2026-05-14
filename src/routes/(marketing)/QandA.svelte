@@ -33,17 +33,6 @@
           <p>Getting started is quick and easy. Watch our <a href="/knowledge-base#video-setup-4min" class="text-primary hover:underline">4-minute setup tutorial</a> to get up and running.</p>`,
     },
     {
-      question: "How much does AgSKAN cost?",
-      answer: `
-          <p class="mb-4">AgSKAN costs $30 per month, per machine.</p>
-          <p>In the billing section, a 'machine' represents each vehicle that will be tracked on your farm. As the account owner, you'll pay for all machines, which gives your account the authority to host other users on your live map.</p>
-          <p class="mt-4 p-4 bg-base-300 rounded-lg">
-            <strong>Example:</strong> You (map owner) + 2 full-time operators = 3 machines<br>
-            Total cost: $90 per month for complete farm operation visibility
-          </p>
-          <p class="mt-4">Learn more about <a href="/knowledge-base#video-billing" class="text-primary hover:underline">managing billing and seats</a>.</p>`,
-    },
-    {
       question: "What hardware do I need?",
       answer: `
       <div class="space-y-4">
@@ -53,11 +42,6 @@
         
         <p class="mt-4"><strong>Robust Tablet Setup</strong></p>
         <p>For a reliable in-cab setup, you'll need three main components: a tablet with cellular capabilities, a cab mount, and a data plan.</p>
-        
-        <p class="p-4 bg-base-300 rounded-lg">
-          <strong>Budget Android Setup:</strong> Around $600-$700 upfront<br>
-          This includes an Android tablet, protective case, cab mount, and 12 months of prepaid data
-        </p>
         
         <p>We also offer recommendations for premium setups with Apple or Samsung tablets. Watch our <a href="/knowledge-base#video-hardware" class="text-primary hover:underline">detailed hardware guide</a> for specific models, mounting options, and purchase links.</p>
         
@@ -82,9 +66,6 @@
               <li>Track and mark obstacles like rocks and stumps with one-touch marking</li>
               <li>Access the map on any mobile device</li>
             </ul>
-            <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Setting up a sprayer and seeder for 2025 costs just $60 per month, using only phones or tablets
-            </p>
             <p class="mt-4">Watch how to <a href="/knowledge-base#video-trailing" class="text-primary hover:underline">start GPS tracking</a> and <a href="/knowledge-base#video-pin-drop" class="text-primary hover:underline">use pin drops</a>.</p>
           </div>`,
     },
@@ -100,9 +81,6 @@
               <li>Complete visibility for truck drivers and the entire harvest team</li>
               <li>Access from any mobile device</li>
             </ul>
-            <p class="mt-4 p-4 bg-base-300 rounded-lg">
-              <strong>Cost Example:</strong> Full harvest setup (2 headers + chaser bin + truck) = $122 per month
-            </p>
             <p class="mt-4">Learn how to <a href="/knowledge-base#video-locate-operator" class="text-primary hover:underline">find team members in real-time</a> and <a href="/knowledge-base#video-trailing" class="text-primary hover:underline">track machine coverage</a>.</p>
           </div>`,
     },
