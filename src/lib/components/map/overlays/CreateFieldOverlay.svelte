@@ -11,6 +11,16 @@
   export let selectionCount = 0
   /** Total hectares of the currently selected fields (driven by parent). */
   export let selectionHectares = 0
+  /** Hectares after the selected geometries are merged into the saved boundary. */
+  export let unifiedSelectionHectares = 0
+  /** Hectares hidden by overlap between selected geometries. */
+  export let overlapHectares = 0
+  /** True when area/dissolve is deferred for a complex grouped selection. */
+  export let selectionAreaPending = false
+  /** True while a clicked FTW boundary is being resolved in the background. */
+  export let selectionResolving = false
+  /** Number of polygon parts in the live merged preview. */
+  export let unifiedPartCount = 0
   /** When true, this overlay was opened from the review panel (Add Area). */
   export let returnsToReview = false
   /** Initial tab to open on. Allows the parent to remember the last tab. */
@@ -32,9 +42,13 @@
   let points = []
 
   $: hasEnoughPoints = points.length >= 3
-  $: canConfirmSelect = tab === "select" && selectionCount > 0
+  $: canConfirmSelect =
+    tab === "select" && selectionCount > 0 && !selectionResolving
   $: canConfirmDraw = tab === "draw" && hasEnoughPoints
   $: formattedTotalHa = formatArea(selectionHectares)
+  $: formattedUnifiedHa = formatArea(unifiedSelectionHectares || selectionHectares)
+  $: formattedOverlapHa = formatArea(overlapHectares)
+  $: hasSelectionOverlap = selectionCount > 1 && overlapHectares > 0.01
   // Reactive area: recomputes synchronously as soon as `points` or `tab` change.
   $: currentArea =
     tab === "draw" && points.length >= 3
@@ -360,6 +374,11 @@
     dispatch("cancel")
   }
 
+  function handleClearSelection() {
+    if (selectionCount <= 0) return
+    dispatch("clearSelection")
+  }
+
   function handleConfirm() {
     if (tab === "select") {
       if (!canConfirmSelect) return
@@ -475,8 +494,32 @@
           ? ""
           : "s"}
       </strong>
-      <span>Total area: {formattedTotalHa}</span>
+      {#if selectionCount > 0 && selectionResolving}
+        <span>Resolving boundary...</span>
+      {:else if selectionCount > 0 && selectionAreaPending}
+        <span>Area calculated on continue</span>
+      {:else if selectionCount > 0}
+        <span>
+          Unified area: {formattedUnifiedHa}{hasSelectionOverlap
+            ? ` (${formattedOverlapHa} overlap removed)`
+            : unifiedPartCount > 1
+              ? ` (${unifiedPartCount} parts)`
+              : ""}
+        </span>
+      {:else}
+        <span>Total area: {formattedTotalHa}</span>
+      {/if}
     </div>
+    {#if selectionCount > 0}
+      <button
+        class="action-bar-clear"
+        on:click={handleClearSelection}
+        title="Clear selected fields"
+        aria-label="Clear selected fields"
+      >
+        <X size={18} />
+      </button>
+    {/if}
     <button
       class="action-bar-confirm"
       class:disabled={!canConfirmSelect}
@@ -484,7 +527,9 @@
       disabled={!canConfirmSelect}
       title={canConfirmSelect
         ? "Continue"
-        : "Tap a field on the map to select it"}
+        : selectionResolving
+          ? "Boundary is still resolving"
+          : "Tap a field on the map to select it"}
     >
       <ArrowRight size={20} />
     </button>
@@ -757,6 +802,30 @@
       background 120ms ease,
       transform 120ms ease,
       opacity 120ms ease;
+  }
+
+  .action-bar-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    flex: 0 0 2.4rem;
+    border-radius: 9999px;
+    background: rgba(248, 250, 252, 0.08);
+    color: rgba(248, 250, 252, 0.86);
+    border: 1px solid rgba(248, 250, 252, 0.12);
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      color 120ms ease,
+      transform 120ms ease;
+  }
+
+  .action-bar-clear:hover {
+    background: rgba(248, 113, 113, 0.18);
+    color: #fecaca;
+    transform: translateY(-1px);
   }
 
   .action-bar-confirm:hover:not(:disabled) {

@@ -4,13 +4,20 @@
 
   export let map
   export let candidates = null
+  export let unionPreview = null
   export let visible = false
 
   const sourceId = "field-candidates-source"
+  const previewSourceId = "field-candidates-union-preview-source"
   const layerIds = {
     fill: "field-candidates-fill",
     lineCasing: "field-candidates-line-casing",
     line: "field-candidates-line",
+  }
+  const previewLayerIds = {
+    fill: "field-candidates-union-preview-fill",
+    lineCasing: "field-candidates-union-preview-line-casing",
+    line: "field-candidates-union-preview-line",
   }
   let listeningForStyleData = false
 
@@ -42,12 +49,24 @@
     return candidates
   }
 
+  function getUnionPreviewData() {
+    if (!visible || !unionPreview?.features?.length) return emptyCollection()
+    return unionPreview
+  }
+
   function initializeLayers() {
     if (!canUseMap()) return false
 
     try {
       if (!map.getSource(sourceId)) {
         map.addSource(sourceId, {
+          type: "geojson",
+          data: emptyCollection(),
+        })
+      }
+
+      if (!map.getSource(previewSourceId)) {
+        map.addSource(previewSourceId, {
           type: "geojson",
           data: emptyCollection(),
         })
@@ -63,8 +82,18 @@
             source: sourceId,
             filter: ["==", "$type", "Polygon"],
             paint: {
-              "fill-color": "#22d3ee",
-              "fill-opacity": 0.32,
+              "fill-color": [
+                "case",
+                ["==", ["get", "resolving_boundary"], true],
+                "#f59e0b",
+                "#22d3ee",
+              ],
+              "fill-opacity": [
+                "case",
+                ["==", ["get", "resolving_boundary"], true],
+                0.24,
+                0.16,
+              ],
             },
           },
           beforeId,
@@ -84,8 +113,8 @@
             },
             paint: {
               "line-color": "#0f172a",
-              "line-width": 6,
-              "line-opacity": 0.85,
+              "line-width": 4,
+              "line-opacity": 0.6,
             },
           },
           beforeId,
@@ -104,8 +133,72 @@
               "line-join": "round",
             },
             paint: {
-              "line-color": "#ffffff",
-              "line-width": 3.2,
+              "line-color": [
+                "case",
+                ["==", ["get", "resolving_boundary"], true],
+                "#fde68a",
+                "#67e8f9",
+              ],
+              "line-width": 2.4,
+              "line-opacity": 0.85,
+              "line-dasharray": [2, 1.25],
+            },
+          },
+          beforeId,
+        )
+      }
+
+      if (!map.getLayer(previewLayerIds.fill)) {
+        map.addLayer(
+          {
+            id: previewLayerIds.fill,
+            type: "fill",
+            source: previewSourceId,
+            filter: ["==", "$type", "Polygon"],
+            paint: {
+              "fill-color": "#22c55e",
+              "fill-opacity": 0.22,
+            },
+          },
+          beforeId,
+        )
+      }
+
+      if (!map.getLayer(previewLayerIds.lineCasing)) {
+        map.addLayer(
+          {
+            id: previewLayerIds.lineCasing,
+            type: "line",
+            source: previewSourceId,
+            filter: ["==", "$type", "Polygon"],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#052e16",
+              "line-width": 7,
+              "line-opacity": 0.9,
+            },
+          },
+          beforeId,
+        )
+      }
+
+      if (!map.getLayer(previewLayerIds.line)) {
+        map.addLayer(
+          {
+            id: previewLayerIds.line,
+            type: "line",
+            source: previewSourceId,
+            filter: ["==", "$type", "Polygon"],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#f0fdf4",
+              "line-width": 3.6,
               "line-opacity": 1,
             },
           },
@@ -129,6 +222,7 @@
 
     try {
       map.getSource(sourceId).setData(getCandidateData())
+      map.getSource(previewSourceId).setData(getUnionPreviewData())
     } catch (error) {
       console.error("Error rendering field candidates:", error)
     }
@@ -153,7 +247,7 @@
   function cleanupLayers() {
     if (!map?.getLayer || !map?.getSource) return
 
-    Object.values(layerIds).forEach((layerId) => {
+    ;[...Object.values(layerIds), ...Object.values(previewLayerIds)].forEach((layerId) => {
       try {
         if (map.getLayer(layerId)) map.removeLayer(layerId)
       } catch (error) {
@@ -166,6 +260,7 @@
 
     try {
       if (map.getSource(sourceId)) map.removeSource(sourceId)
+      if (map.getSource(previewSourceId)) map.removeSource(previewSourceId)
     } catch (error) {
       console.warn("Error removing field candidate overlay source:", error)
     }
@@ -173,6 +268,10 @@
 
   $: if (map && visible !== undefined && candidates !== undefined) {
     attachStyleListener()
+    renderCandidates()
+  }
+
+  $: if (map && visible && unionPreview !== undefined) {
     renderCandidates()
   }
 

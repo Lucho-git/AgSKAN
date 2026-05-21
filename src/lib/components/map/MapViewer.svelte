@@ -123,6 +123,47 @@
     (total, feature) => total + (Number(feature?.properties?.area_ha) || 0),
     0,
   )
+  $: selectedPmtilesAreaPending = selectedPmtilesFeatures.some(
+    (feature) => feature?.properties?.premerged_area_pending,
+  )
+  $: selectedPmtilesResolving = selectedPmtilesFeatures.some(
+    (feature) => feature?.properties?.resolving_boundary,
+  )
+  $: selectedPmtilesUnionGeometry =
+    selectedPmtilesFeatureCount && !selectedPmtilesResolving
+    ? unionSelectedCandidateGeometries(selectedPmtilesFeatures, {
+        log: false,
+        exactDeferred: false,
+      })
+    : null
+  $: selectedPmtilesUnionHectares = selectedPmtilesAreaPending
+    ? 0
+    : selectedPmtilesUnionGeometry
+    ? getGeometryAreaHa(selectedPmtilesUnionGeometry) || 0
+    : 0
+  $: selectedPmtilesOverlapHectares = Math.max(
+    0,
+    selectedPmtilesFeatureHectares - selectedPmtilesUnionHectares,
+  )
+  $: selectedPmtilesUnionPartCount = getGeometryPartCount(
+    selectedPmtilesUnionGeometry,
+  )
+  $: fieldCandidateUnionPreviewCollection = selectedPmtilesUnionGeometry
+    ? {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: selectedPmtilesUnionGeometry,
+            properties: {
+              selectedCount: selectedPmtilesFeatureCount,
+              area_ha: selectedPmtilesUnionHectares,
+              overlap_removed_ha: selectedPmtilesOverlapHectares,
+            },
+          },
+        ],
+      }
+    : null
   let createFieldOverlayRef = null
   let creatingFieldFarm = null
   let createFieldTab = "select"
@@ -149,6 +190,10 @@
     boundaryEditField: boundaryEditField?.name || null,
     selectedPmtilesFeatureCount,
     selectedPmtilesFeatureHectares,
+    selectedPmtilesUnionHectares,
+    selectedPmtilesOverlapHectares,
+    selectedPmtilesAreaPending,
+    selectedPmtilesResolving,
   })
   let savingAddField = false
   let fieldEditTarget = null
@@ -668,17 +713,136 @@
     }
   }
 
+  function getFeatureAreaHa(feature) {
+    try {
+      return Math.round((turf.area(feature) / 10000) * 100) / 100
+    } catch (error) {
+      return null
+    }
+  }
+
+  function unionSelectedCandidateGeometries(features, options = {}) {
+    const shouldLog = options?.log !== false
+    const shouldExactDeferred = options?.exactDeferred !== false
+    const turfFeatures = (features || [])
+      .flatMap((candidate) => {
+        const geometry = cloneGeometry(candidate.geometry)
+        if (!["Polygon", "MultiPolygon"].includes(geometry?.type)) return null
+
+        if (
+          candidate?.properties?.premerged_deferred_union &&
+          geometry.type === "MultiPolygon" &&
+          !shouldExactDeferred
+        ) {
+          return [turf.feature(geometry, candidate.properties || {})]
+        }
+
+        if (
+          candidate?.properties?.premerged_deferred_union &&
+          geometry.type === "MultiPolygon" &&
+          shouldExactDeferred
+        ) {
+          return geometry.coordinates.map((coordinates) =>
+            turf.feature(
+              { type: "Polygon", coordinates },
+              candidate.properties || {},
+            ),
+          )
+        }
+
+        return turf.feature(geometry, candidate.properties || {})
+      })
+      .filter(Boolean)
+
+    if (!turfFeatures.length) return null
+
+    if (turfFeatures.length === 1) {
+      return turfFeatures[0].geometry
+    }
+
+    try {
+      const unioned = turf.union(turf.featureCollection(turfFeatures))
+      if (unioned?.geometry) {
+        if (shouldLog) {
+          console.info("[FTW PMTiles] Unioned selected field geometries", {
+            inputCount: turfFeatures.length,
+            outputType: unioned.geometry.type,
+            inputAreaHa: getFeatureAreaHa(turf.featureCollection(turfFeatures)),
+            outputAreaHa: getFeatureAreaHa(unioned),
+          })
+        }
+        return unioned.geometry
+      }
+    } catch (error) {
+      if (shouldLog) {
+        console.warn(
+          "[FTW PMTiles] FeatureCollection union failed; falling back to pairwise union",
+          error,
+        )
+      }
+    }
+
+    try {
+      const unioned = turfFeatures.slice(1).reduce((result, feature) => {
+        return turf.union(turf.featureCollection([result, feature])) || result
+      }, turfFeatures[0])
+      if (unioned?.geometry) {
+        if (shouldLog) {
+          console.info("[FTW PMTiles] Pairwise-unioned selected field geometries", {
+            inputCount: turfFeatures.length,
+            outputType: unioned.geometry.type,
+            inputAreaHa: getFeatureAreaHa(turf.featureCollection(turfFeatures)),
+            outputAreaHa: getFeatureAreaHa(unioned),
+          })
+        }
+        return unioned.geometry
+      }
+    } catch (error) {
+      if (shouldLog) {
+        console.warn(
+          "[FTW PMTiles] Pairwise union failed; falling back to MultiPolygon",
+          error,
+        )
+      }
+    }
+
+    return null
+  }
+
+  function getGeometryPartCount(geometry) {
+    if (geometry?.type === "Polygon") return 1
+    if (geometry?.type === "MultiPolygon") return geometry.coordinates?.length || 0
+    return 0
+  }
+
+  function hashString(value) {
+    let hash = 0
+    for (let index = 0; index < value.length; index += 1) {
+      hash = (hash << 5) - hash + value.charCodeAt(index)
+      hash |= 0
+    }
+    return Math.abs(hash).toString(36)
+  }
+
   function createCandidateFromPmtilesFeature(feature, lngLat) {
     const geometry = cloneGeometry(feature?.geometry)
     if (!["Polygon", "MultiPolygon"].includes(geometry?.type)) return null
 
     const properties = feature?.properties || {}
-    const areaHa = getGeometryAreaHa(geometry)
+    const propertyKeys = Object.keys(properties).sort()
+    const scoreLikeKeys = propertyKeys.filter((key) =>
+      /confidence|score|prob|certainty|quality/i.test(key),
+    )
+    const areaHa =
+      Number(properties.premerged_area_ha) ||
+      Number(properties.premerged_raw_area_ha) ||
+      (properties.premerged_area_pending ? null : getGeometryAreaHa(geometry))
+    const sourceKey =
+      properties.ftw_id || properties.selection_key || properties.id || feature?.id
+    const geometryKey = sourceKey ? null : getCandidateGeometryKey(geometry)
     const selectionKey =
-      properties.ftw_id ||
-      properties.id ||
-      feature?.id ||
-      getCandidateGeometryKey(geometry)
+      sourceKey ||
+      geometryKey
 
     return {
       type: "Feature",
@@ -686,14 +850,16 @@
       properties: {
         ...properties,
         ftw_id:
-          properties.ftw_id ||
-          properties.id ||
-          feature?.id ||
+          sourceKey ||
+          selectionKey ||
           `pmtiles-${fieldCandidateYear}-${lngLat?.lng ?? "unknown"}-${lngLat?.lat ?? "unknown"}`,
         selection_key: selectionKey,
         provider: properties.provider || "ftw",
         year: fieldCandidateYear,
         area_ha: areaHa,
+        ftw_property_keys: propertyKeys,
+        ftw_score_like_keys: scoreLikeKeys,
+        ftw_metadata_mode: scoreLikeKeys.length ? "scored" : "geometry_only",
         boundary_source: "pmtiles",
         selectedFrom: "ftw_pmtiles_vector_tile",
         selectedAt: new Date().toISOString(),
@@ -705,7 +871,9 @@
     if (!geometry?.type || !geometry?.coordinates) return null
 
     try {
-      return `${geometry.type}:${JSON.stringify(geometry.coordinates)}`
+      return `pmtiles-${fieldCandidateYear}-${geometry.type.toLowerCase()}-${hashString(
+        JSON.stringify(geometry.coordinates),
+      )}`
     } catch (error) {
       return null
     }
@@ -757,6 +925,65 @@
     return { selected: !wasSelected, count: nextFeatures.length }
   }
 
+  function replaceSelectedFieldCandidate(pendingKey, resolvedCandidate) {
+    if (!pendingKey || !resolvedCandidate) return false
+
+    const existingFeatures = getSelectedPmtilesFeatures(
+      fieldCandidateCollection,
+    )
+    let replaced = false
+    const nextFeatures = existingFeatures.map((feature) => {
+      if (getCandidateSelectionKey(feature) !== pendingKey) return feature
+      replaced = true
+      return resolvedCandidate
+    })
+
+    if (!replaced) return false
+
+    selectedFieldCandidate = resolvedCandidate
+    fieldCandidateCollection = nextFeatures.length
+      ? {
+          type: "FeatureCollection",
+          features: nextFeatures,
+        }
+      : null
+
+    return true
+  }
+
+  function clearResolvingFieldCandidate(pendingKey) {
+    if (!pendingKey) return false
+
+    const existingFeatures = getSelectedPmtilesFeatures(
+      fieldCandidateCollection,
+    )
+    let changed = false
+    const nextFeatures = existingFeatures.map((feature) => {
+      if (getCandidateSelectionKey(feature) !== pendingKey) return feature
+      changed = true
+      return {
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          resolving_boundary: false,
+          boundary_resolve_failed: true,
+          premerged_area_pending: false,
+          area_ha: getGeometryAreaHa(feature.geometry),
+        },
+      }
+    })
+
+    if (!changed) return false
+    fieldCandidateCollection = nextFeatures.length
+      ? {
+          type: "FeatureCollection",
+          features: nextFeatures,
+        }
+      : null
+    selectedFieldCandidate = nextFeatures[nextFeatures.length - 1] || null
+    return true
+  }
+
   function createSeedFieldFromCandidate(candidate) {
     return createSeedFieldFromCandidates([candidate])
   }
@@ -765,22 +992,26 @@
     const features = (candidates || []).filter(Boolean)
     if (!features.length) return null
 
-    const polygonCoordinates = []
-    features.forEach((candidate) => {
-      const geometry = cloneGeometry(candidate.geometry)
-      if (geometry?.type === "Polygon") {
-        polygonCoordinates.push(geometry.coordinates)
-      } else if (geometry?.type === "MultiPolygon") {
-        polygonCoordinates.push(...geometry.coordinates)
-      }
-    })
+    let boundary = unionSelectedCandidateGeometries(features)
 
-    if (!polygonCoordinates.length) return null
+    if (!boundary) {
+      const polygonCoordinates = []
+      features.forEach((candidate) => {
+        const geometry = cloneGeometry(candidate.geometry)
+        if (geometry?.type === "Polygon") {
+          polygonCoordinates.push(geometry.coordinates)
+        } else if (geometry?.type === "MultiPolygon") {
+          polygonCoordinates.push(...geometry.coordinates)
+        }
+      })
 
-    const boundary =
-      polygonCoordinates.length === 1
-        ? { type: "Polygon", coordinates: polygonCoordinates[0] }
-        : { type: "MultiPolygon", coordinates: polygonCoordinates }
+      if (!polygonCoordinates.length) return null
+
+      boundary =
+        polygonCoordinates.length === 1
+          ? { type: "Polygon", coordinates: polygonCoordinates[0] }
+          : { type: "MultiPolygon", coordinates: polygonCoordinates }
+    }
 
     const firstCandidate = features[0]
     const properties = firstCandidate?.properties || {}
@@ -797,6 +1028,7 @@
         provider: properties.provider || "ftw",
         selectedFrom: properties.selectedFrom || "ftw_visual_tile_layer",
         selectedCount: features.length,
+        unionedFromSelectedCount: features.length,
         selectedAt: new Date().toISOString(),
       },
     }
@@ -853,6 +1085,20 @@
       lngLat,
     )
 
+    const renderedFeatures = event.detail?.features || []
+    console.info("[FTW PMTiles] MapViewer received selection", {
+      renderedFeatureCount: renderedFeatures.length,
+      selectedPropertyKeys: Object.keys(event.detail?.feature?.properties || {}).sort(),
+      selectedProperties: event.detail?.feature?.properties || {},
+      selectedGeometryType: event.detail?.feature?.geometry?.type,
+      selectedAreaHa: selectedCandidate?.properties?.area_ha,
+      scoreLikeKeys: Object.keys(event.detail?.feature?.properties || {}).filter(
+        (key) => /confidence|score|prob|certainty|quality/i.test(key),
+      ),
+      metadataMode: selectedCandidate?.properties?.ftw_metadata_mode,
+      selectionKey: selectedCandidate?.properties?.selection_key,
+    })
+
     if (!selectedCandidate) {
       toast.error("Could not read the selected field location")
       return
@@ -861,6 +1107,32 @@
     fieldCandidateError = ""
     // Selection feedback is visible in the bottom action bar; no toast needed.
     toggleSelectedFieldCandidate(selectedCandidate)
+  }
+
+  function handleFtwFieldResolve(event) {
+    const detail = event.detail || {}
+    if (!detail.ok || !detail.pendingKey || !detail.feature) {
+      if (detail.pendingKey) clearResolvingFieldCandidate(detail.pendingKey)
+      return
+    }
+
+    const resolvedCandidate = createCandidateFromPmtilesFeature(
+      detail.feature,
+      null,
+    )
+    if (!resolvedCandidate) return
+
+    const replaced = replaceSelectedFieldCandidate(
+      detail.pendingKey,
+      resolvedCandidate,
+    )
+    if (replaced) {
+      console.info("[FTW PMTiles] Resolved selected boundary", {
+        pendingKey: detail.pendingKey,
+        selectedAreaHa: resolvedCandidate.properties?.area_ha,
+        selectedCount: resolvedCandidate.properties?.premerged_from_visible_count,
+      })
+    }
   }
 
   async function loadExactFieldCandidates() {
@@ -1792,10 +2064,12 @@
       visible={showPmtilesSelectTiles}
       year={fieldCandidateYear}
       on:select={handleFtwFieldSelect}
+      on:resolve={handleFtwFieldResolve}
     />
     <FieldCandidateOverlay
       {map}
       candidates={fieldCandidateCollection}
+      unionPreview={fieldCandidateUnionPreviewCollection}
       visible={!!fieldCandidateCollection}
     />
     <EmOverlays {map} />
@@ -1917,6 +2191,11 @@
     initialTab={createFieldTab}
     selectionCount={selectedPmtilesFeatureCount}
     selectionHectares={selectedPmtilesFeatureHectares}
+    unifiedSelectionHectares={selectedPmtilesUnionHectares}
+    overlapHectares={selectedPmtilesOverlapHectares}
+    selectionAreaPending={selectedPmtilesAreaPending}
+    selectionResolving={selectedPmtilesResolving}
+    unifiedPartCount={selectedPmtilesUnionPartCount}
     returnsToReview={selectingAdditionalFieldArea &&
       (!!boundaryEditField || !!addFieldFarm)}
     on:cancel={handleCreateFieldCancel}
