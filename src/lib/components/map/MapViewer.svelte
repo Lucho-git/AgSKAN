@@ -5,6 +5,7 @@
   import "mapbox-gl/dist/mapbox-gl.css"
   import MapboxDraw from "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js"
   import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
+  import * as turf from "@turf/turf"
 
   import {
     markerStore,
@@ -26,7 +27,7 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
 
   // Import lucide icons for the toolbox
-  import { Menu } from "lucide-svelte"
+  import { LandPlot, Menu, Pencil, Search, X } from "lucide-svelte"
 
   import MapEventManager from "./MapEventManager.svelte"
   import MarkerManager from "./markers/MarkerManager.svelte"
@@ -49,6 +50,9 @@
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
   import AddFieldOverlay from "$lib/components/map/overlays/AddFieldOverlay.svelte"
+  import FieldCandidateOverlay from "$lib/components/map/overlays/FieldCandidateOverlay.svelte"
+  import FtwPmtilesOverlay from "$lib/components/map/overlays/FtwPmtilesOverlay.svelte"
+  import CreateFieldOverlay from "$lib/components/map/overlays/CreateFieldOverlay.svelte"
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
@@ -70,6 +74,7 @@
     pendingCoordinatesStore,
     pendingClosuresStore,
   } from "$lib/stores/currentTrailStore"
+  import { fieldBoundaryCandidatesApi } from "$lib/api/fieldBoundaryCandidatesApi"
 
   export let handleBackToDashboard
   export let initialLocation
@@ -78,6 +83,7 @@
   let dbInstance
   let markerManagerRef = null
   let mapFieldsRef = null
+  let addFieldOverlayRef = null
   let vehicleTrackerRef = null
   let mapEventManagerRef = null
   let trailHighlighter = null
@@ -97,7 +103,53 @@
 
   // Toolbox state
   let toolboxOpen = false
+  let addFieldChoiceFarm = null
   let addFieldFarm = null
+  let addFieldSeed = null
+  let fieldCandidateCollection = null
+  let fieldCandidateFarm = null
+  let fieldCandidateTilesVisible = false
+  let fieldCandidateYear = 2025
+  let loadingFieldCandidates = false
+  let selectedFieldCandidate = null
+  let selectingAdditionalFieldArea = false
+  let fieldCandidateError = ""
+  let selectedPmtilesFeatures = []
+  $: selectedPmtilesFeatures = getSelectedPmtilesFeatures(
+    fieldCandidateCollection,
+  )
+  $: selectedPmtilesFeatureCount = selectedPmtilesFeatures.length
+  $: selectedPmtilesFeatureHectares = selectedPmtilesFeatures.reduce(
+    (total, feature) => total + (Number(feature?.properties?.area_ha) || 0),
+    0,
+  )
+  let createFieldOverlayRef = null
+  let creatingFieldFarm = null
+  let createFieldTab = "select"
+  // Remember the last tab the user chose, so re-opening Create Field or
+  // Add Area returns them to that tab.
+  let lastCreateFieldTab = "select"
+  $: createFieldActive =
+    !!creatingFieldFarm ||
+    (selectingAdditionalFieldArea && (!!boundaryEditField || !!addFieldFarm))
+  $: createFieldContextName =
+    creatingFieldFarm?.farmName ||
+    boundaryEditField?.name ||
+    addFieldFarm?.farmName ||
+    ""
+  // Only show PMTiles tap-to-select tiles when the user is on the Select tab.
+  $: showPmtilesSelectTiles = createFieldActive && createFieldTab === "select"
+  $: console.log("[CreateField] state", {
+    createFieldActive,
+    createFieldTab,
+    showPmtilesSelectTiles,
+    creatingFieldFarm: creatingFieldFarm?.farmName || null,
+    addFieldFarm: addFieldFarm?.farmName || null,
+    selectingAdditionalFieldArea,
+    boundaryEditField: boundaryEditField?.name || null,
+    selectedPmtilesFeatureCount,
+    selectedPmtilesFeatureHectares,
+  })
   let savingAddField = false
   let fieldEditTarget = null
   let fieldEditName = ""
@@ -503,13 +555,394 @@
   }
 
   function handleAddField(event) {
-    addFieldFarm = event.detail
+    const farm = event.detail
+    console.log("[CreateField] handleAddField", { farmName: farm?.farmName })
+    addFieldChoiceFarm = null
+    addFieldFarm = null
+    addFieldSeed = null
+    clearFieldCandidateState()
     fieldEditTarget = null
     boundaryEditField = null
     $drawingModeEnabled = false
     toolboxOpen = false
+
+    // Open the unified Create Field overlay; default to the user's last tab.
+    createFieldTab = lastCreateFieldTab
+    creatingFieldFarm = farm || null
+    fieldCandidateFarm = farm || null
+    fieldCandidateTilesVisible = true
+    fieldCandidateError = ""
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection("field", "create-field", mapFieldsRef)
+    }
+  }
+
+  function closeAddFieldChoice() {
+    if (loadingFieldCandidates) return
+    addFieldChoiceFarm = null
+  }
+
+  function buildBboxAroundMapCenter(radiusMeters = 500) {
+    const center = map?.getCenter?.()
+    if (!center) return null
+
+    return buildBboxAroundLngLat(center, radiusMeters)
+  }
+
+  function buildBboxAroundLngLat(lngLat, radiusMeters = 25) {
+    if (!lngLat) return null
+
+    const latDelta = radiusMeters / 111320
+    const lngDelta =
+      radiusMeters /
+      (111320 * Math.max(Math.cos((lngLat.lat * Math.PI) / 180), 0.01))
+
+    return {
+      xmin: lngLat.lng - lngDelta,
+      ymin: lngLat.lat - latDelta,
+      xmax: lngLat.lng + lngDelta,
+      ymax: lngLat.lat + latDelta,
+    }
+  }
+
+  function chooseClickedCandidate(features, lngLat) {
+    if (!features?.length) return null
+
+    const point = turf.point([lngLat.lng, lngLat.lat])
+    const containingFeature = features.find((feature) => {
+      try {
+        return turf.booleanPointInPolygon(point, feature)
+      } catch (error) {
+        return false
+      }
+    })
+
+    if (containingFeature) return containingFeature
+
+    return features.reduce((closestFeature, feature) => {
+      if (!closestFeature) return feature
+
+      try {
+        const closestDistance = turf.distance(
+          point,
+          turf.centroid(closestFeature),
+          {
+            units: "kilometers",
+          },
+        )
+        const featureDistance = turf.distance(point, turf.centroid(feature), {
+          units: "kilometers",
+        })
+        return featureDistance < closestDistance ? feature : closestFeature
+      } catch (error) {
+        return closestFeature
+      }
+    }, null)
+  }
+
+  function getCandidateAreaLabel(candidate) {
+    const area = candidate?.properties?.area_ha
+    return Number.isFinite(Number(area))
+      ? `${Math.round(Number(area) * 100) / 100} ha`
+      : "Boundary ready"
+  }
+
+  function cloneGeometry(geometry) {
+    if (!geometry?.type || !geometry?.coordinates) return null
+
+    try {
+      return JSON.parse(JSON.stringify(geometry))
+    } catch (error) {
+      return null
+    }
+  }
+
+  function getGeometryAreaHa(geometry) {
+    if (!geometry) return null
+
+    try {
+      return Math.round((turf.area(geometry) / 10000) * 100) / 100
+    } catch (error) {
+      return null
+    }
+  }
+
+  function createCandidateFromPmtilesFeature(feature, lngLat) {
+    const geometry = cloneGeometry(feature?.geometry)
+    if (!["Polygon", "MultiPolygon"].includes(geometry?.type)) return null
+
+    const properties = feature?.properties || {}
+    const areaHa = getGeometryAreaHa(geometry)
+    const selectionKey =
+      properties.ftw_id ||
+      properties.id ||
+      feature?.id ||
+      getCandidateGeometryKey(geometry)
+
+    return {
+      type: "Feature",
+      geometry,
+      properties: {
+        ...properties,
+        ftw_id:
+          properties.ftw_id ||
+          properties.id ||
+          feature?.id ||
+          `pmtiles-${fieldCandidateYear}-${lngLat?.lng ?? "unknown"}-${lngLat?.lat ?? "unknown"}`,
+        selection_key: selectionKey,
+        provider: properties.provider || "ftw",
+        year: fieldCandidateYear,
+        area_ha: areaHa,
+        boundary_source: "pmtiles",
+        selectedFrom: "ftw_pmtiles_vector_tile",
+        selectedAt: new Date().toISOString(),
+      },
+    }
+  }
+
+  function getCandidateGeometryKey(geometry) {
+    if (!geometry?.type || !geometry?.coordinates) return null
+
+    try {
+      return `${geometry.type}:${JSON.stringify(geometry.coordinates)}`
+    } catch (error) {
+      return null
+    }
+  }
+
+  function getCandidateSelectionKey(candidate) {
+    return (
+      candidate?.properties?.selection_key ||
+      candidate?.properties?.ftw_id ||
+      candidate?.properties?.id ||
+      candidate?.id ||
+      getCandidateGeometryKey(candidate?.geometry)
+    )
+  }
+
+  function getSelectedPmtilesFeatures(collection = fieldCandidateCollection) {
+    return (collection?.features || []).filter(
+      (feature) => feature.properties?.boundary_source === "pmtiles",
+    )
+  }
+
+  function toggleSelectedFieldCandidate(candidate) {
+    const candidateKey = getCandidateSelectionKey(candidate)
+    if (!candidateKey)
+      return { selected: false, count: selectedPmtilesFeatureCount }
+
+    const existingFeatures = getSelectedPmtilesFeatures(
+      fieldCandidateCollection,
+    )
+    const nextFeatures = existingFeatures.filter(
+      (feature) => getCandidateSelectionKey(feature) !== candidateKey,
+    )
+    const wasSelected = nextFeatures.length !== existingFeatures.length
+
+    if (!wasSelected) {
+      nextFeatures.push(candidate)
+    }
+
+    selectedFieldCandidate = wasSelected
+      ? nextFeatures[nextFeatures.length - 1] || null
+      : candidate
+    fieldCandidateCollection = nextFeatures.length
+      ? {
+          type: "FeatureCollection",
+          features: nextFeatures,
+        }
+      : null
+
+    return { selected: !wasSelected, count: nextFeatures.length }
+  }
+
+  function createSeedFieldFromCandidate(candidate) {
+    return createSeedFieldFromCandidates([candidate])
+  }
+
+  function createSeedFieldFromCandidates(candidates) {
+    const features = (candidates || []).filter(Boolean)
+    if (!features.length) return null
+
+    const polygonCoordinates = []
+    features.forEach((candidate) => {
+      const geometry = cloneGeometry(candidate.geometry)
+      if (geometry?.type === "Polygon") {
+        polygonCoordinates.push(geometry.coordinates)
+      } else if (geometry?.type === "MultiPolygon") {
+        polygonCoordinates.push(...geometry.coordinates)
+      }
+    })
+
+    if (!polygonCoordinates.length) return null
+
+    const boundary =
+      polygonCoordinates.length === 1
+        ? { type: "Polygon", coordinates: polygonCoordinates[0] }
+        : { type: "MultiPolygon", coordinates: polygonCoordinates }
+
+    const firstCandidate = features[0]
+    const properties = firstCandidate?.properties || {}
+    const areaHa = getGeometryAreaHa(boundary) || 0
+
+    return {
+      id: properties.ftw_id || `ftw-selected-${Date.now()}`,
+      name: "",
+      boundary,
+      area: areaHa,
+      properties: {
+        ...properties,
+        sourceType: "FieldsOfTheWorld",
+        provider: properties.provider || "ftw",
+        selectedFrom: properties.selectedFrom || "ftw_visual_tile_layer",
+        selectedCount: features.length,
+        selectedAt: new Date().toISOString(),
+      },
+    }
+  }
+
+  function clearFieldCandidateState(clearFarm = true) {
+    console.log("[CreateField] clearFieldCandidateState", { clearFarm })
+    fieldCandidateCollection = null
+    if (clearFarm) fieldCandidateFarm = null
+    fieldCandidateTilesVisible = false
+    selectedFieldCandidate = null
+    selectingAdditionalFieldArea = false
+    fieldCandidateError = ""
+    creatingFieldFarm = null
+    createFieldTab = "select"
+  }
+
+  function beginDrawNewField() {
+    if (!addFieldChoiceFarm) return
+    addFieldFarm = addFieldChoiceFarm
+    addFieldSeed = null
+    addFieldChoiceFarm = null
+    clearFieldCandidateState()
     if (mapEventManagerRef?.setSelection) {
       mapEventManagerRef.setSelection("field", "new-field", mapFieldsRef)
+    }
+  }
+
+  async function beginFieldCandidateSearch() {
+    if (!addFieldChoiceFarm) return
+
+    fieldCandidateCollection = null
+    fieldCandidateFarm = addFieldChoiceFarm
+    fieldCandidateTilesVisible = true
+    fieldCandidateYear = 2025
+    selectedFieldCandidate = null
+    fieldCandidateError = ""
+    addFieldChoiceFarm = null
+  }
+
+  function handleFtwFieldSelect(event) {
+    const isAddingAreaToDraft =
+      selectingAdditionalFieldArea && addFieldOverlayRef
+    if (
+      (!fieldCandidateFarm && !isAddingAreaToDraft) ||
+      loadingFieldCandidates
+    ) {
+      return
+    }
+
+    const lngLat = event.detail?.lngLat
+    const selectedCandidate = createCandidateFromPmtilesFeature(
+      event.detail?.feature,
+      lngLat,
+    )
+
+    if (!selectedCandidate) {
+      toast.error("Could not read the selected field location")
+      return
+    }
+
+    fieldCandidateError = ""
+    // Selection feedback is visible in the bottom action bar; no toast needed.
+    toggleSelectedFieldCandidate(selectedCandidate)
+  }
+
+  async function loadExactFieldCandidates() {
+    if (!fieldCandidateFarm || loadingFieldCandidates) return
+
+    const bbox = buildBboxAroundMapCenter()
+    if (!bbox) {
+      toast.error("Map is not ready yet")
+      return
+    }
+
+    loadingFieldCandidates = true
+    fieldCandidateError = ""
+
+    try {
+      const candidates = await fieldBoundaryCandidatesApi.getCandidates({
+        bbox,
+        year: fieldCandidateYear,
+        limit: 75,
+        source: "local",
+      })
+      fieldCandidateCollection = candidates
+      selectedFieldCandidate = null
+
+      if (candidates.features?.length) {
+        toast.success(`Loaded ${candidates.features.length} exact candidates`)
+      } else {
+        toast.info("No exact candidates found in this area")
+      }
+    } catch (error) {
+      console.error("Error loading field candidates:", error)
+      fieldCandidateError = error.message || "Failed to load field candidates"
+      toast.error(fieldCandidateError)
+    } finally {
+      loadingFieldCandidates = false
+    }
+  }
+
+  function clearFieldCandidates() {
+    clearFieldCandidateState()
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(null, null, null)
+    }
+  }
+
+  function useSelectedFieldCandidate() {
+    const selectedFeatures = getSelectedPmtilesFeatures(
+      fieldCandidateCollection,
+    )
+    console.log("[CreateField] useSelectedFieldCandidate", {
+      count: selectedFeatures.length,
+      selectingAdditionalFieldArea,
+      hasOverlayRef: !!addFieldOverlayRef,
+    })
+    if (!selectedFeatures.length) return
+
+    const seedField = createSeedFieldFromCandidates(selectedFeatures)
+    if (!seedField) {
+      toast.error("Could not prepare the selected fields")
+      return
+    }
+
+    if (selectingAdditionalFieldArea) {
+      if (!addFieldOverlayRef) return
+
+      addFieldOverlayRef.addSeedArea(seedField)
+      clearFieldCandidateState()
+      toast.success(
+        `Added ${selectedFeatures.length} field area${selectedFeatures.length === 1 ? "" : "s"}`,
+      )
+      return
+    }
+
+    if (!fieldCandidateFarm) return
+
+    addFieldFarm = fieldCandidateFarm
+    addFieldSeed = seedField
+    addFieldChoiceFarm = null
+    clearFieldCandidateState()
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection("field", "new-ftw-field", mapFieldsRef)
     }
   }
 
@@ -520,12 +953,23 @@
       return
     }
 
-    fieldEditTarget = field
-    fieldEditName = field.name || ""
+    fieldEditTarget = null
+    fieldEditName = ""
+    addFieldChoiceFarm = null
     addFieldFarm = null
-    boundaryEditField = null
+    addFieldSeed = null
+    clearFieldCandidateState()
+    boundaryEditField = field
     toolboxOpen = false
     focusField(field)
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(
+        "field",
+        `edit-field-${field.field_id}`,
+        mapFieldsRef,
+      )
+    }
   }
 
   function closeFieldEditModal() {
@@ -614,6 +1058,8 @@
 
   function handleAddFieldCancel() {
     addFieldFarm = null
+    addFieldSeed = null
+    clearFieldCandidateState()
     if (mapEventManagerRef?.setSelection) {
       mapEventManagerRef.setSelection(null, null, null)
     }
@@ -680,6 +1126,12 @@
       const insertedField = result.insertedFields[0]
       mapFieldsStore.update((fields) => [...fields, insertedField])
       addFieldFarm = null
+      addFieldSeed = null
+      addFieldChoiceFarm = null
+      clearFieldCandidateState()
+      if (mapFieldsRef?.handleFieldSelection) {
+        mapFieldsRef.handleFieldSelection(null)
+      }
       if (mapEventManagerRef?.setSelection) {
         mapEventManagerRef.setSelection(null, null, null)
       }
@@ -687,6 +1139,113 @@
       console.error("Error saving drawn field:", error)
     } finally {
       savingAddField = false
+    }
+  }
+
+  function handleSelectAdditionalFieldArea() {
+    if (
+      (!addFieldFarm && !boundaryEditField) ||
+      savingAddField ||
+      savingFieldEdit
+    )
+      return
+
+    console.log("[CreateField] handleSelectAdditionalFieldArea", {
+      hasAddFieldFarm: !!addFieldFarm,
+      hasBoundaryEditField: !!boundaryEditField,
+    })
+
+    selectingAdditionalFieldArea = true
+    creatingFieldFarm = null
+    createFieldTab = lastCreateFieldTab
+    fieldCandidateFarm = addFieldFarm || {
+      farmName:
+        boundaryEditField?.properties?.FARM_NAME ||
+        boundaryEditField?.farm_name ||
+        boundaryEditField?.name ||
+        "Selected field",
+    }
+    fieldCandidateCollection = null
+    selectedFieldCandidate = null
+    fieldCandidateTilesVisible = true
+    fieldCandidateError = ""
+  }
+
+  function handleCreateFieldCancel() {
+    // If we were adding to an existing draft/field, return to the review panel.
+    const wasAddingArea =
+      selectingAdditionalFieldArea && (!!boundaryEditField || !!addFieldFarm)
+    console.log("[CreateField] handleCreateFieldCancel", { wasAddingArea })
+    clearFieldCandidateState()
+    if (!wasAddingArea && mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(null, null, null)
+    }
+  }
+
+  function handleCreateFieldClearSelection() {
+    console.log("[CreateField] handleCreateFieldClearSelection")
+    fieldCandidateCollection = null
+    selectedFieldCandidate = null
+  }
+
+  function handleCreateFieldTabChange(event) {
+    const nextTab = event?.detail?.tab || "select"
+    console.log("[CreateField] handleCreateFieldTabChange", {
+      previous: createFieldTab,
+      next: nextTab,
+    })
+    createFieldTab = nextTab
+    lastCreateFieldTab = nextTab
+    // When leaving Select for Draw, also clear any selected PMTiles fields so
+    // they don't linger as highlighted polygons in the background.
+    if (nextTab !== "select") {
+      fieldCandidateCollection = null
+      selectedFieldCandidate = null
+    }
+  }
+
+  function handleCreateFieldConfirmSelect() {
+    console.log("[CreateField] handleCreateFieldConfirmSelect", {
+      selectedPmtilesFeatureCount,
+      selectingAdditionalFieldArea,
+    })
+    // Reuse existing seeding logic which dispatches into AddFieldOverlay.
+    useSelectedFieldCandidate()
+  }
+
+  function handleCreateFieldConfirmDraw(event) {
+    const detail = event.detail || {}
+    const boundary = detail.boundary
+    if (!boundary) return
+
+    const seedField = {
+      name: "",
+      boundary,
+      properties: {
+        sourceType: "DrawnBoundary",
+        provider: "manual",
+      },
+    }
+
+    const wasAddingArea =
+      selectingAdditionalFieldArea && (!!boundaryEditField || !!addFieldFarm)
+    console.log("[CreateField] handleCreateFieldConfirmDraw", {
+      wasAddingArea,
+      areaHa: detail.area?.hectares,
+      hasOverlayRef: !!addFieldOverlayRef,
+    })
+    if (wasAddingArea && addFieldOverlayRef) {
+      addFieldOverlayRef.addSeedArea(seedField)
+      clearFieldCandidateState()
+      return
+    }
+
+    addFieldFarm = creatingFieldFarm || fieldCandidateFarm
+    addFieldSeed = seedField
+    clearFieldCandidateState()
+
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection("field", "new-field-draw", mapFieldsRef)
     }
   }
 
@@ -761,11 +1320,73 @@
         ),
       )
       boundaryEditField = null
+      clearFieldCandidateState()
+      if (mapFieldsRef?.handleFieldSelection) {
+        mapFieldsRef.handleFieldSelection(null)
+      }
       if (mapEventManagerRef?.setSelection) {
         mapEventManagerRef.setSelection(null, null, null)
       }
     } catch (error) {
       console.error("Error updating field boundary:", error)
+    } finally {
+      savingFieldEdit = false
+    }
+  }
+
+  async function handleFieldDelete(event) {
+    if (savingFieldEdit) return
+
+    const targetField = event.detail?.field || boundaryEditField
+    if (!targetField?.field_id) {
+      toast.error("Field could not be deleted")
+      return
+    }
+
+    await runFieldDelete(targetField, targetField.name || "this field")
+  }
+
+  // Invoked from InfoPanel where the user already confirmed via the in-panel
+  // countdown — skip the extra window.confirm so the action is immediate.
+  async function handleInfoPanelDelete(event) {
+    if (savingFieldEdit) return
+    const targetField = event.detail?.field
+    if (!targetField?.field_id) {
+      toast.error("Field could not be deleted")
+      return
+    }
+    await runFieldDelete(targetField, targetField.name || "this field")
+  }
+
+  async function runFieldDelete(targetField, fieldName) {
+    savingFieldEdit = true
+
+    const promise = fileApi.deleteField(targetField.field_id).then((result) => {
+      if (!result.success) {
+        throw new Error(result.message || "Failed to delete field")
+      }
+      return result
+    })
+
+    toast.promise(promise, {
+      loading: "Deleting field...",
+      success: `Field "${fieldName}" deleted.`,
+      error: (error) => error.message,
+    })
+
+    try {
+      await promise
+      mapFieldsStore.update((fields) =>
+        fields.filter((field) => field.field_id !== targetField.field_id),
+      )
+      boundaryEditField = null
+      fieldEditTarget = null
+      clearFieldCandidateState()
+      if (mapEventManagerRef?.setSelection) {
+        mapEventManagerRef.setSelection(null, null, null)
+      }
+    } catch (error) {
+      console.error("Error deleting field:", error)
     } finally {
       savingFieldEdit = false
     }
@@ -1159,7 +1780,24 @@
       onOpenVehicleControls={handleOpenVehicleControls}
       onOpenFlashPanel={handleOpenFlashPanel}
     />
-    <MapFields bind:this={mapFieldsRef} {map} coordinatedEvents={true} />
+    <MapFields
+      bind:this={mapFieldsRef}
+      {map}
+      coordinatedEvents={true}
+      on:editBoundaries={handleEditField}
+      on:deleteField={handleInfoPanelDelete}
+    />
+    <FtwPmtilesOverlay
+      {map}
+      visible={showPmtilesSelectTiles}
+      year={fieldCandidateYear}
+      on:select={handleFtwFieldSelect}
+    />
+    <FieldCandidateOverlay
+      {map}
+      candidates={fieldCandidateCollection}
+      visible={!!fieldCandidateCollection}
+    />
     <EmOverlays {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
@@ -1189,19 +1827,27 @@
 
     {#if addFieldFarm}
       <AddFieldOverlay
+        bind:this={addFieldOverlayRef}
         {map}
         farm={addFieldFarm}
+        seedField={addFieldSeed}
         saving={savingAddField}
+        hidden={selectingAdditionalFieldArea}
         on:cancel={handleAddFieldCancel}
         on:complete={handleAddFieldComplete}
+        on:selectArea={handleSelectAdditionalFieldArea}
       />
     {:else if boundaryEditField}
       <AddFieldOverlay
+        bind:this={addFieldOverlayRef}
         {map}
         existingField={boundaryEditField}
         saving={savingFieldEdit}
+        hidden={selectingAdditionalFieldArea}
         on:cancel={handleFieldEditCancel}
         on:complete={handleFieldBoundaryUpdate}
+        on:selectArea={handleSelectAdditionalFieldArea}
+        on:delete={handleFieldDelete}
       />
     {/if}
   {/if}
@@ -1261,6 +1907,24 @@
       </div>
     </section>
   </div>
+{/if}
+
+{#if createFieldActive}
+  <CreateFieldOverlay
+    bind:this={createFieldOverlayRef}
+    {map}
+    farmName={createFieldContextName}
+    initialTab={createFieldTab}
+    selectionCount={selectedPmtilesFeatureCount}
+    selectionHectares={selectedPmtilesFeatureHectares}
+    returnsToReview={selectingAdditionalFieldArea &&
+      (!!boundaryEditField || !!addFieldFarm)}
+    on:cancel={handleCreateFieldCancel}
+    on:clearSelection={handleCreateFieldClearSelection}
+    on:tabChange={handleCreateFieldTabChange}
+    on:confirmSelect={handleCreateFieldConfirmSelect}
+    on:confirmDraw={handleCreateFieldConfirmDraw}
+  />
 {/if}
 
 <!-- Toolbox -->

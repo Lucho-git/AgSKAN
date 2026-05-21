@@ -3,8 +3,17 @@
   import { createEventDispatcher } from "svelte"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { fieldStore } from "$lib/stores/fieldStore"
+  import { farmsStore } from "$lib/stores/farmsStore"
   import { fileApi } from "$lib/api/fileApi"
-  import { Check, X, Settings, Palette } from "lucide-svelte"
+  import {
+    Check,
+    X,
+    Settings,
+    Palette,
+    ChevronDown,
+    Pencil,
+    Trash2,
+  } from "lucide-svelte"
 
   export let selectedField: any
   export let selectedFieldId: number
@@ -22,6 +31,7 @@
   let editedName = ""
   let editedFieldType = ""
   let editedColor = ""
+  let editedFarmId: string | null = null
   let editedTotalArea = 0
   let editedSubAreas: number[] = []
 
@@ -29,8 +39,12 @@
   let originalName = ""
   let originalFieldType = ""
   let originalColor = ""
+  let originalFarmId: string | null = null
   let originalTotalArea = 0
   let originalSubAreas: number[] = []
+
+  // Farm dropdown UI state
+  let farmDropdownOpen = false
 
   // Saving state
   let isSaving = false
@@ -83,17 +97,37 @@
   $: hasNameChanges = editedName !== originalName
   $: hasFieldTypeChanges = editedFieldType !== originalFieldType
   $: hasColorChanges = editedColor !== originalColor
+  $: hasFarmChanges = editedFarmId !== originalFarmId
   $: hasAreaChanges = hasMultipleAreas
     ? JSON.stringify(editedSubAreas) !== JSON.stringify(originalSubAreas)
     : editedTotalArea !== originalTotalArea
 
   // Check which tabs have changes (for visual indicators)
-  $: detailsHasChanges = hasNameChanges || hasFieldTypeChanges || hasAreaChanges
+  $: detailsHasChanges =
+    hasNameChanges || hasFieldTypeChanges || hasFarmChanges || hasAreaChanges
   $: colorHasChanges = hasColorChanges
 
   // Overall changes check
   $: hasAnyChanges =
-    hasNameChanges || hasFieldTypeChanges || hasColorChanges || hasAreaChanges
+    hasNameChanges ||
+    hasFieldTypeChanges ||
+    hasColorChanges ||
+    hasFarmChanges ||
+    hasAreaChanges
+
+  // Farm dropdown options
+  $: availableFarms = ($farmsStore || [])
+    .slice()
+    .sort((a, b) => (a?.name || "").localeCompare(b?.name || ""))
+  // Fields always belong to a farm — if the field doesn't have a farm_id yet
+  // (legacy / draft), fall back to the first available farm so the trigger
+  // shows a real farm name instead of placeholder text.
+  $: if (editedFarmId === null && availableFarms.length > 0 && selectedField) {
+    editedFarmId = availableFarms[0].id
+    if (originalFarmId === null) originalFarmId = availableFarms[0].id
+  }
+  $: selectedFarmName =
+    availableFarms.find((f) => f.id === editedFarmId)?.name || "Select farm"
 
   // Reset state when field changes
   $: {
@@ -109,11 +143,15 @@
     isExpanded = false
     showInfoPanel = false
     activeTab = "details"
+    farmDropdownOpen = false
+    clearSubAreaHighlight()
+    clearDeleteConfirm()
 
     // Reset all edited values to current field values
     editedName = selectedField?.name || ""
     editedFieldType = selectedField?.field_type || ""
     editedColor = selectedField?.color || "default"
+    editedFarmId = selectedField?.farm_id || null
     editedTotalArea = selectedField?.area || 0
     editedSubAreas = selectedField?.polygon_areas?.individual_areas
       ? [...selectedField.polygon_areas.individual_areas]
@@ -123,6 +161,7 @@
     originalName = editedName
     originalFieldType = editedFieldType
     originalColor = editedColor
+    originalFarmId = editedFarmId
     originalTotalArea = editedTotalArea
     originalSubAreas = [...editedSubAreas]
   }
@@ -132,6 +171,7 @@
       showEditMenu = false
       isExpanded = false
       showInfoPanel = false
+      clearSubAreaHighlight()
       return
     }
 
@@ -139,11 +179,13 @@
     isExpanded = true
     showInfoPanel = true
     activeTab = tab
+    if (tab !== "details") clearSubAreaHighlight()
   }
 
   // Switch tabs
   function switchTab(tab: "details" | "color") {
     activeTab = tab
+    if (tab !== "details") clearSubAreaHighlight()
   }
 
   // Cancel all changes
@@ -151,8 +193,81 @@
     editedName = originalName
     editedFieldType = originalFieldType
     editedColor = originalColor
+    editedFarmId = originalFarmId
     editedTotalArea = originalTotalArea
     editedSubAreas = [...originalSubAreas]
+    farmDropdownOpen = false
+  }
+
+  function toggleFarmDropdown() {
+    farmDropdownOpen = !farmDropdownOpen
+  }
+
+  function selectFarm(farmId: string) {
+    editedFarmId = farmId
+    farmDropdownOpen = false
+  }
+
+  function handleEditBoundaries() {
+    if (!selectedField?.field_id) return
+    clearSubAreaHighlight()
+    showEditMenu = false
+    isExpanded = false
+    showInfoPanel = false
+    dispatch("editBoundaries", { field: selectedField })
+  }
+
+  // Sub-area highlight state — clicking an area row in the details tab
+  // highlights that polygon on the map.
+  let highlightedSubAreaIndex: number | null = null
+
+  function clearSubAreaHighlight() {
+    if (highlightedSubAreaIndex === null) return
+    highlightedSubAreaIndex = null
+    dispatch("highlightSubArea", { polygonIndex: null })
+  }
+
+  function toggleSubAreaHighlight(index: number) {
+    if (highlightedSubAreaIndex === index) {
+      clearSubAreaHighlight()
+      return
+    }
+    highlightedSubAreaIndex = index
+    dispatch("highlightSubArea", { polygonIndex: index })
+  }
+
+  // Delete confirm — first click arms the button with a 5s countdown,
+  // second click while armed dispatches the delete. Auto-disarms on timeout.
+  const DELETE_CONFIRM_SECONDS = 5
+  let deleteConfirmActive = false
+  let deleteConfirmSeconds = DELETE_CONFIRM_SECONDS
+  let deleteConfirmTimer: ReturnType<typeof setInterval> | null = null
+
+  function clearDeleteConfirm() {
+    if (deleteConfirmTimer) {
+      clearInterval(deleteConfirmTimer)
+      deleteConfirmTimer = null
+    }
+    deleteConfirmActive = false
+    deleteConfirmSeconds = DELETE_CONFIRM_SECONDS
+  }
+
+  function handleDeleteFieldClick() {
+    if (!selectedField?.field_id) return
+
+    if (deleteConfirmActive) {
+      clearDeleteConfirm()
+      clearSubAreaHighlight()
+      dispatch("deleteField", { field: selectedField })
+      return
+    }
+
+    deleteConfirmActive = true
+    deleteConfirmSeconds = DELETE_CONFIRM_SECONDS
+    deleteConfirmTimer = setInterval(() => {
+      deleteConfirmSeconds -= 1
+      if (deleteConfirmSeconds <= 0) clearDeleteConfirm()
+    }, 1000)
   }
 
   // Save all changes
@@ -168,6 +283,7 @@
       if (hasNameChanges) updates.name = editedName
       if (hasFieldTypeChanges) updates.field_type = editedFieldType
       if (hasColorChanges) updates.color = editedColor
+      if (hasFarmChanges) updates.farm_id = editedFarmId
 
       if (hasAreaChanges) {
         if (hasMultipleAreas) {
@@ -226,6 +342,7 @@
       originalName = editedName
       originalFieldType = editedFieldType
       originalColor = editedColor
+      originalFarmId = editedFarmId
       originalTotalArea = editedTotalArea
       originalSubAreas = [...editedSubAreas]
 
@@ -356,15 +473,67 @@
               />
             </div>
 
+            <!-- Farm Edit -->
+            <div class="edit-field-section">
+              <span class="edit-field-label">Farm Name</span>
+              <div class="farm-dropdown" class:open={farmDropdownOpen}>
+                <button
+                  type="button"
+                  class="farm-dropdown-trigger"
+                  on:click={toggleFarmDropdown}
+                >
+                  <span class="farm-dropdown-value">{selectedFarmName}</span>
+                  <ChevronDown size={16} />
+                </button>
+                {#if farmDropdownOpen}
+                  <ul class="farm-dropdown-menu" role="listbox">
+                    {#each availableFarms as farm (farm.id)}
+                      <li>
+                        <button
+                          type="button"
+                          class="farm-dropdown-option"
+                          class:selected={editedFarmId === farm.id}
+                          on:click={() => selectFarm(farm.id)}
+                        >
+                          <span>{farm.name}</span>
+                          {#if editedFarmId === farm.id}
+                            <Check size={14} />
+                          {/if}
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            </div>
+
             {#if hasMultipleAreas}
               <!-- Edit Sub Areas -->
               <div class="area-edit-section">
                 <span class="area-edit-label">Edit Sub Areas</span>
                 <div class="sub-areas-edit-list">
                   {#each editedSubAreas as area, index}
-                    <div class="sub-area-edit-item">
+                    <div
+                      class="sub-area-edit-item"
+                      class:highlighted={highlightedSubAreaIndex === index}
+                      on:click={() => toggleSubAreaHighlight(index)}
+                      on:keydown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleSubAreaHighlight(index)
+                        }
+                      }}
+                      role="button"
+                      tabindex="0"
+                      title="Click to highlight this area on the map"
+                    >
                       <span class="sub-area-edit-label">Area {index + 1}</span>
-                      <div class="sub-area-edit-input-wrapper">
+                      <div
+                        class="sub-area-edit-input-wrapper"
+                        on:click|stopPropagation
+                        on:keydown|stopPropagation
+                        role="presentation"
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -392,19 +561,72 @@
                 <label class="area-edit-label" for="total-area-input">
                   Total Area (hectares)
                 </label>
-                <div class="total-area-edit-wrapper">
-                  <input
-                    id="total-area-input"
-                    type="number"
-                    step="0.1"
-                    class="total-area-edit-input"
-                    bind:value={editedTotalArea}
-                    on:keydown={handleKeydown}
-                  />
-                  <span class="area-unit">ha</span>
+                <div
+                  class="total-area-edit-wrapper"
+                  class:highlighted={highlightedSubAreaIndex === 0}
+                  on:click={() => toggleSubAreaHighlight(0)}
+                  on:keydown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      toggleSubAreaHighlight(0)
+                    }
+                  }}
+                  role="button"
+                  tabindex="0"
+                  title="Click to highlight this area on the map"
+                >
+                  <div
+                    class="total-area-edit-input-wrap"
+                    on:click|stopPropagation
+                    on:keydown|stopPropagation
+                    role="presentation"
+                  >
+                    <input
+                      id="total-area-input"
+                      type="number"
+                      step="0.1"
+                      class="total-area-edit-input"
+                      bind:value={editedTotalArea}
+                      on:keydown={handleKeydown}
+                    />
+                    <span class="area-unit">ha</span>
+                  </div>
                 </div>
               </div>
             {/if}
+
+            <!-- Boundaries -->
+            <div class="boundaries-section">
+              <span class="edit-field-label">Boundaries</span>
+              <button
+                type="button"
+                class="edit-boundaries-btn"
+                on:click={handleEditBoundaries}
+                disabled={!selectedField?.field_id}
+              >
+                <Pencil size={14} />
+                <span>Edit Boundaries</span>
+              </button>
+              <button
+                type="button"
+                class="delete-field-btn"
+                class:armed={deleteConfirmActive}
+                on:click={handleDeleteFieldClick}
+                disabled={!selectedField?.field_id}
+                title={deleteConfirmActive
+                  ? "Click again to confirm"
+                  : "Delete field"}
+              >
+                <Trash2 size={14} />
+                <span>
+                  {#if deleteConfirmActive}
+                    Confirm Delete ({deleteConfirmSeconds})
+                  {:else}
+                    Delete Field
+                  {/if}
+                </span>
+              </button>
+            </div>
 
             {#if detailsHasChanges}
               <p class="edit-hint">Ctrl+Enter to save, Esc to cancel</p>
@@ -740,6 +962,182 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
+  /* Farm Dropdown */
+  .farm-dropdown {
+    position: relative;
+    width: 100%;
+  }
+
+  .farm-dropdown-trigger {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .farm-dropdown-trigger:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .farm-dropdown.open .farm-dropdown-trigger {
+    border-color: #22c55e;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .farm-dropdown-value {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .farm-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: rgba(20, 20, 20, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+
+  .farm-dropdown-option {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .farm-dropdown-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+  }
+
+  .farm-dropdown-option.selected {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  /* Boundaries Section */
+  .boundaries-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .edit-boundaries-btn {
+    align-self: flex-start;
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    color: #22c55e;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .edit-boundaries-btn:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.25);
+    color: white;
+  }
+
+  .edit-boundaries-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .delete-field-btn {
+    align-self: flex-start;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .delete-field-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.25);
+    color: white;
+  }
+
+  .delete-field-btn.armed {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+    animation: delete-pulse 1s ease-in-out infinite;
+  }
+
+  .delete-field-btn.armed:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+  }
+
+  .delete-field-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @keyframes delete-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+  }
+
   /* Selection Section */
   .selection-section {
     display: flex;
@@ -827,6 +1225,29 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .total-area-edit-wrapper:hover {
+    background: rgba(251, 191, 36, 0.08);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .total-area-edit-wrapper.highlighted {
+    background: rgba(251, 191, 36, 0.18);
+    border-color: rgba(251, 191, 36, 0.7);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3);
+  }
+
+  .total-area-edit-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
   }
 
   .total-area-edit-input {
@@ -860,6 +1281,20 @@
     background: rgba(96, 165, 250, 0.1);
     padding: 10px 12px;
     border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .sub-area-edit-item:hover {
+    background: rgba(251, 191, 36, 0.12);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .sub-area-edit-item.highlighted {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.7);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3);
   }
 
   .sub-area-edit-label {

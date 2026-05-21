@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite dev",
+    "dev:ftw-api": "node scripts/field-boundary-api.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -101,6 +102,7 @@
     "luxon": "^3.5.0",
     "mapbox-gl": "^1.13.3",
     "mode-watcher": "^0.4.1",
+    "pmtiles": "^4.4.1",
     "shapefile": "^0.6.6",
     "shpjs": "^6.1.0",
     "stripe": "^13.3.0",

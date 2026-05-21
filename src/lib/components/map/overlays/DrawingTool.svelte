@@ -92,7 +92,7 @@
           paint: {
             "line-color": selectedColor,
             "line-width": 3,
-            "line-dasharray": [2, 2],
+            "line-dasharray": [1, 0],
           },
         })
       }
@@ -230,37 +230,36 @@
     </div>
   </div>
 
-  <!-- Color Picker (Top) -->
-  <div class="color-picker-overlay">
-    <div class="color-picker">
-      {#each colorOptions as color}
-        <button
-          class="color-btn"
-          class:selected={selectedColor === color.value}
-          style="background-color: {color.value}"
-          on:click={() => changeColor(color.value)}
-          title={color.name}
-        ></button>
-      {/each}
-    </div>
-  </div>
-
   <!-- Control Buttons (Bottom Center) -->
   <div class="button-container">
-    <div class="button-group">
-      <button
-        class="undo-btn"
-        class:disabled={!canUndo}
-        on:click={undoLastPoint}
-        disabled={!canUndo}
-      >
-        <Undo size={20} />
-      </button>
+    <div class="drawing-control-stack">
+      <div class="button-group">
+        <button
+          class="undo-btn"
+          class:disabled={!canUndo}
+          on:click={undoLastPoint}
+          disabled={!canUndo}
+        >
+          <Undo size={20} />
+        </button>
 
-      <button class="add-point-btn" on:click={addPoint}>
-        <Plus size={24} />
-        <span class="btn-label">Add Point</span>
-      </button>
+        <button class="add-point-btn" on:click={addPoint}>
+          <Plus size={24} />
+          <span class="btn-label">Add Point</span>
+        </button>
+      </div>
+
+      <div class="color-picker">
+        {#each colorOptions as color}
+          <button
+            class="color-btn"
+            class:selected={selectedColor === color.value}
+            style="background-color: {color.value}"
+            on:click={() => changeColor(color.value)}
+            title={color.name}
+          ></button>
+        {/each}
+      </div>
     </div>
   </div>
 {/if}
@@ -321,27 +320,20 @@
   }
 
   /* Color Picker */
-  .color-picker-overlay {
-    position: fixed;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1001;
-  }
-
   .color-picker {
     display: flex;
-    gap: 8px;
+    gap: 7px;
     background: rgba(0, 0, 0, 0.85);
-    padding: 8px 12px;
-    border-radius: 16px;
+    padding: 7px 10px;
+    border-radius: 14px;
     backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .color-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
     border: 2px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -363,10 +355,17 @@
   /* Control Buttons */
   .button-container {
     position: fixed;
-    bottom: 6rem;
+    bottom: 6.75rem;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1001;
+  }
+
+  .drawing-control-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
 
   .button-group {
@@ -441,7 +440,7 @@
   /* Mobile */
   @media (max-width: 768px) {
     .button-container {
-      bottom: 5rem;
+      bottom: 6rem;
     }
 
     .add-point-btn {
@@ -454,8 +453,8 @@
     }
 
     .color-btn {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
     }
 
     .btn-label {
@@ -465,13 +464,13 @@
 
   @media (max-width: 480px) {
     .color-picker {
-      gap: 6px;
-      padding: 6px 10px;
+      gap: 5px;
+      padding: 6px 8px;
     }
 
     .color-btn {
-      width: 28px;
-      height: 28px;
+      width: 25px;
+      height: 25px;
     }
 
     .add-point-btn {
@@ -487,7 +486,7 @@
   /* Handle safe areas */
   @supports (padding: max(0px)) {
     .button-container {
-      bottom: max(6rem, env(safe-area-inset-bottom) + 4rem);
+      bottom: max(6.75rem, env(safe-area-inset-bottom) + 4.75rem);
     }
   }
 </style>

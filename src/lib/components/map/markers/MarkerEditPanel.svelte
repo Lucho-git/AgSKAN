@@ -1,15 +1,15 @@
 <!-- src/lib/components/map/markers/MarkerEditPanel.svelte -->
 <script>
+  import { onMount } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import {
     Edit3,
     Trash2,
     Check,
-    Info,
     FileText,
     Copy,
-    Plus,
     Pen,
+    RefreshCw,
   } from "lucide-svelte"
   import { markerApi } from "$lib/api/markerApi"
   import {
@@ -92,28 +92,40 @@
     }
   }
 
-  // Watch for drawing completion and re-open panel
-  $: {
-    const isDrawing = $markerDrawingStore.isActive
+  onMount(() => {
+    const handleDrawingFlowComplete = (event) => {
+      if (
+        shouldReopenAfterDrawing &&
+        previousMarkerId === event.detail?.markerId
+      ) {
+        shouldReopenAfterDrawing = false
+        previousMarkerId = null
 
-    // If drawing just finished for our marker, re-open the drawing panel
-    if (
-      !isDrawing &&
-      shouldReopenAfterDrawing &&
-      previousMarkerId === currentMarker?.id
-    ) {
-      shouldReopenAfterDrawing = false
-      previousMarkerId = null
+        setTimeout(() => {
+          showDrawingPanel = true
+          showEditMenu = false
+          showInfoPanel = false
+          isExpanded = true
 
-      // Re-open the drawing panel
-      setTimeout(() => {
-        showDrawingPanel = true
-        showEditMenu = false
-        showInfoPanel = false
-        isExpanded = true
-      }, 100)
+          setTimeout(() => {
+            drawingPanelRef?.refreshDrawings()
+          }, 150)
+        }, 100)
+      }
     }
-  }
+
+    window.addEventListener(
+      "marker-drawing-flow-complete",
+      handleDrawingFlowComplete,
+    )
+
+    return () => {
+      window.removeEventListener(
+        "marker-drawing-flow-complete",
+        handleDrawingFlowComplete,
+      )
+    }
+  })
 
   // Check if there are pending changes (icon OR notes)
   $: hasChanges =
@@ -223,6 +235,13 @@
     if (!coordinates || coordinates.length !== 2) return "N/A"
     const [lng, lat] = coordinates
     return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+  }
+
+  // Short coordinates for header chip
+  function formatCoordinatesShort(coordinates) {
+    if (!coordinates || coordinates.length !== 2) return "—"
+    const [lng, lat] = coordinates
+    return `${lat.toFixed(3)}, ${lng.toFixed(3)}`
   }
 
   // Copy coordinates to clipboard
@@ -492,19 +511,6 @@
     showNotesSection = false
   }
 
-  // Handle info button click
-  function handleInfoClick() {
-    if ($selectedMarkerStore?.coordinates) {
-      centerCameraOnMarker($selectedMarkerStore.coordinates)
-    }
-
-    showInfoPanel = !showInfoPanel
-    showEditMenu = false
-    showDrawingPanel = false
-    isExpanded = showInfoPanel
-    editingNotesInInfo = false
-  }
-
   // Handle drawing button click
   function handleDrawingClick() {
     if ($selectedMarkerStore?.coordinates) {
@@ -515,6 +521,9 @@
     showInfoPanel = false
     showEditMenu = false
     isExpanded = showDrawingPanel
+    if (!showDrawingPanel) {
+      editingNotesInInfo = false
+    }
   }
 
   // Toggle notes section
@@ -524,242 +533,276 @@
 </script>
 
 <!-- Marker Panel -->
-<div class="marker-panel" class:expanded={isExpanded}>
-  <!-- Info Section -->
-  {#if isExpanded && showInfoPanel && !selectedMarkerIsNew}
-    <div class="info-section">
-      <div class="marker-header">
-        <div class="marker-title">
-          <span class="marker-label"
-            >{getMarkerName(getCurrentIconClass($selectedMarkerStore.id))}</span
-          >
-          <span class="marker-date"
-            >{formatCreationDate(currentMarker?.created_at)}</span
-          >
+{#if !shouldReopenAfterDrawing}
+  <div class="marker-panel" class:expanded={isExpanded}>
+    <!-- Edit Section -->
+    {#if isExpanded && showEditMenu}
+      <div class="icon-section">
+        <div class="icon-section-header">
+          <span class="section-title">
+            {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Edit Marker"}
+          </span>
+          <div class="icon-actions">
+            <button
+              class="notes-toggle-btn"
+              class:active={showNotesSection}
+              on:click={toggleNotesSection}
+            >
+              <FileText size={16} />
+              <span class="btn-text">Notes</span>
+            </button>
+
+            {#if hasChanges || selectedMarkerIsNew}
+              <button class="confirm-icon-btn" on:click={handleConfirmMarker}>
+                <Check size={16} />
+                <span class="btn-text">Confirm</span>
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        {#if showNotesSection}
+          <div class="notes-edit-section">
+            <textarea
+              bind:value={markerNotes}
+              placeholder="Add notes about this marker..."
+              class="notes-input"
+              rows="3"
+              maxlength="500"
+            ></textarea>
+          </div>
+        {/if}
+
+        <div class="icon-grid-container">
+          <div class="icon-grid">
+            {#each selectableMarkers as icon}
+              <button
+                class="icon-option"
+                class:selected={getIsIconSelected(icon)}
+                on:click={() => handleIconPreview(icon)}
+              >
+                {#if icon.id === "default"}
+                  <IconSVG icon="mapbox-marker" size="28px" />
+                {:else if icon.class.startsWith("custom-svg")}
+                  <IconSVG icon={icon.id} size="28px" />
+                {:else if icon.class.startsWith("ionic-")}
+                  <ion-icon name={icon.id} style="font-size: 28px;"></ion-icon>
+                {:else}
+                  <i class={`${icon.class} text-2xl`}></i>
+                {/if}
+              </button>
+            {/each}
+          </div>
         </div>
       </div>
+    {/if}
 
-      {#if editingNotesInInfo}
-        <div class="notes-edit-section-info">
-          <div class="notes-header-info">
-            <span class="notes-label">📝 Edit Notes</span>
-            <div class="notes-actions">
-              <button class="notes-action-btn save" on:click={saveInfoNotes}>
-                <Check size={14} />
-              </button>
-              <button
-                class="notes-action-btn cancel"
-                on:click={cancelEditingInfoNotes}
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          <textarea
-            bind:value={infoNotesValue}
-            placeholder="Add notes about this marker..."
-            class="notes-input-info"
-            rows="3"
-            maxlength="500"
-          ></textarea>
-        </div>
-      {:else if currentMarker?.notes}
-        <div class="notes-display-section">
-          <div class="notes-display-header">
-            <span class="notes-label">📝 Notes</span>
-            <button class="edit-notes-btn" on:click={startEditingInfoNotes}>
-              <Edit3 size={14} />
-            </button>
-          </div>
-          <div class="notes-display-content">
-            {currentMarker.notes}
-          </div>
-        </div>
-      {:else}
-        <div class="add-notes-section">
-          <button class="add-notes-btn" on:click={startEditingInfoNotes}>
-            <Plus size={16} />
-            <FileText size={16} />
-            <span>Add Notes</span>
-          </button>
-        </div>
-      {/if}
-
-      <div class="coordinates-section">
-        <div class="coord-item">
-          <div class="coord-header">
-            <span class="coord-label">📍 Location</span>
+    <!-- Drawing Section -->
+    {#if isExpanded && showDrawingPanel && !selectedMarkerIsNew}
+      <div class="settings-section">
+        <div class="settings-header">
+          <div class="settings-header-top">
+            <span class="settings-title">Marker Settings</span>
             <button
-              class="copy-btn"
+              class="coord-chip"
               on:click={copyCoordinates}
               title="Copy coordinates"
             >
-              <Copy size={14} />
+              <span class="coord-pin">📍</span>
+              <span class="coord-chip-value"
+                >{formatCoordinatesShort(
+                  $selectedMarkerStore?.coordinates,
+                )}</span
+              >
+              <Copy size={12} />
             </button>
           </div>
-          <span class="coord-value"
-            >{formatCoordinates($selectedMarkerStore?.coordinates)}</span
+          <span class="settings-subtitle"
+            >{formatCreationDate(currentMarker?.created_at)}</span
           >
         </div>
+
+        <div class="settings-scroll">
+          {#if editingNotesInInfo}
+            <!-- Edit mode: notes editor occupies the entire body -->
+            <div class="notes-card editing focused">
+              <div class="notes-card-header">
+                <span class="notes-card-label">Edit Note</span>
+                <div class="notes-card-actions">
+                  <button
+                    class="notes-card-btn save"
+                    on:click={saveInfoNotes}
+                    title="Save"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    class="notes-card-btn cancel"
+                    on:click={cancelEditingInfoNotes}
+                    title="Cancel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <textarea
+                bind:value={infoNotesValue}
+                placeholder="Add notes about this marker..."
+                class="notes-card-input"
+                rows="5"
+                maxlength="500"
+                autofocus
+              ></textarea>
+            </div>
+          {:else}
+            <!-- Top action row: Add/Change Note + Change Marker -->
+            <div class="action-tile-grid two-col">
+              <button
+                class="action-tile notes-tile"
+                class:has-notes={!!currentMarker?.notes}
+                on:click={startEditingInfoNotes}
+              >
+                <FileText size={18} />
+                <span>{currentMarker?.notes ? "Change Note" : "Add Note"}</span>
+              </button>
+              <button class="action-tile edit-tile" on:click={handleIconClick}>
+                <span class="edit-tile-icon">
+                  {#if displayIconClass === "default"}
+                    <IconSVG icon="mapbox-marker" size="18px" />
+                  {:else if displayIconClass?.startsWith("custom-svg")}
+                    <IconSVG
+                      icon={displayIconClass?.replace("custom-svg-", "")}
+                      size="18px"
+                    />
+                  {:else if displayIconClass?.startsWith("ionic-")}
+                    <ion-icon
+                      name={displayIconClass?.replace("ionic-", "")}
+                      style="font-size: 18px;"
+                    ></ion-icon>
+                  {:else}
+                    <IconSVG icon="mapbox-marker" size="18px" />
+                  {/if}
+                </span>
+                <span>Change</span>
+              </button>
+            </div>
+
+            {#if currentMarker?.notes}
+              <button
+                type="button"
+                class="notes-card notes-card-clickable"
+                class:inline={currentMarker.notes.length <= 60}
+                on:click={startEditingInfoNotes}
+                title="Edit note"
+              >
+                <div class="notes-card-header">
+                  <span class="notes-card-label">Note</span>
+                  {#if currentMarker.notes.length <= 60}
+                    <span class="notes-card-inline-content"
+                      >{currentMarker.notes}</span
+                    >
+                  {/if}
+                  <span class="notes-card-edit-hint">
+                    <Edit3 size={14} />
+                  </span>
+                </div>
+                {#if currentMarker.notes.length > 60}
+                  <div class="notes-card-content">{currentMarker.notes}</div>
+                {/if}
+              </button>
+            {/if}
+
+            <!-- DrawingPanel: header + Draw buttons + saved list -->
+            <DrawingPanel
+              bind:this={drawingPanelRef}
+              {map}
+              {currentMarker}
+              {getCurrentIconClass}
+              onStartDrawing={handleDrawingStart}
+            />
+          {/if}
+        </div>
       </div>
-    </div>
-  {/if}
+    {/if}
 
-  <!-- Edit Section -->
-  {#if isExpanded && showEditMenu}
-    <div class="icon-section">
-      <div class="icon-section-header">
-        <span class="section-title">
-          {selectedMarkerIsNew ? "Choose Icon for New Marker" : "Edit Marker"}
-        </span>
-        <div class="icon-actions">
-          <button
-            class="notes-toggle-btn"
-            class:active={showNotesSection}
-            on:click={toggleNotesSection}
-          >
-            <FileText size={16} />
-            <span class="btn-text">Notes</span>
-          </button>
+    <!-- Control Bar -->
+    <div class="control-bar">
+      <div class="marker-info">
+        <button
+          class="marker-icon-display"
+          class:active={showEditMenu && isExpanded}
+          on:click={handleIconClick}
+        >
+          {#if displayIconClass === "default"}
+            <IconSVG icon="mapbox-marker" size="28px" />
+          {:else if displayIconClass?.startsWith("custom-svg")}
+            <IconSVG
+              icon={displayIconClass?.replace("custom-svg-", "")}
+              size="28px"
+            />
+          {:else if displayIconClass?.startsWith("ionic-")}
+            <ion-icon
+              name={displayIconClass?.replace("ionic-", "")}
+              style="font-size: 28px;"
+            ></ion-icon>
+          {:else}
+            <IconSVG icon="mapbox-marker" size="28px" />
+          {/if}
 
-          {#if hasChanges || selectedMarkerIsNew}
-            <button class="confirm-icon-btn" on:click={handleConfirmMarker}>
-              <Check size={16} />
-              <span class="btn-text">Confirm</span>
-            </button>
+          {#if !selectedMarkerIsNew}
+            <div class="edit-badge">
+              <RefreshCw size={12} />
+            </div>
+          {/if}
+        </button>
+
+        <div class="marker-text-info">
+          <span class="marker-name">
+            {getMarkerName(displayIconClass)}
+          </span>
+          {#if markerNotes && showEditMenu}
+            <span class="marker-notes-preview marker-notes-desktop">
+              - {markerNotes}</span
+            >
+            <span class="marker-notes-preview marker-notes-mobile"
+              >{markerNotes}</span
+            >
+          {:else if currentMarker?.notes && !showEditMenu}
+            <span class="marker-notes-preview marker-notes-desktop">
+              - {currentMarker.notes}</span
+            >
+            <span class="marker-notes-preview marker-notes-mobile"
+              >{currentMarker.notes}</span
+            >
           {/if}
         </div>
       </div>
 
-      {#if showNotesSection}
-        <div class="notes-edit-section">
-          <textarea
-            bind:value={markerNotes}
-            placeholder="Add notes about this marker..."
-            class="notes-input"
-            rows="3"
-            maxlength="500"
-          ></textarea>
-        </div>
-      {/if}
-
-      <div class="icon-grid-container">
-        <div class="icon-grid">
-          {#each selectableMarkers as icon}
-            <button
-              class="icon-option"
-              class:selected={getIsIconSelected(icon)}
-              on:click={() => handleIconPreview(icon)}
-            >
-              {#if icon.id === "default"}
-                <IconSVG icon="mapbox-marker" size="28px" />
-              {:else if icon.class.startsWith("custom-svg")}
-                <IconSVG icon={icon.id} size="28px" />
-              {:else if icon.class.startsWith("ionic-")}
-                <ion-icon name={icon.id} style="font-size: 28px;"></ion-icon>
-              {:else}
-                <i class={`${icon.class} text-2xl`}></i>
-              {/if}
-            </button>
-          {/each}
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Drawing Section -->
-  {#if isExpanded && showDrawingPanel && !selectedMarkerIsNew}
-    <DrawingPanel
-      bind:this={drawingPanelRef}
-      {map}
-      {currentMarker}
-      {getCurrentIconClass}
-      onStartDrawing={handleDrawingStart}
-    />
-  {/if}
-
-  <!-- Control Bar -->
-  <div class="control-bar">
-    <div class="marker-info">
-      <button
-        class="marker-icon-display"
-        class:active={showEditMenu && isExpanded}
-        on:click={handleIconClick}
-      >
-        {#if displayIconClass === "default"}
-          <IconSVG icon="mapbox-marker" size="28px" />
-        {:else if displayIconClass?.startsWith("custom-svg")}
-          <IconSVG
-            icon={displayIconClass?.replace("custom-svg-", "")}
-            size="28px"
-          />
-        {:else if displayIconClass?.startsWith("ionic-")}
-          <ion-icon
-            name={displayIconClass?.replace("ionic-", "")}
-            style="font-size: 28px;"
-          ></ion-icon>
+      <div class="action-controls">
+        {#if selectedMarkerIsNew}
+          <button
+            class="control-btn confirm-btn"
+            on:click={handleConfirmMarker}
+          >
+            <Check size={20} />
+          </button>
         {:else}
-          <IconSVG icon="mapbox-marker" size="28px" />
+          <button
+            class="control-btn drawing-btn"
+            class:active={showDrawingPanel && isExpanded}
+            on:click={handleDrawingClick}
+          >
+            <Pen size={20} />
+          </button>
         {/if}
 
-        {#if !selectedMarkerIsNew}
-          <div class="edit-badge">
-            <Edit3 size={12} />
-          </div>
-        {/if}
-      </button>
-
-      <div class="marker-text-info">
-        <span class="marker-name">
-          {getMarkerName(displayIconClass)}
-        </span>
-        {#if markerNotes && showEditMenu}
-          <span class="marker-notes-preview marker-notes-desktop">
-            - {markerNotes}</span
-          >
-          <span class="marker-notes-preview marker-notes-mobile"
-            >{markerNotes}</span
-          >
-        {:else if currentMarker?.notes && !showEditMenu}
-          <span class="marker-notes-preview marker-notes-desktop">
-            - {currentMarker.notes}</span
-          >
-          <span class="marker-notes-preview marker-notes-mobile"
-            >{currentMarker.notes}</span
-          >
-        {/if}
+        <button class="control-btn delete-btn" on:click={removeMarker}>
+          <Trash2 size={20} />
+        </button>
       </div>
-    </div>
-
-    <div class="action-controls">
-      {#if selectedMarkerIsNew}
-        <button class="control-btn confirm-btn" on:click={handleConfirmMarker}>
-          <Check size={20} />
-        </button>
-      {:else}
-        <button
-          class="control-btn info-btn"
-          class:active={showInfoPanel && isExpanded}
-          on:click={handleInfoClick}
-        >
-          <Info size={20} />
-        </button>
-
-        <button
-          class="control-btn drawing-btn"
-          class:active={showDrawingPanel && isExpanded}
-          on:click={handleDrawingClick}
-        >
-          <Pen size={20} />
-        </button>
-      {/if}
-
-      <button class="control-btn delete-btn" on:click={removeMarker}>
-        <Trash2 size={20} />
-      </button>
     </div>
   </div>
-</div>
+{/if}
 
 <style>
   /* Main Marker Panel */
@@ -802,6 +845,429 @@
   .info-section {
     padding: 16px 20px 0;
     overflow-y: auto;
+  }
+
+  /* Marker Settings Section (unified panel: title → notes → drawings → location) */
+  .settings-section {
+    display: block;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.92),
+      rgba(0, 0, 0, 0.82)
+    );
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+  }
+
+  .marker-panel.expanded .settings-section {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Header: title left, coord chip right */
+  .settings-header {
+    flex-shrink: 0;
+    padding: 10px 20px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .settings-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .settings-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    line-height: 1.2;
+  }
+
+  .settings-subtitle {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
+  }
+
+  .coord-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(96, 165, 250, 0.12);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 999px;
+    padding: 4px 10px;
+    color: #93c5fd;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .coord-chip:hover {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+  }
+
+  .coord-chip:active {
+    transform: scale(0.97);
+  }
+
+  .coord-pin {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .coord-chip-value {
+    color: #bfdbfe;
+  }
+
+  /* Scrollable body: sizes to content, caps at 38vh, scrolls on overflow */
+  .settings-scroll {
+    max-height: calc(
+      38vh - 56px
+    ); /* 38vh minus approx settings-header height */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 12px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Action tile grid: 3 uniform buttons (Notes, Add Area, Add Line) */
+  .action-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .action-tile-grid.two-col .action-tile {
+    flex-direction: row;
+    gap: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .action-tile-grid.two-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .action-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 9px 8px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .action-tile:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    transform: translateY(-1px);
+  }
+
+  .action-tile:active {
+    transform: translateY(0);
+  }
+
+  .action-tile.notes-tile,
+  .action-tile.notes-tile.has-notes {
+    background: rgba(96, 165, 250, 0.12);
+    border-color: rgba(96, 165, 250, 0.35);
+    color: #93c5fd;
+  }
+
+  .action-tile.notes-tile:hover {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.5);
+    color: #bfdbfe;
+  }
+
+  .action-tile.notes-tile.editing {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+  }
+
+  /* Notes card (inline below tile grid) */
+  .notes-card {
+    flex-shrink: 0;
+    padding: 10px 12px;
+    background: rgba(96, 165, 250, 0.06);
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .notes-card.editing {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .notes-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .notes-card-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 600;
+  }
+
+  .notes-card-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .notes-card-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .notes-card-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+  }
+
+  .notes-card-btn.save {
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+  }
+
+  .notes-card-btn.save:hover {
+    background: rgba(34, 197, 94, 0.3);
+  }
+
+  .notes-card-btn.cancel:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+  }
+
+  .notes-card-content {
+    font-size: 13px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .notes-card.inline {
+    padding: 6px 10px;
+  }
+
+  .notes-card.inline .notes-card-header {
+    gap: 8px;
+  }
+
+  .notes-card-inline-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.3;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .notes-card-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: white;
+    font-size: 13px;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+  }
+
+  .notes-card-input:focus {
+    outline: none;
+    border-color: rgba(96, 165, 250, 0.5);
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .notes-card-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  /* Clickable note card (whole card opens edit mode) */
+  .notes-card-clickable {
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+  }
+
+  .notes-card-clickable:hover {
+    background: rgba(96, 165, 250, 0.1);
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+
+  .notes-card-edit-hint {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(96, 165, 250, 0.7);
+    flex-shrink: 0;
+  }
+
+  .notes-card-clickable:hover .notes-card-edit-hint {
+    color: #93c5fd;
+  }
+
+  /* Edit Marker tile: current marker icon + 'Change' */
+  .action-tile.edit-tile {
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .edit-tile-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    flex-shrink: 0;
+  }
+
+  /* Focused notes editor (takes full body) */
+  .notes-card.focused {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .notes-card.focused .notes-card-input {
+    flex: 1;
+    min-height: 140px;
+  }
+
+  /* Flatten nested DrawingPanel: hide its own action buttons, restyle header & list */
+  .settings-scroll :global(.drawing-section) {
+    max-height: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    background: transparent !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .settings-scroll :global(.drawing-section .drawing-type-section) {
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .settings-scroll :global(.drawing-section .drawing-type-btn) {
+    gap: 6px !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    transform: none !important;
+  }
+
+  .settings-scroll :global(.drawing-section .drawing-type-btn:hover) {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    transform: none !important;
+  }
+
+  .settings-scroll :global(.drawing-section .drawing-header) {
+    margin-bottom: 8px;
+    padding: 8px 0 0;
+    border-bottom: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 12px;
+  }
+
+  .settings-scroll :global(.drawing-section .section-title) {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .settings-scroll :global(.drawing-section .drawings-list-container) {
+    overflow: visible !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    flex: none !important;
+    min-height: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+  }
+
+  .settings-scroll :global(.drawing-section .drawings-list) {
+    padding-bottom: 0 !important;
+  }
+
+  .settings-scroll :global(.drawing-section .empty-state) {
+    padding: 8px 0 0;
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 14px;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .icon-section {
@@ -1488,5 +1954,44 @@
   .icon-grid-container::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     Settings body — "Inline header" treatment
+     Tight, pill-style action chips sitting close to the header,
+     bordered notes card, compact spacing throughout.
+     ──────────────────────────────────────────────────────────────── */
+
+  .settings-section .settings-header {
+    padding: 8px 16px 8px;
+  }
+  .settings-section .settings-header-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .settings-section .settings-scroll {
+    gap: 8px;
+    padding: 8px 16px 16px;
+  }
+  .settings-section .action-tile-grid.two-col {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: -2px 0 4px;
+  }
+  .settings-section .action-tile-grid.two-col .action-tile,
+  .settings-section .action-tile {
+    padding: 6px 10px;
+    font-size: 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .settings-section .action-tile.notes-tile.has-notes {
+    background: rgba(96, 165, 250, 0.18);
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+  .settings-section .notes-card-clickable {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 </style>

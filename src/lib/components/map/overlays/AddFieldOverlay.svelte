@@ -1,13 +1,27 @@
 <!-- src/lib/components/map/overlays/AddFieldOverlay.svelte -->
 <script>
+  // @ts-nocheck
   import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import * as turf from "@turf/turf"
-  import { Check, LandPlot, Pencil, Plus, Trash2, Undo, X } from "lucide-svelte"
+  import {
+    ArrowLeft,
+    Check,
+    LandPlot,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+    Undo,
+    X,
+  } from "lucide-svelte"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
 
   export let map
   export let farm = null
   export let existingField = null
+  export let seedField = null
   export let saving = false
+  export let hidden = false
 
   const dispatch = createEventDispatcher()
 
@@ -25,24 +39,107 @@
 
   let mode = "draw"
   let fieldName = ""
-  let fieldNameTouched = false
+  let attemptedReviewSave = false
   let points = []
   let currentArea = { hectares: 0, squareMeters: 0 }
   let draftPolygons = []
   let deletedPolygons = []
+  let userTouchedDraft = false
   let editingPolygonIndex = null
   let editingPolygonPersisted = false
+  let editingInnerRings = []
+  /** Snapshot of the polygon we entered Edit Boundary on, used to restore on cancel. */
+  let originalEditingPolygon = null
   let initializedFieldKey = null
-  let savedFieldName = ""
   let originalFieldName = ""
   let originalPolygonSignatures = []
   let selectedReviewIndex = -1
+  let showAreaSourceChoice = false
 
   $: isEditingField = !!existingField
-  $: existingProperties = normalizeProperties(existingField?.properties)
+  $: sourceField = existingField || seedField
+  $: existingProperties = normalizeProperties(sourceField?.properties)
   $: farmName = farm?.farmName || existingProperties.FARM_NAME || "Farm"
+  // Owning farm id we'll submit with the field.
+  $: effectiveFarmId =
+    sourceField?.farm_id || existingProperties.farm_id || farm?.farmId || null
+  // Block save when another field on the same farm already uses this name.
+  $: duplicateFieldName = (() => {
+    const name = (fieldName || "").trim().toLowerCase()
+    if (!name) return false
+    const currentId = existingField?.field_id
+    return ($mapFieldsStore || []).some((field) => {
+      if (!field) return false
+      if (currentId && field.field_id === currentId) return false
+      if (effectiveFarmId && field.farm_id !== effectiveFarmId) return false
+      if (!effectiveFarmId && field.farm_id) return false
+      return (field.name || "").trim().toLowerCase() === name
+    })
+  })()
   $: hasEnoughPoints = points.length >= 3
+  // Live area of the polygon currently being drawn; recomputes on every point change.
+  $: {
+    currentArea =
+      points.length >= 3
+        ? getPolygonArea(buildPolygonBoundary())
+        : { hectares: 0, squareMeters: 0 }
+  }
   $: totalArea = calculateTotalArea(draftPolygons)
+  $: console.log("[AddField] derived", {
+    mode,
+    draftPolygonsLength: draftPolygons.length,
+    pointsLength: points.length,
+    totalHa: totalArea.hectares,
+    currentHa: currentArea.hectares,
+    initializedFieldKey,
+  })
+  $: effectiveFieldName = fieldName.trim()
+  $: fieldHasChanges =
+    !isEditingField ||
+    userTouchedDraft ||
+    deletedPolygons.length > 0 ||
+    effectiveFieldName !== originalFieldName ||
+    draftPolygons.length !== originalPolygonSignatures.length ||
+    draftPolygons.some(
+      (polygon, index) =>
+        getPolygonSignature(polygon.boundary) !==
+        originalPolygonSignatures[index],
+    )
+  $: fieldNameMissing = mode === "review" && !effectiveFieldName
+  $: fieldNameRequired =
+    fieldNameMissing && (attemptedReviewSave || !isEditingField)
+  $: canCompleteCurrentPolygon =
+    mode === "draw" && points.length >= 3 && !saving
+  $: canSaveBase =
+    draftPolygons.length > 0 && !!effectiveFieldName && !duplicateFieldName
+  // For new fields the save button only requires content + name.
+  // For edits also require at least one change vs. the loaded state
+  // (name, boundaries, deletions, or any new draw activity).
+  $: canSaveCurrentField =
+    canSaveBase && !saving && (!isEditingField || fieldHasChanges)
+  $: canFinishCurrentWithoutSaving = false
+  // When editing an existing field and the user has deleted every polygon,
+  // the primary review action becomes "Delete Field" instead of "Update Field".
+  $: isDeleteAction = isEditingField && draftPolygons.length === 0
+  $: canUseCurrentReviewAction = isDeleteAction ? !saving : canSaveCurrentField
+  $: reviewActionTitle = isDeleteAction
+    ? "Delete field"
+    : effectiveFieldName
+      ? isEditingField
+        ? "Update field"
+        : "Save field"
+      : "Field name required"
+  $: reviewActionLabel = saving
+    ? isDeleteAction
+      ? "Deleting Field"
+      : isEditingField
+        ? "Updating Field"
+        : "Saving Field"
+    : isDeleteAction
+      ? "Delete Field"
+      : isEditingField
+        ? "Update Field"
+        : "Save Field"
 
   function calculateTotalArea(polygons) {
     const squareMeters = polygons.reduce(
@@ -61,20 +158,11 @@
   }
 
   function getEffectiveFieldName() {
-    return fieldName.trim() || savedFieldName.trim()
-  }
-
-  function isFieldNameRequired() {
-    return mode === "review" && !getEffectiveFieldName()
+    return effectiveFieldName
   }
 
   function canSaveField() {
-    return (
-      mode === "review" &&
-      draftPolygons.length > 0 &&
-      !!getEffectiveFieldName() &&
-      !saving
-    )
+    return canSaveCurrentField
   }
 
   function getPolygonSignature(boundary) {
@@ -87,40 +175,12 @@
     })
   }
 
-  function hasFieldChanges() {
-    if (!isEditingField) return true
-    if (deletedPolygons.length > 0) return true
-    if (getEffectiveFieldName() !== originalFieldName) return true
-    if (draftPolygons.length !== originalPolygonSignatures.length) return true
-
-    return draftPolygons.some(
-      (polygon, index) =>
-        getPolygonSignature(polygon.boundary) !==
-        originalPolygonSignatures[index],
-    )
-  }
-
   function canFinishWithoutSaving() {
-    return mode === "review" && isEditingField && !hasFieldChanges() && !saving
-  }
-
-  function canUseReviewAction() {
-    return canFinishWithoutSaving() || canSaveField()
-  }
-
-  function getReviewActionTitle() {
-    if (canFinishWithoutSaving()) return "Finish reviewing field"
-    return getEffectiveFieldName() ? "Save field" : "Field name required"
-  }
-
-  function getReviewActionLabel() {
-    if (canFinishWithoutSaving()) return "Finish"
-    if (saving) return isEditingField ? "Updating Field" : "Saving Field"
-    return isEditingField ? "Update Field" : "Save Field"
+    return canFinishCurrentWithoutSaving
   }
 
   function canCompletePolygon() {
-    return mode === "draw" && points.length >= 3 && !saving
+    return canCompleteCurrentPolygon
   }
 
   function getPolygonArea(polygonBoundary) {
@@ -135,10 +195,31 @@
     }
   }
 
+  function closeRing(coordinates) {
+    if (!coordinates?.length) return []
+    const ring = [...coordinates]
+    if (!sameCoordinate(ring[0], ring[ring.length - 1])) {
+      ring.push(ring[0])
+    }
+    return ring
+  }
+
+  function normalizePolygonBoundary(boundary) {
+    const normalizedBoundary = normalizeBoundary(boundary)
+    if (normalizedBoundary?.type !== "Polygon") return null
+
+    return {
+      type: "Polygon",
+      coordinates: normalizedBoundary.coordinates
+        .filter((ring) => Array.isArray(ring) && ring.length >= 3)
+        .map(closeRing),
+    }
+  }
+
   function buildPolygonBoundary() {
     return {
       type: "Polygon",
-      coordinates: [[...points, points[0]]],
+      coordinates: [closeRing(points), ...editingInnerRings.map(closeRing)],
     }
   }
 
@@ -192,27 +273,70 @@
     if (!normalizedBoundary) return []
 
     if (normalizedBoundary.type === "Polygon") {
-      return [normalizedBoundary]
+      const polygon = normalizePolygonBoundary(normalizedBoundary)
+      return polygon ? [polygon] : []
     }
 
     if (normalizedBoundary.type === "MultiPolygon") {
-      return normalizedBoundary.coordinates.map((coordinates) => ({
-        type: "Polygon",
-        coordinates,
-      }))
+      return normalizedBoundary.coordinates
+        .map((coordinates) =>
+          normalizePolygonBoundary({
+            type: "Polygon",
+            coordinates,
+          }),
+        )
+        .filter(Boolean)
     }
 
     return []
   }
 
-  function initializeExistingField() {
-    const fieldKey = existingField?.field_id || existingField?.id
-    if (!existingField?.boundary || initializedFieldKey === fieldKey) return
+  export function addSeedArea(seedField) {
+    if (saving) return
 
-    const normalizedBoundary = normalizeBoundary(existingField.boundary)
+    const normalizedBoundary = normalizeBoundary(seedField?.boundary)
     const polygons = getBoundaryPolygons(normalizedBoundary)
-    const properties = normalizeProperties(existingField.properties)
-    const existingFieldName = existingField.name || properties.FIELD_NAME || ""
+    if (!polygons.length) return
+
+    const mappedPolygons = polygons.map((boundary) => ({
+      boundary,
+      area: getPolygonArea(boundary),
+      persisted: false,
+    }))
+
+    draftPolygons = [...draftPolygons, ...mappedPolygons]
+    userTouchedDraft = true
+    selectedReviewIndex = -1
+    points = []
+    currentArea = { hectares: 0, squareMeters: 0 }
+    editingPolygonIndex = null
+    editingPolygonPersisted = false
+    editingInnerRings = []
+    mode = "review"
+    showAreaSourceChoice = false
+
+    if (!fieldName.trim() && seedField?.name) {
+      fieldName = seedField.name
+    }
+    applyDefaultFieldNameIfEmpty()
+  }
+
+  function initializeExistingField() {
+    const fieldKey = sourceField?.field_id || sourceField?.id
+    const boundarySignature = getPolygonSignature(sourceField?.boundary)
+    // When there is no stable id (e.g. a freshly drawn seedField), key on the
+    // boundary signature alone so the first reactive run still initializes.
+    const sourceKey = fieldKey
+      ? `${fieldKey}:${boundarySignature}`
+      : boundarySignature
+        ? `draft:${boundarySignature}`
+        : null
+    if (!sourceField?.boundary || initializedFieldKey === sourceKey) return
+
+    const normalizedBoundary = normalizeBoundary(sourceField.boundary)
+    const polygons = getBoundaryPolygons(normalizedBoundary)
+    const properties = normalizeProperties(sourceField.properties)
+    const existingFieldName = sourceField.name || properties.FIELD_NAME || ""
 
     const mappedPolygons = polygons.map((boundary) => ({
       boundary,
@@ -220,36 +344,41 @@
       persisted: true,
     }))
 
-    fieldName = existingFieldName
-    savedFieldName = existingFieldName
-    originalFieldName = existingFieldName.trim()
-    originalPolygonSignatures = mappedPolygons.map((polygon) =>
-      getPolygonSignature(polygon.boundary),
+    const totalHa = mappedPolygons.reduce(
+      (sum, polygon) => sum + (polygon.area?.hectares || 0),
+      0,
     )
-    fieldNameTouched = false
+    console.log("[AddField] initializeExistingField", {
+      mode: existingField ? "edit" : "seed",
+      sourceKey,
+      polygons: mappedPolygons.length,
+      totalHa: Math.round(totalHa * 100) / 100,
+      name: existingFieldName,
+    })
+
+    fieldName = existingFieldName
+    originalFieldName = existingFieldName.trim()
+    originalPolygonSignatures = existingField
+      ? mappedPolygons.map((polygon) => getPolygonSignature(polygon.boundary))
+      : []
+    attemptedReviewSave = false
     points = []
     currentArea = { hectares: 0, squareMeters: 0 }
     draftPolygons = mappedPolygons
     deletedPolygons = []
+    userTouchedDraft = false
     editingPolygonIndex = null
     editingPolygonPersisted = false
+    editingInnerRings = []
     selectedReviewIndex = -1
-    mode = draftPolygons.length > 0 ? "review" : "draw"
-    initializedFieldKey = fieldKey
-
-    if (normalizedBoundary?.type === "Polygon" && mappedPolygons.length === 1) {
-      const polygon = mappedPolygons[0]
-      points = getOpenRingCoordinates(polygon.boundary)
-      currentArea = polygon.area || getPolygonArea(polygon.boundary)
-      draftPolygons = []
-      editingPolygonIndex = 0
-      editingPolygonPersisted = true
-      mode = "draw"
-    }
+    showAreaSourceChoice = false
+    mode = mappedPolygons.length > 0 || existingField ? "review" : "draw"
+    initializedFieldKey = sourceKey
+    if (mode === "review") applyDefaultFieldNameIfEmpty()
   }
 
   function initializeLayers() {
-    if (!map || !map.isStyleLoaded()) return false
+    if (!map) return false
 
     try {
       if (!map.getSource(sourceId)) {
@@ -462,33 +591,34 @@
 
     const features = []
 
-    draftPolygons.forEach((polygon, index) => {
-      const coordinates = polygon.boundary.coordinates[0]
-      const selected = selectedReviewIndex === index
+    function addPolygonDisplayFeatures(polygon, index, selected, lineRole) {
       features.push({
         type: "Feature",
         geometry: polygon.boundary,
-        properties: { draftRole: "completedFill", index, selected },
+        properties: { draftRole: `${lineRole}Fill`, index, selected },
       })
-      features.push({
-        type: "Feature",
-        geometry: { type: "LineString", coordinates },
-        properties: { draftRole: "main", index, selected },
+
+      polygon.boundary.coordinates.forEach((coordinates, ringIndex) => {
+        features.push({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates },
+          properties: {
+            draftRole: lineRole === "deleted" ? "deletedLine" : "main",
+            index,
+            ringIndex,
+            selected,
+          },
+        })
       })
+    }
+
+    draftPolygons.forEach((polygon, index) => {
+      const selected = selectedReviewIndex === index
+      addPolygonDisplayFeatures(polygon, index, selected, "completed")
     })
 
     deletedPolygons.forEach((polygon, index) => {
-      const coordinates = polygon.boundary.coordinates[0]
-      features.push({
-        type: "Feature",
-        geometry: polygon.boundary,
-        properties: { draftRole: "deletedFill", index },
-      })
-      features.push({
-        type: "Feature",
-        geometry: { type: "LineString", coordinates },
-        properties: { draftRole: "deletedLine", index },
-      })
+      addPolygonDisplayFeatures(polygon, index, false, "deleted")
     })
 
     points.forEach((point, index) => {
@@ -530,10 +660,6 @@
         geometry: polygonBoundary,
         properties: { draftRole: "fill" },
       })
-
-      currentArea = getPolygonArea(polygonBoundary)
-    } else {
-      currentArea = { hectares: 0, squareMeters: 0 }
     }
 
     if (mode === "draw" && points.length >= 2) {
@@ -573,6 +699,30 @@
     dispatch("cancel")
   }
 
+  /**
+   * Generate the next unused "Field N" name. We scope to the currently
+   * selected farm so each farm gets its own numbering, falling back to all
+   * fields when no farm is chosen.
+   */
+  function getDefaultFieldName() {
+    const allFields = $mapFieldsStore || []
+    const scoped = effectiveFarmId
+      ? allFields.filter((field) => field?.farm_id === effectiveFarmId)
+      : allFields
+    const used = new Set(
+      scoped.map((field) => (field?.name || "").trim().toLowerCase()),
+    )
+    let n = 1
+    while (used.has(`field ${n}`)) n += 1
+    return `Field ${n}`
+  }
+
+  function applyDefaultFieldNameIfEmpty() {
+    if (isEditingField) return
+    if (fieldName.trim()) return
+    fieldName = getDefaultFieldName()
+  }
+
   function completePolygon() {
     if (!canCompletePolygon()) return
     const boundary = buildPolygonBoundary()
@@ -592,12 +742,16 @@
       draftPolygons = [...draftPolygons, polygon]
       selectedReviewIndex = draftPolygons.length - 1
     }
+    userTouchedDraft = true
 
     points = []
     currentArea = { hectares: 0, squareMeters: 0 }
     editingPolygonIndex = null
     editingPolygonPersisted = false
+    editingInnerRings = []
+    originalEditingPolygon = null
     mode = "review"
+    applyDefaultFieldNameIfEmpty()
   }
 
   function addAnotherPolygon() {
@@ -606,8 +760,31 @@
     currentArea = { hectares: 0, squareMeters: 0 }
     editingPolygonIndex = null
     editingPolygonPersisted = false
+    editingInnerRings = []
     selectedReviewIndex = -1
+    showAreaSourceChoice = false
     mode = "draw"
+  }
+
+  function addArea() {
+    if (saving) return
+    dispatch("selectArea")
+  }
+
+  function openAreaSourceChoice() {
+    if (saving) return
+    showAreaSourceChoice = true
+  }
+
+  function cancelAreaSourceChoice() {
+    if (saving) return
+    showAreaSourceChoice = false
+  }
+
+  function selectAnotherPolygon() {
+    if (saving) return
+    showAreaSourceChoice = false
+    dispatch("selectArea")
   }
 
   function focusPolygon(indexToFocus) {
@@ -642,19 +819,42 @@
     const polygon = draftPolygons[indexToEdit]
     if (!polygon?.boundary) return
 
+    originalEditingPolygon = polygon
     points = getOpenRingCoordinates(polygon.boundary)
     currentArea = polygon.area || getPolygonArea(polygon.boundary)
+    editingInnerRings = polygon.boundary.coordinates.slice(1)
     draftPolygons = draftPolygons.filter((_, index) => index !== indexToEdit)
+    userTouchedDraft = true
     editingPolygonIndex = indexToEdit
     editingPolygonPersisted = !!polygon.persisted
     selectedReviewIndex = -1
+    showAreaSourceChoice = false
     mode = "draw"
+  }
+
+  /** Cancel the in-progress Edit Boundary and return to review unchanged. */
+  function cancelEditingPolygon() {
+    if (saving || editingPolygonIndex === null) return
+    if (originalEditingPolygon) {
+      const nextPolygons = [...draftPolygons]
+      const insertIndex = Math.min(editingPolygonIndex, nextPolygons.length)
+      nextPolygons.splice(insertIndex, 0, originalEditingPolygon)
+      draftPolygons = nextPolygons
+      selectedReviewIndex = insertIndex
+    }
+    originalEditingPolygon = null
+    points = []
+    editingPolygonIndex = null
+    editingPolygonPersisted = false
+    editingInnerRings = []
+    mode = "review"
   }
 
   function removePolygon(indexToRemove) {
     if (saving) return
     const polygonToRemove = draftPolygons[indexToRemove]
     draftPolygons = draftPolygons.filter((_, index) => index !== indexToRemove)
+    userTouchedDraft = true
     if (polygonToRemove?.persisted) {
       deletedPolygons = [...deletedPolygons, polygonToRemove]
     }
@@ -665,15 +865,13 @@
       selectedReviewIndex -= 1
     }
 
-    if (draftPolygons.length === 0) {
-      mode = "draw"
-      fieldNameTouched = false
-    }
+    if (draftPolygons.length === 0) selectedReviewIndex = -1
   }
 
   function saveField() {
-    fieldNameTouched = true
-    if (!canSaveField()) return
+    attemptedReviewSave = true
+    if (saving) return
+    if (!canSaveBase) return
 
     const effectiveFieldName = getEffectiveFieldName()
 
@@ -692,7 +890,7 @@
 
     dispatch("complete", {
       fieldId: existingField?.field_id,
-      farmId: farm?.farmId,
+      farmId: effectiveFarmId,
       farmName,
       fieldName: effectiveFieldName,
       boundary,
@@ -709,6 +907,13 @@
   }
 
   function handleReviewAction() {
+    attemptedReviewSave = true
+
+    if (isDeleteAction) {
+      deleteField()
+      return
+    }
+
     if (canFinishWithoutSaving()) {
       cancel()
       return
@@ -717,21 +922,33 @@
     saveField()
   }
 
+  function deleteField() {
+    if (!isEditingField || saving) return
+    dispatch("delete", { field: existingField })
+  }
+
   function cleanupLayers() {
     if (!map || !map.getLayer || !map.getSource) return
 
-    try {
-      Object.values(layerIds).forEach((layerId) => {
+    Object.values(layerIds).forEach((layerId) => {
+      try {
         if (map.getLayer(layerId)) {
           map.removeLayer(layerId)
         }
-      })
+      } catch (error) {
+        console.warn(
+          `Error removing add field overlay layer ${layerId}:`,
+          error,
+        )
+      }
+    })
 
+    try {
       if (map.getSource(sourceId)) {
         map.removeSource(sourceId)
       }
     } catch (error) {
-      console.warn("Error cleaning up add field overlay layers:", error)
+      console.warn("Error removing add field overlay source:", error)
     }
   }
 
@@ -765,8 +982,13 @@
     cleanupLayers()
   })
 
-  $: if (existingField) {
+  $: if (sourceField) {
     initializeExistingField()
+    // Force dependents (totalArea, renderDraft etc.) to re-evaluate even when
+    // Svelte's static analyzer can't see the writes through the function call.
+    draftPolygons = draftPolygons
+    points = points
+    mode = mode
   }
 
   $: if (map && (points || draftPolygons || deletedPolygons || mode)) {
@@ -774,7 +996,7 @@
   }
 </script>
 
-{#if mode === "draw"}
+{#if mode === "draw" && !hidden}
   <div class="crosshair-overlay">
     <div class="crosshair">
       <div class="crosshair-line horizontal"></div>
@@ -784,15 +1006,27 @@
   </div>
 {/if}
 
-<div class="field-draft-panel">
-  <button
-    class="close-badge"
-    on:click={cancel}
-    title="Cancel"
-    disabled={saving}
-  >
-    <X size={18} />
-  </button>
+<div class="field-draft-panel" class:panel-hidden={hidden}>
+  {#if mode === "draw" && editingPolygonIndex !== null}
+    <button
+      class="close-badge"
+      on:click={cancelEditingPolygon}
+      title="Back to review (discard changes)"
+      aria-label="Back to review"
+      disabled={saving}
+    >
+      <ArrowLeft size={18} />
+    </button>
+  {:else}
+    <button
+      class="close-badge"
+      on:click={cancel}
+      title="Cancel"
+      disabled={saving}
+    >
+      <X size={18} />
+    </button>
+  {/if}
 
   <div class="field-draft-header">
     <div class="field-draft-title-group">
@@ -811,7 +1045,6 @@
               ? "Review Field"
               : "Name Field"}
         </span>
-        <span class="field-draft-farm">{farmName}</span>
       </div>
     </div>
 
@@ -825,17 +1058,6 @@
   </div>
 
   {#if mode === "draw"}
-    {#if draftPolygons.length > 0}
-      <div class="field-summary-strip">
-        <span>
-          {editingPolygonIndex !== null
-            ? `Editing area ${editingPolygonIndex + 1}`
-            : `${draftPolygons.length} part${draftPolygons.length === 1 ? "" : "s"}`}
-        </span>
-        <strong>{formatArea(totalArea.hectares)}</strong>
-      </div>
-    {/if}
-
     <div class="point-actions">
       <button
         class="remove-point-btn"
@@ -845,25 +1067,25 @@
         title="Remove point"
       >
         <Undo size={18} />
-        <span>Remove Point</span>
+        <span>Undo</span>
       </button>
       <button
         class="add-point-btn"
         class:disabled={saving}
         on:click={addPoint}
         disabled={saving}
-        title="Add point"
+        title={points.length === 0 ? "Place starting point" : "Add point"}
       >
         <Plus size={22} />
-        <span>Add Point</span>
+        <span>{points.length === 0 ? "Start" : "Add"}</span>
       </button>
     </div>
 
     <button
       class="complete-paddock-btn"
-      class:disabled={!canCompletePolygon()}
+      class:disabled={!canCompleteCurrentPolygon}
       on:click={completePolygon}
-      disabled={!canCompletePolygon()}
+      disabled={!canCompleteCurrentPolygon}
       title={editingPolygonIndex !== null
         ? "Review field areas"
         : "Complete paddock outline"}
@@ -875,15 +1097,17 @@
     <div class="field-name-row">
       <input
         class="field-name-input"
-        class:invalid={isFieldNameRequired()}
+        class:invalid={fieldNameRequired || duplicateFieldName}
         bind:value={fieldName}
-        on:blur={() => (fieldNameTouched = true)}
-        placeholder="Field name"
+        on:input={() => (fieldName = fieldName)}
+        placeholder="Enter field name"
         maxlength="40"
         disabled={saving}
       />
-      {#if isFieldNameRequired()}
-        <span class="field-name-required">Required</span>
+      {#if duplicateFieldName}
+        <span class="field-name-required">Name already used</span>
+      {:else if fieldNameMissing}
+        <span class="field-name-required">Field name required</span>
       {/if}
     </div>
 
@@ -929,28 +1153,41 @@
     <div class="review-actions">
       <button
         class="add-area-btn"
-        on:click={addAnotherPolygon}
+        on:click={addArea}
         disabled={saving}
         title="Add another area"
       >
         <Plus size={18} />
-        <span>Add Another Area</span>
+        <span>Add Area</span>
       </button>
       <button
         class="save-field-btn"
-        class:disabled={!canUseReviewAction()}
+        class:disabled={!canUseCurrentReviewAction}
+        class:delete-mode={isDeleteAction}
         on:click={handleReviewAction}
-        disabled={!canUseReviewAction()}
-        title={getReviewActionTitle()}
+        disabled={!canUseCurrentReviewAction}
+        title={reviewActionTitle}
       >
-        <Check size={18} />
-        <span>{getReviewActionLabel()}</span>
+        {#if isDeleteAction}
+          <Trash2 size={18} />
+        {:else}
+          <Check size={18} />
+        {/if}
+        <span>{reviewActionLabel}</span>
       </button>
     </div>
   {/if}
 </div>
 
+{#if showAreaSourceChoice}
+  <!-- legacy modal removed -->
+{/if}
+
 <style>
+  .field-draft-panel.panel-hidden {
+    display: none !important;
+  }
+
   .crosshair-overlay {
     position: fixed;
     inset: 0;
@@ -1284,10 +1521,17 @@
   .point-actions,
   .review-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 10px;
     align-items: center;
     margin-top: 12px;
+  }
+
+  .point-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .review-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .add-point-btn,
@@ -1402,6 +1646,16 @@
     transform: none;
   }
 
+  .save-field-btn.delete-mode {
+    background: rgba(239, 68, 68, 0.92);
+    border-color: rgba(252, 165, 165, 0.5);
+    box-shadow: 0 8px 22px rgba(239, 68, 68, 0.25);
+  }
+
+  .save-field-btn.delete-mode:hover:not(.disabled) {
+    background: #dc2626;
+  }
+
   .add-point-btn.disabled,
   .remove-point-btn.disabled,
   .add-area-btn:disabled,
@@ -1438,6 +1692,100 @@
     .add-area-btn span,
     .save-field-btn span {
       font-size: 13px;
+    }
+  }
+
+  .area-source-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1203;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(4px);
+  }
+
+  .area-source-modal {
+    width: min(440px, 100%);
+    background: rgba(10, 14, 22, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
+    color: white;
+    padding: 16px;
+  }
+
+  .area-source-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .area-source-modal h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .area-source-modal p {
+    margin: 3px 0 0;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 13px;
+  }
+
+  .area-source-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.82);
+    cursor: pointer;
+  }
+
+  .area-source-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .area-source-action {
+    display: flex;
+    min-height: 88px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .area-source-action:hover:not(:disabled) {
+    border-color: rgba(125, 211, 252, 0.58);
+    background: rgba(14, 165, 233, 0.18);
+  }
+
+  @media (max-width: 520px) {
+    .area-source-backdrop {
+      padding: 0;
+    }
+
+    .area-source-modal {
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
     }
   }
 </style>

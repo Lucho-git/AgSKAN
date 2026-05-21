@@ -22,9 +22,11 @@
   let pendingDrawing = null
 
   function handleCancel() {
+    const markerId = $markerDrawingStore.markerId
     markerDrawingStore.cancel()
     showStyleEditor = false
     pendingDrawing = null
+    dispatchDrawingFlowComplete(markerId, false)
     onCancel()
   }
 
@@ -60,7 +62,7 @@
         strokeColor: finalState.color,
         fillOpacity: 0.3,
         strokeWidth: 3,
-        strokeStyle: "dashed",
+        strokeStyle: "solid",
       },
     }
 
@@ -109,15 +111,29 @@
     }
 
     // Reset state
+    const markerId = pendingDrawing.marker_id
     showStyleEditor = false
     pendingDrawing = null
+    dispatchDrawingFlowComplete(markerId, true)
     onComplete()
   }
 
   function handleStyleCancel() {
+    const markerId = pendingDrawing?.marker_id
     showStyleEditor = false
     pendingDrawing = null
-    // Don't call onComplete - go back to drawing mode
+    dispatchDrawingFlowComplete(markerId, false)
+    onCancel()
+  }
+
+  function dispatchDrawingFlowComplete(markerId, saved) {
+    if (!markerId) return
+
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-flow-complete", {
+        detail: { markerId, saved },
+      }),
+    )
   }
 
   function convertGeoJSONToWKT(geometry) {
@@ -209,19 +225,19 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 24px;
-    min-height: 80px;
+    padding: 14px 20px;
+    min-height: 64px;
   }
 
   .drawing-mode-info {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
   }
 
   .drawing-icon {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -237,19 +253,19 @@
   }
 
   .drawing-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: white;
   }
 
   .drawing-marker {
-    font-size: 14px;
+    font-size: 12px;
     color: rgba(255, 255, 255, 0.6);
   }
 
   .drawing-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
   }
 
@@ -259,12 +275,12 @@
     align-items: center;
     gap: 6px;
     border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
+    border-radius: 999px;
+    padding: 8px 12px;
     cursor: pointer;
     transition: all 0.2s ease;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .cancel-btn {
@@ -298,13 +314,13 @@
 
   @media (max-width: 768px) {
     .drawing-mode-header {
-      padding: 16px 20px;
-      min-height: 72px;
+      padding: 12px 16px;
+      min-height: 60px;
     }
 
     .drawing-icon {
-      width: 44px;
-      height: 44px;
+      width: 36px;
+      height: 36px;
     }
 
     .drawing-title {
@@ -325,9 +341,9 @@
 
     .cancel-btn,
     .confirm-btn {
-      padding: 10px;
-      width: 44px;
-      height: 44px;
+      padding: 8px;
+      width: 40px;
+      height: 40px;
       justify-content: center;
     }
   }

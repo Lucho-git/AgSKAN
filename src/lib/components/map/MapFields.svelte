@@ -511,6 +511,19 @@
       selectedFieldId,
     )
 
+    // Any field-selection change should drop any sub-area highlight
+    if (
+      typeof map?.getSource === "function" &&
+      map.getSource("field-subarea-highlight")
+    ) {
+      try {
+        map.getSource("field-subarea-highlight").setData({
+          type: "FeatureCollection",
+          features: [],
+        })
+      } catch (_) {}
+    }
+
     if (fieldId === null) {
       selectedFieldId = null
       showInfoPanel = false
@@ -651,6 +664,33 @@
           },
         })
 
+        // Sub-area highlight (driven by InfoPanel sub-area row hover/click)
+        if (!map.getSource("field-subarea-highlight")) {
+          map.addSource("field-subarea-highlight", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          })
+        }
+        mapContext.addLayerOrdered({
+          id: "field-subarea-highlight-fill",
+          type: "fill",
+          source: "field-subarea-highlight",
+          paint: {
+            "fill-color": "#fbbf24",
+            "fill-opacity": 0.45,
+          },
+        })
+        mapContext.addLayerOrdered({
+          id: "field-subarea-highlight-outline",
+          type: "line",
+          source: "field-subarea-highlight",
+          paint: {
+            "line-color": "#fbbf24",
+            "line-width": 4,
+            "line-opacity": 1,
+          },
+        })
+
         addLabelLayers()
 
         const bounds = calculateBoundingBox(fields)
@@ -674,12 +714,71 @@
   function handleFieldDeselect() {
     selectedFieldId = null
     showInfoPanel = false
+    setSubAreaHighlightData([])
     updateFieldSelection()
   }
 
   function handleFieldUpdate() {
     updateMapLabels()
     updateMapColors()
+  }
+
+  function setSubAreaHighlightData(features) {
+    if (!canUseMap()) return
+    const src = map.getSource("field-subarea-highlight")
+    if (!src) return
+    try {
+      src.setData({ type: "FeatureCollection", features })
+    } catch (err) {
+      console.warn("Failed to update sub-area highlight:", err)
+    }
+  }
+
+  function handleHighlightSubArea(event) {
+    const detail = event?.detail || {}
+    const polygonIndex = detail.polygonIndex
+    const field: any = selectedField
+
+    if (polygonIndex === null || polygonIndex === undefined || !field) {
+      setSubAreaHighlightData([])
+      return
+    }
+
+    const boundary = field.boundary
+    if (!boundary) {
+      setSubAreaHighlightData([])
+      return
+    }
+
+    try {
+      let geom = null
+      if (
+        boundary.type === "MultiPolygon" &&
+        Array.isArray(boundary.coordinates)
+      ) {
+        const polyCoords = boundary.coordinates[polygonIndex]
+        if (polyCoords) geom = { type: "Polygon", coordinates: polyCoords }
+      } else if (boundary.type === "Polygon" && polygonIndex === 0) {
+        geom = boundary
+      }
+
+      if (!geom) {
+        setSubAreaHighlightData([])
+        return
+      }
+
+      setSubAreaHighlightData([
+        { type: "Feature", properties: {}, geometry: geom },
+      ])
+    } catch (err) {
+      console.warn("Failed to build sub-area highlight geometry:", err)
+      setSubAreaHighlightData([])
+    }
+  }
+
+  function handleFieldDeselectInternal() {
+    setSubAreaHighlightData([])
+    handleFieldDeselect()
   }
 
   function cleanup() {
@@ -782,5 +881,8 @@
     bind:showInfoPanel
     on:deselect={handleFieldDeselect}
     on:fieldUpdated={handleFieldUpdate}
+    on:editBoundaries
+    on:deleteField
+    on:highlightSubArea={handleHighlightSubArea}
   />
 {/if}

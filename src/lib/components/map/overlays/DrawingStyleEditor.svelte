@@ -12,7 +12,7 @@
   // Style state - use exact values from drawing
   let fillOpacity = drawing.style?.fillOpacity ?? 0.3
   let strokeWidth = drawing.style?.strokeWidth ?? 3
-  let strokeStyle = drawing.style?.strokeStyle ?? "dashed"
+  let strokeStyle = drawing.style?.strokeStyle ?? "solid"
   let fillColor = drawing.style?.fillColor ?? "#0ea5e9"
   let strokeColor = drawing.style?.strokeColor ?? "#0ea5e9"
 
@@ -404,19 +404,19 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 24px;
+    padding: 14px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .header-info {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
   }
 
   .header-icon {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -432,19 +432,19 @@
   }
 
   .header-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: white;
   }
 
   .header-subtitle {
-    font-size: 14px;
+    font-size: 12px;
     color: rgba(255, 255, 255, 0.6);
   }
 
   .header-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
   }
 
   .action-btn {
@@ -452,12 +452,12 @@
     align-items: center;
     gap: 6px;
     border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
+    border-radius: 999px;
+    padding: 8px 12px;
     cursor: pointer;
     transition: all 0.2s ease;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .action-btn.cancel {
@@ -483,13 +483,13 @@
   }
 
   .style-editor-content {
-    padding: 20px 24px;
-    max-height: 40vh;
+    padding: 14px 20px 16px;
+    max-height: 46vh;
     overflow-y: auto;
   }
 
   .style-section {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
   }
 
   .style-section:last-child {
@@ -500,10 +500,10 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.8);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .value-display {
@@ -518,17 +518,15 @@
 
   .color-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, 36px);
+    justify-content: center;
     gap: 8px;
-    max-width: 320px;
-    width: 100%;
+    width: auto;
   }
 
   .color-option {
-    width: 100%;
-    aspect-ratio: 1;
-    max-width: 48px;
-    max-height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: 6px;
     border: 2px solid transparent;
     cursor: pointer;
@@ -561,8 +559,8 @@
   .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: #a855f7;
     cursor: pointer;
@@ -570,8 +568,8 @@
   }
 
   .slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: #a855f7;
     cursor: pointer;
@@ -582,18 +580,18 @@
   .style-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
   }
 
   .toggle-option {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 12px;
+    gap: 6px;
+    padding: 8px 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: 999px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: rgba(255, 255, 255, 0.6);
@@ -612,7 +610,7 @@
   }
 
   .line-preview {
-    width: 50px;
+    width: 42px;
     height: 3px;
     background: currentColor;
   }
@@ -629,12 +627,12 @@
 
   @media (max-width: 768px) {
     .style-editor-header {
-      padding: 16px 20px;
+      padding: 12px 16px;
     }
 
     .header-icon {
-      width: 44px;
-      height: 44px;
+      width: 36px;
+      height: 36px;
     }
 
     .header-title {
@@ -653,21 +651,42 @@
     }
 
     .style-editor-content {
-      padding: 16px 20px;
-      max-height: 50vh;
+      padding: 12px 16px 14px;
+      max-height: 52vh;
     }
 
     .color-grid {
-      max-width: 100%;
+      grid-template-columns: repeat(6, 32px);
+      gap: 7px;
     }
 
     .color-option {
-      max-width: none;
-      max-height: none;
+      width: 32px;
+      height: 32px;
     }
 
     .style-section {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1100px) {
+    .style-editor-header {
+      padding: 12px 18px;
+    }
+
+    .style-editor-content {
+      padding: 12px 18px 14px;
+      max-height: 44vh;
+    }
+
+    .color-grid {
+      grid-template-columns: repeat(6, 34px);
+    }
+
+    .color-option {
+      width: 34px;
+      height: 34px;
     }
   }
 

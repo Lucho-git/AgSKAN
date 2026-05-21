@@ -24,8 +24,9 @@
       console.log("Creating or updating profile for user:", sessionData.user.id)
 
       const getMetadataString = (...values) =>
-        values.find((value) => typeof value === "string" && value.trim())?.trim() ||
-        null
+        values
+          .find((value) => typeof value === "string" && value.trim())
+          ?.trim() || null
 
       const metadataFullName = getMetadataString(
         sessionData.user.user_metadata?.full_name,
