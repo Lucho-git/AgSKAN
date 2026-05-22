@@ -128,6 +128,142 @@
   const MINIMUM_BROADCAST_INTERVAL = 15000 // 15 seconds
   // UI update throttle for native high-rate fixes (ms)
   const USER_UI_UPDATE_INTERVAL_MS = 1000 // show marker updates every 1s (align with native 1Hz)
+  const NATIVE_SYNC_AUTH_REQUIRED_KEY = "agskan_native_sync_auth_required"
+  let nativeSyncAuthPromptShown = false
+
+  /** @param {any} error */
+  function isPermanentRefreshError(error) {
+    const status = Number(error?.status || error?.code || error?.statusCode)
+    const message = String(error?.message || error?.error_description || "").toLowerCase()
+
+    return (
+      status === 400 ||
+      status === 401 ||
+      status === 403 ||
+      message.includes("invalid refresh") ||
+      message.includes("refresh token") ||
+      message.includes("jwt")
+    )
+  }
+
+  /** @param {Record<string, any>} [details] */
+  function rememberNativeSyncAuthRequired(details = {}) {
+    try {
+      localStorage.setItem(
+        NATIVE_SYNC_AUTH_REQUIRED_KEY,
+        JSON.stringify({ at: Date.now(), ...details }),
+      )
+    } catch (error) {
+      console.warn("[BG-DIAG] Could not persist native sync auth state:", error)
+    }
+  }
+
+  function clearNativeSyncAuthRequired() {
+    try {
+      localStorage.removeItem(NATIVE_SYNC_AUTH_REQUIRED_KEY)
+    } catch (error) {
+      console.warn("[BG-DIAG] Could not clear native sync auth state:", error)
+    }
+  }
+
+  /** @param {Record<string, any>} [details] */
+  async function handleNativeSyncAuthRequired(details = {}) {
+    rememberNativeSyncAuthRequired(details)
+    await backgroundService.disableNativeSync()
+
+    if (nativeSyncAuthPromptShown) return
+    nativeSyncAuthPromptShown = true
+
+    toast.error("Please log in again", {
+      description:
+        "Background sync was paused because your session expired. Saved trail points on this device will sync after you sign in.",
+      duration: 10000,
+    })
+
+    try {
+      await supabase.auth.signOut({ scope: "local" })
+    } catch (error) {
+      console.warn("[BG-DIAG] Local sign-out after native auth failure failed:", error)
+    }
+
+    setTimeout(() => {
+      try {
+        window.location.href = "/login?reason=session_expired"
+      } catch (error) {
+        console.warn("[BG-DIAG] Could not redirect to login:", error)
+      }
+    }, 1500)
+  }
+
+  /** @param {string} [context] */
+  async function getNativeSyncTokens(context = "native sync") {
+    const { data: sessionData } = await supabase.auth.getSession()
+    let session = sessionData?.session
+
+    if (!session?.access_token || !session?.refresh_token) {
+      return {
+        authFailed: true,
+        status: null,
+        message: !session?.access_token
+          ? "Missing access token"
+          : "Missing refresh token",
+      }
+    }
+
+    if (navigator.onLine === false) {
+      return {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error || !data?.session) {
+        if (isPermanentRefreshError(error)) {
+          return {
+            authFailed: true,
+            status: error?.status || error?.code || null,
+            message: error?.message || `Session refresh failed during ${context}`,
+          }
+        }
+
+        console.warn(
+          `[BG-DIAG] Transient session refresh failure during ${context}; using current token`,
+          error?.message || error,
+        )
+        return {
+          accessToken: session.access_token,
+          refreshToken: session.refresh_token,
+        }
+      }
+
+      clearNativeSyncAuthRequired()
+      session = data.session
+      return {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      }
+    } catch (error) {
+      const refreshError = /** @type {any} */ (error)
+      if (isPermanentRefreshError(refreshError)) {
+        return {
+          authFailed: true,
+          status: refreshError?.status || refreshError?.code || null,
+          message: refreshError?.message || `Session refresh failed during ${context}`,
+        }
+      }
+
+      console.warn(
+        `[BG-DIAG] Session refresh exception during ${context}; using current token`,
+        error,
+      )
+      return {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      }
+    }
+  }
   // Default emit interval used by NativeGeolocationAdapter (ms)
   const NATIVE_ADAPTER_DEFAULT_EMIT_MS = 1000
   // Low non-zero emit interval to forward native fixes rapidly while in 1Hz UI mode
@@ -937,12 +1073,25 @@
    */
   async function configureNativeSyncForBackground() {
     try {
-      // Get current auth token + refresh token (always needed for native sync)
-      const { data: sessionData } = await supabase.auth.getSession()
-      const authToken = sessionData?.session?.access_token
-      const refreshToken = sessionData?.session?.refresh_token
-      if (!authToken) {
-        console.warn("[BG-DIAG] No auth token — native sync not configured")
+      const tokenResult = await getNativeSyncTokens("background entry")
+      if (tokenResult.authFailed) {
+        console.warn(
+          "[BG-DIAG] Native sync not configured — re-authentication required:",
+          tokenResult.message,
+        )
+        await handleNativeSyncAuthRequired({
+          reason: "auth_refresh_failed",
+          status: tokenResult.status,
+          error: tokenResult.message,
+          source: "background_entry",
+        })
+        return
+      }
+
+      const authToken = tokenResult.accessToken
+      const refreshToken = tokenResult.refreshToken
+      if (!authToken || !refreshToken) {
+        console.warn("[BG-DIAG] No native sync auth tokens — native sync not configured")
         return
       }
 
@@ -983,6 +1132,8 @@
    */
   async function handleForegroundCatchup(foregroundData) {
     try {
+      let foregroundAuthRequired = null
+
       // ── Refresh the Supabase session FIRST ──────────────────────────
       // While the WebView was frozen, autoRefreshToken couldn't run.
       // If the background session exceeded ~1 hour the JWT is expired.
@@ -991,28 +1142,24 @@
       const bgMs = foregroundData.duration?.milliseconds || 0
       if (bgMs > 30_000) {
         // Only bother if we were in background for >30s
-        try {
-          const { data: refreshData, error: refreshErr } =
-            await supabase.auth.refreshSession()
-          if (refreshErr) {
-            console.warn(
-              "[BG-DIAG] ⚠️ Session refresh failed:",
-              refreshErr.message,
-            )
-          } else if (refreshData?.session) {
-            console.log(
-              "[BG-DIAG] ✅ Session refreshed after background return",
-            )
-
-            // Update the native HTTP engine's authorization with the fresh tokens
-            // so any remaining queued native POSTs use a valid JWT.
-            await backgroundService.updateAuthToken(
-              refreshData.session.access_token,
-              refreshData.session.refresh_token,
-            )
+        const tokenResult = await getNativeSyncTokens("foreground catchup")
+        if (tokenResult.authFailed) {
+          foregroundAuthRequired = {
+            reason: "auth_refresh_failed",
+            status: tokenResult.status,
+            error: tokenResult.message,
+            source: "foreground_catchup",
           }
-        } catch (sessionErr) {
-          console.warn("[BG-DIAG] Session refresh exception:", sessionErr)
+          await backgroundService.disableNativeSync()
+        } else if (tokenResult.accessToken) {
+          console.log("[BG-DIAG] ✅ Session refreshed after background return")
+
+          // Update the native HTTP engine's authorization with the fresh tokens
+          // so any remaining queued native POSTs use a valid JWT.
+          await backgroundService.updateAuthToken(
+            tokenResult.accessToken,
+            tokenResult.refreshToken,
+          )
         }
       }
 
@@ -1130,6 +1277,10 @@
           )
         }
       }
+
+      if (foregroundAuthRequired) {
+        await handleNativeSyncAuthRequired(foregroundAuthRequired)
+      }
     } catch (error) {
       console.error("[BG-DIAG] Error in foreground catchup:", error)
     }
@@ -1160,23 +1311,7 @@
       // When the JWT is >45 min old, the heartbeat handler calls this to get a new token
       // without waiting for a 401 to trigger the native Authorization auto-refresh.
       backgroundService.setTokenRefreshCallback(async () => {
-        try {
-          const { data, error } = await supabase.auth.refreshSession()
-          if (error || !data?.session) {
-            console.warn(
-              "[BG-DIAG] 🔑 Token refresh callback failed:",
-              error?.message,
-            )
-            return null
-          }
-          return {
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-          }
-        } catch (e) {
-          console.warn("[BG-DIAG] 🔑 Token refresh callback exception:", e)
-          return null
-        }
+        return getNativeSyncTokens("proactive heartbeat refresh")
       })
 
       removeBackgroundListener = backgroundService.addListener(
@@ -1296,9 +1431,35 @@
                   "Your location will now be tracked when the app is in the background",
               })
             }
+          } else if (event === "authRequired") {
+            console.warn("[BG-DIAG] Native sync requires re-authentication:", data)
+            handleNativeSyncAuthRequired(data)
+          } else if (event === "nativeSyncHalted") {
+            console.warn("[BG-DIAG] Native sync halted:", data)
+            toast.warning("Background sync paused", {
+              description:
+                "A non-retryable sync response was detected. Tracking continues locally and stored points will be recovered when possible.",
+              duration: 8000,
+            })
           }
         },
       )
+
+      try {
+        const storedAuthFailure = localStorage.getItem(
+          NATIVE_SYNC_AUTH_REQUIRED_KEY,
+        )
+        if (storedAuthFailure) {
+          const { data } = await supabase.auth.getSession()
+          if (data?.session?.access_token && data?.session?.refresh_token) {
+            clearNativeSyncAuthRequired()
+          } else {
+            handleNativeSyncAuthRequired(JSON.parse(storedAuthFailure))
+          }
+        }
+      } catch (error) {
+        console.warn("[BG-DIAG] Could not restore native sync auth state:", error)
+      }
     } catch (error) {
       toast.error("Error setting up background tracking", {
         description: error.message || "Please check app permissions",
@@ -1515,31 +1676,20 @@
         // Start service if on native and not yet running
         if (isMobileApp && !removeForegroundGpsListener) {
           const intervalMs = newIntervalSeconds * 1000
-          // Register listener BEFORE start() so we don't miss the first fix.
-          // If start() subsequently fails, we clean up the listener so the
-          // TransistorSoft / Mapbox fallback pathways are not blocked.
+          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
+            if (started) {
+              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
+            } else {
+              console.warn('[GPS-DIAG] foregroundGpsService failed to start — falling back to default location sources')
+            }
+          }).catch(e => {
+            console.warn('[GPS-DIAG] foregroundGpsService error — falling back to default location sources:', e)
+          })
           removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
             if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
             latestNativePos = data.coords
             latestNativeTimestamp = data.timestamp || null
             streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
-          })
-          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
-            if (started) {
-              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
-            } else {
-              console.warn('[GPS-DIAG] foregroundGpsService failed to start — tearing down listener, falling back to TransistorSoft/Mapbox')
-              if (removeForegroundGpsListener) {
-                removeForegroundGpsListener()
-                removeForegroundGpsListener = null
-              }
-            }
-          }).catch(e => {
-            console.warn('[GPS-DIAG] foregroundGpsService error — tearing down listener, falling back to TransistorSoft/Mapbox:', e)
-            if (removeForegroundGpsListener) {
-              removeForegroundGpsListener()
-              removeForegroundGpsListener = null
-            }
           })
         }
 

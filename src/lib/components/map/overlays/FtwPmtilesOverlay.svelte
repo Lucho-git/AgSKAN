@@ -8,7 +8,10 @@
   export let year = 2025
 
   const dispatch = createEventDispatcher()
-  const defaultTileBaseUrl = "http://localhost:8787/ftw-pmtiles"
+  const MAX_SELECTABLE_AREA_HECTARES = 2500
+  const ftwPmtilesUrl =
+    "https://data.source.coop/ftw/global-data/predictions/vectors/alpha/global.pmtiles"
+  const clientPmtilesTilePath = "/ftw-client-pmtiles"
   const sourceId = "ftw-pmtiles-source"
   const loadingSourceId = "ftw-selection-loading-source"
   const loadingProgressSourceId = "ftw-selection-loading-progress-source"
@@ -45,39 +48,166 @@
   let selectionLoadingAnimationFrame = null
   let selectionLoadingState = null
   const pendingSelectionResolutions = new Map()
+  let clientPmtilesServiceWorkerReady = false
+  let clientPmtilesServiceWorkerPromise = null
 
   const emptyFeatureCollection = {
     type: "FeatureCollection",
     features: [],
   }
 
-  function getTileBaseUrl() {
-    if (typeof window === "undefined") return defaultTileBaseUrl
+  function getPmtilesArchiveUrl(url) {
+    if (!url) return null
+    if (url.startsWith("pmtiles://")) return url.replace(/^pmtiles:\/\//, "")
+    if (/^https?:\/\/.+\.pmtiles(?:[?#].*)?$/i.test(url)) return url
+    return null
+  }
 
-    const storedUrl = window.localStorage.getItem("agskan-ftw-tile-base-url")
-    if (storedUrl?.includes("127.0.0.1:5178")) {
+  function getClientPmtilesTileTemplate(archiveUrl = ftwPmtilesUrl) {
+    const tileBaseUrl =
+      typeof window === "undefined"
+        ? clientPmtilesTilePath
+        : new URL(clientPmtilesTilePath, window.location.origin).href
+    const archiveQuery =
+      archiveUrl === ftwPmtilesUrl
+        ? ""
+        : `?archive=${encodeURIComponent(archiveUrl)}`
+    return `${tileBaseUrl}/{z}/{x}/{y}.mvt${archiveQuery}`
+  }
+
+  function waitForServiceWorkerController(timeoutMs = 3500) {
+    if (navigator.serviceWorker.controller) return Promise.resolve(true)
+
+    return new Promise((resolve) => {
+      const timeout = window.setTimeout(() => {
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          handleControllerChange,
+        )
+        resolve(Boolean(navigator.serviceWorker.controller))
+      }, timeoutMs)
+
+      function handleControllerChange() {
+        window.clearTimeout(timeout)
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          handleControllerChange,
+        )
+        resolve(true)
+      }
+
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        handleControllerChange,
+      )
+    })
+  }
+
+  async function prepareClientPmtilesServiceWorker() {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      console.warn("[FTW PMTiles] Service workers are unavailable")
+      return false
+    }
+
+    if (navigator.serviceWorker.controller) return true
+
+    try {
+      await navigator.serviceWorker.register("/service-worker.js")
+      await navigator.serviceWorker.ready
+      return await waitForServiceWorkerController()
+    } catch (error) {
+      console.warn(
+        "[FTW PMTiles] Could not prepare client PMTiles service worker",
+        error,
+      )
+      return false
+    }
+  }
+
+  function ensureClientPmtilesServiceWorkerReady() {
+    if (clientPmtilesServiceWorkerReady) return true
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      return false
+    }
+    if (navigator.serviceWorker.controller) {
+      clientPmtilesServiceWorkerReady = true
+      return true
+    }
+
+    if (!clientPmtilesServiceWorkerPromise) {
+      clientPmtilesServiceWorkerPromise = prepareClientPmtilesServiceWorker()
+        .then((ready) => {
+          clientPmtilesServiceWorkerReady = ready
+          if (ready && visible) renderOverlay()
+          if (!ready) {
+            console.warn(
+              "[FTW PMTiles] Client PMTiles service worker is not controlling the page yet",
+            )
+          }
+          return ready
+        })
+        .finally(() => {
+          clientPmtilesServiceWorkerPromise = null
+        })
+    }
+
+    return false
+  }
+
+  function normalizeStoredTileUrl(storedUrl) {
+    if (!storedUrl) return null
+
+    if (
+      storedUrl.includes("127.0.0.1") ||
+      storedUrl.includes("localhost:8787") ||
+      storedUrl.includes("localhost:5178")
+    ) {
       window.localStorage.removeItem("agskan-ftw-tile-base-url")
       console.info(
-        "[FTW PMTiles] Cleared stale tile URL from localStorage:",
+        "[FTW PMTiles] Cleared local proxy tile URL from localStorage:",
         storedUrl,
       )
-      return defaultTileBaseUrl
+      return null
     }
 
-    if (storedUrl?.startsWith("http://127.0.0.1")) {
-      const normalizedUrl = storedUrl.replace(
-        "http://127.0.0.1",
-        "http://localhost",
-      )
-      window.localStorage.setItem("agskan-ftw-tile-base-url", normalizedUrl)
-      console.info("[FTW PMTiles] Normalized tile URL:", {
-        from: storedUrl,
-        to: normalizedUrl,
-      })
-      return normalizedUrl
+    if (storedUrl === ftwPmtilesUrl) return null
+    return storedUrl
+  }
+
+  function getFtwSourceConfig() {
+    if (typeof window === "undefined") {
+      return {
+        mode: "client-pmtiles",
+        tileUrlTemplate: getClientPmtilesTileTemplate(),
+        archiveUrl: ftwPmtilesUrl,
+      }
     }
 
-    return storedUrl || defaultTileBaseUrl
+    const storedUrl = normalizeStoredTileUrl(
+      window.localStorage.getItem("agskan-ftw-tile-base-url"),
+    )
+
+    const archiveUrl = getPmtilesArchiveUrl(storedUrl)
+    if (archiveUrl) {
+      return {
+        mode: "client-pmtiles",
+        tileUrlTemplate: getClientPmtilesTileTemplate(archiveUrl),
+        archiveUrl,
+      }
+    }
+
+    if (storedUrl?.startsWith("http")) {
+      return {
+        mode: "http-tiles",
+        tileUrlTemplate: `${storedUrl}/{z}/{x}/{y}.mvt`,
+      }
+    }
+
+    return {
+      mode: "client-pmtiles",
+      tileUrlTemplate: getClientPmtilesTileTemplate(),
+      archiveUrl: ftwPmtilesUrl,
+    }
   }
 
   function summarizeFeature(feature, index) {
@@ -106,12 +236,54 @@
     return map.queryRenderedFeatures(point, { layers: [layerIds.fill] }) || []
   }
 
+  function getSelectionAreaFilter() {
+    return { maxHectares: MAX_SELECTABLE_AREA_HECTARES }
+  }
+
+  function getFeatureAreaHa(feature) {
+    const propertyArea = Number(
+      feature?.properties?.premerged_area_ha || feature?.properties?.area_ha,
+    )
+    if (Number.isFinite(propertyArea) && propertyArea > 0) return propertyArea
+
+    try {
+      if (!feature?.geometry) return null
+      return Math.round((turf.area(feature) / 10000) * 100) / 100
+    } catch (error) {
+      return null
+    }
+  }
+
+  function getAreaRejection(areaHa, filter = getSelectionAreaFilter()) {
+    if (!Number.isFinite(areaHa)) return null
+    if (filter.maxHectares && areaHa > filter.maxHectares) {
+      return { reason: "too_large", limitHa: filter.maxHectares }
+    }
+    return null
+  }
+
+  function rejectSelection({ reason, areaHa, limitHa, stage, lngLat, point, source }) {
+    dispatch("reject", {
+      reason,
+      areaHa,
+      limitHa,
+      stage,
+      lngLat,
+      point,
+      source,
+      filter: getSelectionAreaFilter(),
+    })
+  }
+
   function getBoundaryResolverWorker() {
     if (typeof Worker === "undefined") return null
     if (boundaryResolverWorker) return boundaryResolverWorker
 
     boundaryResolverWorker = new Worker(
-      new URL("../../../workers/ftwBoundaryResolver.worker.js", import.meta.url),
+      new URL(
+        "../../../workers/ftwBoundaryResolver.worker.js",
+        import.meta.url,
+      ),
       { type: "module" },
     )
     boundaryResolverWorker.onmessage = (event) => {
@@ -235,7 +407,8 @@
   }
 
   function getOuterRings(geometry) {
-    if (geometry?.type === "Polygon") return [geometry.coordinates?.[0]].filter(Boolean)
+    if (geometry?.type === "Polygon")
+      return [geometry.coordinates?.[0]].filter(Boolean)
     if (geometry?.type === "MultiPolygon") {
       return (geometry.coordinates || [])
         .map((polygon) => polygon?.[0])
@@ -293,7 +466,11 @@
     if (!point || !ring?.length) return false
     let inside = false
 
-    for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    for (
+      let index = 0, previous = ring.length - 1;
+      index < ring.length;
+      previous = index++
+    ) {
       const currentPoint = ring[index]
       const previousPoint = ring[previous]
       if (pointOnSegment(point, previousPoint, currentPoint)) return true
@@ -301,7 +478,8 @@
       const intersects =
         currentPoint[1] > point[1] !== previousPoint[1] > point[1] &&
         point[0] <
-          ((previousPoint[0] - currentPoint[0]) * (point[1] - currentPoint[1])) /
+          ((previousPoint[0] - currentPoint[0]) *
+            (point[1] - currentPoint[1])) /
             (previousPoint[1] - currentPoint[1]) +
             currentPoint[0]
       if (intersects) inside = !inside
@@ -332,8 +510,7 @@
     if (
       ((direction1 > 0 && direction2 < 0) ||
         (direction1 < 0 && direction2 > 0)) &&
-      ((direction3 > 0 && direction4 < 0) ||
-        (direction3 < 0 && direction4 > 0))
+      ((direction3 > 0 && direction4 < 0) || (direction3 < 0 && direction4 > 0))
     ) {
       return true
     }
@@ -504,7 +681,8 @@
   function buildOverlappingGroup(seed, candidates) {
     let group = [seed]
     let remaining = candidates.filter(
-      (feature) => getFeatureGeometryKey(feature) !== getFeatureGeometryKey(seed),
+      (feature) =>
+        getFeatureGeometryKey(feature) !== getFeatureGeometryKey(seed),
     )
     let changed = true
 
@@ -593,11 +771,19 @@
       },
       features: pointFeatures?.length ? pointFeatures : [feature],
       pendingKey,
-      candidates: collectResolverCandidateFeatures(feature, pointFeatures, point),
+      candidates: collectResolverCandidateFeatures(
+        feature,
+        pointFeatures,
+        point,
+      ),
     }
   }
 
-  function collectResolverCandidateFeatures(seedFeature, pointFeatures = [], point = null) {
+  function collectResolverCandidateFeatures(
+    seedFeature,
+    pointFeatures = [],
+    point = null,
+  ) {
     const seedBox = getFeatureScreenBox(seedFeature, point)
     const clickBox = point
       ? expandScreenBox(
@@ -638,7 +824,24 @@
   function handleResolvedSelection(selection, context) {
     if (!selection?.feature || !context) return
 
-    setCachedPremergeForGroup(selection.features || [selection.feature], selection)
+    const areaHa = getFeatureAreaHa(selection.feature)
+    const rejection = getAreaRejection(areaHa)
+    if (rejection) {
+      rejectSelection({
+        ...rejection,
+        areaHa,
+        stage: "resolved",
+        lngLat: context.lngLat,
+        point: context.point,
+        source: context.source,
+      })
+      return
+    }
+
+    setCachedPremergeForGroup(
+      selection.features || [selection.feature],
+      selection,
+    )
     logFtwSelection(
       selection.features || [selection.feature],
       selection.feature,
@@ -669,6 +872,18 @@
 
     try {
       if (!detail.ok || !detail.feature) {
+        if (detail.rejected) {
+          rejectSelection({
+            reason: detail.reason,
+            areaHa: detail.areaHa,
+            limitHa: detail.limitHa,
+            stage: detail.stage || "worker",
+            lngLat: context.lngLat,
+            point: context.point,
+            source: context.source,
+          })
+          return
+        }
         console.warn("[FTW PMTiles] Boundary resolve failed", detail)
         handleResolvedSelection(
           { feature: context.seedFeature, features: [context.seedFeature] },
@@ -700,6 +915,7 @@
       pendingKey: selection.pendingKey,
       seedFeature: selection.feature,
       candidates: selection.candidates,
+      areaFilter: getSelectionAreaFilter(),
     })
   }
 
@@ -751,14 +967,20 @@
     }
 
     try {
-      const intersection = turf.intersect(turf.featureCollection([featureA, featureB]))
+      const intersection = turf.intersect(
+        turf.featureCollection([featureA, featureB]),
+      )
       return intersection ? turf.area(intersection) > 1 : false
     } catch (error) {
       return false
     }
   }
 
-  function findOverlappingVisibleGroup(seedFeature, pointFeatures = [], point = null) {
+  function findOverlappingVisibleGroup(
+    seedFeature,
+    pointFeatures = [],
+    point = null,
+  ) {
     const seedKey = getFeatureGeometryKey(seedFeature)
     const cached = getCachedPremerge(seedKey)
     if (cached) return cached
@@ -818,7 +1040,8 @@
       const nextBox = getFeaturesScreenBox(nextGroup, point)
       const expandedNextBox = expandScreenBox(nextBox, PREMERGE_BOX_PADDING_PX)
       const isStable =
-        nextGroup.length === group.length && screenBoxContains(searchBox, expandedNextBox)
+        nextGroup.length === group.length &&
+        screenBoxContains(searchBox, expandedNextBox)
 
       group = nextGroup
       if (isStable || !expandedNextBox) break
@@ -869,7 +1092,8 @@
 
   function logFtwSelection(features, selectedFeature, lngLat, source) {
     if (!shouldLogFtwDiagnostics()) {
-      const count = selectedFeature?.properties?.premerged_from_visible_count || 1
+      const count =
+        selectedFeature?.properties?.premerged_from_visible_count || 1
       if (count > 1) {
         console.info("[FTW PMTiles] Premerged clicked selection", {
           source,
@@ -1027,7 +1251,12 @@
     return Math.max(0.04, Math.min(0.98, progress))
   }
 
-  function buildScreenRingCoordinates(lngLat, progress = 1, phase = 0, full = false) {
+  function buildScreenRingCoordinates(
+    lngLat,
+    progress = 1,
+    phase = 0,
+    full = false,
+  ) {
     if (!lngLat || !map?.project || !map?.unproject) return []
 
     const center = map.project([lngLat.lng, lngLat.lat])
@@ -1085,7 +1314,7 @@
     map.getSource(loadingProgressSourceId)?.setData?.(getLoadingProgressData())
   }
 
-  function stopLoadingAnimation() {
+  function stopLoadingAnimation(targetMap = map) {
     if (selectionLoadingAnimationFrame !== null) {
       if (typeof cancelAnimationFrame !== "undefined") {
         cancelAnimationFrame(selectionLoadingAnimationFrame)
@@ -1093,7 +1322,13 @@
       selectionLoadingAnimationFrame = null
     }
     selectionLoadingState = null
-    map?.getSource?.(loadingProgressSourceId)?.setData?.(emptyFeatureCollection)
+    try {
+      targetMap
+        ?.getSource?.(loadingProgressSourceId)
+        ?.setData?.(emptyFeatureCollection)
+    } catch (error) {
+      // Mapbox can tear down style/source internals before Svelte destroys this overlay.
+    }
   }
 
   function animateLoadingProgress() {
@@ -1104,7 +1339,9 @@
 
     selectionLoadingState.phase += 0.11
     renderLoadingProgress()
-    selectionLoadingAnimationFrame = requestAnimationFrame(animateLoadingProgress)
+    selectionLoadingAnimationFrame = requestAnimationFrame(
+      animateLoadingProgress,
+    )
   }
 
   function startLoadingAnimation(lngLat) {
@@ -1116,7 +1353,9 @@
     }
     renderLoadingProgress()
     if (typeof requestAnimationFrame !== "undefined") {
-      selectionLoadingAnimationFrame = requestAnimationFrame(animateLoadingProgress)
+      selectionLoadingAnimationFrame = requestAnimationFrame(
+        animateLoadingProgress,
+      )
     }
   }
 
@@ -1150,10 +1389,15 @@
     map?.triggerRepaint?.()
   }
 
-  function clearSelectionLoading(token = selectionLoadingToken) {
-    if (token !== selectionLoadingToken || !map?.getSource) return
-    map.getSource(loadingSourceId)?.setData?.(emptyFeatureCollection)
-    stopLoadingAnimation()
+  function clearSelectionLoading(token = selectionLoadingToken, targetMap = map) {
+    const currentMap = targetMap
+    if (token !== selectionLoadingToken || !currentMap?.getSource) return
+    try {
+      currentMap.getSource(loadingSourceId)?.setData?.(emptyFeatureCollection)
+      stopLoadingAnimation(currentMap)
+    } catch (error) {
+      stopLoadingAnimation(currentMap)
+    }
   }
 
   function afterNextPaint(callback) {
@@ -1166,6 +1410,20 @@
 
   function resolveExactSelection({ feature, features, lngLat, point, source }) {
     const token = ++selectionLoadingToken
+    const seedAreaHa = getFeatureAreaHa(feature)
+    const seedRejection = getAreaRejection(seedAreaHa)
+    if (seedRejection?.reason === "too_large") {
+      rejectSelection({
+        ...seedRejection,
+        areaHa: seedAreaHa,
+        stage: "seed",
+        lngLat,
+        point,
+        source,
+      })
+      return
+    }
+
     const cachedSelection = getCachedExactSelection(feature)
     if (cachedSelection) {
       handleResolvedSelection(cachedSelection, { lngLat, point, source })
@@ -1210,6 +1468,7 @@
           seedFeature,
           candidates,
           year,
+          areaFilter: getSelectionAreaFilter(),
         })
       } finally {
         // The normal worker path clears the loader when it posts back.
@@ -1329,16 +1588,25 @@
 
     try {
       if (!map.getSource(sourceId)) {
-        const tileBaseUrl = getTileBaseUrl()
-        console.info("[FTW PMTiles] Using tile base URL:", tileBaseUrl)
-        map.addSource(sourceId, {
+        const sourceConfig = getFtwSourceConfig()
+        if (
+          sourceConfig.mode === "client-pmtiles" &&
+          !ensureClientPmtilesServiceWorkerReady()
+        ) {
+          return false
+        }
+
+        console.info("[FTW PMTiles] Using source:", sourceConfig)
+        const vectorSourceConfig = {
           type: "vector",
-          tiles: [`${tileBaseUrl}/{z}/{x}/{y}.mvt`],
+          tiles: [sourceConfig.tileUrlTemplate],
           minzoom: 0,
           maxzoom: 15,
           bounds: [-179.8340817, -56.9030569, 179.995742, 82.8192209],
           attribution: "Fields of The World / Source Cooperative",
-        })
+        }
+
+        map.addSource(sourceId, vectorSourceConfig)
       }
 
       const sourceLayer = getFieldLayerName()
@@ -1400,7 +1668,8 @@
   }
 
   function cleanupLayers() {
-    if (!map?.getLayer || !map?.getSource) return
+    const currentMap = map
+    if (!currentMap?.getLayer || !currentMap?.getSource) return
 
     try {
       detachInteractionListeners()
@@ -1408,11 +1677,11 @@
       console.warn("Error detaching FTW PMTiles listeners:", error)
     }
 
-    clearSelectionLoading()
+    clearSelectionLoading(selectionLoadingToken, currentMap)
 
     Object.values(layerIds).forEach((layerId) => {
       try {
-        if (map.getLayer(layerId)) map.removeLayer(layerId)
+        if (currentMap.getLayer(layerId)) currentMap.removeLayer(layerId)
       } catch (error) {
         console.warn(
           `Error removing FTW PMTiles overlay layer ${layerId}:`,
@@ -1422,11 +1691,13 @@
     })
 
     try {
-      if (map.getSource(loadingProgressSourceId)) {
-        map.removeSource(loadingProgressSourceId)
+      if (currentMap.getSource(loadingProgressSourceId)) {
+        currentMap.removeSource(loadingProgressSourceId)
       }
-      if (map.getSource(loadingSourceId)) map.removeSource(loadingSourceId)
-      if (map.getSource(sourceId)) map.removeSource(sourceId)
+      if (currentMap.getSource(loadingSourceId)) {
+        currentMap.removeSource(loadingSourceId)
+      }
+      if (currentMap.getSource(sourceId)) currentMap.removeSource(sourceId)
     } catch (error) {
       console.warn("Error removing FTW PMTiles overlay source:", error)
     }

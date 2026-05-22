@@ -3,7 +3,14 @@
   // @ts-nocheck
   import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import * as turf from "@turf/turf"
-  import { ArrowRight, Pencil, Plus, Search, Undo, X } from "lucide-svelte"
+  import {
+    ArrowRight,
+    Pencil,
+    Plus,
+    Search,
+    Undo,
+    X,
+  } from "lucide-svelte"
 
   export let map
   export let farmName = ""
@@ -46,7 +53,9 @@
     tab === "select" && selectionCount > 0 && !selectionResolving
   $: canConfirmDraw = tab === "draw" && hasEnoughPoints
   $: formattedTotalHa = formatArea(selectionHectares)
-  $: formattedUnifiedHa = formatArea(unifiedSelectionHectares || selectionHectares)
+  $: formattedUnifiedHa = formatArea(
+    unifiedSelectionHectares || selectionHectares,
+  )
   $: formattedOverlapHa = formatArea(overlapHectares)
   $: hasSelectionOverlap = selectionCount > 1 && overlapHectares > 0.01
   // Reactive area: recomputes synchronously as soon as `points` or `tab` change.

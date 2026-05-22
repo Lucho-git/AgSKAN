@@ -14,7 +14,6 @@ class BackgroundService {
     this.locationUpdatesInBackground = 0;
     this.appStateListener = null;
     this.backgroundPermissionGranted = false;
-    this.hasAlwaysPermission = false; // True only for status 3 (Always) — used for UI toasts
     this.locationSubscription = null;
     this.providerSubscription = null;
     this.heartbeatSubscription = null;
@@ -30,6 +29,9 @@ class BackgroundService {
     this.preStartHook = null; // Async fn to call BEFORE start() — used to setConfig() before flush
     this.tokenSetTime = null; // When the auth token was last configured
     this.tokenRefreshCallback = null; // Async callback to refresh expired token
+    this.nativeSyncHaltedReason = null;
+    this.nativeSyncAuthRequired = false;
+    this.nativeSyncHaltNotified = false;
   }
 
   async init() {
@@ -41,7 +43,7 @@ class BackgroundService {
       // Check permission first
       await this.checkBackgroundPermission();
 
-      const hasAlwaysPermission = this.hasAlwaysPermission;
+      const permissionState = this.backgroundPermissionGranted;
 
       // Configure the plugin with error handling
       try {
@@ -67,7 +69,7 @@ class BackgroundService {
         }
       }
 
-      return hasAlwaysPermission;
+      return permissionState;
     } catch (error) {
       console.error("Error initializing background service:", error);
       return false;
@@ -79,14 +81,10 @@ class BackgroundService {
       const providerState = await BackgroundGeolocation.getProviderState();
       console.log("Provider State:", JSON.stringify(providerState, null, 2));
       
-      // Status 3 = AUTHORIZATION_STATUS_ALWAYS (background)
-      // Status 4 = AUTHORIZATION_STATUS_WHEN_IN_USE (foreground only)
-      // Both are sufficient to start tracking — we need native GPS in foreground too.
-      // True background tracking still requires status 3, but foreground 1Hz works with 4.
-      this.backgroundPermissionGranted = providerState.status === 3 || providerState.status === 4;
-      this.hasAlwaysPermission = providerState.status === 3;
+      // Status code 3 = AUTHORIZATION_STATUS_ALWAYS (required for background)
+      this.backgroundPermissionGranted = providerState.status === 3;
       
-      console.log(`Location permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status}, always=${this.hasAlwaysPermission})`);
+      console.log(`Background permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status})`);
       return this.backgroundPermissionGranted;
     } catch (error) {
       console.error("Error checking background permission:", error);
@@ -110,7 +108,7 @@ class BackgroundService {
         // Request 1s native update interval on Android (maps to LocationRequest.setInterval)
         locationUpdateInterval: 1000,
         fastestLocationUpdateInterval: 1000,
-        locationAuthorizationRequest: 'WhenInUse',
+        locationAuthorizationRequest: 'Always',
         
         // Background behavior
         stopOnTerminate: false,
@@ -130,7 +128,6 @@ class BackgroundService {
         // ── iOS-specific: prevent auto-pause of location updates ──
         pausesLocationUpdatesAutomatically: false,
         showsBackgroundLocationIndicator: true, // Blue bar on iOS
-        disableMotionActivityUpdates: true,      // Prevent "Physical Activity" permission prompt
         
         // Android notification
         notification: {
@@ -224,7 +221,14 @@ class BackgroundService {
               console.log(`[BG-DIAG] 🔑 Token is ${Math.round(tokenAgeSec / 60)}min old — triggering proactive refresh`);
               try {
                 const result = await this.tokenRefreshCallback();
-                if (result?.accessToken) {
+                if (result?.authFailed) {
+                  await this.haltNativeSync('auth_refresh_failed', {
+                    authRequired: true,
+                    status: result.status,
+                    error: result.message || 'Token refresh failed',
+                    source: 'proactive_refresh',
+                  });
+                } else if (result?.accessToken) {
                   await this.updateAuthToken(result.accessToken, result.refreshToken);
                   console.log("[BG-DIAG] 🔑 ✅ Proactive token refresh succeeded");
                 }
@@ -253,11 +257,19 @@ class BackgroundService {
       // HTTP response listener — fires when native HTTP engine gets a response
       // Only works while JS is alive (~60s), but crucial for debugging native POST format
       try {
-        this.httpSubscription = BackgroundGeolocation.onHttp((event) => {
+        this.httpSubscription = BackgroundGeolocation.onHttp(async (event) => {
           if (event.success) {
             console.log(`[BG-DIAG] ✅ Native HTTP ${event.status}: location synced to server`);
           } else {
             console.warn(`[BG-DIAG] ❌ Native HTTP ${event.status}: ${event.responseText}`);
+            if (this.isNonRetryableHttpStatus(event.status)) {
+              await this.haltNativeSync('http_non_retryable', {
+                authRequired: false,
+                status: event.status,
+                error: event.responseText,
+                source: 'native_http',
+              });
+            }
           }
         });
         console.log("[BG-DIAG] HTTP response listener registered");
@@ -268,12 +280,23 @@ class BackgroundService {
       // Authorization listener — fires when the SDK auto-refreshes the JWT
       // via the `authorization` config (e.g. after a 401 triggers refreshUrl)
       try {
-        this.authorizationSubscription = BackgroundGeolocation.onAuthorization((event) => {
+        this.authorizationSubscription = BackgroundGeolocation.onAuthorization(async (event) => {
           if (event.success) {
+            this.nativeSyncAuthRequired = false;
+            this.nativeSyncHaltedReason = null;
+            this.nativeSyncHaltNotified = false;
             this.tokenSetTime = Date.now(); // Reset token age on successful refresh
             console.log(`[BG-DIAG] 🔑 Authorization auto-refresh SUCCESS (status=${event.status})`);
           } else {
             console.warn(`[BG-DIAG] 🔑 Authorization auto-refresh FAILED (status=${event.status}): ${event.error}`);
+            if (this.isPermanentAuthRefreshStatus(event.status)) {
+              await this.haltNativeSync('auth_refresh_failed', {
+                authRequired: true,
+                status: event.status,
+                error: event.error,
+                source: 'native_authorization',
+              });
+            }
           }
         });
         console.log("[BG-DIAG] Authorization listener registered");
@@ -423,7 +446,8 @@ class BackgroundService {
       }
 
       if (!this.isTracking) {
-        // Stale locations are already cleared in configureNativeSync() before setConfig().
+        // configureNativeSync() preserves queued locations so offline/auth-failed points
+        // can be recovered on foreground return or uploaded after re-authentication.
         console.log("[BG-DIAG] Calling BackgroundGeolocation.start()...");
         await BackgroundGeolocation.start();
         this.isTracking = true;
@@ -468,20 +492,27 @@ class BackgroundService {
    */
   async configureNativeSync(config) {
     try {
-      // CRITICAL: Destroy any stale queued locations BEFORE setConfig().
-      // The plugin may have locations in its SQLite store from a previous session,
-      // recorded with the OLD locationTemplate (default fields like activity, age, battery...).
-      // When setConfig() applies autoSync:true with a URL, the plugin immediately flushes
-      // those stale locations — but their body doesn't match the RPC function signature → 404.
-      // Clearing them first prevents this.
-      try {
-        await BackgroundGeolocation.destroyLocations();
-        console.log("[BG-DIAG] Cleared stale queued locations before setConfig");
-      } catch (e) {
-        console.warn("[BG-DIAG] Could not clear stale locations:", e);
+      const { supabaseUrl, anonKey, authToken, refreshToken, operationId, trailId, vehicleId, masterMapId, isTrailing } = config;
+
+      if (!authToken || !refreshToken) {
+        await this.haltNativeSync('missing_native_sync_token', {
+          authRequired: true,
+          status: null,
+          error: !authToken ? 'Missing access token' : 'Missing refresh token',
+          source: 'configure_native_sync',
+        });
+        return false;
       }
 
-      const { supabaseUrl, anonKey, authToken, refreshToken, operationId, trailId, vehicleId, masterMapId, isTrailing } = config;
+      if (!vehicleId || !masterMapId) {
+        await this.haltNativeSync('missing_native_sync_context', {
+          authRequired: false,
+          status: null,
+          error: !vehicleId ? 'Missing vehicle ID' : 'Missing master map ID',
+          source: 'configure_native_sync',
+        });
+        return false;
+      }
 
       // Build the locationTemplate: each location is POSTed as RPC params.
       // The Supabase function background_sync() handles both vehicle_state + trail_stream.
@@ -548,6 +579,9 @@ class BackgroundService {
 
       await BackgroundGeolocation.setConfig(httpConfig);
       this.nativeSyncEnabled = true;
+      this.nativeSyncAuthRequired = false;
+      this.nativeSyncHaltedReason = null;
+      this.nativeSyncHaltNotified = false;
       this.tokenSetTime = Date.now();
       console.log(`[BG-DIAG] ✅ Native sync configured → RPC background_sync | trailing=${isTrailing} | trail=${(trailId || 'none').slice(0,8)} | vehicle=${(vehicleId || 'none').slice(0,8)} | authorization=JWT`);
       return true;
@@ -563,17 +597,62 @@ class BackgroundService {
    */
   async disableNativeSync() {
     try {
-      if (this.nativeSyncEnabled) {
-        await BackgroundGeolocation.setConfig({
-          url: '',
-          autoSync: false,
-        });
-        this.nativeSyncEnabled = false;
-        this.tokenSetTime = null;
-        console.log("[BG-DIAG] Native HTTP sync disabled");
-      }
+      await BackgroundGeolocation.setConfig({
+        url: '',
+        autoSync: false,
+      });
+      this.nativeSyncEnabled = false;
+      this.tokenSetTime = null;
+      console.log("[BG-DIAG] Native HTTP sync disabled");
     } catch (error) {
       console.error("[BG-DIAG] Error disabling native sync:", error);
+    }
+  }
+
+  /** @param {number|string|null|undefined} status */
+  isPermanentAuthRefreshStatus(status) {
+    const code = Number(status);
+    return code === 400 || code === 401 || code === 403;
+  }
+
+  /** @param {number|string|null|undefined} status */
+  isNonRetryableHttpStatus(status) {
+    const code = Number(status);
+    return code === 400 || code === 403 || code === 404;
+  }
+
+  /**
+   * Disable native HTTP sync without deleting the plugin's queued locations.
+   * @param {string} reason
+   * @param {{ authRequired?: boolean, status?: number|string|null, error?: unknown, source?: string }} [details]
+   */
+  async haltNativeSync(reason, details = {}) {
+    const authRequired = Boolean(details.authRequired);
+
+    this.nativeSyncHaltedReason = reason;
+    this.nativeSyncAuthRequired = authRequired;
+
+    try {
+      await BackgroundGeolocation.setConfig({
+        url: '',
+        autoSync: false,
+      });
+    } catch (error) {
+      console.error("[BG-DIAG] Error halting native HTTP sync:", error);
+    }
+
+    this.nativeSyncEnabled = false;
+    this.tokenSetTime = null;
+
+    console.warn(`[BG-DIAG] Native HTTP sync halted: ${reason}`, details);
+
+    if (!this.nativeSyncHaltNotified || authRequired) {
+      this.nativeSyncHaltNotified = true;
+      this.notifyListeners(authRequired ? 'authRequired' : 'nativeSyncHalted', {
+        reason,
+        preserveLocations: true,
+        ...details,
+      });
     }
   }
 

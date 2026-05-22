@@ -72,6 +72,12 @@
   let contextCheckInterval = null
   let farmsUnsubscribe = null
   let fieldsUnsubscribe = null
+  const fieldSelectionLayerIds = [
+    "fields-fill-selected",
+    "fields-outline-selected",
+    "fields-fill",
+    "fields-outline",
+  ]
 
   function syncWithGlobalSelection() {
     checkGlobalSelectionContext()
@@ -103,6 +109,38 @@
 
   function canUseMap(): boolean {
     return !isDestroyed && map && map.getLayer && map.getSource
+  }
+
+  function getMapLayer(layerId: string) {
+    try {
+      return map?.getLayer?.(layerId)
+    } catch {
+      return null
+    }
+  }
+
+  function getMapSource(sourceId: string) {
+    try {
+      return map?.getSource?.(sourceId)
+    } catch {
+      return null
+    }
+  }
+
+  function hasFieldSelectionLayers() {
+    return fieldSelectionLayerIds.every((layerId) => getMapLayer(layerId))
+  }
+
+  function ensureFieldSelectionLayers(allowReload = true) {
+    if (!canUseMap()) return false
+    if (hasFieldSelectionLayers()) return true
+
+    if (allowReload && !getMapSource("fields") && get(mapFieldsStore).length > 0) {
+      loadFields()
+      return hasFieldSelectionLayers()
+    }
+
+    return false
   }
 
   // 🆕 Reactive statement to update layer visibility when store changes
@@ -547,8 +585,9 @@
     updateFieldSelection()
   }
 
-  function updateFieldSelection() {
+  function updateFieldSelection(allowReload = true) {
     if (!canUseMap()) return
+    if (!ensureFieldSelectionLayers(allowReload)) return
 
     try {
       if (selectedFieldId !== null) {
@@ -703,6 +742,7 @@
 
         // 🆕 Apply initial visibility state after layers are created
         updateLayerVisibility()
+        updateFieldSelection(false)
 
         console.log("✅ Fields loaded and layers created with proper ordering")
       }

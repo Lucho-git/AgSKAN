@@ -33,6 +33,7 @@
     Info,
     Eye,
     Upload,
+    Download,
     Settings,
     ArrowUp,
     ArrowRightLeft,
@@ -49,6 +50,8 @@
   import { toast } from "svelte-sonner"
   import { fileApi } from "$lib/api/fileApi"
   import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
+
+  type ExportFormat = "geojson" | "kml" | "shapefile"
 
   // Accept the navigation function as a prop
   export let navigateToProcess: (fileId: string, fileName: string) => void
@@ -107,6 +110,12 @@
   let farmToDelete: string | null = null
   let deletingFarmFields = false
 
+  // Field export state
+  let exportModalId = "export-fields-modal"
+  let exportFieldIds = new Set<string>()
+  let exportFormat: ExportFormat = "geojson"
+  let exportingFields = false
+
   // Farm migration state
   let migrationModalId = "migrate-fields-modal"
   let migrationMode = false
@@ -136,6 +145,15 @@
 
     return sortDirection === "desc" ? -comparison : comparison
   })
+
+  $: exportableFields = sortedFields.filter(hasExportableBoundary)
+  $: selectedExportCount = exportableFields.filter((field) =>
+    exportFieldIds.has(field.field_id),
+  ).length
+  $: selectedExportArea = exportableFields
+    .filter((field) => exportFieldIds.has(field.field_id))
+    .reduce((sum, field) => sum + Number(field.area || 0), 0)
+  $: canExportFields = selectedExportCount > 0 && !exportingFields
 
   onMount(() => {
     checkScreenSize()
@@ -187,6 +205,459 @@
       type: "Feature",
       geometry: boundary,
       properties: {},
+    }
+  }
+
+  function hasExportableBoundary(field: any) {
+    return Boolean(field?.boundary?.type && field?.boundary?.coordinates)
+  }
+
+  function getFieldFarmName(field: any) {
+    if (!field?.farm_id) return ""
+    return ($farmsStore || []).find((farm) => farm.id === field.farm_id)?.name || ""
+  }
+
+  function isExportablePropertyValue(value: unknown) {
+    return (
+      value === null ||
+      value === undefined ||
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    )
+  }
+
+  function getSourceExportProperties(field: any) {
+    const sourceProperties =
+      field.properties && typeof field.properties === "object"
+        ? field.properties
+        : {}
+    const reservedKeys = new Set([
+      "label",
+      "Label",
+      "LABEL",
+      "name",
+      "Name",
+      "NAME",
+      "field_name",
+      "FIELD_NAME",
+      "farm",
+      "Farm",
+      "FARM",
+      "farm_name",
+      "FARM_NAME",
+      "area",
+      "AREA",
+      "area_ha",
+      "AREA_HA",
+    ])
+
+    return Object.fromEntries(
+      Object.entries(sourceProperties).filter(
+        ([key, value]) =>
+          !reservedKeys.has(key) && isExportablePropertyValue(value),
+      ),
+    )
+  }
+
+  function getRoundedArea(area: any) {
+    const numericArea = Number(area)
+    return Number.isFinite(numericArea)
+      ? Math.round(numericArea * 100) / 100
+      : null
+  }
+
+  function getFieldExportProperties(field: any) {
+    const fieldName = field?.name || "Field"
+    const fieldFarmName = getFieldFarmName(field)
+
+    return {
+      label: fieldName,
+      name: fieldName,
+      field_name: fieldName,
+      area_ha: getRoundedArea(field.area),
+      farm_name: fieldFarmName,
+      field_id: field.field_id,
+      farm_id: field.farm_id || null,
+      map_id: field.map_id || null,
+      ...getSourceExportProperties(field),
+    }
+  }
+
+  function getFieldsFeatureCollection(fieldsToExport = fields) {
+    return {
+      type: "FeatureCollection",
+      features: fieldsToExport
+        .filter(hasExportableBoundary)
+        .map((field) => ({
+          type: "Feature",
+          geometry: stripGeometryDimensions(field.boundary),
+          properties: getFieldExportProperties(field),
+        })),
+    }
+  }
+
+  function escapeXml(value: unknown) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;")
+  }
+
+  function getKmlPropertyValue(value: unknown) {
+    if (value === null || value === undefined) return ""
+    if (typeof value === "object") return JSON.stringify(value)
+    return String(value)
+  }
+
+  function coordinatesMatch(a: any, b: any) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      Number(a[0]) === Number(b[0]) &&
+      Number(a[1]) === Number(b[1])
+    )
+  }
+
+  function ringToKmlCoordinates(ring: any[]) {
+    if (!Array.isArray(ring) || ring.length === 0) return ""
+    const coordinates = coordinatesMatch(ring[0], ring[ring.length - 1])
+      ? ring
+      : [...ring, ring[0]]
+
+    return coordinates
+      .filter(
+        (coordinate) =>
+          Array.isArray(coordinate) &&
+          Number.isFinite(Number(coordinate[0])) &&
+          Number.isFinite(Number(coordinate[1])),
+      )
+      .map((coordinate) => {
+        const lng = Number(coordinate[0])
+        const lat = Number(coordinate[1])
+        return `${lng},${lat}`
+      })
+      .join(" ")
+  }
+
+  function polygonToKml(coordinates: any[]) {
+    if (!Array.isArray(coordinates) || coordinates.length === 0) return ""
+    const [outerRing, ...innerRings] = coordinates
+
+    return `<Polygon><outerBoundaryIs><LinearRing><coordinates>${ringToKmlCoordinates(
+      outerRing,
+    )}</coordinates></LinearRing></outerBoundaryIs>${innerRings
+      .map(
+        (ring) =>
+          `<innerBoundaryIs><LinearRing><coordinates>${ringToKmlCoordinates(
+            ring,
+          )}</coordinates></LinearRing></innerBoundaryIs>`,
+      )
+      .join("")}</Polygon>`
+  }
+
+  function geometryToKml(geometry: any) {
+    if (!geometry?.type || !geometry?.coordinates) return ""
+    if (geometry.type === "Polygon") return polygonToKml(geometry.coordinates)
+    if (geometry.type === "MultiPolygon") {
+      return `<MultiGeometry>${geometry.coordinates
+        .map((polygon) => polygonToKml(polygon))
+        .join("")}</MultiGeometry>`
+    }
+    return ""
+  }
+
+  function propertiesToKml(properties: Record<string, unknown>) {
+    const entries = Object.entries(properties || {})
+    if (entries.length === 0) return ""
+
+    return `<ExtendedData>${entries
+      .map(
+        ([key, value]) =>
+          `<Data name="${escapeXml(key)}"><value>${escapeXml(
+            getKmlPropertyValue(value),
+          )}</value></Data>`,
+      )
+      .join("")}</ExtendedData>`
+  }
+
+  function featureToKmlPlacemark(feature: any) {
+    const geometry = geometryToKml(feature.geometry)
+    if (!geometry) return ""
+    const properties = feature.properties || {}
+
+    return `<Placemark><name>${escapeXml(
+      properties.name || "Field",
+    )}</name>${propertiesToKml(properties)}${geometry}</Placemark>`
+  }
+
+  function fieldsToKml(featureCollection: any) {
+    const placemarks = featureCollection.features
+      .map(featureToKmlPlacemark)
+      .filter(Boolean)
+      .join("\n")
+
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>${escapeXml(
+      farmName || "AgSKAN Fields",
+    )}</name>\n${placemarks}\n</Document>\n</kml>\n`
+  }
+
+  function downloadTextFile(content: string, fileName: string, mimeType: string) {
+    const blob = new Blob([content], { type: mimeType })
+    downloadBlobFile(blob, fileName)
+  }
+
+  function downloadBlobFile(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function getExportFileName(extension: "geojson" | "kml" | "zip") {
+    const date = new Date().toISOString().slice(0, 10)
+    return `agskan-fields-${date}.${extension}`
+  }
+
+  function getDbfString(value: unknown, maxLength = 250) {
+    const text = String(value ?? "").trim()
+    return text.length > maxLength ? text.slice(0, maxLength) : text
+  }
+
+  function getShapefileProperties(field: any, polygonCount = 1) {
+    return {
+      name: getDbfString(field?.name || "Field"),
+      field_name: getDbfString(field?.name || "Field"),
+      area_ha: getRoundedArea(field.area) || 0,
+      farm: getDbfString(getFieldFarmName(field)),
+      field_id: getDbfString(field.field_id, 80),
+      farm_id: getDbfString(field.farm_id, 80),
+      geom_type: polygonCount > 1 ? "MultiPolygon" : "Polygon",
+      polygons: polygonCount,
+    }
+  }
+
+  function stripCoordinateDimensions(coordinate: any) {
+    if (!Array.isArray(coordinate)) return coordinate
+    return [Number(coordinate[0]), Number(coordinate[1])]
+  }
+
+  function isValidCoordinate(coordinate: any) {
+    return (
+      Array.isArray(coordinate) &&
+      Number.isFinite(Number(coordinate[0])) &&
+      Number.isFinite(Number(coordinate[1]))
+    )
+  }
+
+  function closeRing(ring: any[]) {
+    const coordinates = ring.filter(isValidCoordinate).map(stripCoordinateDimensions)
+    if (coordinates.length === 0) return []
+    if (!coordinatesMatch(coordinates[0], coordinates[coordinates.length - 1])) {
+      coordinates.push([...coordinates[0]])
+    }
+    return coordinates
+  }
+
+  function getRingSignedArea(ring: any[]) {
+    return ring.reduce((sum, coordinate, index) => {
+      const nextCoordinate = ring[(index + 1) % ring.length]
+      return (
+        sum +
+        Number(coordinate[0]) * Number(nextCoordinate[1]) -
+        Number(nextCoordinate[0]) * Number(coordinate[1])
+      )
+    }, 0)
+  }
+
+  function isClockwiseRing(ring: any[]) {
+    return getRingSignedArea(ring) < 0
+  }
+
+  function orientRing(ring: any[], clockwise: boolean) {
+    const closedRing = closeRing(ring)
+    if (closedRing.length < 4) return closedRing
+    return isClockwiseRing(closedRing) === clockwise
+      ? closedRing
+      : [...closedRing].reverse()
+  }
+
+  function stripPolygonDimensions(coordinates: any[]) {
+    return coordinates.map((ring) => ring.map(stripCoordinateDimensions))
+  }
+
+  function getShapefilePolygonCoordinates(coordinates: any[]) {
+    if (!Array.isArray(coordinates) || coordinates.length === 0) return []
+    const [outerRing, ...innerRings] = coordinates
+    return [
+      orientRing(outerRing, true),
+      ...innerRings.map((ring) => orientRing(ring, false)),
+    ].filter((ring) => ring.length >= 4)
+  }
+
+  function stripGeometryDimensions(geometry: any) {
+    if (!geometry?.type || !geometry?.coordinates) return geometry
+
+    if (geometry.type === "Polygon") {
+      return {
+        type: "Polygon",
+        coordinates: stripPolygonDimensions(geometry.coordinates),
+      }
+    }
+
+    if (geometry.type === "MultiPolygon") {
+      return {
+        type: "MultiPolygon",
+        coordinates: geometry.coordinates.map(stripPolygonDimensions),
+      }
+    }
+
+    return geometry
+  }
+
+  function getShapefileFeatureCollection(fieldsToExport: any[]) {
+    return {
+      type: "FeatureCollection",
+      features: fieldsToExport.flatMap((field) => {
+        const geometry = field?.boundary
+        if (!geometry?.type || !geometry?.coordinates) return []
+
+        if (geometry.type === "Polygon") {
+          return [
+            {
+              type: "Feature",
+              geometry: {
+                type: "MultiPolygon",
+                coordinates: [getShapefilePolygonCoordinates(geometry.coordinates)],
+              },
+              properties: getShapefileProperties(field, 1),
+            },
+          ]
+        }
+
+        if (geometry.type === "MultiPolygon") {
+          const polygons = geometry.coordinates || []
+          return [
+            {
+              type: "Feature",
+              geometry: {
+                type: "MultiPolygon",
+                coordinates: polygons
+                  .map(getShapefilePolygonCoordinates)
+                  .filter((polygon) => polygon.length > 0),
+              },
+              properties: getShapefileProperties(field, polygons.length),
+            },
+          ]
+        }
+
+        return []
+      }),
+    }
+  }
+
+  function getSelectedExportFields() {
+    return exportableFields.filter((field) => exportFieldIds.has(field.field_id))
+  }
+
+  function toggleExportFieldSelection(fieldId: string) {
+    if (exportFieldIds.has(fieldId)) {
+      exportFieldIds.delete(fieldId)
+    } else {
+      exportFieldIds.add(fieldId)
+    }
+    exportFieldIds = exportFieldIds
+  }
+
+  function toggleAllExportFields() {
+    const allSelected = exportableFields.every((field) =>
+      exportFieldIds.has(field.field_id),
+    )
+
+    exportFieldIds = allSelected
+      ? new Set()
+      : new Set(exportableFields.map((field) => field.field_id))
+  }
+
+  function openExportModal() {
+    exportFieldIds = new Set(exportableFields.map((field) => field.field_id))
+    exportFormat = "geojson"
+    const modal = document.getElementById(exportModalId) as HTMLDialogElement
+    if (modal) modal.showModal()
+  }
+
+  function closeExportModal() {
+    const modal = document.getElementById(exportModalId) as HTMLDialogElement
+    if (modal) modal.close()
+  }
+
+  async function exportShapefile(fieldsToExport: any[]) {
+    const shpwriteModule = (await import("@mapbox/shp-write")) as any
+    const zip = shpwriteModule.zip || shpwriteModule.default?.zip
+    if (!zip) throw new Error("Shapefile exporter did not load")
+
+    const featureCollection = getShapefileFeatureCollection(fieldsToExport)
+    if (featureCollection.features.length === 0) {
+      throw new Error("No polygon boundaries available for shapefile export")
+    }
+
+    const zipBlob = await zip(featureCollection, {
+      compression: "DEFLATE",
+      outputType: "blob",
+      folder: "agskan-fields",
+      filename: "fields",
+      types: {
+        polygon: "fields",
+      },
+    })
+    downloadBlobFile(zipBlob, getExportFileName("zip"))
+  }
+
+  async function exportFields() {
+    const selectedFields = getSelectedExportFields()
+    const featureCollection = getFieldsFeatureCollection(selectedFields)
+
+    if (featureCollection.features.length === 0) {
+      toast.error("No field boundaries available to export")
+      return
+    }
+
+    exportingFields = true
+
+    try {
+      if (exportFormat === "geojson") {
+        downloadTextFile(
+          JSON.stringify(featureCollection, null, 2),
+          getExportFileName("geojson"),
+          "application/geo+json;charset=utf-8",
+        )
+      } else if (exportFormat === "kml") {
+        downloadTextFile(
+          fieldsToKml(featureCollection),
+          getExportFileName("kml"),
+          "application/vnd.google-earth.kml+xml;charset=utf-8",
+        )
+      } else {
+        await exportShapefile(selectedFields)
+      }
+
+      toast.success(
+        `Exported ${featureCollection.features.length} ${
+          featureCollection.features.length === 1 ? "field" : "fields"
+        } as ${exportFormat === "shapefile" ? "shapefile" : `.${exportFormat}`}`,
+      )
+      closeExportModal()
+    } catch (error) {
+      console.error("Field export failed:", error)
+      toast.error("Failed to export fields. Please try again.")
+    } finally {
+      exportingFields = false
     }
   }
 
@@ -772,8 +1243,10 @@
 </dialog>
 
 <!-- Migrate Fields Modal -->
-<dialog id={migrationModalId} class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-lg">
+<dialog id={migrationModalId} class="modal modal-middle">
+  <div
+    class="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto sm:w-full"
+  >
     <div class="flex items-center gap-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-info/20"
@@ -924,6 +1397,144 @@
   </form>
 </dialog>
 
+<!-- Export Fields Modal -->
+<dialog id={exportModalId} class="modal modal-middle">
+  <div
+    class="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto sm:w-full"
+  >
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-10 w-10 items-center justify-center rounded-full bg-info/20"
+      >
+        <Download class="h-5 w-5 text-info" />
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-contrast-content">Export Fields</h3>
+        <p class="text-sm text-contrast-content/60">
+          Choose fields and an export format
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-4 space-y-4">
+      <div>
+        <span class="mb-2 block text-sm font-medium text-contrast-content">
+          Format
+        </span>
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+              {exportFormat === 'geojson'
+              ? 'border-info bg-info/10 text-info'
+              : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+            on:click={() => (exportFormat = "geojson")}
+          >
+            {#if exportFormat === "geojson"}<Check class="h-4 w-4" />{/if}
+            GeoJSON
+          </button>
+          <button
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+              {exportFormat === 'kml'
+              ? 'border-info bg-info/10 text-info'
+              : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+            on:click={() => (exportFormat = "kml")}
+          >
+            {#if exportFormat === "kml"}<Check class="h-4 w-4" />{/if}
+            KML
+          </button>
+          <button
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+              {exportFormat === 'shapefile'
+              ? 'border-info bg-info/10 text-info'
+              : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+            on:click={() => (exportFormat = "shapefile")}
+          >
+            {#if exportFormat === "shapefile"}<Check class="h-4 w-4" />{/if}
+            Shapefile
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <span class="text-sm font-medium text-contrast-content">
+            Select fields ({selectedExportCount} selected)
+          </span>
+          <button
+            class="text-xs text-info hover:underline"
+            on:click={toggleAllExportFields}
+          >
+            Toggle all
+          </button>
+        </div>
+        <div class="max-h-56 overflow-y-auto rounded-lg border border-base-300">
+          {#each exportableFields as field (field.field_id)}
+            <label
+              class="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-base-200"
+              style={exportFieldIds.has(field.field_id)
+                ? "background: oklch(var(--in) / 0.05)"
+                : ""}
+            >
+              <input
+                type="checkbox"
+                class="checkbox-info checkbox checkbox-sm"
+                checked={exportFieldIds.has(field.field_id)}
+                on:change={() => toggleExportFieldSelection(field.field_id)}
+              />
+              <FieldIcon geojson={createGeoJSON(field.boundary)} size={24} />
+              <span class="min-w-0 flex-1 text-sm text-contrast-content">
+                <span class="block truncate">{field.name}</span>
+                {#if getFieldFarmName(field)}
+                  <span class="block truncate text-xs text-contrast-content/50">
+                    {getFieldFarmName(field)}
+                  </span>
+                {/if}
+              </span>
+              <span class="text-xs text-contrast-content/50">
+                {Number(field.area || 0).toFixed(1)} ha
+              </span>
+            </label>
+          {/each}
+        </div>
+        <div class="mt-2 flex items-center justify-between text-xs text-contrast-content/60">
+          <span>{exportableFields.length} fields available</span>
+          <span>{selectedExportArea.toFixed(1)} ha selected</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <div class="flex w-full gap-2 sm:w-auto">
+        <button
+          type="button"
+          class="btn btn-outline flex-1 sm:flex-none"
+          on:click={closeExportModal}
+          disabled={exportingFields}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn flex-1 bg-info text-white hover:bg-info/80 sm:flex-none"
+          on:click={exportFields}
+          disabled={!canExportFields}
+        >
+          {#if exportingFields}
+            <span class="loading loading-spinner loading-sm"></span>
+            Exporting...
+          {:else}
+            Export {selectedExportCount}
+            {selectedExportCount === 1 ? "field" : "fields"}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
 <!-- Fields Overview Card -->
 <div>
   <!-- Card Header with bubble icon styling -->
@@ -975,6 +1586,11 @@
             tabindex="0"
             class="menu dropdown-content z-[1] w-48 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
           >
+            <li>
+              <button on:click={openExportModal}>
+                <Download class="h-4 w-4" /> Export Fields
+              </button>
+            </li>
             <li>
               <button
                 on:click={openDeleteAllModal}

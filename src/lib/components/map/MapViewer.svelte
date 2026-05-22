@@ -80,6 +80,13 @@
   export let initialLocation
   export let selectedOperation
 
+  /** @param {unknown} value */
+  function formatHectares(value) {
+    const numberValue = Number(value)
+    if (!Number.isFinite(numberValue)) return "unknown"
+    return `${Math.round(numberValue * 100) / 100} ha`
+  }
+
   let dbInstance
   let markerManagerRef = null
   let mapFieldsRef = null
@@ -131,16 +138,16 @@
   )
   $: selectedPmtilesUnionGeometry =
     selectedPmtilesFeatureCount && !selectedPmtilesResolving
-    ? unionSelectedCandidateGeometries(selectedPmtilesFeatures, {
-        log: false,
-        exactDeferred: false,
-      })
-    : null
+      ? unionSelectedCandidateGeometries(selectedPmtilesFeatures, {
+          log: false,
+          exactDeferred: false,
+        })
+      : null
   $: selectedPmtilesUnionHectares = selectedPmtilesAreaPending
     ? 0
     : selectedPmtilesUnionGeometry
-    ? getGeometryAreaHa(selectedPmtilesUnionGeometry) || 0
-    : 0
+      ? getGeometryAreaHa(selectedPmtilesUnionGeometry) || 0
+      : 0
   $: selectedPmtilesOverlapHectares = Math.max(
     0,
     selectedPmtilesFeatureHectares - selectedPmtilesUnionHectares,
@@ -788,12 +795,17 @@
       }, turfFeatures[0])
       if (unioned?.geometry) {
         if (shouldLog) {
-          console.info("[FTW PMTiles] Pairwise-unioned selected field geometries", {
-            inputCount: turfFeatures.length,
-            outputType: unioned.geometry.type,
-            inputAreaHa: getFeatureAreaHa(turf.featureCollection(turfFeatures)),
-            outputAreaHa: getFeatureAreaHa(unioned),
-          })
+          console.info(
+            "[FTW PMTiles] Pairwise-unioned selected field geometries",
+            {
+              inputCount: turfFeatures.length,
+              outputType: unioned.geometry.type,
+              inputAreaHa: getFeatureAreaHa(
+                turf.featureCollection(turfFeatures),
+              ),
+              outputAreaHa: getFeatureAreaHa(unioned),
+            },
+          )
         }
         return unioned.geometry
       }
@@ -811,7 +823,8 @@
 
   function getGeometryPartCount(geometry) {
     if (geometry?.type === "Polygon") return 1
-    if (geometry?.type === "MultiPolygon") return geometry.coordinates?.length || 0
+    if (geometry?.type === "MultiPolygon")
+      return geometry.coordinates?.length || 0
     return 0
   }
 
@@ -838,11 +851,12 @@
       Number(properties.premerged_raw_area_ha) ||
       (properties.premerged_area_pending ? null : getGeometryAreaHa(geometry))
     const sourceKey =
-      properties.ftw_id || properties.selection_key || properties.id || feature?.id
+      properties.ftw_id ||
+      properties.selection_key ||
+      properties.id ||
+      feature?.id
     const geometryKey = sourceKey ? null : getCandidateGeometryKey(geometry)
-    const selectionKey =
-      sourceKey ||
-      geometryKey
+    const selectionKey = sourceKey || geometryKey
 
     return {
       type: "Feature",
@@ -1088,13 +1102,15 @@
     const renderedFeatures = event.detail?.features || []
     console.info("[FTW PMTiles] MapViewer received selection", {
       renderedFeatureCount: renderedFeatures.length,
-      selectedPropertyKeys: Object.keys(event.detail?.feature?.properties || {}).sort(),
+      selectedPropertyKeys: Object.keys(
+        event.detail?.feature?.properties || {},
+      ).sort(),
       selectedProperties: event.detail?.feature?.properties || {},
       selectedGeometryType: event.detail?.feature?.geometry?.type,
       selectedAreaHa: selectedCandidate?.properties?.area_ha,
-      scoreLikeKeys: Object.keys(event.detail?.feature?.properties || {}).filter(
-        (key) => /confidence|score|prob|certainty|quality/i.test(key),
-      ),
+      scoreLikeKeys: Object.keys(
+        event.detail?.feature?.properties || {},
+      ).filter((key) => /confidence|score|prob|certainty|quality/i.test(key)),
       metadataMode: selectedCandidate?.properties?.ftw_metadata_mode,
       selectionKey: selectedCandidate?.properties?.selection_key,
     })
@@ -1107,6 +1123,20 @@
     fieldCandidateError = ""
     // Selection feedback is visible in the bottom action bar; no toast needed.
     toggleSelectedFieldCandidate(selectedCandidate)
+  }
+
+  /** @param {CustomEvent} event */
+  function handleFtwFieldReject(event) {
+    const detail = event.detail || {}
+    const areaText = formatHectares(detail.areaHa)
+    const limitText = formatHectares(detail.limitHa)
+
+    if (detail.reason === "too_large") {
+      toast.info(`Skipped ${areaText} field. Max is ${limitText}.`)
+      return
+    }
+
+    toast.info("Skipped a field that is too large to select safely.")
   }
 
   function handleFtwFieldResolve(event) {
@@ -1130,7 +1160,8 @@
       console.info("[FTW PMTiles] Resolved selected boundary", {
         pendingKey: detail.pendingKey,
         selectedAreaHa: resolvedCandidate.properties?.area_ha,
-        selectedCount: resolvedCandidate.properties?.premerged_from_visible_count,
+        selectedCount:
+          resolvedCandidate.properties?.premerged_from_visible_count,
       })
     }
   }
@@ -2064,6 +2095,7 @@
       visible={showPmtilesSelectTiles}
       year={fieldCandidateYear}
       on:select={handleFtwFieldSelect}
+      on:reject={handleFtwFieldReject}
       on:resolve={handleFtwFieldResolve}
     />
     <FieldCandidateOverlay

@@ -51,6 +51,37 @@ function postProgress(requestId, progress, stage) {
   })
 }
 
+function normalizeAreaLimit(value) {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null
+}
+
+function getAreaFilter(areaFilter = {}) {
+  return {
+    maxHectares: normalizeAreaLimit(areaFilter.maxHectares),
+  }
+}
+
+function getAreaRejection(areaHa, filter) {
+  if (!Number.isFinite(areaHa)) return null
+  if (filter.maxHectares && areaHa > filter.maxHectares) {
+    return { reason: "too_large", limitHa: filter.maxHectares }
+  }
+  return null
+}
+
+function postAreaRejection(requestId, rejection, areaHa, stage) {
+  self.postMessage({
+    requestId,
+    ok: false,
+    rejected: true,
+    reason: rejection.reason,
+    limitHa: rejection.limitHa,
+    areaHa,
+    stage,
+  })
+}
+
 function featuresOverlap(featureA, featureB) {
   if (!featureA?.geometry || !featureB?.geometry) return false
   if (geometryKey(featureA) === geometryKey(featureB)) return true
@@ -144,7 +175,14 @@ function unionFeatures(features) {
 }
 
 self.onmessage = (event) => {
-  const { requestId, seedFeature, candidates, year = 2025 } = event.data || {}
+  const {
+    requestId,
+    seedFeature,
+    candidates,
+    year = 2025,
+    areaFilter,
+  } = event.data || {}
+  const filter = getAreaFilter(areaFilter)
 
   try {
     postProgress(requestId, 0.06, "normalizing")
@@ -160,13 +198,32 @@ self.onmessage = (event) => {
 
     postProgress(requestId, 0.12, "detecting-overlap")
     const group = buildOverlappingGroup(seed, turfCandidates, requestId)
+    const rawCollection = turf.featureCollection(group)
+    const rawAreaHa = Math.round((turf.area(rawCollection) / 10000) * 100) / 100
+    const rawRejection = filter.maxHectares
+      ? getAreaRejection(rawAreaHa, { maxHectares: filter.maxHectares })
+      : null
+    if (rawRejection) {
+      postAreaRejection(requestId, rawRejection, rawAreaHa, "grouped_raw_area")
+      return
+    }
+
     postProgress(requestId, 0.7, "unioning")
     const unioned = unionFeatures(group)
     postProgress(requestId, 0.9, "measuring")
     const selectedFeature = unioned || seed
-    const rawCollection = turf.featureCollection(group)
-    const rawAreaHa = Math.round((turf.area(rawCollection) / 10000) * 100) / 100
     const resolvedAreaHa = Math.round((turf.area(selectedFeature) / 10000) * 100) / 100
+    const resolvedRejection = getAreaRejection(resolvedAreaHa, filter)
+    if (resolvedRejection) {
+      postAreaRejection(
+        requestId,
+        resolvedRejection,
+        resolvedAreaHa,
+        "resolved_area",
+      )
+      return
+    }
+
     const groupSelectionKey = `pmtiles-premerge-${year}-${hashString(
       group.map(geometryKey).filter(Boolean).sort().join("|"),
     )}`

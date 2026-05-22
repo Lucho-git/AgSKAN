@@ -7,6 +7,9 @@ import { goto } from "$app/navigation";
 import { session, initializeSession } from "$lib/stores/sessionStore";
 import { get } from "svelte/store";
 import { fileApi } from "$lib/api/fileApi";
+import { farmApi } from "$lib/api/farmApi";
+import { farmsStore } from "$lib/stores/farmsStore";
+import { connectedMapStore } from "$lib/stores/connectedMapStore";
 
 // Set export const ssr = false to disable SSR for this route
 export const ssr = false;
@@ -49,6 +52,14 @@ export const load: PageLoad = async () => {
                 if (fieldsResult.fields) {
                     fieldsData = fieldsResult.fields;
                     fieldStore.set(fieldsData);
+
+                    const mapId = fieldsData[0]?.map_id || get(connectedMapStore)?.id;
+                    if (mapId) {
+                        const farmsResult = await farmApi.loadFarms(mapId);
+                        if (!farmsResult.error) {
+                            farmsStore.set(farmsResult.farms);
+                        }
+                    }
                 }
             } catch (fieldError) {
                 console.error("Error fetching fields:", fieldError);

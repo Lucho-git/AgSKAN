@@ -246,17 +246,18 @@
 
   function cleanupLayers() {
     if (!map?.getLayer || !map?.getSource) return
-
-    ;[...Object.values(layerIds), ...Object.values(previewLayerIds)].forEach((layerId) => {
-      try {
-        if (map.getLayer(layerId)) map.removeLayer(layerId)
-      } catch (error) {
-        console.warn(
-          `Error removing field candidate overlay layer ${layerId}:`,
-          error,
-        )
-      }
-    })
+    ;[...Object.values(layerIds), ...Object.values(previewLayerIds)].forEach(
+      (layerId) => {
+        try {
+          if (map.getLayer(layerId)) map.removeLayer(layerId)
+        } catch (error) {
+          console.warn(
+            `Error removing field candidate overlay layer ${layerId}:`,
+            error,
+          )
+        }
+      },
+    )
 
     try {
       if (map.getSource(sourceId)) map.removeSource(sourceId)
