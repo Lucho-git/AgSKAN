@@ -53,7 +53,40 @@
 
   // File validation constants
   const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
-  const ACCEPTED_EXTENSIONS = [".zip", ".kml", ".kmz", ".xml", ".isoxml"]
+  const ACCEPTED_EXTENSIONS = [
+    ".zip",
+    ".kml",
+    ".kmz",
+    ".geojson",
+    ".xml",
+    ".isoxml",
+  ]
+
+  function geoJsonHasPolygonGeometry(geometry: any): boolean {
+    if (!geometry || typeof geometry !== "object") return false
+    if (geometry.type === "Polygon" || geometry.type === "MultiPolygon") {
+      return true
+    }
+    if (geometry.type === "GeometryCollection") {
+      return Array.isArray(geometry.geometries) &&
+        geometry.geometries.some(geoJsonHasPolygonGeometry)
+    }
+    return false
+  }
+
+  function geoJsonHasBoundaryFeature(geojson: any): boolean {
+    if (!geojson || typeof geojson !== "object") return false
+    if (geojson.type === "FeatureCollection") {
+      return Array.isArray(geojson.features) &&
+        geojson.features.some((feature: any) =>
+          geoJsonHasPolygonGeometry(feature?.geometry),
+        )
+    }
+    if (geojson.type === "Feature") {
+      return geoJsonHasPolygonGeometry(geojson.geometry)
+    }
+    return geoJsonHasPolygonGeometry(geojson)
+  }
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault()
@@ -147,7 +180,7 @@
     if (!hasValidExtension) {
       return {
         isValid: false,
-        error: `Invalid file type "${fileName.split(".").pop()?.toUpperCase()}". Please upload ZIP, KML, KMZ, or ISOXML files.`,
+        error: `Invalid file type "${fileName.split(".").pop()?.toUpperCase()}". Please upload ZIP, KML, GeoJSON, KMZ, or ISOXML files.`,
       }
     }
 
@@ -163,6 +196,8 @@
       return await validateZipFile(file)
     } else if (fileName.endsWith(".kml") || fileName.endsWith(".kmz")) {
       return await validateKmlFile(file)
+    } else if (fileName.endsWith(".geojson")) {
+      return await validateGeoJsonFile(file)
     } else if (fileName.endsWith(".xml") || fileName.endsWith(".isoxml")) {
       return await validateXmlFile(file)
     }
@@ -200,6 +235,11 @@
       // Check for KML files
       const hasKml = fileNames.some((name) =>
         name.toLowerCase().endsWith(".kml"),
+      )
+
+      // Check for GeoJSON files
+      const hasGeoJson = fileNames.some((name) =>
+        name.toLowerCase().endsWith(".geojson"),
       )
 
       // Check for ISOXML files
@@ -240,6 +280,14 @@
           isValid: true,
           info: `Valid KML ZIP containing ${kmlFiles.length} KML file(s)`,
         }
+      } else if (hasGeoJson) {
+        const geoJsonFiles = fileNames.filter((name) =>
+          name.toLowerCase().endsWith(".geojson"),
+        )
+        return {
+          isValid: true,
+          info: `Valid GeoJSON ZIP containing ${geoJsonFiles.length} GeoJSON file(s)`,
+        }
       } else if (hasIsoxml) {
         const xmlFiles = fileNames.filter(
           (name) =>
@@ -259,7 +307,7 @@
         return {
           isValid: false,
           error:
-            "ZIP file does not contain recognized boundary files (.shp, .kml, or .xml files)",
+            "ZIP file does not contain recognized boundary files (.shp, .kml, .geojson, or .xml files)",
         }
       }
     } catch (error) {
@@ -305,6 +353,32 @@
       return {
         isValid: false,
         error: "Unable to read KML file. Please check the file format.",
+      }
+    }
+  }
+
+  async function validateGeoJsonFile(
+    file: File,
+  ): Promise<{ isValid: boolean; error?: string; info?: string }> {
+    try {
+      const geojson = JSON.parse(await file.text())
+
+      if (!geoJsonHasBoundaryFeature(geojson)) {
+        return {
+          isValid: false,
+          error:
+            "GeoJSON file does not contain polygon geometries required for boundary processing",
+        }
+      }
+
+      return {
+        isValid: true,
+        info: "Valid GeoJSON file with polygon geometries detected",
+      }
+    } catch (error) {
+      return {
+        isValid: false,
+        error: "Unable to read GeoJSON file. Please check the file format.",
       }
     }
   }
@@ -599,7 +673,7 @@
                 type="file"
                 class="hidden"
                 on:change={handleFileChange}
-                accept=".zip,.kml,.kmz,.xml,.isoxml"
+                accept=".zip,.kml,.kmz,.geojson,.xml,.isoxml"
                 disabled={isProcessing || hasSuccess}
               />
 
@@ -787,7 +861,7 @@
                   <p
                     class="mb-2 px-2 text-center text-xs text-contrast-content/60 md:text-sm"
                   >
-                    ZIP, ISOXML or KML files (Max 50mb)
+                    ZIP, GeoJSON, ISOXML or KML files (Max 50mb)
                   </p>
                   <div
                     class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-2 py-1 text-xs text-info/70"
@@ -860,11 +934,11 @@
                   </div>
                   <span class="text-xs text-contrast-content/80">
                     <span class="hidden sm:inline"
-                      >Zipped Shapefiles, KML files and ISOXML files are all
-                      accepted</span
+                      >Zipped Shapefiles, GeoJSON, KML files and ISOXML files
+                      are all accepted</span
                     >
                     <span class="sm:hidden"
-                      >ZIP, KML and ISOXML files accepted</span
+                      >ZIP, GeoJSON, KML and ISOXML files accepted</span
                     >
                   </span>
                 </li>

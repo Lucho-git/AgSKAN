@@ -32,15 +32,69 @@ async function getJSZip() {
 // Utility functions
 function findPaddockName(properties: any): string | null {
     const possibleNameFields = [
-        "name", "NAME", "Name", "PaddockName",
-        "PADDOCK_NAME", "paddock_name", "PADDOCKNAME", "FIELD_NAME",
-        "paddock_na", "property_n", "title", "FIELDNAME"
+        "name", "Name", "NAME",
+        "field_name", "FIELD_NAME", "FieldName", "FIELDNAME",
+        "paddock", "Paddock", "PADDOCK",
+        "paddock_name", "PADDOCK_NAME", "paddock_na",
+        "property_n", "title"
     ];
     for (const field of possibleNameFields) {
         if (properties && properties[field]) {
             return String(properties[field]);
         }
     }
+    return null;
+}
+
+function stripCoordinateDimensions(coordinate: any): any {
+    if (!Array.isArray(coordinate)) return coordinate;
+    return [coordinate[0], coordinate[1]];
+}
+
+function stripPolygonCoordinateDimensions(coordinates: any[]): any[] {
+    return coordinates.map((ring: any[]) => ring.map(stripCoordinateDimensions));
+}
+
+function normalizePolygonGeometry(geometry: any): any | null {
+    if (!geometry) return null;
+
+    if (geometry.type === 'Polygon') {
+        return {
+            type: 'Polygon',
+            coordinates: stripPolygonCoordinateDimensions(geometry.coordinates || [])
+        };
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+        return {
+            type: 'MultiPolygon',
+            coordinates: (geometry.coordinates || []).map(stripPolygonCoordinateDimensions)
+        };
+    }
+
+    if (geometry.type === 'GeometryCollection') {
+        const polygonCoordinates = (geometry.geometries || []).flatMap((childGeometry: any) => {
+            const normalizedGeometry = normalizePolygonGeometry(childGeometry);
+            if (!normalizedGeometry) return [];
+            if (normalizedGeometry.type === 'Polygon') return [normalizedGeometry.coordinates];
+            if (normalizedGeometry.type === 'MultiPolygon') return normalizedGeometry.coordinates;
+            return [];
+        });
+
+        if (polygonCoordinates.length === 0) return null;
+        if (polygonCoordinates.length === 1) {
+            return {
+                type: 'Polygon',
+                coordinates: polygonCoordinates[0]
+            };
+        }
+
+        return {
+            type: 'MultiPolygon',
+            coordinates: polygonCoordinates
+        };
+    }
+
     return null;
 }
 
@@ -135,20 +189,21 @@ function processFeaturesIntoPaddocks(features: any[], sourceFileInfo: { type: st
             return;
         }
 
-        if (feature.geometry.type === 'GeometryCollection') {
-            const validGeometry = feature.geometry.geometries?.find(geom =>
-                geom.type === 'Polygon' || geom.type === 'MultiPolygon');
+        const normalizedGeometry = normalizePolygonGeometry(feature.geometry);
 
-            if (!validGeometry) {
-                invalidFeatures.push({
-                    reason: "No valid polygons in GeometryCollection",
-                    index,
-                    name: featureIdentifier
-                });
-                return;
-            }
-            feature.geometry = validGeometry;
+        if (!normalizedGeometry) {
+            invalidFeatures.push({
+                reason: feature.geometry.type === 'GeometryCollection'
+                    ? "No valid polygons in GeometryCollection"
+                    : "Unsupported geometry type",
+                index,
+                type: feature.geometry.type,
+                name: featureIdentifier
+            });
+            return;
         }
+
+        feature.geometry = normalizedGeometry;
 
         if (feature.geometry.type !== 'Polygon' && feature.geometry.type !== 'MultiPolygon') {
             invalidFeatures.push({
@@ -235,6 +290,54 @@ function processFeaturesIntoPaddocks(features: any[], sourceFileInfo: { type: st
     }
     // console.log(`Successfully processed ${paddockList.length} valid paddocks from ${sourceFileInfo.type} (${sourceFileInfo.name || ''})`);
     return paddockList;
+}
+
+
+function getGeoJsonFeatures(geojson: any): any[] {
+    if (!geojson || typeof geojson !== 'object') return [];
+
+    if (geojson.type === 'FeatureCollection') {
+        return Array.isArray(geojson.features) ? geojson.features : [];
+    }
+
+    if (geojson.type === 'Feature') {
+        return [geojson];
+    }
+
+    if (['Polygon', 'MultiPolygon', 'GeometryCollection'].includes(geojson.type)) {
+        return [{
+            type: 'Feature',
+            properties: {},
+            geometry: geojson
+        }];
+    }
+
+    return [];
+}
+
+async function processGeoJSON(fileData: ArrayBuffer, geoJsonFileNameForContext: string = "GeoJSON"): Promise<any> {
+    try {
+        const decoder = new TextDecoder("utf-8");
+        const geoJsonContent = decoder.decode(new Uint8Array(fileData));
+        const geojson = JSON.parse(geoJsonContent);
+        const features = getGeoJsonFeatures(geojson);
+
+        if (features.length === 0) {
+            return createErrorResponse(`No GeoJSON features found in file (${geoJsonFileNameForContext}).`);
+        }
+
+        const paddockList = processFeaturesIntoPaddocks(features, { type: 'GeoJSON', name: geoJsonFileNameForContext })
+            .filter((paddock) => paddock.boundary !== null);
+
+        if (paddockList.length === 0) {
+            return createErrorResponse(`No valid paddocks found with polygon boundary data in GeoJSON file (${geoJsonFileNameForContext}).`);
+        }
+
+        return createSuccessResponse(paddockList, `GeoJSON file (${geoJsonFileNameForContext})`);
+    } catch (error: any) {
+        console.error(`GeoJSON processing error for ${geoJsonFileNameForContext}:`, error);
+        return createErrorResponse(`Error processing GeoJSON file (${geoJsonFileNameForContext}): ${error.message}`);
+    }
 }
 
 
@@ -382,6 +485,48 @@ async function processZIP(fileData: ArrayBuffer): Promise<any> {
 
         console.log("No KML files found or they yielded no data in ZIP, checking for other formats...");
 
+        // --- Multiple GeoJSON Processing Logic ---
+        const geoJsonFileNames = filesInZip.filter(file => file.toLowerCase().endsWith(".geojson"));
+        if (geoJsonFileNames.length > 0) {
+            console.log(`Found ${geoJsonFileNames.length} GeoJSON file(s) in ZIP. Processing them individually.`);
+            const allGeoJsonPaddocks: any[] = [];
+            let geoJsonFilesProcessedSuccessfully = 0;
+
+            for (const geoJsonFileName of geoJsonFileNames) {
+                try {
+                    const geoJsonFileContent = await contents.file(geoJsonFileName)!.async("arraybuffer");
+                    const geoJsonResult = await processGeoJSON(geoJsonFileContent, geoJsonFileName);
+
+                    if (geoJsonResult.status === "success" && geoJsonResult.paddocks && geoJsonResult.paddocks.length > 0) {
+                        const geoJsonBaseName = geoJsonFileName.substring(0, geoJsonFileName.lastIndexOf('.'));
+                        geoJsonResult.paddocks.forEach((paddock: any) => {
+                            paddock.properties = {
+                                ...paddock.properties,
+                                originalFileName: paddock.properties?.originalFileName || geoJsonBaseName,
+                                sourceType: 'GeoJSON_from_ZIP'
+                            };
+                        });
+                        allGeoJsonPaddocks.push(...geoJsonResult.paddocks);
+                        geoJsonFilesProcessedSuccessfully++;
+                    } else if (geoJsonResult.status === "error") {
+                        console.warn(`GeoJSON file ${geoJsonFileName} in ZIP processed with error: ${geoJsonResult.message}`);
+                    }
+                } catch (geoJsonError: any) {
+                    console.error(`Error processing GeoJSON file ${geoJsonFileName} from ZIP:`, geoJsonError.message);
+                }
+            }
+
+            if (allGeoJsonPaddocks.length > 0) {
+                return createSuccessResponse(
+                    allGeoJsonPaddocks,
+                    `zip file`,
+                    ` containing data from ${geoJsonFilesProcessedSuccessfully} GeoJSON file(s)`
+                );
+            } else if (geoJsonFileNames.length > 0 && allGeoJsonPaddocks.length === 0) {
+                return createErrorResponse("ZIP contained GeoJSON file(s), but no valid paddock data could be extracted from them.");
+            }
+        }
+
         // Shapefile group processing
         const fileGroups: { [key: string]: string[] } = {};
         filesInZip.forEach(file => {
@@ -481,7 +626,7 @@ async function processZIP(fileData: ArrayBuffer): Promise<any> {
             }
         }
 
-        return createErrorResponse("No valid KML, Shapefile, or ISOXML data found in the zip archive that could be processed.");
+        return createErrorResponse("No valid KML, GeoJSON, Shapefile, or ISOXML data found in the zip archive that could be processed.");
 
     } catch (error: any) {
         console.error("Outer ZIP processing error:", error);
@@ -664,6 +809,9 @@ export const processBoundariesApi = {
                 case "kml":
                     result = await processKML(arrayBuffer, fileName); // Pass fileName for context
                     break;
+                case "geojson":
+                    result = await processGeoJSON(arrayBuffer, fileName);
+                    break;
                 case "zip":
                     result = await processZIP(arrayBuffer); // processZIP handles internal file names
                     break;
@@ -673,7 +821,7 @@ export const processBoundariesApi = {
                     result = await processISOXML(xmlContent, fileName); // Pass fileName for context
                     break;
                 default:
-                    result = createErrorResponse(`Invalid file type: .${fileExtension}. Please upload a KML, ZIP, or XML (ISOXML) file.`);
+                    result = createErrorResponse(`Invalid file type: .${fileExtension}. Please upload a KML, GeoJSON, ZIP, or XML (ISOXML) file.`);
                     break;
             }
 
