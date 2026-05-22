@@ -95,7 +95,7 @@ For troubleshooting common setup issues, see our [GPS Signal Issues](/knowledge-
 
 **Check Your Location Settings**
 1. Ensure location services are enabled for AgSKAN
-2. Set permission to "Always" (not just "While Using App")
+2. Set permission to "While Using App" and keep the map open while tracking
 3. Enable high accuracy mode in your device settings
 
 **Improve Signal Strength**
@@ -108,12 +108,12 @@ For troubleshooting common setup issues, see our [GPS Signal Issues](/knowledge-
 
 *Android:*
 - Go to Settings > Apps > AgSKAN > Permissions
-- Ensure Location is set to "Allow all the time"
+- Ensure Location is allowed while using the app
 - Check if battery optimization is disabled for AgSKAN
 
 *iOS:*
 - Settings > Privacy & Security > Location Services
-- Find AgSKAN and set to "Always"
+- Find AgSKAN and allow location while using the app
 - Enable "Precise Location"
 
 **Still Having Issues?**

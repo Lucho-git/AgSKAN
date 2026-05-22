@@ -34,6 +34,12 @@ class BackgroundService {
     this.nativeSyncHaltNotified = false;
   }
 
+  /** @param {number} status */
+  hasLocationPermission(status) {
+    return status === BackgroundGeolocation.AUTHORIZATION_STATUS_ALWAYS
+      || status === BackgroundGeolocation.AUTHORIZATION_STATUS_WHEN_IN_USE;
+  }
+
   async init() {
     if (this.isInitialized || !Capacitor.isNativePlatform()) return false;
 
@@ -81,10 +87,9 @@ class BackgroundService {
       const providerState = await BackgroundGeolocation.getProviderState();
       console.log("Provider State:", JSON.stringify(providerState, null, 2));
       
-      // Status code 3 = AUTHORIZATION_STATUS_ALWAYS (required for background)
-      this.backgroundPermissionGranted = providerState.status === 3;
+      this.backgroundPermissionGranted = this.hasLocationPermission(providerState.status);
       
-      console.log(`Background permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status})`);
+      console.log(`Location permission granted: ${this.backgroundPermissionGranted} (status=${providerState.status})`);
       return this.backgroundPermissionGranted;
     } catch (error) {
       console.error("Error checking background permission:", error);
@@ -98,22 +103,27 @@ class BackgroundService {
       const isAndroid = this.platform === 'android';
       const isIOS = this.platform === 'ios';
 
+      /** @type {any} */
       const config = {
         // Basic configuration
         debug: false,
-        logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
+        logLevel: BackgroundGeolocation.LOG_LEVEL_ERROR,
+        logMaxDays: 1,
         desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
         // Fire on every native fix (0 = no distance filter) so we can get high-rate updates
         distanceFilter: 0,
         // Request 1s native update interval on Android (maps to LocationRequest.setInterval)
         locationUpdateInterval: 1000,
         fastestLocationUpdateInterval: 1000,
-        locationAuthorizationRequest: 'Always',
+        locationAuthorizationRequest: 'WhenInUse',
         
-        // Background behavior
-        stopOnTerminate: false,
-        startOnBoot: true,
-        enableHeadless: true,
+        // Tracking is scoped to the mounted map. It may continue while the
+        // user backgrounds the app or locks the screen, but stops on app close.
+        stopOnTerminate: true,
+        startOnBoot: false,
+        enableHeadless: false,
+        maxDaysToPersist: 1,
+        maxRecordsToPersist: 15000,
 
         // ── Prevent the plugin from deciding the device is "stopped" ──
         // Farming equipment moves slowly — default stop detection is too aggressive
@@ -182,7 +192,7 @@ class BackgroundService {
           
           if (typeof event.status !== 'undefined') {
             const wasGranted = this.backgroundPermissionGranted;
-            this.backgroundPermissionGranted = event.status === 3;
+            this.backgroundPermissionGranted = this.hasLocationPermission(event.status);
             
             if (wasGranted !== this.backgroundPermissionGranted) {
               this.notifyListeners('permissionChange', {

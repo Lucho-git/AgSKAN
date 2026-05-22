@@ -1,13 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte"
+  import { onMount } from "svelte"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
-  import { App } from "@capacitor/app"
   import { Geolocation } from "@capacitor/geolocation"
-  import BackgroundGeolocation from "@transistorsoft/capacitor-background-geolocation"
-  import RawGps from "$lib/plugins/rawGps"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
 
@@ -16,7 +13,6 @@
 
   // Permission states
   let locationPermissionStatus = "Unknown"
-  let backgroundLocationStatus = "Unknown"
 
   // Web geolocation state
   let webLocationSupported = false
@@ -42,37 +38,9 @@
       const permStatus = await Geolocation.checkPermissions()
       locationPermissionStatus = permStatus.location
 
-      // Check background location status using the status code
-      try {
-        const providerState = await BackgroundGeolocation.getProviderState()
-        // Status code 3 = AUTHORIZATION_STATUS_ALWAYS
-        backgroundLocationStatus =
-          providerState.status === 3 ? "granted" : "denied"
-      } catch (err) {
-        console.error("Error checking background permissions:", err)
-        backgroundLocationStatus = "Error checking"
-      }
     } catch (err) {
       console.error("Error checking location permissions:", err)
       locationPermissionStatus = "Error checking"
-      backgroundLocationStatus = "Error checking"
-    }
-  }
-
-  // Open the native app settings (iOS Settings / Android App Info)
-  async function openAppSettings() {
-    try {
-      if (Capacitor.getPlatform() === 'ios') {
-        // Use our native RawGps plugin which calls UIApplication.openSettingsURLString
-        await RawGps.openSettings()
-      } else {
-        // Android: open app detail settings
-        await App.openUrl({ url: 'android.settings.APPLICATION_DETAILS_SETTINGS' })
-      }
-      toast.info('Change permissions in Settings, then return here', { duration: 4000 })
-    } catch (err) {
-      console.error('Error opening app settings:', err)
-      toast.error('Could not open Settings')
     }
   }
 
@@ -91,72 +59,6 @@
     } catch (err) {
       console.error("Error requesting location permission:", err)
       toast.error("Failed to update location permission")
-    }
-  }
-
-  // Disable location permission (opens Settings)
-  async function disableLocationPermission() {
-    await openAppSettings()
-  }
-
-  // Disable background location permission (opens Settings)
-  async function disableBackgroundLocationPermission() {
-    await openAppSettings()
-  }
-
-  // Request background location permission
-  async function requestBackgroundLocationPermission() {
-    if (!isNativePlatform) {
-      toast.error(
-        "Background location permissions can only be requested on mobile apps",
-      )
-      return
-    }
-
-    if (locationPermissionStatus !== "granted") {
-      toast.error("Please enable location permission first")
-      return
-    }
-
-    try {
-      // Show explanation
-      toast.info(
-        "Background location is needed to track field operations while the app is in the background",
-        { duration: 5000 },
-      )
-
-      // Request the permission — temporarily switch to 'Always' so the iOS
-      // "Always Allow" dialog is presented, then revert to 'WhenInUse' so the
-      // plugin doesn't auto-prompt on every map open.
-      setTimeout(async () => {
-        try {
-          await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'Always' })
-          await BackgroundGeolocation.requestPermission()
-          // Revert to WhenInUse so map opens don't auto-prompt
-          await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'WhenInUse' })
-
-          // Check the state after the request
-          const afterState = await BackgroundGeolocation.getProviderState()
-          const wasGranted = afterState.status === 3
-
-          if (wasGranted) {
-            toast.success("Background location enabled")
-          } else {
-            toast.warning("Background location not enabled — you may need to select 'Always Allow' in Settings")
-          }
-
-          // Update UI to reflect new status
-          await checkLocationPermissions()
-        } catch (err) {
-          console.error("Error requesting background location:", err)
-          // Ensure we revert config even on error
-          try { await BackgroundGeolocation.setConfig({ locationAuthorizationRequest: 'WhenInUse' }) } catch (_) {}
-          toast.error("Failed to update background location permission")
-        }
-      }, 2500)
-    } catch (err) {
-      console.error("Error in background location flow:", err)
-      toast.error("An error occurred")
     }
   }
 
@@ -196,27 +98,15 @@
     )
   }
 
-  let resumeListener = null
-
   onMount(() => {
     if (isNativePlatform) {
       checkLocationPermissions()
-      // Re-check permissions when user returns from Settings app
-      App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) checkLocationPermissions()
-      }).then(listener => { resumeListener = listener })
     } else {
       checkWebGeolocationSupport()
     }
     // Initialize settings defaults from store
     if ($userSettingsStore) {
       // noop here — UI binds directly where needed
-    }
-  })
-
-  onDestroy(() => {
-    if (resumeListener) {
-      resumeListener.remove()
     }
   })
 </script>
@@ -329,26 +219,16 @@
               </p>
             </div>
           </div>
-          {#if locationPermissionStatus === "granted"}
-            <button
-              class="btn btn-outline btn-error btn-sm gap-2"
-              on:click={disableLocationPermission}
-            >
-              <Icon icon="solar:close-circle-bold-duotone" width="16" height="16" />
-              Disable
-            </button>
-          {:else}
-            <button
-              class="btn btn-outline btn-sm gap-2"
-              on:click={requestLocationPermission}
-            >
-              <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
-              Enable
-            </button>
-          {/if}
+          <button
+            class="btn btn-outline btn-sm gap-2"
+            on:click={requestLocationPermission}
+          >
+            <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
+            {locationPermissionStatus === "granted" ? "Granted" : "Enable"}
+          </button>
         </div>
 
-        <!-- Background Location Permission -->
+        <!-- Map-scoped tracking behavior -->
         <div
           class="flex items-center justify-between rounded-lg border border-base-300 bg-base-200/30 p-4"
         >
@@ -363,34 +243,17 @@
             </div>
             <div>
               <p class="font-medium text-contrast-content">
-                Background Location
+                Map Session Tracking
               </p>
               <p class="text-sm text-contrast-content/60">
-                Track location when app is closed
+                Continues while this map is open, including screen lock
               </p>
               <p class="text-xs text-contrast-content/40">
-                Status: {backgroundLocationStatus}
+                Stops when the app is closed or you leave the map
               </p>
             </div>
           </div>
-          {#if backgroundLocationStatus === "granted"}
-            <button
-              class="btn btn-outline btn-error btn-sm gap-2"
-              on:click={disableBackgroundLocationPermission}
-            >
-              <Icon icon="solar:close-circle-bold-duotone" width="16" height="16" />
-              Disable
-            </button>
-          {:else}
-            <button
-              class="btn btn-outline btn-sm gap-2"
-              disabled={locationPermissionStatus !== "granted"}
-              on:click={requestBackgroundLocationPermission}
-            >
-              <Icon icon="solar:settings-bold-duotone" width="16" height="16" />
-              Enable
-            </button>
-          {/if}
+          <span class="badge badge-outline text-xs">Map only</span>
         </div>
       </div>
     </div>
@@ -549,8 +412,8 @@
           Location permissions are required to track your position during field
           operations.
           {#if isNativePlatform}
-            Background location allows tracking even when the app is closed,
-            providing more accurate field coverage data.
+            In the mobile app, tracking is scoped to the active map session and
+            can continue while the app is backgrounded or the screen is locked.
           {/if}
         </p>
       </div>

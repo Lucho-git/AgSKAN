@@ -90,7 +90,10 @@ public class MockLocationService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) return START_NOT_STICKY;
+        if (intent == null) {
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
 
         String action = intent.getAction();
         if (ACTION_START.equals(action)) {

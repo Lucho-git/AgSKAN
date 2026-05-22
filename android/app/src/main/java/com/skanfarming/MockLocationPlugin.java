@@ -1,8 +1,13 @@
 package com.skanfarming;
 
+import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
+
+import androidx.core.app.ActivityCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -44,7 +49,19 @@ public class MockLocationPlugin extends Plugin {
         Log.i(TAG, "Starting mock location: lat=" + lat + " lng=" + lng
                 + " interval=" + intervalMs + "ms step=" + stepMeters + "m");
 
-        Intent intent = new Intent(getContext(), MockLocationService.class);
+        Context ctx = getContext();
+
+        if (ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "ACCESS_FINE_LOCATION not granted — skipping MockLocationService start");
+            JSObject ret = new JSObject();
+            ret.put("started", false);
+            ret.put("reason", "LOCATION_PERMISSION_NOT_GRANTED");
+            call.resolve(ret);
+            return;
+        }
+
+        Intent intent = new Intent(ctx, MockLocationService.class);
         intent.setAction(MockLocationService.ACTION_START);
         intent.putExtra("latitude", lat);
         intent.putExtra("longitude", lng);
@@ -52,10 +69,20 @@ public class MockLocationPlugin extends Plugin {
         intent.putExtra("stepMeters", stepMeters);
         intent.putExtra("pattern", pattern);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getContext().startForegroundService(intent);
-        } else {
-            getContext().startService(intent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(intent);
+            } else {
+                ctx.startService(intent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start MockLocationService", e);
+            JSObject ret = new JSObject();
+            ret.put("started", false);
+            ret.put("reason", "START_FOREGROUND_SERVICE_FAILED");
+            ret.put("message", e.getMessage());
+            call.resolve(ret);
+            return;
         }
 
         JSObject ret = new JSObject();

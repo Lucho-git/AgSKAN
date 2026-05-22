@@ -1293,9 +1293,9 @@
       const backgroundPermissionGranted = await backgroundService.init()
 
       if (backgroundPermissionGranted) {
-        toast.success("Background location is enabled", {
+        toast.success("Map location tracking is enabled", {
           description:
-            "Your location will continue to be tracked when the app is in the background",
+            "Tracking can continue while this map is open, even if the app is backgrounded",
           duration: 5000,
         })
       }
@@ -1426,9 +1426,9 @@
             }
           } else if (event === "permissionChange") {
             if (data.backgroundPermissionGranted) {
-              toast.success("Background location enabled", {
+              toast.success("Map location tracking enabled", {
                 description:
-                  "Your location will now be tracked when the app is in the background",
+                  "Tracking can continue while this map is open, even if the app is backgrounded",
               })
             }
           } else if (event === "authRequired") {

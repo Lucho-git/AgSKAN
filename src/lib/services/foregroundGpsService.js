@@ -83,10 +83,18 @@ class ForegroundGpsService {
         return true;
       } else {
         console.warn('[ForegroundGPS] start() returned:', result.reason);
+        if (this._pluginListener) {
+          await this._pluginListener.remove();
+          this._pluginListener = null;
+        }
         return false;
       }
     } catch (error) {
       console.error('[ForegroundGPS] Failed to start:', error);
+      if (this._pluginListener) {
+        await this._pluginListener.remove();
+        this._pluginListener = null;
+      }
       return false;
     }
   }

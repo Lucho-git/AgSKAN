@@ -103,10 +103,23 @@ public class RawGpsPlugin extends Plugin {
         serviceIntent.putExtra("intervalMs", (long) intervalMs);
         serviceIntent.putExtra("minDistanceM", minDistanceM);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ctx.startForegroundService(serviceIntent);
-        } else {
-            ctx.startService(serviceIntent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(serviceIntent);
+            } else {
+                ctx.startService(serviceIntent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start RawGpsService", e);
+            try { ctx.unregisterReceiver(locationReceiver); } catch (Exception ignored) {}
+            locationReceiver = null;
+
+            JSObject ret = new JSObject();
+            ret.put("started", false);
+            ret.put("reason", "START_FOREGROUND_SERVICE_FAILED");
+            ret.put("message", e.getMessage());
+            call.resolve(ret);
+            return;
         }
 
         isRunning = true;
