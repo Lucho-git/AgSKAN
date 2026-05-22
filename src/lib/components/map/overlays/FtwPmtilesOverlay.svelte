@@ -38,9 +38,6 @@
   const PREMERGE_QUERY_RADIUS_PX = 56
   const PREMERGE_BOX_PADDING_PX = 18
   const PREMERGE_FEATURE_LIMIT = 96
-  const PREMERGE_MAX_ITERATIONS = 3
-  const PREMERGE_MAX_RINGS_PER_FEATURE = 10
-  const PREMERGE_MAX_POINTS_PER_RING = 80
   const premergeCache = new Map()
   let boundaryResolverWorker = null
   let resolverRequestId = 0
@@ -379,15 +376,6 @@
     return Number.isFinite(value) ? Number(value).toFixed(6) : "na"
   }
 
-  function hashString(value) {
-    let hash = 0
-    for (let index = 0; index < value.length; index += 1) {
-      hash = (hash << 5) - hash + value.charCodeAt(index)
-      hash |= 0
-    }
-    return Math.abs(hash).toString(36)
-  }
-
   function getGeometryBoundsFromCoordinates(coordinates) {
     if (!coordinates?.length) return null
     return coordinates.reduce(
@@ -404,146 +392,6 @@
         maxLat: -Infinity,
       },
     )
-  }
-
-  function getOuterRings(geometry) {
-    if (geometry?.type === "Polygon")
-      return [geometry.coordinates?.[0]].filter(Boolean)
-    if (geometry?.type === "MultiPolygon") {
-      return (geometry.coordinates || [])
-        .map((polygon) => polygon?.[0])
-        .filter(Boolean)
-        .slice(0, PREMERGE_MAX_RINGS_PER_FEATURE)
-    }
-    return []
-  }
-
-  function sampleRing(ring) {
-    if (!ring?.length || ring.length <= PREMERGE_MAX_POINTS_PER_RING) {
-      return ring || []
-    }
-
-    const step = ring.length / PREMERGE_MAX_POINTS_PER_RING
-    const sampled = []
-    for (let index = 0; index < PREMERGE_MAX_POINTS_PER_RING; index += 1) {
-      sampled.push(ring[Math.floor(index * step)])
-    }
-    return sampled
-  }
-
-  function getRingBounds(ring) {
-    return getGeometryBoundsFromCoordinates(ring)
-  }
-
-  function boundsOverlap(boundsA, boundsB) {
-    if (!boundsA || !boundsB) return false
-    return !(
-      boundsA.maxLng < boundsB.minLng ||
-      boundsB.maxLng < boundsA.minLng ||
-      boundsA.maxLat < boundsB.minLat ||
-      boundsB.maxLat < boundsA.minLat
-    )
-  }
-
-  function pointOnSegment(point, start, end) {
-    const cross =
-      (point[1] - start[1]) * (end[0] - start[0]) -
-      (point[0] - start[0]) * (end[1] - start[1])
-    if (Math.abs(cross) > 1e-12) return false
-
-    const dot =
-      (point[0] - start[0]) * (end[0] - start[0]) +
-      (point[1] - start[1]) * (end[1] - start[1])
-    if (dot < 0) return false
-
-    const squaredLength =
-      (end[0] - start[0]) * (end[0] - start[0]) +
-      (end[1] - start[1]) * (end[1] - start[1])
-    return dot <= squaredLength
-  }
-
-  function pointInRing(point, ring) {
-    if (!point || !ring?.length) return false
-    let inside = false
-
-    for (
-      let index = 0, previous = ring.length - 1;
-      index < ring.length;
-      previous = index++
-    ) {
-      const currentPoint = ring[index]
-      const previousPoint = ring[previous]
-      if (pointOnSegment(point, previousPoint, currentPoint)) return true
-
-      const intersects =
-        currentPoint[1] > point[1] !== previousPoint[1] > point[1] &&
-        point[0] <
-          ((previousPoint[0] - currentPoint[0]) *
-            (point[1] - currentPoint[1])) /
-            (previousPoint[1] - currentPoint[1]) +
-            currentPoint[0]
-      if (intersects) inside = !inside
-    }
-
-    return inside
-  }
-
-  function segmentDirection(a, b, c) {
-    return (c[0] - a[0]) * (b[1] - a[1]) - (b[0] - a[0]) * (c[1] - a[1])
-  }
-
-  function segmentsIntersect(a, b, c, d) {
-    if (
-      !boundsOverlap(
-        getGeometryBoundsFromCoordinates([a, b]),
-        getGeometryBoundsFromCoordinates([c, d]),
-      )
-    ) {
-      return false
-    }
-
-    const direction1 = segmentDirection(c, d, a)
-    const direction2 = segmentDirection(c, d, b)
-    const direction3 = segmentDirection(a, b, c)
-    const direction4 = segmentDirection(a, b, d)
-
-    if (
-      ((direction1 > 0 && direction2 < 0) ||
-        (direction1 < 0 && direction2 > 0)) &&
-      ((direction3 > 0 && direction4 < 0) || (direction3 < 0 && direction4 > 0))
-    ) {
-      return true
-    }
-
-    return (
-      (Math.abs(direction1) < 1e-12 && pointOnSegment(a, c, d)) ||
-      (Math.abs(direction2) < 1e-12 && pointOnSegment(b, c, d)) ||
-      (Math.abs(direction3) < 1e-12 && pointOnSegment(c, a, b)) ||
-      (Math.abs(direction4) < 1e-12 && pointOnSegment(d, a, b))
-    )
-  }
-
-  function ringEdgesIntersect(ringA, ringB) {
-    if (ringA.length < 2 || ringB.length < 2) return false
-    const sampledA = sampleRing(ringA)
-    const sampledB = sampleRing(ringB)
-
-    for (let indexA = 0; indexA < sampledA.length - 1; indexA += 1) {
-      for (let indexB = 0; indexB < sampledB.length - 1; indexB += 1) {
-        if (
-          segmentsIntersect(
-            sampledA[indexA],
-            sampledA[indexA + 1],
-            sampledB[indexB],
-            sampledB[indexB + 1],
-          )
-        ) {
-          return true
-        }
-      }
-    }
-
-    return false
   }
 
   function getCachedPremerge(key) {
@@ -574,6 +422,16 @@
       setCachedPremerge(getFeatureGeometryKey(feature), selection)
     })
     return selection
+  }
+
+  function dedupeFeatures(features) {
+    const seen = new Set()
+    return (features || []).filter((feature) => {
+      const key = getFeatureGeometryKey(feature)
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }
 
   function collectCoordinates(coordinates, points = []) {
@@ -627,14 +485,6 @@
     return expandScreenBox(box, PREMERGE_BOX_PADDING_PX)
   }
 
-  function getFeaturesScreenBox(features, fallbackPoint = null) {
-    return (features || []).reduce((combined, feature) => {
-      const box = getFeatureScreenBox(feature, fallbackPoint)
-      if (!box) return combined
-      return combined ? combineScreenBoxes(combined, box) : box
-    }, null)
-  }
-
   function expandScreenBox(box, padding) {
     if (!box) return null
     return clampScreenBox({
@@ -656,16 +506,6 @@
     })
   }
 
-  function screenBoxContains(container, child) {
-    if (!container || !child) return false
-    return (
-      container.minX <= child.minX + 1 &&
-      container.minY <= child.minY + 1 &&
-      container.maxX >= child.maxX - 1 &&
-      container.maxY >= child.maxY - 1
-    )
-  }
-
   function clampScreenBox(box) {
     const canvas = map?.getCanvas?.()
     const bounds = canvas?.getBoundingClientRect?.()
@@ -675,107 +515,6 @@
       minY: Math.max(0, Math.min(bounds.height, box.minY)),
       maxX: Math.max(0, Math.min(bounds.width, box.maxX)),
       maxY: Math.max(0, Math.min(bounds.height, box.maxY)),
-    }
-  }
-
-  function buildOverlappingGroup(seed, candidates) {
-    let group = [seed]
-    let remaining = candidates.filter(
-      (feature) =>
-        getFeatureGeometryKey(feature) !== getFeatureGeometryKey(seed),
-    )
-    let changed = true
-
-    while (changed) {
-      changed = false
-      const nextRemaining = []
-
-      remaining.forEach((candidate) => {
-        const overlapsGroup = group.some((groupFeature) =>
-          featuresMeaningfullyOverlap(groupFeature, candidate),
-        )
-        if (overlapsGroup) {
-          group.push(candidate)
-          changed = true
-        } else {
-          nextRemaining.push(candidate)
-        }
-      })
-
-      remaining = nextRemaining
-    }
-
-    return group
-  }
-
-  function unionFeatures(features) {
-    if (!features?.length) return null
-    if (features.length === 1) return features[0]
-
-    try {
-      return turf.union(turf.featureCollection(features))
-    } catch (error) {
-      try {
-        return features.slice(1).reduce((result, feature) => {
-          return turf.union(turf.featureCollection([result, feature])) || result
-        }, features[0])
-      } catch (fallbackError) {
-        console.warn("[FTW PMTiles] Could not premerge clicked field group", {
-          error,
-          fallbackError,
-          count: features.length,
-        })
-        return null
-      }
-    }
-  }
-
-  function buildGroupedGeometry(features) {
-    const polygonCoordinates = []
-    ;(features || []).forEach((feature) => {
-      const geometry = cloneGeometry(feature?.geometry)
-      if (geometry?.type === "Polygon") {
-        polygonCoordinates.push(geometry.coordinates)
-      } else if (geometry?.type === "MultiPolygon") {
-        polygonCoordinates.push(...geometry.coordinates)
-      }
-    })
-
-    if (!polygonCoordinates.length) return null
-    return polygonCoordinates.length === 1
-      ? { type: "Polygon", coordinates: polygonCoordinates[0] }
-      : { type: "MultiPolygon", coordinates: polygonCoordinates }
-  }
-
-  function createImmediateSelection(feature, pointFeatures = [], point = null) {
-    const featureKey = getFeatureGeometryKey(feature)
-    const pendingKey = `pmtiles-resolving-${year}-${hashString(
-      featureKey || JSON.stringify(feature?.geometry || {}),
-    )}`
-    const geometry = cloneGeometry(feature?.geometry)
-
-    return {
-      feature: {
-        type: "Feature",
-        geometry,
-        properties: {
-          ...(feature?.properties || {}),
-          ftw_id: pendingKey,
-          selection_key: pendingKey,
-          resolving_boundary: true,
-          boundary_resolved: false,
-          premerged_from_visible_count: 1,
-          premerged_selection_mode: "pending_worker_union",
-          premerged_area_pending: true,
-        },
-      },
-      features: pointFeatures?.length ? pointFeatures : [feature],
-      pendingKey,
-      candidates: collectResolverCandidateFeatures(
-        feature,
-        pointFeatures,
-        point,
-      ),
     }
   }
 
@@ -903,191 +642,6 @@
     } finally {
       clearSelectionLoading(context.token)
     }
-  }
-
-  function resolveSelectionInWorker(selection) {
-    const worker = getBoundaryResolverWorker()
-    if (!worker || !selection?.feature) return
-
-    const requestId = ++resolverRequestId
-    worker.postMessage({
-      requestId,
-      pendingKey: selection.pendingKey,
-      seedFeature: selection.feature,
-      candidates: selection.candidates,
-      areaFilter: getSelectionAreaFilter(),
-    })
-  }
-
-  function getGroupSelectionKey(features) {
-    const keys = (features || [])
-      .map(getFeatureGeometryKey)
-      .filter(Boolean)
-      .sort()
-    return `pmtiles-premerge-${year}-${hashString(keys.join("|"))}`
-  }
-
-  function dedupeFeatures(features) {
-    const seen = new Set()
-    return (features || []).filter((feature) => {
-      const key = getFeatureGeometryKey(feature)
-      if (!key || seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }
-
-  function featuresMeaningfullyOverlap(featureA, featureB) {
-    if (!featureA?.geometry || !featureB?.geometry) return false
-    if (getFeatureGeometryKey(featureA) === getFeatureGeometryKey(featureB)) {
-      return true
-    }
-
-    try {
-      const bboxA = turf.bbox(featureA)
-      const bboxB = turf.bbox(featureB)
-      if (
-        bboxA[2] < bboxB[0] ||
-        bboxB[2] < bboxA[0] ||
-        bboxA[3] < bboxB[1] ||
-        bboxB[3] < bboxA[1]
-      ) {
-        return false
-      }
-
-      if (
-        turf.booleanOverlap(featureA, featureB) ||
-        turf.booleanContains(featureA, featureB) ||
-        turf.booleanContains(featureB, featureA)
-      ) {
-        return true
-      }
-    } catch (error) {
-      // Fall through to the exact intersection-area check.
-    }
-
-    try {
-      const intersection = turf.intersect(
-        turf.featureCollection([featureA, featureB]),
-      )
-      return intersection ? turf.area(intersection) > 1 : false
-    } catch (error) {
-      return false
-    }
-  }
-
-  function findOverlappingVisibleGroup(
-    seedFeature,
-    pointFeatures = [],
-    point = null,
-  ) {
-    const seedKey = getFeatureGeometryKey(seedFeature)
-    const cached = getCachedPremerge(seedKey)
-    if (cached) return cached
-
-    const seedGeometry = cloneGeometry(seedFeature?.geometry)
-    if (!["Polygon", "MultiPolygon"].includes(seedGeometry?.type)) {
-      return { feature: seedFeature, features: pointFeatures || [] }
-    }
-    const seed = {
-      type: "Feature",
-      geometry: seedGeometry,
-      properties: seedFeature?.properties || {},
-    }
-
-    let searchBox = combineScreenBoxes(
-      getFeatureScreenBox(seed, point),
-      point
-        ? expandScreenBox(
-            {
-              minX: point.x,
-              minY: point.y,
-              maxX: point.x,
-              maxY: point.y,
-            },
-            PREMERGE_QUERY_RADIUS_PX,
-          )
-        : null,
-    )
-    let group = [seed]
-
-    for (let index = 0; index < PREMERGE_MAX_ITERATIONS; index += 1) {
-      const rawCandidates = dedupeFeatures([
-        ...(pointFeatures || []),
-        ...getFieldFeaturesInScreenBox(searchBox),
-        ...(index === 0 ? getNearbyFieldFeatures(point) : []),
-      ])
-
-      if (rawCandidates.length > PREMERGE_FEATURE_LIMIT) {
-        console.info("[FTW PMTiles] Premerge capped dense click area", {
-          rawCount: rawCandidates.length,
-          limit: PREMERGE_FEATURE_LIMIT,
-        })
-      }
-
-      const candidates = rawCandidates
-        .slice(0, PREMERGE_FEATURE_LIMIT)
-        .map((feature) => ({
-          type: "Feature",
-          geometry: cloneGeometry(feature?.geometry),
-          properties: feature?.properties || {},
-        }))
-        .filter((feature) =>
-          ["Polygon", "MultiPolygon"].includes(feature?.geometry?.type),
-        )
-        .filter(Boolean)
-      const nextGroup = buildOverlappingGroup(seed, candidates)
-      const nextBox = getFeaturesScreenBox(nextGroup, point)
-      const expandedNextBox = expandScreenBox(nextBox, PREMERGE_BOX_PADDING_PX)
-      const isStable =
-        nextGroup.length === group.length &&
-        screenBoxContains(searchBox, expandedNextBox)
-
-      group = nextGroup
-      if (isStable || !expandedNextBox) break
-      searchBox = combineScreenBoxes(searchBox, expandedNextBox)
-    }
-
-    if (group.length <= 1) {
-      return setCachedPremergeForGroup(group, {
-        feature: seedFeature,
-        features: [seedFeature],
-      })
-    }
-
-    const groupSelectionKey = getGroupSelectionKey(group)
-    const merged = unionFeatures(group)
-    if (!merged?.geometry) {
-      return setCachedPremergeForGroup(group, {
-        feature: seedFeature,
-        features: group,
-      })
-    }
-
-    const rawAreaHa =
-      Math.round((turf.area(turf.featureCollection(group)) / 10000) * 100) / 100
-    const mergedAreaHa = Math.round((turf.area(merged) / 10000) * 100) / 100
-
-    return setCachedPremergeForGroup(group, {
-      feature: {
-        type: "Feature",
-        geometry: merged.geometry,
-        properties: {
-          ...(seedFeature?.properties || {}),
-          ftw_id: groupSelectionKey,
-          selection_key: groupSelectionKey,
-          premerged_from_visible_count: group.length,
-          premerged_raw_area_ha: rawAreaHa,
-          premerged_area_ha: mergedAreaHa,
-          premerged_overlap_removed_ha: Math.max(0, rawAreaHa - mergedAreaHa),
-          premerged_selection_mode: "overlapping_visible_geometries",
-          premerged_exact_union: true,
-          premerged_deferred_union: false,
-          premerged_area_pending: false,
-        },
-      },
-      features: group,
-    })
   }
 
   function logFtwSelection(features, selectedFeature, lngLat, source) {
@@ -1445,12 +999,12 @@
         )
 
         if (!worker || !seedFeature) {
-          const selection = findOverlappingVisibleGroup(
-            feature,
-            features.length ? features : [feature],
-            point,
+          console.warn("[FTW PMTiles] Boundary resolver worker unavailable")
+          const fallbackFeature = seedFeature || getPlainFeature(feature) || feature
+          handleResolvedSelection(
+            { feature: fallbackFeature, features: [fallbackFeature] },
+            { lngLat, point, source },
           )
-          handleResolvedSelection(selection, { lngLat, point, source })
           clearSelectionLoading(token)
           return
         }

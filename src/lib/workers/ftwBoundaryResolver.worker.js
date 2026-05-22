@@ -1,5 +1,7 @@
 import * as turf from "@turf/turf"
 
+const MIN_GROUP_OVERLAP_AREA_SQUARE_METERS = 25
+
 function cloneGeometry(geometry) {
   if (!geometry?.type || !geometry?.coordinates) return null
   try {
@@ -90,28 +92,22 @@ function featuresOverlap(featureA, featureB) {
     const bboxA = turf.bbox(featureA)
     const bboxB = turf.bbox(featureB)
     if (
-      bboxA[2] < bboxB[0] ||
-      bboxB[2] < bboxA[0] ||
-      bboxA[3] < bboxB[1] ||
-      bboxB[3] < bboxA[1]
+      bboxA[2] <= bboxB[0] ||
+      bboxB[2] <= bboxA[0] ||
+      bboxA[3] <= bboxB[1] ||
+      bboxB[3] <= bboxA[1]
     ) {
       return false
     }
-
-    if (
-      turf.booleanOverlap(featureA, featureB) ||
-      turf.booleanContains(featureA, featureB) ||
-      turf.booleanContains(featureB, featureA)
-    ) {
-      return true
-    }
   } catch (error) {
-    // Try intersection as a final exact check.
+    // Try intersection as the exact check below.
   }
 
   try {
     const intersection = turf.intersect(turf.featureCollection([featureA, featureB]))
-    return intersection ? turf.area(intersection) > 1 : false
+    return intersection
+      ? turf.area(intersection) >= MIN_GROUP_OVERLAP_AREA_SQUARE_METERS
+      : false
   } catch (error) {
     return false
   }
