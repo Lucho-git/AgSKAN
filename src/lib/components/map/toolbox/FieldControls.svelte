@@ -252,6 +252,7 @@
 
   function handleAddField(entry) {
     reassignFieldId = null
+    toast.info("Field selection mode", { duration: 1200 })
     dispatch("addField", {
       farmId: entry.farmId,
       farmName: entry.farmName,
@@ -355,10 +356,18 @@
                 {#if entry.farmId && !isSearching}
                   <button
                     class="icon-btn edit"
+                    title="Rename farm"
                     on:click|stopPropagation={() =>
                       startRename(entry.farmId, entry.farmName)}
                   >
                     <Pencil size={16} />
+                  </button>
+                  <button
+                    class="icon-btn add-field"
+                    title="Add field"
+                    on:click|stopPropagation={() => handleAddField(entry)}
+                  >
+                    <Plus size={16} />
                   </button>
                   {#if entry.fields.length === 0}
                     <button
@@ -439,15 +448,6 @@
               {/each}
             {/if}
 
-            {#if entry.farmId && !isSearching}
-              <button
-                class="add-field-btn"
-                on:click={() => handleAddField(entry)}
-              >
-                <Plus size={16} />
-                <span>Add New Field</span>
-              </button>
-            {/if}
           {/if}
         </div>
       {/each}
@@ -596,8 +596,8 @@
   .farm-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 4px;
+    padding: 10px 4px 10px 14px;
     background: #0f1218;
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -679,33 +679,6 @@
     position: relative;
   }
 
-  .add-field-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: calc(100% - 28px);
-    margin: 6px 14px 10px;
-    min-height: 40px;
-    padding: 8px 12px;
-    border: 1px dashed rgba(34, 197, 94, 0.42);
-    border-radius: 8px;
-    background: rgba(34, 197, 94, 0.08);
-    color: #86efac;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition:
-      background 0.15s,
-      border-color 0.15s,
-      color 0.15s;
-  }
-
-  .add-field-btn:hover {
-    background: rgba(34, 197, 94, 0.15);
-    border-color: rgba(34, 197, 94, 0.7);
-    color: #bbf7d0;
-  }
-
   .field-icon-mini {
     display: flex;
     align-items: center;
@@ -743,6 +716,12 @@
     min-height: 36px;
   }
 
+  .farm-header .icon-btn {
+    min-width: 28px;
+    min-height: 28px;
+    padding: 4px;
+  }
+
   .icon-btn.edit {
     color: rgba(255, 255, 255, 0.5);
   }
@@ -754,6 +733,19 @@
   .icon-btn.edit:hover {
     color: rgba(255, 255, 255, 0.9);
     background: rgba(255, 255, 255, 0.1);
+  }
+
+  .icon-btn.add-field {
+    color: rgba(134, 239, 172, 0.72);
+  }
+
+  .farm-header:hover .icon-btn.add-field {
+    color: rgba(134, 239, 172, 0.92);
+  }
+
+  .icon-btn.add-field:hover {
+    color: #bbf7d0;
+    background: rgba(34, 197, 94, 0.15);
   }
 
   .icon-btn.delete {

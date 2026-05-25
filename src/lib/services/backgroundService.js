@@ -116,6 +116,10 @@ class BackgroundService {
         locationUpdateInterval: 1000,
         fastestLocationUpdateInterval: 1000,
         locationAuthorizationRequest: 'WhenInUse',
+        url: '',
+        autoSync: false,
+        batchSync: false,
+        autoSyncThreshold: 0,
         
         // Tracking is scoped to the mounted map. It may continue while the
         // user backgrounds the app or locks the screen, but stops on app close.
@@ -896,6 +900,8 @@ class BackgroundService {
 
   async cleanup() {
     this.stopJsHeartbeat();
+
+    await this.disableNativeSync();
     
     if (this.isTracking) {
       await this.stopBackgroundTracking();

@@ -7,13 +7,17 @@ const FTW_PMTILES_URL =
   "https://data.source.coop/ftw/global-data/predictions/vectors/alpha/global.pmtiles"
 const FTW_CLIENT_TILE_PATH = /^\/ftw-client-pmtiles\/(\d+)\/(\d+)\/(\d+)\.mvt$/
 const ftwArchives = new Map<string, PMTiles>()
+const isCapacitorLocalOrigin =
+  self.location.protocol === "https:" && self.location.hostname === "localhost"
 
 const precache_list = [...build, ...files, ...prerendered].map((s) => ({
   url: s,
   revision: CACHE_VERSION,
 }))
 
-precacheAndRoute(precache_list)
+if (!isCapacitorLocalOrigin) {
+  precacheAndRoute(precache_list)
+}
 
 function getFtwArchive(archiveUrl: string) {
   let archive = ftwArchives.get(archiveUrl)

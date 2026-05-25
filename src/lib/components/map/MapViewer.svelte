@@ -2224,10 +2224,8 @@
     selectionCount={selectedPmtilesFeatureCount}
     selectionHectares={selectedPmtilesFeatureHectares}
     unifiedSelectionHectares={selectedPmtilesUnionHectares}
-    overlapHectares={selectedPmtilesOverlapHectares}
     selectionAreaPending={selectedPmtilesAreaPending}
     selectionResolving={selectedPmtilesResolving}
-    unifiedPartCount={selectedPmtilesUnionPartCount}
     returnsToReview={selectingAdditionalFieldArea &&
       (!!boundaryEditField || !!addFieldFarm)}
     on:cancel={handleCreateFieldCancel}

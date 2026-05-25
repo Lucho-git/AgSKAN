@@ -53,6 +53,31 @@
 
   // Simple interaction flags
   let isProcessingInteraction = false
+  let eventHandlingInitialized = false
+
+  function isControlInteractionTarget(target) {
+    if (!target?.closest) return false
+    if (target.closest("[data-vehicle-id]")) return false
+
+    return Boolean(
+      target.closest(
+        [
+          "button",
+          "a",
+          "input",
+          "textarea",
+          "select",
+          "[role='button']",
+          "[data-map-control]",
+          ".toolbox-trigger-container",
+          ".menu-expanded",
+          ".tracking-bar",
+          ".mapboxgl-ctrl",
+          ".mapboxgl-popup",
+        ].join(","),
+      ),
+    )
+  }
 
   // Global selection management functions
   function setGlobalSelection(type, id, componentRef) {
@@ -110,6 +135,8 @@
 
   // Single unified interaction handler
   async function handleUnifiedInteraction(clientX, clientY, mapPoint) {
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return
+
     if (isProcessingInteraction) {
       console.log("🚫 Already processing interaction, ignoring...")
       return
@@ -141,6 +168,8 @@
       // 3. Empty space - clear selections
       console.log("🌍 Empty space clicked - clearing selections")
       clearGlobalSelection()
+    } catch (error) {
+      console.error("Unified map interaction failed", error)
     } finally {
       // Reset processing flag after a short delay
       setTimeout(() => {
@@ -229,7 +258,7 @@
 
   // Check for vehicles at point
   function getVehicleAtPoint(clientX, clientY) {
-    const elements = document.elementsFromPoint(clientX, clientY)
+    const elements = document.elementsFromPoint?.(clientX, clientY) || []
 
     for (const element of elements) {
       const vehicleElement = element.closest("[data-vehicle-id]")
@@ -246,11 +275,14 @@
   // Check for map layers at point with proper priority order
   async function checkMapLayersAtPoint(point) {
     try {
+      if (!point || !map?.queryRenderedFeatures) return null
+
       // Check SELECTED marker layer FIRST (priority 200)
       if (map.getLayer("markers-selected-layer")) {
-        const selectedMarkerFeatures = map.queryRenderedFeatures(point, {
-          layers: ["markers-selected-layer"],
-        })
+        const selectedMarkerFeatures =
+          map.queryRenderedFeatures(point, {
+            layers: ["markers-selected-layer"],
+          }) || []
 
         if (selectedMarkerFeatures.length > 0) {
           const markerId = selectedMarkerFeatures[0]?.properties?.id
@@ -268,9 +300,10 @@
 
       // Check regular markers SECOND (priority 150) - MOVED UP
       if (map.getLayer("markers-layer")) {
-        const markerFeatures = map.queryRenderedFeatures(point, {
-          layers: ["markers-layer"],
-        })
+        const markerFeatures =
+          map.queryRenderedFeatures(point, {
+            layers: ["markers-layer"],
+          }) || []
 
         if (markerFeatures.length > 0) {
           const markerId = markerFeatures[0]?.properties?.id
@@ -294,9 +327,10 @@
       ].filter((layerId) => map.getLayer(layerId))
 
       if (drawingLayers.length > 0) {
-        const drawingFeatures = map.queryRenderedFeatures(point, {
-          layers: drawingLayers,
-        })
+        const drawingFeatures =
+          map.queryRenderedFeatures(point, {
+            layers: drawingLayers,
+          }) || []
 
         if (drawingFeatures.length > 0) {
           const markerId = drawingFeatures[0]?.properties?.marker_id
@@ -320,9 +354,10 @@
       )
 
       if (fieldLayers.length > 0) {
-        const fieldFeatures = map.queryRenderedFeatures(point, {
-          layers: fieldLayers,
-        })
+        const fieldFeatures =
+          map.queryRenderedFeatures(point, {
+            layers: fieldLayers,
+          }) || []
 
         if (fieldFeatures.length > 0) {
           const fieldId = fieldFeatures[0]?.properties?.id
@@ -359,8 +394,10 @@
 
   function setupMapEventListeners() {
     if (!map) return
+    if (eventHandlingInitialized) return
 
     console.log("🎮 Setting up unified map event listeners")
+    eventHandlingInitialized = true
 
     // Long press handlers
     map.on("mousedown", handleMouseDown)
@@ -391,6 +428,8 @@
 
   // Single click handler for everything
   function handleMapClick(event) {
+    if (isControlInteractionTarget(event.originalEvent?.target)) return
+
     if (longPressJustCompleted || isDragging) {
       console.log("🚫 Click ignored - long press or drag detected")
       longPressJustCompleted = false
@@ -408,6 +447,11 @@
 
   // Touch handlers
   function handleMapTouchStart(event) {
+    if (isControlInteractionTarget(event.originalEvent?.target)) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     if (
       event.originalEvent.touches &&
       event.originalEvent.touches.length === 1
@@ -436,6 +480,11 @@
   }
 
   function handleMapTouchEnd(event) {
+    if (isControlInteractionTarget(event.originalEvent?.target)) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     if (longPressJustCompleted || isDragging || mapLevelHasMoved) {
       console.log(
         "🚫 Touch end ignored - long press, drag, or movement detected",
@@ -488,6 +537,8 @@
     if ($collectionRouteStore.phase === "drawing") return
 
     const target = event.originalEvent.target
+    if (isControlInteractionTarget(target)) return
+
     if (target.closest(".mapboxgl-marker")) {
       return
     }
@@ -599,8 +650,10 @@
 
   function cleanupEventListeners() {
     if (!map) return
+    if (!eventHandlingInitialized) return
 
     console.log("🧹 Cleaning up unified event listeners")
+    eventHandlingInitialized = false
 
     // Clean up all event listeners
     map.off("mousedown", handleMouseDown)

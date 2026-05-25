@@ -1,0 +1,1 @@
+export const FTW_FIELD_SELECTION_MIN_ZOOM = 9

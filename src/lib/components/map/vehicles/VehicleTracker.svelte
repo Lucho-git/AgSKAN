@@ -1716,11 +1716,11 @@
             }
           }
 
-          const immediateSrc = latestNativePos || lastAcceptedCoords || lastClientCoordinates
+          const immediateSrc = latestNativeTimestamp ? latestNativePos : null
           const immediateCoords = buildCoords(immediateSrc)
           if (immediateCoords) {
-            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz immediate tick using", { usingLatestNative: !!latestNativePos, usingLastAccepted: !!(lastAcceptedCoords && !latestNativePos) })
-            streamMarkerPosition(immediateCoords, true, 'interval', latestNativePos ? latestNativeTimestamp : null)
+            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz immediate tick using latest native fix")
+            streamMarkerPosition(immediateCoords, true, 'interval', latestNativeTimestamp)
           }
 
           full1HzIntervalId = setInterval(() => {
@@ -1728,11 +1728,10 @@
             // skip the interval-based fallback to avoid duplicate/stale updates.
             if (removeForegroundGpsListener) return
             if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz interval tick", { latestNativePosExists: !!latestNativePos })
-            const src = latestNativePos || lastAcceptedCoords || lastClientCoordinates
+            const src = latestNativeTimestamp ? latestNativePos : null
             const coordsToUse = buildCoords(src)
             if (coordsToUse) {
-              if (!latestNativePos && $devModeEnabled) console.log("[GPS-DIAG] interval using FALLBACK coords (stale)")
-              streamMarkerPosition(coordsToUse, true, 'interval', latestNativePos ? latestNativeTimestamp : null)
+              streamMarkerPosition(coordsToUse, true, 'interval', latestNativeTimestamp)
             }
           }, 1000)
           if ($devModeEnabled) console.log("🚀 Full 1Hz UI updates ENABLED")
@@ -2483,10 +2482,17 @@
   function streamMarkerPosition(coords, forceUpdate = false, source = 'unknown', gpsTimestamp = null) {
     const { latitude, longitude, heading, speed, accuracy } = coords
 
-    const currentTime = Date.now()
-    // Use GPS hardware timestamp for trail coordinates when available;
-    // fall back to system clock for sources that don't provide one.
-    const trailTimestamp = gpsTimestamp ? (typeof gpsTimestamp === 'string' ? new Date(gpsTimestamp).getTime() : gpsTimestamp) : currentTime
+    // Use the GPS hardware timestamp when available. This prevents fallback
+    // loops from turning an old coordinate into a fresh vehicle update.
+    const parsedGpsTimestamp = gpsTimestamp
+      ? typeof gpsTimestamp === 'string'
+        ? new Date(gpsTimestamp).getTime()
+        : gpsTimestamp
+      : null
+    const currentTime = Number.isFinite(parsedGpsTimestamp)
+      ? parsedGpsTimestamp
+      : Date.now()
+    const trailTimestamp = currentTime
 
     if ($devModeEnabled) console.log("[1Hz-DIAG] streamMarkerPosition called", { forceUpdate, enableFull1Hz: $userSettingsStore?.enableFull1Hz, now: currentTime, lastUiUpdateTime, source })
 

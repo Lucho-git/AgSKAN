@@ -33,18 +33,47 @@
   let lastSortAt = 0
   let lastPrioritySignature = ""
 
+  function getSafeArray(value) {
+    return Array.isArray(value) ? value : []
+  }
+
+  function getSafeVehicleName(vehicle, fallback = "Unknown") {
+    const rawName = vehicle?.full_name || vehicle?.name || fallback
+    const name = String(rawName || fallback).trim()
+    return name || fallback
+  }
+
+  function normalizeVehicle(vehicle, fallbackName = "Unknown") {
+    if (!vehicle) return null
+    const id = vehicle.id || vehicle.vehicle_id || null
+    return {
+      ...vehicle,
+      id,
+      vehicle_id: vehicle.vehicle_id || id,
+      full_name: getSafeVehicleName(vehicle, fallbackName),
+      vehicle_marker: vehicle.vehicle_marker || { type: "Pointer" },
+      is_trailing: Boolean(vehicle.is_trailing),
+      isCurrentUser: Boolean(vehicle.isCurrentUser),
+    }
+  }
+
   function truncateName(name, maxLength = 15) {
+    const safeName = String(name || "Unknown")
     if (typeof window !== "undefined" && window.innerWidth < 640) {
-      if (name.length > maxLength) {
-        return name.substring(0, maxLength - 3) + "..."
+      if (safeName.length > maxLength) {
+        return safeName.substring(0, maxLength - 3) + "..."
       }
     }
-    return name
+    return safeName
   }
 
   function parseCoordinates(coords) {
     if (!coords) return null
-    if (typeof coords === "object" && coords.latitude && coords.longitude) {
+    if (
+      typeof coords === "object" &&
+      Number.isFinite(Number(coords.latitude)) &&
+      Number.isFinite(Number(coords.longitude))
+    ) {
       return { latitude: coords.latitude, longitude: coords.longitude }
     }
     if (typeof coords === "string") {
@@ -56,7 +85,7 @@
   }
 
   function isVehicleOnline(vehicle) {
-    if (!vehicle.last_update) return false
+    if (!vehicle?.last_update) return false
     let timestampMs
     if (typeof vehicle.last_update === "string") {
       timestampMs = new Date(vehicle.last_update).getTime()
@@ -71,26 +100,32 @@
 
   function getVehicleById(vehicleId) {
     if (vehicleId === $userVehicleStore.vehicle_id) {
-      return {
-        id: $userVehicleStore.vehicle_id,
-        full_name: "You",
-        vehicle_marker: $userVehicleStore.vehicle_marker,
-        coordinates: $userVehicleStore.coordinates,
-        heading: $userVehicleStore.heading,
-        is_trailing: $userVehicleTrailing,
-        last_update: $userVehicleStore.last_update,
-        isCurrentUser: true,
-      }
+      return normalizeVehicle(
+        {
+          id: $userVehicleStore.vehicle_id,
+          full_name: "You",
+          vehicle_marker: $userVehicleStore.vehicle_marker,
+          coordinates: $userVehicleStore.coordinates,
+          heading: $userVehicleStore.heading,
+          is_trailing: $userVehicleTrailing,
+          last_update: $userVehicleStore.last_update,
+          isCurrentUser: true,
+        },
+        "You",
+      )
     }
-    const otherVehicle = $otherVehiclesStore.find(
-      (v) => v.vehicle_id === vehicleId,
+    const otherVehicle = getSafeArray($otherVehiclesStore).find(
+      (vehicle) => vehicle.vehicle_id === vehicleId,
     )
     if (otherVehicle) {
-      return {
-        ...otherVehicle,
-        id: otherVehicle.vehicle_id,
-        isCurrentUser: false,
-      }
+      return normalizeVehicle(
+        {
+          ...otherVehicle,
+          id: otherVehicle.vehicle_id,
+          isCurrentUser: false,
+        },
+        "Unknown Operator",
+      )
     }
     return null
   }
@@ -115,13 +150,13 @@
   }
 
   function getStableVehicleLabel(vehicle) {
-    return `${vehicle.full_name || ""} ${getVehicleDisplayName(vehicle)}`
+    return `${getSafeVehicleName(vehicle)} ${getVehicleDisplayName(vehicle)}`
       .trim()
       .toLowerCase()
   }
 
   function buildVehicleList() {
-    return [
+    const currentVehicle = normalizeVehicle(
       {
         id: $userVehicleStore.vehicle_id,
         full_name: "You",
@@ -133,12 +168,24 @@
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
       },
-      ...$otherVehiclesStore.map((vehicle) => ({
-        ...vehicle,
-        id: vehicle.vehicle_id,
-        isCurrentUser: false,
-      })),
-    ].filter((vehicle) => {
+      "You",
+    )
+
+    const otherVehicles = getSafeArray($otherVehiclesStore)
+      .map((vehicle) =>
+        normalizeVehicle(
+          {
+            ...vehicle,
+            id: vehicle.vehicle_id,
+            isCurrentUser: false,
+          },
+          "Unknown Operator",
+        ),
+      )
+      .filter(Boolean)
+
+    return [currentVehicle, ...otherVehicles].filter((vehicle) => {
+      if (!vehicle?.id) return false
       const parsedCoords = parseCoordinates(vehicle.coordinates)
       return parsedCoords !== null
     })
@@ -254,7 +301,21 @@
   }
 
   function toggleUnifiedMenu() {
-    showUnifiedMenu = !showUnifiedMenu
+    if (showUnifiedMenu) {
+      showUnifiedMenu = false
+      return
+    }
+
+    try {
+      refreshSortedVehicles()
+    } catch (error) {
+      console.error("Failed to prepare vehicle menu", error)
+      sortedVehicles = []
+      sortedVehicleIds = []
+      lastPrioritySignature = ""
+      lastSortAt = 0
+    }
+    showUnifiedMenu = true
   }
 
   // Refresh row data live, but only reorder immediately when priority state changes.
@@ -318,7 +379,7 @@
   }
 
   function getVehicleDisplayName(vehicle) {
-    const vehicleType = vehicle.vehicle_marker?.type || "Vehicle"
+    const vehicleType = vehicle?.vehicle_marker?.type || "Vehicle"
     const shortNames = {
       FourWheelDriveTractor: "FWD Tractor",
       TowBetweenSeeder: "TB Seeder",
@@ -372,7 +433,7 @@
 
   /** Get effective speed — 0 if data is stale (>30s) */
   function getEffectiveSpeed(vehicle) {
-    if (!vehicle.last_update) return 0
+    if (!vehicle?.last_update) return 0
     const ts =
       typeof vehicle.last_update === "string"
         ? new Date(vehicle.last_update).getTime()
@@ -384,7 +445,7 @@
   function getTrackedVehicleName(vehicle) {
     if (!vehicle) return "Unknown"
     if (vehicle.isCurrentUser) return "You"
-    return truncateName(vehicle.full_name || "Unknown", 10)
+    return truncateName(getSafeVehicleName(vehicle), 10)
   }
 
   $: trackedVehicle =
@@ -392,9 +453,13 @@
       ? getVehicleById(trackedVehicleId)
       : null
 
+  $: shouldShowTeamButton = !showUnifiedMenu && (!isTrackingVehicle || !trackedVehicle)
+
   // Count of actively online vehicles (updated in 5-min window)
   $: onlineCount = (() => {
-    const others = $otherVehiclesStore.filter((v) => isVehicleOnline(v)).length
+    const others = getSafeArray($otherVehiclesStore).filter((vehicle) =>
+      isVehicleOnline(vehicle),
+    ).length
     // Include current user if they have coordinates
     const selfOnline = $userVehicleStore.coordinates ? 1 : 0
     return others + selfOnline
@@ -402,7 +467,7 @@
 </script>
 
 <!-- Vehicle Controls Button (Team) — positioned above the compass button -->
-{#if !isTrackingVehicle && !showUnifiedMenu}
+{#if shouldShowTeamButton}
   <button
     class="fixed left-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
     style="bottom: calc(1rem + 160px);"
@@ -422,7 +487,7 @@
 <!-- Expanded Vehicle Menu -->
 {#if showUnifiedMenu}
   <div
-    class="menu-expanded fixed left-4 z-40 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
+    class="menu-expanded fixed left-4 z-50 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
     style="bottom: calc(1rem + 160px); width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->

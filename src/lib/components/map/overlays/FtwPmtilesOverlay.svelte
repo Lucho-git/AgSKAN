@@ -1,7 +1,9 @@
 <!-- src/lib/components/map/overlays/FtwPmtilesOverlay.svelte -->
 <script>
   import { createEventDispatcher, onDestroy } from "svelte"
+  import { toast } from "svelte-sonner"
   import * as turf from "@turf/turf"
+  import { FTW_FIELD_SELECTION_MIN_ZOOM } from "./fieldSelectionConstants.js"
 
   export let map
   export let visible = false
@@ -12,6 +14,8 @@
   const ftwPmtilesUrl =
     "https://data.source.coop/ftw/global-data/predictions/vectors/alpha/global.pmtiles"
   const clientPmtilesTilePath = "/ftw-client-pmtiles"
+  const selectFieldsLoadToastId = "ftw-select-fields-load"
+  const serviceWorkerReadyTimeoutMs = 5000
   const sourceId = "ftw-pmtiles-source"
   const loadingSourceId = "ftw-selection-loading-source"
   const loadingProgressSourceId = "ftw-selection-loading-progress-source"
@@ -27,6 +31,7 @@
 
   let listeningForStyleLoad = false
   let listeningForLayerEvents = false
+  let listeningForMapErrors = false
   // Manual tap tracking — Mapbox's layer-scoped `click` event is unreliable
   // on touch devices (a tap often doesn't trigger it after pinch/drag
   // settles). We mirror the pattern used in MapEventManager: capture a
@@ -47,6 +52,11 @@
   const pendingSelectionResolutions = new Map()
   let clientPmtilesServiceWorkerReady = false
   let clientPmtilesServiceWorkerPromise = null
+  let selectFieldsLoadStarted = false
+  let selectFieldsLoadToastActive = false
+  let selectFieldsReadyNotified = false
+  let lastSelectFieldsErrorKey = ""
+  let activeFtwSourceConfig = null
 
   const emptyFeatureCollection = {
     type: "FeatureCollection",
@@ -70,6 +80,112 @@
         ? ""
         : `?archive=${encodeURIComponent(archiveUrl)}`
     return `${tileBaseUrl}/{z}/{x}/{y}.mvt${archiveQuery}`
+  }
+
+  function getErrorMessage(error) {
+    if (!error) return "Unknown error"
+    if (typeof error === "string") return error
+    if (error.message) return error.message
+    if (error.error?.message) return error.error.message
+
+    try {
+      return JSON.stringify(error)
+    } catch (jsonError) {
+      return String(error)
+    }
+  }
+
+  function getServiceWorkerDiagnostics(sourceConfig = null, details = "") {
+    const hasWindow = typeof window !== "undefined"
+    const hasServiceWorker =
+      typeof navigator !== "undefined" && "serviceWorker" in navigator
+    const controllerActive = Boolean(
+      hasServiceWorker && navigator.serviceWorker.controller,
+    )
+    const tileUrl = sourceConfig?.tileUrlTemplate
+      ? sourceConfig.tileUrlTemplate.replace(
+          hasWindow ? window.location.origin : "",
+          "",
+        )
+      : ""
+
+    return [
+      details,
+      hasWindow ? `origin ${window.location.origin}` : null,
+      `serviceWorker ${hasServiceWorker ? "available" : "unavailable"}`,
+      `controller ${controllerActive ? "yes" : "no"}`,
+      sourceConfig?.mode ? `mode ${sourceConfig.mode}` : null,
+      tileUrl ? `tiles ${tileUrl}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ")
+  }
+
+  function showSelectFieldsLoadingToast(sourceConfig = null) {
+    if (!visible || selectFieldsLoadToastActive || selectFieldsReadyNotified) {
+      return
+    }
+
+    selectFieldsLoadStarted = true
+    selectFieldsLoadToastActive = true
+    toast.loading("Loading selectable fields", {
+      id: selectFieldsLoadToastId,
+      duration: Number.POSITIVE_INFINITY,
+      description: getServiceWorkerDiagnostics(
+        sourceConfig,
+        "Preparing Fields of The World tiles",
+      ),
+    })
+  }
+
+  function dismissSelectFieldsLoadingToast() {
+    if (!selectFieldsLoadToastActive) return
+    toast.dismiss(selectFieldsLoadToastId)
+    selectFieldsLoadToastActive = false
+  }
+
+  function showSelectFieldsReadyToast() {
+    if (!visible) {
+      dismissSelectFieldsLoadingToast()
+      return
+    }
+    if (selectFieldsReadyNotified) return
+
+    selectFieldsLoadToastActive = false
+    selectFieldsReadyNotified = true
+    toast.success("Selectable fields loaded", {
+      id: selectFieldsLoadToastId,
+      description: "Tap a highlighted field to select it.",
+      duration: 2500,
+    })
+  }
+
+  function showSelectFieldsErrorToast(message, sourceConfig = null, details = "") {
+    const description = getServiceWorkerDiagnostics(sourceConfig, details)
+    const errorKey = `${message}|${description}`
+    if (errorKey === lastSelectFieldsErrorKey && !selectFieldsLoadToastActive) {
+      return
+    }
+
+    selectFieldsLoadStarted = true
+    selectFieldsLoadToastActive = false
+    lastSelectFieldsErrorKey = errorKey
+    toast.error(message, {
+      id: selectFieldsLoadToastId,
+      description,
+      duration: 9000,
+    })
+  }
+
+  function waitForServiceWorkerReady(timeoutMs = serviceWorkerReadyTimeoutMs) {
+    return new Promise((resolve) => {
+      const timeout = window.setTimeout(() => resolve(false), timeoutMs)
+
+      navigator.serviceWorker.ready
+        .then(() => resolve(true))
+        .catch(() => resolve(false))
+        .finally(() => window.clearTimeout(timeout))
+    })
   }
 
   function waitForServiceWorkerController(timeoutMs = 3500) {
@@ -100,9 +216,14 @@
     })
   }
 
-  async function prepareClientPmtilesServiceWorker() {
+  async function prepareClientPmtilesServiceWorker(sourceConfig = null) {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
       console.warn("[FTW PMTiles] Service workers are unavailable")
+      showSelectFieldsErrorToast(
+        "Select fields cannot load",
+        sourceConfig,
+        "Service workers are unavailable in this WebView",
+      )
       return false
     }
 
@@ -110,20 +231,47 @@
 
     try {
       await navigator.serviceWorker.register("/service-worker.js")
-      await navigator.serviceWorker.ready
-      return await waitForServiceWorkerController()
+      const serviceWorkerReady = await waitForServiceWorkerReady()
+      if (!serviceWorkerReady) {
+        showSelectFieldsErrorToast(
+          "Select fields tile service is not ready",
+          sourceConfig,
+          `navigator.serviceWorker.ready timed out after ${serviceWorkerReadyTimeoutMs}ms`,
+        )
+        return false
+      }
+
+      const controlled = await waitForServiceWorkerController()
+      if (!controlled) {
+        showSelectFieldsErrorToast(
+          "Select fields are waiting for the tile service",
+          sourceConfig,
+          "Service worker registered but is not controlling this page yet",
+        )
+      }
+      return controlled
     } catch (error) {
       console.warn(
         "[FTW PMTiles] Could not prepare client PMTiles service worker",
         error,
       )
+      showSelectFieldsErrorToast(
+        "Select fields tile service failed",
+        sourceConfig,
+        getErrorMessage(error),
+      )
       return false
     }
   }
 
-  function ensureClientPmtilesServiceWorkerReady() {
+  function ensureClientPmtilesServiceWorkerReady(sourceConfig = null) {
     if (clientPmtilesServiceWorkerReady) return true
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      showSelectFieldsErrorToast(
+        "Select fields cannot load",
+        sourceConfig,
+        "Service workers are unavailable in this WebView",
+      )
       return false
     }
     if (navigator.serviceWorker.controller) {
@@ -132,7 +280,9 @@
     }
 
     if (!clientPmtilesServiceWorkerPromise) {
-      clientPmtilesServiceWorkerPromise = prepareClientPmtilesServiceWorker()
+      clientPmtilesServiceWorkerPromise = prepareClientPmtilesServiceWorker(
+        sourceConfig,
+      )
         .then((ready) => {
           clientPmtilesServiceWorkerReady = ready
           if (ready && visible) renderOverlay()
@@ -752,7 +902,15 @@
       paint: {
         "line-color": "#92400e",
         "line-opacity": 0.26,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 3, 14, 4.5],
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          FTW_FIELD_SELECTION_MIN_ZOOM,
+          3,
+          14,
+          4.5,
+        ],
       },
     })
 
@@ -768,7 +926,15 @@
       paint: {
         "line-color": "#ffffff",
         "line-opacity": 0.98,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 3.2, 14, 5],
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          FTW_FIELD_SELECTION_MIN_ZOOM,
+          3.2,
+          14,
+          5,
+        ],
       },
     })
 
@@ -779,7 +945,15 @@
       paint: {
         "circle-color": "#f59e0b",
         "circle-opacity": 0.24,
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 11, 14, 18],
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          FTW_FIELD_SELECTION_MIN_ZOOM,
+          11,
+          14,
+          18,
+        ],
         "circle-stroke-color": "#fef3c7",
         "circle-stroke-width": 2,
         "circle-stroke-opacity": 0.95,
@@ -793,7 +967,15 @@
       paint: {
         "circle-color": "#ffffff",
         "circle-opacity": 0.95,
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.5, 14, 5],
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          FTW_FIELD_SELECTION_MIN_ZOOM,
+          3.5,
+          14,
+          5,
+        ],
         "circle-stroke-color": "#f59e0b",
         "circle-stroke-width": 2,
       },
@@ -1137,15 +1319,55 @@
     listeningForLayerEvents = false
   }
 
+  function handleMapError(event) {
+    if (!visible) return
+
+    const message = getErrorMessage(event?.error || event)
+    const errorSourceId = event?.sourceId || event?.source?.id || ""
+    const tileUrl =
+      event?.tile?.request?.url || event?.tile?.url || event?.resource?.url || ""
+    const isFtwError =
+      errorSourceId === sourceId ||
+      String(tileUrl).includes(clientPmtilesTilePath) ||
+      message.includes(clientPmtilesTilePath) ||
+      message.includes(sourceId)
+
+    if (!isFtwError) return
+
+    console.warn("[FTW PMTiles] Map source error", event)
+    showSelectFieldsErrorToast(
+      "Select fields tile request failed",
+      activeFtwSourceConfig,
+      message,
+    )
+  }
+
+  function attachMapErrorListener() {
+    if (listeningForMapErrors || !map?.on) return
+    map.on("error", handleMapError)
+    listeningForMapErrors = true
+  }
+
+  function detachMapErrorListener() {
+    if (!listeningForMapErrors || !map?.off) return
+    map.off("error", handleMapError)
+    listeningForMapErrors = false
+  }
+
   function initializeLayers() {
     if (!map || !styleReady()) return false
+    let sourceConfig = activeFtwSourceConfig
 
     try {
+      attachMapErrorListener()
+
       if (!map.getSource(sourceId)) {
-        const sourceConfig = getFtwSourceConfig()
+        sourceConfig = getFtwSourceConfig()
+        activeFtwSourceConfig = sourceConfig
+        showSelectFieldsLoadingToast(sourceConfig)
         if (
           sourceConfig.mode === "client-pmtiles" &&
-          !ensureClientPmtilesServiceWorkerReady()
+          !ensureClientPmtilesServiceWorkerReady(sourceConfig)
         ) {
           return false
         }
@@ -1170,7 +1392,7 @@
         type: "fill",
         source: sourceId,
         "source-layer": sourceLayer,
-        minzoom: 9,
+        minzoom: FTW_FIELD_SELECTION_MIN_ZOOM,
         paint: {
           "fill-color": "#f59e0b",
           "fill-opacity": 0.16,
@@ -1182,7 +1404,7 @@
         type: "line",
         source: sourceId,
         "source-layer": sourceLayer,
-        minzoom: 9,
+        minzoom: FTW_FIELD_SELECTION_MIN_ZOOM,
         layout: {
           "line-cap": "round",
           "line-join": "round",
@@ -1190,7 +1412,15 @@
         paint: {
           "line-color": "#111827",
           "line-opacity": 0.55,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.6, 14, 2.4],
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            FTW_FIELD_SELECTION_MIN_ZOOM,
+            0.6,
+            14,
+            2.4,
+          ],
         },
       })
 
@@ -1199,7 +1429,7 @@
         type: "line",
         source: sourceId,
         "source-layer": sourceLayer,
-        minzoom: 9,
+        minzoom: FTW_FIELD_SELECTION_MIN_ZOOM,
         layout: {
           "line-cap": "round",
           "line-join": "round",
@@ -1207,16 +1437,30 @@
         paint: {
           "line-color": "#fbbf24",
           "line-opacity": 0.9,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.35, 14, 1.5],
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            FTW_FIELD_SELECTION_MIN_ZOOM,
+            0.35,
+            14,
+            1.5,
+          ],
         },
       })
 
       ensureSelectionLoadingLayers()
 
       attachInteractionListeners()
+      if (selectFieldsLoadStarted) showSelectFieldsReadyToast()
       return true
     } catch (error) {
       console.error("Error initializing FTW PMTiles overlay:", error)
+      showSelectFieldsErrorToast(
+        "Select fields failed to load",
+        sourceConfig,
+        getErrorMessage(error),
+      )
       return false
     }
   }
@@ -1227,9 +1471,12 @@
 
     try {
       detachInteractionListeners()
+      detachMapErrorListener()
     } catch (error) {
       console.warn("Error detaching FTW PMTiles listeners:", error)
     }
+
+    dismissSelectFieldsLoadingToast()
 
     clearSelectionLoading(selectionLoadingToken, currentMap)
 
@@ -1252,6 +1499,7 @@
         currentMap.removeSource(loadingSourceId)
       }
       if (currentMap.getSource(sourceId)) currentMap.removeSource(sourceId)
+      activeFtwSourceConfig = null
     } catch (error) {
       console.warn("Error removing FTW PMTiles overlay source:", error)
     }
@@ -1296,6 +1544,7 @@
     boundaryResolverWorker = null
     detachStyleListener()
     detachInteractionListeners()
+    detachMapErrorListener()
     cleanupLayers()
   })
 </script>

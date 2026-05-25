@@ -3,6 +3,7 @@
   // @ts-nocheck
   import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import * as turf from "@turf/turf"
+  import { FTW_FIELD_SELECTION_MIN_ZOOM } from "./fieldSelectionConstants.js"
   import {
     ArrowRight,
     Pencil,
@@ -20,14 +21,10 @@
   export let selectionHectares = 0
   /** Hectares after the selected geometries are merged into the saved boundary. */
   export let unifiedSelectionHectares = 0
-  /** Hectares hidden by overlap between selected geometries. */
-  export let overlapHectares = 0
   /** True when area/dissolve is deferred for a complex grouped selection. */
   export let selectionAreaPending = false
   /** True while a clicked FTW boundary is being resolved in the background. */
   export let selectionResolving = false
-  /** Number of polygon parts in the live merged preview. */
-  export let unifiedPartCount = 0
   /** When true, this overlay was opened from the review panel (Add Area). */
   export let returnsToReview = false
   /** Initial tab to open on. Allows the parent to remember the last tab. */
@@ -47,17 +44,17 @@
 
   let tab = initialTab === "draw" ? "draw" : "select"
   let points = []
+  let currentMapZoom = 0
 
   $: hasEnoughPoints = points.length >= 3
   $: canConfirmSelect =
     tab === "select" && selectionCount > 0 && !selectionResolving
   $: canConfirmDraw = tab === "draw" && hasEnoughPoints
+  $: selectionZoomReady = currentMapZoom >= FTW_FIELD_SELECTION_MIN_ZOOM
   $: formattedTotalHa = formatArea(selectionHectares)
   $: formattedUnifiedHa = formatArea(
     unifiedSelectionHectares || selectionHectares,
   )
-  $: formattedOverlapHa = formatArea(overlapHectares)
-  $: hasSelectionOverlap = selectionCount > 1 && overlapHectares > 0.01
   // Reactive area: recomputes synchronously as soon as `points` or `tab` change.
   $: currentArea =
     tab === "draw" && points.length >= 3
@@ -351,6 +348,11 @@
     if (tab === "draw" && points.length > 0) renderDraft()
   }
 
+  function updateCurrentMapZoom() {
+    const zoom = Number(map?.getZoom?.())
+    currentMapZoom = Number.isFinite(zoom) ? zoom : 0
+  }
+
   function setTab(nextTab) {
     if (nextTab === tab) return
     const previousTab = tab
@@ -410,8 +412,10 @@
       returnsToReview,
     })
     if (map.isStyleLoaded?.()) renderDraft()
+    updateCurrentMapZoom()
     map.on("styledata", handleStyleData)
     map.on("move", handleMapMove)
+    map.on("zoom", updateCurrentMapZoom)
     // Announce the initial tab so the parent can configure tile visibility.
     dispatch("tabChange", { tab, previous: null })
   })
@@ -420,6 +424,7 @@
     if (map?.off) {
       map.off("styledata", handleStyleData)
       map.off("move", handleMapMove)
+      map.off("zoom", updateCurrentMapZoom)
     }
     cleanupLayers()
   })
@@ -499,24 +504,24 @@
   {#if tab === "select"}
     <div class="action-bar-copy">
       <strong>
-        Continue with {selectionCount} selected field{selectionCount === 1
-          ? ""
-          : "s"}
+        {#if selectionCount > 0}
+          Continue with {selectionCount} field{selectionCount === 1 ? "" : "s"}
+        {:else if !selectionZoomReady}
+          Zoom in to select fields
+        {:else}
+          Select fields
+        {/if}
       </strong>
       {#if selectionCount > 0 && selectionResolving}
         <span>Resolving boundary...</span>
       {:else if selectionCount > 0 && selectionAreaPending}
-        <span>Area calculated on continue</span>
+        <span>{formattedUnifiedHa}</span>
       {:else if selectionCount > 0}
-        <span>
-          Unified area: {formattedUnifiedHa}{hasSelectionOverlap
-            ? ` (${formattedOverlapHa} overlap removed)`
-            : unifiedPartCount > 1
-              ? ` (${unifiedPartCount} parts)`
-              : ""}
-        </span>
+        <span>{formattedUnifiedHa}</span>
+      {:else if !selectionZoomReady}
+        <span>Required zoom {FTW_FIELD_SELECTION_MIN_ZOOM}+</span>
       {:else}
-        <span>Total area: {formattedTotalHa}</span>
+        <span>{formattedTotalHa}</span>
       {/if}
     </div>
     {#if selectionCount > 0}
@@ -538,6 +543,8 @@
         ? "Continue"
         : selectionResolving
           ? "Boundary is still resolving"
+          : !selectionZoomReady
+            ? `Zoom in to ${FTW_FIELD_SELECTION_MIN_ZOOM}+ to select fields`
           : "Tap a field on the map to select it"}
     >
       <ArrowRight size={20} />
@@ -763,8 +770,8 @@
     width: min(92vw, 26rem);
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem 0.75rem 1.1rem;
+    gap: 0.55rem;
+    padding: 0.65rem 0.8rem 0.65rem 0.95rem;
     background: rgba(15, 23, 42, 0.92);
     color: #f8fafc;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -800,8 +807,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2.55rem;
+    height: 2.55rem;
     border-radius: 9999px;
     background: #0ea5e9;
     color: #0f172a;
@@ -817,9 +824,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.4rem;
-    height: 2.4rem;
-    flex: 0 0 2.4rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: 0 0 2.25rem;
     border-radius: 9999px;
     background: rgba(248, 250, 252, 0.08);
     color: rgba(248, 250, 252, 0.86);

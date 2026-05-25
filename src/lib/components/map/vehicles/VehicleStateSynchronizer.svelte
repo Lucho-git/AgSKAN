@@ -28,6 +28,19 @@
   const POLL_INTERVAL_MS = 60000 // 60 seconds – safety-net only (prefer postgres_changes)
   let pollInterval = null
 
+  function parseUpdateTime(value) {
+    if (!value) return 0
+    const timestamp = typeof value === "string" ? new Date(value).getTime() : value
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+
+  function isOlderVehicleUpdate(incoming, existing) {
+    if (!incoming || !existing) return false
+    const incomingTime = parseUpdateTime(incoming.last_update)
+    const existingTime = parseUpdateTime(existing.last_update)
+    return incomingTime > 0 && existingTime > 0 && incomingTime < existingTime
+  }
+
   async function fetchUserVehicleData(userId) {
     const { data, error } = await supabase
       .from("vehicle_state")
@@ -459,6 +472,17 @@
             if (existingVehicleIndex !== -1) {
               const existingVehicle = vehicles[existingVehicleIndex]
 
+              if (isOlderVehicleUpdate(payload.payload, existingVehicle)) {
+                console.warn(
+                  `⏳ Ignoring older broadcast vehicle_update from ${payload.payload.vehicle_id?.slice(0, 8)}`,
+                  {
+                    incoming: payload.payload.last_update,
+                    existing: existingVehicle.last_update,
+                  },
+                )
+                return vehicles
+              }
+
               // Only update flash state if it's included in the payload
               const updatedVehicle = {
                 ...existingVehicle,
@@ -539,6 +563,17 @@
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
+                if (isOlderVehicleUpdate(payload.new, vehicles[existingVehicleIndex])) {
+                  console.warn(
+                    `⏳ Ignoring older CDC vehicle_state from ${payload.new.vehicle_id?.slice(0, 8)}`,
+                    {
+                      incoming: payload.new.last_update,
+                      existing: vehicles[existingVehicleIndex].last_update,
+                    },
+                  )
+                  return vehicles
+                }
+
                 vehicles[existingVehicleIndex] = {
                   ...vehicles[existingVehicleIndex],
                   ...payload.new,
