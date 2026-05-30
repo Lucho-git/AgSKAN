@@ -20,6 +20,13 @@ const defaultState = {
 function createLayerVisibilityStore() {
   const { subscribe, set, update } = writable(defaultState)
 
+  const normalizeState = (state = {}) => ({
+    ...defaultState,
+    ...Object.fromEntries(
+      Object.keys(defaultState).map((key) => [key, state[key] ?? defaultState[key]]),
+    ),
+  })
+
   return {
     subscribe,
     toggle: (layerName) => {
@@ -46,6 +53,7 @@ function createLayerVisibilityStore() {
         return acc
       }, {}))
     },
+    applySavedState: (state) => set(normalizeState(state)),
     reset: () => set(defaultState)
   }
 }

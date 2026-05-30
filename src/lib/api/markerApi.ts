@@ -1,6 +1,8 @@
 // src/lib/api/markerApi.ts
 import { supabase } from '$lib/supabaseClient';
 
+type MarkerVisibility = 'always' | 'selected' | 'hidden';
+
 export const markerApi = {
     // Update the notes for a marker
     async updateMarkerNotes(markerId: string, notes: string) {
@@ -39,6 +41,63 @@ export const markerApi = {
             return {
                 success: false,
                 message: error.message
+            };
+        }
+    },
+
+    async updateMarkerNoteVisibility(markerId: string, visible: boolean) {
+        try {
+            const { data: session } = await supabase.auth.getSession();
+            if (!session?.session?.user) {
+                throw new Error("Not authenticated");
+            }
+
+            const { data: marker, error: loadError } = await supabase
+                .from("map_markers")
+                .select("marker_data")
+                .eq("id", markerId)
+                .single();
+
+            if (loadError) {
+                throw new Error(`Failed to load marker settings: ${loadError.message}`);
+            }
+
+            const existingData = marker?.marker_data || {};
+            const existingProperties = existingData.properties || {};
+
+            const { data, error } = await supabase
+                .from("map_markers")
+                .update({
+                    marker_data: {
+                        ...existingData,
+                        properties: {
+                            ...existingProperties,
+                            note_label_visible: visible,
+                        },
+                    },
+                    updated_at: new Date().toISOString(),
+                    update_user_id: session.session.user.id,
+                })
+                .eq("id", markerId)
+                .select("*")
+                .single();
+
+            if (error) {
+                throw new Error(`Failed to update note label visibility: ${error.message}`);
+            }
+
+            return {
+                success: true,
+                message: "Note label visibility updated successfully",
+                marker: data,
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to update note label visibility";
+            console.error("Error updating note label visibility:", error);
+            return {
+                success: false,
+                error: message,
+                message,
             };
         }
     },
@@ -85,6 +144,73 @@ export const markerApi = {
             return {
                 success: false,
                 message: error.message
+            };
+        }
+    },
+
+    async updateMarkerVisibilitySettings(visibilitySettings: Record<string, MarkerVisibility>) {
+        try {
+            const { data: session } = await supabase.auth.getSession();
+            if (!session?.session?.user) {
+                throw new Error("Not authenticated");
+            }
+
+            const markerIds = Object.keys(visibilitySettings || {});
+            if (markerIds.length === 0) {
+                return {
+                    success: true,
+                    message: "No marker visibility settings to save"
+                };
+            }
+
+            const { data: markers, error: loadError } = await supabase
+                .from("map_markers")
+                .select("id, marker_data")
+                .in("id", markerIds);
+
+            if (loadError) {
+                throw new Error(`Failed to load marker visibility settings: ${loadError.message}`);
+            }
+
+            const updates = (markers || []).map((marker) => {
+                const existingData = marker.marker_data || {};
+                const existingProperties = existingData.properties || {};
+                const visibility = visibilitySettings[marker.id] || "always";
+
+                return supabase
+                    .from("map_markers")
+                    .update({
+                        marker_data: {
+                            ...existingData,
+                            properties: {
+                                ...existingProperties,
+                                drawings_visibility: visibility,
+                            },
+                        },
+                        updated_at: new Date().toISOString(),
+                        update_user_id: session.session.user.id,
+                    })
+                    .eq("id", marker.id);
+            });
+
+            const results = await Promise.all(updates);
+            const failedUpdate = results.find((result) => result.error);
+
+            if (failedUpdate?.error) {
+                throw new Error(`Failed to save marker visibility settings: ${failedUpdate.error.message}`);
+            }
+
+            return {
+                success: true,
+                message: "Marker visibility settings saved successfully"
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to save marker visibility settings";
+            console.error("Error updating marker visibility settings:", error);
+            return {
+                success: false,
+                error: message,
+                message
             };
         }
     },

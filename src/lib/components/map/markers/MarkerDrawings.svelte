@@ -191,6 +191,7 @@
   function getVisibleDrawings(allDrawings: MarkerDrawing[]) {
     return allDrawings.filter((drawing) => {
       const visibility = $markerVisibilityStore[drawing.marker_id] || "always"
+      if (visibility === "hidden") return false
       if (visibility === "always") return true
       return drawing.marker_id === currentMarkerId
     })

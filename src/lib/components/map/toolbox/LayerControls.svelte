@@ -14,8 +14,25 @@
     MessageSquare,
     Ruler,
     Home,
+    Save,
+    SlidersHorizontal,
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
+  import { confirmedMarkersStore } from "$lib/stores/markerStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { markerApi } from "$lib/api/markerApi"
+  import { toast } from "svelte-sonner"
+  import MarkerVisibilityModal from "./MarkerVisibilityModal.svelte"
+
+  let showMarkerVisibilityModal = false
+  let hasUnsavedVisibilityChanges = false
+  let isSavingVisibilitySettings = false
+  let changedMarkerVisibilityIds = new Set()
+
+  $: hiddenMarkerCount = ($confirmedMarkersStore || []).filter(
+    (marker) => $markerVisibilityStore[marker.id] === "hidden",
+  ).length
 
   // Layer definitions with metadata
   const layers = [
@@ -102,14 +119,67 @@
 
   function toggleLayer(layerId) {
     layerVisibilityStore.toggle(layerId)
+    hasUnsavedVisibilityChanges = true
   }
 
   function handleShowAll() {
     layerVisibilityStore.showAll()
+    hasUnsavedVisibilityChanges = true
   }
 
   function handleHideAll() {
     layerVisibilityStore.hideAll()
+    hasUnsavedVisibilityChanges = true
+  }
+
+  function handleMarkerVisibilityChange(event) {
+    const markerIds = event?.detail?.markerIds || []
+    if (markerIds.length > 0) {
+      changedMarkerVisibilityIds = new Set([
+        ...changedMarkerVisibilityIds,
+        ...markerIds,
+      ])
+    }
+    hasUnsavedVisibilityChanges = true
+  }
+
+  async function handleSaveVisibilitySettings() {
+    if (!hasUnsavedVisibilityChanges || isSavingVisibilitySettings) return
+
+    isSavingVisibilitySettings = true
+
+    try {
+      const layerResult = await userSettingsApi.updateLayerVisibilitySettings({
+        ...$layerVisibilityStore,
+      })
+
+      if (!layerResult.success) {
+        throw new Error(layerResult.error || "Could not save layer visibility settings")
+      }
+
+      const changedMarkerVisibility = Array.from(changedMarkerVisibilityIds).reduce(
+        (settings, markerId) => {
+          settings[markerId] = $markerVisibilityStore[markerId] || "always"
+          return settings
+        },
+        {},
+      )
+
+      const markerResult = await markerApi.updateMarkerVisibilitySettings(changedMarkerVisibility)
+
+      if (!markerResult.success) {
+        throw new Error(markerResult.error || "Could not save marker visibility settings")
+      }
+
+      hasUnsavedVisibilityChanges = false
+      changedMarkerVisibilityIds = new Set()
+      toast.success("Layer visibility settings saved")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save layer visibility settings"
+      toast.error(message)
+    } finally {
+      isSavingVisibilitySettings = false
+    }
   }
 </script>
 
@@ -154,19 +224,54 @@
           </div>
         </button>
       </div>
+
+      {#if layer.id === "markers"}
+        <div class="marker-settings-row">
+          <button class="marker-settings-btn" on:click={() => (showMarkerVisibilityModal = true)}>
+            <span class="marker-settings-left">
+              <SlidersHorizontal size={16} />
+              <span>Marker Types</span>
+            </span>
+            <span class="marker-settings-count">
+              {hiddenMarkerCount > 0 ? `${hiddenMarkerCount} hidden` : "All visible"}
+            </span>
+          </button>
+        </div>
+      {/if}
     {/each}
   </div>
 
-  <!-- Info Section -->
-  <div class="info-section">
-    <div class="info-icon">
-      <Layers size={16} />
+  <div class="sticky-layer-footer">
+    <div class="save-section">
+      <button
+        class="save-settings-btn"
+        class:dirty={hasUnsavedVisibilityChanges}
+        disabled={!hasUnsavedVisibilityChanges || isSavingVisibilitySettings}
+        on:click={handleSaveVisibilitySettings}
+      >
+        <Save size={16} />
+        <span>{isSavingVisibilitySettings ? "Saving..." : "Save Settings"}</span>
+      </button>
     </div>
-    <div class="info-text">
-      Toggle layers on/off to customize your map view.
+
+    <!-- Info Section -->
+    <div class="info-section">
+      <div class="info-icon">
+        <Layers size={16} />
+      </div>
+      <div class="info-text">
+        Toggle layers on/off to customize your map view.
+      </div>
     </div>
   </div>
 </div>
+
+{#if showMarkerVisibilityModal}
+  <MarkerVisibilityModal
+    on:close={() => (showMarkerVisibilityModal = false)}
+    on:change={handleMarkerVisibilityChange}
+  />
+{/if}
 
 <style>
   .layer-controls {
@@ -176,7 +281,8 @@
     gap: 16px;
     box-sizing: border-box;
     width: 100%;
-    overflow: hidden;
+    min-height: 100%;
+    overflow: visible;
   }
 
   /* Quick Actions */
@@ -222,6 +328,50 @@
 
   .layer-row.indent {
     padding-left: 20px;
+  }
+
+  .marker-settings-row {
+    padding-left: 20px;
+    width: 100%;
+  }
+
+  .marker-settings-btn {
+    width: 100%;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.18);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.82);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+  }
+
+  .marker-settings-btn:hover {
+    background: rgba(96, 165, 250, 0.14);
+    border-color: rgba(96, 165, 250, 0.32);
+    color: white;
+  }
+
+  .marker-settings-left {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .marker-settings-count {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.58);
   }
 
   .layer-item {
@@ -335,6 +485,20 @@
     border-radius: 8px;
   }
 
+  .sticky-layer-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 12px 12px;
+    margin: 0 -12px -12px;
+    margin-top: auto;
+    background: #0a0a0a;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
   .info-icon {
     color: #60a5fa;
     flex-shrink: 0;
@@ -346,4 +510,44 @@
     color: rgba(255, 255, 255, 0.7);
     line-height: 1.4;
   }
+
+  .save-section {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .save-settings-btn {
+    width: 100%;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: not-allowed;
+    transition: all 0.2s ease;
+  }
+
+  .save-settings-btn.dirty {
+    background: rgba(34, 197, 94, 0.18);
+    border-color: rgba(34, 197, 94, 0.38);
+    color: #dcfce7;
+    cursor: pointer;
+  }
+
+  .save-settings-btn.dirty:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.26);
+    border-color: rgba(34, 197, 94, 0.52);
+  }
+
+  .save-settings-btn:disabled {
+    opacity: 0.7;
+  }
+
 </style>

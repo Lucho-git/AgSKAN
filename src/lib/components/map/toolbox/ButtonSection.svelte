@@ -40,6 +40,7 @@
   } from "lucide-svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { getAllMarkers } from "$lib/data/markerDefinitions"
+  import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   export let pendingCoordinates = []
   export let pendingClosures = []
 
@@ -106,7 +107,9 @@
 
   // Make defaultMarker reactive to userSettingsStore changes
   $: defaultMarker = (() => {
-    const storeMarker = $userSettingsStore?.defaultMarker
+    const storeMarker = resolveDefaultMarkerPreference(
+      $userSettingsStore?.defaultMarker,
+    )
     if (storeMarker) {
       // First try to find in ALL markers (includes deprecated)
       const allMarkers = getAllMarkers()

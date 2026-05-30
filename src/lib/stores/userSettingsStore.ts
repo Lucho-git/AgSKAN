@@ -24,6 +24,7 @@ const defaultSettings = {
     gpsIntervalSeconds: 2, // GPS ping interval in seconds (1-10)
     showGpsAcceptedPopups: false, // Show "GPS Accepted" popups
     showGpsRejectedPopups: false, // Show "GPS Rejected" popups
+    layerVisibility: {} as Record<string, boolean>,
 };
 
 export const userSettingsStore = writable(defaultSettings);

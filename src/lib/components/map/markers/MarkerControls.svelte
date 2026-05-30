@@ -9,12 +9,24 @@
   import { markerPlacementModeEnabled } from "$lib/stores/controlStore"
   import { confirmedMarkersStore } from "$lib/stores/markerStore"
   import { getActiveMarkers, getAllMarkers } from "$lib/data/markerDefinitions"
+  import {
+    DEFAULT_MARKER_PREFERENCE,
+    rememberDefaultMarkerPreference,
+    resolveDefaultMarkerPreference,
+    type MarkerPreference,
+  } from "$lib/utils/defaultMarkerPreference"
   import MyMarkers from "$lib/components/map/toolbox/MyMarkers.svelte"
 
   const dispatch = createEventDispatcher()
 
+  type MarkerDefinition = MarkerPreference & {
+    active?: boolean
+    deprecated?: boolean
+  }
+  type SubPanel = "markers" | "extra-markers" | "my-markers" | null
+
   // Active sub-panel state
-  let activeSubPanel = null // null, 'markers', 'extra-markers', 'my-markers'
+  let activeSubPanel: SubPanel = null
   let editingExtraIndex = -1 // -1 = adding new, 0+ = editing existing
 
   // Marker count
@@ -24,33 +36,39 @@
   $: markerPlacementMode = $markerPlacementModeEnabled
 
   // Use unified marker definitions - ONLY ACTIVE markers for selection
-  const allMarkerIcons = getActiveMarkers()
+  const allMarkerIcons = getActiveMarkers() as MarkerDefinition[]
+  const fallbackMarker =
+    allMarkerIcons.find((icon) => icon.id === "default") ||
+    allMarkerIcons[0] ||
+    DEFAULT_MARKER_PREFERENCE
 
   // Lazy loading state
-  let visibleMarkers = allMarkerIcons.slice(0, 20)
+  let visibleMarkers: MarkerDefinition[] = allMarkerIcons.slice(0, 20)
   let loadingMore = false
-  let scrollContainer
+  let scrollContainer: HTMLDivElement
+
+  let selectedMarker: MarkerDefinition = fallbackMarker
+  let resolvedExtraMarkers: MarkerDefinition[] = []
 
   // Default marker selection - get from userSettingsStore or fallback to default
   // Need to check against ALL markers (including deprecated) for backward compatibility
-  $: selectedMarker = $userSettingsStore?.defaultMarker
-    ? (() => {
-        const storeMarker = $userSettingsStore.defaultMarker
-        // First try to find in ALL markers (includes deprecated)
-        const allMarkers = getAllMarkers()
-        return (
-          allMarkers.find(
-            (icon) =>
-              icon.id === storeMarker.id && icon.class === storeMarker.class,
-          ) || allMarkerIcons.find((icon) => icon.id === "default")
-        )
-      })()
-    : allMarkerIcons.find((icon) => icon.id === "default") || allMarkerIcons[0]
+  $: selectedMarker = (() => {
+    const preferredMarker = resolveDefaultMarkerPreference(
+      $userSettingsStore?.defaultMarker,
+    )
+    const allMarkers = getAllMarkers() as MarkerDefinition[]
+    return (
+      allMarkers.find(
+        (icon) =>
+          icon.id === preferredMarker.id && icon.class === preferredMarker.class,
+      ) || fallbackMarker
+    )
+  })()
 
   // Extra markers - resolved from store to full marker objects
   $: resolvedExtraMarkers = ($userSettingsStore?.extraMarkers || []).map(
     (storeMarker) => {
-      const allMarkers = getAllMarkers()
+      const allMarkers = getAllMarkers() as MarkerDefinition[]
       return (
         allMarkers.find(
           (icon) =>
@@ -60,7 +78,7 @@
     },
   )
 
-  function showSubPanel(panel) {
+  function showSubPanel(panel: Exclude<SubPanel, null>) {
     activeSubPanel = panel
     // Reset visible markers when opening
     if (panel === "markers" || panel === "extra-markers") {
@@ -72,7 +90,8 @@
     activeSubPanel = null
   }
 
-  async function selectMarker(marker) {
+  async function selectMarker(marker: MarkerDefinition) {
+    const previousDefaultMarker = $userSettingsStore?.defaultMarker ?? fallbackMarker
     selectedMarker = marker
 
     console.log("📊 Current userSettingsStore:", $userSettingsStore)
@@ -87,6 +106,7 @@
           name: marker.name,
         },
       }))
+      rememberDefaultMarkerPreference(marker)
 
       console.log("🎯 Store updated immediately!")
       console.log("Selected marker:", marker)
@@ -110,8 +130,9 @@
         // Revert the store update if database save failed
         userSettingsStore.update((settings) => ({
           ...settings,
-          defaultMarker: selectedMarker,
+          defaultMarker: previousDefaultMarker,
         }))
+        rememberDefaultMarkerPreference(previousDefaultMarker)
       }
     } catch (error) {
       console.error("❌ Error updating default marker:", error)
@@ -120,18 +141,19 @@
       // Revert the store update if there was an error
       userSettingsStore.update((settings) => ({
         ...settings,
-        defaultMarker: selectedMarker,
+        defaultMarker: previousDefaultMarker,
       }))
+      rememberDefaultMarkerPreference(previousDefaultMarker)
     }
 
     // Just go back to previous menu instead of closing everything
     hideSubPanel()
   }
 
-  async function addExtraMarker(marker) {
+  async function addExtraMarker(marker: MarkerDefinition) {
     const currentExtras = $userSettingsStore?.extraMarkers || []
     const newMarker = { id: marker.id, class: marker.class, name: marker.name }
-    let updatedExtras
+    let updatedExtras: typeof currentExtras
 
     if (editingExtraIndex >= 0 && editingExtraIndex < currentExtras.length) {
       // Replacing an existing extra marker
@@ -176,10 +198,10 @@
     hideSubPanel()
   }
 
-  async function removeExtraMarker(index) {
+  async function removeExtraMarker(index: number) {
     const currentExtras = $userSettingsStore?.extraMarkers || []
     const removedName = currentExtras[index]?.name || "Marker"
-    const updatedExtras = currentExtras.filter((_, i) => i !== index)
+    const updatedExtras = currentExtras.filter((_, i: number) => i !== index)
 
     try {
       userSettingsStore.update((settings) => ({
@@ -208,7 +230,7 @@
     }
   }
 
-  function openExtraMarkerSelector(index = -1) {
+  function openExtraMarkerSelector(index: number = -1) {
     editingExtraIndex = index
     showSubPanel("extra-markers")
   }
@@ -223,10 +245,10 @@
   }
 
   // Lazy loading on scroll
-  function handleScroll(e) {
+  function handleScroll(e: Event) {
     if (loadingMore || visibleMarkers.length >= allMarkerIcons.length) return
 
-    const { scrollTop, scrollHeight, clientHeight } = e.target
+    const { scrollTop, scrollHeight, clientHeight } = e.target as HTMLElement
 
     // Load more when near bottom (within 100px)
     if (scrollTop + clientHeight >= scrollHeight - 100) {

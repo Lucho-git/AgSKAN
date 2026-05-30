@@ -55,6 +55,7 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
+  import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
 
   // Import toolbox control components
   import SatelliteControls from "./SatelliteControls.svelte"
@@ -137,13 +138,7 @@
   }
 
   function getDefaultMarker() {
-    return (
-      $userSettingsStore?.defaultMarker || {
-        id: "default",
-        class: "default",
-        name: "Default Marker",
-      }
-    )
+    return resolveDefaultMarkerPreference($userSettingsStore?.defaultMarker)
   }
 
   $: defaultMarker = getDefaultMarker()

@@ -4,6 +4,7 @@ import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
 import { profileStore } from "$lib/stores/profileStore";
 import { userSettingsStore } from "$lib/stores/userSettingsStore";
+import { rememberDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference";
 
 export const userSettingsApi = {
     /**
@@ -561,6 +562,7 @@ export const userSettingsApi = {
                 ...settings,
                 defaultMarker: marker,
             }));
+            rememberDefaultMarkerPreference(marker);
 
             return {
                 success: true,
@@ -854,6 +856,54 @@ export const userSettingsApi = {
         } catch (error) {
             console.error('Error in updateShowGpsRejectedPopups:', error);
             return { success: false, message: 'An error occurred', errorFields: [] };
+        }
+    },
+
+    /**
+     * Save map layer visibility preferences
+     */
+    async updateLayerVisibilitySettings(layerVisibility: Record<string, boolean>) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save layer visibility settings");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from('user_settings').upsert(
+                {
+                    user_id: userId,
+                    layer_visibility: layerVisibility,
+                },
+                { onConflict: 'user_id' }
+            );
+
+            if (error) {
+                console.error('Error saving layer visibility settings:', error);
+                const schemaCacheMissingColumn =
+                    error.message?.includes("layer_visibility") &&
+                    error.message?.includes("schema cache");
+                const message = schemaCacheMissingColumn
+                    ? "Layer visibility column is missing from Supabase schema cache. Run the layer_visibility SQL migration, then retry."
+                    : error.message || 'Failed to save layer visibility settings';
+
+                return {
+                    success: false,
+                    message,
+                    error: message,
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, layerVisibility }));
+
+            return { success: true, message: 'Layer visibility settings updated' };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'An error occurred while saving layer visibility settings';
+            console.error('Error in updateLayerVisibilitySettings:', error);
+            return { success: false, message, error: message, errorFields: [] };
         }
     },
 

@@ -198,6 +198,8 @@
         coordinates: coordinates,
         iconClass: iconClass,
         notes: newData.notes,
+        noteLabelVisible:
+          newData.marker_data?.properties?.note_label_visible !== false,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -239,6 +241,7 @@
         iconClass: processedMarker.iconClass,
         coordinates: [...processedMarker.coordinates],
         notes: processedMarker.notes,
+        noteLabelVisible: processedMarker.noteLabelVisible,
         created_at: processedMarker.created_at,
       })
 
@@ -322,7 +325,8 @@
         lastKnown.iconClass !== marker.iconClass ||
         lastKnown.coordinates[0] !== marker.coordinates[0] ||
         lastKnown.coordinates[1] !== marker.coordinates[1] ||
-        lastKnown.notes !== marker.notes
+        lastKnown.notes !== marker.notes ||
+        lastKnown.noteLabelVisible !== marker.noteLabelVisible
       ) {
         pendingChanges.add(id)
         persistPendingMarkerChange(marker) // Persist to IndexedDB immediately
@@ -354,6 +358,7 @@
         coordinates: [...marker.coordinates],
         created_at: marker.created_at,
         notes: marker.notes,
+        noteLabelVisible: marker.noteLabelVisible,
       })
     })
     pendingChanges.clear()
@@ -544,6 +549,8 @@
             coordinates: coordinates,
             iconClass: iconClass,
             notes: marker.notes,
+            noteLabelVisible:
+              marker.marker_data?.properties?.note_label_visible !== false,
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
@@ -647,6 +654,7 @@
               icon: marker.iconClass || "default",
               id: marker.id,
               drawings_visibility: visibility,
+              note_label_visible: marker.noteLabelVisible !== false,
             },
           },
           notes: marker.notes || null,

@@ -35,6 +35,7 @@
     "09d4f226-5a43-4c79-b344-cc33c32961cc",
     "17b52843-6511-4a9c-8be9-2c710a98e91a",
     "07ec397d-26ea-4274-bf37-ac6b82ff7184",
+    "c767c6b1-6ee0-4125-b964-b854629f1d43",
   ]
 
   let disconnectingFromMap = false

@@ -1,6 +1,7 @@
 <script lang="ts">
   // routes/(admin)/account/+layout.svelte
   import { onMount, onDestroy } from "svelte"
+  import { get } from "svelte/store"
   import { goto } from "$app/navigation"
   import {
     session,
@@ -25,6 +26,8 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore" // 🆕 NEW
   import { resetMapStores } from "$lib/stores/resetMapStores"
 
@@ -177,6 +180,7 @@
         currentDate.setDate(
           currentDate.getDate() - user_settings.limit_markers_days,
         )
+        const currentSettings = get(userSettingsStore)
 
         userSettingsStore.set({
           limitMarkersOn: user_settings.limit_markers,
@@ -190,7 +194,9 @@
             user_settings.enabled_imagery_providers ?? [],
           defaultImagerySource:
             user_settings.default_imagery_source ?? "mapbox",
-          defaultMarker: user_settings.default_marker,
+          defaultMarker:
+            user_settings.default_marker ??
+            resolveDefaultMarkerPreference(currentSettings.defaultMarker),
           extraMarkers: user_settings.extra_markers ?? [],
           devToolsEnabled: user_settings.dev_tools_enabled ?? false,
           // New GPS settings
@@ -199,7 +205,10 @@
           gpsIntervalSeconds: user_settings.gps_interval_seconds ?? 2,
           showGpsAcceptedPopups: user_settings.show_gps_accepted_popups ?? false,
           showGpsRejectedPopups: user_settings.show_gps_rejected_popups ?? false,
+          layerVisibility: user_settings.layer_visibility ?? {},
         })
+
+        layerVisibilityStore.applySavedState(user_settings.layer_visibility ?? {})
       } else {
         // If no user settings exist, use defaults
         userSettingsStore.set({
@@ -213,6 +222,12 @@
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",
+          defaultMarker: {
+            id: "default",
+            class: "default",
+            name: "Default Marker",
+          },
+          extraMarkers: [],
           devToolsEnabled: false,
           // New GPS defaults
           enableFull1Hz: false,
@@ -220,7 +235,10 @@
           gpsIntervalSeconds: 2,
           showGpsAcceptedPopups: false,
           showGpsRejectedPopups: false,
+          layerVisibility: {},
         })
+
+        layerVisibilityStore.reset()
       }
 
       // If user has no map connected, we're done

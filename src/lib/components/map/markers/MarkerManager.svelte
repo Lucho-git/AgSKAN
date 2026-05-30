@@ -26,6 +26,10 @@
     getIconImageName as getIconImageNameUtil,
     findMarkerByIconClass,
   } from "$lib/data/markerDefinitions"
+  import {
+    DEFAULT_MARKER_PREFERENCE,
+    resolveDefaultMarkerPreference,
+  } from "$lib/utils/defaultMarkerPreference"
 
   export let map
   export let mapLoaded = false
@@ -166,13 +170,24 @@
 
   // Helper function to get default marker from store
   function getDefaultMarker() {
-    return (
-      $userSettingsStore?.defaultMarker || {
-        id: "default",
-        class: "default",
-        name: "Default Marker",
-      }
-    )
+    return resolveDefaultMarkerPreference($userSettingsStore?.defaultMarker)
+  }
+
+  function getMarkerIconClasses(marker = DEFAULT_MARKER_PREFERENCE) {
+    if (marker.class === "default") {
+      return { iconClass: "default", iconImageName: "default" }
+    }
+
+    if (marker.class === "custom-svg") {
+      const iconClass = `custom-svg-${marker.id}`
+      return { iconClass, iconImageName: iconClass }
+    }
+
+    return { iconClass: marker.class, iconImageName: marker.class }
+  }
+
+  function shouldShowNoteLabel(marker) {
+    return marker?.noteLabelVisible !== false
   }
 
   // Helper function to get secondary marker from store
@@ -270,6 +285,12 @@
   // Reactive statement to update marker layer visibility
   $: if (markersInitialized && map && $layerVisibilityStore) {
     updateMarkerLayerVisibility()
+  }
+
+  $: if (markersInitialized && map && $markerVisibilityStore) {
+    if (!hasUnconfirmedSelectedMarker()) {
+      refreshMapMarkers()
+    }
   }
 
   function updateMarkerLayerVisibility() {
@@ -591,7 +612,19 @@
   function refreshMapMarkers() {
     if (!map || !map.getSource("markers")) return
 
-    const features = $confirmedMarkersStore.map((marker) => ({
+    if ($selectedMarkerStore?.id && $markerVisibilityStore[$selectedMarkerStore.id] === "hidden") {
+      selectedMarkerStore.set(null)
+      controlStore.update((controls) => ({
+        ...controls,
+        showMarkerMenu: false,
+      }))
+    }
+
+    const visibleMarkers = $confirmedMarkersStore.filter(
+      (marker) => ($markerVisibilityStore[marker.id] || "always") !== "hidden",
+    )
+
+    const features = visibleMarkers.map((marker) => ({
       type: "Feature",
       geometry: {
         type: "Point",
@@ -604,7 +637,8 @@
         selected: $selectedMarkerStore?.id === marker.id,
         confirmed: true,
         // Add truncated note label for display
-        noteLabel: truncateNote(marker.notes),
+        noteLabel: shouldShowNoteLabel(marker) ? truncateNote(marker.notes) : "",
+        noteLabelVisible: shouldShowNoteLabel(marker),
         // Store full notes for reference (not displayed directly)
         hasNotes: !!marker.notes,
       },
@@ -666,18 +700,23 @@
   }
 
   // Update a marker's note label on the map
-  function updateMarkerNoteLabel(markerId, notes) {
+  function updateMarkerNoteLabel(markerId, notes, noteLabelVisible = undefined) {
     if (!map || !map.getSource("markers")) return
 
     const source = map.getSource("markers")
     const data = source._data
+    const marker = ($confirmedMarkersStore || []).find((m) => m.id === markerId)
+    const shouldShow = noteLabelVisible ?? shouldShowNoteLabel(marker)
 
     const featureIndex = data.features.findIndex(
       (f) => f.properties.id === markerId,
     )
 
     if (featureIndex >= 0) {
-      data.features[featureIndex].properties.noteLabel = truncateNote(notes)
+      data.features[featureIndex].properties.noteLabel = shouldShow
+        ? truncateNote(notes)
+        : ""
+      data.features[featureIndex].properties.noteLabelVisible = shouldShow
       data.features[featureIndex].properties.hasNotes = !!notes
       source.setData(data)
       console.log(`📝 Updated note label for marker ${markerId}`)
@@ -685,12 +724,30 @@
   }
 
   function getCurrentIconClass(markerId) {
+    if ($selectedMarkerStore?.id === markerId && $selectedMarkerStore.iconClass) {
+      return $selectedMarkerStore.iconClass
+    }
+
     if (!map || !map.getSource("markers")) return "default"
 
     const source = map.getSource("markers")
     const data = source._data
     const feature = data.features.find((f) => f.properties.id === markerId)
     return feature?.properties.iconClass || "default"
+  }
+
+  function hasUnconfirmedSelectedMarker() {
+    const selectedId = $selectedMarkerStore?.id
+    if (!selectedId || !map?.getSource?.("markers")) return false
+    if (($confirmedMarkersStore || []).some((marker) => marker.id === selectedId)) {
+      return false
+    }
+
+    const source = map.getSource("markers")
+    const data = source?._data
+    const feature = data?.features?.find((f) => f.properties.id === selectedId)
+
+    return feature?.properties?.confirmed === false
   }
 
   // Public method called by MapViewer's layer interaction system for marker placement (long press)
@@ -708,18 +765,7 @@
     console.log("🎯 Using default marker:", defaultMarker)
 
     // Convert the default marker to proper iconClass format for storage
-    let iconClass, iconImageName
-
-    if (defaultMarker.class === "default") {
-      iconClass = "default"
-      iconImageName = "default"
-    } else if (defaultMarker.class === "custom-svg") {
-      iconClass = `custom-svg-${defaultMarker.id}`
-      iconImageName = `custom-svg-${defaultMarker.id}`
-    } else {
-      iconClass = defaultMarker.class
-      iconImageName = defaultMarker.class
-    }
+    const { iconClass, iconImageName } = getMarkerIconClasses(defaultMarker)
 
     console.log(
       "🔧 Converted iconClass:",
@@ -742,6 +788,7 @@
         selected: true,
         confirmed: false,
         noteLabel: null,
+        noteLabelVisible: true,
         hasNotes: false,
       },
     }
@@ -749,7 +796,11 @@
     console.log("📍 Feature being added:", feature)
 
     addMarkerToLayer(feature)
-    selectedMarkerStore.set({ id, coordinates: [lngLat.lng, lngLat.lat] })
+    selectedMarkerStore.set({
+      id,
+      coordinates: [lngLat.lng, lngLat.lat],
+      iconClass,
+    })
 
     // Gold ripple on initial placement
     showPlacementRipple([lngLat.lng, lngLat.lat])
@@ -814,6 +865,7 @@
         id,
         coordinates,
         iconClass,
+        noteLabelVisible: true,
         created_at: new Date().toISOString(),
       }
 
@@ -1000,21 +1052,14 @@
       defaultMarker,
     )
 
-    let iconClass
-
-    if (defaultMarker.class === "default") {
-      iconClass = "default"
-    } else if (defaultMarker.class === "custom-svg") {
-      iconClass = `custom-svg-${defaultMarker.id}`
-    } else {
-      iconClass = defaultMarker.class
-    }
+    const { iconClass } = getMarkerIconClasses(defaultMarker)
 
     const id = uuidv4()
     const markerData = {
       id,
       coordinates: [coordinates.longitude, coordinates.latitude],
       iconClass: iconClass,
+      noteLabelVisible: true,
       created_at: new Date().toISOString(),
     }
 
@@ -1064,6 +1109,7 @@
       id,
       coordinates: [coordinates.longitude, coordinates.latitude],
       iconClass: iconClass,
+      noteLabelVisible: true,
       created_at: new Date().toISOString(),
     }
 
@@ -1181,7 +1227,6 @@
   <MarkerEditPanel
     {map}
     {getCurrentIconClass}
-    {confirmMarker}
     {removeMarker}
     {centerCameraOnMarker}
     {confirmedMarkersStore}
