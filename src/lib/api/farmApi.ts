@@ -2,7 +2,7 @@
 import { supabase } from '$lib/supabaseClient';
 import type { Farm } from '$lib/stores/farmsStore';
 
-export const FARM_NAME_MAX_LENGTH = 10;
+export const FARM_NAME_MAX_LENGTH = 12;
 
 function normalizeFarmName(name: string): string {
     return name.trim().slice(0, FARM_NAME_MAX_LENGTH);

@@ -20,6 +20,7 @@
     X,
     ArrowRightLeft,
     Trash2,
+    EllipsisVertical,
   } from "lucide-svelte"
 
   const dispatch = createEventDispatcher()
@@ -33,14 +34,26 @@
   let renamingFarmId = null
   let renameValue = ""
   let reassignFieldId = null // field_id of the field whose menu is open
+  let openSettingsFarmId = null // farmId whose 3-dot settings menu is open
+  let settingsMenuStyle = "" // inline style for fixed-position dropdown
   let fieldSearch = ""
   let controlsEl // root element ref for click-outside detection
+
+  // Move fields modal state
+  let showMoveFieldsModal = false
+  let moveSourceFarmId = null
+  let moveSourceFarmName = ""
+  let selectedMoveFieldIds = new Set()
+  let moveTargetFarmId = ""
+  let moveNewFarmName = ""
+  let movingFields = false
+  let creatingFarm = false
 
   function createGeoJSON(boundary) {
     return { type: "Feature", geometry: boundary, properties: {} }
   }
 
-  // Close reassign menu when clicking outside
+  // Close reassign menu and settings menu when clicking outside
   function handleWindowClick(e) {
     if (
       reassignFieldId &&
@@ -50,6 +63,16 @@
       // Check if click was on a move button (toggle handled separately)
       if (!e.target.closest(".icon-btn.move")) {
         reassignFieldId = null
+      }
+    }
+    if (
+      openSettingsFarmId &&
+      controlsEl &&
+      !controlsEl.querySelector(".farm-settings-menu")?.contains(e.target)
+    ) {
+      if (!e.target.closest(".icon-btn.settings")) {
+        openSettingsFarmId = null
+        settingsMenuStyle = ""
       }
     }
   }
@@ -85,11 +108,20 @@
     })
 
     // Build entries: each farm (with or without fields)
-    const entries = farms.map((farm) => ({
-      farmId: farm.id,
-      farmName: farm.name,
-      fields: fieldsByFarmId.get(farm.id) || [],
-    }))
+    const entries = farms
+      .map((farm) => ({
+        farmId: farm.id,
+        farmName: farm.name,
+        fields: fieldsByFarmId.get(farm.id) || [],
+      }))
+      .sort((a, b) => {
+        // Sort by field count descending
+        if (a.fields.length !== b.fields.length) {
+          return b.fields.length - a.fields.length
+        }
+        // Then alphabetically
+        return a.farmName.localeCompare(b.farmName)
+      })
 
     // Append unassigned fields if any
     if (unassigned.length > 0) {
@@ -146,6 +178,8 @@
   function clearFieldSearch() {
     fieldSearch = ""
     reassignFieldId = null
+    openSettingsFarmId = null
+    settingsMenuStyle = ""
   }
 
   function selectField(field) {
@@ -185,6 +219,8 @@
   }
 
   function startRename(farmId, currentName) {
+    openSettingsFarmId = null
+    settingsMenuStyle = ""
     renamingFarmId = farmId
     renameValue = currentName
   }
@@ -212,8 +248,22 @@
     renamingFarmId = null
   }
 
+  function toggleFarmSettings(farmId, e) {
+    if (openSettingsFarmId === farmId) {
+      openSettingsFarmId = null
+      settingsMenuStyle = ""
+      return
+    }
+    openSettingsFarmId = farmId
+    const btn = e.currentTarget
+    const rect = btn.getBoundingClientRect()
+    settingsMenuStyle = `top: ${rect.bottom + 4}px; right: ${window.innerWidth - rect.right}px;`
+  }
+
   async function handleDeleteFarm(farmId, farmName) {
     if (!farmId) return
+    openSettingsFarmId = null
+    settingsMenuStyle = ""
     const result = await farmApi.deleteFarm(farmId)
     if (result.success) {
       farmsStore.update((farms) => farms.filter((f) => f.id !== farmId))
@@ -221,6 +271,16 @@
     } else {
       toast.error(result.message || "Failed to delete farm")
     }
+  }
+
+  function handleDeleteFarmAttempt(farmId, farmName, fieldCount) {
+    if (fieldCount > 0) {
+      openSettingsFarmId = null
+      settingsMenuStyle = ""
+      toast.error(`"${farmName}" with fields cannot be deleted`)
+      return
+    }
+    handleDeleteFarm(farmId, farmName)
   }
 
   function toggleReassignMenu(fieldId) {
@@ -252,6 +312,8 @@
 
   function handleAddField(entry) {
     reassignFieldId = null
+    openSettingsFarmId = null
+    settingsMenuStyle = ""
     toast.info("Field selection mode", { duration: 1200 })
     dispatch("addField", {
       farmId: entry.farmId,
@@ -262,6 +324,154 @@
   function handleEditField(field) {
     reassignFieldId = null
     dispatch("editField", { field })
+  }
+
+  // ─── Move Fields Modal ───────────────────────────
+
+  function openMoveFieldsModal(farmId, farmName) {
+    openSettingsFarmId = null
+    settingsMenuStyle = ""
+    moveSourceFarmId = farmId
+    moveSourceFarmName = farmName
+    // Pre-select all fields under this farm
+    const farmFields = ($mapFieldsStore || []).filter(
+      (f) => (f.farm_id || null) === farmId,
+    )
+    selectedMoveFieldIds = new Set(farmFields.map((f) => f.field_id))
+    moveTargetFarmId = ""
+    moveNewFarmName = ""
+    showMoveFieldsModal = true
+  }
+
+  function closeMoveFieldsModal() {
+    showMoveFieldsModal = false
+    selectedMoveFieldIds = new Set()
+    moveSourceFarmId = null
+    moveSourceFarmName = ""
+    moveTargetFarmId = ""
+    moveNewFarmName = ""
+  }
+
+  function toggleMoveField(fieldId) {
+    if (selectedMoveFieldIds.has(fieldId)) {
+      selectedMoveFieldIds.delete(fieldId)
+    } else {
+      selectedMoveFieldIds.add(fieldId)
+    }
+    selectedMoveFieldIds = selectedMoveFieldIds
+  }
+
+  function toggleAllMoveFields() {
+    const farmFields = ($mapFieldsStore || []).filter(
+      (f) => (f.farm_id || null) === moveSourceFarmId,
+    )
+    const allSelected = farmFields.every((f) =>
+      selectedMoveFieldIds.has(f.field_id),
+    )
+    if (allSelected) {
+      farmFields.forEach((f) => selectedMoveFieldIds.delete(f.field_id))
+    } else {
+      farmFields.forEach((f) => selectedMoveFieldIds.add(f.field_id))
+    }
+    selectedMoveFieldIds = selectedMoveFieldIds
+  }
+
+  $: moveSourceFields = ($mapFieldsStore || []).filter(
+    (f) => (f.farm_id || null) === moveSourceFarmId,
+  )
+
+  $: resolvedMoveTarget =
+    moveTargetFarmId === "__new__"
+      ? moveNewFarmName.trim()
+      : (($farmsStore || []).find((f) => f.id === moveTargetFarmId)?.name || "")
+
+  $: canMoveFields =
+    selectedMoveFieldIds.size > 0 && resolvedMoveTarget.length > 0
+
+  $: moveTargetFarms = ($farmsStore || []).filter(
+    (f) => (f.id || null) !== moveSourceFarmId,
+  )
+
+  async function handleCreateFarm() {
+    const name = moveNewFarmName.trim()
+    if (!name || creatingFarm) return
+    creatingFarm = true
+    const mapId = $connectedMapStore?.id
+    if (!mapId) {
+      toast.error("No map connected")
+      creatingFarm = false
+      return
+    }
+    const result = await farmApi.createFarm(mapId, name)
+    if (result.success && result.farm) {
+      farmsStore.update((farms) => [...farms, result.farm])
+      moveTargetFarmId = result.farm.id
+      moveNewFarmName = ""
+      toast.success(`Farm "${name}" created`)
+    } else {
+      toast.error(result.message || "Failed to create farm")
+    }
+    creatingFarm = false
+  }
+
+  async function handleMoveFields() {
+    if (!canMoveFields) return
+    movingFields = true
+
+    try {
+      const farm = ($farmsStore || []).find((f) => f.id === moveTargetFarmId)
+      const targetFarmId = farm?.id || null
+
+      if (!targetFarmId) {
+        toast.error("Could not resolve target farm")
+        movingFields = false
+        return
+      }
+
+      let successCount = 0
+      let errorCount = 0
+
+      const promises = Array.from(selectedMoveFieldIds).map(
+        async (fieldId) => {
+          try {
+            const result = await fileApi.updateField(fieldId, {
+              farm_id: targetFarmId,
+            })
+            if (result.success) successCount++
+            else errorCount++
+          } catch {
+            errorCount++
+          }
+        },
+      )
+
+      await Promise.all(promises)
+
+      // Update local store
+      mapFieldsStore.update((all) =>
+        all.map((f) =>
+          selectedMoveFieldIds.has(f.field_id)
+            ? { ...f, farm_id: targetFarmId }
+            : f,
+        ),
+      )
+
+      const targetName =
+        ($farmsStore || []).find((f) => f.id === targetFarmId)?.name ||
+          "Unassigned"
+
+      if (errorCount === 0) {
+        toast.success(`Moved ${successCount} fields to "${targetName}"`)
+      } else {
+        toast.success(`${successCount} moved, ${errorCount} failed`)
+      }
+
+      closeMoveFieldsModal()
+    } catch {
+      toast.error("An error occurred while moving fields")
+    } finally {
+      movingFields = false
+    }
   }
 </script>
 
@@ -338,12 +548,6 @@
                 >
                   <Check size={16} />
                 </button>
-                <button
-                  class="icon-btn cancel"
-                  on:click|stopPropagation={cancelRename}
-                >
-                  <X size={16} />
-                </button>
               {:else}
                 <span class="farm-name">{entry.farmName}</span>
                 <span class="farm-count">
@@ -355,30 +559,13 @@
                 </span>
                 {#if entry.farmId && !isSearching}
                   <button
-                    class="icon-btn edit"
-                    title="Rename farm"
-                    on:click|stopPropagation={() =>
-                      startRename(entry.farmId, entry.farmName)}
+                    class="icon-btn settings"
+                    title="Farm settings"
+                    on:click|stopPropagation={(e) =>
+                      toggleFarmSettings(entry.farmId, e)}
                   >
-                    <Pencil size={16} />
+                    <EllipsisVertical size={16} />
                   </button>
-                  <button
-                    class="icon-btn add-field"
-                    title="Add field"
-                    on:click|stopPropagation={() => handleAddField(entry)}
-                  >
-                    <Plus size={16} />
-                  </button>
-                  {#if entry.fields.length === 0}
-                    <button
-                      class="icon-btn delete"
-                      title="Delete empty farm"
-                      on:click|stopPropagation={() =>
-                        handleDeleteFarm(entry.farmId, entry.farmName)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  {/if}
                 {/if}
               {/if}
             </button>
@@ -414,36 +601,7 @@
                     >
                       <Pencil size={16} />
                     </button>
-                    {#if farmEntries.length > 1 && !isSearching}
-                      <button
-                        class="icon-btn move"
-                        title="Move to another farm"
-                        on:click|stopPropagation={() =>
-                          toggleReassignMenu(field.field_id)}
-                      >
-                        <ArrowRightLeft size={16} />
-                      </button>
-                    {/if}
                   </button>
-
-                  {#if reassignFieldId === field.field_id}
-                    <div class="reassign-menu">
-                      <div class="reassign-header">Move "{field.name}" to:</div>
-                      {#each farmEntries as target}
-                        {#if target.farmId !== entry.farmId}
-                          <button
-                            class="reassign-option"
-                            on:click={() => reassignField(field, target.farmId)}
-                          >
-                            <ArrowRightLeft size={14} />
-                            {target.farmName.length > 20
-                              ? target.farmName.slice(0, 20) + "…"
-                              : target.farmName}
-                          </button>
-                        {/if}
-                      {/each}
-                    </div>
-                  {/if}
                 </div>
               {/each}
             {/if}
@@ -452,6 +610,49 @@
         </div>
       {/each}
     </div>
+  {/if}
+
+  <!-- Farm settings dropdown (rendered outside scrollable list as fixed overlay) -->
+  {#if openSettingsFarmId}
+    {@const entry = farmEntries.find(e => (e.farmId || "__unassigned") === openSettingsFarmId)}
+    {#if entry}
+      <div class="farm-settings-menu" style={settingsMenuStyle}>
+        <button
+          class="settings-option"
+          on:click|stopPropagation={() => handleAddField(entry)}
+        >
+          <Plus size={15} />
+          <span>Add field</span>
+        </button>
+        <button
+          class="settings-option"
+          on:click|stopPropagation={() =>
+            startRename(entry.farmId, entry.farmName)}
+        >
+          <Pencil size={15} />
+          <span>Rename farm</span>
+        </button>
+        {#if entry.fields.length > 0}
+          <button
+            class="settings-option"
+            on:click|stopPropagation={() =>
+              openMoveFieldsModal(entry.farmId, entry.farmName)}
+          >
+            <ArrowRightLeft size={15} />
+            <span>Transfer fields</span>
+          </button>
+        {/if}
+        <button
+          class="settings-option"
+          class:disabled={entry.fields.length > 0}
+          on:click|stopPropagation={() =>
+            handleDeleteFarmAttempt(entry.farmId, entry.farmName, entry.fields.length)}
+        >
+          <Trash2 size={15} />
+          <span>Delete farm</span>
+        </button>
+      </div>
+    {/if}
   {/if}
 
   <!-- Add farm button -->
@@ -476,15 +677,6 @@
         <button class="icon-btn confirm" on:click={handleAddFarm}>
           <Check size={18} />
         </button>
-        <button
-          class="icon-btn cancel"
-          on:click={() => {
-            addingFarm = false
-            newFarmName = ""
-          }}
-        >
-          <X size={18} />
-        </button>
       </div>
     {:else}
       <button class="add-farm-btn" on:click={() => (addingFarm = true)}>
@@ -494,6 +686,151 @@
     {/if}
   </div>
 </div>
+
+<!-- Move Fields Modal -->
+{#if showMoveFieldsModal}
+  <div class="move-modal-overlay" role="presentation" on:click={closeMoveFieldsModal} on:keydown={(e) => e.key === 'Escape' && closeMoveFieldsModal()}>
+    <div class="move-modal" role="dialog" aria-modal="true" aria-label="Move fields" on:click|stopPropagation on:keydown|stopPropagation>
+      <!-- Header -->
+      <div class="move-modal-header">
+        <div class="move-header-left">
+          <h3>Move Fields</h3>
+          <p>From "{moveSourceFarmName}"</p>
+        </div>
+        <div class="move-header-icon">
+          <ArrowRightLeft size={20} />
+        </div>
+        <div class="move-header-right">
+          {#if resolvedMoveTarget}
+            <span class="move-to-label">to</span>
+            <span class="move-to-name">{resolvedMoveTarget}</span>
+          {:else}
+            <span class="move-to-placeholder">Select destination</span>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="move-modal-body">
+        <!-- Field selection -->
+        <div class="move-section">
+          <div class="move-section-top">
+            <span class="move-section-label">
+              Select fields ({selectedMoveFieldIds.size} selected)
+            </span>
+            <button class="move-toggle-all" on:click={toggleAllMoveFields}>
+              {moveSourceFields.every(f => selectedMoveFieldIds.has(f.field_id)) ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <div class="move-field-list">
+            {#each moveSourceFields as field (field.field_id)}
+              <label
+                class="move-field-row"
+                class:move-field-selected={selectedMoveFieldIds.has(field.field_id)}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedMoveFieldIds.has(field.field_id)}
+                  on:change={() => toggleMoveField(field.field_id)}
+                />
+                {#if field.boundary}
+                  <span class="move-field-icon">
+                    <FieldIcon geojson={createGeoJSON(field.boundary)} size={22} />
+                  </span>
+                {/if}
+                <span class="move-field-name">{field.name}</span>
+                {#if field.area}
+                  <span class="move-field-area">{Math.round(field.area * 10) / 10} ha</span>
+                {/if}
+              </label>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Destination farm picker -->
+        <div class="move-section">
+          <span class="move-section-label">Destination farm</span>
+          <div class="move-dest-list">
+            {#each moveTargetFarms as farm (farm.id)}
+              <button
+                class="move-dest-btn"
+                class:move-dest-selected={moveTargetFarmId === farm.id}
+                on:click={() => {
+                  moveTargetFarmId = farm.id
+                  moveNewFarmName = ""
+                }}
+              >
+                {#if moveTargetFarmId === farm.id}
+                  <Check size={15} />
+                {:else}
+                  <LandPlot size={15} />
+                {/if}
+                <span>{farm.name}</span>
+              </button>
+            {/each}
+            <!-- New farm button -->
+            <button
+              class="move-dest-btn"
+              class:move-dest-selected={moveTargetFarmId === "__new__"}
+              on:click={() => (moveTargetFarmId = "__new__")}
+            >
+              {#if moveTargetFarmId === "__new__"}
+                <Check size={15} />
+              {:else}
+                <Plus size={15} />
+              {/if}
+              <span>New farm name</span>
+            </button>
+          </div>
+          {#if moveTargetFarmId === "__new__"}
+            <div class="move-new-farm-row">
+              <input
+                class="move-new-farm-input"
+                bind:value={moveNewFarmName}
+                placeholder="Enter new farm name"
+                maxlength={FARM_NAME_MAX_LENGTH}
+                on:keydown={(e) => e.key === 'Enter' && handleCreateFarm()}
+              />
+              <button
+                class="move-new-farm-confirm"
+                disabled={!moveNewFarmName.trim() || creatingFarm}
+                on:click={handleCreateFarm}
+              >
+                {#if creatingFarm}
+                  <span class="move-spinner" />
+                {:else}
+                  <Check size={16} />
+                {/if}
+              </button>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="move-modal-footer">
+        <button
+          class="move-btn cancel"
+          on:click={closeMoveFieldsModal}
+          disabled={movingFields}
+        >
+          Cancel
+        </button>
+        <button
+          class="move-btn confirm"
+          disabled={!canMoveFields || movingFields}
+          on:click={handleMoveFields}
+        >
+          {#if movingFields}
+            Moving...
+          {:else}
+            Move {selectedMoveFieldIds.size} field{selectedMoveFieldIds.size !== 1 ? 's' : ''}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .field-controls {
@@ -722,48 +1059,89 @@
     padding: 4px;
   }
 
-  .icon-btn.edit {
-    color: rgba(255, 255, 255, 0.5);
+  /* 3-dot settings button */
+  .icon-btn.settings {
+    color: rgba(255, 255, 255, 0.45);
+    position: relative;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 6px;
+    margin-left: 4px;
   }
 
-  .farm-header:hover .icon-btn.edit {
-    color: rgba(255, 255, 255, 0.7);
+  .farm-header:hover .icon-btn.settings {
+    color: rgba(255, 255, 255, 0.75);
   }
 
-  .icon-btn.edit:hover {
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.1);
+  .icon-btn.settings:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
   }
 
-  .icon-btn.add-field {
-    color: rgba(134, 239, 172, 0.72);
+  /* Farm settings dropdown menu */
+  .farm-settings-menu {
+    position: fixed;
+    background: rgba(24, 28, 36, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 4px;
+    min-width: 180px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    overflow: hidden;
+    animation: settingsSlideIn 0.15s ease-out;
   }
 
-  .farm-header:hover .icon-btn.add-field {
-    color: rgba(134, 239, 172, 0.92);
+  @keyframes settingsSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
-  .icon-btn.add-field:hover {
-    color: #bbf7d0;
-    background: rgba(34, 197, 94, 0.15);
+  .settings-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s ease, color 0.12s ease;
   }
 
-  .icon-btn.delete {
-    color: rgba(255, 100, 100, 0.6);
+  .settings-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
   }
 
-  .farm-header:hover .icon-btn.delete {
+  .settings-option:last-child {
     color: rgba(255, 100, 100, 0.8);
   }
 
-  .icon-btn.delete:hover {
-    color: rgba(255, 80, 80, 1);
-    background: rgba(255, 80, 80, 0.15);
+  .settings-option:last-child:hover {
+    background: rgba(255, 80, 80, 0.12);
+    color: #ff5050;
   }
 
-  .icon-btn.move {
-    color: rgba(255, 255, 255, 0.4);
-    padding: 8px;
+  .settings-option.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .settings-option.disabled:hover {
+    background: transparent;
+    color: rgba(255, 100, 100, 0.8);
   }
 
   .icon-btn.field-edit {
@@ -771,68 +1149,17 @@
     padding: 8px;
   }
 
-  .field-row:hover .icon-btn.move,
   .field-row:hover .icon-btn.field-edit {
     color: rgba(255, 255, 255, 0.6);
   }
 
-  .icon-btn.move:hover,
   .icon-btn.field-edit:hover {
     color: #a0c8e8;
     background: rgba(160, 200, 232, 0.12);
   }
 
-  .reassign-menu {
-    background: rgba(30, 35, 45, 0.97);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    padding: 4px 0;
-    margin: 2px 14px 6px 28px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    overflow: hidden;
-  }
-
-  .reassign-header {
-    padding: 8px 16px 6px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
-    font-weight: 500;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    margin-bottom: 2px;
-  }
-
-  .reassign-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    text-align: left;
-    padding: 10px 16px;
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: none;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    cursor: pointer;
-    transition: background 0.1s;
-    min-height: 44px;
-  }
-
-  .reassign-option:last-child {
-    border-bottom: none;
-  }
-
-  .reassign-option:hover {
-    background: rgba(160, 200, 232, 0.15);
-    color: #a0c8e8;
-  }
-
   .icon-btn.confirm {
     color: #34d399;
-  }
-
-  .icon-btn.cancel {
-    color: #f87171;
   }
 
   .rename-input {
@@ -897,5 +1224,429 @@
     padding: 6px 10px;
     outline: none;
     min-height: 36px;
+  }
+
+  /* ─── Move Fields Modal ─────────────────────────── */
+
+  .move-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 16px;
+    animation: moveFadeIn 0.2s ease-out;
+  }
+
+  @keyframes moveFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .move-modal {
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    width: min(420px, 94vw);
+    max-height: min(600px, 85vh);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: moveSlideIn 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    overflow: hidden;
+  }
+
+  @keyframes moveSlideIn {
+    from {
+      transform: translateY(-20px) scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Header — clean split layout: from → icon → to */
+  .move-modal-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .move-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .move-header-left h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .move-header-left p {
+    margin: 2px 0 0;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .move-header-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(160, 200, 232, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a0c8e8;
+    flex-shrink: 0;
+  }
+
+  .move-header-right {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .move-to-label {
+    display: block;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 1px;
+  }
+
+  .move-to-name {
+    color: #a0c8e8;
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+
+  .move-to-placeholder {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  .move-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .move-modal-body::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .move-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
+  /* Sections */
+  .move-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .move-section-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .move-section-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+
+  .move-toggle-all {
+    background: none;
+    border: none;
+    color: #a0c8e8;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .move-toggle-all:hover {
+    color: #fff;
+    background: rgba(160, 200, 232, 0.12);
+  }
+
+  /* Field checkboxes list */
+  .move-field-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .move-field-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .move-field-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+  }
+
+  .move-field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.12s;
+    min-height: 42px;
+  }
+
+  .move-field-row:last-child {
+    border-bottom: none;
+  }
+
+  .move-field-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .move-field-row.move-field-selected {
+    background: rgba(160, 200, 232, 0.08);
+  }
+
+  .move-field-row input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: #a0c8e8;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .move-field-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .move-field-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .move-field-area {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+
+  /* Destination farm buttons */
+  .move-dest-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .move-dest-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .move-dest-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .move-dest-btn.move-dest-selected {
+    background: rgba(160, 200, 232, 0.12);
+    border-color: rgba(160, 200, 232, 0.4);
+    color: #a0c8e8;
+  }
+
+  .move-dest-btn.move-dest-selected:hover {
+    background: rgba(160, 200, 232, 0.18);
+    border-color: rgba(160, 200, 232, 0.55);
+  }
+
+  .move-new-farm-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .move-new-farm-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid rgba(160, 200, 232, 0.35);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .move-new-farm-input:focus {
+    border-color: rgba(160, 200, 232, 0.55);
+    box-shadow: 0 0 0 3px rgba(160, 200, 232, 0.12);
+  }
+
+  .move-new-farm-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .move-new-farm-confirm {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .move-new-farm-confirm:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.28);
+    border-color: rgba(34, 197, 94, 0.6);
+    transform: scale(1.05);
+  }
+
+  .move-new-farm-confirm:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .move-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(34, 197, 94, 0.2);
+    border-top: 2px solid #22c55e;
+    border-radius: 50%;
+    animation: moveSpin 0.8s linear infinite;
+  }
+
+  @keyframes moveSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Footer */
+  .move-modal-footer {
+    padding: 14px 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .move-btn {
+    flex: 1;
+    padding: 11px 12px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .move-btn.cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .move-btn.cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
+
+  .move-btn.confirm {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+  }
+
+  .move-btn.confirm:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1d4ed8, #1e40af);
+    transform: translateY(-1px);
+  }
+
+  .move-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 640px) {
+    .move-modal {
+      width: 95vw;
+      max-height: 90vh;
+    }
+    .move-modal-body {
+      padding: 14px;
+    }
+    .move-btn {
+      font-size: 12px;
+      padding: 10px 8px;
+    }
   }
 </style>
