@@ -26,7 +26,7 @@
   }
 
   function copyInviteLink() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${connectedMap.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${connectedMap.join_code || connectedMap.id}`
     navigator.clipboard.writeText(shareUrl)
     linkCopied = true
     setTimeout(() => (linkCopied = false), 2000)
@@ -34,14 +34,14 @@
   }
 
   function shareViaSMS() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${connectedMap.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${connectedMap.join_code || connectedMap.id}`
     const messageText = `Join my SKAN farming map using this link: ${shareUrl}`
     const encodedMessage = encodeURIComponent(messageText)
     window.location.href = `sms:?&body=${encodedMessage}`
   }
 
   function shareViaEmail() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${connectedMap.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${connectedMap.join_code || connectedMap.id}`
     const emailSubject = "Join my SKAN farming map"
     const messageText = `Join my SKAN farming map using this link: ${shareUrl}`
     const encodedSubject = encodeURIComponent(emailSubject)
@@ -107,7 +107,7 @@
     <div class="flex gap-2">
       <input
         type="text"
-        value={`https://www.skanfarming.com.au/login?map_id=${connectedMap.id}`}
+        value={`https://www.skanfarming.com.au/login?map_code=${connectedMap.join_code || connectedMap.id}`}
         readonly
         class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-sm text-contrast-content"
       />

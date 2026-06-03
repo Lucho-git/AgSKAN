@@ -10,22 +10,41 @@ export const mapApi = {
                 throw new Error("Not authenticated");
             }
 
-            // Check if map exists
-            const { data: mapData, error: mapError } = await supabase
-                .from("master_maps")
-                .select("id, map_name, master_user_id")
-                .eq("id", mapId)
-                .single();
+            // Look up map by join_code first, then fall back to id (for UUID-based lookups)
+            let mapData = null;
+            let mapError = null;
 
-            if (mapError || !mapData) {
+            // Try join_code lookup (4-digit codes or any non-UUID input)
+            const { data: byCode, error: codeError } = await supabase
+                .from("master_maps")
+                .select("id, map_name, master_user_id, join_code")
+                .eq("join_code", mapId)
+                .maybeSingle();
+
+            if (byCode) {
+                mapData = byCode;
+            } else {
+                // Fall back to UUID lookup
+                const { data: byId, error: idError } = await supabase
+                    .from("master_maps")
+                    .select("id, map_name, master_user_id, join_code")
+                    .eq("id", mapId)
+                    .maybeSingle();
+                mapData = byId;
+                mapError = idError;
+            }
+
+            if (!mapData) {
                 throw new Error("Map not found");
             }
+
+            const resolvedMapId = mapData.id;
 
             // Get operation data
             const { data: operations, error: operationError } = await supabase
                 .from("operations")
                 .select("*")
-                .eq("master_map_id", mapId)
+                .eq("master_map_id", resolvedMapId)
                 .order("year", { ascending: false });
 
             if (operationError) {
@@ -46,8 +65,8 @@ export const mapApi = {
 
             // Update recent_maps
             let recentMaps = userData.recent_maps || [];
-            recentMaps = recentMaps.filter((id) => id !== mapId);
-            recentMaps.unshift(mapId);
+            recentMaps = recentMaps.filter((id) => id !== resolvedMapId);
+            recentMaps.unshift(resolvedMapId);
             recentMaps = recentMaps.slice(0, 10);
 
             // Get map owner info
@@ -79,7 +98,7 @@ export const mapApi = {
             const { error: updateError } = await supabase
                 .from("profiles")
                 .update({
-                    master_map_id: mapId,
+                    master_map_id: resolvedMapId,
                     recent_maps: recentMaps,
                     selected_operation_id: selectedOperation?.id || null
                 })
@@ -103,7 +122,7 @@ export const mapApi = {
                 supabase
                     .from("map_markers")
                     .select("id", { count: "exact" })
-                    .eq("master_map_id", mapId),
+                    .eq("master_map_id", resolvedMapId),
 
                 // 🆕 Trail hectares via operations join (for summary data)
                 supabase
@@ -112,7 +131,7 @@ export const mapApi = {
                         trail_hectares,
                         operations!inner(master_map_id)
                     `)
-                    .eq("operations.master_map_id", mapId),
+                    .eq("operations.master_map_id", resolvedMapId),
 
                 // 🆕 Detailed trail metadata (excluding heavy geometry)
                 supabase
@@ -136,14 +155,14 @@ export const mapApi = {
                             master_map_id
                         )
                     `)
-                    .eq("operations.master_map_id", mapId)
+                    .eq("operations.master_map_id", resolvedMapId)
                     .order("start_time", { ascending: false }),
 
                 // 🆕 Field boundaries count
                 supabase
                     .from("fields")
                     .select("field_id", { count: "exact" })
-                    .eq("map_id", mapId),
+                    .eq("map_id", resolvedMapId),
 
                 // Enhanced profiles query with operation data
                 supabase
@@ -159,13 +178,13 @@ export const mapApi = {
                             year
                         )
                     `)
-                    .eq("master_map_id", mapId),
+                    .eq("master_map_id", resolvedMapId),
 
                 // Vehicle states
                 supabase
                     .from("vehicle_state")
                     .select("*")
-                    .eq("master_map_id", mapId)
+                    .eq("master_map_id", resolvedMapId)
             ]);
 
             // 🆕 Calculate total trail hectares (for summary)
@@ -247,16 +266,17 @@ export const mapApi = {
                 success: true,
                 message: "Successfully connected to map",
                 data: {
-                    mapId,
+                    resolvedMapId,
                     mapName: mapData.map_name,
                     connectedMap: {
-                        id: mapId,
+                        id: resolvedMapId,
                         map_name: mapData.map_name,
                         master_user_id: mapData.master_user_id,
                         owner: ownerData?.full_name || "Unknown",
                         is_owner: mapData.master_user_id === session.session.user.id,
                         masterSubscription: masterSubscription || null,
-                        is_connected: true
+                        is_connected: true,
+                        join_code: mapData.join_code || null,
                     },
                     // 🆕 UPDATED: Enhanced map activity with calculated metrics
                     mapActivity: {
@@ -298,6 +318,23 @@ export const mapApi = {
                 throw new Error("Failed to fetch user data");
             }
 
+            // Generate a unique 4-digit join code for the new map
+            let joinCode = null;
+            let attempts = 0;
+            while (attempts < 100) {
+                const code = String(Math.floor(1000 + Math.random() * 9000));
+                const { data: existing } = await supabase
+                    .from("master_maps")
+                    .select("id")
+                    .eq("join_code", code)
+                    .maybeSingle();
+                if (!existing) {
+                    joinCode = code;
+                    break;
+                }
+                attempts++;
+            }
+
             // Create the new map
             const { error: insertError } = await supabase
                 .from("master_maps")
@@ -305,6 +342,7 @@ export const mapApi = {
                     id: mapId,
                     master_user_id: session.session.user.id,
                     map_name: mapName,
+                    join_code: joinCode,
                 });
 
             if (insertError) {
@@ -376,6 +414,7 @@ export const mapApi = {
                         is_owner: true,
                         masterSubscription: subscription || null,
                         is_connected: true,
+                        join_code: joinCode,
                     },
                     // 🆕 UPDATED: Include all new fields for new maps
                     mapActivity: {
@@ -456,11 +495,7 @@ export const mapApi = {
                 throw new Error("Map not found");
             }
 
-            if (mapData.master_user_id !== session.session.user.id) {
-                throw new Error("You do not have permission to rename this map");
-            }
-
-            // Rename the map
+            // Rename the map (any connected user can rename)
             const { error: updateError } = await supabase
                 .from("master_maps")
                 .update({ map_name: newMapName })

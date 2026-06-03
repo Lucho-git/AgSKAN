@@ -16,8 +16,8 @@
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
 
   // Use the actual connected map ID
-  $: mapId = $connectedMapStore?.id || ""
-  $: shareLink = `https://www.skanfarming.com.au/login?map_id=${mapId}`
+  $: mapCode = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
+  $: shareLink = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore?.join_code || $connectedMapStore?.id || ""}`
 
   let completionStatus = null // 'loading' | 'success' | null
 
@@ -27,8 +27,8 @@
   const SUCCESS_DISPLAY_TIME = 2500 // 2.5 seconds for success state
 
   function handleCopyMapId() {
-    navigator.clipboard.writeText(mapId)
-    toast.success("Map ID copied to clipboard!")
+    navigator.clipboard.writeText(mapCode)
+    toast.success("Map code copied!")
   }
 
   function handleCopyLink() {
@@ -199,18 +199,18 @@
           Join AgSKAN Map
         </h3>
 
-        <!-- Map ID Section - compact -->
+        <!-- Map Code Section - compact -->
         <div class="mb-3 md:mb-4">
           <label
             class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
-            >Map ID</label
+            >Map Code</label
           >
           <div class="flex">
             <input
               type="text"
-              value={mapId}
+              value={mapCode}
               readonly
-              class="flex-1 rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
+              class="flex-1 rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 font-mono text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
             />
             <button
               on:click={handleCopyMapId}
@@ -222,9 +222,9 @@
           </div>
           <p class="mt-1.5 text-xs text-contrast-content/60">
             <span class="hidden sm:inline"
-              >Share this ID with other users to join your map</span
+              >Share this code with other users to join your map</span
             >
-            <span class="sm:hidden">Share this ID with team members</span>
+            <span class="sm:hidden">Share this code with team members</span>
           </p>
         </div>
 

@@ -33,10 +33,12 @@
     Pencil,
     Trash2,
     AlertTriangle,
+    UserPlus,
+    Search,
+    X,
   } from "lucide-svelte"
 
-  import MapManagementTab from "./MapManagementTab.svelte"
-  import OperationsTab from "./OperationsTab.svelte"
+  import { v4 as uuidv4 } from "uuid"
   import ObjectsTab from "./ObjectsTab.svelte"
 
   // ========================================
@@ -62,6 +64,28 @@
   let showEditOperation = false
   let showDeleteOperationConfirm = false
   let enteredMapId = ""
+
+  // Rename map state
+  let showRenameMap = false
+  let newMapNameInput = ""
+
+  // Invite team state
+  let showInviteTeam = false
+
+  // Get Started state (non-connected)
+  let showCreateForm = false
+  let showJoinForm = false
+  let newMapName = ""
+  let generatedMapId = uuidv4()
+
+  // QR code for invite section
+  $: joinUrl = $connectedMapStore?.id
+    ? `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
+    : ""
+  $: qrCodeUrl = joinUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`
+    : ""
+
   let newOperationName = ""
   let newOperationYear = new Date().getFullYear()
   let newOperationDescription = ""
@@ -85,7 +109,8 @@
     showMapOptions ||
     showLaunchMapConfirm ||
     showSwitchMapConfirm ||
-    showLeaveMapConfirm
+    showLeaveMapConfirm ||
+    showRenameMap
   $: isOperationMenuOpen =
     showOperationOptions ||
     showCreateOperation ||
@@ -177,11 +202,12 @@
     showLaunchMapConfirm = false
     showSwitchMapConfirm = false
     showLeaveMapConfirm = false
+    showRenameMap = false
     showOperationOptions = false
     showCreateOperation = false
     showEditOperation = false
     showDeleteOperationConfirm = false
-    showOperationDropdown = false // 🆕 NEW: Also close operation dropdown
+    showOperationDropdown = false
   }
 
   // Dashboard map functions
@@ -219,22 +245,104 @@
     showLeaveMapConfirm = true
   }
 
+  function openCreateMapForm() {
+    closeAllDashboardMenus()
+    showJoinForm = false
+    showCreateForm = true
+  }
+
+  function openJoinMapForm() {
+    closeAllDashboardMenus()
+    showCreateForm = false
+    showJoinForm = true
+  }
+
+  async function handleCreateMap() {
+    if (!newMapName.trim()) {
+      toast.error("Please enter a map name")
+      return
+    }
+
+    isLoading = true
+    loadingAction = "create"
+
+    try {
+      const result = await mapApi.createAndJoinMap(newMapName.trim(), generatedMapId)
+
+      if (result.success && result.data) {
+        const { mapId, connectedMap, mapActivity, operation } = result.data
+
+        connectedMapStore.set(connectedMap)
+        mapActivityStore.set(mapActivity)
+        operationStore.set([operation])
+        selectedOperationStore.set(operation)
+
+        if ($profileStore) {
+          profileStore.update((profile) => ({
+            ...profile,
+            master_map_id: mapId,
+            recent_maps: [mapId, ...(profile.recent_maps || [])].slice(0, 10),
+            selected_operation_id: operation.id,
+          }))
+        }
+
+        toast.success("Map created")
+        activeTab = "dashboard"
+        newMapName = ""
+        generatedMapId = uuidv4()
+        showCreateForm = false
+      } else {
+        toast.error(`Failed to create map: ${result.message}`)
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingAction = null
+    }
+  }
+
+  function openRenameMap() {
+    closeAllDashboardMenus()
+    newMapNameInput = $connectedMapStore?.map_name || ""
+    showRenameMap = true
+  }
+
+  async function handleRenameMap() {
+    if (!newMapNameInput.trim()) {
+      toast.error("Map name is required")
+      return
+    }
+
+    isLoading = true
+    loadingAction = "rename"
+
+    try {
+      const result = await mapApi.renameMap($connectedMapStore.id, newMapNameInput.trim())
+
+      if (result.success) {
+        connectedMapStore.update((map) => ({ ...map, map_name: newMapNameInput.trim() }))
+        toast.success("Map renamed")
+        closeAllDashboardMenus()
+      } else {
+        toast.error(`Failed to rename: ${result.message}`)
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`)
+    } finally {
+      isLoading = false
+      loadingAction = null
+    }
+  }
+
   function handleLaunchMap() {
     window.location.href = "/account/mapviewer"
     showLaunchMapConfirm = false
   }
 
-  function copyMapId() {
-    if ($connectedMapStore?.id) {
-      navigator.clipboard.writeText($connectedMapStore.id)
-      closeAllDashboardMenus()
-      toast.success("Map ID copied")
-    }
-  }
-
   function copyMapLink() {
     if ($connectedMapStore?.id) {
-      const shareUrl = `https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`
+      const shareUrl = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
       navigator.clipboard.writeText(shareUrl)
       closeAllDashboardMenus()
       toast.success("Map link copied")
@@ -244,7 +352,7 @@
   async function connectToMap(mapId) {
     const trimmedMapId = mapId.trim()
     if (!trimmedMapId) {
-      toast.error("Please enter a valid map ID")
+      toast.error("Please enter a valid map code")
       return
     }
 
@@ -319,7 +427,6 @@
         resetMapStores()
 
         toast.success("Disconnected from map")
-        activeTab = "map"
         closeAllDashboardMenus()
       } else {
         toast.error(`Failed to disconnect: ${result.message}`)
@@ -568,10 +675,6 @@
   // LIFECYCLE
   // ========================================
   onMount(async () => {
-    if (!isConnected) {
-      activeTab = "map"
-    }
-
     // 🆕 NEW: Fetch recent maps on mount
     await fetchUserMaps()
     await fetchRecentMaps()
@@ -614,52 +717,7 @@
         </button>
       {/if}
 
-      <button
-        class="flex flex-1 items-center gap-2 whitespace-nowrap rounded-t-lg px-2 py-3 text-xs font-medium transition-colors sm:px-4 sm:text-sm {activeTab ===
-        'map'
-          ? 'bg-base-200 text-contrast-content'
-          : 'text-contrast-content/60 hover:bg-base-100 hover:text-contrast-content'}"
-        on:click={() => (activeTab = "map")}
-      >
-        <div
-          class="flex h-5 w-5 items-center justify-center rounded-full {activeTab ===
-          'map'
-            ? 'bg-blue-500/20'
-            : 'bg-base-300'}"
-        >
-          <Map
-            class="h-3 w-3 {activeTab === 'map'
-              ? 'text-blue-500'
-              : 'text-contrast-content/60'}"
-          />
-        </div>
-        Map
-      </button>
-
       {#if isConnected}
-        <button
-          class="flex flex-1 items-center gap-2 whitespace-nowrap rounded-t-lg px-2 py-3 text-xs font-medium transition-colors sm:px-4 sm:text-sm {activeTab ===
-          'operations'
-            ? 'bg-base-200 text-contrast-content'
-            : 'text-contrast-content/60 hover:bg-base-100 hover:text-contrast-content'}"
-          on:click={() => (activeTab = "operations")}
-        >
-          <div
-            class="flex h-5 w-5 items-center justify-center rounded-full {activeTab ===
-            'operations'
-              ? 'bg-purple-500/20'
-              : 'bg-base-300'}"
-          >
-            <MapPin
-              class="h-3 w-3 {activeTab === 'operations'
-                ? 'text-purple-500'
-                : 'text-contrast-content/60'}"
-            />
-          </div>
-          <span class="xs:inline hidden sm:hidden lg:inline">Operations</span>
-          <span class="xs:hidden sm:inline lg:hidden">Ops</span>
-        </button>
-
         <button
           class="flex flex-1 items-center gap-2 whitespace-nowrap rounded-t-lg px-2 py-3 text-xs font-medium transition-colors sm:px-4 sm:text-sm {activeTab ===
           'objects'
@@ -681,10 +739,13 @@
           </div>
           <span class="xs:inline hidden sm:hidden lg:inline">Objects</span>
           <span class="xs:hidden sm:inline lg:hidden">Obj</span>
-          <span
-            class="ml-1 hidden rounded bg-base-300 px-1.5 py-0.5 text-xs sm:inline"
-            >Loading</span
-          >
+          {#if $connectedMapStore?.is_connected}
+            <span
+              class="ml-1 hidden rounded bg-base-300 px-1.5 py-0.5 text-xs sm:inline"
+            >
+              {$mapActivityStore?.connected_profiles?.length || 0}
+            </span>
+          {/if}
         </button>
       {/if}
     </div>
@@ -758,25 +819,14 @@
               </button>
               <button
                 class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
-                on:click|stopPropagation={copyMapId}
+                on:click|stopPropagation={openRenameMap}
               >
                 <div
-                  class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
                 >
-                  <Copy class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
+                  <Pencil class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3" />
                 </div>
-                Copy Map ID
-              </button>
-              <button
-                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
-                on:click|stopPropagation={copyMapLink}
-              >
-                <div
-                  class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
-                >
-                  <Link class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3" />
-                </div>
-                Copy Map Link
+                Rename Map
               </button>
               <button
                 class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
@@ -838,6 +888,44 @@
             </div>
           {/if}
 
+          <!-- Expandable Rename Map -->
+          {#if showRenameMap}
+            <div
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="space-y-3 sm:space-y-4" on:click|stopPropagation>
+                <div>
+                  <h4
+                    class="mb-2 text-sm font-semibold text-contrast-content sm:text-base"
+                  >
+                    Rename Map
+                  </h4>
+                  <input
+                    type="text"
+                    bind:value={newMapNameInput}
+                    placeholder="New map name"
+                    class="w-full rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-3 sm:text-sm"
+                  />
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
+                    on:click={() => closeAllDashboardMenus()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="flex-1 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+                    on:click={handleRenameMap}
+                    disabled={isLoading || !newMapNameInput.trim()}
+                  >
+                    {isLoading && loadingAction === "rename" ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
           <!-- Expandable Switch Map with Inline Join Button -->
           {#if showSwitchMapConfirm}
             <div
@@ -852,14 +940,14 @@
                   </h4>
                   <label
                     class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
-                    >Map ID</label
+                    >Map Code</label
                   >
                   <!-- Inline input and button - Stack on mobile -->
                   <div class="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
                       bind:value={enteredMapId}
-                      placeholder="Enter Map ID"
+                      placeholder="Enter 4-digit map code"
                       class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-3 sm:text-sm"
                     />
                     <button
@@ -1003,7 +1091,7 @@
                   </h4>
                   <p class="text-xs text-contrast-content/60 sm:text-sm">
                     Are you sure you want to disconnect from "{$connectedMapStore.map_name}"?
-                    You can reconnect later using the Map ID.
+                    You can reconnect later using the Map Code.
                   </p>
                 </div>
                 <div class="flex gap-2">
@@ -1374,11 +1462,375 @@
             </div>
           {/if}
         </div>
+
+        <!-- Invite Team - Always visible -->
+        <div
+          class="relative rounded-lg bg-base-200 p-3 transition-colors sm:p-4"
+        >
+          <button
+            class="flex w-full items-center gap-3 text-left"
+            on:click={() => (showInviteTeam = !showInviteTeam)}
+          >
+            <div
+              class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600/20 sm:h-10 sm:w-10"
+            >
+              <UserPlus class="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <h4
+                class="text-sm font-semibold text-contrast-content sm:text-base"
+              >
+                Invite Team
+              </h4>
+              <p class="text-xs text-contrast-content/60 sm:text-sm">
+                Share your map with team members
+              </p>
+            </div>
+            <div class="flex w-8 justify-end sm:w-10">
+              <button
+                class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100 sm:h-8 sm:w-8"
+                on:click|stopPropagation={() => (showInviteTeam = !showInviteTeam)}
+                title="Invite options"
+              >
+                {#if showInviteTeam}
+                  <ChevronUp
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
+                {:else}
+                  <ChevronDown
+                    class="h-3 w-3 text-contrast-content/60 sm:h-4 sm:w-4"
+                  />
+                {/if}
+              </button>
+            </div>
+          </button>
+
+          <!-- Expandable Invite Content -->
+          {#if showInviteTeam}
+            <div
+              class="dashboard-slide-down mt-3 border-t border-base-300 pt-3 sm:mt-4 sm:pt-4"
+            >
+              <div class="space-y-4 sm:space-y-5" on:click|stopPropagation>
+                <!-- Map Code -->
+                <div>
+                  <label class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
+                    >Map Code</label
+                  >
+                  <p class="mb-1.5 text-xs text-contrast-content/40">
+                    Have your team member enter this code on the login screen.
+                  </p>
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      value={$connectedMapStore?.join_code || $connectedMapStore?.id || ""}
+                      readonly
+                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs font-mono text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
+                    />
+                    <button
+                      class="flex items-center gap-1.5 rounded-lg bg-base-300 px-3 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-content hover:text-base-100 sm:px-4 sm:text-sm"
+                      on:click={() => {
+                        const code = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
+                        navigator.clipboard.writeText(code)
+                        toast.success("Map code copied")
+                      }}
+                    >
+                      <Copy class="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Map Link -->
+                <div>
+                  <label class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
+                    >Map Link</label
+                  >
+                  <p class="mb-1.5 text-xs text-contrast-content/40">
+                    Send this link via message or email for one-tap access.
+                  </p>
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      value="https://www.skanfarming.com.au/login?map_code={$connectedMapStore?.join_code || $connectedMapStore?.id || ''}"
+                      readonly
+                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
+                    />
+                    <button
+                      class="flex items-center gap-1.5 rounded-lg bg-base-300 px-3 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-content hover:text-base-100 sm:px-4 sm:text-sm"
+                      on:click={copyMapLink}
+                    >
+                      <Link class="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div class="border-t border-base-300 pt-4">
+                  <!-- QR Code -->
+                  <div class="flex flex-col items-center">
+                    <label class="mb-2 block text-xs font-medium text-contrast-content/60 sm:text-sm"
+                      >Scan to Join</label
+                    >
+                    <div class="rounded-xl bg-white p-4 shadow-sm">
+                      <img
+                        src={qrCodeUrl}
+                        alt="QR code to join map"
+                        class="h-36 w-36 sm:h-44 sm:w-44"
+                      />
+                    </div>
+                    <p class="mt-2 text-xs text-contrast-content/40">
+                      Open the camera app on any device and point it here
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
       </div>
-    {:else if activeTab === "map"}
-      <MapManagementTab bind:activeTab />
-    {:else if activeTab === "operations" && isConnected}
-      <OperationsTab />
+    {:else if activeTab === "dashboard" && !isConnected}
+      <!-- Dashboard Tab - Not Connected: Get Started -->
+      <div class="space-y-4 sm:space-y-6">
+        <div class="text-center">
+          <div
+            class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10"
+          >
+            <Map class="h-8 w-8 text-blue-500" />
+          </div>
+          <h3 class="mb-2 text-lg font-semibold text-contrast-content">
+            Get Started with Maps
+          </h3>
+          <p class="mb-6 text-sm text-contrast-content/60">
+            Create a new map or join an existing one
+          </p>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              class="group flex items-center justify-center gap-3 rounded-lg bg-base-content px-6 py-4 text-base-100 transition-colors hover:bg-base-content/90"
+              on:click={openCreateMapForm}
+            >
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-base-100/20"
+              >
+                <Plus class="h-5 w-5" />
+              </div>
+              <div class="text-left">
+                <div class="font-semibold">Create Map</div>
+                <div class="text-sm opacity-80">Start a new farm map</div>
+              </div>
+            </button>
+            <button
+              class="group flex items-center justify-center gap-3 rounded-lg bg-base-200 px-6 py-4 text-contrast-content transition-colors hover:bg-base-300"
+              on:click={openJoinMapForm}
+            >
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-base-100"
+              >
+                <Search class="h-5 w-5 text-contrast-content/60" />
+              </div>
+              <div class="text-left">
+                <div class="font-semibold">Join Map</div>
+                <div class="text-sm text-contrast-content/60">
+                  Connect to existing map
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expandable Create Map Form -->
+        {#if showCreateForm}
+          <div class="animate-slideDown rounded-lg bg-base-200 p-4">
+            <div class="mb-4 flex items-center justify-between">
+              <h4 class="font-semibold text-contrast-content">
+                Create New Map
+              </h4>
+              <button
+                class="flex h-6 w-6 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
+                on:click={() => (showCreateForm = false)}
+                title="Close"
+              >
+                <X class="h-3 w-3 text-contrast-content/60" />
+              </button>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm text-contrast-content/60"
+                  >Map Name</label
+                >
+                <input
+                  type="text"
+                  bind:value={newMapName}
+                  placeholder="e.g. North Field Operations"
+                  class="w-full rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                />
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                  on:click={() => {
+                    showCreateForm = false
+                    newMapName = ""
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  class="flex-1 rounded-lg bg-base-content py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  on:click={handleCreateMap}
+                  disabled={isLoading || !newMapName.trim()}
+                >
+                  {isLoading && loadingAction === "create"
+                    ? "Creating..."
+                    : "Create Map"}
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Expandable Join Map Form -->
+        {#if showJoinForm}
+          <div class="animate-slideDown rounded-lg bg-base-200 p-4">
+            <div class="mb-4 flex items-center justify-between">
+              <h4 class="font-semibold text-contrast-content">Join Map</h4>
+              <button
+                class="flex h-6 w-6 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100"
+                on:click={() => (showJoinForm = false)}
+                title="Close"
+              >
+                <X class="h-3 w-3 text-contrast-content/60" />
+              </button>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="mb-1 block text-sm text-contrast-content/60"
+                  >Map Code</label
+                >
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    bind:value={enteredMapId}
+                    placeholder="Enter 4-digit map code"
+                    class="flex-1 rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-contrast-content outline-none transition-colors focus:border-base-content"
+                  />
+                  <button
+                    class="rounded-lg bg-base-content px-4 py-3 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    on:click={() => connectToMap(enteredMapId)}
+                    disabled={isLoading || !enteredMapId.trim()}
+                  >
+                    {isLoading && loadingAction === `connect-${enteredMapId}`
+                      ? "Joining..."
+                      : "Join"}
+                  </button>
+                </div>
+              </div>
+
+              {#if recentMaps.length > 0 || userMaps.length > 0}
+                <div class="space-y-3">
+                  {#if recentMaps.length > 0}
+                    <div>
+                      <h5
+                        class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                      >
+                        <div
+                          class="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600/20"
+                        >
+                          <Clock class="h-2.5 w-2.5 text-purple-600" />
+                        </div>
+                        Recent Maps
+                      </h5>
+                      <div class="space-y-1">
+                        {#each recentMaps.slice(0, 3) as map}
+                          <button
+                            class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300"
+                            on:click={() => connectToMap(map.id)}
+                            disabled={isLoading}
+                          >
+                            <div
+                              class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600/20"
+                            >
+                              <Map class="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                              <div
+                                class="truncate font-medium text-contrast-content"
+                              >
+                                {map.map_name}
+                              </div>
+                              <div class="text-sm text-contrast-content/60">
+                                by {map.owner_name}
+                              </div>
+                            </div>
+                            <Link2
+                              class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                            />
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+
+                  {#if userMaps.length > 0}
+                    <div>
+                      <h5
+                        class="mb-2 flex items-center gap-2 text-sm font-medium text-contrast-content"
+                      >
+                        <div
+                          class="flex h-4 w-4 items-center justify-center rounded-full bg-green-600/20"
+                        >
+                          <User class="h-2.5 w-2.5 text-green-600" />
+                        </div>
+                        Your Maps
+                      </h5>
+                      <div class="space-y-1">
+                        {#each userMaps.slice(0, 3) as map}
+                          <button
+                            class="group flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-300"
+                            on:click={() => connectToMap(map.id)}
+                            disabled={isLoading}
+                          >
+                            <div
+                              class="flex h-8 w-8 items-center justify-center rounded-full bg-green-600/20"
+                            >
+                              <Map class="h-4 w-4 text-green-600" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                              <div
+                                class="truncate font-medium text-contrast-content"
+                              >
+                                {map.map_name}
+                              </div>
+                              <div class="text-sm text-contrast-content/60">
+                                You own this map
+                              </div>
+                            </div>
+                            <Link2
+                              class="h-4 w-4 text-contrast-content/60 transition-transform group-hover:translate-x-1"
+                            />
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <div class="mt-4">
+                <button
+                  class="w-full rounded-lg border border-base-300 bg-base-100 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-300"
+                  on:click={() => {
+                    showJoinForm = false
+                    enteredMapId = ""
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
     {:else if activeTab === "objects" && isConnected}
       <ObjectsTab />
     {/if}

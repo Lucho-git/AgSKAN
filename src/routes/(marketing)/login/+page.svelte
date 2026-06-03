@@ -54,12 +54,12 @@
         nativeProvider,
       )
 
-      // Handle map_id from URL if present
+      // Handle map_code or legacy map_id from URL if present
       const urlParams = new URLSearchParams(window.location.search)
-      const mapId = urlParams.get("map_id")
-      if (mapId) {
-        console.log(`Map ID found in URL: ${mapId}`)
-        setPendingMapId(mapId)
+      const mapCode = urlParams.get("map_code") || urlParams.get("map_id")
+      if (mapCode) {
+        console.log(`Map code found in URL: ${mapCode}`)
+        setPendingMapId(mapCode)
       }
 
       // Set up auth state change listener with consistent behavior

@@ -38,16 +38,17 @@
   }
 
   function copyMapId() {
-    if ($connectedMapStore.id) {
-      navigator.clipboard.writeText($connectedMapStore.id)
+    const code = $connectedMapStore.join_code || $connectedMapStore.id
+    if (code) {
+      navigator.clipboard.writeText(code)
       mapIdCopied = true
       setTimeout(() => (mapIdCopied = false), 2000)
-      toast.success("Map ID Copied to Clipboard")
+      toast.success("Map code copied")
     }
   }
 
   function copyLink() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
     navigator.clipboard.writeText(shareUrl)
     linkCopied = true
     setTimeout(() => (linkCopied = false), 2000)
@@ -55,7 +56,7 @@
   }
 
   function shareViaSMS() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
     const messageText = `Join my SKAN farming map using this link: ${shareUrl}`
     const encodedMessage = encodeURIComponent(messageText)
     window.location.href = `sms:?&body=${encodedMessage}`
@@ -63,7 +64,7 @@
   }
 
   function shareViaEmail() {
-    const shareUrl = `https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`
+    const shareUrl = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
     const emailSubject = "Join my SKAN farming map"
     const messageText = `Join my SKAN farming map using this link: ${shareUrl}`
     const encodedSubject = encodeURIComponent(emailSubject)
@@ -161,16 +162,16 @@
 
           <!-- Copy Options Container -->
           <div class="w-full space-y-6">
-            <!-- Map ID Section -->
+            <!-- Map Code Section -->
             <div class="rounded-lg border border-base-300 bg-base-200 p-4">
               <h4 class="mb-3 text-base font-semibold text-base-content">
-                Map ID
+                Map Code
               </h4>
               <div class="flex gap-2">
                 <input
                   type="text"
-                  class="flex-1 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-contrast-content outline-none focus:border-base-content"
-                  value={$connectedMapStore.id}
+                  class="flex-1 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-mono font-medium text-contrast-content outline-none focus:border-base-content"
+                  value={$connectedMapStore.join_code || $connectedMapStore.id}
                   readonly
                 />
                 <button
@@ -185,7 +186,7 @@
                 </button>
               </div>
               <p class="mt-3 text-xs text-contrast-content">
-                Share this ID with other users to join your map
+                Share this code with other users to join your map
               </p>
             </div>
 
@@ -198,7 +199,7 @@
                 <input
                   type="text"
                   class="flex-1 break-all rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-contrast-content outline-none focus:border-base-content"
-                  value={`https://www.skanfarming.com.au/login?map_id=${$connectedMapStore.id}`}
+                  value={`https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`}
                   readonly
                 />
                 <button

@@ -472,6 +472,7 @@
         is_owner: connected_map.is_owner,
         masterSubscription: master_subscription || null,
         is_connected: true,
+        join_code: masterMap.join_code || null,
       })
 
       // Update map activity store with metrics

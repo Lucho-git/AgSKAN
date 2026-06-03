@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation"
-  import { Map, User, Check, ArrowRight, Info } from "lucide-svelte"
+  import { Map, User, Check, ArrowRight } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
@@ -23,7 +23,6 @@
   let isLoading = false
   let isJoiningMap = false
   let fullName = ""
-  let exampleMapCode = ""
   let dataLoaded = false
 
   // Form validation errors
@@ -31,27 +30,6 @@
     fullName: "",
     mapId: "",
   }
-
-  // Generate example map code similar to React version
-  function generateExampleMapCode() {
-    const hexChars = "0123456789abcdef"
-    const sections = [8, 4, 4, 4, 12] // Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-    let uuid = ""
-    sections.forEach((length, index) => {
-      for (let i = 0; i < length; i++) {
-        uuid += hexChars.charAt(Math.floor(Math.random() * hexChars.length))
-      }
-      if (index < sections.length - 1) {
-        uuid += "-"
-      }
-    })
-
-    return uuid
-  }
-
-  // Initialize example map code
-  exampleMapCode = generateExampleMapCode()
 
   // Load existing profile data when component mounts
   onMount(async () => {
@@ -134,7 +112,7 @@
     // Only validate mapId if we don't have a connected map and haven't skipped it
     if (!hasConnectedMap && !skipMapId) {
       newErrors.mapId = !joinMapId
-        ? "Map ID is required unless you choose to add it later"
+        ? "Map code is required unless you choose to add it later"
         : ""
     }
 
@@ -148,13 +126,23 @@
       return
     }
 
-    const { data: map, error } = await supabase
+    // Try join_code first, then id
+    let { data: map } = await supabase
       .from("master_maps")
       .select("id")
-      .eq("id", joinMapId)
-      .single()
+      .eq("join_code", joinMapId)
+      .maybeSingle()
 
-    isValidMapId = !error && map !== null
+    if (!map) {
+      const { data: byId } = await supabase
+        .from("master_maps")
+        .select("id")
+        .eq("id", joinMapId)
+        .maybeSingle()
+      map = byId
+    }
+
+    isValidMapId = map !== null
   }
 
   async function handleJoinMap() {
@@ -490,7 +478,7 @@
                 <div class="rounded-md bg-base-200 p-1 text-base-content">
                   <Map size={14} />
                 </div>
-                Map ID
+                Map Code
               </label>
               <div
                 class="relative transition-all duration-300 {errors.mapId
@@ -502,7 +490,7 @@
                   <div class="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Enter map ID"
+                      placeholder="Enter 4-digit map code"
                       bind:value={joinMapId}
                       on:input={(e) => {
                         handleInputChange("mapId", e.target.value)
@@ -530,19 +518,6 @@
                     </button>
                   </div>
 
-                  <!-- Example Map Code - compact -->
-                  <div
-                    class="flex items-start gap-2 text-xs text-contrast-content/60"
-                  >
-                    <Info size={12} class="mt-0.5 flex-shrink-0 text-info" />
-                    <div>
-                      <span>Example:</span>
-                      <span
-                        class="ml-1 break-all rounded bg-info/10 px-1.5 py-0.5 font-mono text-info/80"
-                        >{exampleMapCode}</span
-                      >
-                    </div>
-                  </div>
                 </div>
 
                 {#if joinMapId && !isValidMapId}
@@ -551,7 +526,7 @@
                   >
                     <span class="inline-block h-1 w-1 rounded-full bg-error"
                     ></span>
-                    Invalid Map ID
+                    Invalid map code
                   </p>
                 {/if}
                 {#if errors.mapId}
@@ -591,7 +566,7 @@
               </label>
             </div>
             <label class="cursor-pointer text-sm text-base-content">
-              I'll add my map ID later
+              I'll add my map code later
             </label>
           </div>
         </div>

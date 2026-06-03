@@ -9,4 +9,5 @@ export const connectedMapStore = writable({
   is_owner: false,
   masterSubscription: null,
   is_connected: false,
+  join_code: null,
 })
