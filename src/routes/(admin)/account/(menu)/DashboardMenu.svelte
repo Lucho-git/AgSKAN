@@ -62,7 +62,7 @@
     browser && $connectedMapStore?.id
       ? sessionStorage.getItem("show_join_animation")
       : null
-  let mapTransition: 'connecting' | 'connected' | null = pendingJoinAnimation
+  let mapTransition: "connecting" | "connected" | null = pendingJoinAnimation
     ? "connected"
     : null
   let transitionMapName = pendingJoinAnimation
@@ -289,7 +289,10 @@
     const startTime = Date.now()
 
     try {
-      const result = await mapApi.createAndJoinMap(newMapName.trim(), generatedMapId)
+      const result = await mapApi.createAndJoinMap(
+        newMapName.trim(),
+        generatedMapId,
+      )
 
       if (result.success && result.data) {
         const { mapId, connectedMap, mapActivity, operation } = result.data
@@ -355,10 +358,16 @@
     loadingAction = "rename"
 
     try {
-      const result = await mapApi.renameMap($connectedMapStore.id, newMapNameInput.trim())
+      const result = await mapApi.renameMap(
+        $connectedMapStore.id,
+        newMapNameInput.trim(),
+      )
 
       if (result.success) {
-        connectedMapStore.update((map) => ({ ...map, map_name: newMapNameInput.trim() }))
+        connectedMapStore.update((map) => ({
+          ...map,
+          map_name: newMapNameInput.trim(),
+        }))
         toast.success("Map renamed")
         closeAllDashboardMenus()
       } else {
@@ -816,14 +825,16 @@
   >
     {#if mapTransition}
       <!-- Map Transition Overlay -->
-      <div class="flex min-h-[28rem] flex-col items-center justify-center py-16">
+      <div
+        class="flex min-h-[28rem] flex-col items-center justify-center py-16"
+      >
         {#if mapTransition === "connecting"}
           <div class="animate-scaleIn flex flex-col items-center gap-4">
             <div
               class="relative flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/20"
             >
               <div
-                class="animate-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
+                class="absolute inset-0 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400"
               ></div>
               <Cloud class="animate-cloudPulse h-9 w-9 text-blue-400" />
             </div>
@@ -831,7 +842,9 @@
               <p class="text-lg font-medium text-contrast-content">
                 Connecting to map...
               </p>
-              <p class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60">
+              <p
+                class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60"
+              >
                 Loading your farm data
               </p>
             </div>
@@ -844,14 +857,18 @@
               <div
                 class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
               >
-                <Check class="animate-checkDraw h-7 w-7 stroke-[3] text-white" />
+                <Check
+                  class="animate-checkDraw h-7 w-7 stroke-[3] text-white"
+                />
               </div>
             </div>
             <div class="text-center">
               <p class="text-lg font-bold text-contrast-content">
                 Connected to {transitionMapName}
               </p>
-              <p class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60">
+              <p
+                class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60"
+              >
                 Your farm operations are ready
               </p>
             </div>
@@ -1025,7 +1042,9 @@
                     on:click={handleRenameMap}
                     disabled={isLoading || !newMapNameInput.trim()}
                   >
-                    {isLoading && loadingAction === "rename" ? "Saving..." : "Save"}
+                    {isLoading && loadingAction === "rename"
+                      ? "Saving..."
+                      : "Save"}
                   </button>
                 </div>
               </div>
@@ -1595,7 +1614,8 @@
             <div class="flex w-8 justify-end sm:w-10">
               <button
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100 sm:h-8 sm:w-8"
-                on:click|stopPropagation={() => (showInviteTeam = !showInviteTeam)}
+                on:click|stopPropagation={() =>
+                  (showInviteTeam = !showInviteTeam)}
                 title="Invite options"
               >
                 {#if showInviteTeam}
@@ -1619,23 +1639,29 @@
               <div class="space-y-4 sm:space-y-5" on:click|stopPropagation>
                 <!-- Map Code -->
                 <div>
-                  <label class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Map Code</label
                   >
                   <p class="mb-1.5 text-xs text-contrast-content/40">
-                    Have your team member enter this code on the login screen.
+                    Enter to join this map.
                   </p>
                   <div class="flex gap-2">
                     <input
                       type="text"
-                      value={$connectedMapStore?.join_code || $connectedMapStore?.id || ""}
+                      value={$connectedMapStore?.join_code ||
+                        $connectedMapStore?.id ||
+                        ""}
                       readonly
-                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs font-mono text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
+                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 font-mono text-xs text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
                     />
                     <button
                       class="flex items-center gap-1.5 rounded-lg bg-base-300 px-3 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-content hover:text-base-100 sm:px-4 sm:text-sm"
                       on:click={() => {
-                        const code = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
+                        const code =
+                          $connectedMapStore?.join_code ||
+                          $connectedMapStore?.id ||
+                          ""
                         navigator.clipboard.writeText(code)
                         toast.success("Map code copied")
                       }}
@@ -1648,16 +1674,19 @@
 
                 <!-- Map Link -->
                 <div>
-                  <label class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
+                  <label
+                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
                     >Map Link</label
                   >
                   <p class="mb-1.5 text-xs text-contrast-content/40">
-                    Send this link via message or email for one-tap access.
+                    Share for one-tap access.
                   </p>
                   <div class="flex gap-2">
                     <input
                       type="text"
-                      value="https://www.skanfarming.com.au/login?map_code={$connectedMapStore?.join_code || $connectedMapStore?.id || ''}"
+                      value="https://www.skanfarming.com.au/login?map_code={$connectedMapStore?.join_code ||
+                        $connectedMapStore?.id ||
+                        ''}"
                       readonly
                       class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
                     />
@@ -1674,7 +1703,8 @@
                 <div class="border-t border-base-300 pt-4">
                   <!-- QR Code -->
                   <div class="flex flex-col items-center">
-                    <label class="mb-2 block text-xs font-medium text-contrast-content/60 sm:text-sm"
+                    <label
+                      class="mb-2 block text-xs font-medium text-contrast-content/60 sm:text-sm"
                       >Scan to Join</label
                     >
                     <div class="rounded-xl bg-white p-4 shadow-sm">
@@ -1685,7 +1715,7 @@
                       />
                     </div>
                     <p class="mt-2 text-xs text-contrast-content/40">
-                      Open the camera app on any device and point it here
+                      Point a phone camera here
                     </p>
                   </div>
                 </div>
@@ -1960,26 +1990,50 @@
   }
 
   @keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
-  .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+  .animate-scaleIn {
+    animation: scaleIn 0.3s ease-out;
+  }
 
   @keyframes cloudPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
-  .animate-cloudPulse { animation: cloudPulse 2s ease-in-out infinite; }
+  .animate-cloudPulse {
+    animation: cloudPulse 2s ease-in-out infinite;
+  }
 
   @keyframes delayedFadeIn {
-    0% { opacity: 0; }
-    50% { opacity: 0; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
   }
-  .animate-delayedFadeIn { animation: delayedFadeIn 1.2s ease-out; }
+  .animate-delayedFadeIn {
+    animation: delayedFadeIn 1.2s ease-out;
+  }
 
   @keyframes successPulse {
-    0%, 100% {
+    0%,
+    100% {
       transform: scale(1);
       box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
     }
@@ -1988,18 +2042,36 @@
       box-shadow: 0 0 0 20px rgba(34, 197, 94, 0);
     }
   }
-  .animate-successPulse { animation: successPulse 2s ease-in-out infinite; }
+  .animate-successPulse {
+    animation: successPulse 2s ease-in-out infinite;
+  }
 
   @keyframes checkScale {
-    0% { transform: scale(0); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
-  .animate-checkScale { animation: checkScale 0.6s ease-out 0.3s both; }
+  .animate-checkScale {
+    animation: checkScale 0.6s ease-out 0.3s both;
+  }
 
   @keyframes checkDraw {
-    0% { stroke-dasharray: 80; stroke-dashoffset: 80; }
-    100% { stroke-dasharray: 80; stroke-dashoffset: 0; }
+    0% {
+      stroke-dasharray: 80;
+      stroke-dashoffset: 80;
+    }
+    100% {
+      stroke-dasharray: 80;
+      stroke-dashoffset: 0;
+    }
   }
-  .animate-checkDraw { animation: checkDraw 0.4s ease-out 0.6s both; }
+  .animate-checkDraw {
+    animation: checkDraw 0.4s ease-out 0.6s both;
+  }
 </style>

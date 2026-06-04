@@ -19,6 +19,36 @@
   let nativeProvider: "google" | "apple" | null = null
   let isSocialLoading = false
 
+  // Try to hand a "Scan to Join" link off to the installed native app. Returns
+  // true if the app-open was attempted (mobile web with a map code). The web
+  // login flow continues regardless and acts as the fallback when the app
+  // isn't installed (the browser simply stays on this page).
+  function tryOpenInApp(mapCode: string): boolean {
+    // Don't attempt when we're already running inside the native app, or on
+    // desktop — there's nothing to hand off to.
+    if (Capacitor.isNativePlatform()) return false
+
+    const ua = navigator.userAgent
+    const isMobile = /iPad|iPhone|iPod|Android/.test(ua)
+    if (!isMobile) return false
+
+    const deepLink = `agskan://join?map_code=${encodeURIComponent(mapCode)}`
+    console.log("Attempting to open AgSKAN app for map join:", deepLink)
+
+    // If the app opens, the browser tab is backgrounded and this listener
+    // fires — nothing more to do. If it never fires, the app isn't installed
+    // and the normal web login flow (already running) takes over.
+    const onHide = () => {
+      if (document.visibilityState === "hidden") {
+        document.removeEventListener("visibilitychange", onHide)
+      }
+    }
+    document.addEventListener("visibilitychange", onHide)
+
+    window.location.href = deepLink
+    return true
+  }
+
   // Handle native social login
   async function handleNativeSocialLogin() {
     if (!isNative || !nativeProvider) return
@@ -60,6 +90,11 @@
       if (mapCode) {
         console.log(`Map code found in URL: ${mapCode}`)
         setPendingMapId(mapCode)
+
+        // If this is a "Scan to Join" link opened in mobile web and the app is
+        // installed, hand off to the app. The web flow below still runs as the
+        // fallback for devices without the app.
+        tryOpenInApp(mapCode)
       }
 
       // Set up auth state change listener with consistent behavior

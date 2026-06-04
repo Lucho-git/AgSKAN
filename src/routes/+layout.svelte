@@ -27,7 +27,7 @@
 
   // Supabase import - you'll need to import your supabase client
   // Adjust this import path based on your setup
-  import { supabase } from "$lib/stores/sessionStore"
+  import { supabase, setPendingMapId } from "$lib/stores/sessionStore"
 
   // Native geolocation patch — replaces browser API with Capacitor plugin
   // to avoid iOS WKWebView "Localhost" location prompt
@@ -57,6 +57,24 @@
             originalUrl: urlString,
             delayUsed: delay,
           })
+
+          // Map-join deep link: opened from a "Scan to Join" QR/link when the
+          // app is installed. Store the pending map and route into the account
+          // area, where the existing pending-map logic auto-joins (or sends the
+          // user to login first if they aren't authenticated yet).
+          if (pathPart === "join" && queryPart) {
+            const params = new URLSearchParams(queryPart)
+            const mapCode = params.get("map_code") || params.get("map_id")
+
+            if (mapCode) {
+              console.log("✅ Map-join deep link, pending map:", mapCode)
+              setPendingMapId(mapCode)
+              goto("/account")
+            } else {
+              console.error("❌ Missing map_code on join deep link")
+            }
+            return
+          }
 
           if (pathPart === "auth" && queryPart) {
             const params = new URLSearchParams(queryPart)
