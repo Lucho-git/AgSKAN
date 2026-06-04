@@ -56,8 +56,18 @@
   $: isOwner = $connectedMapStore?.is_owner
 
   // Map transition animation state
-  let mapTransition: 'connecting' | 'connected' | null = null
-  let transitionMapName = ""
+  // Read the deep-link join flag synchronously during init so the overlay is
+  // present on the very first paint (prevents a flash of the dashboard).
+  const pendingJoinAnimation =
+    browser && $connectedMapStore?.id
+      ? sessionStorage.getItem("show_join_animation")
+      : null
+  let mapTransition: 'connecting' | 'connected' | null = pendingJoinAnimation
+    ? "connected"
+    : null
+  let transitionMapName = pendingJoinAnimation
+    ? $connectedMapStore?.map_name || pendingJoinAnimation
+    : ""
   const MIN_ANIMATION_TIME = 1500
   const SUCCESS_DISPLAY_TIME = 3500
 
@@ -719,17 +729,13 @@
     await fetchUserMaps()
     await fetchRecentMaps()
 
-    // Check for deep-link join animation flag
-    if (browser && isConnected) {
-      const joinAnimation = sessionStorage.getItem('show_join_animation')
-      if (joinAnimation) {
-        sessionStorage.removeItem('show_join_animation')
-        transitionMapName = $connectedMapStore?.map_name || joinAnimation
-        mapTransition = "connected"
-        setTimeout(() => {
-          mapTransition = null
-        }, SUCCESS_DISPLAY_TIME)
-      }
+    // Deep-link join animation: state was set synchronously during init to avoid
+    // a flash. Here we just clear the flag and schedule it to hide.
+    if (browser && pendingJoinAnimation) {
+      sessionStorage.removeItem("show_join_animation")
+      setTimeout(() => {
+        mapTransition = null
+      }, SUCCESS_DISPLAY_TIME)
     }
 
     // Add click outside listener

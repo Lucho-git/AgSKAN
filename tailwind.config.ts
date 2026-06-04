@@ -77,6 +77,7 @@ const config: Config = {
                 'border-beam': 'border-beam calc(var(--duration)*1s) infinite linear',
                 'image-glow': 'image-glow 4100ms 600ms ease-out forwards',
                 'fade-in': 'fade-in 1000ms var(--animation-delay, 0ms) ease forwards',
+                'fadeIn': 'fadeIn 400ms ease forwards',
                 'fade-up': 'fade-up 1000ms var(--animation-delay, 0ms) ease forwards',
                 shimmer: "shimmer 8s infinite",
                 marquee: 'marquee var(--duration) infinite linear',
@@ -115,6 +116,10 @@ const config: Config = {
                 'fade-in': {
                     from: { opacity: '0', transform: 'translateY(-10px)' },
                     to: { opacity: '1', transform: 'none' }
+                },
+                'fadeIn': {
+                    from: { opacity: '0' },
+                    to: { opacity: '1' }
                 },
                 'fade-up': {
                     from: { opacity: '0', transform: 'translateY(20px)' },

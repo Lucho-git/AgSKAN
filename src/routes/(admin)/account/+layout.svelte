@@ -49,7 +49,7 @@
 
   // Animation timing
   let operationStartTime = 0
-  const MIN_ANIMATION_TIME = 3000 // Debug: 3 seconds minimum
+  const MIN_ANIMATION_TIME = 1200
 
   console.log("Account layout initializing")
   console.log("Current session status:", data.sessionStatus)
@@ -553,14 +553,14 @@
 
     // When signed out, show loading before redirecting to avoid flash of content
     if (event === "SIGNED_OUT" && !redirecting) {
-      redirecting = true
-      loading = true
-      error = null
       // If the sign-out page is performing a hard reload, let it own the redirect
-      // (avoids interrupting the sign-out animation with a soft navigation).
+      // and keep showing its own animation — don't swap in the account loading screen.
       if (browser && sessionStorage.getItem("signout_in_progress")) {
         return
       }
+      redirecting = true
+      loading = true
+      error = null
       goto("/login")
       return
     }
@@ -577,8 +577,6 @@
 
   // Complete data loading after session is ready
   async function completeDataLoading() {
-    console.log("🔵 ACCOUNT LAYOUT: completeDataLoading starting")
-
     // Start timing for minimum animation duration
     operationStartTime = Date.now()
 
@@ -728,15 +726,6 @@
           <p class="mt-2 text-sm text-contrast-content/60">
             Please wait while we set up your dashboard
           </p>
-        </div>
-
-        <!-- Debug: session state -->
-        <div class="mt-4 rounded-lg bg-base-200 px-4 py-3 font-mono text-xs text-contrast-content/50">
-          <div>Session: {$session ? '✓ present' : '✗ null'}</div>
-          <div>User ID: {$session?.user?.id ?? 'none'}</div>
-          <div>Loading: {loading}</div>
-          <div>Error: {error ? String(error.message || error) : 'none'}</div>
-          <div>Redirecting: {redirecting}</div>
         </div>
       </div>
     </div>

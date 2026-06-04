@@ -9,6 +9,7 @@
   let subMessage = "Initializing..."
   let progress = 0
   let isSigningOut = false
+  let fadingOut = false
   const REDIRECT_DELAY = 3000
 
   // Set this to true to directly redirect without auth state changes
@@ -160,7 +161,9 @@
       // Remove any token Supabase may have re-persisted during sign-out
       clearBrowserStorage()
 
-      // Hard reload to /login guarantees a clean slate (no stale in-memory session)
+      // Fade the page out, then hard reload to /login for a clean slate
+      fadingOut = true
+      await new Promise((resolve) => setTimeout(resolve, 350))
       redirectToLogin()
     } catch (error) {
       console.error("Sign-out failed:", error)
@@ -206,7 +209,10 @@
   })
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-base-100">
+<div
+  class="flex min-h-screen items-center justify-center bg-base-100 transition-opacity duration-300"
+  class:opacity-0={fadingOut}
+>
   <div class="w-full max-w-md p-8 text-center">
     <div class="rounded-lg p-8 shadow-lg" transition:fade>
       <h1 class="mb-2 text-2xl font-bold text-contrast-content">{message}</h1>

@@ -128,7 +128,7 @@
   />
 </svelte:head>
 
-<div class="rounded-xl bg-base-100 p-8 shadow-xl">
+<div class="animate-fadeIn rounded-xl bg-base-100 p-8 shadow-xl">
   <div class="mb-8 text-center">
     <h1 class="mb-2 font-archivo text-2xl font-bold text-contrast-content">
       {activeTab === "sign_up" ? "Create Account" : "Welcome Back"}
