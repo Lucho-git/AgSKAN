@@ -43,6 +43,28 @@
   const ANDROID_PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=com.skanfarming"
 
+  // Best-effort lookup of a map's name from its join code / id. Returns null
+  // when not permitted (e.g. unauthenticated users blocked by RLS).
+  async function fetchMapName(code: string): Promise<string | null> {
+    try {
+      const { data: byCode } = await supabase
+        .from("master_maps")
+        .select("map_name")
+        .eq("join_code", code)
+        .maybeSingle()
+      if (byCode?.map_name) return byCode.map_name
+
+      const { data: byId } = await supabase
+        .from("master_maps")
+        .select("map_name")
+        .eq("id", code)
+        .maybeSingle()
+      return byId?.map_name ?? null
+    } catch {
+      return null
+    }
+  }
+
   async function maybePromptOpenApp() {
     try {
       // map_code may already be gone from the URL: an authenticated user is
@@ -54,25 +76,34 @@
         params.get("map_id") ||
         localStorage.getItem("pending_map_id")
 
+      if (!mapCode) return
+
       const ua = navigator.userAgent
       const isIOS = /iPad|iPhone|iPod/.test(ua)
       const isMobile = isIOS || /Android/.test(ua)
 
-      // Nothing to hand off without a map code on a mobile browser.
-      if (!mapCode || !isMobile) return
-
-      // Only prompt the app switch when we KNOW the user is already signed in
-      // (i.e. past the login screen). If there's no session yet, we stay silent:
-      // the pending map is already stored, so the user completes login/signup on
-      // the web, which guarantees their account is joined to the map. They can
-      // switch to the app afterwards.
       const {
         data: { session },
       } = await supabase.auth.getSession()
+
+      const mapName = await fetchMapName(mapCode)
+      const mapLabel = mapName ? `"${mapName}"` : "the map"
+
+      // Not signed in yet: don't prompt the app (we don't want users chasing an
+      // install before their account is joined). The pending map is already
+      // stored, so completing login/signup on the web guarantees the join.
       if (!session?.refresh_token) {
-        console.log("Handoff: no session yet — staying on web for login/signup")
+        toast(`Joined ${mapLabel} — log in or sign up to continue`, {
+          duration: 8000,
+        })
         return
       }
+
+      // Signed in: the web has already auto-joined the map. Confirm the join...
+      toast.success(`Joined ${mapLabel}`, { duration: 6000 })
+
+      // ...then, on mobile, offer to continue in the native app.
+      if (!isMobile) return
 
       const deepLink =
         `agskan://join?map_code=${encodeURIComponent(mapCode)}` +
@@ -491,6 +522,14 @@
         await promptForNativeAppUpdate()
       } else {
         console.log("🌐 Web platform detected - deep link listener not needed")
+
+        // Suppress the browser's automatic "Install this app (PWA)" prompt. It
+        // otherwise appears alongside our "Open in the AgSKAN app" prompt and
+        // confuses users — the native app is the intended install path.
+        window.addEventListener("beforeinstallprompt", (e) => {
+          e.preventDefault()
+        })
+
         // On mobile web, a "Scan to Join" QR/link lands here. Offer to hand off
         // to the installed native app. This runs in the root layout (not the
         // login page) because an authenticated user is redirected straight to
