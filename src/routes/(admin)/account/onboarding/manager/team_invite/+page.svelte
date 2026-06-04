@@ -3,8 +3,6 @@
   import { goto } from "$app/navigation"
   import {
     ArrowRight,
-    ClipboardCopy,
-    Link2,
     Share2,
     Users,
     X,
@@ -14,9 +12,9 @@
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import InviteTeamFields from "$lib/components/general/InviteTeamFields.svelte"
 
   // Use the actual connected map ID
-  $: mapCode = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
   $: shareLink = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore?.join_code || $connectedMapStore?.id || ""}`
 
   let completionStatus = null // 'loading' | 'success' | null
@@ -25,11 +23,6 @@
   let operationStartTime = 0
   const MIN_ANIMATION_TIME = 2000 // 2 seconds minimum
   const SUCCESS_DISPLAY_TIME = 2500 // 2.5 seconds for success state
-
-  function handleCopyMapId() {
-    navigator.clipboard.writeText(mapCode)
-    toast.success("Map code copied!")
-  }
 
   function handleCopyLink() {
     navigator.clipboard.writeText(shareLink)
@@ -199,62 +192,9 @@
           Join AgSKAN Map
         </h3>
 
-        <!-- Map Code Section - compact -->
-        <div class="mb-3 md:mb-4">
-          <label
-            class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
-            >Map Code</label
-          >
-          <div class="flex">
-            <input
-              type="text"
-              value={mapCode}
-              readonly
-              class="flex-1 rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 font-mono text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
-            />
-            <button
-              on:click={handleCopyMapId}
-              class="rounded-r-lg bg-base-content px-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
-              disabled={completionStatus}
-            >
-              <ClipboardCopy size={16} />
-            </button>
-          </div>
-          <p class="mt-1.5 text-xs text-contrast-content/60">
-            <span class="hidden sm:inline"
-              >Share this code with other users to join your map</span
-            >
-            <span class="sm:hidden">Share this code with team members</span>
-          </p>
-        </div>
-
-        <!-- Share Link Section - compact -->
+        <!-- Shared invite fields (Map Code, Share Link, QR) -->
         <div class="mb-5 md:mb-6">
-          <label
-            class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
-            >Share Link</label
-          >
-          <div class="flex">
-            <input
-              type="text"
-              value={shareLink}
-              readonly
-              class="flex-1 truncate rounded-l-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-contrast-content focus:border-base-content/40 focus:outline-none"
-            />
-            <button
-              on:click={handleCopyLink}
-              class="rounded-r-lg bg-base-content px-3 font-medium text-base-100 transition-colors hover:bg-base-content/90"
-              disabled={completionStatus}
-            >
-              <Link2 size={16} />
-            </button>
-          </div>
-          <p class="mt-1.5 text-xs text-contrast-content/60">
-            <span class="hidden sm:inline"
-              >Share this link for direct access to your map</span
-            >
-            <span class="sm:hidden">Share this link for direct access</span>
-          </p>
+          <InviteTeamFields disabled={!!completionStatus} />
         </div>
 
         <!-- Action Buttons - compact horizontal layout for all screens -->

@@ -24,8 +24,6 @@
     Route,
     ChevronUp,
     MoreVertical,
-    Copy,
-    Link,
     Link2,
     LogOut,
     Clock,
@@ -42,6 +40,7 @@
 
   import { v4 as uuidv4 } from "uuid"
   import ObjectsTab from "./ObjectsTab.svelte"
+  import InviteTeamModal from "$lib/components/general/InviteTeamModal.svelte"
 
   // ========================================
   // TAB MANAGEMENT
@@ -95,14 +94,6 @@
   let showJoinForm = false
   let newMapName = ""
   let generatedMapId = uuidv4()
-
-  // QR code for invite section
-  $: joinUrl = $connectedMapStore?.id
-    ? `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
-    : ""
-  $: qrCodeUrl = joinUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`
-    : ""
 
   let newOperationName = ""
   let newOperationYear = new Date().getFullYear()
@@ -400,15 +391,6 @@
   function handleLaunchMap() {
     window.location.href = "/account/mapviewer"
     showLaunchMapConfirm = false
-  }
-
-  function copyMapLink() {
-    if ($connectedMapStore?.id) {
-      const shareUrl = `https://www.skanfarming.com.au/login?map_code=${$connectedMapStore.join_code || $connectedMapStore.id}`
-      navigator.clipboard.writeText(shareUrl)
-      closeAllDashboardMenus()
-      toast.success("Map link copied")
-    }
   }
 
   async function connectToMap(mapId) {
@@ -1644,133 +1626,7 @@
         </div>
 
         <!-- Invite Team Modal -->
-        {#if showInviteTeam}
-          <div
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-            on:click={() => (showInviteTeam = false)}
-            on:keydown={(e) => e.key === "Escape" && (showInviteTeam = false)}
-            role="presentation"
-          >
-            <div
-              class="dashboard-slide-down max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-base-100 p-5 shadow-xl sm:p-6"
-              on:click|stopPropagation
-              role="dialog"
-              aria-modal="true"
-            >
-              <div class="mb-4 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600/20 sm:h-10 sm:w-10"
-                  >
-                    <UserPlus class="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
-                  </div>
-                  <div>
-                    <h4
-                      class="text-base font-semibold text-contrast-content sm:text-lg"
-                    >
-                      Invite Team
-                    </h4>
-                    <p class="text-xs text-contrast-content/60 sm:text-sm">
-                      Share your map with team members
-                    </p>
-                  </div>
-                </div>
-                <button
-                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
-                  on:click={() => (showInviteTeam = false)}
-                  title="Close"
-                >
-                  <X class="h-4 w-4 text-contrast-content/60" />
-                </button>
-              </div>
-
-              <div class="space-y-4 sm:space-y-5">
-                <!-- Map Code -->
-                <div>
-                  <label
-                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
-                    >Map Code</label
-                  >
-                  <p class="mb-1.5 text-xs text-contrast-content/40">
-                    Enter to join this map.
-                  </p>
-                  <div class="flex gap-2">
-                    <input
-                      type="text"
-                      value={$connectedMapStore?.join_code ||
-                        $connectedMapStore?.id ||
-                        ""}
-                      readonly
-                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 font-mono text-xs text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
-                    />
-                    <button
-                      class="flex items-center gap-1.5 rounded-lg bg-base-300 px-3 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-content hover:text-base-100 sm:px-4 sm:text-sm"
-                      on:click={() => {
-                        const code =
-                          $connectedMapStore?.join_code ||
-                          $connectedMapStore?.id ||
-                          ""
-                        navigator.clipboard.writeText(code)
-                        toast.success("Map code copied")
-                      }}
-                    >
-                      <Copy class="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Map Link -->
-                <div>
-                  <label
-                    class="mb-1 block text-xs text-contrast-content/60 sm:text-sm"
-                    >Map Link</label
-                  >
-                  <p class="mb-1.5 text-xs text-contrast-content/40">
-                    Share for one-tap access.
-                  </p>
-                  <div class="flex gap-2">
-                    <input
-                      type="text"
-                      value="https://www.skanfarming.com.au/login?map_code={$connectedMapStore?.join_code ||
-                        $connectedMapStore?.id ||
-                        ''}"
-                      readonly
-                      class="flex-1 rounded-lg border border-base-300 bg-base-100 p-2.5 text-xs text-contrast-content/80 outline-none sm:p-3 sm:text-sm"
-                    />
-                    <button
-                      class="flex items-center gap-1.5 rounded-lg bg-base-300 px-3 py-2.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-content hover:text-base-100 sm:px-4 sm:text-sm"
-                      on:click={copyMapLink}
-                    >
-                      <Link class="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                </div>
-
-                <div class="border-t border-base-300 pt-4">
-                  <!-- QR Code -->
-                  <div class="flex flex-col items-center">
-                    <label
-                      class="mb-2 block text-xs font-medium text-contrast-content/60 sm:text-sm"
-                      >Scan to Join</label
-                    >
-                    <div class="rounded-xl bg-white p-4 shadow-sm">
-                      <img
-                        src={qrCodeUrl}
-                        alt="QR code to join map"
-                        class="h-36 w-36 sm:h-44 sm:w-44"
-                      />
-                    </div>
-                    <p class="mt-2 text-xs text-contrast-content/40">
-                      Point a phone camera here
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
+        <InviteTeamModal bind:open={showInviteTeam} />
       </div>
     {:else if activeTab === "dashboard" && !isConnected}
       <!-- Dashboard Tab - Not Connected: Get Started -->
@@ -2083,11 +1939,9 @@
     0%,
     100% {
       transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
     }
     50% {
       transform: scale(1.05);
-      box-shadow: 0 0 0 20px rgba(34, 197, 94, 0);
     }
   }
   .animate-successPulse {
