@@ -41,6 +41,7 @@
     data.sessionStatus === "loading" || data.sessionStatus === "initializing"
   let error = data.error || null
   let redirecting = false
+
   let authStateUnsubscribe = null
   let userDataLoaded = false
   let pendingMapProcessed = false
@@ -555,12 +556,29 @@
       redirecting = true
       loading = true
       error = null
+      // If the sign-out page is performing a hard reload, let it own the redirect
+      // (avoids interrupting the sign-out animation with a soft navigation).
+      if (browser && sessionStorage.getItem("signout_in_progress")) {
+        return
+      }
       goto("/login")
+      return
+    }
+
+    // Block stale SIGNED_IN / TOKEN_REFRESHED while a sign-out is in progress
+    if (
+      (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
+      browser &&
+      sessionStorage.getItem("signout_in_progress")
+    ) {
+      return
     }
   }
 
   // Complete data loading after session is ready
   async function completeDataLoading() {
+    console.log("🔵 ACCOUNT LAYOUT: completeDataLoading starting")
+
     // Start timing for minimum animation duration
     operationStartTime = Date.now()
 

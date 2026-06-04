@@ -13,14 +13,8 @@ export const load = async ({ url }) => {
 
     // Only redirect if session is valid and not expired (avoids stale session after sign out)
     if (session) {
-        // If we just signed out, skip the redirect — show login form immediately
-        const justSignedOut = sessionStorage.getItem("just_signed_out")
-        if (justSignedOut) {
-            sessionStorage.removeItem("just_signed_out")
-            return {}
-        }
-
         const expiresAt = session.expires_at ? new Date(session.expires_at * 1000) : null
+        console.log("🟡 LOGIN +page.ts: session found, expires:", expiresAt, "redirecting to /account")
         if (!expiresAt || expiresAt > new Date()) {
             // Store map_code in localStorage so the account page can consume it
             const mapCode = url.searchParams.get("map_code") || url.searchParams.get("map_id")

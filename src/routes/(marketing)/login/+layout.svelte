@@ -10,6 +10,9 @@
 
   // Only redirect if user is already logged in when they visit the page
   onMount(() => {
+    // A fresh sign-out hard-reloads here; clear the coordination flag.
+    if (browser) sessionStorage.removeItem("signout_in_progress")
+
     if (browser && $session) {
       console.log("User already logged in, redirecting away from login page")
       goto("/account")
@@ -17,11 +20,9 @@
     initialCheckComplete = true
   })
 
-  // Don't redirect on session changes after initial load
-  // This prevents redirecting away during the authentication process
+  // Redirect to /account once a genuine session is established (sign-in)
   $: if (browser && initialCheckComplete && $session) {
-    // Do nothing - we'll let the Auth UI handle the redirect
-    console.log("Session detected, but letting Auth UI handle redirect flow")
+    goto("/account")
   }
 </script>
 

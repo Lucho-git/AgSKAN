@@ -150,17 +150,18 @@
       // IMPORTANT: Set forceRedirect before signing out
       forceRedirect = true
 
+      // Tell the account layout we're handling the redirect via a hard reload,
+      // so it doesn't soft-navigate and interrupt this flow.
+      if (browser) sessionStorage.setItem("signout_in_progress", "true")
+
       // Do the actual sign-out as the final step
       await supabase.auth.signOut({ scope: "global" })
 
-      // Signal to the login page that we just signed out — skip any auto-redirect
-      sessionStorage.setItem("just_signed_out", "true")
+      // Remove any token Supabase may have re-persisted during sign-out
+      clearBrowserStorage()
 
-      // After a very brief delay to allow sign-out to process,
-      // redirect directly to login to avoid showing session expiry
-      setTimeout(() => {
-        redirectToLogin()
-      }, 100)
+      // Hard reload to /login guarantees a clean slate (no stale in-memory session)
+      redirectToLogin()
     } catch (error) {
       console.error("Sign-out failed:", error)
       updateStatus(
