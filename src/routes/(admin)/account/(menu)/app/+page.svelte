@@ -50,8 +50,11 @@
         return
       }
 
-      const authLink = `${BASE_URL}/app-redirect?token=${encodeURIComponent(authData.access_token)}&userId=${encodeURIComponent(authData.user.id)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&source=qr`
-      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(authLink)}`
+      // Embed ONLY the refresh token to keep the QR string short (lower density,
+      // easier for phone cameras). The app derives a fresh access token from it.
+      const authLink = `${BASE_URL}/app-redirect?refresh_token=${encodeURIComponent(authData.refresh_token)}&source=qr`
+      // ecc=L (lowest error correction) + larger size = chunkier, easier-to-scan modules
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=L&data=${encodeURIComponent(authLink)}`
     } catch (error) {
       toast.error("Failed to generate mobile app link", { duration: 5000 })
     } finally {
@@ -93,7 +96,7 @@
         return
       }
 
-      const mobileLink = `${BASE_URL}/app-redirect?token=${encodeURIComponent(authData.access_token)}&userId=${encodeURIComponent(authData.user.id)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&source=mobile`
+      const mobileLink = `${BASE_URL}/app-redirect?refresh_token=${encodeURIComponent(authData.refresh_token)}&source=mobile`
       window.location.href = mobileLink
     } catch (error) {
       toast.error("Failed to generate mobile app link")

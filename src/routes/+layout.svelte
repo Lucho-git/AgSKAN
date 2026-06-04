@@ -71,10 +71,15 @@
               tokenLength: token?.length || 0,
             })
 
-            if (token && userId && refreshToken) {
+            if (refreshToken) {
               console.log("✅ Redirecting to auth callback after delay")
 
-              const callbackUrl = `/auth/callback?access_token=${encodeURIComponent(token)}&refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
+              // Refresh token alone is enough; the callback derives a fresh
+              // access token. access_token is appended only if present (legacy).
+              let callbackUrl = `/auth/callback?refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
+              if (token) {
+                callbackUrl += `&access_token=${encodeURIComponent(token)}`
+              }
               goto(callbackUrl)
             } else {
               console.error("❌ Missing auth parameters")

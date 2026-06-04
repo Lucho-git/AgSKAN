@@ -213,7 +213,8 @@
       // ADDED: Check if this is a deep link flow (tokens in query params)
       const deepLinkAccessToken = queryParams.get("access_token")
       const deepLinkRefreshToken = queryParams.get("refresh_token")
-      debugInfo.isDeepLink = !!(deepLinkAccessToken && deepLinkRefreshToken)
+      // Refresh token alone is sufficient — we can derive a fresh access token.
+      debugInfo.isDeepLink = !!deepLinkRefreshToken
 
       console.log("Auth callback parameters:", {
         hash: hashParams.toString(),
@@ -229,12 +230,24 @@
       if (debugInfo.isDeepLink) {
         console.log("Processing deep link authentication")
 
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: deepLinkAccessToken,
-          refresh_token: deepLinkRefreshToken,
-        })
+        let data
+        if (deepLinkAccessToken) {
+          // Legacy links carry both tokens — set the session directly.
+          const result = await supabase.auth.setSession({
+            access_token: deepLinkAccessToken,
+            refresh_token: deepLinkRefreshToken,
+          })
+          if (result.error) throw result.error
+          data = result.data
+        } else {
+          // Refresh-only links: derive a fresh session from the refresh token.
+          const result = await supabase.auth.refreshSession({
+            refresh_token: deepLinkRefreshToken,
+          })
+          if (result.error) throw result.error
+          data = result.data
+        }
 
-        if (sessionError) throw sessionError
         sessionResult = data.session
 
         // Manually update the store as well

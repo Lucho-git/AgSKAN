@@ -47,12 +47,14 @@
       console.log("📱 Platform detection:", { isIOS, isAndroid, isMobile })
 
       if (isMobile) {
-        if (token && userId && refreshToken) {
+        // Only the refresh token is required now (access token is derived in-app).
+        // token/userId are still read above for backward compatibility with old links.
+        if (refreshToken) {
           status = "Opening AgSKAN app..."
           attemptAppRedirect()
         } else {
           status = "Invalid link - missing authentication data"
-          console.error("❌ Missing required parameters:", {
+          console.error("❌ Missing refresh token", {
             hasToken: !!token,
             hasUserId: !!userId,
             hasRefreshToken: !!refreshToken,
@@ -67,8 +69,12 @@
   function attemptAppRedirect() {
     console.log("🚀 Attempting app redirect...")
 
-    // Create the deep link URL
-    const deepLinkUrl = `agskan://auth?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&refresh_token=${encodeURIComponent(refreshToken)}&source=${encodeURIComponent(source)}`
+    // Create the deep link URL. Only the refresh token is needed; the app
+    // derives a fresh access token from it. token/userId are appended only if
+    // present (legacy links) to remain backward compatible.
+    let deepLinkUrl = `agskan://auth?refresh_token=${encodeURIComponent(refreshToken)}&source=${encodeURIComponent(source)}`
+    if (token) deepLinkUrl += `&token=${encodeURIComponent(token)}`
+    if (userId) deepLinkUrl += `&userId=${encodeURIComponent(userId)}`
 
     console.log("🔗 Generated deep link:", {
       url: deepLinkUrl,
@@ -165,7 +171,7 @@
 
     <!-- Action Buttons -->
     <div class="space-y-3">
-      {#if isMobile && token && userId && refreshToken}
+      {#if isMobile && refreshToken}
         <button on:click={tryAgainButton} class="btn btn-primary w-full">
           <Icon icon="solar:refresh-bold" class="mr-2 h-4 w-4" />
           Try Opening App Again
@@ -192,12 +198,10 @@
     </div>
 
     <!-- Debug Info (remove in production) -->
-    {#if token && userId && refreshToken}
+    {#if refreshToken}
       <details class="mt-6 text-left">
         <summary class="cursor-pointer text-xs opacity-50">Debug Info</summary>
         <div class="mt-2 rounded bg-base-100 p-2 text-xs opacity-60">
-          <div>User ID: {userId.substring(0, 8)}...</div>
-          <div>Token: {token.substring(0, 20)}...</div>
           <div>Refresh: {refreshToken.substring(0, 20)}...</div>
           <div>Source: {source}</div>
         </div>
