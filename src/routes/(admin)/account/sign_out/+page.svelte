@@ -153,6 +153,9 @@
       // Do the actual sign-out as the final step
       await supabase.auth.signOut({ scope: "global" })
 
+      // Signal to the login page that we just signed out — skip any auto-redirect
+      sessionStorage.setItem("just_signed_out", "true")
+
       // After a very brief delay to allow sign-out to process,
       // redirect directly to login to avoid showing session expiry
       setTimeout(() => {
@@ -202,22 +205,22 @@
   })
 </script>
 
-<div class="flex min-h-screen items-center justify-center">
+<div class="flex min-h-screen items-center justify-center bg-base-100">
   <div class="w-full max-w-md p-8 text-center">
     <div class="rounded-lg p-8 shadow-lg" transition:fade>
-      <h1 class="mb-2 text-2xl font-bold">{message}</h1>
-      <p class="mb-6 text-sm">{subMessage}</p>
+      <h1 class="mb-2 text-2xl font-bold text-contrast-content">{message}</h1>
+      <p class="mb-6 text-sm text-contrast-content/60">{subMessage}</p>
 
       {#if isSigningOut}
         <div class="mb-4">
-          <div class="h-2 w-full rounded-full bg-gray-200">
+          <div class="h-2 w-full rounded-full bg-base-300">
             <div
-              class="h-2 rounded-full bg-blue-600 transition-all duration-500"
+              class="h-2 rounded-full bg-blue-500 transition-all duration-500"
               style="width: {progress}%"
             />
           </div>
         </div>
-        <div class="loading loading-spinner loading-md text-blue-600" />
+        <div class="loading loading-spinner loading-md text-blue-500" />
       {/if}
     </div>
   </div>

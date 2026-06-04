@@ -11,7 +11,7 @@
   } from "$lib/stores/sessionStore"
   import { browser } from "$app/environment"
   import { page } from "$app/stores"
-  import { fly } from "svelte/transition"
+  import { fly, fade } from "svelte/transition"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
   import { Cloud, AlertCircle, RotateCcw, ArrowLeft } from "lucide-svelte"
@@ -48,7 +48,7 @@
 
   // Animation timing
   let operationStartTime = 0
-  const MIN_ANIMATION_TIME = 1200 // 2 seconds minimum
+  const MIN_ANIMATION_TIME = 3000 // Debug: 3 seconds minimum
 
   console.log("Account layout initializing")
   console.log("Current session status:", data.sessionStatus)
@@ -86,11 +86,11 @@
         // Clear the pending map ID from storage
         clearPendingMapId()
 
-        // Show success message
-        toast.success(`You've been connected to map: ${result.data.mapName}`)
+        // Flag for join animation on the dashboard
+        if (browser) {
+          sessionStorage.setItem('show_join_animation', result.data.mapName || result.data.connectedMap?.map_name || '')
+        }
 
-        // Reload page to reflect changes
-        window.location.reload()
         return true
       } else {
         console.error("Failed to connect to map:", result.message)
@@ -114,13 +114,9 @@
     const userId = $session.user.id
     console.log("Loading user data for:", userId)
 
-    // Check for pending maps first - allow this to work even if user has a map already
+    // Check for pending maps first
     if (browser && !pendingMapProcessed) {
-      const mapSwitched = await checkForPendingMap()
-      if (mapSwitched) {
-        // If we switched maps, we'll reload the page, so no need to continue
-        return { pendingMapProcessing: true }
-      }
+      await checkForPendingMap()
     }
 
     try {
@@ -554,9 +550,11 @@
       userId: newSession?.user?.id,
     })
 
-    // When signed out, just redirect to login without showing session expired message
+    // When signed out, show loading before redirecting to avoid flash of content
     if (event === "SIGNED_OUT" && !redirecting) {
       redirecting = true
+      loading = true
+      error = null
       goto("/login")
     }
   }
@@ -586,11 +584,6 @@
 
       if (remainingTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingTime))
-      }
-
-      // If we're processing a pending map, stop here as we'll reload
-      if (userData && userData.pendingMapProcessing) {
-        return
       }
 
       // Check onboarding status and redirect if needed
@@ -697,7 +690,10 @@
 {#if browser}
   {#if loading}
     <!-- Loading State with Spinning Cloud Animation -->
-    <div class="flex h-screen w-full items-center justify-center bg-base-100">
+    <div
+      class="flex h-screen w-full items-center justify-center bg-base-100"
+      out:fade={{ duration: 300 }}
+    >
       <div class="flex flex-col items-center gap-6">
         <div
           class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
@@ -714,6 +710,15 @@
           <p class="mt-2 text-sm text-contrast-content/60">
             Please wait while we set up your dashboard
           </p>
+        </div>
+
+        <!-- Debug: session state -->
+        <div class="mt-4 rounded-lg bg-base-200 px-4 py-3 font-mono text-xs text-contrast-content/50">
+          <div>Session: {$session ? '✓ present' : '✗ null'}</div>
+          <div>User ID: {$session?.user?.id ?? 'none'}</div>
+          <div>Loading: {loading}</div>
+          <div>Error: {error ? String(error.message || error) : 'none'}</div>
+          <div>Redirecting: {redirecting}</div>
         </div>
       </div>
     </div>
@@ -755,7 +760,9 @@
       </div>
     </div>
   {:else}
-    <slot />
+    <div in:fade={{ duration: 300 }}>
+      <slot />
+    </div>
   {/if}
 {/if}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte"
+  import { browser } from "$app/environment"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -36,6 +37,8 @@
     UserPlus,
     Search,
     X,
+    Cloud,
+    Check,
   } from "lucide-svelte"
 
   import { v4 as uuidv4 } from "uuid"
@@ -51,6 +54,12 @@
   // Reactive values
   $: isConnected = $connectedMapStore?.id
   $: isOwner = $connectedMapStore?.is_owner
+
+  // Map transition animation state
+  let mapTransition: 'connecting' | 'connected' | null = null
+  let transitionMapName = ""
+  const MIN_ANIMATION_TIME = 1500
+  const SUCCESS_DISPLAY_TIME = 3500
 
   // ========================================
   // DASHBOARD TAB STATE & FUNCTIONS
@@ -265,6 +274,9 @@
 
     isLoading = true
     loadingAction = "create"
+    mapTransition = "connecting"
+
+    const startTime = Date.now()
 
     try {
       const result = await mapApi.createAndJoinMap(newMapName.trim(), generatedMapId)
@@ -272,10 +284,13 @@
       if (result.success && result.data) {
         const { mapId, connectedMap, mapActivity, operation } = result.data
 
+        resetMapStores()
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
         operationStore.set([operation])
         selectedOperationStore.set(operation)
+
+        transitionMapName = connectedMap.map_name
 
         if ($profileStore) {
           profileStore.update((profile) => ({
@@ -286,15 +301,27 @@
           }))
         }
 
-        toast.success("Map created")
+        const elapsed = Date.now() - startTime
+        if (elapsed < MIN_ANIMATION_TIME) {
+          await new Promise((r) => setTimeout(r, MIN_ANIMATION_TIME - elapsed))
+        }
+
+        mapTransition = "connected"
+
+        setTimeout(() => {
+          mapTransition = null
+        }, SUCCESS_DISPLAY_TIME)
+
         activeTab = "dashboard"
         newMapName = ""
         generatedMapId = uuidv4()
         showCreateForm = false
       } else {
+        mapTransition = null
         toast.error(`Failed to create map: ${result.message}`)
       }
     } catch (error) {
+      mapTransition = null
       toast.error(`Error: ${error.message}`)
     } finally {
       isLoading = false
@@ -358,11 +385,11 @@
 
     isLoading = true
     loadingAction = `connect-${mapId}`
+    mapTransition = "connecting"
+
+    const startTime = Date.now()
 
     try {
-      // Clear stale data from previous map before loading new one
-      resetMapStores()
-
       const result = await mapApi.connectToMap(trimmedMapId)
 
       if (result.success && result.data) {
@@ -374,15 +401,16 @@
           trailsMetadata,
         } = result.data
 
+        // Clear old stores and set new ones
+        resetMapStores()
         connectedMapStore.set(connectedMap)
         mapActivityStore.set(mapActivity)
         trailsMetaDataStore.set(trailsMetadata || [])
-
-        // Always set operation stores (even if empty)
         operationStore.set(operations || [])
         selectedOperationStore.set(operation || (operations?.[0] ?? null))
 
-        // 🆕 NEW: Update recent maps
+        transitionMapName = connectedMap.map_name
+
         if ($profileStore) {
           profileStore.update((profile) => ({
             ...profile,
@@ -396,18 +424,31 @@
           }))
         }
 
-        toast.success("Connected to map")
+        // Ensure minimum animation time
+        const elapsed = Date.now() - startTime
+        if (elapsed < MIN_ANIMATION_TIME) {
+          await new Promise((r) => setTimeout(r, MIN_ANIMATION_TIME - elapsed))
+        }
+
+        mapTransition = "connected"
+
+        // Show success briefly then clear
+        setTimeout(() => {
+          mapTransition = null
+        }, SUCCESS_DISPLAY_TIME)
+
         activeTab = "dashboard"
         enteredMapId = ""
         closeAllDashboardMenus()
 
-        // 🆕 NEW: Refresh map lists
         await fetchUserMaps()
         await fetchRecentMaps()
       } else {
+        mapTransition = null
         toast.error(`Failed to connect to map: ${result.message}`)
       }
     } catch (error) {
+      mapTransition = null
       toast.error(`Error: ${error.message}`)
     } finally {
       isLoading = false
@@ -675,9 +716,21 @@
   // LIFECYCLE
   // ========================================
   onMount(async () => {
-    // 🆕 NEW: Fetch recent maps on mount
     await fetchUserMaps()
     await fetchRecentMaps()
+
+    // Check for deep-link join animation flag
+    if (browser && isConnected) {
+      const joinAnimation = sessionStorage.getItem('show_join_animation')
+      if (joinAnimation) {
+        sessionStorage.removeItem('show_join_animation')
+        transitionMapName = $connectedMapStore?.map_name || joinAnimation
+        mapTransition = "connected"
+        setTimeout(() => {
+          mapTransition = null
+        }, SUCCESS_DISPLAY_TIME)
+      }
+    }
 
     // Add click outside listener
     document.addEventListener("click", handleClickOutside)
@@ -755,7 +808,54 @@
   <div
     class="mb-6 min-h-[32rem] rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg sm:p-6"
   >
-    {#if activeTab === "dashboard" && isConnected}
+    {#if mapTransition}
+      <!-- Map Transition Overlay -->
+      <div class="flex min-h-[28rem] flex-col items-center justify-center py-16">
+        {#if mapTransition === "connecting"}
+          <div class="animate-scaleIn flex flex-col items-center gap-4">
+            <div
+              class="relative flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/20"
+            >
+              <div
+                class="animate-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
+              ></div>
+              <Cloud class="animate-cloudPulse h-9 w-9 text-blue-400" />
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-medium text-contrast-content">
+                Connecting to map...
+              </p>
+              <p class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60">
+                Loading your farm data
+              </p>
+            </div>
+          </div>
+        {:else if mapTransition === "connected"}
+          <div class="animate-scaleIn flex flex-col items-center gap-4">
+            <div
+              class="animate-successPulse flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
+            >
+              <div
+                class="animate-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+              >
+                <Check class="animate-checkDraw h-7 w-7 stroke-[3] text-white" />
+              </div>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-bold text-contrast-content">
+                Connected to {transitionMapName}
+              </p>
+              <p class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60">
+                Your farm operations are ready
+              </p>
+            </div>
+            <p class="animate-delayedFadeIn text-xs text-contrast-content/60">
+              Loading dashboard...
+            </p>
+          </div>
+        {/if}
+      </div>
+    {:else if activeTab === "dashboard" && isConnected}
       <!-- Dashboard Tab Content -->
       <div class="space-y-4 sm:space-y-6">
         <!-- Map Info Header - Fixed Width for Settings Button -->
@@ -1852,4 +1952,48 @@
   .dashboard-slide-down {
     animation: dashboardSlideDown 0.2s ease-out;
   }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+
+  @keyframes cloudPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .animate-cloudPulse { animation: cloudPulse 2s ease-in-out infinite; }
+
+  @keyframes delayedFadeIn {
+    0% { opacity: 0; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  .animate-delayedFadeIn { animation: delayedFadeIn 1.2s ease-out; }
+
+  @keyframes successPulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 20px rgba(34, 197, 94, 0);
+    }
+  }
+  .animate-successPulse { animation: successPulse 2s ease-in-out infinite; }
+
+  @keyframes checkScale {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  .animate-checkScale { animation: checkScale 0.6s ease-out 0.3s both; }
+
+  @keyframes checkDraw {
+    0% { stroke-dasharray: 80; stroke-dashoffset: 80; }
+    100% { stroke-dasharray: 80; stroke-dashoffset: 0; }
+  }
+  .animate-checkDraw { animation: checkDraw 0.4s ease-out 0.6s both; }
 </style>
