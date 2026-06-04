@@ -38,7 +38,12 @@
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
 
   // --- Mobile web → native app handoff for "Scan to Join" links ---
-  function maybePromptOpenApp() {
+  // App store fallbacks when the native app isn't installed.
+  const IOS_APP_STORE_URL = "https://apps.apple.com/app/agskan/id6746783538"
+  const ANDROID_PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=com.skanfarming"
+
+  async function maybePromptOpenApp() {
     try {
       // map_code may already be gone from the URL: an authenticated user is
       // redirected /login?map_code=… → /account before this runs, but the
@@ -49,50 +54,79 @@
         params.get("map_id") ||
         localStorage.getItem("pending_map_id")
 
-      const platform = Capacitor.getPlatform()
       const ua = navigator.userAgent
-      const isMobile = /iPad|iPhone|iPod|Android/.test(ua)
+      const isIOS = /iPad|iPhone|iPod/.test(ua)
+      const isMobile = isIOS || /Android/.test(ua)
 
-      // Always surface what we detected so the flow is visible while debugging.
-      toast.info(
-        `DEBUG: handoff check — platform=${platform} mobile=${isMobile} mapCode=${mapCode ?? "none"}`,
-        { duration: 8000 },
-      )
-
+      // Nothing to hand off without a map code on a mobile browser.
       if (!mapCode || !isMobile) return
 
-      const deepLink = `agskan://join?map_code=${encodeURIComponent(mapCode)}`
-
-      // If the app opens, the page is backgrounded and this fires.
-      const onHide = () => {
-        if (document.visibilityState === "hidden") {
-          toast.success("DEBUG: page hidden — app likely opened")
-          document.removeEventListener("visibilitychange", onHide)
-        }
+      // Only prompt the app switch when we KNOW the user is already signed in
+      // (i.e. past the login screen). If there's no session yet, we stay silent:
+      // the pending map is already stored, so the user completes login/signup on
+      // the web, which guarantees their account is joined to the map. They can
+      // switch to the app afterwards.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.refresh_token) {
+        console.log("Handoff: no session yet — staying on web for login/signup")
+        return
       }
-      document.addEventListener("visibilitychange", onHide)
 
-      // A user gesture (tapping the toast action) is required for Android
-      // Chrome to honour the custom scheme. The web auto-join still runs as the
-      // fallback for devices without the app installed.
+      const deepLink =
+        `agskan://join?map_code=${encodeURIComponent(mapCode)}` +
+        `&refresh_token=${encodeURIComponent(session.refresh_token)}`
+
+      // A user gesture (tapping the toast action) is required for Android Chrome
+      // to honour the custom scheme. We can't pre-detect whether the app is
+      // installed, so we attempt the link on tap and use a visibility timeout to
+      // fall back to the app store if nothing happens.
       toast("Open in the AgSKAN app?", {
         duration: Number.POSITIVE_INFINITY,
         action: {
           label: "Open App",
           onClick: () => {
+            let switched = false
+            const onHide = () => {
+              if (document.visibilityState === "hidden") {
+                switched = true
+                document.removeEventListener("visibilitychange", onHide)
+              }
+            }
+            document.addEventListener("visibilitychange", onHide)
+
             console.log("Opening AgSKAN app for map join:", deepLink)
-            toast.info(`DEBUG: opening ${deepLink}`, { duration: 6000 })
             try {
               window.location.href = deepLink
-              toast.info("DEBUG: location.href set")
             } catch (e) {
-              toast.error(`DEBUG: handoff threw: ${e}`)
+              console.error("Handoff threw:", e)
             }
+
+            // If the app didn't take over, assume it isn't installed and offer
+            // the store. The web auto-join has already run, so the map is joined
+            // regardless of what they choose here.
+            window.setTimeout(() => {
+              document.removeEventListener("visibilitychange", onHide)
+              if (switched) return
+              const storeUrl = isIOS
+                ? IOS_APP_STORE_URL
+                : ANDROID_PLAY_STORE_URL
+              toast("AgSKAN app not installed", {
+                duration: 8000,
+                action: {
+                  label: isIOS ? "App Store" : "Play Store",
+                  onClick: () => {
+                    window.location.href = storeUrl
+                  },
+                },
+              })
+            }, 1500)
           },
         },
       })
     } catch (e) {
-      toast.error(`DEBUG: handoff check threw: ${e}`)
+      console.error("Handoff check threw:", e)
     }
   }
 
@@ -118,17 +152,27 @@
           })
 
           // Map-join deep link: opened from a "Scan to Join" QR/link when the
-          // app is installed. Store the pending map and route into the account
-          // area, where the existing pending-map logic auto-joins (or sends the
-          // user to login first if they aren't authenticated yet).
+          // app is installed. Store the pending map, then route into the account
+          // area where the existing pending-map logic auto-joins. If a refresh
+          // token was passed (handoff from a signed-in web session), we set the
+          // session first via the auth callback so the app lands on the SAME
+          // account, then auto-joins the stored pending map.
           if (pathPart === "join" && queryPart) {
             const params = new URLSearchParams(queryPart)
             const mapCode = params.get("map_code") || params.get("map_id")
+            const refreshToken = params.get("refresh_token")
 
             if (mapCode) {
               console.log("✅ Map-join deep link, pending map:", mapCode)
               setPendingMapId(mapCode)
-              goto("/account")
+              if (refreshToken) {
+                // Set the session, then /account consumes the pending map.
+                goto(
+                  `/auth/callback?refresh_token=${encodeURIComponent(refreshToken)}&next=/account`,
+                )
+              } else {
+                goto("/account")
+              }
             } else {
               console.error("❌ Missing map_code on join deep link")
             }
