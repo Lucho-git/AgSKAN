@@ -76,7 +76,9 @@
 
               // Refresh token alone is enough; the callback derives a fresh
               // access token. access_token is appended only if present (legacy).
-              let callbackUrl = `/auth/callback?refresh_token=${encodeURIComponent(refreshToken)}&type=recovery&next=/account`
+              // NOTE: this is a SIGN-IN deep link, not a recovery flow — do not
+              // set type=recovery or the callback sends users to reset-password.
+              let callbackUrl = `/auth/callback?refresh_token=${encodeURIComponent(refreshToken)}&next=/account`
               if (token) {
                 callbackUrl += `&access_token=${encodeURIComponent(token)}`
               }
