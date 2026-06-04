@@ -3,7 +3,6 @@
   import { Auth } from "@supabase/auth-ui-svelte"
   import { page } from "$app/stores"
   import { browser } from "$app/environment"
-  import { toast } from "svelte-sonner"
   import { supabase, setPendingMapId } from "$lib/stores/sessionStore"
   import { setupAuthListener } from "$lib/helpers/authHelpers"
   import {
@@ -19,58 +18,6 @@
   let isNative = false
   let nativeProvider: "google" | "apple" | null = null
   let isSocialLoading = false
-
-  // Try to hand a "Scan to Join" link off to the installed native app. Returns
-  // true if the app-open was attempted (mobile web with a map code). The web
-  // login flow continues regardless and acts as the fallback when the app
-  // isn't installed (the browser simply stays on this page).
-  function tryOpenInApp(mapCode: string): boolean {
-    // Don't attempt when we're already running inside the native app, or on
-    // desktop — there's nothing to hand off to.
-    if (Capacitor.isNativePlatform()) {
-      toast.info("DEBUG: running inside native app — skip handoff")
-      return false
-    }
-
-    const ua = navigator.userAgent
-    const isMobile = /iPad|iPhone|iPod|Android/.test(ua)
-    toast.info(`DEBUG: isMobile=${isMobile}`)
-    if (!isMobile) return false
-
-    const deepLink = `agskan://join?map_code=${encodeURIComponent(mapCode)}`
-    console.log("Attempting to open AgSKAN app for map join:", deepLink)
-
-    // Listen for the page being backgrounded — if the app opens, this fires.
-    const onHide = () => {
-      if (document.visibilityState === "hidden") {
-        toast.success("DEBUG: page hidden — app likely opened")
-        document.removeEventListener("visibilitychange", onHide)
-      }
-    }
-    document.addEventListener("visibilitychange", onHide)
-
-    // Open the app from a real tap. A user-gesture-initiated navigation is
-    // required for Android Chrome to honour the custom scheme; doing it from a
-    // toast action button satisfies that. The web auto-join still runs as the
-    // fallback for devices without the app.
-    toast("Open in the AgSKAN app?", {
-      duration: 15000,
-      action: {
-        label: "Open App",
-        onClick: () => {
-          console.log("Opening AgSKAN app for map join:", deepLink)
-          toast.info(`DEBUG: opening ${deepLink}`, { duration: 6000 })
-          try {
-            window.location.href = deepLink
-            toast.info("DEBUG: location.href set")
-          } catch (e) {
-            toast.error(`DEBUG: handoff threw: ${e}`)
-          }
-        },
-      },
-    })
-    return true
-  }
 
   // Handle native social login
   async function handleNativeSocialLogin() {
@@ -110,15 +57,11 @@
       // Handle map_code or legacy map_id from URL if present
       const urlParams = new URLSearchParams(window.location.search)
       const mapCode = urlParams.get("map_code") || urlParams.get("map_id")
-      toast.info(`DEBUG: mapCode=${mapCode ?? "none"} platform=${Capacitor.getPlatform()}`, { duration: 6000 })
       if (mapCode) {
         console.log(`Map code found in URL: ${mapCode}`)
         setPendingMapId(mapCode)
-
-        // If this is a "Scan to Join" link opened in mobile web and the app is
-        // installed, hand off to the app. The web flow below still runs as the
-        // fallback for devices without the app.
-        tryOpenInApp(mapCode)
+        // Native-app handoff is handled centrally in the root layout so it also
+        // runs when an authenticated user is redirected straight to /account.
       }
 
       // Set up auth state change listener with consistent behavior

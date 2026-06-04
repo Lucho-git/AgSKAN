@@ -37,6 +37,65 @@
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
 
+  // --- Mobile web → native app handoff for "Scan to Join" links ---
+  function maybePromptOpenApp() {
+    try {
+      // map_code may already be gone from the URL: an authenticated user is
+      // redirected /login?map_code=… → /account before this runs, but the
+      // redirect stores the code in localStorage("pending_map_id") first.
+      const params = new URLSearchParams(window.location.search)
+      const mapCode =
+        params.get("map_code") ||
+        params.get("map_id") ||
+        localStorage.getItem("pending_map_id")
+
+      const platform = Capacitor.getPlatform()
+      const ua = navigator.userAgent
+      const isMobile = /iPad|iPhone|iPod|Android/.test(ua)
+
+      // Always surface what we detected so the flow is visible while debugging.
+      toast.info(
+        `DEBUG: handoff check — platform=${platform} mobile=${isMobile} mapCode=${mapCode ?? "none"}`,
+        { duration: 8000 },
+      )
+
+      if (!mapCode || !isMobile) return
+
+      const deepLink = `agskan://join?map_code=${encodeURIComponent(mapCode)}`
+
+      // If the app opens, the page is backgrounded and this fires.
+      const onHide = () => {
+        if (document.visibilityState === "hidden") {
+          toast.success("DEBUG: page hidden — app likely opened")
+          document.removeEventListener("visibilitychange", onHide)
+        }
+      }
+      document.addEventListener("visibilitychange", onHide)
+
+      // A user gesture (tapping the toast action) is required for Android
+      // Chrome to honour the custom scheme. The web auto-join still runs as the
+      // fallback for devices without the app installed.
+      toast("Open in the AgSKAN app?", {
+        duration: Number.POSITIVE_INFINITY,
+        action: {
+          label: "Open App",
+          onClick: () => {
+            console.log("Opening AgSKAN app for map join:", deepLink)
+            toast.info(`DEBUG: opening ${deepLink}`, { duration: 6000 })
+            try {
+              window.location.href = deepLink
+              toast.info("DEBUG: location.href set")
+            } catch (e) {
+              toast.error(`DEBUG: handoff threw: ${e}`)
+            }
+          },
+        },
+      })
+    } catch (e) {
+      toast.error(`DEBUG: handoff check threw: ${e}`)
+    }
+  }
+
   // --- Deep Link Handler Functions ---
   function handleDeepLink(urlString: string) {
     console.log("🔗 Deep link received:", urlString)
@@ -388,6 +447,11 @@
         await promptForNativeAppUpdate()
       } else {
         console.log("🌐 Web platform detected - deep link listener not needed")
+        // On mobile web, a "Scan to Join" QR/link lands here. Offer to hand off
+        // to the installed native app. This runs in the root layout (not the
+        // login page) because an authenticated user is redirected straight to
+        // /account before the login page ever mounts.
+        maybePromptOpenApp()
       }
 
       if (browser) {
