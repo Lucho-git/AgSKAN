@@ -36,7 +36,9 @@
     Download,
     Settings,
     Search,
+    Plus,
     ArrowUp,
+    ArrowRight,
     ArrowRightLeft,
     Check,
   } from "lucide-svelte"
@@ -91,7 +93,9 @@
   })()
   $: hasMultipleFarms = farmGroups.length > 1
 
-  // Search filtering — narrow each farm group's fields by name and drop empties.
+  // Search filtering — narrow each farm group's fields by name. When searching,
+  // drop non-matching groups; when not searching, keep empty farms visible
+  // (sorted to the bottom).
   let searchTerm = ""
   $: searchLower = searchTerm.trim().toLowerCase()
   $: displayGroups = farmGroups
@@ -107,7 +111,12 @@
           farmId,
         ] as [string, any[], string | null],
     )
-    .filter(([, groupFields]) => groupFields.length > 0)
+    .filter(([, groupFields]) => !searchLower || groupFields.length > 0)
+    .sort(([, a], [, b]) => {
+      const aEmpty = a.length === 0 ? 1 : 0
+      const bEmpty = b.length === 0 ? 1 : 0
+      return aEmpty - bEmpty
+    })
 
   let isExpanded = true
   let editModalId = "edit-field-modal"
@@ -128,6 +137,14 @@
   let deleteFarmModalId = "delete-farm-fields-modal"
   let farmToDelete: string | null = null
   let deletingFarmFields = false
+  let deletingFarmId: string | null = null
+  let renamingFarmId: string | null = null
+  let renameFarmName = ""
+
+  // Add-farm (bottom of list) state
+  let addingFarm = false
+  let newFarmName = ""
+  let creatingFarm = false
 
   // Field export state
   let exportModalId = "export-fields-modal"
@@ -142,15 +159,47 @@
   let migrationTargetFarm = ""
   let migrationNewFarmName = ""
   let migratingFields = false
-  let migrationSourceFarm: string | null = null
+  // Direction: "out" = move fields out of the anchor farm to another farm,
+  // "in" = move fields from other farms into the anchor farm.
+  let migrationDirection: "in" | "out" = "out"
+  let migrationAnchorFarm: string | null = null
 
   // New state variables for responsive design
   let isMobile = false
   let displayMode = "table" // "table" or "list"
   let expandedDetails = new Set()
   let collapsedFarms = new Set<string>() // Track collapsed farm sections
+  let collapsedExportFarms = new Set<string>() // Collapsed farms in export modal
+  let collapsedMigrationFarms = new Set<string>() // Collapsed farms in migrate-in modal
   let sortField = "name"
   let sortDirection = "asc"
+  let showSettingsMenu = false
+  let openFarmMenu: string | null = null
+  let openFieldMenu: string | null = null
+
+  function closeAllDropdowns() {
+    openFarmMenu = null
+    openFieldMenu = null
+    showSettingsMenu = false
+  }
+
+  function toggleFarmDropdown(farmId: string, e: MouseEvent) {
+    e.stopPropagation()
+    openFarmMenu = openFarmMenu === farmId ? null : farmId
+  }
+
+  function toggleFieldDropdown(fieldId: string, e: MouseEvent) {
+    e.stopPropagation()
+    openFieldMenu = openFieldMenu === fieldId ? null : fieldId
+  }
+
+  // Collapse all farm sections by default on first load when there are
+  // multiple farms, so the list starts tidy.
+  let didInitCollapse = false
+  $: if (!didInitCollapse && farmGroups.length > 1) {
+    collapsedFarms = new Set(farmGroups.map(([name]) => name))
+    didInitCollapse = true
+  }
 
   // Sort fields based on current sort settings
   $: sortedFields = [...fields].sort((a, b) => {
@@ -166,6 +215,17 @@
   })
 
   $: exportableFields = sortedFields.filter(hasExportableBoundary)
+  // Group exportable fields by farm for the export modal
+  $: exportGroups = farmGroups
+    .map(
+      ([name, groupFields, farmId]) =>
+        [name, groupFields.filter(hasExportableBoundary), farmId] as [
+          string,
+          any[],
+          string | null,
+        ],
+    )
+    .filter(([, groupFields]) => groupFields.length > 0)
   $: selectedExportCount = exportableFields.filter((field) =>
     exportFieldIds.has(field.field_id),
   ).length
@@ -173,6 +233,9 @@
     .filter((field) => exportFieldIds.has(field.field_id))
     .reduce((sum, field) => sum + Number(field.area || 0), 0)
   $: canExportFields = selectedExportCount > 0 && !exportingFields
+  $: allExportSelected =
+    exportableFields.length > 0 &&
+    exportableFields.every((field) => exportFieldIds.has(field.field_id))
 
   onMount(() => {
     checkScreenSize()
@@ -233,7 +296,9 @@
 
   function getFieldFarmName(field: any) {
     if (!field?.farm_id) return ""
-    return ($farmsStore || []).find((farm) => farm.id === field.farm_id)?.name || ""
+    return (
+      ($farmsStore || []).find((farm) => farm.id === field.farm_id)?.name || ""
+    )
   }
 
   function isExportablePropertyValue(value: unknown) {
@@ -306,13 +371,11 @@
   function getFieldsFeatureCollection(fieldsToExport = fields) {
     return {
       type: "FeatureCollection",
-      features: fieldsToExport
-        .filter(hasExportableBoundary)
-        .map((field) => ({
-          type: "Feature",
-          geometry: stripGeometryDimensions(field.boundary),
-          properties: getFieldExportProperties(field),
-        })),
+      features: fieldsToExport.filter(hasExportableBoundary).map((field) => ({
+        type: "Feature",
+        geometry: stripGeometryDimensions(field.boundary),
+        properties: getFieldExportProperties(field),
+      })),
     }
   }
 
@@ -423,7 +486,11 @@
     )}</name>\n${placemarks}\n</Document>\n</kml>\n`
   }
 
-  function downloadTextFile(content: string, fileName: string, mimeType: string) {
+  function downloadTextFile(
+    content: string,
+    fileName: string,
+    mimeType: string,
+  ) {
     const blob = new Blob([content], { type: mimeType })
     downloadBlobFile(blob, fileName)
   }
@@ -476,9 +543,13 @@
   }
 
   function closeRing(ring: any[]) {
-    const coordinates = ring.filter(isValidCoordinate).map(stripCoordinateDimensions)
+    const coordinates = ring
+      .filter(isValidCoordinate)
+      .map(stripCoordinateDimensions)
     if (coordinates.length === 0) return []
-    if (!coordinatesMatch(coordinates[0], coordinates[coordinates.length - 1])) {
+    if (
+      !coordinatesMatch(coordinates[0], coordinates[coordinates.length - 1])
+    ) {
       coordinates.push([...coordinates[0]])
     }
     return coordinates
@@ -553,7 +624,9 @@
               type: "Feature",
               geometry: {
                 type: "MultiPolygon",
-                coordinates: [getShapefilePolygonCoordinates(geometry.coordinates)],
+                coordinates: [
+                  getShapefilePolygonCoordinates(geometry.coordinates),
+                ],
               },
               properties: getShapefileProperties(field, 1),
             },
@@ -582,7 +655,9 @@
   }
 
   function getSelectedExportFields() {
-    return exportableFields.filter((field) => exportFieldIds.has(field.field_id))
+    return exportableFields.filter((field) =>
+      exportFieldIds.has(field.field_id),
+    )
   }
 
   function toggleExportFieldSelection(fieldId: string) {
@@ -604,9 +679,35 @@
       : new Set(exportableFields.map((field) => field.field_id))
   }
 
+  function toggleExportFarm(groupFields: any[]) {
+    const allSelected = groupFields.every((field) =>
+      exportFieldIds.has(field.field_id),
+    )
+    if (allSelected) {
+      groupFields.forEach((field) => exportFieldIds.delete(field.field_id))
+    } else {
+      groupFields.forEach((field) => exportFieldIds.add(field.field_id))
+    }
+    exportFieldIds = exportFieldIds
+  }
+
+  function toggleExportFarmCollapse(farmName: string) {
+    if (collapsedExportFarms.has(farmName)) {
+      collapsedExportFarms.delete(farmName)
+    } else {
+      collapsedExportFarms.add(farmName)
+    }
+    collapsedExportFarms = collapsedExportFarms
+  }
+
   function openExportModal() {
     exportFieldIds = new Set(exportableFields.map((field) => field.field_id))
     exportFormat = "geojson"
+    // Auto-collapse all farm groups by default when there's more than one.
+    collapsedExportFarms =
+      exportGroups.length > 1
+        ? new Set(exportGroups.map(([name]) => name))
+        : new Set()
     const modal = document.getElementById(exportModalId) as HTMLDialogElement
     if (modal) modal.showModal()
   }
@@ -734,18 +835,41 @@
 
   // ─── Farm Migration ─────────────────────────────────
 
-  function openMigrationModal(sourceFarm: string) {
-    migrationSourceFarm = sourceFarm
+  function openMigrationModal(
+    farmName: string,
+    direction: "in" | "out" = "out",
+  ) {
+    migrationDirection = direction
+    migrationAnchorFarm = farmName
     // Find the farm entry to get its farmId
-    const entry = farmGroups.find(([name]) => name === sourceFarm)
+    const entry = farmGroups.find(([name]) => name === farmName)
     const farmId = entry?.[2] || null
-    // Pre-select all fields in this farm
-    const farmFields = farmId
-      ? fields.filter((f) => f.farm_id === farmId)
-      : fields.filter((f) => !f.farm_id)
-    selectedFieldIds = new Set(farmFields.map((f) => f.field_id))
-    migrationTargetFarm = ""
+    if (direction === "out") {
+      // Anchor is the source — pre-select all of its fields
+      const farmFields = farmId
+        ? fields.filter((f) => f.farm_id === farmId)
+        : fields.filter((f) => !f.farm_id)
+      selectedFieldIds = new Set(farmFields.map((f) => f.field_id))
+      migrationTargetFarm = ""
+    } else {
+      // Anchor is the destination — start with nothing selected
+      selectedFieldIds = new Set()
+      migrationTargetFarm = farmName
+    }
     migrationNewFarmName = ""
+    // Auto-collapse source farm groups by default when bringing fields in
+    // from more than one farm.
+    if (direction === "in") {
+      const inGroups = farmGroups.filter(
+        ([name, groupFields]) => name !== farmName && groupFields.length > 0,
+      )
+      collapsedMigrationFarms =
+        inGroups.length > 1
+          ? new Set(inGroups.map(([name]) => name))
+          : new Set()
+    } else {
+      collapsedMigrationFarms = new Set()
+    }
     const modal = document.getElementById(migrationModalId) as HTMLDialogElement
     if (modal) modal.showModal()
   }
@@ -754,7 +878,8 @@
     const modal = document.getElementById(migrationModalId) as HTMLDialogElement
     if (modal) modal.close()
     selectedFieldIds = new Set()
-    migrationSourceFarm = null
+    migrationAnchorFarm = null
+    migrationDirection = "out"
     migrationTargetFarm = ""
     migrationNewFarmName = ""
   }
@@ -768,27 +893,95 @@
     selectedFieldIds = selectedFieldIds // reactivity
   }
 
-  function selectAllInFarm(farm: string) {
-    const entry = farmGroups.find(([name]) => name === farm)
-    const farmId = entry?.[2] || null
-    const farmFields = farmId
-      ? fields.filter((f) => f.farm_id === farmId)
-      : fields.filter((f) => !f.farm_id)
-    const allSelected = farmFields.every((f) =>
+  // Resolve the anchor farm's id
+  $: migrationAnchorFarmId = (() => {
+    const entry = farmGroups.find(([name]) => name === migrationAnchorFarm)
+    return entry?.[2] || null
+  })()
+
+  // The selectable fields for the migration modal depend on direction:
+  // "out" → fields currently in the anchor farm; "in" → fields from other farms.
+  $: migrationFieldList = !migrationAnchorFarm
+    ? []
+    : migrationDirection === "out"
+      ? migrationAnchorFarmId
+        ? fields.filter((f) => f.farm_id === migrationAnchorFarmId)
+        : fields.filter((f) => !f.farm_id)
+      : migrationAnchorFarmId
+        ? fields.filter((f) => f.farm_id !== migrationAnchorFarmId)
+        : fields.filter((f) => f.farm_id)
+
+  $: allMigrationSelected =
+    migrationFieldList.length > 0 &&
+    migrationFieldList.every((f) => selectedFieldIds.has(f.field_id))
+
+  // When transferring fields IN, group the selectable fields by their source
+  // farm (same UX as the export modal).
+  $: migrationInGroups = farmGroups.filter(
+    ([name, groupFields]) =>
+      name !== migrationAnchorFarm && groupFields.length > 0,
+  )
+
+  function toggleAllMigrationFields() {
+    const allSelected = migrationFieldList.every((f) =>
       selectedFieldIds.has(f.field_id),
     )
     if (allSelected) {
-      farmFields.forEach((f) => selectedFieldIds.delete(f.field_id))
+      migrationFieldList.forEach((f) => selectedFieldIds.delete(f.field_id))
     } else {
-      farmFields.forEach((f) => selectedFieldIds.add(f.field_id))
+      migrationFieldList.forEach((f) => selectedFieldIds.add(f.field_id))
     }
     selectedFieldIds = selectedFieldIds
   }
 
+  function toggleMigrationFarm(groupFields: any[]) {
+    const allSelected = groupFields.every((f) =>
+      selectedFieldIds.has(f.field_id),
+    )
+    if (allSelected) {
+      groupFields.forEach((f) => selectedFieldIds.delete(f.field_id))
+    } else {
+      groupFields.forEach((f) => selectedFieldIds.add(f.field_id))
+    }
+    selectedFieldIds = selectedFieldIds
+  }
+
+  function toggleMigrationFarmCollapse(farmName: string) {
+    if (collapsedMigrationFarms.has(farmName)) {
+      collapsedMigrationFarms.delete(farmName)
+    } else {
+      collapsedMigrationFarms.add(farmName)
+    }
+    collapsedMigrationFarms = collapsedMigrationFarms
+  }
+
   $: resolvedTargetFarm =
-    migrationTargetFarm === "__new__"
-      ? migrationNewFarmName.trim()
-      : migrationTargetFarm
+    migrationDirection === "in"
+      ? migrationAnchorFarm || ""
+      : migrationTargetFarm === "__new__"
+        ? migrationNewFarmName.trim()
+        : migrationTargetFarm
+
+  // Labels shown in the from → to header of the migration modal
+  $: migrationFromLabel =
+    migrationDirection === "out"
+      ? migrationAnchorFarm || ""
+      : (() => {
+          const names = new Set<string>()
+          for (const f of migrationFieldList) {
+            if (selectedFieldIds.has(f.field_id)) {
+              names.add(getFieldFarmName(f) || "Unassigned")
+            }
+          }
+          if (names.size === 0) return "Other farms"
+          if (names.size === 1) return [...names][0]
+          return `${names.size} farms`
+        })()
+
+  $: migrationToLabel =
+    migrationDirection === "out"
+      ? resolvedTargetFarm || "Choose farm"
+      : migrationAnchorFarm || ""
 
   $: canMigrate = selectedFieldIds.size > 0 && resolvedTargetFarm.length > 0
 
@@ -918,6 +1111,92 @@
       toast.error("An error occurred while deleting fields.")
     } finally {
       deletingFarmFields = false
+    }
+  }
+
+  async function handleDeleteEmptyFarm(farmId: string, farmName: string) {
+    deletingFarmId = farmId
+    try {
+      const result = await farmApi.deleteFarm(farmId)
+      if (result.success) {
+        farmsStore.update((farms) => farms.filter((f) => f.id !== farmId))
+        toast.success(`Farm "${farmName}" deleted`)
+      } else {
+        throw new Error(result.message || "Failed to delete farm")
+      }
+    } catch (error) {
+      toast.error(`Failed to delete farm "${farmName}". Please try again.`)
+    } finally {
+      deletingFarmId = null
+    }
+  }
+
+  function startRenameFarm(farmId: string, currentName: string) {
+    renamingFarmId = farmId
+    renameFarmName = currentName
+    openFarmMenu = null
+  }
+
+  function cancelRenameFarm() {
+    renamingFarmId = null
+    renameFarmName = ""
+  }
+
+  async function handleRenameFarm(farmId: string) {
+    const name = renameFarmName.trim()
+    if (!name || !farmId) return
+    try {
+      const result = await farmApi.renameFarm(farmId, name)
+      if (result.success) {
+        farmsStore.update((farms) =>
+          farms.map((f) => (f.id === farmId ? { ...f, name } : f)),
+        )
+        toast.success(`Farm renamed to "${name}"`)
+        renamingFarmId = null
+        renameFarmName = ""
+        closeFarmMenu()
+      } else {
+        throw new Error(result.message || "Failed to rename farm")
+      }
+    } catch (error) {
+      toast.error("Failed to rename farm. Please try again.")
+    }
+  }
+
+  function startAddFarm() {
+    addingFarm = true
+    newFarmName = ""
+  }
+
+  // Svelte action: focus an element as soon as it's mounted
+  function autofocus(node: HTMLElement) {
+    node.focus()
+  }
+
+  function cancelAddFarm() {
+    addingFarm = false
+    newFarmName = ""
+  }
+
+  async function handleAddFarm() {
+    const name = newFarmName.trim()
+    if (!name || creatingFarm) return
+    creatingFarm = true
+    try {
+      const mapId = $connectedMapStore.id
+      const result = await farmApi.createFarm(mapId, name)
+      if (result.success && result.farm) {
+        farmsStore.update((farms) => [...farms, result.farm!])
+        toast.success(`Farm "${result.farm.name}" added`)
+        addingFarm = false
+        newFarmName = ""
+      } else {
+        throw new Error(result.message || "Failed to add farm")
+      }
+    } catch (error) {
+      toast.error("Failed to add farm. Please try again.")
+    } finally {
+      creatingFarm = false
     }
   }
 
@@ -1275,12 +1554,47 @@
       <div>
         <h3 class="text-lg font-bold text-contrast-content">Move Fields</h3>
         <p class="text-sm text-contrast-content/60">
-          {#if migrationSourceFarm}
-            Moving from "{migrationSourceFarm}"
+          {#if migrationDirection === "out"}
+            Move fields to another farm
           {:else}
-            Select fields and choose a destination farm
+            Bring fields into this farm
           {/if}
         </p>
+      </div>
+    </div>
+
+    <!-- From → To direction indicator -->
+    <div class="mt-4 flex items-stretch gap-2">
+      <div
+        class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-200/50 px-3 py-2"
+      >
+        <span
+          class="block text-[10px] font-medium uppercase tracking-wide text-contrast-content/50"
+        >
+          From
+        </span>
+        <span
+          class="block truncate text-xs font-semibold text-contrast-content sm:text-sm"
+        >
+          {migrationFromLabel}
+        </span>
+      </div>
+      <div class="flex items-center justify-center text-info">
+        <ArrowRight class="h-5 w-5" />
+      </div>
+      <div
+        class="min-w-0 flex-1 rounded-lg border border-info/40 bg-info/10 px-3 py-2"
+      >
+        <span
+          class="block text-[10px] font-medium uppercase tracking-wide text-info/70"
+        >
+          To
+        </span>
+        <span
+          class="block truncate text-xs font-semibold text-contrast-content sm:text-sm"
+        >
+          {migrationToLabel}
+        </span>
       </div>
     </div>
 
@@ -1288,115 +1602,206 @@
       <!-- Field selection list -->
       <div>
         <div class="mb-2 flex items-center justify-between">
-          <span class="text-sm font-medium text-contrast-content">
-            Select fields to move ({selectedFieldIds.size} selected)
+          <span class="text-xs font-medium text-contrast-content sm:text-sm">
+            {migrationDirection === "out"
+              ? "Select fields to move"
+              : "Select fields to bring in"}
+            ({selectedFieldIds.size} selected)
           </span>
-          {#if migrationSourceFarm}
+          {#if migrationFieldList.length > 0}
             <button
-              class="text-xs text-info hover:underline"
-              on:click={() =>
-                migrationSourceFarm && selectAllInFarm(migrationSourceFarm)}
+              class="text-xs text-contrast-content/60 hover:text-contrast-content hover:underline"
+              on:click={toggleAllMigrationFields}
             >
-              Toggle all
+              {allMigrationSelected ? "Deselect all" : "Select all"}
             </button>
           {/if}
         </div>
-        <div class="max-h-48 overflow-y-auto rounded-lg border border-base-300">
-          {#each fields.filter((f) => {
-            if (!migrationSourceFarm) return true
-            const entry = farmGroups.find(([name]) => name === migrationSourceFarm)
-            const farmId = entry?.[2] || null
-            return farmId ? f.farm_id === farmId : !f.farm_id
-          }) as field (field.field_id)}
-            <label
-              class="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-base-200"
-              style={selectedFieldIds.has(field.field_id)
-                ? "background: oklch(var(--in) / 0.05)"
-                : ""}
-            >
-              <input
-                type="checkbox"
-                class="checkbox-info checkbox checkbox-sm"
-                checked={selectedFieldIds.has(field.field_id)}
-                on:change={() => toggleFieldSelection(field.field_id)}
-              />
-              <FieldIcon geojson={createGeoJSON(field.boundary)} size={24} />
-              <span class="flex-1 text-sm text-contrast-content"
-                >{field.name}</span
+        <div class="overflow-hidden rounded-lg border border-base-300">
+          <div class="max-h-48 overflow-y-auto">
+            {#if migrationDirection === "in"}
+              {#each migrationInGroups as [groupName, groupFields, groupFarmId] (groupName)}
+                <!-- Source farm group header -->
+                <div
+                  class="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-base-300 bg-base-200 px-3 py-1.5"
+                >
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    on:click={() => toggleMigrationFarmCollapse(groupName)}
+                  >
+                    {#if collapsedMigrationFarms.has(groupName)}
+                      <ChevronDown
+                        class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                      />
+                    {:else}
+                      <ChevronUp
+                        class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                      />
+                    {/if}
+                    <LandPlot
+                      class="h-3.5 w-3.5 flex-shrink-0 text-base-content"
+                    />
+                    <span
+                      class="truncate text-xs font-semibold text-contrast-content"
+                    >
+                      {groupName}
+                    </span>
+                    <span class="text-xs text-contrast-content/50">
+                      ({groupFields.length})
+                    </span>
+                  </button>
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-xs flex-shrink-0"
+                    title="Select all in {groupName}"
+                    aria-label="Select all in {groupName}"
+                    checked={groupFields.every((f) =>
+                      selectedFieldIds.has(f.field_id),
+                    )}
+                    on:change={() => toggleMigrationFarm(groupFields)}
+                  />
+                </div>
+                {#if !collapsedMigrationFarms.has(groupName)}
+                  {#each groupFields as field (field.field_id)}
+                    <label
+                      class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
+                      style={selectedFieldIds.has(field.field_id)
+                        ? "background: oklch(var(--bc) / 0.05)"
+                        : ""}
+                    >
+                      <FieldIcon
+                        geojson={createGeoJSON(field.boundary)}
+                        size={20}
+                      />
+                      <span
+                        class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
+                      >
+                        {field.name}
+                      </span>
+                      <span class="text-xs text-contrast-content/50"
+                        >{field.area.toFixed(1)} ha</span
+                      >
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-xs"
+                        checked={selectedFieldIds.has(field.field_id)}
+                        on:change={() => toggleFieldSelection(field.field_id)}
+                      />
+                    </label>
+                  {/each}
+                {/if}
+              {/each}
+            {:else}
+              {#each migrationFieldList as field (field.field_id)}
+                <label
+                  class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
+                  style={selectedFieldIds.has(field.field_id)
+                    ? "background: oklch(var(--bc) / 0.05)"
+                    : ""}
+                >
+                  <FieldIcon
+                    geojson={createGeoJSON(field.boundary)}
+                    size={20}
+                  />
+                  <span
+                    class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
+                  >
+                    {field.name}
+                  </span>
+                  <span class="text-xs text-contrast-content/50"
+                    >{field.area.toFixed(1)} ha</span
+                  >
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-xs"
+                    checked={selectedFieldIds.has(field.field_id)}
+                    on:change={() => toggleFieldSelection(field.field_id)}
+                  />
+                </label>
+              {/each}
+            {/if}
+            {#if migrationFieldList.length === 0}
+              <div
+                class="px-3 py-6 text-center text-xs text-contrast-content/50"
               >
-              <span class="text-xs text-contrast-content/50"
-                >{field.area.toFixed(1)} ha</span
-              >
-            </label>
-          {/each}
+                No fields available to move.
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
 
-      <!-- Target farm picker -->
-      <div>
-        <span class="mb-2 block text-sm font-medium text-contrast-content">
-          Destination farm
-        </span>
-        <div class="space-y-2">
-          {#each farmGroups as [groupName, , groupFarmId] (groupName)}
-            {#if groupName !== migrationSourceFarm}
-              <button
-                class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors
-                  {migrationTargetFarm === groupName
-                  ? 'border-info bg-info/10 text-info'
-                  : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-                on:click={() => {
-                  migrationTargetFarm = groupName
-                  migrationNewFarmName = ""
-                }}
-              >
-                {#if migrationTargetFarm === groupName}
-                  <Check class="h-4 w-4" />
-                {:else}
-                  <LandPlot class="h-4 w-4 opacity-50" />
-                {/if}
-                {groupName}
-              </button>
-            {/if}
-          {/each}
-          <!-- New farm option -->
-          <button
-            class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors
-              {migrationTargetFarm === '__new__'
-              ? 'border-info bg-info/10 text-info'
-              : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-            on:click={() => (migrationTargetFarm = "__new__")}
+      <!-- Target farm picker (only when moving fields out) -->
+      {#if migrationDirection === "out"}
+        <div>
+          <span
+            class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
           >
+            Destination farm
+          </span>
+          <div class="space-y-2">
+            {#each farmGroups as [groupName, , groupFarmId] (groupName)}
+              {#if groupName !== migrationAnchorFarm}
+                <button
+                  class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors sm:text-sm
+                    {migrationTargetFarm === groupName
+                    ? 'border-base-content bg-base-content/10 text-contrast-content'
+                    : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+                  on:click={() => {
+                    migrationTargetFarm = groupName
+                    migrationNewFarmName = ""
+                  }}
+                >
+                  {#if migrationTargetFarm === groupName}
+                    <Check class="h-4 w-4" />
+                  {:else}
+                    <LandPlot class="h-4 w-4 opacity-50" />
+                  {/if}
+                  {groupName}
+                </button>
+              {/if}
+            {/each}
+            <!-- New farm option -->
+            <button
+              class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors sm:text-sm
+                {migrationTargetFarm === '__new__'
+                ? 'border-base-content bg-base-content/10 text-contrast-content'
+                : 'border-base-300 text-contrast-content hover:bg-base-200'}"
+              on:click={() => (migrationTargetFarm = "__new__")}
+            >
+              {#if migrationTargetFarm === "__new__"}
+                <Check class="h-4 w-4" />
+              {:else}
+                <span class="ml-0.5 text-base opacity-50">+</span>
+              {/if}
+              New farm name
+            </button>
             {#if migrationTargetFarm === "__new__"}
-              <Check class="h-4 w-4" />
-            {:else}
-              <span class="ml-0.5 text-base opacity-50">+</span>
+              <input
+                type="text"
+                bind:value={migrationNewFarmName}
+                placeholder="Enter new farm name"
+                maxlength={FARM_NAME_MAX_LENGTH}
+                class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
+              />
             {/if}
-            New farm name
-          </button>
-          {#if migrationTargetFarm === "__new__"}
-            <Input
-              bind:value={migrationNewFarmName}
-              placeholder="Enter new farm name"
-              maxlength={FARM_NAME_MAX_LENGTH}
-              class="w-full"
-            />
-          {/if}
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
 
     <div class="modal-action">
-      <form method="dialog" class="flex w-full gap-2 sm:w-auto">
+      <form method="dialog" class="flex w-full gap-2">
         <button
-          class="btn btn-outline flex-1 sm:flex-none"
+          class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
           on:click={closeMigrationModal}
           disabled={migratingFields}
         >
           Cancel
         </button>
         <button
-          class="btn flex-1 bg-info text-white hover:bg-info/80 sm:flex-none"
+          class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
           on:click={handleMigrateFields}
           disabled={!canMigrate || migratingFields}
         >
@@ -1437,14 +1842,16 @@
 
     <div class="mt-4 space-y-4">
       <div>
-        <span class="mb-2 block text-sm font-medium text-contrast-content">
+        <span
+          class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
+        >
           Format
         </span>
         <div class="grid grid-cols-3 gap-2">
           <button
-            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors sm:text-sm
               {exportFormat === 'geojson'
-              ? 'border-info bg-info/10 text-info'
+              ? 'border-base-content bg-base-content/10 text-contrast-content'
               : 'border-base-300 text-contrast-content hover:bg-base-200'}"
             on:click={() => (exportFormat = "geojson")}
           >
@@ -1452,9 +1859,9 @@
             GeoJSON
           </button>
           <button
-            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors sm:text-sm
               {exportFormat === 'kml'
-              ? 'border-info bg-info/10 text-info'
+              ? 'border-base-content bg-base-content/10 text-contrast-content'
               : 'border-base-300 text-contrast-content hover:bg-base-200'}"
             on:click={() => (exportFormat = "kml")}
           >
@@ -1462,9 +1869,9 @@
             KML
           </button>
           <button
-            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors
+            class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors sm:text-sm
               {exportFormat === 'shapefile'
-              ? 'border-info bg-info/10 text-info'
+              ? 'border-base-content bg-base-content/10 text-contrast-content'
               : 'border-base-300 text-contrast-content hover:bg-base-200'}"
             on:click={() => (exportFormat = "shapefile")}
           >
@@ -1476,46 +1883,96 @@
 
       <div>
         <div class="mb-2 flex items-center justify-between gap-3">
-          <span class="text-sm font-medium text-contrast-content">
+          <span class="text-xs font-medium text-contrast-content sm:text-sm">
             Select fields ({selectedExportCount} selected)
           </span>
           <button
-            class="text-xs text-info hover:underline"
+            class="text-xs text-contrast-content/60 hover:text-contrast-content hover:underline"
             on:click={toggleAllExportFields}
           >
-            Toggle all
+            {allExportSelected ? "Deselect all" : "Select all"}
           </button>
         </div>
-        <div class="max-h-56 overflow-y-auto rounded-lg border border-base-300">
-          {#each exportableFields as field (field.field_id)}
-            <label
-              class="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-base-200"
-              style={exportFieldIds.has(field.field_id)
-                ? "background: oklch(var(--in) / 0.05)"
-                : ""}
-            >
-              <input
-                type="checkbox"
-                class="checkbox-info checkbox checkbox-sm"
-                checked={exportFieldIds.has(field.field_id)}
-                on:change={() => toggleExportFieldSelection(field.field_id)}
-              />
-              <FieldIcon geojson={createGeoJSON(field.boundary)} size={24} />
-              <span class="min-w-0 flex-1 text-sm text-contrast-content">
-                <span class="block truncate">{field.name}</span>
-                {#if getFieldFarmName(field)}
-                  <span class="block truncate text-xs text-contrast-content/50">
-                    {getFieldFarmName(field)}
+        <div class="overflow-hidden rounded-lg border border-base-300">
+          <div class="max-h-56 overflow-y-auto">
+            {#each exportGroups as [groupName, groupFields, groupFarmId] (groupName)}
+              <!-- Farm group header -->
+              <div
+                class="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-base-300 bg-base-200 px-3 py-1.5"
+              >
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  on:click={() => toggleExportFarmCollapse(groupName)}
+                >
+                  {#if collapsedExportFarms.has(groupName)}
+                    <ChevronDown
+                      class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                    />
+                  {:else}
+                    <ChevronUp
+                      class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                    />
+                  {/if}
+                  <LandPlot
+                    class="h-3.5 w-3.5 flex-shrink-0 text-base-content"
+                  />
+                  <span
+                    class="truncate text-xs font-semibold text-contrast-content"
+                  >
+                    {groupName}
                   </span>
-                {/if}
-              </span>
-              <span class="text-xs text-contrast-content/50">
-                {Number(field.area || 0).toFixed(1)} ha
-              </span>
-            </label>
-          {/each}
+                  <span class="text-xs text-contrast-content/50">
+                    ({groupFields.length})
+                  </span>
+                </button>
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-xs flex-shrink-0"
+                  title="Select all in {groupName}"
+                  aria-label="Select all in {groupName}"
+                  checked={groupFields.every((f) =>
+                    exportFieldIds.has(f.field_id),
+                  )}
+                  on:change={() => toggleExportFarm(groupFields)}
+                />
+              </div>
+              {#if !collapsedExportFarms.has(groupName)}
+                {#each groupFields as field (field.field_id)}
+                  <label
+                    class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
+                    style={exportFieldIds.has(field.field_id)
+                      ? "background: oklch(var(--bc) / 0.05)"
+                      : ""}
+                  >
+                    <FieldIcon
+                      geojson={createGeoJSON(field.boundary)}
+                      size={20}
+                    />
+                    <span
+                      class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
+                    >
+                      {field.name}
+                    </span>
+                    <span class="text-xs text-contrast-content/50">
+                      {Number(field.area || 0).toFixed(1)} ha
+                    </span>
+                    <input
+                      type="checkbox"
+                      class="checkbox checkbox-xs"
+                      checked={exportFieldIds.has(field.field_id)}
+                      on:change={() =>
+                        toggleExportFieldSelection(field.field_id)}
+                    />
+                  </label>
+                {/each}
+              {/if}
+            {/each}
+          </div>
         </div>
-        <div class="mt-2 flex items-center justify-between text-xs text-contrast-content/60">
+        <div
+          class="mt-2 flex items-center justify-between text-xs text-contrast-content/60"
+        >
           <span>{exportableFields.length} fields available</span>
           <span>{selectedExportArea.toFixed(1)} ha selected</span>
         </div>
@@ -1523,10 +1980,10 @@
     </div>
 
     <div class="modal-action">
-      <div class="flex w-full gap-2 sm:w-auto">
+      <div class="flex w-full gap-2">
         <button
           type="button"
-          class="btn btn-outline flex-1 sm:flex-none"
+          class="flex-1 rounded-lg border border-base-300 bg-base-100 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
           on:click={closeExportModal}
           disabled={exportingFields}
         >
@@ -1534,7 +1991,7 @@
         </button>
         <button
           type="button"
-          class="btn flex-1 bg-info text-white hover:bg-info/80 sm:flex-none"
+          class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-base-content py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
           on:click={exportFields}
           disabled={!canExportFields}
         >
@@ -1555,70 +2012,75 @@
 </dialog>
 
 <!-- Fields Overview -->
+<svelte:window on:click={closeAllDropdowns} />
 <div>
-  <!-- Header: title + search + settings -->
-  <div class="flex items-center gap-3 border-b border-base-300 p-4">
-    <div class="flex flex-shrink-0 items-center gap-2">
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-full bg-base-content/10"
-      >
-        <LandPlot class="h-4 w-4 text-base-content" />
+  <!-- Header: search + settings -->
+  {#if fields.length > 0}
+    <div class="flex items-center gap-2 border-b border-base-300 p-4">
+      <div class="relative min-w-0 flex-1">
+        <Search
+          class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/40"
+        />
+        <input
+          type="text"
+          bind:value={searchTerm}
+          placeholder="Search fields..."
+          class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-3 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content/40 focus:outline-none"
+        />
       </div>
-      <h3 class="text-base font-bold text-contrast-content">Fields</h3>
-      {#if fields.length > 0}
-        <span
-          class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
+      <div
+        class="dropdown dropdown-end flex-shrink-0"
+        on:click|stopPropagation
+      >
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          aria-label="Field options"
+          on:click={() => (showSettingsMenu = !showSettingsMenu)}
         >
-          {fields.length}
-        </span>
-      {/if}
-    </div>
-
-    {#if fields.length > 0}
-      <div class="hidden h-6 w-px flex-shrink-0 bg-base-300 sm:block"></div>
-
-      <div class="flex flex-1 items-center gap-2">
-        <div class="relative min-w-0 flex-1">
-          <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/40"
-          />
-          <input
-            type="text"
-            bind:value={searchTerm}
-            placeholder="Search fields..."
-            class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-3 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content/40 focus:outline-none"
-          />
-        </div>
-        <div class="dropdown dropdown-end flex-shrink-0">
-          <label
-            tabindex="0"
-            class="btn btn-ghost btn-sm"
-            aria-label="Field options"
-          >
-            <Settings class="h-4 w-4 text-contrast-content" />
-          </label>
+          <Settings class="h-4 w-4 text-contrast-content" />
+        </button>
+        {#if showSettingsMenu}
           <ul
-            tabindex="0"
-            class="menu dropdown-content z-[1] w-48 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
+            class="menu dropdown-content z-[1] w-48 rounded-lg border border-base-300 bg-base-100 p-1 shadow-lg"
           >
             <li>
-              <button on:click={openExportModal}>
-                <Download class="h-4 w-4" /> Export Fields
+              <button
+                on:click={() => {
+                  showSettingsMenu = false
+                  openExportModal()
+                }}
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+              >
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                >
+                  <Download class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
+                </div>
+                Export Fields
               </button>
             </li>
             <li>
               <button
-                on:click={openDeleteAllModal}
-                class="text-error hover:bg-error/10"
+                on:click={() => {
+                  showSettingsMenu = false
+                  openDeleteAllModal()
+                }}
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
               >
-                <Trash2 class="h-4 w-4" /> Delete All Fields
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
+                >
+                  <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                </div>
+                Delete All Fields
               </button>
             </li>
           </ul>
-        </div>
+        {/if}
       </div>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
   <!-- Card Content -->
   {#if fields.length === 0}
@@ -1635,14 +2097,16 @@
       </p>
     </div>
   {:else}
-    {#each displayGroups as [groupFarmName, groupFields] (groupFarmName)}
+    {#each displayGroups as [groupFarmName, groupFields, groupFarmId] (groupFarmName)}
       <!-- Farm separator header (collapsible) -->
-      <div class="flex items-center border-b border-base-300 bg-base-content/5">
+      <div class="relative flex items-center border-b border-base-300 bg-base-content/5">
         <button
           class="flex flex-1 items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-base-content/10"
           on:click={() => toggleFarm(groupFarmName)}
         >
-          {#if collapsedFarms.has(groupFarmName)}
+          {#if groupFields.length === 0}
+            <span class="h-4 w-4 flex-shrink-0"></span>
+          {:else if collapsedFarms.has(groupFarmName)}
             <ChevronDown class="h-4 w-4 text-contrast-content/60" />
           {:else}
             <ChevronUp class="h-4 w-4 text-contrast-content/60" />
@@ -1660,15 +2124,128 @@
             {groupFields.reduce((sum, f) => sum + f.area, 0).toFixed(1)} ha
           </span>
         </button>
-        <button
-          class="mr-2 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-contrast-content/40 transition-colors hover:bg-info/10 hover:text-info"
-          title="Move fields from {groupFarmName}"
-          aria-label="Move fields from {groupFarmName}"
-          on:click={() => openMigrationModal(groupFarmName)}
-        >
-          <ArrowRightLeft class="h-4 w-4" />
-        </button>
+        {#if groupFarmId}
+          <button
+            type="button"
+            class="mr-2 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-contrast-content/40 transition-colors hover:bg-base-300 hover:text-contrast-content"
+            aria-label="Farm actions"
+            on:click={(e) => toggleFarmDropdown(groupFarmId, e)}
+          >
+            <MoreHorizontal class="h-4 w-4" />
+          </button>
+          {#if openFarmMenu === groupFarmId}
+            <ul
+              class="absolute right-2 top-full z-50 mt-1 w-48 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+              on:click|stopPropagation
+            >
+              {#if groupFields.length > 0}
+                <li>
+                  <button
+                    on:click={() => {
+                      openFarmMenu = null
+                      openMigrationModal(groupFarmName, "out")
+                    }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                    >
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                      >
+                        <ArrowRightLeft
+                          class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
+                        />
+                      </div>
+                      Transfer fields
+                    </button>
+                  </li>
+                {:else}
+                  <li>
+                    <button
+                      on:click={() => {
+                        openFarmMenu = null
+                        openMigrationModal(groupFarmName, "in")
+                      }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                    >
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                      >
+                        <ArrowRightLeft
+                          class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
+                        />
+                      </div>
+                      Transfer fields
+                    </button>
+                  </li>
+                {/if}
+                <li>
+                  <button
+                    on:click={() =>
+                      startRenameFarm(groupFarmId, groupFarmName)}
+                    class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                  >
+                    <div
+                      class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
+                    >
+                      <SquarePen
+                        class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3"
+                      />
+                    </div>
+                    Rename farm
+                  </button>
+                </li>
+                {#if groupFields.length === 0}
+                  <li>
+                    <button
+                      disabled={deletingFarmId === groupFarmId}
+                      on:click={() => {
+                        openFarmMenu = null
+                        handleDeleteEmptyFarm(groupFarmId, groupFarmName)
+                      }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 disabled:opacity-50 sm:px-4 sm:text-sm"
+                    >
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
+                      >
+                        <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                      </div>
+                      Delete
+                    </button>
+                  </li>
+                {/if}
+              </ul>
+            {/if}
+        {/if}
       </div>
+
+      <!-- Rename farm inline (rendered below the farm header) -->
+      {#if renamingFarmId === groupFarmId}
+        <div class="flex items-center gap-2 border-b border-base-300 px-4 py-2">
+          <input
+            type="text"
+            bind:value={renameFarmName}
+            use:autofocus
+            maxlength={FARM_NAME_MAX_LENGTH}
+            on:keydown={(e) => {
+              if (e.key === "Enter") handleRenameFarm(groupFarmId)
+              if (e.key === "Escape") cancelRenameFarm()
+            }}
+            class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:text-sm"
+          />
+          <button
+            class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
+            on:click={cancelRenameFarm}
+          >
+            Cancel
+          </button>
+          <button
+            class="rounded-lg bg-base-content px-3 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+            on:click={() => handleRenameFarm(groupFarmId)}
+            disabled={!renameFarmName.trim()}
+          >
+            Rename
+          </button>
+        </div>
+      {/if}
 
       <!-- Field rows (narrow) -->
       {#if !collapsedFarms.has(groupFarmName)}
@@ -1687,37 +2264,52 @@
               <span class="flex-shrink-0 text-xs text-contrast-content/60">
                 {field.area.toFixed(1)} ha
               </span>
-              <div class="dropdown dropdown-end flex-shrink-0">
-                <label
-                  tabindex="0"
-                  class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-contrast-content"
+              <div class="relative flex-shrink-0">
+                <button
+                  type="button"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-contrast-content"
                   aria-label="Field actions"
+                  on:click={(e) => toggleFieldDropdown(field.field_id, e)}
                 >
                   <MoreHorizontal class="h-4 w-4" />
-                </label>
-                <ul
-                  tabindex="0"
-                  class="menu dropdown-content z-[1] w-40 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
-                >
-                  <li>
-                    <button on:click={() => openEditModal(field)}>
-                      <SquarePen class="h-4 w-4" /> Edit
-                    </button>
-                  </li>
-                  <li>
-                    <button on:click={() => handleLocateField(field.field_id)}>
-                      <MapPinned class="h-4 w-4" /> View on map
-                    </button>
-                  </li>
-                  <li>
+                </button>
+                {#if openFieldMenu === field.field_id}
+                  <div
+                    class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg"
+                    on:click|stopPropagation
+                  >
                     <button
-                      on:click={() => openDeleteModal(field)}
-                      class="text-error hover:bg-error/10"
+                      type="button"
+                      on:click={() => { openFieldMenu = null; openEditModal(field) }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                     >
-                      <Trash2 class="h-4 w-4" /> Delete
+                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6">
+                        <SquarePen class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3" />
+                      </div>
+                      Edit
                     </button>
-                  </li>
-                </ul>
+                    <button
+                      type="button"
+                      on:click={() => { openFieldMenu = null; handleLocateField(field.field_id) }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                    >
+                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6">
+                        <MapPinned class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
+                      </div>
+                      View on map
+                    </button>
+                    <button
+                      type="button"
+                      on:click={() => { openFieldMenu = null; openDeleteModal(field) }}
+                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                    >
+                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6">
+                        <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                      </div>
+                      Delete
+                    </button>
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}
@@ -1728,6 +2320,50 @@
     {#if displayGroups.length === 0}
       <div class="px-4 py-10 text-center text-sm text-contrast-content/60">
         No fields match "{searchTerm}"
+      </div>
+    {/if}
+
+    <!-- Add farm (bottom) -->
+    {#if !searchLower}
+      <div class="border-t border-base-300 p-3">
+        {#if addingFarm}
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              bind:value={newFarmName}
+              use:autofocus
+              placeholder="New farm name"
+              maxlength={FARM_NAME_MAX_LENGTH}
+              on:keydown={(e) => {
+                if (e.key === "Enter") handleAddFarm()
+                if (e.key === "Escape") cancelAddFarm()
+              }}
+              class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:text-sm"
+            />
+            <button
+              class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300 sm:text-sm"
+              on:click={cancelAddFarm}
+              disabled={creatingFarm}
+            >
+              Cancel
+            </button>
+            <button
+              class="rounded-lg bg-base-content px-3 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+              on:click={handleAddFarm}
+              disabled={creatingFarm || !newFarmName.trim()}
+            >
+              {creatingFarm ? "Adding..." : "Add"}
+            </button>
+          </div>
+        {:else}
+          <button
+            class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-base-300 py-2 text-xs font-medium text-contrast-content/70 transition-colors hover:border-base-content/40 hover:bg-base-200 hover:text-contrast-content sm:text-sm"
+            on:click={startAddFarm}
+          >
+            <Plus class="h-4 w-4" />
+            Add farm
+          </button>
+        {/if}
       </div>
     {/if}
   {/if}

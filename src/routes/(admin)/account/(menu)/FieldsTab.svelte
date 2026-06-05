@@ -608,8 +608,8 @@
       <span>Failed to load field data: {loadError}</span>
     </div>
   {:else if hasFields}
-    <!-- Stats bubble -->
-    <div class="rounded-2xl border border-base-300 bg-base-200 p-4 sm:p-5">
+    <!-- Top component: title + upload + stat chips -->
+    <div>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div
@@ -639,7 +639,7 @@
       <!-- Summary stat chips -->
       <div class="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
         <div
-          class="flex flex-col items-center justify-center rounded-lg bg-base-100 p-2.5 text-center sm:p-3"
+          class="flex flex-col items-center justify-center rounded-lg bg-base-200 p-2.5 text-center sm:p-3"
         >
           <div class="flex items-center gap-1 text-green-600">
             <Layers class="h-3.5 w-3.5" />
@@ -650,7 +650,7 @@
           >
         </div>
         <div
-          class="flex flex-col items-center justify-center rounded-lg bg-base-100 p-2.5 text-center sm:p-3"
+          class="flex flex-col items-center justify-center rounded-lg bg-base-200 p-2.5 text-center sm:p-3"
         >
           <div class="flex items-center gap-1 text-blue-600">
             <Ruler class="h-3.5 w-3.5" />
@@ -663,7 +663,7 @@
           >
         </div>
         <div
-          class="flex flex-col items-center justify-center rounded-lg bg-base-100 p-2.5 text-center sm:p-3"
+          class="flex flex-col items-center justify-center rounded-lg bg-base-200 p-2.5 text-center sm:p-3"
         >
           <div class="flex items-center gap-1 text-purple-600">
             <LandPlot class="h-3.5 w-3.5" />
@@ -676,8 +676,8 @@
       </div>
     </div>
 
-    <!-- Fields list bubble -->
-    <div class="overflow-hidden rounded-2xl border border-base-300 bg-base-100">
+    <!-- Fields list -->
+    <div class="rounded-xl border border-base-300 bg-base-100">
       <FieldsOverview {navigateToProcess} />
     </div>
   {:else}
