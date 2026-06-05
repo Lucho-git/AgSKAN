@@ -17,9 +17,10 @@
   import {
     Map,
     Plus,
+    Home,
     Globe,
+    LandPlot,
     MapPin,
-    Navigation,
     Car,
     Route,
     ChevronUp,
@@ -31,7 +32,6 @@
     Pencil,
     Trash2,
     AlertTriangle,
-    UserPlus,
     Search,
     X,
     Cloud,
@@ -39,8 +39,8 @@
   } from "lucide-svelte"
 
   import { v4 as uuidv4 } from "uuid"
-  import ObjectsTab from "./ObjectsTab.svelte"
-  import InviteTeamModal from "$lib/components/general/InviteTeamModal.svelte"
+  import FieldsTab from "./FieldsTab.svelte"
+  import VehicleList from "./VehicleList.svelte"
 
   // ========================================
   // TAB MANAGEMENT
@@ -85,9 +85,6 @@
   // Rename map state
   let showRenameMap = false
   let newMapNameInput = ""
-
-  // Invite team state
-  let showInviteTeam = false
 
   // Get Started state (non-connected)
   let showCreateForm = false
@@ -733,6 +730,15 @@
   // LIFECYCLE
   // ========================================
   onMount(async () => {
+    // If we've returned from the field-processing wizard, jump straight to the
+    // Fields tab so the user sees the result.
+    if (browser) {
+      const tabParam = new URLSearchParams(window.location.search).get("tab")
+      if (tabParam === "fields" && $connectedMapStore?.id) {
+        activeTab = "fields"
+      }
+    }
+
     await fetchUserMaps()
     await fetchRecentMaps()
 
@@ -772,7 +778,7 @@
               ? 'bg-green-500/20'
               : 'bg-base-300'}"
           >
-            <Globe
+            <Home
               class="h-3 w-3 {activeTab === 'dashboard'
                 ? 'text-green-500'
                 : 'text-contrast-content/60'}"
@@ -786,32 +792,25 @@
       {#if isConnected}
         <button
           class="flex flex-1 items-center gap-2 whitespace-nowrap rounded-t-lg px-2 py-3 text-xs font-medium transition-colors sm:px-4 sm:text-sm {activeTab ===
-          'objects'
+          'fields'
             ? 'bg-base-200 text-contrast-content'
             : 'text-contrast-content/60 hover:bg-base-100 hover:text-contrast-content'}"
-          on:click={() => (activeTab = "objects")}
+          on:click={() => (activeTab = "fields")}
         >
           <div
             class="flex h-5 w-5 items-center justify-center rounded-full {activeTab ===
-            'objects'
+            'fields'
               ? 'bg-orange-500/20'
               : 'bg-base-300'}"
           >
-            <Navigation
-              class="h-3 w-3 {activeTab === 'objects'
+            <LandPlot
+              class="h-3 w-3 {activeTab === 'fields'
                 ? 'text-orange-500'
                 : 'text-contrast-content/60'}"
             />
           </div>
-          <span class="xs:inline hidden sm:hidden lg:inline">Objects</span>
-          <span class="xs:hidden sm:inline lg:hidden">Obj</span>
-          {#if $connectedMapStore?.is_connected}
-            <span
-              class="ml-1 hidden rounded bg-base-300 px-1.5 py-0.5 text-xs sm:inline"
-            >
-              {$mapActivityStore?.connected_profiles?.length || 0}
-            </span>
-          {/if}
+          <span class="xs:inline hidden sm:hidden lg:inline">Fields</span>
+          <span class="xs:hidden sm:inline lg:hidden">Fields</span>
         </button>
       {/if}
     </div>
@@ -819,7 +818,9 @@
 
   <!-- Tab Content -->
   <div
-    class="mb-6 min-h-[32rem] rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg sm:p-6"
+    class="mb-6 min-h-[32rem] {activeTab === 'fields'
+      ? ''
+      : 'rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg sm:p-6'}"
   >
     {#if mapTransition}
       <!-- Map Transition Overlay -->
@@ -1590,43 +1591,8 @@
           {/if}
         </div>
 
-        <!-- Invite Team - Always visible -->
-        <div
-          class="relative rounded-lg bg-base-200 p-3 transition-colors sm:p-4"
-        >
-          <button
-            class="flex w-full items-center gap-3 text-left"
-            on:click={() => (showInviteTeam = true)}
-          >
-            <div
-              class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600/20 sm:h-10 sm:w-10"
-            >
-              <UserPlus class="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <h4
-                class="text-sm font-semibold text-contrast-content sm:text-base"
-              >
-                Invite Team
-              </h4>
-              <p class="text-xs text-contrast-content/60 sm:text-sm">
-                Share your map with team members
-              </p>
-            </div>
-            <div class="flex w-8 justify-end sm:w-10">
-              <button
-                class="flex h-7 w-7 items-center justify-center rounded-lg bg-base-100/60 transition-colors hover:bg-base-100 sm:h-8 sm:w-8"
-                on:click|stopPropagation={() => (showInviteTeam = true)}
-                title="Invite team members"
-              >
-                <Plus class="h-3.5 w-3.5 text-contrast-content/60 sm:h-4 sm:w-4" />
-              </button>
-            </div>
-          </button>
-        </div>
-
-        <!-- Invite Team Modal -->
-        <InviteTeamModal bind:open={showInviteTeam} />
+        <!-- Team Members -->
+        <VehicleList />
       </div>
     {:else if activeTab === "dashboard" && !isConnected}
       <!-- Dashboard Tab - Not Connected: Get Started -->
@@ -1871,8 +1837,8 @@
           </div>
         {/if}
       </div>
-    {:else if activeTab === "objects" && isConnected}
-      <ObjectsTab />
+    {:else if activeTab === "fields" && isConnected}
+      <FieldsTab />
     {/if}
   </div>
 </div>

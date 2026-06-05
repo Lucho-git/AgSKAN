@@ -4,7 +4,6 @@
   import { getContext, onMount } from "svelte"
   import type { Writable } from "svelte/store"
   import MapStats from "../(menu)/MapStats.svelte"
-  import VehicleList from "./VehicleList.svelte"
   import { page } from "$app/stores"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
@@ -49,7 +48,6 @@
     </div>
     {#if $connectedMapStore.is_connected}
       <MapStats />
-      <VehicleList />
     {/if}
   </div>
 </div>

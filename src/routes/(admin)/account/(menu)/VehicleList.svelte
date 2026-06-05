@@ -21,8 +21,11 @@
     MoreVertical,
     ChevronUp,
     Crown,
+    Pencil,
+    X,
   } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   // Support team user IDs with kick permissions
   const SUPPORT_TEAM_IDS = [
@@ -46,6 +49,11 @@
   let timeUpdateInterval
   let forceUpdate = 0
 
+  // Edit name state
+  let showEditName = false
+  let editNameValue = ""
+  let savingName = false
+
   $: currentUserId = $profileStore.id
   $: is_owner = $connectedMapStore.is_owner
   $: map_owner_id = $connectedMapStore.master_user_id
@@ -53,6 +61,10 @@
   $: has_kick_permission = is_owner || is_support_team
   $: is_user = (profileId) => profileId === currentUserId
   $: is_map_owner = (profileId) => profileId === map_owner_id
+
+  $: memberCount = $mapActivityStore.connected_profiles?.length || 0
+  $: seatLimit = $connectedMapStore.masterSubscription?.current_seats ?? null
+  $: overLimit = seatLimit != null && memberCount > seatLimit
 
   $: sortedProfiles = $mapActivityStore.connected_profiles.sort((a, b) => {
     if (a.id === currentUserId) return -1
@@ -236,11 +248,49 @@
   function closeAllMenus() {
     openMenuId = null
   }
+
+  function openEditName() {
+    editNameValue = $profileStore?.full_name || ""
+    showEditName = true
+    openMenuId = null
+  }
+
+  function closeEditName() {
+    showEditName = false
+  }
+
+  async function saveEditName() {
+    const newName = editNameValue.trim()
+    if (!newName) {
+      toast.error("Name is required")
+      return
+    }
+
+    savingName = true
+    try {
+      const result = await userSettingsApi.updateProfile(
+        newName,
+        $profileStore?.company_name || "",
+        "",
+      )
+
+      if (result.success) {
+        showEditName = false
+      } else {
+        toast.error(result.message || "Could not update name")
+      }
+    } catch (error) {
+      console.error("Error updating name:", error)
+      toast.error("Could not update name")
+    } finally {
+      savingName = false
+    }
+  }
 </script>
 
 <!-- Team Members section -->
 <div
-  class="mt-4 rounded-lg border border-base-300 bg-base-100 p-4 shadow-md transition-all duration-300 hover:shadow-lg md:mt-6 md:p-6"
+  class="mt-4 rounded-lg border border-base-300 bg-base-200 p-4 shadow-md transition-all duration-300 hover:shadow-lg md:mt-6 md:p-6"
 >
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3 md:mb-6">
     <h2
@@ -249,6 +299,15 @@
       <Users size={20} class="text-blue-500" />
       <span>Team Members</span>
     </h2>
+    {#if seatLimit != null}
+      <span
+        class="rounded-full px-2.5 py-1 text-xs font-bold text-white {overLimit
+          ? 'bg-red-500'
+          : 'bg-green-500'}"
+      >
+        {memberCount}/{seatLimit}
+      </span>
+    {/if}
   </div>
 
   <div class="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3">
@@ -281,7 +340,7 @@
         <div
           role="button"
           tabindex="0"
-          class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-base-300 bg-base-200 p-3 text-left transition-all duration-300 hover:border-blue-400 hover:bg-base-300/50 active:scale-[0.99] md:p-4"
+          class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-all duration-300 hover:border-blue-400 hover:bg-base-100/70 active:scale-[0.99] md:p-4"
           on:click={(e) => toggleMenu(profile.id, e)}
           on:keydown={(e) => e.key === "Enter" && toggleMenu(profile.id, e)}
         >
@@ -362,45 +421,65 @@
         <!-- Dropdown menu -->
         {#if openMenuId === profile.id}
           <div
-            class="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-base-300 bg-base-100 shadow-lg"
+            class="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-base-300 bg-base-100 py-1 shadow-lg sm:w-48"
             on:click={(e) => e.stopPropagation()}
           >
             {#if isCurrentUser}
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-left text-sm font-medium text-base-content transition-colors hover:bg-base-200"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                 on:click={(e) =>
                   vehicle
                     ? handleLocate(profile, e)
                     : handleConnect(profile, e)}
               >
-                <LogIn size={16} />
-                <span>Connect</span>
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/20 sm:h-6 sm:w-6"
+                >
+                  <LogIn class="h-2.5 w-2.5 text-green-600 sm:h-3 sm:w-3" />
+                </div>
+                Open Map
+              </button>
+              <button
+                type="button"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                on:click={openEditName}
+              >
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
+                >
+                  <Pencil class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3" />
+                </div>
+                Edit Name
               </button>
             {:else}
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-t-lg px-4 py-2.5 text-left text-sm font-medium text-base-content transition-colors hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"
                 on:click={(e) => handleLocate(profile, e)}
                 disabled={!vehicle}
               >
-                <MapPin size={16} />
-                <span>{vehicle ? "Find on Map" : "Offline"}</span>
+                <div
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                >
+                  <MapPin class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
+                </div>
+                {vehicle ? "Find on Map" : "Offline"}
               </button>
 
               {#if has_kick_permission && !isOwner}
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-b-lg border-t border-base-300 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"
                   on:click={(e) => handleKickUserClick(profile, e)}
                   disabled={kickingUser === profile.id}
                 >
-                  <UserX size={16} />
-                  <span
-                    >{kickingUser === profile.id
-                      ? "Kicking..."
-                      : "Kick User"}</span
+                  <div
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
                   >
+                    <UserX class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                  </div>
+                  {kickingUser === profile.id ? "Kicking..." : "Kick User"}
                 </button>
               {/if}
             {/if}
@@ -410,35 +489,116 @@
     {/each}
 
     <!-- Invite person card -->
-    <div
-      class="flex items-center justify-between rounded-lg border border-dashed border-base-300 bg-base-200/50 p-3 transition-all duration-300 hover:border-yellow-400 md:p-4"
-    >
-      <div class="flex min-w-0 flex-1 items-center gap-3">
-        <div
-          class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-yellow-400/10 text-yellow-600 transition-all duration-300 md:h-11 md:w-11"
-        >
-          <UserPlus size={18} />
+    <InviteModal>
+      <div
+        slot="trigger"
+        class="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-base-300 bg-base-100/50 p-3 transition-all duration-300 hover:border-yellow-400 hover:bg-base-100 active:scale-[0.99] md:p-4"
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-yellow-400/10 text-yellow-600 transition-all duration-300 md:h-11 md:w-11"
+          >
+            <UserPlus size={18} />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div
+              class="truncate text-sm font-semibold text-contrast-content md:text-base"
+            >
+              Invite Team
+            </div>
+            <div class="mt-0.5 truncate text-xs text-contrast-content/60">
+              Add people to map
+            </div>
+          </div>
         </div>
-        <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold text-contrast-content md:text-base">
-            Invite Team
-          </div>
-          <div class="mt-0.5 text-xs text-contrast-content/60">
-            Add people to map
-          </div>
+        <div
+          class="ml-2 flex h-7 flex-shrink-0 items-center justify-center gap-1.5 rounded-lg bg-base-content px-2.5 text-xs font-medium text-base-100 shadow-sm transition-all duration-300 md:h-8"
+        >
+          <Plus size={14} />
+          <span class="hidden sm:inline">Add</span>
         </div>
       </div>
-      <InviteModal>
-        <button
-          slot="trigger"
-          class="ml-2 flex h-9 flex-shrink-0 items-center justify-center gap-1.5 rounded-lg bg-yellow-400 px-4 text-sm font-medium text-black shadow-sm transition-all duration-300 hover:bg-yellow-300 hover:shadow active:scale-95"
-        >
-          <Plus size={16} />
-          <span class="hidden sm:inline">Invite</span>
-        </button>
-      </InviteModal>
-    </div>
+    </InviteModal>
   </div>
 </div>
+
+<!-- Edit Name Modal -->
+{#if showEditName}
+  <div
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+    on:click={closeEditName}
+    on:keydown={(e) => e.key === "Escape" && closeEditName()}
+    role="presentation"
+  >
+    <div
+      class="w-full max-w-sm rounded-2xl bg-base-100 p-5 shadow-xl sm:p-6"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10 sm:h-10 sm:w-10"
+          >
+            <Pencil class="h-4 w-4 text-base-content sm:h-5 sm:w-5" />
+          </div>
+          <div>
+            <h4
+              class="text-base font-semibold text-contrast-content sm:text-lg"
+            >
+              Edit Name
+            </h4>
+            <p class="text-xs text-contrast-content/60 sm:text-sm">
+              Update your display name
+            </p>
+          </div>
+        </div>
+        <button
+          class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+          on:click={closeEditName}
+          title="Close"
+        >
+          <X class="h-4 w-4 text-contrast-content/60" />
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <label
+          for="edit-name-input"
+          class="block text-sm font-medium text-contrast-content"
+        >
+          Full Name
+        </label>
+        <!-- svelte-ignore a11y-autofocus -->
+        <input
+          id="edit-name-input"
+          type="text"
+          bind:value={editNameValue}
+          on:keydown={(e) => e.key === "Enter" && saveEditName()}
+          autofocus
+          placeholder="Enter your full name"
+          class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
+      <div class="mt-5 flex justify-end gap-3">
+        <button
+          on:click={closeEditName}
+          class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-200"
+        >
+          Cancel
+        </button>
+        <button
+          on:click={saveEditName}
+          disabled={savingName}
+          class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:opacity-50"
+        >
+          {savingName ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <svelte:window on:click={closeAllMenus} />

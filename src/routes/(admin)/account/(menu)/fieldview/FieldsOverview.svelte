@@ -35,6 +35,7 @@
     Upload,
     Download,
     Settings,
+    Search,
     ArrowUp,
     ArrowRightLeft,
     Check,
@@ -89,6 +90,24 @@
     return entries
   })()
   $: hasMultipleFarms = farmGroups.length > 1
+
+  // Search filtering — narrow each farm group's fields by name and drop empties.
+  let searchTerm = ""
+  $: searchLower = searchTerm.trim().toLowerCase()
+  $: displayGroups = farmGroups
+    .map(
+      ([name, groupFields, farmId]) =>
+        [
+          name,
+          searchLower
+            ? groupFields.filter((f) =>
+                (f.name || "").toLowerCase().includes(searchLower),
+              )
+            : groupFields,
+          farmId,
+        ] as [string, any[], string | null],
+    )
+    .filter(([, groupFields]) => groupFields.length > 0)
 
   let isExpanded = true
   let editModalId = "edit-field-modal"
@@ -1535,50 +1554,46 @@
   </form>
 </dialog>
 
-<!-- Fields Overview Card -->
+<!-- Fields Overview -->
 <div>
-  <!-- Card Header with bubble icon styling -->
-  <div class="flex items-center justify-between border-b border-base-300 p-6">
-    <!-- Make only the left side clickable for expand/collapse -->
-    <div
-      class="flex flex-1 cursor-pointer items-center gap-3"
-      on:click={toggleExpand}
-      on:keydown={(e) => e.key === "Enter" && toggleExpand()}
-      role="button"
-      tabindex="0"
-    >
-      <!-- Keep base-content for main icon -->
+  <!-- Header: title + search + settings -->
+  <div class="flex items-center gap-3 border-b border-base-300 p-4">
+    <div class="flex flex-shrink-0 items-center gap-2">
       <div
         class="flex h-8 w-8 items-center justify-center rounded-full bg-base-content/10"
       >
         <LandPlot class="h-4 w-4 text-base-content" />
       </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <h3 class="text-lg font-bold text-contrast-content">Fields</h3>
-          {#if fields.length > 0}
-            <!-- Keep base-content for field count -->
-            <span
-              class="rounded-full border border-base-content/20 bg-base-content/10 px-2.5 py-1 text-xs font-medium text-base-content"
-            >
-              {fields.length}
-            </span>
-          {/if}
-        </div>
-        <p class="text-sm text-contrast-content/70">
-          Manage your farm fields and view detailed information
-        </p>
-      </div>
+      <h3 class="text-base font-bold text-contrast-content">Fields</h3>
+      {#if fields.length > 0}
+        <span
+          class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
+        >
+          {fields.length}
+        </span>
+      {/if}
     </div>
 
-    <!-- Buttons area - separate from clickable header -->
-    <div class="flex items-center gap-2">
-      {#if fields.length > 0}
-        <div class="dropdown dropdown-end">
+    {#if fields.length > 0}
+      <div class="hidden h-6 w-px flex-shrink-0 bg-base-300 sm:block"></div>
+
+      <div class="flex flex-1 items-center gap-2">
+        <div class="relative min-w-0 flex-1">
+          <Search
+            class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-contrast-content/40"
+          />
+          <input
+            type="text"
+            bind:value={searchTerm}
+            placeholder="Search fields..."
+            class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-3 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content/40 focus:outline-none"
+          />
+        </div>
+        <div class="dropdown dropdown-end flex-shrink-0">
           <label
             tabindex="0"
             class="btn btn-ghost btn-sm"
-            on:click|stopPropagation
+            aria-label="Field options"
           >
             <Settings class="h-4 w-4 text-contrast-content" />
           </label>
@@ -1601,349 +1616,12 @@
             </li>
           </ul>
         </div>
-      {/if}
-
-      <button class="btn btn-ghost btn-sm" on:click={toggleExpand}>
-        {#if isExpanded}
-          <ChevronUp class="h-5 w-5 text-contrast-content" />
-        {:else}
-          <ChevronDown class="h-5 w-5 text-contrast-content" />
-        {/if}
-      </button>
-    </div>
+      </div>
+    {/if}
   </div>
 
-  {#if farmName && fields.length > 0}
-    <!-- Sort controls bar -->
-    <div
-      class="flex items-center justify-between border-b border-base-300 bg-base-200 px-6 py-3"
-    >
-      <p class="text-sm text-contrast-content/70">
-        {#if hasMultipleFarms}
-          <span class="font-medium">{farmGroups.length} Farms</span>
-          <span class="mx-1.5 text-contrast-content/40">·</span>
-          <span>{fields.length} fields</span>
-        {:else}
-          <span class="font-medium">Farm:</span>
-          {farmGroups[0]?.[0] || farmName}
-        {/if}
-      </p>
-
-      <div class="flex items-center gap-4">
-        <button
-          class="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300"
-          on:click={() => toggleSorting("name")}
-        >
-          Name
-          {#if sortField === "name"}
-            {#if sortDirection === "asc"}
-              <ArrowUp class="h-3 w-3" />
-            {:else}
-              <ChevronDown class="h-3 w-3" />
-            {/if}
-          {/if}
-        </button>
-        <div class="h-4 w-px bg-base-300"></div>
-        <button
-          class="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300"
-          on:click={() => toggleSorting("area")}
-        >
-          Area
-          {#if sortField === "area"}
-            {#if sortDirection === "asc"}
-              <ArrowUp class="h-3 w-3" />
-            {:else}
-              <ChevronDown class="h-3 w-3" />
-            {/if}
-          {/if}
-        </button>
-      </div>
-    </div>
-  {/if}
-
   <!-- Card Content -->
-  {#if farmName && fields.length > 0 && isExpanded}
-    {#each farmGroups as [groupFarmName, groupFields, groupFarmId] (groupFarmName)}
-      <!-- Farm group header -->
-      {#if hasMultipleFarms}
-        <div
-          class="flex w-full items-center border-b border-base-300 bg-base-content/5"
-        >
-          <button
-            class="flex flex-1 items-center gap-2 px-6 py-3 text-left transition-colors hover:bg-base-content/10"
-            on:click={() => toggleFarm(groupFarmName)}
-          >
-            {#if collapsedFarms.has(groupFarmName)}
-              <ChevronDown class="h-4 w-4 text-contrast-content/60" />
-            {:else}
-              <ChevronUp class="h-4 w-4 text-contrast-content/60" />
-            {/if}
-            <LandPlot class="h-3.5 w-3.5 text-base-content" />
-            <span class="text-sm font-semibold text-contrast-content"
-              >{groupFarmName}</span
-            >
-            <span
-              class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
-            >
-              {groupFields.length}
-              {groupFields.length === 1 ? "field" : "fields"}
-            </span>
-            <span class="ml-auto text-xs text-contrast-content/50">
-              {groupFields.reduce((sum, f) => sum + f.area, 0).toFixed(1)} ha
-            </span>
-          </button>
-          <button
-            class="rounded-lg p-1.5 text-contrast-content/40 transition-colors hover:bg-info/10 hover:text-info"
-            title="Move fields from {groupFarmName}"
-            on:click={() => openMigrationModal(groupFarmName)}
-          >
-            <ArrowRightLeft class="h-4 w-4" />
-          </button>
-          <button
-            class="mr-4 rounded-lg p-1.5 text-contrast-content/40 transition-colors hover:bg-error/10 hover:text-error"
-            title="Delete all fields from {groupFarmName}"
-            on:click={() => openDeleteFarmModal(groupFarmName)}
-          >
-            <Trash2 class="h-4 w-4" />
-          </button>
-        </div>
-      {/if}
-
-      {#if !hasMultipleFarms || !collapsedFarms.has(groupFarmName)}
-        <!-- Table View (Desktop) -->
-        {#if !isMobile}
-          <table class="w-full">
-            {#if !hasMultipleFarms}
-              <thead>
-                <tr class="border-b border-base-300 bg-base-200">
-                  <th
-                    class="px-6 py-4 text-left text-sm font-medium text-contrast-content/70"
-                    >Field</th
-                  >
-                  <th
-                    class="px-6 py-4 text-center text-sm font-medium text-contrast-content/70"
-                    >Area (ha)</th
-                  >
-                  <th
-                    class="px-6 py-4 text-right text-sm font-medium text-contrast-content/70"
-                    >Actions</th
-                  >
-                </tr>
-              </thead>
-            {/if}
-            <tbody>
-              {#each groupFields as field (field.field_id)}
-                <tr
-                  class="group border-b border-base-300/50 transition-colors hover:bg-base-200/50"
-                >
-                  <td class="px-6 py-4">
-                    <div class="flex items-center space-x-3">
-                      <div class="relative">
-                        <FieldIcon
-                          geojson={createGeoJSON(field.boundary)}
-                          size={40}
-                        />
-                      </div>
-                      <div>
-                        <div class="font-medium text-contrast-content">
-                          {field.name}
-                        </div>
-                        {#if field.createdAt}
-                          <div class="text-xs text-contrast-content/60">
-                            Added {new Date(
-                              field.createdAt,
-                            ).toLocaleDateString()}
-                          </div>
-                        {/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 text-center">
-                    <span class="text-lg font-semibold text-base-content"
-                      >{field.area.toFixed(1)}</span
-                    >
-                    <span class="ml-1 text-xs text-contrast-content/60">ha</span
-                    >
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex justify-end gap-2">
-                      <button
-                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                        aria-label="Edit field"
-                        on:click={() => openEditModal(field)}
-                      >
-                        <SquarePen class="h-4 w-4 text-contrast-content" />
-                      </button>
-                      <button
-                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                        aria-label="Go to field"
-                        on:click={() => handleLocateField(field.field_id)}
-                      >
-                        <MapPinned class="h-4 w-4 text-contrast-content" />
-                      </button>
-                      <button
-                        class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-error/20 hover:text-error"
-                        aria-label="Delete field"
-                        on:click={() => openDeleteModal(field)}
-                      >
-                        <Trash2 class="h-4 w-4 text-contrast-content" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-
-          <!-- List View (Mobile) -->
-        {:else}
-          <div class="divide-y divide-base-300">
-            {#each groupFields as field (field.field_id)}
-              <div class="px-6 py-4">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center space-x-3">
-                    <FieldIcon
-                      geojson={createGeoJSON(field.boundary)}
-                      size={36}
-                    />
-                    <div>
-                      <div class="font-medium text-contrast-content">
-                        {field.name}
-                      </div>
-                      <div class="text-xs text-contrast-content/60">
-                        {field.area.toFixed(1)} ha
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-2">
-                    <button
-                      class="rounded-lg border border-base-300 bg-base-200 p-2 transition-colors hover:bg-base-300"
-                      on:click={() => handleLocateField(field.field_id)}
-                      aria-label="View field"
-                    >
-                      <Eye class="h-4 w-4 text-contrast-content" />
-                    </button>
-
-                    <div class="dropdown dropdown-end">
-                      <label tabindex="0" class="btn btn-ghost btn-sm">
-                        <MoreHorizontal class="h-4 w-4 text-contrast-content" />
-                      </label>
-                      <ul
-                        tabindex="0"
-                        class="menu dropdown-content z-[1] w-40 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
-                      >
-                        <li>
-                          <button
-                            on:click={() => toggleDetails(field.field_id)}
-                          >
-                            <Info class="h-4 w-4" /> Details
-                          </button>
-                        </li>
-                        <li>
-                          <button on:click={() => openEditModal(field)}>
-                            <SquarePen class="h-4 w-4" /> Edit
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            on:click={() => handleLocateField(field.field_id)}
-                          >
-                            <MapPinned class="h-4 w-4" /> View on map
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            on:click={() => openDeleteModal(field)}
-                            class="text-error hover:bg-error/10"
-                          >
-                            <Trash2 class="h-4 w-4" /> Delete
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Expandable details section -->
-                {#if expandedDetails.has(field.field_id)}
-                  <div
-                    class="ml-12 mt-3 space-y-2 border-l-2 border-base-300 pl-4 text-sm"
-                  >
-                    <div class="flex justify-between">
-                      <span class="text-contrast-content/60">Area:</span>
-                      <span class="text-contrast-content"
-                        >{field.area.toFixed(1)} ha</span
-                      >
-                    </div>
-                    {#if field.createdAt}
-                      <div class="flex justify-between">
-                        <span class="text-contrast-content/60">Created:</span>
-                        <span class="text-contrast-content"
-                          >{new Date(
-                            field.createdAt,
-                          ).toLocaleDateString()}</span
-                        >
-                      </div>
-                    {/if}
-                    <div class="flex justify-between pt-2">
-                      <button
-                        class="btn btn-outline btn-xs h-7 px-2 text-xs"
-                        on:click={() => openEditModal(field)}
-                      >
-                        <SquarePen class="mr-1 h-3 w-3" /> Edit
-                      </button>
-                      <button
-                        class="btn btn-outline btn-xs h-7 px-2 text-xs"
-                        on:click={() => handleLocateField(field.field_id)}
-                      >
-                        <MapPinned class="mr-1 h-3 w-3" /> View on map
-                      </button>
-                    </div>
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
-      {/if}
-    {/each}
-  {:else if farmName && fields.length > 0 && !isExpanded}
-    <!-- Collapsed summary view -->
-    <div class="p-6">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <span
-            class="rounded-full border border-base-content/20 bg-base-content/10 px-3 py-1 text-sm font-medium text-base-content"
-          >
-            {fields.length} fields
-          </span>
-          <span class="text-sm text-contrast-content/70">
-            ({fields.reduce((sum, field) => sum + field.area, 0).toFixed(1)} ha total)
-          </span>
-        </div>
-        <button
-          class="rounded-lg border border-base-300 bg-base-200 px-3 py-1.5 text-xs font-medium text-contrast-content transition-colors hover:bg-base-300"
-          on:click={toggleExpand}
-        >
-          <Eye class="mr-1 h-3 w-3" /> View all
-        </button>
-      </div>
-    </div>
-  {:else if !farmName}
-    <!-- No map connected state -->
-    <div class="py-12 text-center">
-      <div
-        class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-base-200"
-      >
-        <LandPlot class="h-6 w-6 text-contrast-content/60" />
-      </div>
-      <p class="mb-4 text-sm text-contrast-content/70">No fields available</p>
-      <p class="text-xs text-contrast-content/60">
-        Upload boundary files to create and manage your fields
-      </p>
-    </div>
-  {:else}
+  {#if fields.length === 0}
     <!-- No fields available -->
     <div class="py-12 text-center">
       <div
@@ -1956,45 +1634,102 @@
         Upload boundary files to create and manage your fields
       </p>
     </div>
-  {/if}
-
-  <!-- Card Footer with statistics -->
-  {#if farmName && fields.length > 0 && isExpanded}
-    <div
-      class="flex flex-col gap-4 border-t border-base-300 p-6 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div class="text-sm text-contrast-content/70">Field Statistics</div>
-      <div class="flex flex-col gap-3 sm:flex-row">
-        {#if hasMultipleFarms}
-          <div
-            class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm"
-          >
-            <span class="text-contrast-content/70">Farms:</span>
-            <span class="ml-2 font-semibold text-base-content"
-              >{farmGroups.length}</span
-            >
-          </div>
-        {/if}
-        <div
-          class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm"
+  {:else}
+    {#each displayGroups as [groupFarmName, groupFields] (groupFarmName)}
+      <!-- Farm separator header (collapsible) -->
+      <div class="flex items-center border-b border-base-300 bg-base-content/5">
+        <button
+          class="flex flex-1 items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-base-content/10"
+          on:click={() => toggleFarm(groupFarmName)}
         >
-          <span class="text-contrast-content/70">Total Area:</span>
-          <span class="ml-2 font-semibold text-base-content"
-            >{fields.reduce((sum, field) => sum + field.area, 0).toFixed(1)} ha</span
+          {#if collapsedFarms.has(groupFarmName)}
+            <ChevronDown class="h-4 w-4 text-contrast-content/60" />
+          {:else}
+            <ChevronUp class="h-4 w-4 text-contrast-content/60" />
+          {/if}
+          <LandPlot class="h-3.5 w-3.5 text-base-content" />
+          <span class="text-sm font-semibold text-contrast-content"
+            >{groupFarmName}</span
           >
-        </div>
-        <div
-          class="rounded-lg border border-base-300 bg-base-200 px-4 py-2 text-sm"
+          <span
+            class="rounded-full border border-base-content/20 bg-base-content/10 px-2 py-0.5 text-xs font-medium text-base-content"
+          >
+            {groupFields.length}
+          </span>
+          <span class="ml-auto text-xs text-contrast-content/50">
+            {groupFields.reduce((sum, f) => sum + f.area, 0).toFixed(1)} ha
+          </span>
+        </button>
+        <button
+          class="mr-2 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-contrast-content/40 transition-colors hover:bg-info/10 hover:text-info"
+          title="Move fields from {groupFarmName}"
+          aria-label="Move fields from {groupFarmName}"
+          on:click={() => openMigrationModal(groupFarmName)}
         >
-          <span class="text-contrast-content/70">Average Field:</span>
-          <span class="ml-2 font-semibold text-base-content"
-            >{(
-              fields.reduce((sum, field) => sum + field.area, 0) / fields.length
-            ).toFixed(1)} ha</span
-          >
-        </div>
+          <ArrowRightLeft class="h-4 w-4" />
+        </button>
       </div>
-    </div>
+
+      <!-- Field rows (narrow) -->
+      {#if !collapsedFarms.has(groupFarmName)}
+        <div class="divide-y divide-base-300/50">
+          {#each groupFields as field (field.field_id)}
+            <div
+              class="group flex items-center gap-2.5 px-4 py-1.5 transition-colors hover:bg-base-200/50"
+            >
+              <div class="flex-shrink-0">
+                <FieldIcon geojson={createGeoJSON(field.boundary)} size={28} />
+              </div>
+              <span
+                class="min-w-0 flex-1 truncate text-sm font-medium text-contrast-content"
+                >{field.name}</span
+              >
+              <span class="flex-shrink-0 text-xs text-contrast-content/60">
+                {field.area.toFixed(1)} ha
+              </span>
+              <div class="dropdown dropdown-end flex-shrink-0">
+                <label
+                  tabindex="0"
+                  class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-contrast-content"
+                  aria-label="Field actions"
+                >
+                  <MoreHorizontal class="h-4 w-4" />
+                </label>
+                <ul
+                  tabindex="0"
+                  class="menu dropdown-content z-[1] w-40 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg"
+                >
+                  <li>
+                    <button on:click={() => openEditModal(field)}>
+                      <SquarePen class="h-4 w-4" /> Edit
+                    </button>
+                  </li>
+                  <li>
+                    <button on:click={() => handleLocateField(field.field_id)}>
+                      <MapPinned class="h-4 w-4" /> View on map
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      on:click={() => openDeleteModal(field)}
+                      class="text-error hover:bg-error/10"
+                    >
+                      <Trash2 class="h-4 w-4" /> Delete
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/each}
+
+    {#if displayGroups.length === 0}
+      <div class="px-4 py-10 text-center text-sm text-contrast-content/60">
+        No fields match "{searchTerm}"
+      </div>
+    {/if}
   {/if}
 </div>
 
