@@ -89,7 +89,10 @@
 
         // Flag for join animation on the dashboard
         if (browser) {
-          sessionStorage.setItem('show_join_animation', result.data.mapName || result.data.connectedMap?.map_name || '')
+          sessionStorage.setItem(
+            "show_join_animation",
+            result.data.mapName || result.data.connectedMap?.map_name || "",
+          )
         }
 
         return true
@@ -200,12 +203,16 @@
           enableFull1Hz: user_settings.enable_full_1hz ?? false,
           showGpsPopups: user_settings.show_gps_popups ?? false,
           gpsIntervalSeconds: user_settings.gps_interval_seconds ?? 2,
-          showGpsAcceptedPopups: user_settings.show_gps_accepted_popups ?? false,
-          showGpsRejectedPopups: user_settings.show_gps_rejected_popups ?? false,
+          showGpsAcceptedPopups:
+            user_settings.show_gps_accepted_popups ?? false,
+          showGpsRejectedPopups:
+            user_settings.show_gps_rejected_popups ?? false,
           layerVisibility: user_settings.layer_visibility ?? {},
         })
 
-        layerVisibilityStore.applySavedState(user_settings.layer_visibility ?? {})
+        layerVisibilityStore.applySavedState(
+          user_settings.layer_visibility ?? {},
+        )
       } else {
         // If no user settings exist, use defaults
         userSettingsStore.set({

@@ -517,7 +517,6 @@
                       {/if}
                     </button>
                   </div>
-
                 </div>
 
                 {#if joinMapId && !isValidMapId}

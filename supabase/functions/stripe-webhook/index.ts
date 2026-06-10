@@ -248,20 +248,54 @@ serve(async (req) => {
                 break
             }
 
-            // ─── INVOICE PAID (renewal success) ───
+            // ─── INVOICE PAID (renewal OR manual invoice for a subscription price) ───
             case "invoice.paid": {
                 const invoice = event.data.object as any
-                if (!invoice.subscription || !invoice.customer) break
+                if (!invoice.customer) break
 
                 const userId = await getUserIdFromCustomer(invoice.customer as string)
-                const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string)
-                const updateData = mapSubscriptionToUpdate(subscription)
 
-                console.log("[Webhook] Invoice PAID:", {
-                    user_id: userId, amount: invoice.amount_paid,
-                })
+                if (invoice.subscription) {
+                    // Standard renewal — update from existing subscription
+                    const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string)
+                    const updateData = mapSubscriptionToUpdate(subscription)
 
-                await updateSubscription(userId, updateData)
+                    console.log("[Webhook] Invoice PAID (renewal):", {
+                        user_id: userId, amount: invoice.amount_paid,
+                    })
+
+                    await updateSubscription(userId, updateData)
+                } else {
+                    // Manual invoice with no subscription — check if line items include
+                    // a recurring price and create a subscription for the customer.
+                    const lineItems = invoice.lines?.data || []
+                    const recurringItem = lineItems.find(
+                        (li: any) => li.price?.type === "recurring"
+                    )
+
+                    if (!recurringItem) {
+                        console.log("[Webhook] Invoice PAID (no subscription price, skipping):", invoice.id)
+                        break
+                    }
+
+                    console.log("[Webhook] Invoice PAID (manual — creating subscription):", {
+                        user_id: userId,
+                        amount: invoice.amount_paid,
+                        price: recurringItem.price?.id,
+                        quantity: recurringItem.quantity,
+                    })
+
+                    // Create a Stripe subscription so future renewals work
+                    const subscription = await stripe.subscriptions.create({
+                        customer: invoice.customer as string,
+                        items: [{ price: recurringItem.price.id, quantity: recurringItem.quantity || 1 }],
+                        backdate_start_date: Math.floor(Date.now() / 1000),
+                        metadata: { created_from_invoice: invoice.id },
+                    })
+
+                    const updateData = mapSubscriptionToUpdate(subscription)
+                    await updateSubscription(userId, updateData)
+                }
                 break
             }
 

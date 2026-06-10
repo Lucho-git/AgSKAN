@@ -945,7 +945,9 @@
                     <div
                       class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
                     >
-                      <Pencil class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3" />
+                      <Pencil
+                        class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3"
+                      />
                     </div>
                     Rename Map
                   </button>
@@ -956,7 +958,9 @@
                     <div
                       class="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600/20 sm:h-6 sm:w-6"
                     >
-                      <Link2 class="h-2.5 w-2.5 text-purple-600 sm:h-3 sm:w-3" />
+                      <Link2
+                        class="h-2.5 w-2.5 text-purple-600 sm:h-3 sm:w-3"
+                      />
                     </div>
                     Switch Map
                   </button>
@@ -967,7 +971,9 @@
                     <div
                       class="flex h-5 w-5 items-center justify-center rounded-full bg-orange-600/20 sm:h-6 sm:w-6"
                     >
-                      <LogOut class="h-2.5 w-2.5 text-orange-600 sm:h-3 sm:w-3" />
+                      <LogOut
+                        class="h-2.5 w-2.5 text-orange-600 sm:h-3 sm:w-3"
+                      />
                     </div>
                     Leave Map
                   </button>
@@ -1315,7 +1321,9 @@
                       <div
                         class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
                       >
-                        <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                        <Trash2
+                          class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3"
+                        />
                       </div>
                       Delete Operation
                     </button>

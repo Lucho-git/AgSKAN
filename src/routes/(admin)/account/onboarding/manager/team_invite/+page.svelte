@@ -12,6 +12,7 @@
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { subscriptionApi } from "$lib/api/subscriptionApi"
   import InviteTeamFields from "$lib/components/general/InviteTeamFields.svelte"
 
   // Use the actual connected map ID
@@ -51,15 +52,14 @@
   }
 
   async function handleComplete() {
-    // Record start time for minimum animation duration
     operationStartTime = Date.now()
     completionStatus = "loading"
 
     try {
-      // Simulate any final setup operations if needed
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Create a Stripe customer + free subscription so the user exists
+      // in Stripe from day one (needed for future invoices/subscriptions).
+      await subscriptionApi.createFreeSubscription()
 
-      // Calculate elapsed time and wait for minimum if needed
       const elapsedTime = Date.now() - operationStartTime
       const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
 

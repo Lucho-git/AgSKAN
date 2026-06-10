@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
+  import { browser } from "$app/environment"
+  import { Capacitor } from "@capacitor/core"
+  import { Browser } from "@capacitor/browser"
   import { DateTime } from "luxon"
   import InviteModal from "./InviteModal.svelte"
   import { toast } from "svelte-sonner"
@@ -8,6 +11,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
+  import { session } from "$lib/stores/sessionStore"
   import { goto } from "$app/navigation"
   import Icon from "@iconify/svelte"
   import {
@@ -23,6 +27,8 @@
     Crown,
     Pencil,
     X,
+    Info,
+    ExternalLink,
   } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -65,6 +71,38 @@
   $: memberCount = $mapActivityStore.connected_profiles?.length || 0
   $: seatLimit = $connectedMapStore.masterSubscription?.current_seats ?? null
   $: overLimit = seatLimit != null && memberCount > seatLimit
+
+  // Seats info modal
+  let showSeatsModal = false
+  let seatsDialogEl: HTMLDialogElement
+
+  $: if (showSeatsModal && seatsDialogEl && !seatsDialogEl.open) {
+    seatsDialogEl.showModal()
+  } else if (!showSeatsModal && seatsDialogEl?.open) {
+    seatsDialogEl.close()
+  }
+
+  function getSeatUsageMessage() {
+    if (seatLimit == null)
+      return "Your plan has unlimited seats. Invite as many team members as you need!"
+    const remaining = seatLimit - memberCount
+    if (remaining > 0)
+      return `You have ${remaining} seat${remaining === 1 ? "" : "s"} remaining. You can invite up to ${seatLimit} team members.`
+    if (remaining === 0)
+      return `All ${seatLimit} seats are filled. Upgrade your plan to add more team members.`
+    return `You're ${Math.abs(remaining)} seat${Math.abs(remaining) === 1 ? "" : "s"} over your limit of ${seatLimit}. Upgrade to add more seats.`
+  }
+
+  function openBillingPage() {
+    showSeatsModal = false
+    if (browser && Capacitor.isNativePlatform()) {
+      const token = $session?.refresh_token
+      const url = `https://skanfarming.com/auth/callback?refresh_token=${encodeURIComponent(token || "")}&next=/account/billing`
+      Browser.open({ url })
+    } else {
+      goto("/account/billing")
+    }
+  }
 
   $: sortedProfiles = $mapActivityStore.connected_profiles.sort((a, b) => {
     if (a.id === currentUserId) return -1
@@ -300,13 +338,17 @@
       <span>Team Members</span>
     </h2>
     {#if seatLimit != null}
-      <span
-        class="rounded-full px-2.5 py-1 text-xs font-bold text-white {overLimit
-          ? 'bg-red-500'
-          : 'bg-green-500'}"
+      <button
+        type="button"
+        class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-md active:scale-95 cursor-pointer {overLimit
+          ? 'bg-red-500 ring-1 ring-red-400/50'
+          : 'bg-green-500 ring-1 ring-green-400/50'}"
+        on:click={() => (showSeatsModal = true)}
+        title="View seat usage details"
       >
         {memberCount}/{seatLimit}
-      </span>
+        <Info class="h-3 w-3 opacity-70" />
+      </button>
     {/if}
   </div>
 
@@ -600,5 +642,68 @@
     </div>
   </div>
 {/if}
+
+<!-- Seats Info Modal -->
+<dialog
+  bind:this={seatsDialogEl}
+  class="modal modal-middle"
+  on:close={() => (showSeatsModal = false)}
+>
+  <div class="modal-box w-full max-w-sm">
+    <div class="mb-4 flex items-center gap-3">
+      <div
+        class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full {overLimit
+          ? 'bg-red-500/20'
+          : 'bg-green-500/20'}"
+      >
+        <Info
+          class="h-5 w-5 {overLimit ? 'text-red-500' : 'text-green-500'}"
+        />
+      </div>
+      <div>
+        <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
+          Seat Usage
+        </h4>
+        <p class="text-xs text-contrast-content/60 sm:text-sm">
+          {memberCount} of {seatLimit ?? "∞"} seats used
+        </p>
+      </div>
+    </div>
+
+    <p class="mb-4 text-sm text-contrast-content">
+      {getSeatUsageMessage()}
+    </p>
+
+    {#if overLimit || (seatLimit != null && memberCount >= seatLimit)}
+      <div class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
+        <p class="text-sm text-yellow-700 dark:text-yellow-400">
+          <strong>Need more seats?</strong> You can purchase additional seats
+          from the billing page.
+        </p>
+      </div>
+    {/if}
+
+    <div class="modal-action">
+      <button
+        on:click={() => (showSeatsModal = false)}
+        class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
+      >
+        Close
+      </button>
+      <button
+        on:click={openBillingPage}
+        class="flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
+      >
+        <ExternalLink class="h-3.5 w-3.5" />
+        {browser && Capacitor.isNativePlatform()
+          ? "Manage on Web"
+          : "Manage Billing"}
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 
 <svelte:window on:click={closeAllMenus} />

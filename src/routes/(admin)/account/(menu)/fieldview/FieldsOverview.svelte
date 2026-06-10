@@ -38,7 +38,6 @@
     Search,
     Plus,
     ArrowUp,
-    ArrowRight,
     ArrowRightLeft,
     Check,
   } from "lucide-svelte"
@@ -156,13 +155,14 @@
   let migrationModalId = "migrate-fields-modal"
   let migrationMode = false
   let selectedFieldIds = new Set<string>()
+  /// "From" farm — "__all__" means all farms, otherwise a specific farm name.
+  let migrationSourceFarm = "__all__"
+  /// "To" farm — an existing farm name, or "__new__" to create one.
   let migrationTargetFarm = ""
   let migrationNewFarmName = ""
   let migratingFields = false
-  // Direction: "out" = move fields out of the anchor farm to another farm,
-  // "in" = move fields from other farms into the anchor farm.
-  let migrationDirection: "in" | "out" = "out"
-  let migrationAnchorFarm: string | null = null
+  /// Track which farm we pre-fill in the "To" dropdown (from clicking an empty farm).
+  let _migrationPresetTo: string | null = null
 
   // New state variables for responsive design
   let isMobile = false
@@ -835,41 +835,46 @@
 
   // ─── Farm Migration ─────────────────────────────────
 
-  function openMigrationModal(
-    farmName: string,
-    direction: "in" | "out" = "out",
-  ) {
-    migrationDirection = direction
-    migrationAnchorFarm = farmName
-    // Find the farm entry to get its farmId
-    const entry = farmGroups.find(([name]) => name === farmName)
-    const farmId = entry?.[2] || null
-    if (direction === "out") {
-      // Anchor is the source — pre-select all of its fields
-      const farmFields = farmId
-        ? fields.filter((f) => f.farm_id === farmId)
-        : fields.filter((f) => !f.farm_id)
-      selectedFieldIds = new Set(farmFields.map((f) => f.field_id))
+  function openMigrationModal(farmName?: string) {
+    if (farmName) {
+      const entry = farmGroups.find(([name]) => name === farmName)
+      const hasFields = entry ? entry[1].length > 0 : false
+      if (hasFields) {
+        // Farm has fields → select as source
+        migrationSourceFarm = farmName
+        migrationTargetFarm = ""
+      } else {
+        // Farm is empty → select as destination, source = all
+        migrationSourceFarm = "__all__"
+        _migrationPresetTo = farmName
+        migrationTargetFarm = farmName
+      }
+    } else {
+      migrationSourceFarm = "__all__"
       migrationTargetFarm = ""
-    } else {
-      // Anchor is the destination — start with nothing selected
-      selectedFieldIds = new Set()
-      migrationTargetFarm = farmName
     }
+    // Pre-select all visible fields
+    selectedFieldIds = new Set(
+      migrationSourceFarm === "__all__"
+        ? fields.map((f) => f.field_id)
+        : fields
+            .filter((f) => {
+              const farmId = farmGroups.find(
+                ([name]) => name === migrationSourceFarm,
+              )?.[2]
+              return farmId ? f.farm_id === farmId : !f.farm_id
+            })
+            .map((f) => f.field_id),
+    )
     migrationNewFarmName = ""
-    // Auto-collapse source farm groups by default when bringing fields in
-    // from more than one farm.
-    if (direction === "in") {
-      const inGroups = farmGroups.filter(
-        ([name, groupFields]) => name !== farmName && groupFields.length > 0,
-      )
-      collapsedMigrationFarms =
-        inGroups.length > 1
-          ? new Set(inGroups.map(([name]) => name))
-          : new Set()
-    } else {
-      collapsedMigrationFarms = new Set()
-    }
+    // Auto-collapse groups when showing all farms
+    const srcGroups = farmGroups.filter(
+      ([name, g]) => name !== migrationTargetFarm && g.length > 0,
+    )
+    collapsedMigrationFarms =
+      srcGroups.length > 1
+        ? new Set(srcGroups.map(([name]) => name))
+        : new Set()
     const modal = document.getElementById(migrationModalId) as HTMLDialogElement
     if (modal) modal.showModal()
   }
@@ -878,10 +883,10 @@
     const modal = document.getElementById(migrationModalId) as HTMLDialogElement
     if (modal) modal.close()
     selectedFieldIds = new Set()
-    migrationAnchorFarm = null
-    migrationDirection = "out"
+    migrationSourceFarm = "__all__"
     migrationTargetFarm = ""
     migrationNewFarmName = ""
+    _migrationPresetTo = null
   }
 
   function toggleFieldSelection(fieldId: string) {
@@ -893,34 +898,42 @@
     selectedFieldIds = selectedFieldIds // reactivity
   }
 
-  // Resolve the anchor farm's id
-  $: migrationAnchorFarmId = (() => {
-    const entry = farmGroups.find(([name]) => name === migrationAnchorFarm)
-    return entry?.[2] || null
+  // Source farm id (null for "__all__" or when not found)
+  $: _migrationSourceFarmId = (() => {
+    if (migrationSourceFarm === "__all__") return null
+    const entry = farmGroups.find(([name]) => name === migrationSourceFarm)
+    return entry?.[2] ?? null
   })()
 
-  // The selectable fields for the migration modal depend on direction:
-  // "out" → fields currently in the anchor farm; "in" → fields from other farms.
-  $: migrationFieldList = !migrationAnchorFarm
-    ? []
-    : migrationDirection === "out"
-      ? migrationAnchorFarmId
-        ? fields.filter((f) => f.farm_id === migrationAnchorFarmId)
+  // Fields selectable based on the "From" dropdown
+  $: migrationFieldList =
+    migrationSourceFarm === "__all__"
+      ? fields
+      : _migrationSourceFarmId
+        ? fields.filter((f) => f.farm_id === _migrationSourceFarmId)
         : fields.filter((f) => !f.farm_id)
-      : migrationAnchorFarmId
-        ? fields.filter((f) => f.farm_id !== migrationAnchorFarmId)
-        : fields.filter((f) => f.farm_id)
 
   $: allMigrationSelected =
     migrationFieldList.length > 0 &&
     migrationFieldList.every((f) => selectedFieldIds.has(f.field_id))
 
-  // When transferring fields IN, group the selectable fields by their source
-  // farm (same UX as the export modal).
-  $: migrationInGroups = farmGroups.filter(
-    ([name, groupFields]) =>
-      name !== migrationAnchorFarm && groupFields.length > 0,
+  // Farms eligible for the "From" dropdown — only those with fields.
+  $: fromFarmOptions = farmGroups.filter(([, g]) => g.length > 0)
+
+  // Farms eligible for the "To" dropdown — all farms except the source
+  // when a specific source is selected.
+  $: toFarmOptions = farmGroups.filter(
+    ([name]) =>
+      migrationSourceFarm === "__all__" || name !== migrationSourceFarm,
   )
+
+  // Grouped view when "All farms" is selected (same UX as export).
+  $: migrationInGroups =
+    migrationSourceFarm === "__all__"
+      ? farmGroups.filter(
+          ([name, g]) => name !== migrationTargetFarm && g.length > 0,
+        )
+      : []
 
   function toggleAllMigrationFields() {
     const allSelected = migrationFieldList.every((f) =>
@@ -956,34 +969,14 @@
   }
 
   $: resolvedTargetFarm =
-    migrationDirection === "in"
-      ? migrationAnchorFarm || ""
-      : migrationTargetFarm === "__new__"
-        ? migrationNewFarmName.trim()
-        : migrationTargetFarm
+    migrationTargetFarm === "__new__"
+      ? migrationNewFarmName.trim()
+      : migrationTargetFarm
 
-  // Labels shown in the from → to header of the migration modal
-  $: migrationFromLabel =
-    migrationDirection === "out"
-      ? migrationAnchorFarm || ""
-      : (() => {
-          const names = new Set<string>()
-          for (const f of migrationFieldList) {
-            if (selectedFieldIds.has(f.field_id)) {
-              names.add(getFieldFarmName(f) || "Unassigned")
-            }
-          }
-          if (names.size === 0) return "Other farms"
-          if (names.size === 1) return [...names][0]
-          return `${names.size} farms`
-        })()
-
-  $: migrationToLabel =
-    migrationDirection === "out"
-      ? resolvedTargetFarm || "Choose farm"
-      : migrationAnchorFarm || ""
-
-  $: canMigrate = selectedFieldIds.size > 0 && resolvedTargetFarm.length > 0
+  $: canMigrate =
+    selectedFieldIds.size > 0 &&
+    resolvedTargetFarm.length > 0 &&
+    resolvedTargetFarm !== migrationSourceFarm
 
   async function handleMigrateFields() {
     if (!canMigrate) return
@@ -1554,241 +1547,164 @@
       <div>
         <h3 class="text-lg font-bold text-contrast-content">Move Fields</h3>
         <p class="text-sm text-contrast-content/60">
-          {#if migrationDirection === "out"}
-            Move fields to another farm
-          {:else}
-            Bring fields into this farm
-          {/if}
+          Choose source and destination farms
         </p>
       </div>
     </div>
 
-    <!-- From → To direction indicator -->
-    <div class="mt-4 flex items-stretch gap-2">
-      <div
-        class="min-w-0 flex-1 rounded-lg border border-base-300 bg-base-200/50 px-3 py-2"
-      >
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <!-- From dropdown -->
+      <div>
         <span
-          class="block text-[10px] font-medium uppercase tracking-wide text-contrast-content/50"
+          class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-contrast-content/50"
         >
           From
         </span>
-        <span
-          class="block truncate text-xs font-semibold text-contrast-content sm:text-sm"
+        <select
+          bind:value={migrationSourceFarm}
+          on:change={() => (selectedFieldIds = new Set())}
+          class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:text-sm"
         >
-          {migrationFromLabel}
-        </span>
+          <option value="__all__">All farms</option>
+          {#each fromFarmOptions as [name, g] (name)}
+            <option value={name}>{name} ({g.length})</option>
+          {/each}
+        </select>
       </div>
-      <div class="flex items-center justify-center text-info">
-        <ArrowRight class="h-5 w-5" />
-      </div>
-      <div
-        class="min-w-0 flex-1 rounded-lg border border-info/40 bg-info/10 px-3 py-2"
-      >
+      <!-- To dropdown -->
+      <div>
         <span
-          class="block text-[10px] font-medium uppercase tracking-wide text-info/70"
+          class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-contrast-content/50"
         >
           To
         </span>
-        <span
-          class="block truncate text-xs font-semibold text-contrast-content sm:text-sm"
+        <select
+          bind:value={migrationTargetFarm}
+          class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:text-sm"
         >
-          {migrationToLabel}
-        </span>
+          <option value="">Choose farm</option>
+          {#each toFarmOptions as [name, g] (name)}
+            <option value={name}>{name}</option>
+          {/each}
+          <option value="__new__">+ New farm</option>
+        </select>
+        {#if migrationTargetFarm === "__new__"}
+          <input
+            type="text"
+            bind:value={migrationNewFarmName}
+            placeholder="Enter new farm name"
+            maxlength={FARM_NAME_MAX_LENGTH}
+            class="mt-2 w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:text-sm"
+          />
+        {/if}
       </div>
     </div>
 
-    <div class="mt-4 space-y-4">
-      <!-- Field selection list -->
-      <div>
-        <div class="mb-2 flex items-center justify-between">
-          <span class="text-xs font-medium text-contrast-content sm:text-sm">
-            {migrationDirection === "out"
-              ? "Select fields to move"
-              : "Select fields to bring in"}
-            ({selectedFieldIds.size} selected)
-          </span>
-          {#if migrationFieldList.length > 0}
-            <button
-              class="text-xs text-contrast-content/60 hover:text-contrast-content hover:underline"
-              on:click={toggleAllMigrationFields}
-            >
-              {allMigrationSelected ? "Deselect all" : "Select all"}
-            </button>
-          {/if}
-        </div>
-        <div class="overflow-hidden rounded-lg border border-base-300">
-          <div class="max-h-48 overflow-y-auto">
-            {#if migrationDirection === "in"}
-              {#each migrationInGroups as [groupName, groupFields, groupFarmId] (groupName)}
-                <!-- Source farm group header -->
-                <div
-                  class="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-base-300 bg-base-200 px-3 py-1.5"
-                >
-                  <button
-                    type="button"
-                    class="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    on:click={() => toggleMigrationFarmCollapse(groupName)}
-                  >
-                    {#if collapsedMigrationFarms.has(groupName)}
-                      <ChevronDown
-                        class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
-                      />
-                    {:else}
-                      <ChevronUp
-                        class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
-                      />
-                    {/if}
-                    <LandPlot
-                      class="h-3.5 w-3.5 flex-shrink-0 text-base-content"
-                    />
-                    <span
-                      class="truncate text-xs font-semibold text-contrast-content"
-                    >
-                      {groupName}
-                    </span>
-                    <span class="text-xs text-contrast-content/50">
-                      ({groupFields.length})
-                    </span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    class="checkbox checkbox-xs flex-shrink-0"
-                    title="Select all in {groupName}"
-                    aria-label="Select all in {groupName}"
-                    checked={groupFields.every((f) =>
-                      selectedFieldIds.has(f.field_id),
-                    )}
-                    on:change={() => toggleMigrationFarm(groupFields)}
-                  />
-                </div>
-                {#if !collapsedMigrationFarms.has(groupName)}
-                  {#each groupFields as field (field.field_id)}
-                    <label
-                      class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
-                      style={selectedFieldIds.has(field.field_id)
-                        ? "background: oklch(var(--bc) / 0.05)"
-                        : ""}
-                    >
-                      <FieldIcon
-                        geojson={createGeoJSON(field.boundary)}
-                        size={20}
-                      />
-                      <span
-                        class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
-                      >
-                        {field.name}
-                      </span>
-                      <span class="text-xs text-contrast-content/50"
-                        >{field.area.toFixed(1)} ha</span
-                      >
-                      <input
-                        type="checkbox"
-                        class="checkbox checkbox-xs"
-                        checked={selectedFieldIds.has(field.field_id)}
-                        on:change={() => toggleFieldSelection(field.field_id)}
-                      />
-                    </label>
-                  {/each}
-                {/if}
-              {/each}
-            {:else}
-              {#each migrationFieldList as field (field.field_id)}
-                <label
-                  class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
-                  style={selectedFieldIds.has(field.field_id)
-                    ? "background: oklch(var(--bc) / 0.05)"
-                    : ""}
-                >
-                  <FieldIcon
-                    geojson={createGeoJSON(field.boundary)}
-                    size={20}
-                  />
-                  <span
-                    class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
-                  >
-                    {field.name}
-                  </span>
-                  <span class="text-xs text-contrast-content/50"
-                    >{field.area.toFixed(1)} ha</span
-                  >
-                  <input
-                    type="checkbox"
-                    class="checkbox checkbox-xs"
-                    checked={selectedFieldIds.has(field.field_id)}
-                    on:change={() => toggleFieldSelection(field.field_id)}
-                  />
-                </label>
-              {/each}
-            {/if}
-            {#if migrationFieldList.length === 0}
-              <div
-                class="px-3 py-6 text-center text-xs text-contrast-content/50"
-              >
-                No fields available to move.
-              </div>
-            {/if}
-          </div>
-        </div>
-      </div>
-
-      <!-- Target farm picker (only when moving fields out) -->
-      {#if migrationDirection === "out"}
-        <div>
-          <span
-            class="mb-2 block text-xs font-medium text-contrast-content sm:text-sm"
+    <!-- Field selection list -->
+    <div class="mt-4">
+      <div class="mb-2 flex items-center justify-between">
+        <span class="text-xs font-medium text-contrast-content sm:text-sm">
+          Select fields ({selectedFieldIds.size} selected)
+        </span>
+        {#if migrationFieldList.length > 0}
+          <button
+            class="text-xs text-contrast-content/60 hover:text-contrast-content hover:underline"
+            on:click={toggleAllMigrationFields}
           >
-            Destination farm
-          </span>
-          <div class="space-y-2">
-            {#each farmGroups as [groupName, , groupFarmId] (groupName)}
-              {#if groupName !== migrationAnchorFarm}
+            {allMigrationSelected ? "Deselect all" : "Select all"}
+          </button>
+        {/if}
+      </div>
+      <div class="overflow-hidden rounded-lg border border-base-300">
+        <div class="max-h-48 overflow-y-auto">
+          {#if migrationSourceFarm === "__all__"}
+            {#each migrationInGroups as [groupName, groupFields, groupFarmId] (groupName)}
+              <div
+                class="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-base-300 bg-base-200 px-3 py-1.5"
+              >
                 <button
-                  class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors sm:text-sm
-                    {migrationTargetFarm === groupName
-                    ? 'border-base-content bg-base-content/10 text-contrast-content'
-                    : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-                  on:click={() => {
-                    migrationTargetFarm = groupName
-                    migrationNewFarmName = ""
-                  }}
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  on:click={() => toggleMigrationFarmCollapse(groupName)}
                 >
-                  {#if migrationTargetFarm === groupName}
-                    <Check class="h-4 w-4" />
+                  {#if collapsedMigrationFarms.has(groupName)}
+                    <ChevronDown class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50" />
                   {:else}
-                    <LandPlot class="h-4 w-4 opacity-50" />
+                    <ChevronUp class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50" />
                   {/if}
-                  {groupName}
+                  <LandPlot class="h-3.5 w-3.5 flex-shrink-0 text-base-content" />
+                  <span class="truncate text-xs font-semibold text-contrast-content">
+                    {groupName}
+                  </span>
+                  <span class="text-xs text-contrast-content/50">
+                    ({groupFields.length})
+                  </span>
                 </button>
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-xs flex-shrink-0"
+                  checked={groupFields.every((f) =>
+                    selectedFieldIds.has(f.field_id),
+                  )}
+                  on:change={() => toggleMigrationFarm(groupFields)}
+                />
+              </div>
+              {#if !collapsedMigrationFarms.has(groupName)}
+                {#each groupFields as field (field.field_id)}
+                  <label
+                    class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
+                    style={selectedFieldIds.has(field.field_id)
+                      ? "background: oklch(var(--bc) / 0.05)"
+                      : ""}
+                  >
+                    <FieldIcon geojson={createGeoJSON(field.boundary)} size={20} />
+                    <span class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm">
+                      {field.name}
+                    </span>
+                    <span class="text-xs text-contrast-content/50"
+                      >{field.area.toFixed(1)} ha</span
+                    >
+                    <input
+                      type="checkbox"
+                      class="checkbox checkbox-xs"
+                      checked={selectedFieldIds.has(field.field_id)}
+                      on:change={() => toggleFieldSelection(field.field_id)}
+                    />
+                  </label>
+                {/each}
               {/if}
             {/each}
-            <!-- New farm option -->
-            <button
-              class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors sm:text-sm
-                {migrationTargetFarm === '__new__'
-                ? 'border-base-content bg-base-content/10 text-contrast-content'
-                : 'border-base-300 text-contrast-content hover:bg-base-200'}"
-              on:click={() => (migrationTargetFarm = "__new__")}
-            >
-              {#if migrationTargetFarm === "__new__"}
-                <Check class="h-4 w-4" />
-              {:else}
-                <span class="ml-0.5 text-base opacity-50">+</span>
-              {/if}
-              New farm name
-            </button>
-            {#if migrationTargetFarm === "__new__"}
-              <input
-                type="text"
-                bind:value={migrationNewFarmName}
-                placeholder="Enter new farm name"
-                maxlength={FARM_NAME_MAX_LENGTH}
-                class="w-full rounded-lg border border-base-300 bg-base-100 p-2 text-xs text-contrast-content outline-none transition-colors focus:border-base-content sm:p-2.5 sm:text-sm"
-              />
-            {/if}
-          </div>
+          {:else}
+            {#each migrationFieldList as field (field.field_id)}
+              <label
+                class="flex cursor-pointer items-center gap-4 px-3 py-2 transition-colors hover:bg-base-200"
+                style={selectedFieldIds.has(field.field_id)
+                  ? "background: oklch(var(--bc) / 0.05)"
+                  : ""}
+              >
+                <FieldIcon geojson={createGeoJSON(field.boundary)} size={20} />
+                <span class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm">
+                  {field.name}
+                </span>
+                <span class="text-xs text-contrast-content/50"
+                  >{field.area.toFixed(1)} ha</span
+                >
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-xs"
+                  checked={selectedFieldIds.has(field.field_id)}
+                  on:change={() => toggleFieldSelection(field.field_id)}
+                />
+              </label>
+            {/each}
+          {/if}
+          {#if migrationFieldList.length === 0}
+            <div class="px-3 py-6 text-center text-xs text-contrast-content/50">
+              No fields available to move.
+            </div>
+          {/if}
         </div>
-      {/if}
+      </div>
     </div>
 
     <div class="modal-action">
@@ -2028,10 +1944,7 @@
           class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-3 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content/40 focus:outline-none"
         />
       </div>
-      <div
-        class="dropdown dropdown-end flex-shrink-0"
-        on:click|stopPropagation
-      >
+      <div class="dropdown dropdown-end flex-shrink-0" on:click|stopPropagation>
         <button
           type="button"
           class="btn btn-ghost btn-sm"
@@ -2099,7 +2012,9 @@
   {:else}
     {#each displayGroups as [groupFarmName, groupFields, groupFarmId] (groupFarmName)}
       <!-- Farm separator header (collapsible) -->
-      <div class="relative flex items-center border-b border-base-300 bg-base-content/5">
+      <div
+        class="relative flex items-center border-b border-base-300 bg-base-content/5"
+      >
         <button
           class="flex flex-1 items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-base-content/10"
           on:click={() => toggleFarm(groupFarmName)}
@@ -2143,77 +2058,76 @@
                   <button
                     on:click={() => {
                       openFarmMenu = null
-                      openMigrationModal(groupFarmName, "out")
+                      openMigrationModal(groupFarmName)
                     }}
-                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
-                    >
-                      <div
-                        class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
-                      >
-                        <ArrowRightLeft
-                          class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
-                        />
-                      </div>
-                      Transfer fields
-                    </button>
-                  </li>
-                {:else}
-                  <li>
-                    <button
-                      on:click={() => {
-                        openFarmMenu = null
-                        openMigrationModal(groupFarmName, "in")
-                      }}
-                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
-                    >
-                      <div
-                        class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
-                      >
-                        <ArrowRightLeft
-                          class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
-                        />
-                      </div>
-                      Transfer fields
-                    </button>
-                  </li>
-                {/if}
-                <li>
-                  <button
-                    on:click={() =>
-                      startRenameFarm(groupFarmId, groupFarmName)}
                     class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                   >
                     <div
-                      class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
+                      class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
                     >
-                      <SquarePen
-                        class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3"
+                      <ArrowRightLeft
+                        class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
                       />
                     </div>
-                    Rename farm
+                    Transfer fields
                   </button>
                 </li>
-                {#if groupFields.length === 0}
-                  <li>
-                    <button
-                      disabled={deletingFarmId === groupFarmId}
-                      on:click={() => {
-                        openFarmMenu = null
-                        handleDeleteEmptyFarm(groupFarmId, groupFarmName)
-                      }}
-                      class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 disabled:opacity-50 sm:px-4 sm:text-sm"
+              {:else}
+                <li>
+                  <button
+                    on:click={() => {
+                      openFarmMenu = null
+                      openMigrationModal(groupFarmName)
+                    }}
+                    class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                  >
+                    <div
+                      class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
                     >
-                      <div
-                        class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
-                      >
-                        <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
-                      </div>
-                      Delete
-                    </button>
-                  </li>
-                {/if}
-              </ul>
-            {/if}
+                      <ArrowRightLeft
+                        class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
+                      />
+                    </div>
+                    Transfer fields
+                  </button>
+                </li>
+              {/if}
+              <li>
+                <button
+                  on:click={() => startRenameFarm(groupFarmId, groupFarmName)}
+                  class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
+                >
+                  <div
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
+                  >
+                    <SquarePen
+                      class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3"
+                    />
+                  </div>
+                  Rename farm
+                </button>
+              </li>
+              {#if groupFields.length === 0}
+                <li>
+                  <button
+                    disabled={deletingFarmId === groupFarmId}
+                    on:click={() => {
+                      openFarmMenu = null
+                      handleDeleteEmptyFarm(groupFarmId, groupFarmName)
+                    }}
+                    class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 disabled:opacity-50 sm:px-4 sm:text-sm"
+                  >
+                    <div
+                      class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
+                    >
+                      <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                    </div>
+                    Delete
+                  </button>
+                </li>
+              {/if}
+            </ul>
+          {/if}
         {/if}
       </div>
 
@@ -2280,31 +2194,52 @@
                   >
                     <button
                       type="button"
-                      on:click={() => { openFieldMenu = null; openEditModal(field) }}
+                      on:click={() => {
+                        openFieldMenu = null
+                        openEditModal(field)
+                      }}
                       class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                     >
-                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6">
-                        <SquarePen class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3" />
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-600/20 sm:h-6 sm:w-6"
+                      >
+                        <SquarePen
+                          class="h-2.5 w-2.5 text-yellow-600 sm:h-3 sm:w-3"
+                        />
                       </div>
                       Edit
                     </button>
                     <button
                       type="button"
-                      on:click={() => { openFieldMenu = null; handleLocateField(field.field_id) }}
+                      on:click={() => {
+                        openFieldMenu = null
+                        handleLocateField(field.field_id)
+                      }}
                       class="flex w-full items-center gap-3 px-3 py-2 text-xs text-contrast-content transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                     >
-                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6">
-                        <MapPinned class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3" />
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/20 sm:h-6 sm:w-6"
+                      >
+                        <MapPinned
+                          class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3"
+                        />
                       </div>
                       View on map
                     </button>
                     <button
                       type="button"
-                      on:click={() => { openFieldMenu = null; openDeleteModal(field) }}
+                      on:click={() => {
+                        openFieldMenu = null
+                        openDeleteModal(field)
+                      }}
                       class="flex w-full items-center gap-3 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-base-200 sm:px-4 sm:text-sm"
                     >
-                      <div class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6">
-                        <Trash2 class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3" />
+                      <div
+                        class="flex h-5 w-5 items-center justify-center rounded-full bg-red-600/20 sm:h-6 sm:w-6"
+                      >
+                        <Trash2
+                          class="h-2.5 w-2.5 text-red-600 sm:h-3 sm:w-3"
+                        />
                       </div>
                       Delete
                     </button>

@@ -400,28 +400,13 @@
 </svelte:head>
 
 {#if loading}
-  <div class="flex h-screen items-center justify-center">
-    <div class="text-center">
-      <h2 class="mb-4 text-xl font-semibold">
-        {debugInfo.isRecovery
-          ? "Verifying recovery link..."
-          : debugInfo.isDeepLink
-            ? "Authenticating via deep link..."
-            : "Completing authentication..."}
-      </h2>
-      <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
-
-      <!-- Debug info -->
-      <div class="mt-8 rounded-lg bg-gray-50 p-4 text-left text-sm">
-        <p>Hash: {debugInfo.hash || "none"}</p>
-        <p>Query: {debugInfo.query || "none"}</p>
-        <p>Session Result: {debugInfo.sessionResult || "pending"}</p>
-        <p>
-          Profile Created/Updated: {debugInfo.profileCreated ? "Yes" : "No"}
-        </p>
-        <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
-        <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
-        <p>Is Recovery: {debugInfo.isRecovery ? "Yes" : "No"}</p>
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-base-100 bg-opacity-50 backdrop-blur-sm"
+  >
+    <div class="container mx-auto flex flex-col items-center justify-center px-4">
+      <div class="flex flex-col items-center">
+        <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
+        <p class="text-lg">Just a moment...</p>
       </div>
     </div>
   </div>
@@ -435,19 +420,6 @@
         class="mt-4 inline-block rounded bg-blue-500 px-4 py-2 text-white"
         >Return to login</a
       >
-
-      <!-- Debug info -->
-      <div class="mt-8 rounded-lg bg-gray-50 p-4 text-left text-sm">
-        <p>Hash: {debugInfo.hash || "none"}</p>
-        <p>Query: {debugInfo.query || "none"}</p>
-        <p>Session Result: {debugInfo.sessionResult || "pending"}</p>
-        <p>
-          Profile Created/Updated: {debugInfo.profileCreated ? "Yes" : "No"}
-        </p>
-        <p>Redirect To: {debugInfo.redirectTo || "default"}</p>
-        <p>Is Deep Link: {debugInfo.isDeepLink ? "Yes" : "No"}</p>
-        <p>Is Recovery: {debugInfo.isRecovery ? "Yes" : "No"}</p>
-      </div>
     </div>
   </div>
 {/if}

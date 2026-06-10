@@ -28,7 +28,8 @@
 <div class="space-y-4 sm:space-y-5">
   <!-- Map Code -->
   <div>
-    <label class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
+    <label
+      class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
       >Map Code</label
     >
     <div class="flex">
@@ -53,7 +54,8 @@
 
   <!-- Share Link -->
   <div>
-    <label class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
+    <label
+      class="mb-1.5 block text-sm font-medium text-contrast-content md:mb-2"
       >Share Link</label
     >
     <div class="flex">

@@ -2,22 +2,110 @@
   import { onMount } from "svelte"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
-  import { adminApi, type AdminMapEntry } from "$lib/api/adminApi"
+  import { adminApi, type AdminMapEntry, type AdminMapActivity, type MapDailyRow } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { goto } from "$app/navigation"
 
   let loading = false
   let entries: AdminMapEntry[] = []
+  let activityMap: Map<string, AdminMapActivity> = new Map()
   let errorMessage = ""
   let expandedMapId: string | null = null
+  let heatmapMapId: string | null = null
   let searchQuery = ""
   let filterStatus: "all" | "exceeding" | "at_limit" | "ok" = "all"
   let filterPlan: "all" | "paid" | "free" = "all"
+  let sortBy: "default" | "latest" = "default"
   let lastRefreshed: Date | null = null
+
+  // Heatmap state
+  let heatmapData: MapDailyRow[] = []
+  let heatmapLoading = false
+  let heatmapProfiles: string[] = []
+  let heatmapProfileIndex = -1 // -1 = all, 0+ = specific profile
+  let heatmapCalendarCells: { date: string; dayOfWeek: number }[] = []
+  let heatmapMonthLabels: { label: string; col: number }[] = []
+
+  $: heatmapActiveProfile =
+    heatmapProfileIndex < 0
+      ? "all"
+      : heatmapProfiles[heatmapProfileIndex] ?? "all"
+
+  // Member management state
+  let editingMember: { mapId: string; memberId: string } | null = null
+  let editingName = ""
+  let savingMemberName = false
+
+  function autofocus(node: HTMLInputElement) {
+    node.focus()
+    node.select()
+  }
+
+  async function startEditMember(mapId: string, member: { id: string; full_name: string | null }) {
+    editingMember = { mapId, memberId: member.id }
+    editingName = member.full_name || ""
+  }
+
+  function cancelEditMember() {
+    editingMember = null
+    editingName = ""
+  }
+
+  async function saveMemberName() {
+    if (!editingMember || !editingName.trim()) return
+    savingMemberName = true
+    const result = await adminApi.updateMemberName(editingMember.memberId, editingName.trim())
+    if (result.success) {
+      entries = entries.map((e) =>
+        e.master_map_id === editingMember!.mapId
+          ? {
+              ...e,
+              members: e.members.map((m) =>
+                m.id === editingMember!.memberId ? { ...m, full_name: editingName.trim() } : m,
+              ),
+            }
+          : e,
+      )
+      toast.success("Name updated")
+    } else {
+      toast.error(result.error || "Failed to update name")
+    }
+    editingMember = null
+    editingName = ""
+    savingMemberName = false
+  }
+
+  async function handleTransferOwnership(mapId: string, memberId: string, memberName: string) {
+    if (!confirm(`Transfer ownership of this map to "${memberName}"? This cannot be undone from the dashboard.`)) return
+    const result = await adminApi.transferOwnership(mapId, memberId)
+    if (result.success) {
+      toast.success(`Ownership transferred to ${memberName}`)
+      loadData()
+    } else {
+      toast.error(result.error || "Failed to transfer ownership")
+    }
+  }
 
   // Guard: redirect if not dev mode
   $: if (!$userSettingsStore.devToolsEnabled) {
     goto("/account")
+  }
+
+  const ACTIVITY_BUCKETS: { value: string; label: string; ms: number }[] = [
+    { value: "5m",   label: "Last 5 min",     ms: 5 * 60 * 1000 },
+    { value: "1h",   label: "Last hour",      ms: 60 * 60 * 1000 },
+    { value: "1d",   label: "Last day",       ms: 24 * 60 * 60 * 1000 },
+    { value: "3d",   label: "Last 3 days",    ms: 3 * 24 * 60 * 60 * 1000 },
+    { value: "7d",   label: "Last week",      ms: 7 * 24 * 60 * 60 * 1000 },
+    { value: "30d",  label: "Last month",     ms: 30 * 24 * 60 * 60 * 1000 },
+    { value: "90d",  label: "Last 3 months",  ms: 90 * 24 * 60 * 60 * 1000 },
+    { value: "180d", label: "Last 6 months",  ms: 180 * 24 * 60 * 60 * 1000 },
+    { value: "365d", label: "Last year",      ms: 365 * 24 * 60 * 60 * 1000 },
+  ]
+
+  function getActivityAgeMs(e: AdminMapEntry): number {
+    const ts = new Date(e.latest_vehicle_update || 0).getTime()
+    return ts > 0 ? Date.now() - ts : Infinity
   }
 
   // Filtered & searched entries
@@ -38,12 +126,46 @@
     .filter((e) => {
       if (!searchQuery.trim()) return true
       const q = searchQuery.toLowerCase()
+      const memberMatch = (e.members || []).some(
+        (m) =>
+          (m.full_name || "").toLowerCase().includes(q) ||
+          (m.email || "").toLowerCase().includes(q),
+      )
       return (
+        memberMatch ||
         (e.owner_name || "").toLowerCase().includes(q) ||
         (e.owner_email || "").toLowerCase().includes(q) ||
         (e.company_name || "").toLowerCase().includes(q) ||
         (e.map_name || "").toLowerCase().includes(q)
       )
+    })
+    .sort((a, b) => {
+      if (sortBy === "latest") {
+        const aAge = getActivityAgeMs(a)
+        const bAge = getActivityAgeMs(b)
+        const aBucket = ACTIVITY_BUCKETS.findIndex((bkt) => aAge <= bkt.ms)
+        const bBucket = ACTIVITY_BUCKETS.findIndex((bkt) => bAge <= bkt.ms)
+        // Never-active (Infinity) goes to the end
+        const aBucketIdx = aBucket === -1 ? ACTIVITY_BUCKETS.length : aBucket
+        const bBucketIdx = bBucket === -1 ? ACTIVITY_BUCKETS.length : bBucket
+        if (aBucketIdx !== bBucketIdx) return aBucketIdx - bBucketIdx
+        // Within same bucket: exceeding first, then vehicles desc, then members desc
+        if (a.seat_status !== b.seat_status) {
+          return a.seat_status === "EXCEEDING" ? -1 : 1
+        }
+        if (a.connected_vehicles !== b.connected_vehicles) {
+          return b.connected_vehicles - a.connected_vehicles
+        }
+        return b.total_members - a.total_members
+      }
+      // Default: exceeding first, vehicles desc, members desc
+      if (a.seat_status !== b.seat_status) {
+        return a.seat_status === "EXCEEDING" ? -1 : 1
+      }
+      if (a.connected_vehicles !== b.connected_vehicles) {
+        return b.connected_vehicles - a.connected_vehicles
+      }
+      return b.total_members - a.total_members
     })
 
   // Stats
@@ -66,6 +188,14 @@
     .reduce((sum, e) => sum + e.allowed_seats, 0)
   $: headlessCount = entries.filter((e) => !e.owner_connected).length
 
+  $: activeUsers30d = entries
+    .map((e) => activityMap.get(e.master_map_id)?.active_profiles ?? 0)
+    .reduce((a, b) => a + b, 0)
+
+  function getActivityFor(mapId: string): AdminMapActivity | undefined {
+    return activityMap.get(mapId)
+  }
+
   async function loadData() {
     loading = true
     errorMessage = ""
@@ -73,6 +203,13 @@
     if (result.success) {
       entries = result.data
       lastRefreshed = new Date()
+      // Fetch activity stats in parallel
+      const activityResult = await adminApi.fetchActivityStats()
+      if (activityResult.success) {
+        activityMap = new Map(
+          activityResult.data.map((a) => [a.master_map_id, a]),
+        )
+      }
     } else {
       errorMessage = result.error || "Failed to load data"
       toast.error(errorMessage)
@@ -81,14 +218,92 @@
   }
 
   function toggleExpand(mapId: string) {
-    expandedMapId = expandedMapId === mapId ? null : mapId
+    if (expandedMapId === mapId) {
+      expandedMapId = null
+      return
+    }
+    expandedMapId = mapId
+    loadHeatmap(mapId)
+  }
+
+  async function loadHeatmap(mapId: string) {
+    if (heatmapMapId === mapId) return
+    heatmapMapId = mapId
+    heatmapLoading = true
+    heatmapProfileIndex = -1
+    heatmapCalendarCells = generateCalendarDays(30)
+    heatmapMonthLabels = calendarMonthLabels(heatmapCalendarCells)
+    const result = await adminApi.fetchDailyActivity(mapId)
+    if (result.success) {
+      heatmapData = result.data
+      heatmapProfiles = [...new Set(result.data.map((r) => r.profile_id))]
+    } else {
+      heatmapData = []
+      heatmapProfiles = []
+    }
+    heatmapLoading = false
+  }
+
+  function getProfileName(profileId: string, mapEntry: AdminMapEntry): string {
+    const member = mapEntry.members?.find((m) => m.id === profileId)
+    return member?.full_name || profileId.slice(0, 8)
+  }
+
+  function generateCalendarDays(daysBack: number): { date: string; dayOfWeek: number }[] {
+    const cells: { date: string; dayOfWeek: number }[] = []
+    const today = new Date()
+    const start = new Date(today)
+    start.setDate(start.getDate() - daysBack)
+    while (start.getDay() !== 1) start.setDate(start.getDate() - 1)
+    while (start <= today) {
+      cells.push({
+        date: start.toISOString().slice(0, 10),
+        dayOfWeek: start.getDay() === 0 ? 6 : start.getDay() - 1,
+      })
+      start.setDate(start.getDate() + 1)
+    }
+    return cells
+  }
+
+  function calendarMonthLabels(cells: { date: string }[]): { label: string; col: number }[] {
+    const labels: { label: string; col: number }[] = []
+    let lastMonth = ""
+    cells.forEach((c, i) => {
+      const m = c.date.slice(5, 7)
+      if (m !== lastMonth) {
+        const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        labels.push({ label: monthNames[parseInt(m) - 1], col: Math.floor(i / 7) })
+        lastMonth = m
+      }
+    })
+    return labels
+  }
+
+  function getHeatmapColor(count: number): string {
+    if (count === 0) return "bg-base-300"
+    if (count <= 1) return "bg-green-400"
+    if (count <= 3) return "bg-green-500"
+    if (count <= 6) return "bg-green-600"
+    return "bg-green-700"
+  }
+
+  function getDayActivity(date: string, profileId: string | "all"): number {
+    if (profileId === "all") {
+      return heatmapData
+        .filter((r) => r.activity_date === date)
+        .reduce((sum, r) => sum + r.profile_count, 0)
+    }
+    const row = heatmapData.find(
+      (r) => r.activity_date === date && r.profile_id === profileId,
+    )
+    return row?.profile_count ?? 0
   }
 
   function timeAgo(dateStr: string | null): string {
     if (!dateStr) return "Never"
     const diff = Date.now() - new Date(dateStr).getTime()
     const mins = Math.floor(diff / 60000)
-    if (mins < 1) return "Just now"
+    if (mins < 5) return "Just now"
     if (mins < 60) return `${mins}m ago`
     const hrs = Math.floor(mins / 60)
     if (hrs < 24) return `${hrs}h ago`
@@ -204,7 +419,7 @@
     </div>
   {:else}
     <!-- Summary Stats -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
       <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
         <p class="text-xs text-contrast-content/60">Total Maps</p>
         <p class="text-2xl font-bold text-contrast-content">{totalMaps}</p>
@@ -237,6 +452,10 @@
         <p class="text-xs text-contrast-content/60">Headless</p>
         <p class="text-2xl font-bold text-info">{headlessCount}</p>
       </div>
+      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Active Users 30d</p>
+        <p class="text-2xl font-bold text-accent">{activeUsers30d}</p>
+      </div>
     </div>
 
     <!-- Search & Filter Bar -->
@@ -250,7 +469,7 @@
         />
         <input
           type="text"
-          placeholder="Search by name, email, company, or map..."
+          placeholder="Search by name, email, map, or member..."
           class="input input-sm input-bordered w-full pl-9"
           bind:value={searchQuery}
         />
@@ -313,10 +532,17 @@
             OK
           </button>
         </div>
+        <div class="h-4 w-px bg-base-300"></div>
+        <!-- Sort -->
+        <select
+          bind:value={sortBy}
+          class="select select-xs select-bordered w-28"
+        >
+          <option value="default">Default</option>
+          <option value="latest">Latest Activity</option>
+        </select>
       </div>
     </div>
-
-    <!-- Results count -->
     <div
       class="flex items-center justify-between text-xs text-contrast-content/50"
     >
@@ -547,49 +773,122 @@
 
                       <!-- Activity Card -->
                       <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4
-                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:chart-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
+                        <h4 class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50">
+                          <Icon icon="solar:chart-bold-duotone" width="12" height="12" />
                           Activity
                         </h4>
-                        <div class="space-y-1 text-xs">
-                          <div class="flex justify-between">
-                            <span class="text-contrast-content/60"
-                              >Vehicles (24h / 7d / 30d)</span
-                            >
-                            <span class="font-medium text-contrast-content">
-                              {entry.vehicles_active_24h} / {entry.vehicles_active_7d}
-                              / {entry.vehicles_active_30d}
-                            </span>
+                        <div class="flex flex-col gap-3 lg:flex-row">
+                          <!-- Stats -->
+                          <div class="min-w-0 space-y-0.5 text-xs lg:w-52 lg:flex-shrink-0">
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Vehicles 24h</span>
+                              <span class="font-medium text-contrast-content">{entry.vehicles_active_24h}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Vehicles 7d</span>
+                              <span class="font-medium text-contrast-content">{entry.vehicles_active_7d}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Vehicles 30d</span>
+                              <span class="font-medium text-contrast-content">{entry.vehicles_active_30d}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Members 7d</span>
+                              <span class="font-medium text-contrast-content">{entry.members_active_7d}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Members 30d</span>
+                              <span class="font-medium text-contrast-content">{entry.members_active_30d}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Active profiles</span>
+                              <span class="font-medium text-accent">{getActivityFor(entry.master_map_id)?.active_profiles ?? 0}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                              <span class="text-contrast-content/60">Active days</span>
+                              <span class="font-medium text-accent">{getActivityFor(entry.master_map_id)?.active_days ?? 0}</span>
+                            </div>
                           </div>
-                          <div class="flex justify-between">
-                            <span class="text-contrast-content/60"
-                              >Members (7d / 30d)</span
-                            >
-                            <span class="font-medium text-contrast-content">
-                              {entry.members_active_7d} / {entry.members_active_30d}
-                            </span>
-                          </div>
-                          <div class="flex justify-between">
-                            <span class="text-contrast-content/60"
-                              >Last GPS update</span
-                            >
-                            <span class="text-contrast-content"
-                              >{timeAgo(entry.latest_vehicle_update)}</span
-                            >
-                          </div>
-                          <div class="flex justify-between">
-                            <span class="text-contrast-content/60"
-                              >Last sign-in</span
-                            >
-                            <span class="text-contrast-content"
-                              >{timeAgo(entry.latest_member_sign_in)}</span
-                            >
+
+                          <!-- Divider + Heatmap -->
+                          <div class="hidden border-l border-base-300 lg:block"></div>
+                          <div class="min-w-0 flex-1 border-t border-base-300 pt-3 lg:border-t-0 lg:pt-0">
+                            {#if heatmapLoading && heatmapMapId === entry.master_map_id}
+                              <div class="flex items-center justify-center py-4">
+                                <span class="loading loading-spinner loading-sm"></span>
+                              </div>
+                            {:else}
+                              {#if heatmapProfiles.length > 1 && heatmapMapId === entry.master_map_id}
+                                <div class="mb-2 flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-contrast-content/40 hover:bg-base-300 hover:text-contrast-content disabled:opacity-20"
+                                    disabled={heatmapProfileIndex <= -1}
+                                    on:click={() => (heatmapProfileIndex = heatmapProfileIndex - 1)}
+                                  >
+                                    <Icon icon="solar:alt-arrow-left-bold-duotone" width="12" height="12" />
+                                  </button>
+                                  <select
+                                    bind:value={heatmapProfileIndex}
+                                    class="w-36 rounded border border-base-300 bg-base-100 px-2 py-0.5 text-center text-xs text-contrast-content"
+                                  >
+                                    <option value={-1}>All profiles</option>
+                                    {#each heatmapProfiles as pid, i}
+                                      <option value={i}>{getProfileName(pid, entry)}</option>
+                                    {/each}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-contrast-content/40 hover:bg-base-300 hover:text-contrast-content disabled:opacity-20"
+                                    disabled={heatmapProfileIndex >= heatmapProfiles.length - 1}
+                                    on:click={() => (heatmapProfileIndex = heatmapProfileIndex + 1)}
+                                  >
+                                    <Icon icon="solar:alt-arrow-right-bold-duotone" width="12" height="12" />
+                                  </button>
+                                </div>
+                              {/if}
+
+                              {#if heatmapCalendarCells.length > 0}
+                                <div>
+                                  <div class="mb-1 ml-6 flex text-[9px] text-contrast-content/40">
+                                    {#each heatmapMonthLabels as ml}
+                                      <span class="block">{ml.label}</span>
+                                    {/each}
+                                  </div>
+                                  <div class="flex">
+                                    <div class="mr-1 flex flex-col" style="gap: 3px">
+                                      {#each ['M','','W','','F','',''] as lbl}
+                                        <span class="flex h-3 w-5 items-center text-[9px] text-contrast-content/40">{lbl}</span>
+                                      {/each}
+                                    </div>
+                                    <div
+                                      class="grid"
+                                      style="gap: 3px; grid-template-columns: repeat({Math.ceil(heatmapCalendarCells.length / 7)}, 12px); grid-template-rows: repeat(7, 12px); grid-auto-flow: column;"
+                                    >
+                                      {#each heatmapCalendarCells as cell}
+                                        <div
+                                          class="rounded-sm {getHeatmapColor(getDayActivity(cell.date, heatmapActiveProfile))}"
+                                          title="{cell.date}: {getDayActivity(cell.date, heatmapActiveProfile)} events"
+                                        ></div>
+                                      {/each}
+                                    </div>
+                                  </div>
+                                  <div class="mt-2 flex items-center gap-2 text-[10px] text-contrast-content/50">
+                                    <span>Less</span>
+                                    <div class="h-2.5 w-2.5 rounded-sm bg-base-300"></div>
+                                    <div class="h-2.5 w-2.5 rounded-sm bg-green-400"></div>
+                                    <div class="h-2.5 w-2.5 rounded-sm bg-green-500"></div>
+                                    <div class="h-2.5 w-2.5 rounded-sm bg-green-600"></div>
+                                    <div class="h-2.5 w-2.5 rounded-sm bg-green-700"></div>
+                                    <span>More</span>
+                                  </div>
+                                </div>
+                              {:else}
+                                <div class="py-2 text-center text-xs text-contrast-content/50">
+                                  Expand row to load activity calendar
+                                </div>
+                              {/if}
+                            {/if}
                           </div>
                         </div>
                       </div>
@@ -667,9 +966,40 @@
                             <tbody>
                               {#each entry.members as member}
                                 <tr>
-                                  <td class="text-contrast-content"
-                                    >{member.full_name || "—"}</td
-                                  >
+                                  <td class="text-contrast-content">
+                                    {#if editingMember?.mapId === entry.master_map_id && editingMember?.memberId === member.id}
+                                      <div class="flex items-center gap-1">
+                                        <input
+                                          type="text"
+                                          bind:value={editingName}
+                                          use:autofocus
+                                          on:keydown={(e) => e.key === "Enter" && saveMemberName()}
+                                          on:keydown={(e) => e.key === "Escape" && cancelEditMember()}
+                                          class="w-32 rounded border border-base-300 bg-base-100 px-2 py-1 text-xs text-contrast-content"
+                                        />
+                                        <button
+                                          class="rounded bg-base-content px-2 py-1 text-[10px] font-medium text-base-100 hover:bg-base-content/90 disabled:opacity-50"
+                                          disabled={savingMemberName}
+                                          on:click={saveMemberName}>Save</button
+                                        >
+                                        <button
+                                          class="rounded border border-base-300 px-2 py-1 text-[10px] text-contrast-content/60 hover:bg-base-200"
+                                          on:click={cancelEditMember}>Cancel</button
+                                        >
+                                      </div>
+                                    {:else}
+                                      <span class="inline-flex items-center gap-2">
+                                        {member.full_name || "\u2014"}
+                                        <button
+                                          type="button"
+                                          class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-base-300 hover:text-contrast-content"
+                                          on:click={() => startEditMember(entry.master_map_id, member)}
+                                        >
+                                          Edit
+                                        </button>
+                                      </span>
+                                    {/if}
+                                  </td>
                                   <td class="text-contrast-content/60"
                                     >{member.email || "—"}</td
                                   >
@@ -681,13 +1011,19 @@
                                   >
                                   <td>
                                     {#if member.is_owner}
-                                      <span class="badge badge-primary badge-xs"
-                                        >Owner</span
-                                      >
+                                      <span class="badge badge-primary badge-xs">Owner</span>
                                     {:else}
-                                      <span class="badge badge-ghost badge-xs"
-                                        >Member</span
-                                      >
+                                      <span class="inline-flex items-center gap-2">
+                                        <span class="badge badge-ghost badge-xs">Member</span>
+                                        <button
+                                          type="button"
+                                          class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-warning/10 hover:text-warning"
+                                          on:click={() =>
+                                            handleTransferOwnership(entry.master_map_id, member.id, member.full_name || 'Member')}
+                                        >
+                                          Make Owner
+                                        </button>
+                                      </span>
                                     {/if}
                                   </td>
                                 </tr>

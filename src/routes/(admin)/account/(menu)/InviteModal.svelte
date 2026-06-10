@@ -12,8 +12,7 @@
     role="button"
     tabindex="-1"
     on:click={() => (open = true)}
-    on:keydown={(e) =>
-      (e.key === "Enter" || e.key === " ") && (open = true)}
+    on:keydown={(e) => (e.key === "Enter" || e.key === " ") && (open = true)}
   >
     <slot name="trigger" />
   </span>

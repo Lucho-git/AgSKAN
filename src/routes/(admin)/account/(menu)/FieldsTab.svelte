@@ -97,6 +97,13 @@
   // UPLOAD MODAL STATE
   // ========================================
   let showUploadModal = false
+  let uploadDialogEl: HTMLDialogElement
+
+  $: if (showUploadModal && uploadDialogEl && !uploadDialogEl.open) {
+    uploadDialogEl.showModal()
+  } else if (!showUploadModal && uploadDialogEl?.open) {
+    uploadDialogEl.close()
+  }
 
   function openUploadModal() {
     showUploadModal = true
@@ -106,15 +113,6 @@
     showUploadModal = false
     resetUploadState()
   }
-
-  // Lock background scroll while the modal is open so only the modal scrolls.
-  $: if (browser) {
-    document.body.style.overflow = showUploadModal ? "hidden" : ""
-  }
-
-  onDestroy(() => {
-    if (browser) document.body.style.overflow = ""
-  })
 
   // ========================================
   // FILE HELPERS
@@ -365,8 +363,7 @@
           error: "File does not appear to be a valid KML file",
         }
       }
-      const hasPolygon =
-        text.includes("<Polygon") || text.includes("<polygon")
+      const hasPolygon = text.includes("<Polygon") || text.includes("<polygon")
       const hasMultiGeometry =
         text.includes("<MultiGeometry") || text.includes("<multigeometry")
       if (!hasPolygon && !hasMultiGeometry) {
@@ -911,19 +908,14 @@
 </div>
 
 <!-- Upload Modal -->
-{#if showUploadModal}
+<dialog
+  bind:this={uploadDialogEl}
+  class="modal modal-middle"
+  on:close={closeUploadModal}
+>
   <div
-    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-    on:click={closeUploadModal}
-    on:keydown={(e) => e.key === "Escape" && closeUploadModal()}
-    role="presentation"
+    class="modal-box max-h-[90vh] w-full max-w-lg overflow-y-auto"
   >
-    <div
-      class="dashboard-slide-down max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-base-100 p-5 shadow-xl sm:p-6"
-      on:click|stopPropagation
-      role="dialog"
-      aria-modal="true"
-    >
       <!-- Modal header -->
       <div class="mb-4 flex items-start justify-between gap-3">
         <div class="flex items-center gap-3">
@@ -1177,9 +1169,11 @@
           </div>
         </div>
       {/if}
-    </div>
   </div>
-{/if}
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 
 <style>
   @keyframes dashboardSlideDown {
