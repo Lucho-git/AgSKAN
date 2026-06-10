@@ -29,6 +29,8 @@
     X,
     Info,
     ExternalLink,
+    AlertTriangle,
+    UserCheck,
   } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -68,9 +70,13 @@
   $: is_user = (profileId) => profileId === currentUserId
   $: is_map_owner = (profileId) => profileId === map_owner_id
 
+  let enforceLimits = true
+
   $: memberCount = $mapActivityStore.connected_profiles?.length || 0
   $: seatLimit = $connectedMapStore.masterSubscription?.current_seats ?? null
-  $: overLimit = seatLimit != null && memberCount > seatLimit
+  $: rawOverLimit = seatLimit != null && memberCount > seatLimit
+  $: overLimit = enforceLimits && rawOverLimit
+  $: ownerName = $mapActivityStore.connected_profiles?.find((p: any) => p.id === map_owner_id)?.full_name || "the map owner"
 
   // Seats info modal
   let showSeatsModal = false
@@ -80,17 +86,6 @@
     seatsDialogEl.showModal()
   } else if (!showSeatsModal && seatsDialogEl?.open) {
     seatsDialogEl.close()
-  }
-
-  function getSeatUsageMessage() {
-    if (seatLimit == null)
-      return "Your plan has unlimited seats. Invite as many team members as you need!"
-    const remaining = seatLimit - memberCount
-    if (remaining > 0)
-      return `You have ${remaining} seat${remaining === 1 ? "" : "s"} remaining. You can invite up to ${seatLimit} team members.`
-    if (remaining === 0)
-      return `All ${seatLimit} seats are filled. Upgrade your plan to add more team members.`
-    return `You're ${Math.abs(remaining)} seat${Math.abs(remaining) === 1 ? "" : "s"} over your limit of ${seatLimit}. Upgrade to add more seats.`
   }
 
   function openBillingPage() {
@@ -338,17 +333,43 @@
       <span>Team Members</span>
     </h2>
     {#if seatLimit != null}
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-md active:scale-95 cursor-pointer {overLimit
-          ? 'bg-red-500 ring-1 ring-red-400/50'
-          : 'bg-green-500 ring-1 ring-green-400/50'}"
-        on:click={() => (showSeatsModal = true)}
-        title="View seat usage details"
-      >
-        {memberCount}/{seatLimit}
-        <Info class="h-3 w-3 opacity-70" />
-      </button>
+      <div class="flex items-center gap-1.5">
+        {#if rawOverLimit}
+          <button
+            type="button"
+            class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs transition-all hover:scale-110 {enforceLimits
+              ? 'bg-purple-500/20 text-purple-500'
+              : 'bg-green-500/20 text-green-500'}"
+            on:click={() => (enforceLimits = !enforceLimits)}
+            title={enforceLimits ? "Limits enforced — click to disable" : "Limits disabled — click to enable"}
+          >
+            {enforceLimits ? '⚡' : '🛡️'}
+          </button>
+        {/if}
+        {#if enforceLimits}
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-md active:scale-95 cursor-pointer {overLimit
+              ? 'bg-red-500 ring-1 ring-red-400/50'
+              : 'bg-green-500 ring-1 ring-green-400/50'}"
+            on:click={() => (showSeatsModal = true)}
+            title="View seat usage details"
+          >
+            {memberCount}/{seatLimit}
+            {#if overLimit}
+              <AlertTriangle class="h-3 w-3 opacity-70" />
+            {:else}
+              <Info class="h-3 w-3 opacity-70" />
+            {/if}
+          </button>
+        {:else}
+          <span
+            class="inline-flex items-center rounded-full bg-green-500 px-2.5 py-1 text-xs font-bold text-white ring-1 ring-green-400/50"
+          >
+            {memberCount}/{seatLimit}
+          </span>
+        {/if}
+      </div>
     {/if}
   </div>
 
@@ -531,7 +552,7 @@
     {/each}
 
     <!-- Invite person card -->
-    <InviteModal>
+    <InviteModal overLimit={overLimit} overLimitCount={memberCount - (seatLimit ?? 0)} isOwner={is_owner} onBillingClick={openBillingPage}>
       <div
         slot="trigger"
         class="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-base-300 bg-base-100/50 p-3 transition-all duration-300 hover:border-yellow-400 hover:bg-base-100 active:scale-[0.99] md:p-4"
@@ -650,56 +671,245 @@
   on:close={() => (showSeatsModal = false)}
 >
   <div class="modal-box w-full max-w-sm">
-    <div class="mb-4 flex items-center gap-3">
-      <div
-        class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full {overLimit
-          ? 'bg-red-500/20'
-          : 'bg-green-500/20'}"
-      >
-        <Info
-          class="h-5 w-5 {overLimit ? 'text-red-500' : 'text-green-500'}"
-        />
+    {#if overLimit}
+      <!-- ── Over limit ── -->
+      <div class="mb-5 flex items-start gap-3">
+        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20">
+          <AlertTriangle class="h-6 w-6 text-red-500" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
+            Seat Limit Exceeded
+          </h4>
+          <p class="text-sm text-contrast-content/60">
+            {memberCount} members · {seatLimit} seat{seatLimit === 1 ? "" : "s"}
+          </p>
+        </div>
       </div>
-      <div>
-        <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
-          Seat Usage
-        </h4>
-        <p class="text-xs text-contrast-content/60 sm:text-sm">
-          {memberCount} of {seatLimit ?? "∞"} seats used
+
+      <!-- Seat visual: filled seats overflowing -->
+      <div class="mb-4 flex flex-wrap gap-1.5">
+        {#each Array(seatLimit) as _, i}
+          <div class="h-3 w-3 rounded-sm bg-base-content/40"></div>
+        {/each}
+        {#each Array(memberCount - seatLimit) as _, i}
+          <div class="h-3 w-3 rounded-sm bg-red-500"></div>
+        {/each}
+      </div>
+
+      <div class="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+        <div class="flex items-center gap-2.5">
+          <Users class="h-5 w-5 text-red-500" />
+          <p class="text-sm font-medium text-contrast-content">
+            {memberCount - seatLimit} member{(memberCount - seatLimit) === 1 ? "" : "s"} over your limit
+          </p>
+        </div>
+        <p class="mt-2 text-xs text-contrast-content/60">
+          Add {memberCount - seatLimit} more seat{(memberCount - seatLimit) === 1 ? "" : "s"} or remove members to get back within your limit.
         </p>
       </div>
-    </div>
 
-    <p class="mb-4 text-sm text-contrast-content">
-      {getSeatUsageMessage()}
-    </p>
+      {#if is_owner}
+        <!-- Kickable members list -->
+        <div class="mb-4 max-h-48 overflow-y-auto rounded-lg border border-base-300">
+          {#each sortedProfiles as profile}
+            {@const isCurUser = profile.id === currentUserId}
+            {@const isOwnerProfile = is_map_owner(profile.id)}
+            {#if !isCurUser && !isOwnerProfile}
+              <div class="flex items-center justify-between border-b border-base-200 px-3 py-2.5 last:border-b-0">
+                <div class="flex min-w-0 flex-1 items-center gap-2.5">
+                  {#if profile.vehicle}
+                    <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-white">
+                      <svelte:component
+                        this={getVehicleIcon(profile.vehicle.vehicle_marker.type)}
+                        bodyColor={profile.vehicle.vehicle_marker.bodyColor}
+                        size="70%"
+                      />
+                    </div>
+                  {:else}
+                    <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-xs font-medium text-white">
+                      <User size={14} />
+                    </div>
+                  {/if}
+                  <span class="truncate text-sm text-contrast-content">
+                    {profile.full_name}
+                  </span>
+                </div>
+                <button
+                  on:click={() => handleKickUser(profile)}
+                  disabled={kickingUser === profile.id}
+                  class="flex-shrink-0 cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {kickingUser === profile.id ? "Kicking..." : "Kick"}
+                </button>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
 
-    {#if overLimit || (seatLimit != null && memberCount >= seatLimit)}
-      <div class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
-        <p class="text-sm text-yellow-700 dark:text-yellow-400">
-          <strong>Need more seats?</strong> You can purchase additional seats
-          from the billing page.
+      {#if !is_owner}
+        <p class="mb-1 text-xs text-contrast-content/50">
+          Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
         </p>
+      {/if}
+
+      <div class="modal-action mt-2">
+        <button
+          on:click={() => (showSeatsModal = false)}
+          class="cursor-pointer rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
+        >
+          Close
+        </button>
+        {#if is_owner}
+          <button
+            on:click={openBillingPage}
+            class="cursor-pointer flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
+          >
+            <ExternalLink class="h-3.5 w-3.5" />
+            Manage Billing
+          </button>
+        {/if}
+      </div>
+    {:else if seatLimit != null && memberCount >= seatLimit}
+      <!-- ── At limit ── -->
+      <div class="mb-5 flex items-start gap-3">
+        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+          <UserCheck class="h-6 w-6 text-green-500" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
+            All Seats Filled
+          </h4>
+          <p class="text-sm text-contrast-content/60">
+            {memberCount} of {seatLimit} seats used
+          </p>
+        </div>
+      </div>
+
+      <div class="mb-4 flex flex-wrap gap-1.5">
+        {#each Array(memberCount) as _, i}
+          <div class="h-3 w-3 rounded-sm bg-base-content"></div>
+        {/each}
+      </div>
+
+      <div class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+        <div class="flex items-center gap-2.5">
+          <UserPlus class="h-5 w-5 text-green-500" />
+          <p class="text-sm font-medium text-contrast-content">
+            Upgrade to invite more members
+          </p>
+        </div>
+        <p class="mt-2 text-xs text-contrast-content/60">
+          Purchase additional seats from the billing page to grow your team.
+        </p>
+      </div>
+
+      <div class="modal-action mt-2">
+        <button
+          on:click={() => (showSeatsModal = false)}
+          class="cursor-pointer rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
+        >
+          Close
+        </button>
+        {#if is_owner}
+          <button
+            on:click={openBillingPage}
+            class="cursor-pointer flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
+          >
+            <ExternalLink class="h-3.5 w-3.5" />
+            Manage Billing
+          </button>
+        {:else}
+          <p class="text-xs text-contrast-content/50">
+            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+          </p>
+        {/if}
+      </div>
+    {:else if seatLimit == null}
+      <!-- ── Unlimited ── -->
+      <div class="mb-5 flex items-start gap-3">
+        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+          <Users class="h-6 w-6 text-green-500" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
+            Unlimited Seats
+          </h4>
+          <p class="text-sm text-contrast-content/60">
+            {memberCount} member{memberCount === 1 ? "" : "s"} on your team
+          </p>
+        </div>
+      </div>
+
+      <div class="mb-4 flex items-center gap-3 rounded-lg bg-green-500/10 p-4">
+        <UserPlus class="h-5 w-5 flex-shrink-0 text-green-500" />
+        <p class="text-sm text-contrast-content">
+          Invite as many team members as you need — no seat limits.
+        </p>
+      </div>
+
+      <div class="modal-action mt-2">
+        <button
+          on:click={() => (showSeatsModal = false)}
+          class="cursor-pointer rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
+        >
+          Close
+        </button>
+        {#if !is_owner}
+          <p class="text-xs text-contrast-content/50">
+            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+          </p>
+        {/if}
+      </div>
+    {:else}
+      <!-- ── Under limit (seats available) ── -->
+      <div class="mb-5 flex items-start gap-3">
+        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+          <Users class="h-6 w-6 text-green-500" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content sm:text-lg">
+            Seat Usage
+          </h4>
+          <p class="text-sm text-contrast-content/60">
+            {memberCount} of {seatLimit} seats used
+          </p>
+        </div>
+      </div>
+
+      <!-- Seat visual: filled + empty slots -->
+      {@const remaining = seatLimit - memberCount}
+      <div class="mb-4 flex flex-wrap gap-1.5">
+        {#each Array(memberCount) as _, i}
+          <div class="h-3 w-3 rounded-sm bg-base-content"></div>
+        {/each}
+        {#each Array(remaining) as _, i}
+          <div class="h-3 w-3 rounded-sm border border-dashed border-base-content/30"></div>
+        {/each}
+      </div>
+
+      <div class="mb-4 flex items-center gap-3 rounded-lg bg-green-500/10 p-4">
+        <UserPlus class="h-5 w-5 flex-shrink-0 text-green-500" />
+        <p class="text-sm text-contrast-content">
+          You can invite <strong>{remaining} more member{remaining === 1 ? "" : "s"}</strong> to your team.
+        </p>
+      </div>
+
+      <div class="modal-action mt-2">
+        <button
+          on:click={() => (showSeatsModal = false)}
+          class="cursor-pointer rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
+        >
+          Close
+        </button>
+        {#if !is_owner}
+          <p class="text-xs text-contrast-content/50">
+            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+          </p>
+        {/if}
       </div>
     {/if}
-
-    <div class="modal-action">
-      <button
-        on:click={() => (showSeatsModal = false)}
-        class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-xs font-medium text-contrast-content transition-colors hover:bg-base-200 sm:text-sm"
-      >
-        Close
-      </button>
-      <button
-        on:click={openBillingPage}
-        class="flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
-      >
-        <ExternalLink class="h-3.5 w-3.5" />
-        {browser && Capacitor.isNativePlatform()
-          ? "Manage on Web"
-          : "Manage Billing"}
-      </button>
-    </div>
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>close</button>
