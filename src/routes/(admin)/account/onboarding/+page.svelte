@@ -22,10 +22,10 @@
   const roles = [
     {
       id: "manager",
-      title: "Farm Manager",
+      title: "Manager",
       Icon: Users,
       description:
-        "Create and oversee farm operations, manage team members, and analyze performance metrics",
+        "Oversee farm operations, manage teams, and track performance",
       mobileDescription: "Oversee operations and manage teams",
       accentColor: "#17a34a", // Green (emerald-500)
       hoverColor: "rgb(16 185 129)", // emerald-500
@@ -37,32 +37,30 @@
     },
     {
       id: "operator",
-      title: "Field Operator",
+      title: "Operator",
       Icon: Tractor,
       description:
-        "Execute field operations, track progress, and submit reports from the field",
+        "Run field operations, track progress, and submit reports",
       mobileDescription: "Execute operations and track progress",
       accentColor: "#3B82F6", // Blue (blue-500)
       hoverColor: "rgb(59 130 246)", // blue-500
       gradientBg: "bg-gradient-to-br to-base-100 from-base-300/50",
       features: [
-        { text: "View Tasks", icon: ClipboardList },
         { text: "Track Progress", icon: Send },
       ],
     },
     {
       id: "viewer",
-      title: "Farm Viewer",
+      title: "Viewer",
       Icon: Eye,
       description:
-        "View farm maps, monitor operations, and stay informed without making changes",
+        "View farm maps and monitor operations without making changes",
       mobileDescription: "View maps and monitor operations",
       accentColor: "#8B5CF6", // Purple (violet-500)
       hoverColor: "rgb(139 92 246)", // violet-500
       gradientBg: "bg-gradient-to-br from-base-100 to-base-300/50",
       features: [
         { text: "View Maps", icon: MapPin },
-        { text: "Monitor Progress", icon: Send },
       ],
     },
   ]
@@ -116,27 +114,27 @@
 >
   <!-- Decorative Elements - hidden on mobile for cleaner look -->
   <div
-    class="pointer-events-none absolute -right-20 top-20 hidden h-64 w-64 rounded-full bg-base-content/5 blur-3xl md:block"
+    class="pointer-events-none absolute -right-20 top-20 hidden h-64 w-64 rounded-full bg-base-content/5 blur-3xl sm:block"
   ></div>
   <div
-    class="pointer-events-none absolute -left-20 bottom-20 hidden h-80 w-80 rounded-full bg-base-content/5 blur-3xl md:block"
+    class="pointer-events-none absolute -left-20 bottom-20 hidden h-80 w-80 rounded-full bg-base-content/5 blur-3xl sm:block"
   ></div>
 
   <!-- Main content -->
   <main
-    class="container relative z-10 mx-auto flex flex-col items-center px-4 py-8 md:px-6 md:py-16"
+    class="container relative z-10 mx-auto flex flex-col items-center px-4 py-4 lg:px-6 lg:py-10"
   >
-    <div class="mb-6 w-full max-w-4xl md:mb-12">
+    <div class="mb-4 w-full max-w-5xl lg:mb-8">
       <!-- Compact header for mobile -->
-      <div class="mb-6 text-center md:mb-14">
+      <div class="mb-4 text-center lg:mb-8">
         <h2
-          class="relative mb-2 inline-block text-2xl font-bold text-contrast-content md:mb-4 md:text-4xl lg:text-5xl"
+          class="relative mb-2 inline-block text-2xl font-bold text-contrast-content lg:mb-4 lg:text-4xl lg:text-5xl"
         >
           Welcome to
           <span class="ml-2 text-base-content"> AgSKAN </span>
         </h2>
         <p
-          class="mx-auto max-w-2xl text-base text-contrast-content/60 md:text-lg"
+          class="mx-auto max-w-2xl text-base text-contrast-content/60 lg:text-lg"
         >
           Select your role to begin
         </p>
@@ -144,7 +142,7 @@
 
       <!-- Error Alert -->
       {#if formError}
-        <div class="alert alert-error mb-4 md:mb-6">
+        <div class="alert alert-error mb-4 lg:mb-6">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-6 w-6 shrink-0 stroke-current"
@@ -164,7 +162,7 @@
 
       <!-- Role selection cards - more compact on mobile -->
       <div
-        class="perspective-[1000px] relative mb-6 grid grid-cols-1 gap-4 md:mb-12 md:grid-cols-3 md:gap-8"
+        class="perspective-[1000px] relative mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-3 lg:gap-5"
       >
         {#each roles as role}
           <div
@@ -192,18 +190,18 @@
                 ? ''
                 : 'border-t border-base-300'}"
               style={selectedRole === null || selectedRole === role.id
-                ? `border-top: 4px md:border-top-width-6 solid ${role.accentColor};`
+                ? `border-top: 4px solid ${role.accentColor};`
                 : ""}
             ></div>
 
             <div
               class="absolute inset-0 bg-gradient-to-b from-transparent to-base-200/40 opacity-0 transition-opacity group-hover:opacity-100"
             ></div>
-            <div class="relative z-10 p-4 md:p-8">
-              <div class="mb-4 flex items-start justify-between md:mb-6">
+            <div class="relative z-10 p-3 lg:p-5">
+              <div class="mb-3 flex items-start justify-between lg:mb-4">
                 <!-- Icon container -->
                 <div
-                  class="rounded-lg p-2 transition-colors duration-200 md:rounded-xl md:p-4"
+                  class="rounded-lg p-2 transition-colors duration-200 lg:rounded-xl lg:p-4"
                   style={selectedRole === role.id
                     ? `background-color: ${role.accentColor}20; color: ${role.accentColor};`
                     : ""}
@@ -219,13 +217,13 @@
                   <svelte:component
                     this={role.Icon}
                     size={24}
-                    class="transition-transform group-hover:scale-110 md:h-8 md:w-8"
+                    class="transition-transform group-hover:scale-110 lg:h-8 lg:w-8"
                   />
                 </div>
 
                 <!-- Checkmark circle -->
                 <div
-                  class="flex h-5 w-5 items-center justify-center rounded-full md:h-6 md:w-6"
+                  class="flex h-5 w-5 items-center justify-center rounded-full lg:h-6 lg:w-6"
                   style={selectedRole === role.id
                     ? `background-color: ${role.accentColor}; color: #ffffff;`
                     : ""}
@@ -243,7 +241,7 @@
                       xmlns="http://www.w3.org/2000/svg"
                       width="12"
                       height="12"
-                      class="md:h-3.5 md:w-3.5"
+                      class="lg:h-3.5 lg:w-3.5"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -259,7 +257,7 @@
 
               <!-- Title -->
               <h3
-                class="mb-2 text-lg font-bold md:mb-3 md:text-2xl"
+                class="mb-2 text-lg font-bold lg:mb-3 lg:text-2xl"
                 style={selectedRole === role.id
                   ? `color: ${role.accentColor};`
                   : ""}
@@ -279,14 +277,14 @@
 
               <!-- Description - shorter on mobile -->
               <p
-                class="mb-4 text-xs text-contrast-content/60 md:mb-8 md:text-sm"
+                class="mb-3 text-xs text-contrast-content/60 lg:mb-5 sm:text-sm min-h-[2.5rem]"
               >
-                <span class="md:hidden">{role.mobileDescription}</span>
-                <span class="hidden md:block">{role.description}</span>
+                <span class="lg:hidden">{role.mobileDescription}</span>
+                <span class="hidden lg:block">{role.description}</span>
               </p>
 
               <!-- Features - only show on larger screens -->
-              <div class="hidden grid-cols-2 gap-4 md:grid">
+              <div class="hidden grid-cols-2 gap-4 lg:grid">
                 {#each role.features as feature}
                   <div class="flex items-center gap-2">
                     <div
@@ -322,7 +320,7 @@
       <!-- Continue Button - more compact on mobile -->
       <div class="flex flex-col items-center">
         <button
-          class="group flex w-full max-w-xs items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 md:w-auto md:max-w-none md:px-8 md:py-4 md:text-base
+          class="group flex w-full max-w-xs items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 lg:w-auto lg:max-w-none lg:px-8 lg:py-4 lg:text-base
             {selectedRole
             ? 'transform bg-base-content text-base-100 shadow-lg shadow-base-content/20 hover:scale-105 hover:bg-base-content/90 hover:shadow-xl hover:shadow-base-content/30'
             : 'cursor-not-allowed bg-base-300 text-contrast-content/40'}"
@@ -347,9 +345,9 @@
         </button>
 
         <p
-          class="mt-2 px-4 text-center text-xs text-contrast-content/40 md:mt-4"
+          class="mt-2 px-4 text-center text-xs text-contrast-content/40 lg:mt-4"
         >
-          You can change your role later in settings
+          If you're unsure, select Manager — you can change your role later in settings.
         </p>
       </div>
     </div>
