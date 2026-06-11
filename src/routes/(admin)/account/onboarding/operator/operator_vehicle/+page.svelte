@@ -310,15 +310,13 @@
         ? "Your operator setup is complete!"
         : completionStatus === "loading"
           ? "Finalizing your setup..."
-          : setupMode === "completion"
-            ? "Complete your operator setup"
-            : "Configure your primary vehicle"}
+          : "Configure your primary vehicle"}
     </p>
   </div>
 
-  {#if setupMode === "selection" && !completionStatus}
+  {#if !completionStatus}
     <!-- Vehicle Selection Interface -->
-    <div class="w-full max-w-full">
+    <div class="mx-auto w-full max-w-xl">
       {#if activeSubPanel === null}
         <!-- Main Vehicle Panel -->
         <div
@@ -433,17 +431,22 @@
             <div class="flex flex-col items-center gap-3">
               <button
                 class="flex w-full transform items-center justify-center gap-2 rounded-lg bg-base-content py-3 text-sm font-semibold text-base-100 shadow-lg shadow-base-content/20 transition-all hover:-translate-y-0.5 hover:bg-base-content/90 md:rounded-xl md:py-4 md:text-base"
-                on:click={() => (setupMode = "completion")}
+                on:click={handleCompleteSetup}
+                disabled={completionStatus === "loading"}
               >
-                Continue to Complete Setup
-                <ArrowRight size={16} />
+                {#if completionStatus === "loading"}
+                  <span class="loading loading-spinner loading-sm"></span>
+                {:else}
+                  Complete Setup
+                  <ArrowRight size={16} />
+                {/if}
               </button>
 
               <p
                 class="flex items-center gap-2 text-center text-xs text-contrast-content/40"
               >
                 <CheckCircle size={14} />
-                Vehicle settings can be changed anytime from your dashboard
+                Vehicle settings can be changed anytime
               </p>
             </div>
           </div>
@@ -653,154 +656,69 @@
         </div>
       {/if}
     </div>
-  {:else}
-    <!-- Completion Card -->
+  {/if}
+
+  {#if completionStatus === "success"}
     <div
-      class="animate-vehicle-setup-fadeIn relative mx-auto max-w-xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+      class="animate-setup-scaleIn flex flex-col items-center gap-3 py-4 md:gap-4 md:py-6"
     >
       <div
-        class="h-1.5 w-full bg-gradient-to-r from-base-content/80 via-base-content to-base-content/80"
-      ></div>
-
-      <div class="p-8 transition-all duration-500 ease-in-out md:p-12">
-        {#if completionStatus === "success"}
-          <!-- SUCCESS STATE -->
-          <div
-            class="animate-vehicle-setup-scaleIn flex flex-col items-center gap-6 py-8"
-          >
-            <div
-              class="animate-vehicle-setup-successPulse flex h-24 w-24 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
-            >
-              <div
-                class="animate-vehicle-setup-checkScale flex h-20 w-20 items-center justify-center rounded-full bg-green-500"
-              >
-                <Check
-                  size={40}
-                  class="animate-vehicle-setup-checkDraw stroke-[3] text-white"
-                />
-              </div>
-            </div>
-            <div class="text-center">
-              <h3 class="mb-2 text-2xl font-bold text-contrast-content">
-                Setup Complete!
-              </h3>
-              <p class="mb-4 text-contrast-content/60">
-                Your operator account is ready for field operations
-              </p>
-              <div class="space-y-2">
-                <p
-                  class="inline-block rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400"
-                >
-                  Ready for dashboard
-                </p>
-              </div>
-            </div>
-            <p
-              class="animate-vehicle-setup-delayedFadeIn text-sm text-contrast-content/60"
-            >
-              Redirecting to dashboard...
-            </p>
-          </div>
-        {:else if completionStatus === "loading"}
-          <!-- LOADING STATE -->
-          <div
-            class="animate-vehicle-setup-scaleIn flex flex-col items-center gap-6 py-8"
-          >
-            <div
-              class="relative flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20"
-            >
-              <div
-                class="animate-vehicle-setup-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
-              ></div>
-              <Cloud
-                size={40}
-                class="animate-vehicle-setup-pulse text-blue-400"
-              />
-            </div>
-            <div class="text-center">
-              <p class="mb-2 text-xl font-medium text-contrast-content">
-                Completing setup...
-              </p>
-              <p
-                class="rounded-full bg-base-200 px-4 py-2 text-sm text-contrast-content/60"
-              >
-                Finalizing your operator dashboard
-              </p>
-            </div>
-          </div>
-        {:else}
-          <!-- Final Setup State -->
-          <div
-            class="animate-vehicle-setup-formEntry flex flex-col items-center gap-6"
-          >
-            <div
-              class="configured-vehicle w-full rounded-lg border border-base-300 bg-base-200 p-6 text-center"
-            >
-              <div
-                class="vehicle-display mb-4 inline-block rounded-lg bg-base-content/10 p-4"
-              >
-                {#if SVGComponents[selectedVehicle]}
-                  <svelte:component
-                    this={SVGComponents[selectedVehicle]}
-                    bodyColor={getColorValue(selectedColor)}
-                    size="64px"
-                  />
-                {:else}
-                  <span class="fallback-medium text-5xl">🚜</span>
-                {/if}
-              </div>
-              <div class="vehicle-summary">
-                <h3 class="text-lg font-semibold text-contrast-content">
-                  Vehicle Configuration
-                </h3>
-                <p class="text-sm text-contrast-content/60">
-                  {getShortName(selectedVehicle)} • {selectedColor} • {selectedSwath}m
-                </p>
-              </div>
-            </div>
-          </div>
-        {/if}
+        class="animate-setup-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10 md:h-20 md:w-20"
+      >
+        <div
+          class="animate-setup-checkScale flex h-14 w-14 items-center justify-center rounded-full bg-green-500 md:h-16 md:w-16"
+        >
+          <Check
+            size={28}
+            class="animate-setup-checkDraw stroke-[3] text-white md:h-9 md:w-9"
+          />
+        </div>
       </div>
-    </div>
-
-    <!-- Complete Setup Button -->
-    {#if !completionStatus}
-      <div class="final-actions mt-6 flex flex-col items-center gap-3">
-        <button
-          class="complete-setup-btn flex w-full transform items-center justify-center gap-2 rounded-xl bg-base-content px-4 py-3 font-semibold text-base-100 shadow-lg shadow-base-content/10 transition-all hover:scale-105 hover:bg-base-content/90 hover:shadow-base-content/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:py-4 md:text-base"
-          on:click={handleCompleteSetup}
-          disabled={completionStatus === "loading"}
-        >
-          {#if completionStatus === "loading"}
-            <span class="loading loading-spinner loading-sm"></span>
-          {:else}
-            <CheckCircle size={18} class="flex-shrink-0" />
-          {/if}
-
-          <!-- Responsive button text -->
-          <span class="text-center">
-            <!-- Mobile: Short text -->
-            <span class="block text-sm sm:hidden">Complete Setup</span>
-            <!-- Desktop: Full text -->
-            <span class="hidden sm:block">Complete Setup & Go to Dashboard</span
-            >
-          </span>
-
-          {#if !completionStatus}
-            <ArrowRight size={18} class="flex-shrink-0" />
-          {/if}
-        </button>
-
+      <div class="text-center">
+        <h3 class="mb-2 text-xl font-bold text-contrast-content md:text-2xl">
+          Setup Complete!
+        </h3>
+        <p class="mb-3 px-2 text-sm text-contrast-content/60 md:text-base">
+          Your operator account is ready for field operations
+        </p>
         <p
-          class="setup-note flex items-center gap-2 text-center text-xs text-contrast-content/40"
+          class="inline-block rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs text-green-400 md:text-sm"
         >
-          <CheckCircle size={14} class="flex-shrink-0" />
-          <span
-            >Vehicle settings can be changed anytime from your dashboard</span
-          >
+          Ready for dashboard
         </p>
       </div>
-    {/if}
+      <p
+        class="animate-setup-delayedFadeIn text-xs text-contrast-content/60 md:text-sm"
+      >
+        Redirecting to dashboard...
+      </p>
+    </div>
+  {:else if completionStatus === "loading"}
+    <div
+      class="animate-setup-scaleIn flex flex-col items-center gap-3 py-4 md:gap-4 md:py-6"
+    >
+      <div
+        class="relative flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20 md:h-20 md:w-20"
+      >
+        <div
+          class="animate-setup-spin absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400"
+        ></div>
+        <Cloud
+          size={28}
+          class="animate-setup-pulse text-blue-400 md:h-9 md:w-9"
+        />
+      </div>
+      <div class="text-center">
+        <p class="mb-2 text-lg font-medium text-contrast-content md:text-xl">
+          Completing setup...
+        </p>
+        <p
+          class="rounded-full bg-base-200 px-3 py-1.5 text-xs text-contrast-content/60 md:text-sm"
+        >
+          Finalizing your operator dashboard
+        </p>
+      </div>
+    </div>
   {/if}
 {:else}
   <!-- Loading state while initializing -->
@@ -828,7 +746,6 @@
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   }
-
   input[type="range"]::-moz-range-thumb {
     height: 20px;
     width: 20px;
@@ -839,23 +756,7 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   }
 
-  /* Vehicle Setup Animations - matching team invite style */
-  @keyframes vehicle-setup-fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  .animate-vehicle-setup-fadeIn {
-    animation: vehicle-setup-fadeIn 0.2s ease-out;
-  }
-
-  @keyframes vehicle-setup-scaleIn {
+  @keyframes setup-scaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -865,12 +766,11 @@
       transform: scale(1);
     }
   }
-
-  .animate-vehicle-setup-scaleIn {
-    animation: vehicle-setup-scaleIn 0.2s ease-out;
+  .animate-setup-scaleIn {
+    animation: setup-scaleIn 0.2s ease-out;
   }
 
-  @keyframes vehicle-setup-delayedFadeIn {
+  @keyframes setup-delayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -881,27 +781,11 @@
       transform: translateY(0);
     }
   }
-
-  .animate-vehicle-setup-delayedFadeIn {
-    animation: vehicle-setup-delayedFadeIn 1s ease-out;
+  .animate-setup-delayedFadeIn {
+    animation: setup-delayedFadeIn 1s ease-out;
   }
 
-  @keyframes vehicle-setup-formEntry {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .animate-vehicle-setup-formEntry {
-    animation: vehicle-setup-formEntry 0.3s ease-out;
-  }
-
-  @keyframes vehicle-setup-spin {
+  @keyframes setup-spin {
     from {
       transform: rotate(0deg);
     }
@@ -909,12 +793,11 @@
       transform: rotate(360deg);
     }
   }
-
-  .animate-vehicle-setup-spin {
-    animation: vehicle-setup-spin 1s linear infinite;
+  .animate-setup-spin {
+    animation: setup-spin 1s linear infinite;
   }
 
-  @keyframes vehicle-setup-pulse {
+  @keyframes setup-pulse {
     0%,
     100% {
       opacity: 1;
@@ -923,13 +806,11 @@
       opacity: 0.5;
     }
   }
-
-  .animate-vehicle-setup-pulse {
-    animation: vehicle-setup-pulse 2s ease-in-out infinite;
+  .animate-setup-pulse {
+    animation: setup-pulse 2s ease-in-out infinite;
   }
 
-  /* Enhanced success animations */
-  @keyframes vehicle-setup-successPulse {
+  @keyframes setup-successPulse {
     0%,
     100% {
       transform: scale(1);
@@ -940,12 +821,11 @@
       box-shadow: 0 0 0 20px rgba(34, 197, 94, 0);
     }
   }
-
-  .animate-vehicle-setup-successPulse {
-    animation: vehicle-setup-successPulse 2s ease-in-out infinite;
+  .animate-setup-successPulse {
+    animation: setup-successPulse 2s ease-in-out infinite;
   }
 
-  @keyframes vehicle-setup-checkScale {
+  @keyframes setup-checkScale {
     0% {
       transform: scale(0);
     }
@@ -956,12 +836,11 @@
       transform: scale(1);
     }
   }
-
-  .animate-vehicle-setup-checkScale {
-    animation: vehicle-setup-checkScale 0.6s ease-out 0.3s both;
+  .animate-setup-checkScale {
+    animation: setup-checkScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes vehicle-setup-checkDraw {
+  @keyframes setup-checkDraw {
     0% {
       stroke-dasharray: 80;
       stroke-dashoffset: 80;
@@ -971,8 +850,7 @@
       stroke-dashoffset: 0;
     }
   }
-
-  .animate-vehicle-setup-checkDraw {
-    animation: vehicle-setup-checkDraw 0.5s ease-out 0.5s both;
+  .animate-setup-checkDraw {
+    animation: setup-checkDraw 0.8s ease-out 0.5s both;
   }
 </style>

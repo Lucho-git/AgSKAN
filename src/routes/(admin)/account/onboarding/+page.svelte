@@ -9,12 +9,13 @@
     UserRound,
     Send,
     ArrowRight,
+    Eye,
   } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
 
-  let selectedRole: "manager" | "operator" | null = null
+  let selectedRole: "manager" | "operator" | "viewer" | null = null
   let formError: string | null = null
   let loading = false
 
@@ -49,6 +50,21 @@
         { text: "Track Progress", icon: Send },
       ],
     },
+    {
+      id: "viewer",
+      title: "Farm Viewer",
+      Icon: Eye,
+      description:
+        "View farm maps, monitor operations, and stay informed without making changes",
+      mobileDescription: "View maps and monitor operations",
+      accentColor: "#8B5CF6", // Purple (violet-500)
+      hoverColor: "rgb(139 92 246)", // violet-500
+      gradientBg: "bg-gradient-to-br from-base-100 to-base-300/50",
+      features: [
+        { text: "View Maps", icon: MapPin },
+        { text: "Monitor Progress", icon: Send },
+      ],
+    },
   ]
 
   async function handleSubmit() {
@@ -77,6 +93,8 @@
         goto("/account/onboarding/operator/profile")
       } else if (selectedRole === "manager") {
         goto("/account/onboarding/manager/profile")
+      } else if (selectedRole === "viewer") {
+        goto("/account/onboarding/viewer/profile")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -146,7 +164,7 @@
 
       <!-- Role selection cards - more compact on mobile -->
       <div
-        class="perspective-[1000px] relative mb-6 grid grid-cols-1 gap-4 md:mb-12 md:grid-cols-2 md:gap-8"
+        class="perspective-[1000px] relative mb-6 grid grid-cols-1 gap-4 md:mb-12 md:grid-cols-3 md:gap-8"
       >
         {#each roles as role}
           <div
@@ -195,6 +213,8 @@
                     role.id && role.id === "manager"}
                   class:group-hover:text-blue-500={selectedRole !== role.id &&
                     role.id === "operator"}
+                  class:group-hover:text-violet-500={selectedRole !== role.id &&
+                    role.id === "viewer"}
                 >
                   <svelte:component
                     this={role.Icon}
@@ -215,6 +235,8 @@
                     role.id && role.id === "manager"}
                   class:group-hover:border-blue-500={selectedRole !== role.id &&
                     role.id === "operator"}
+                  class:group-hover:border-violet-500={selectedRole !== role.id &&
+                    role.id === "viewer"}
                 >
                   {#if selectedRole === role.id}
                     <svg
@@ -246,6 +268,8 @@
                   role.id === "manager"}
                 class:group-hover:text-blue-500={selectedRole !== role.id &&
                   role.id === "operator"}
+                class:group-hover:text-violet-500={selectedRole !== role.id &&
+                  role.id === "viewer"}
                 class:origin-left={selectedRole === role.id}
                 class:scale-105={selectedRole === role.id}
                 class:transform={selectedRole === role.id}
@@ -274,6 +298,8 @@
                         role.id && role.id === "manager"}
                       class:group-hover:text-blue-500={selectedRole !==
                         role.id && role.id === "operator"}
+                      class:group-hover:text-violet-500={selectedRole !==
+                        role.id && role.id === "viewer"}
                     >
                       <svelte:component this={feature.icon} size={16} />
                     </div>
@@ -303,24 +329,21 @@
           disabled={!selectedRole || loading}
           on:click={handleSubmit}
         >
-          {#if loading}
-            <span class="loading loading-spinner loading-sm md:loading-md"
-            ></span>
-          {:else}
-            <span
-              >Continue as {selectedRole === "manager"
-                ? "Manager"
-                : selectedRole === "operator"
-                  ? "Operator"
+          <span
+            >Continue as {selectedRole === "manager"
+              ? "Manager"
+              : selectedRole === "operator"
+                ? "Operator"
+                : selectedRole === "viewer"
+                  ? "Viewer"
                   : "..."}</span
-            >
-            <ArrowRight
-              size={16}
-              class="md:w-4.5 md:h-4.5 transition-transform duration-200 {selectedRole
-                ? 'group-hover:translate-x-1'
-                : ''}"
-            />
-          {/if}
+          >
+          <ArrowRight
+            size={16}
+            class="transition-transform duration-200 {selectedRole
+              ? 'group-hover:translate-x-1'
+              : ''}"
+          />
         </button>
 
         <p

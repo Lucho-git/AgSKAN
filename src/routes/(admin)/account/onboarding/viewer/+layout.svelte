@@ -1,24 +1,23 @@
-<!-- src/routes/(admin)/account/onboarding/operator/+layout.svelte -->
+<!-- src/routes/(admin)/account/onboarding/viewer/+layout.svelte -->
 <script lang="ts">
   import { page } from "$app/stores"
   import { goto } from "$app/navigation"
   import { Check, ArrowLeft } from "lucide-svelte"
 
-  // Define the steps for operator onboarding
+  // Define the steps for viewer onboarding
   const steps = [
     {
       id: "profile",
       label: "Join Map",
-      path: "/account/onboarding/operator/profile",
+      path: "/account/onboarding/viewer/profile",
     },
     {
-      id: "operator_vehicle",
-      label: "Vehicle Setup",
-      path: "/account/onboarding/operator/operator_vehicle",
+      id: "vehicle",
+      label: "Map Icon",
+      path: "/account/onboarding/viewer/vehicle",
     },
   ]
 
-  // Determine current step based on URL
   $: currentStepIndex =
     steps.findIndex((step) => $page.url.pathname.includes(step.id)) + 1
   $: currentStep = currentStepIndex || 1
@@ -26,7 +25,6 @@
   const totalSteps = steps.length
 
   function navigateToStep(stepNumber: number) {
-    // Only allow navigation to current step or previous steps
     if (stepNumber <= currentStep) {
       goto(steps[stepNumber - 1].path)
     }
@@ -34,17 +32,15 @@
 
   function goBack() {
     if (currentStep > 1) {
-      // Go to previous step
       goto(steps[currentStep - 2].path)
     } else {
-      // Go back to role selection if on first step
       goto("/account/onboarding")
     }
   }
 
-  // Get back button text based on current step
-  $: backButtonText =
-    currentStep > 1 ? steps[currentStep - 2]?.label : "Role Selection"
+  $: backButtonText = currentStep > 1 && steps[currentStep - 2]
+    ? steps[currentStep - 2]?.label
+    : "Role Selection"
 </script>
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
@@ -75,7 +71,7 @@
                   {i + 1 < currentStep
                     ? 'bg-base-content text-base-100'
                     : i + 1 === currentStep
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-violet-500 text-white'
                       : 'border border-base-300 text-contrast-content/30'}"
               >
                 {#if i + 1 < currentStep}
@@ -94,6 +90,7 @@
     </div>
   </div>
 
+  <!-- Page content -->
   <main class="container mx-auto px-4 py-6 md:px-6 md:py-10">
     <slot />
   </main>
