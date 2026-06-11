@@ -330,19 +330,19 @@
           <div class="p-4 md:p-8">
             <!-- Current Vehicle Display -->
             <div
-              class="mb-6 rounded-lg bg-base-200 p-4 text-center md:mb-8 md:rounded-xl md:p-6"
+              class="mb-4 rounded-lg bg-base-200 p-3 text-center md:mb-6 md:rounded-xl md:p-5"
             >
               <div
-                class="mb-4 inline-block rounded-lg bg-base-content/10 p-4 md:p-6"
+                class="mb-3 inline-block rounded-lg bg-base-content/10 p-3 md:mb-4 md:p-5"
               >
                 {#if SVGComponents[selectedVehicle]}
                   <svelte:component
                     this={SVGComponents[selectedVehicle]}
                     bodyColor={getColorValue(selectedColor)}
-                    size="80px"
+                    size="60px"
                   />
                 {:else}
-                  <div class="text-6xl">🚜</div>
+                  <div class="text-5xl">🚜</div>
                 {/if}
               </div>
               <div>
@@ -358,7 +358,7 @@
             </div>
 
             <!-- Configuration Options -->
-            <div class="mb-6 space-y-3 md:mb-8 md:space-y-4">
+            <div class="mb-4 space-y-2 md:mb-6 md:space-y-3">
               <button
                 class="flex w-full items-center gap-3 rounded-lg border border-base-300 bg-base-200 p-3 transition-all hover:border-base-content/40 hover:bg-base-content/10 md:rounded-xl md:p-4"
                 on:click={() => showSubPanel("vehicles")}

@@ -48,48 +48,57 @@
 </script>
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
-  <!-- Header with step indicators -->
   <div class="sticky top-0 z-30 border-b border-base-200 bg-base-100/80 backdrop-blur-sm">
     <div class="container mx-auto px-4 py-3 md:px-6 md:py-4">
-      <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
         <button
           on:click={goBack}
-          class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-contrast-content/60 transition-colors hover:bg-base-200 hover:text-contrast-content"
+          class="flex flex-shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-contrast-content/60 transition-colors hover:bg-base-200 hover:text-contrast-content"
         >
           <ArrowLeft size={16} />
           <span class="hidden sm:inline">{backButtonText}</span>
         </button>
 
-        <div class="flex items-center gap-2">
-          {#each steps as step, i}
-            <button
-              on:click={() => navigateToStep(i + 1)}
-              class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors
-                {i + 1 <= currentStep
-                  ? 'text-base-content'
-                  : 'text-contrast-content/30'}"
-              disabled={i + 1 > currentStep}
-            >
-              <div
-                class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium
-                  {i + 1 < currentStep
-                    ? 'bg-base-content text-base-100'
-                    : i + 1 === currentStep
+        <div class="mx-auto w-full max-w-xs md:max-w-sm">
+          <div class="flex items-center justify-between">
+            {#each Array.from({ length: totalSteps }, (_, i) => i + 1) as step, index}
+              <div class="flex flex-col items-center">
+                <button
+                  on:click={() => navigateToStep(step)}
+                  disabled={step > currentStep}
+                  class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all md:h-7 md:w-7
+                  {step < currentStep
+                    ? 'cursor-pointer bg-base-content text-base-100 hover:bg-base-content/90'
+                    : step === currentStep
                       ? 'bg-blue-500 text-white'
-                      : 'border border-base-300 text-contrast-content/30'}"
-              >
-                {#if i + 1 < currentStep}
-                  <Check size={12} />
-                {:else}
-                  {i + 1}
-                {/if}
+                      : 'cursor-not-allowed bg-base-300 text-contrast-content/40'}"
+                  title={step <= currentStep ? steps[step - 1]?.label : ""}
+                >
+                  {#if step < currentStep}
+                    <Check size={12} strokeWidth={3} />
+                  {:else}
+                    <span>{step}</span>
+                  {/if}
+                </button>
               </div>
-              <span class="hidden sm:inline">{step.label}</span>
-            </button>
-          {/each}
+              {#if index < totalSteps - 1}
+                <div class="flex flex-1 items-center px-1 md:px-2">
+                  <div class="h-0.5 w-full transition-all {step < currentStep ? 'bg-base-content' : 'bg-base-300'}"></div>
+                </div>
+              {/if}
+            {/each}
+          </div>
+          <div class="mt-1 hidden md:flex items-start justify-between">
+            {#each Array.from({ length: totalSteps }, (_, i) => i + 1) as _s, index}
+              <div class="flex flex-col items-center">
+                <span class="text-center text-xs text-contrast-content/40">{steps[index].label}</span>
+              </div>
+              {#if index < totalSteps - 1}
+                <div class="flex flex-1 items-center px-1 md:px-2"></div>
+              {/if}
+            {/each}
+          </div>
         </div>
-
-        <div class="w-[100px]"></div>
       </div>
     </div>
   </div>
