@@ -7,6 +7,8 @@ const stripeApiKey = Deno.env.get('PRIVATE_STRIPE_API_KEY')
 const stripeWebhookSecret = Deno.env.get('PRIVATE_STRIPE_WEBHOOK_SECRET')
 const supabaseUrl = Deno.env.get('PUBLIC_SUPABASE_URL')
 const supabaseServiceRole = Deno.env.get('PRIVATE_SUPABASE_SERVICE_ROLE')
+const clickSendUser = Deno.env.get('CLICKSEND_USERNAME') || 'lachie@skanfarming.com'
+const clickSendKey = Deno.env.get('CLICKSEND_API_KEY') || 'A9FBA50D-3EB6-96CF-849E-30826ECD4B14'
 
 const stripe = new Stripe(stripeApiKey!, {
     apiVersion: '2023-10-16',
@@ -20,6 +22,7 @@ const PRO_MARKER_LIMIT = 999999
 const PRO_TRAIL_LIMIT = 999999
 const FREE_MARKER_LIMIT = 100
 const FREE_TRAIL_LIMIT = 100000
+const SHORT_DOMAIN = "https://skanfarming.com/p"
 
 /**
  * Look up user_id from a Stripe customer ID.
@@ -152,6 +155,142 @@ async function downgradeToFree(userId: string, stripeSubscriptionId?: string) {
 
     await updateSubscription(userId, data)
     console.log("User downgraded to FREE:", userId)
+}
+
+/**
+ * Normalize an AU mobile number for comparison.
+ * Strips whitespace, converts +61/61 prefix to 0.
+ */
+function normalizeAuMobile(raw: string): string {
+    let n = raw.replace(/\s+/g, "")
+    // Strip AU country code
+    if (n.startsWith("+61")) n = n.slice(3)
+    else if (n.startsWith("61")) n = n.slice(2)
+    // Prepend 0 if not already there
+    if (!n.startsWith("0")) n = "0" + n
+    return n
+}
+
+/**
+ * Test numbers whitelist — only these numbers receive SMS during testing.
+ * Remove this check to enable all users.
+ */
+const SMS_TEST_NUMBERS = new Set([
+    normalizeAuMobile("0478638278"),
+    normalizeAuMobile("0439405248"),
+])
+
+/**
+ * Send an SMS via ClickSend
+ */
+async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
+    try {
+        const auth = btoa(`${clickSendUser}:${clickSendKey}`)
+        const res = await fetch("https://rest.clicksend.com/v3/sms/send", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Basic ${auth}`,
+            },
+            body: JSON.stringify({
+                messages: [
+                    {
+                        source: "sdk",
+                        body: message,
+                        to: phoneNumber,
+                    },
+                ],
+            }),
+        })
+
+        if (!res.ok) {
+            console.error("[SMS] ClickSend error:", res.status, await res.text())
+            return false
+        }
+
+        console.log(`[SMS] Sent to ${phoneNumber}: ${message}`)
+        return true
+    } catch (err) {
+        console.error("[SMS] Failed:", err instanceof Error ? err.message : err)
+        return false
+    }
+}
+
+/**
+ * Look up the user's mobile & first name and send an invoice SMS.
+ * Checks Stripe customer.phone first, then falls back to profiles.mobile.
+ * Supports {firstName} placeholder in the message.
+ * Currently restricted to SMS_TEST_NUMBERS whitelist.
+ */
+async function sendInvoiceSms(userId: string, stripeCustomerId: string, message: string) {
+    let rawMobile: string | null = null
+    let firstName = "there"
+
+    // 1. Try Stripe customer phone first
+    try {
+        const customer = await stripe.customers.retrieve(stripeCustomerId)
+        if (!customer.deleted && customer.phone) {
+            rawMobile = customer.phone
+            firstName = customer.name?.split(" ")[0] || customer.metadata?.first_name || "there"
+            console.log(`[SMS] Using Stripe phone for ${stripeCustomerId}: ${rawMobile}`)
+        }
+    } catch (err) {
+        console.log(`[SMS] Could not retrieve Stripe customer ${stripeCustomerId}:`, err instanceof Error ? err.message : err)
+    }
+
+    // 2. Fall back to profiles table
+    if (!rawMobile) {
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("mobile, first_name")
+            .eq("id", userId)
+            .single()
+
+        rawMobile = profile?.mobile || null
+        if (profile?.first_name) firstName = profile.first_name
+    }
+
+    if (!rawMobile) {
+        console.log(`[SMS] SKIP: No mobile number for user ${userId} (checked Stripe & profiles)`)
+        return
+    }
+
+    const normalized = normalizeAuMobile(rawMobile)
+    if (!SMS_TEST_NUMBERS.has(normalized)) {
+        console.log(`[SMS] SKIP: Number ${normalized} not in test whitelist for user ${userId}`)
+        return
+    }
+
+    const personalized = message.replace("{firstName}", firstName)
+
+    const ok = await sendSms(rawMobile, personalized)
+    if (!ok) {
+        console.error(`[SMS] FAILED to send to ${normalized} (user ${userId})`)
+    }
+}
+
+/**
+ * Generate a short skanfarming.com/p/:code URL for the given long URL.
+ * Returns the short URL, or the original long URL on failure.
+ */
+async function shortenUrl(longUrl: string): Promise<string> {
+    try {
+        const code = crypto.randomUUID().slice(0, 6)
+        const { error } = await supabase
+            .from("short_urls")
+            .insert({ code, long_url: longUrl })
+
+        if (error) {
+            console.error("[shortenUrl] Insert failed:", error.message)
+            return longUrl
+        }
+
+        console.log(`[shortenUrl] ${code} → ${longUrl}`)
+        return `${SHORT_DOMAIN}/${code}`
+    } catch (err) {
+        console.error("[shortenUrl] Error:", err instanceof Error ? err.message : err)
+        return longUrl
+    }
 }
 
 serve(async (req) => {
@@ -314,6 +453,47 @@ serve(async (req) => {
                 })
 
                 await updateSubscription(userId, updateData)
+
+                // SMS reminder
+                const amount = (invoice.amount_due / 100).toFixed(2)
+                const currency = invoice.currency?.toUpperCase() || "AUD"
+                const email = invoice.customer_email || "your email"
+                const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
+                await sendInvoiceSms(userId, invoice.customer as string,
+                    `Hi {firstName}, a friendly reminder from AgSKAN that your invoice for $${amount} ${currency} remains unpaid. It has been sent to ${email}. Pay here: ${payLink} If you've already paid, please disregard. Questions? Just reply to this message.`
+                )
+                break
+            }
+
+            // ─── INVOICE SENT (new invoice created) ───
+            case "invoice.sent": {
+                const invoice = event.data.object as any
+                if (!invoice.customer) break
+
+                const userId = await getUserIdFromCustomer(invoice.customer as string)
+                const amount = (invoice.amount_due / 100).toFixed(2)
+                const currency = invoice.currency?.toUpperCase() || "AUD"
+                const email = invoice.customer_email || "your email"
+                const dueDate = invoice.due_date
+                    ? new Date(invoice.due_date * 1000).toLocaleDateString("en-AU")
+                    : "soon"
+
+                console.log("[Webhook] Invoice SENT:", {
+                    user_id: userId, amount: invoice.amount_due,
+                })
+
+                const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
+                await sendInvoiceSms(userId, invoice.customer as string,
+                    `Hi {firstName}, a new invoice for $${amount} ${currency} has been sent to ${email} from AgSKAN. Due: ${dueDate}. Pay here: ${payLink} Questions? Just reply to this message.`
+                )
+                break
+            }
+
+            // ─── INVOICE UPCOMING (due in ~3 days) ───
+            case "invoice.upcoming": {
+                // No SMS sent for upcoming invoices — Stripe already emails the customer.
+                // We only SMS on invoice.sent and invoice.payment_failed.
+                console.log("[Webhook] Invoice UPCOMING (no SMS):", event.id)
                 break
             }
 
