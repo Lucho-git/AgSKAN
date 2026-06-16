@@ -1,6 +1,6 @@
 {
     "rewrites": [
-      { "source": "/p/:code", "destination": "https://hmxxqacnzxqpcheoeidn.supabase.co/functions/v1/redirect" },
+      { "source": "/p/:code", "destination": "https://hmxxqacnzxqpcheoeidn.supabase.co/functions/v1/redirect?code=:code" },
       { "source": "/(.*)", "destination": "/index.html" }
     ],
     "cleanUrls": true,
