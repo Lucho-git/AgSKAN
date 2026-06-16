@@ -8,9 +8,11 @@ const supabaseServiceRole = Deno.env.get("PRIVATE_SUPABASE_SERVICE_ROLE")!
 
 serve(async (req: Request) => {
     const url = new URL(req.url)
-    // Support both /p/:code (direct) and ?code= (Vercel proxy)
-    let code = url.pathname.replace(/^\/p\//, "").replace(/^\//, "").trim()
-    if (!code) code = url.searchParams.get("code") || ""
+    // Query param takes priority (used by Vercel proxy), then path-based as fallback
+    let code = url.searchParams.get("code") || ""
+    if (!code) {
+        code = url.pathname.replace(/^\/p\//, "").replace(/^\//, "").trim()
+    }
 
     if (!code || code.length > 20) {
         return new Response("Not found", { status: 404 })
