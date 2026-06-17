@@ -11,6 +11,7 @@
     Crosshair,
     Target,
     ChevronDown,
+    ChevronUp,
     X,
     Navigation,
     Navigation2,
@@ -340,7 +341,7 @@
 
   function startTrackingVehicle(vehicleId) {
     dispatch("startTracking", { vehicleId })
-    showUnifiedMenu = false
+    // Menu stays open so user can see tracking status
   }
 
   function stopTrackingVehicle() {
@@ -470,7 +471,7 @@
 {#if shouldShowTeamButton}
   <button
     class="fixed left-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-    style="bottom: calc(1rem + 160px);"
+    style="bottom: calc(1rem + 130px);"
     on:click={toggleUnifiedMenu}
     aria-label="Open vehicle menu"
   >
@@ -488,7 +489,7 @@
 {#if showUnifiedMenu}
   <div
     class="menu-expanded fixed left-4 z-50 overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
-    style="bottom: calc(1rem + 160px); width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
+    style="bottom: calc(1rem + 130px); width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-white/20 p-4">
@@ -503,13 +504,9 @@
       </div>
       <button
         class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
-        on:click={isTrackingVehicle ? stopTrackingAndClose : closeUnifiedMenu}
-        aria-label={isTrackingVehicle
-          ? "Stop tracking and close"
-          : "Close vehicle menu"}
-        title={isTrackingVehicle
-          ? "Stop tracking and close menu"
-          : "Close menu"}
+        on:click={closeUnifiedMenu}
+        aria-label="Close vehicle menu"
+        title="Close menu"
       >
         <X size={16} class="text-white/70" />
       </button>
@@ -527,12 +524,20 @@
       {:else}
         <div class="divide-y divide-white/10">
           {#each sortedVehicles as vehicle (vehicle.id)}
+            {@const online = isVehicleOnline(vehicle)}
+            {@const trailing = Boolean(vehicle.is_trailing)}
+            {@const isYou = Boolean(vehicle.isCurrentUser)}
+            {@const isTracked = vehicle.id === trackedVehicleId}
+            {@const speed = getEffectiveSpeed(vehicle)}
+            {@const opName = vehicle.operation_name && vehicle.operation_name !== "No operation" ? vehicle.operation_name : null}
+
             <div class="flex items-stretch">
               <button
                 class="min-w-0 flex-1 p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
                 on:click={() => zoomToVehicle(vehicle)}
               >
                 <div class="flex items-center gap-3">
+                  <!-- Vehicle icon -->
                   <div
                     class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 p-1"
                   >
@@ -546,100 +551,59 @@
                       <div class="h-4 w-4 rounded bg-white/40"></div>
                     {/if}
                   </div>
+
+                  <!-- Name + type + last seen -->
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <p
-                        class="truncate text-sm font-medium text-white"
-                        title={vehicle.full_name}
-                      >
+                    <div class="flex items-center gap-1.5">
+                      <p class="truncate text-sm font-medium text-white" title={vehicle.full_name}>
                         {truncateName(vehicle.full_name)}
-                        {#if vehicle.isCurrentUser}<span
-                            class="text-xs font-normal text-blue-300"
-                            >(You)</span
-                          >{/if}
-                        {#if vehicle.id === trackedVehicleId}<span
-                            class="text-xs font-normal text-green-300"
-                            >(Tracking)</span
-                          >{/if}
                       </p>
-                      <div class="flex flex-shrink-0 items-center gap-1">
-                        {#if vehicle.is_trailing}
-                          <span
-                            class="inline-flex items-center rounded-full bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-300"
-                            >•</span
-                          >
-                        {/if}
-                        {#if isVehicleOnline(vehicle) && !vehicle.isCurrentUser}
-                          <span
-                            class="inline-flex items-center rounded-full bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-300"
-                            >Online</span
-                          >
+                      {#if isTracked}
+                        <span class="flex-shrink-0 rounded bg-green-500/20 px-1 text-[10px] font-medium text-green-300">Tracking</span>
+                      {/if}
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <p class="truncate text-xs text-white/70">{getVehicleDisplayName(vehicle)}</p>
+                      <div class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30" style="background-color: {getVehicleColor(vehicle)}" title="Vehicle color"></div>
+                    </div>
+                    <p class="truncate text-xs text-white/50">{formatLastUpdate(vehicle.last_update)}</p>
+                  </div>
+
+                  <!-- Right column: speed + unified status + operation -->
+                  <div class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center">
+                    <!-- Top line: speed + unified status -->
+                    <div class="flex items-center gap-1.5">
+                      {#if speed > 0}
+                        <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+                          {speed.toFixed(1)} km/h
+                        </span>
+                      {/if}
+                      <div class="relative flex-shrink-0">
+                        <div class="h-2 w-2 rounded-full {isYou ? 'bg-blue-400' : trailing && online ? 'bg-green-400' : online ? 'bg-blue-400' : 'bg-white/40'}"></div>
+                        {#if isYou || (trailing && online)}
+                          <div class="absolute -inset-1 animate-ping rounded-full {isYou ? 'bg-blue-400' : 'bg-green-400'} opacity-30"></div>
                         {/if}
                       </div>
-                    </div>
-                    <div class="mt-0.5 flex items-center gap-2">
-                      <p class="truncate text-xs text-white/70">
-                        {getVehicleDisplayName(vehicle)}
-                      </p>
-                      <div
-                        class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30"
-                        style="background-color: {getVehicleColor(vehicle)}"
-                        title="Vehicle color"
-                      ></div>
-                    </div>
-                    <p class="mt-0.5 truncate text-xs text-white/50">
-                      {formatLastUpdate(vehicle.last_update)}
-                    </p>
-                  </div>
-                  <!-- Speed tag -->
-                  {#if getEffectiveSpeed(vehicle) > 0}
-                    <div class="flex flex-shrink-0 items-center self-center">
-                      <span
-                        class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90"
-                      >
-                        {getEffectiveSpeed(vehicle).toFixed(1)} km/h
+                      <span class="text-[10px] font-medium {isYou ? 'text-blue-300' : trailing && online ? 'text-green-300' : online ? 'text-blue-300' : 'text-white/40'}">
+                        {isYou ? 'You' : trailing && online ? 'Trailing' : online ? 'Online' : 'Offline'}
                       </span>
                     </div>
-                  {/if}
-                  <div class="relative flex-shrink-0">
-                    <div
-                      class="h-2 w-2 rounded-full {vehicle.isCurrentUser
-                        ? 'bg-blue-400'
-                        : vehicle.is_trailing
-                          ? 'bg-green-400'
-                          : isVehicleOnline(vehicle)
-                            ? 'bg-blue-400'
-                            : 'bg-white/40'}"
-                    ></div>
-                    {#if vehicle.isCurrentUser}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-blue-400 opacity-30"
-                      ></div>
-                    {:else if vehicle.is_trailing && isVehicleOnline(vehicle)}
-                      <div
-                        class="absolute -inset-1 animate-ping rounded-full bg-green-400 opacity-30"
-                      ></div>
+                    <!-- Bottom line: operation name -->
+                    {#if opName}
+                      <span class="max-w-[100px] truncate text-right text-[10px] text-white/50">{opName}</span>
                     {/if}
                   </div>
                 </div>
               </button>
+
+              <!-- Track button -->
               <button
-                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {vehicle.id ===
-                trackedVehicleId
-                  ? 'bg-green-500/20'
-                  : ''}"
-                on:click={() =>
-                  vehicle.id === trackedVehicleId
-                    ? stopTrackingVehicle()
-                    : startTrackingVehicle(vehicle.id)}
-                aria-label={vehicle.id === trackedVehicleId
-                  ? "Stop tracking"
-                  : "Track vehicle"}
-                title={vehicle.id === trackedVehicleId
-                  ? "Stop tracking"
-                  : "Track this vehicle"}
+                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked ? 'bg-green-500/20' : ''}"
+                on:click={() => isTracked ? stopTrackingVehicle() : startTrackingVehicle(vehicle.id)}
+                aria-label={isTracked ? "Stop tracking" : "Track vehicle"}
+                title={isTracked ? "Stop tracking" : "Track this vehicle"}
               >
-                {#if vehicle.id === trackedVehicleId}
+                {#if isTracked}
                   <X size={16} class="text-red-300" />
                 {:else}
                   <Crosshair size={16} class="text-white/60" />
@@ -704,19 +668,18 @@
   </div>
 {/if}
 
-<!-- Tracking Bar -->
+<!-- Tracking Bar (minimized) -->
 {#if isTrackingVehicle && !showUnifiedMenu && trackedVehicle}
   <div
-    class="tracking-bar fixed left-4 z-50 flex h-10 items-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
-    style="bottom: calc(1rem + 160px); transform-origin: left center;"
+    class="tracking-bar fixed left-4 z-50 flex h-10 items-center gap-1 rounded-full bg-black/70 px-1 text-white shadow-lg backdrop-blur"
+    style="bottom: calc(1rem + 130px); transform-origin: left center;"
   >
-    <!-- Users Icon Button -->
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div
-      class="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/10"
+    <!-- Expand back to full menu (Users icon + count) -->
+    <button
+      class="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10"
       on:click={toggleUnifiedMenu}
       title="Open vehicle menu"
+      aria-label="Open vehicle menu"
     >
       <Users size={20} />
       {#if onlineCount > 0}
@@ -725,73 +688,53 @@
           >{onlineCount}</span
         >
       {/if}
-    </div>
+    </button>
 
     <!-- Separator -->
-    <div class="mx-2 h-6 w-px bg-white/20"></div>
+    <div class="h-6 w-px bg-white/20"></div>
 
-    <!-- Vehicle Info Section -->
+    <!-- Vehicle info (clickable → expand menu, map auto-follows) -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
-      class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-blue-500/10"
-      on:click={zoomToTrackedVehicleInstant}
-      title="Zoom to {getTrackedVehicleName(trackedVehicle)}"
+      class="flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-white/10"
+      on:click={toggleUnifiedMenu}
+      title="Open vehicle menu"
     >
-      <!-- Vehicle Icon -->
-      <div
-        class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5"
-      >
+      <div class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5">
         {#if getVehicleIcon(trackedVehicle)}
-          <svelte:component
-            this={getVehicleIcon(trackedVehicle)}
-            bodyColor={getVehicleColor(trackedVehicle)}
-            size="14px"
-          />
+          <svelte:component this={getVehicleIcon(trackedVehicle)} bodyColor={getVehicleColor(trackedVehicle)} size="14px" />
         {:else}
           <div class="h-2.5 w-2.5 rounded bg-green-300/60"></div>
         {/if}
       </div>
-
-      <!-- Vehicle Name -->
-      <span class="min-w-0 truncate text-sm font-medium text-green-300"
-        >{getTrackedVehicleName(trackedVehicle)}</span
-      >
-
-      <!-- Tracking Icon -->
-      <Target size={14} class="flex-shrink-0 animate-pulse text-green-300" />
+      <span class="text-xs font-medium text-green-300">Tracking</span>
+      <span class="min-w-0 max-w-[100px] truncate text-xs text-white/80">{getTrackedVehicleName(trackedVehicle)}</span>
     </div>
 
-    <!-- Controls Section -->
-    <div class="flex items-center gap-1 pl-2 pr-1">
-      <button
-        on:click={toggleFirstPersonMode}
-        class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {isFirstPersonMode
-          ? 'bg-yellow-500/30 hover:bg-yellow-500/50'
-          : 'bg-white/20 hover:bg-white/30'} active:scale-95"
-        aria-label={isFirstPersonMode
-          ? "Disable first-person view"
-          : "Enable first-person view"}
-        title={isFirstPersonMode
-          ? "Disable first-person view"
-          : "Enable first-person camera rotation"}
-      >
-        {#if isFirstPersonMode}
-          <Navigation size={14} class="text-yellow-300" />
-        {:else}
-          <Navigation2 size={14} class="text-white/70 hover:text-white" />
-        {/if}
-      </button>
+    <!-- First person toggle -->
+    <button
+      on:click={toggleFirstPersonMode}
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {isFirstPersonMode ? 'bg-yellow-500/30' : 'bg-white/10 hover:bg-white/25'} active:scale-95"
+      aria-label={isFirstPersonMode ? "Disable first-person" : "First-person view"}
+      title={isFirstPersonMode ? "Disable first-person view" : "Enable first-person camera rotation"}
+    >
+      {#if isFirstPersonMode}
+        <Navigation size={14} class="text-yellow-300" />
+      {:else}
+        <Navigation2 size={14} class="text-white/60" />
+      {/if}
+    </button>
 
-      <button
-        on:click={stopTrackingVehicle}
-        class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20 transition-all hover:scale-110 hover:bg-red-500/40 active:bg-red-500/60"
-        aria-label="Stop tracking"
-        title="Stop tracking"
-      >
-        <X size={14} class="text-red-300 hover:text-red-200" />
-      </button>
-    </div>
+    <!-- Stop tracking -->
+    <button
+      on:click={stopTrackingVehicle}
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20 transition-all hover:scale-110 hover:bg-red-500/40 active:scale-95"
+      aria-label="Stop tracking"
+      title="Stop tracking"
+    >
+      <X size={14} class="text-red-300" />
+    </button>
   </div>
 {/if}
 

@@ -64,6 +64,12 @@ public class RawGpsPlugin: CAPPlugin, CLLocationManagerDelegate {
         call.resolve(["running": running])
     }
 
+    /// iOS cannot read cellular signal strength (Apple locks the API).
+    /// Returns -1 bars so the JS layer falls back to time-based signal.
+    @objc func getSignalStrength(_ call: CAPPluginCall) {
+        call.resolve(["bars": -1, "error": "Not available on iOS"])
+    }
+
     // MARK: - CLLocationManagerDelegate
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

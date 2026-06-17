@@ -16,6 +16,9 @@
   } from "$lib/stores/markerStore"
   import { clearAllPersistedData } from "$lib/services/db"
   import SVGComponents from "$lib/vehicles/index.js"
+  import RawGps from "$lib/plugins/rawGps.js"
+  import { Capacitor } from "@capacitor/core"
+  import { onMount, onDestroy } from "svelte"
   import {
     Wifi,
     WifiOff,
@@ -78,8 +81,37 @@
     ? Math.floor((Date.now() - new Date(lastUpdate).getTime()) / 1000)
     : 999
 
-  // Signal bars: 3 = fresh (<5s), 2 = recent (<15s), 1 = aging (<30s), 0 = stale
-  $: signalBars = isStale ? 0 : timeSinceUpdate < 5 ? 3 : timeSinceUpdate < 15 ? 2 : 1
+  // Signal bars: uses real Android signal strength via RawGps plugin,
+  // falls back to GPS-freshness on iOS/desktop where signal API is unavailable.
+  const isAndroidNative = Capacitor.getPlatform() === "android"
+
+  let nativeSignalBars = -1   // -1 = not available, 0-4 from TelephonyManager
+  let signalInterval = null
+
+  async function pollNativeSignal() {
+    try {
+      const result = await RawGps.getSignalStrength()
+      nativeSignalBars = (result && result.bars != null) ? result.bars : -1
+    } catch (e) {
+      nativeSignalBars = -1
+    }
+  }
+
+  onMount(() => {
+    if (isAndroidNative) {
+      pollNativeSignal()
+      signalInterval = setInterval(pollNativeSignal, 5000)
+    }
+  })
+
+  onDestroy(() => {
+    if (signalInterval) clearInterval(signalInterval)
+  })
+
+  $: timeBars = isStale ? 0 : timeSinceUpdate < 5 ? 3 : timeSinceUpdate < 15 ? 2 : 1
+  $: signalBars = nativeSignalBars >= 0
+    ? Math.min(timeBars, Math.round(nativeSignalBars * 3 / 4))  // map 0-4 bars → 0-3 scale
+    : timeBars
   $: wifiBorderColor = signalBars >= 1 ? 'rgba(59,130,246,0.4)' : 'rgba(239,68,68,0.4)'
   $: barFill1 = signalBars >= 1 ? '#3b82f6' : 'rgba(255,255,255,0.2)'
   $: barFill2 = signalBars >= 2 ? '#3b82f6' : 'rgba(255,255,255,0.2)'
@@ -287,7 +319,8 @@
 <!-- HUD Container -->
 <div class="fixed bottom-4 left-4 z-50" style="width: 110px; height: 110px;">
 
-  <!-- ── Action Buttons (slide up, anchored to the right of the bubble) ── -->
+  <!-- ── Operation Name Badge (top-left above hub) ── -->
+
   {#if !vehiclePickerOpen && !broadcastPickerOpen}
     {#each actions as action, i}
       <button
@@ -457,10 +490,22 @@
     </button>
   </div>
 
-  <!-- ── Speed Badge (bottom-right) ── -->
+  <!-- ── Operation Name Badge (bottom-right, under speed) ── -->
+  {#if operationName && operationName !== "No operation"}
+    <div
+      class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 backdrop-blur shadow-lg"
+      style="bottom: 6px; left: 73px; max-width: 150px;"
+      title="Current operation: {operationName}"
+    >
+      <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400"></span>
+      <span class="truncate text-[10px] font-medium text-white/90">{operationName}</span>
+    </div>
+  {/if}
+
+  <!-- ── Speed Badge (bottom-right, above operation) ── -->
   <div
     class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 font-mono text-xs font-bold text-white backdrop-blur shadow-lg"
-    style="bottom: -6px; right: -22px; min-width: 54px; justify-content: center;"
+    style="top: 44px; left: 82px; min-width: 54px; justify-content: center;"
   >
     <span style="color: {arcColor};">{speed.toFixed(1)}</span>
     <span class="text-white/50 text-[10px]">km/h</span>
@@ -469,7 +514,7 @@
   <!-- ── Wifi Signal Badge (top-right) — clickable to open stats modal ── -->
   <button
     class="absolute flex items-center gap-1.5 rounded-full border bg-black/85 px-2 py-1 backdrop-blur shadow-lg transition-all hover:scale-105"
-    style="top: -6px; right: -22px; min-width: 44px; justify-content: center; border-color: {wifiBorderColor};"
+    style="top: 6px; left: 73px; min-width: 44px; justify-content: center; border-color: {wifiBorderColor};"
     on:click|stopPropagation={openStatsModal}
     title="Signal: {signalBars}/3 bars — Tap for stats"
   >

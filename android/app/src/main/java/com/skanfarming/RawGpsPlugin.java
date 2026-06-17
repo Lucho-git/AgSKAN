@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.telephony.SignalStrength;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
@@ -169,6 +171,59 @@ public class RawGpsPlugin extends Plugin {
     public void isRunning(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("running", isRunning && RawGpsService.isRunning());
+        call.resolve(ret);
+    }
+
+    /**
+     * Reads the device's cellular signal strength from TelephonyManager.
+     * Returns signal bars (0-4) plus raw dBm/asu values.
+     * On devices without a SIM or on iOS the method returns -1 bars.
+     */
+    @PluginMethod
+    public void getSignalStrength(PluginCall call) {
+        JSObject ret = new JSObject();
+
+        try {
+            Context ctx = getContext();
+            TelephonyManager tm = (TelephonyManager) ctx.getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm == null) {
+                ret.put("bars", -1);
+                ret.put("error", "TelephonyManager not available");
+                call.resolve(ret);
+                return;
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                SignalStrength ss = tm.getSignalStrength();
+                if (ss == null) {
+                    ret.put("bars", -1);
+                    ret.put("error", "SignalStrength unavailable");
+                    call.resolve(ret);
+                    return;
+                }
+                int level = ss.getLevel();
+                int dBm = ss.getDbm();
+                ret.put("bars", level);
+                ret.put("dbm", dBm);
+                ret.put("asu", ss.getAsuLevel());
+                ret.put("level", level);
+                Log.d(TAG, "Signal strength: " + level + " bars, " + dBm + " dBm");
+            } else {
+                // Older API — use deprecated getLevel()
+                SignalStrength ss = tm.getSignalStrength();
+                int level = ss.getLevel();
+                ret.put("bars", level);
+                ret.put("level", level);
+                Log.d(TAG, "Signal strength (legacy): " + level + " bars");
+            }
+        } catch (SecurityException e) {
+            ret.put("bars", -1);
+            ret.put("error", "Permission denied: " + e.getMessage());
+        } catch (Exception e) {
+            ret.put("bars", -1);
+            ret.put("error", e.getMessage());
+        }
+
         call.resolve(ret);
     }
 
