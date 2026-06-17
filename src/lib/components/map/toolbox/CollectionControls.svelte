@@ -11,8 +11,8 @@
 
   const dispatch = createEventDispatcher()
 
-  // All non-default active markers as collection targets
-  $: availableTargets = getActiveMarkers().filter((m) => m.id !== "default")
+  // All active markers as collection targets
+  $: availableTargets = getActiveMarkers()
 
   // Count how many targets are selected
   $: selectedCount = $collectionModeStore.targetIconClasses.size
@@ -163,7 +163,9 @@
           title={marker.name}
         >
           <div class="target-icon">
-            {#if marker.class === "custom-svg"}
+            {#if marker.id === "default" || marker.class === "default"}
+              <IconSVG icon="mapbox-marker" size="28px" />
+            {:else if marker.class === "custom-svg" || marker.class?.startsWith("custom-svg")}
               <IconSVG icon={marker.id} size="28px" />
             {:else if marker.class?.startsWith("ionic-")}
               <ion-icon name={marker.id} style="font-size: 28px;"></ion-icon>

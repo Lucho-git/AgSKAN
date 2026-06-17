@@ -207,3 +207,28 @@ function createCollectionRouteStore() {
 }
 
 export const collectionRouteStore = createCollectionRouteStore()
+
+// ═══════════════════════════════════════════════════════
+//  Bulk Delete — lasso select markers → confirm → delete
+// ═══════════════════════════════════════════════════════
+function createBulkDeleteStore() {
+  const initial = {
+    phase: "idle",       // "idle" | "drawing" | "confirm"
+    selectedMarkers: [], // markers inside lasso
+  }
+
+  const { subscribe, set, update } = writable({ ...initial })
+
+  return {
+    subscribe,
+    set,
+    update,
+    startDrawing: () => set({ ...initial, phase: "drawing" }),
+    cancel: () => set({ ...initial }),
+    finishSelection: (selectedMarkers) => set({ phase: "confirm", selectedMarkers }),
+    /** Called after successful deletion */
+    reset: () => set({ ...initial }),
+  }
+}
+
+export const bulkDeleteStore = createBulkDeleteStore()

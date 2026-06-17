@@ -1,7 +1,7 @@
 <!-- src/lib/components/map/markers/MarkerControls.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from "svelte"
-  import { Target, ChevronRight, MapPin } from "lucide-svelte"
+  import { Target, ChevronRight, MapPin, Settings } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -42,10 +42,30 @@
     allMarkerIcons[0] ||
     DEFAULT_MARKER_PREFERENCE
 
+  // Marker interaction settings
+  $: zoomToLocation = $userSettingsStore?.zoomToLocationMarkers ?? true
+  $: zoomToPlaced = $userSettingsStore?.zoomToPlacedMarkers ?? true
+  $: autoConfirm = $userSettingsStore?.autoConfirmMarkers ?? false
+
   // Lazy loading state
   let visibleMarkers: MarkerDefinition[] = allMarkerIcons.slice(0, 20)
   let loadingMore = false
   let scrollContainer: HTMLDivElement
+
+  async function toggleZoomToLocation() {
+    const newVal = !zoomToLocation
+    userSettingsApi.updateMarkerInteractionSettings(newVal, zoomToPlaced, autoConfirm)
+  }
+
+  async function toggleZoomToPlaced() {
+    const newVal = !zoomToPlaced
+    userSettingsApi.updateMarkerInteractionSettings(zoomToLocation, newVal, autoConfirm)
+  }
+
+  async function toggleAutoConfirm() {
+    const newVal = !autoConfirm
+    userSettingsApi.updateMarkerInteractionSettings(zoomToLocation, zoomToPlaced, newVal)
+  }
 
   let selectedMarker: MarkerDefinition = fallbackMarker
   let resolvedExtraMarkers: MarkerDefinition[] = []
@@ -392,12 +412,64 @@
           on:click={() => showSubPanel("my-markers")}
         >
           <MapPin size={20} />
-          <span>My Markers</span>
+          <span class="my-markers-label">My Markers</span>
           {#if myMarkerCount > 0}
             <span class="my-markers-badge">{myMarkerCount}</span>
           {/if}
           <ChevronRight size={18} />
         </button>
+      </div>
+
+      <!-- Marker Settings -->
+      <div class="marker-settings-section">
+        <div class="settings-header">
+          <Settings size={16} class="settings-header-icon" />
+          <span>Marker Settings</span>
+        </div>
+
+        <div class="settings-list">
+          <!-- Zoom to location markers -->
+          <label class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Zoom to location markers</span>
+              <span class="settings-hint">Auto-zoom when dropping at your location</span>
+            </div>
+            <input
+              type="checkbox"
+              class="toggle toggle-sm"
+              checked={zoomToLocation}
+              on:change={toggleZoomToLocation}
+            />
+          </label>
+
+          <!-- Zoom to placed markers -->
+          <label class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Zoom to placed markers</span>
+              <span class="settings-hint">Auto-zoom when placing pins on the map</span>
+            </div>
+            <input
+              type="checkbox"
+              class="toggle toggle-sm"
+              checked={zoomToPlaced}
+              on:change={toggleZoomToPlaced}
+            />
+          </label>
+
+          <!-- Auto-confirm markers -->
+          <label class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Auto-confirm markers</span>
+              <span class="settings-hint">Skip icon picker and confirm instantly</span>
+            </div>
+            <input
+              type="checkbox"
+              class="toggle toggle-sm"
+              checked={autoConfirm}
+              on:change={toggleAutoConfirm}
+            />
+          </label>
+        </div>
       </div>
     </div>
   {:else if activeSubPanel === "markers"}
@@ -510,7 +582,7 @@
         <h4>My Markers</h4>
       </div>
       <div class="my-markers-container">
-        <MyMarkers on:selectMarker />
+        <MyMarkers on:selectMarker on:close />
       </div>
     </div>
   {/if}
@@ -810,7 +882,7 @@
     min-height: 48px;
   }
 
-  .my-markers-button span {
+  .my-markers-label {
     flex: 1;
     text-align: left;
   }
@@ -823,8 +895,7 @@
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 10px;
-    flex: none;
-    text-align: center;
+    flex-shrink: 0;
   }
 
   .my-markers-button:hover {
@@ -1034,5 +1105,69 @@
   .main-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 2px;
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  Marker Settings Section              */
+  /* ══════════════════════════════════════ */
+  .marker-settings-section {
+    margin-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 14px;
+  }
+
+  .settings-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+
+  .settings-header-icon {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .settings-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .settings-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .settings-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .settings-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .settings-hint {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.3;
   }
 </style>

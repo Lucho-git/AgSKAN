@@ -8,6 +8,7 @@ const defaultSettings = {
     limitMarkersDays: 7, // Default slider position: 7 days
     zoomToLocationMarkers: true, // Auto-zoom to location-based markers
     zoomToPlacedMarkers: true, // Auto-zoom to manually placed markers
+    autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys
     defaultImagerySource: 'mapbox', // Default imagery source when loading map

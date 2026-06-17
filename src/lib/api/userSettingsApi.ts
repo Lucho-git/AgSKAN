@@ -413,6 +413,47 @@ export const userSettingsApi = {
     },
 
     /**
+     * Updates marker interaction settings (zoom + auto-confirm)
+     */
+    async updateMarkerInteractionSettings(
+        zoomToLocationMarkers: boolean,
+        zoomToPlacedMarkers: boolean,
+        autoConfirmMarkers: boolean,
+    ) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, zoom_to_location_markers: zoomToLocationMarkers, zoom_to_placed_markers: zoomToPlacedMarkers, auto_confirm_markers: autoConfirmMarkers },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving marker settings:", error);
+                return { success: false, message: "Failed to save marker settings", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                zoomToLocationMarkers,
+                zoomToPlacedMarkers,
+                autoConfirmMarkers,
+            }));
+
+            return { success: true, message: "Marker settings updated" };
+        } catch (error) {
+            console.error("Error in updateMarkerInteractionSettings:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Updates satellite imagery settings
      */
     async updateSatelliteSettings(satelliteDropdownEnabled: boolean, enabledImageryProviders: string[], defaultImagerySource: string) {

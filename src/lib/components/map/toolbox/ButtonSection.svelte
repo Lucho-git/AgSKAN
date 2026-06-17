@@ -412,7 +412,9 @@
               title="Drop {extraMarker?.name || 'Marker'}"
             >
               <div class="marker-icon-container fan-icon">
-                {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+                {#if extraMarker?.id === "default" || extraMarker?.class === "default"}
+                  <IconSVG icon="mapbox-marker" size="22px" />
+                {:else if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
                   <IconSVG icon={extraMarker.id} size="22px" />
                 {:else if extraMarker?.class?.startsWith("ionic-")}
                   <ion-icon name={extraMarker.id} style="font-size: 22px;"
@@ -669,7 +671,9 @@
                     title="Drop {extraMarker?.name || 'Marker'}"
                   >
                     <div class="marker-icon-container">
-                      {#if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
+                      {#if extraMarker?.id === "default" || extraMarker?.class === "default"}
+                        <IconSVG icon="mapbox-marker" size="26px" />
+                      {:else if extraMarker?.class === "custom-svg" || extraMarker?.class?.startsWith("custom-svg")}
                         <IconSVG icon={extraMarker.id} size="26px" />
                       {:else if extraMarker?.class?.startsWith("ionic-")}
                         <ion-icon name={extraMarker.id} style="font-size: 26px;"

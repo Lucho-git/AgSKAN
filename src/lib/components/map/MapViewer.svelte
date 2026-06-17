@@ -13,6 +13,7 @@
     pendingMarkerChangesStore,
     pendingMarkerDeletionsStore,
     collectionRouteStore,
+    bulkDeleteStore,
   } from "$lib/stores/markerStore"
   import {
     fieldBoundaryStore,
@@ -44,6 +45,7 @@
   import GhostTrailManager from "$lib/components/map/trails/GhostTrailManager.svelte"
   import DrawingHectares from "$lib/components/map/overlays/DrawingHectares.svelte"
   import CollectionRoutePlanner from "$lib/components/map/overlays/CollectionRoutePlanner.svelte"
+  import BulkDeleteOverlay from "$lib/components/map/markers/BulkDeleteOverlay.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
@@ -421,8 +423,9 @@
 
   function handleLongPress(lngLat) {
     if (addFieldFarm || boundaryEditField) return
-    // Don't place markers while lasso-drawing a collection route
+    // Don't place markers while lasso-drawing a collection route or bulk delete
     if ($collectionRouteStore.phase === "drawing") return
+    if ($bulkDeleteStore.phase === "drawing") return
     if (markerManagerRef) {
       markerManagerRef.handleMarkerPlacement(lngLat)
     }
@@ -2109,6 +2112,7 @@
 
     <DrawingHectares {map} />
     <CollectionRoutePlanner {map} />
+    <BulkDeleteOverlay {map} />
 
     <TrailView bind:this={trailHighlighter} {map} />
     <OverlayTrailManager {map} />

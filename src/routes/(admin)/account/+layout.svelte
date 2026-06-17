@@ -188,6 +188,7 @@
           limitMarkersDate: currentDate.toISOString(),
           zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
+          autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           satelliteDropdownEnabled:
             user_settings.satellite_dropdown_enabled ?? false,
           enabledImageryProviders:
@@ -223,6 +224,7 @@
           ).toISOString(),
           zoomToLocationMarkers: true,
           zoomToPlacedMarkers: true,
+          autoConfirmMarkers: false,
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",

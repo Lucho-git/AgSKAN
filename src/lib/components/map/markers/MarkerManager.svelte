@@ -351,9 +351,10 @@
     })
   }
 
-  // Quick camera center for new marker placement
+  // Quick camera center for new marker placement — respects user setting
   function quickCenterOnMarker(coordinates) {
     if (!map || !coordinates || coordinates.length !== 2) return
+    if (!$userSettingsStore?.zoomToPlacedMarkers) return
 
     map.flyTo({
       center: coordinates,
@@ -810,10 +811,41 @@
 
     quickCenterOnMarker([lngLat.lng, lngLat.lat])
 
-    controlStore.update((controls) => ({
-      ...controls,
-      showMarkerMenu: true,
-    }))
+    // Auto-confirm if setting is enabled — skip the edit panel
+    if ($userSettingsStore?.autoConfirmMarkers) {
+      const markerData = {
+        id,
+        coordinates: [lngLat.lng, lngLat.lat],
+        iconClass,
+        noteLabelVisible: true,
+        created_at: new Date().toISOString(),
+      }
+
+      confirmedMarkersStore.update((markers) => {
+        const existingIndex = markers.findIndex((m) => m.id === id)
+        if (existingIndex >= 0) {
+          markers[existingIndex] = markerData
+          return markers
+        }
+        return [...markers, markerData]
+      })
+
+      // Green ripple — auto-confirmed
+      const markerDef = findMarkerByIconClass(iconClass)
+      showPlacementRipple([lngLat.lng, lngLat.lat], "rgba(34, 197, 94", markerDef?.name || "Marker")
+
+      updateMarkerSelection(id, false)
+      selectedMarkerStore.set(null)
+
+      if ($userSettingsStore?.zoomToPlacedMarkers) {
+        map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 15, duration: 1000 })
+      }
+    } else {
+      controlStore.update((controls) => ({
+        ...controls,
+        showMarkerMenu: true,
+      }))
+    }
   }
 
   // Remove camera zoom on selection

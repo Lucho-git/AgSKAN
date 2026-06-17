@@ -2,7 +2,7 @@
 <script>
   // @ts-nocheck
   import { createEventDispatcher, onMount, onDestroy } from "svelte"
-  import { confirmedMarkersStore } from "$lib/stores/markerStore"
+  import { confirmedMarkersStore, bulkDeleteStore } from "$lib/stores/markerStore"
   import { markerApi } from "$lib/api/markerApi"
   import { selectedMarkerStore } from "$lib/stores/markerStore"
   import { controlStore } from "$lib/stores/controlStore"
@@ -62,6 +62,11 @@
   // Reset lazy load limit when store or filter changes
   $: if ($confirmedMarkersStore || filterHasNotesOrDrawing) {
     recentLimit = PAGE_SIZE
+  }
+
+  // Auto-switch to By Type tab when searching (search only applies to grouped view)
+  $: if (searchQuery.trim() && activeTab === "recent") {
+    activeTab = "groups"
   }
 
   // All recent markers sorted newest first (full list, for lazy slicing)
@@ -241,35 +246,41 @@
       <p>No markers placed yet</p>
     </div>
   {:else}
-    <!-- Search bar + filter -->
-    <div class="search-section">
-      <div class="search-row">
-        <Search size={16} />
-        <input
-          class="search-input"
-          bind:value={searchQuery}
-          placeholder="Search markers or notes\u2026"
-        />
-        <label
-          class="filter-toggle"
-          title="Show only markers with notes or drawings"
-        >
-          <input
-            type="checkbox"
-            bind:checked={filterHasNotesOrDrawing}
-            class="filter-checkbox"
-          />
-          <StickyNote size={14} />
-        </label>
-      </div>
+    <!-- Bulk Delete button -->
+    <div class="bulk-delete-row">
+      <button
+        class="bulk-delete-btn"
+        on:click={() => {
+          dispatch("close")
+          bulkDeleteStore.startDrawing()
+        }}
+      >
+        <Trash2 size={14} />
+        <span>Bulk Delete</span>
+      </button>
     </div>
+
+    <!-- Notes/Drawing filter -->
+    <label class="notes-filter-row">
+      <div class="notes-filter-info">
+        <span class="notes-filter-label">Notes &amp; drawings only</span>
+      </div>
+      <input
+        type="checkbox"
+        class="toggle toggle-sm"
+        bind:checked={filterHasNotesOrDrawing}
+      />
+    </label>
 
     <!-- Tab bar -->
     <div class="tab-bar">
       <button
         class="tab-btn"
         class:active={activeTab === "recent"}
-        on:click={() => (activeTab = "recent")}
+        on:click={() => {
+          activeTab = "recent"
+          searchQuery = ""
+        }}
       >
         Recent
       </button>
@@ -281,6 +292,20 @@
         By Type ({totalGroups})
       </button>
     </div>
+
+    <!-- Search bar (only in By Type tab) -->
+    {#if activeTab === "groups"}
+      <div class="search-section">
+        <div class="search-row">
+          <Search size={16} />
+          <input
+            class="search-input"
+            bind:value={searchQuery}
+            placeholder="Search markers or notes\u2026"
+          />
+        </div>
+      </div>
+    {/if}
 
     {#if activeTab === "recent"}
       <!-- Recent Markers -->
@@ -545,6 +570,31 @@
     color: rgba(255, 255, 255, 0.35);
   }
 
+  /* Notes/drawings filter toggle */
+  .notes-filter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    margin: 0 12px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .notes-filter-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .notes-filter-info {
+    display: flex;
+    flex-direction: column;
+  }
+  .notes-filter-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
   /* Filter checkbox (inline with search) */
   .filter-toggle {
     display: flex;
@@ -586,6 +636,34 @@
 
   .filter-toggle:has(.filter-checkbox:checked) :global(svg) {
     color: rgba(250, 204, 21, 0.8);
+  }
+
+  /* Bulk Delete */
+  .bulk-delete-row {
+    padding: 0 12px 8px;
+    flex-shrink: 0;
+  }
+
+  .bulk-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 10px;
+    color: #f87171;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .bulk-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.35);
   }
 
   /* Tab Bar */
