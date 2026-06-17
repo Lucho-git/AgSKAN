@@ -354,31 +354,7 @@
   <div class="toolbox-panel">
     <div class="toolbox-header">
       <div class="header-content">
-        {#if activePanel === "satellite"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Satellite Options</h3>
-        {:else if activePanel === "marker"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Marker Tools</h3>
-        {:else if activePanel === "vehicle"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Vehicle Setup</h3>
-        {:else if activePanel === "trail"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Trail Recording</h3>
-        {:else if activePanel === "layers"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Map Layers</h3>
-        {:else if activePanel === "flash"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Flash Signals</h3>
-        {:else if activePanel === "collection"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Collection Mode</h3>
-        {:else if activePanel === "fields"}
-          <button class="back-button" on:click={showMainPanel}> ← </button>
-          <h3>Fields</h3>
-        {:else}
+        {#if !activePanel}
           <h3>Toolbox</h3>
           {#if $operationStore.length > 0}
             <div class="operation-selector">
@@ -401,6 +377,19 @@
               </button>
             </div>
           {/if}
+        {:else}
+          {@const title = activePanel === "satellite" ? "Satellite Options"
+            : activePanel === "marker" ? "Marker Tools"
+            : activePanel === "vehicle" ? "Vehicle Setup"
+            : activePanel === "trail" ? "Trail Recording"
+            : activePanel === "layers" ? "Map Layers"
+            : activePanel === "flash" ? "Flash Signals"
+            : activePanel === "collection" ? "Collection Mode"
+            : activePanel === "fields" ? "Fields" : ""}
+          <button class="header-arrow-center" on:click={showMainPanel}>
+            <span class="ac-arrow">←</span>
+            <h3>{title}</h3>
+          </button>
         {/if}
       </div>
       {#if operationDropdownOpen}
@@ -684,28 +673,29 @@
   .header-content {
     display: flex;
     align-items: center;
-    gap: 12px;
   }
 
-  .back-button {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
+  .header-arrow-center {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    flex: 1;
+    padding: 4px 0;
+    background: none;
+    border: none;
     color: rgba(255, 255, 255, 0.9);
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 18px;
-    font-weight: bold;
+    text-align: center;
   }
-
-  .back-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
+  .header-arrow-center:hover { opacity: 0.7; }
+  .ac-arrow {
+    position: absolute;
+    left: 0;
+    font-size: 16px;
+    font-weight: bold;
+    opacity: 0.5;
+    line-height: 1;
   }
 
   .toolbox-header h3 {
