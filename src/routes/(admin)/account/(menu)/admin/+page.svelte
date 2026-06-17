@@ -5,6 +5,7 @@
   import { adminApi, type AdminMapEntry, type AdminMapActivity, type MapDailyRow } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { goto } from "$app/navigation"
+  import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
 
   let loading = false
   let entries: AdminMapEntry[] = []
@@ -15,7 +16,7 @@
   let searchQuery = ""
   let filterStatus: "all" | "exceeding" | "at_limit" | "ok" = "all"
   let filterPlan: "all" | "paid" | "free" = "all"
-  let sortBy: "default" | "latest" = "default"
+  let sortBy: "default" | "latest" = "latest"
   let lastRefreshed: Date | null = null
 
   // Heatmap state
@@ -35,6 +36,17 @@
   let editingMember: { mapId: string; memberId: string } | null = null
   let editingName = ""
   let savingMemberName = false
+
+  // SMS state
+  let smsModalShow = false
+  let smsPhone = ""
+  let smsOwnerName = ""
+
+  function openSmsModal(phone: string, name: string) {
+    smsPhone = phone
+    smsOwnerName = name
+    smsModalShow = true
+  }
 
   function autofocus(node: HTMLInputElement) {
     node.focus()
@@ -596,8 +608,16 @@
                   {entry.owner_email || "—"}
                 </div>
                 {#if entry.owner_phone}
-                  <div class="text-contrast-content/40">
+                  <div class="text-contrast-content/40 flex items-center gap-1">
                     {entry.owner_phone}
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs text-primary hover:bg-primary/10"
+                      title="Send SMS"
+                      on:click|stopPropagation={() => openSmsModal(entry.owner_phone || "", entry.owner_name || "")}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </button>
                   </div>
                 {/if}
               </td>
@@ -1056,3 +1076,10 @@
     </div>
   {/if}
 </div>
+
+<SendSmsModal
+  bind:show={smsModalShow}
+  phone={smsPhone}
+  ownerName={smsOwnerName}
+  onClose={() => (smsModalShow = false)}
+/>

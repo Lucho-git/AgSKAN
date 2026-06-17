@@ -22,7 +22,7 @@ const PRO_MARKER_LIMIT = 999999
 const PRO_TRAIL_LIMIT = 999999
 const FREE_MARKER_LIMIT = 100
 const FREE_TRAIL_LIMIT = 100000
-const SHORT_DOMAIN = "https://skanfarming.com/p"
+const SHORT_DOMAIN = "https://agskan.com/p"
 
 /**
  * Look up user_id from a Stripe customer ID.
@@ -158,29 +158,6 @@ async function downgradeToFree(userId: string, stripeSubscriptionId?: string) {
 }
 
 /**
- * Normalize an AU mobile number for comparison.
- * Strips whitespace, converts +61/61 prefix to 0.
- */
-function normalizeAuMobile(raw: string): string {
-    let n = raw.replace(/\s+/g, "")
-    // Strip AU country code
-    if (n.startsWith("+61")) n = n.slice(3)
-    else if (n.startsWith("61")) n = n.slice(2)
-    // Prepend 0 if not already there
-    if (!n.startsWith("0")) n = "0" + n
-    return n
-}
-
-/**
- * Test numbers whitelist — only these numbers receive SMS during testing.
- * Remove this check to enable all users.
- */
-const SMS_TEST_NUMBERS = new Set([
-    normalizeAuMobile("0478638278"),
-    normalizeAuMobile("0439405248"),
-])
-
-/**
  * Send an SMS via ClickSend
  */
 async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
@@ -252,12 +229,6 @@ async function sendInvoiceSms(userId: string, stripeCustomerId: string, message:
 
     if (!rawMobile) {
         console.log(`[SMS] SKIP: No mobile number for user ${userId} (checked Stripe & profiles)`)
-        return
-    }
-
-    const normalized = normalizeAuMobile(rawMobile)
-    if (!SMS_TEST_NUMBERS.has(normalized)) {
-        console.log(`[SMS] SKIP: Number ${normalized} not in test whitelist for user ${userId}`)
         return
     }
 
@@ -401,6 +372,7 @@ serve(async (req) => {
 
                     console.log("[Webhook] Invoice PAID (renewal):", {
                         user_id: userId, amount: invoice.amount_paid,
+                        billing_reason: invoice.billing_reason,
                     })
 
                     await updateSubscription(userId, updateData)
@@ -412,29 +384,36 @@ serve(async (req) => {
                         (li: any) => li.price?.type === "recurring"
                     )
 
-                    if (!recurringItem) {
-                        console.log("[Webhook] Invoice PAID (no subscription price, skipping):", invoice.id)
-                        break
+                    if (recurringItem) {
+                        console.log("[Webhook] Invoice PAID (manual — creating subscription):", {
+                            user_id: userId,
+                            amount: invoice.amount_paid,
+                            price: recurringItem.price?.id,
+                            quantity: recurringItem.quantity,
+                        })
+
+                        // Create a Stripe subscription so future renewals work
+                        const subscription = await stripe.subscriptions.create({
+                            customer: invoice.customer as string,
+                            items: [{ price: recurringItem.price.id, quantity: recurringItem.quantity || 1 }],
+                            backdate_start_date: Math.floor(Date.now() / 1000),
+                            metadata: { created_from_invoice: invoice.id },
+                        })
+
+                        const updateData = mapSubscriptionToUpdate(subscription)
+                        await updateSubscription(userId, updateData)
+                    } else {
+                        console.log("[Webhook] Invoice PAID (one-off, no subscription):", invoice.id)
                     }
-
-                    console.log("[Webhook] Invoice PAID (manual — creating subscription):", {
-                        user_id: userId,
-                        amount: invoice.amount_paid,
-                        price: recurringItem.price?.id,
-                        quantity: recurringItem.quantity,
-                    })
-
-                    // Create a Stripe subscription so future renewals work
-                    const subscription = await stripe.subscriptions.create({
-                        customer: invoice.customer as string,
-                        items: [{ price: recurringItem.price.id, quantity: recurringItem.quantity || 1 }],
-                        backdate_start_date: Math.floor(Date.now() / 1000),
-                        metadata: { created_from_invoice: invoice.id },
-                    })
-
-                    const updateData = mapSubscriptionToUpdate(subscription)
-                    await updateSubscription(userId, updateData)
                 }
+
+                // SMS receipt for all paid invoices
+                const amount = (invoice.amount_paid / 100).toFixed(2)
+                const currency = invoice.currency?.toUpperCase() || "AUD"
+                const email = invoice.customer_email || "your email"
+                await sendInvoiceSms(userId, invoice.customer as string,
+                    `Hi {firstName},\nReceipt from AgSKAN: $${amount} ${currency}\nYour payment has been received — thanks!\nSent to: ${email}\nContact: service@skanfarming.com`
+                )
                 break
             }
 
@@ -455,13 +434,20 @@ serve(async (req) => {
                 await updateSubscription(userId, updateData)
 
                 // SMS reminder
-                const amount = (invoice.amount_due / 100).toFixed(2)
-                const currency = invoice.currency?.toUpperCase() || "AUD"
                 const email = invoice.customer_email || "your email"
                 const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
-                await sendInvoiceSms(userId, invoice.customer as string,
-                    `Hi {firstName}, a friendly reminder from AgSKAN that your invoice for $${amount} ${currency} remains unpaid. It has been sent to ${email}. Pay here: ${payLink} If you've already paid, please disregard. Questions? Just reply to this message.`
-                )
+                const reason = invoice.billing_reason || ""
+
+                // Auto-renewal that failed — card issue
+                if (reason === "subscription_cycle") {
+                    await sendInvoiceSms(userId, invoice.customer as string,
+                        `Hi {firstName}, your automatic renewal with AgSKAN couldn't be processed — your card may have expired.\nSent to: ${email}\nUpdate payment: ${payLink}\nContact: service@skanfarming.com`
+                    )
+                } else {
+                    await sendInvoiceSms(userId, invoice.customer as string,
+                        `Hi {firstName}, a friendly reminder from AgSKAN that your invoice remains unpaid.\nSent to: ${email}\nPay online: ${payLink}\nIf you've already paid please disregard. Contact: service@skanfarming.com`
+                    )
+                }
                 break
             }
 
@@ -471,21 +457,27 @@ serve(async (req) => {
                 if (!invoice.customer) break
 
                 const userId = await getUserIdFromCustomer(invoice.customer as string)
-                const amount = (invoice.amount_due / 100).toFixed(2)
-                const currency = invoice.currency?.toUpperCase() || "AUD"
                 const email = invoice.customer_email || "your email"
                 const dueDate = invoice.due_date
                     ? new Date(invoice.due_date * 1000).toLocaleDateString("en-AU")
                     : "soon"
+                const reason = invoice.billing_reason || "manual"
 
                 console.log("[Webhook] Invoice SENT:", {
                     user_id: userId, amount: invoice.amount_due,
+                    billing_reason: reason,
                 })
 
-                const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
-                await sendInvoiceSms(userId, invoice.customer as string,
-                    `Hi {firstName}, a new invoice for $${amount} ${currency} has been sent to ${email} from AgSKAN. Due: ${dueDate}. Pay here: ${payLink} Questions? Just reply to this message.`
-                )
+                // Auto-renewal — receipt SMS sent on invoice.paid instead (after charge succeeds)
+                if (reason === "subscription_cycle") {
+                    console.log("[Webhook] Invoice SENT (auto-renewal, no SMS — waiting for invoice.paid):", invoice.id)
+                } else {
+                    // Manual, subscription_create, subscription_update — needs payment
+                    const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
+                    await sendInvoiceSms(userId, invoice.customer as string,
+                        `Hi {firstName},\nInvoice from AgSKAN — due ${dueDate}\nPay online: ${payLink}\nSent to: ${email}\nContact: service@skanfarming.com`
+                    )
+                }
                 break
             }
 
