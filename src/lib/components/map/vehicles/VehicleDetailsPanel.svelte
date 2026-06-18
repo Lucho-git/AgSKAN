@@ -8,7 +8,6 @@
     Clock,
     Zap,
     Truck,
-    Locate,
     Palette,
     Ruler,
     User,
@@ -384,17 +383,49 @@
     isExpanded = showInfoPanel
   }
 
-  function handleLocateAndZoom() {
-    if (currentVehicle && zoomToVehicle) {
-      zoomToVehicle(currentVehicle)
-    }
-  }
-
   function handleStartTracking() {
     if (currentVehicle && startTrackingVehicle) {
       startTrackingVehicle(currentVehicle.id)
     }
   }
+
+  $: isTrailing = currentVehicle?.is_trailing || false
+  $: trailDur = currentVehicle ? formatTrailingDuration(currentVehicle) : "- -"
+  $: opName = currentVehicle?.operation_name || ""
+  $: vehicleOnlineStatus = currentVehicle ? getVehicleStatus(currentVehicle) : "Unknown"
+  $: vehicleStatusColor = getStatusColor(vehicleOnlineStatus)
+
+  function formatDurHMM(ms) {
+    if (!ms || ms <= 0) return null
+    const totalMinutes = Math.floor(ms / 60000)
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    return `${hours}:${String(minutes).padStart(2, "0")}`
+  }
+
+  $: trailHMM = (() => {
+    if (!isTrailing || !currentVehicle) return null
+    let path = null
+    if (currentVehicle.isCurrentUser) {
+      path = $currentTrailStore?.path
+    } else {
+      const t = $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id)
+      path = t?.path
+    }
+    if (!path?.length) return null
+    const first = path[0]
+    const last = path[path.length - 1]
+    if (!first?.timestamp || !last?.timestamp) return null
+    const start =
+      typeof first.timestamp === "string"
+        ? new Date(first.timestamp).getTime()
+        : first.timestamp
+    const end =
+      typeof last.timestamp === "string"
+        ? new Date(last.timestamp).getTime()
+        : last.timestamp
+    return formatDurHMM(end - start)
+  })()
 </script>
 
 {#if currentVehicle}
@@ -497,68 +528,53 @@
     {/if}
 
     <div class="control-bar">
-      <div class="vehicle-info">
-        <button
-          class="vehicle-icon-display"
-          class:clickable={isCurrentUser}
-          on:click={handleIconClick}
-          disabled={!isCurrentUser}
-        >
-          {#if VehicleIcon}
-            {#key `${vehicleBodyColor}-${vehicleSwath}`}
-              <svelte:component
-                this={VehicleIcon}
-                bodyColor={vehicleBodyColor}
-                size="24px"
-                swath={vehicleSwath}
-              />
-            {/key}
-          {:else}
-            <User size={20} />
-          {/if}
+      <button
+        class="vehicle-icon-display"
+        class:clickable={isCurrentUser}
+        on:click={handleIconClick}
+        disabled={!isCurrentUser}
+      >
+        {#if VehicleIcon}
+          {#key `${vehicleBodyColor}-${vehicleSwath}`}
+            <svelte:component
+              this={VehicleIcon}
+              bodyColor={vehicleBodyColor}
+              size="24px"
+              swath={vehicleSwath}
+            />
+          {/key}
+        {:else}
+          <User size={20} />
+        {/if}
+        {#if isCurrentUser}
+          <div class="edit-badge"><Edit3 size={12} /></div>
+        {/if}
+      </button>
 
-          {#if isCurrentUser}
-            <div class="edit-badge">
-              <Edit3 size={12} />
-            </div>
-          {/if}
-        </button>
-
-        <div class="vehicle-text-info">
-          <span class="vehicle-name">
-            {isCurrentUser
-              ? "You"
-              : currentVehicle.full_name || "Unknown Operator"}
-            <span class="vehicle-type-preview"> - {displayName}</span>
-          </span>
+      <div class="vehicle-text-info">
+        <div class="vstack">
+          <span class="vs-name">{isCurrentUser ? "You" : currentVehicle.full_name || "Unknown"}</span>
+          <span class="vs-sub">{displayName}{#if opName} · {opName}{/if}</span>
         </div>
       </div>
 
       <div class="action-controls">
-        <button
-          class="control-btn info-btn"
-          class:active={showInfoPanel && isExpanded}
-          on:click={handleInfoClick}
-          title="Toggle vehicle details"
-        >
-          <Info size={20} />
-        </button>
-
-        <button
-          class="control-btn locate-btn"
-          on:click={handleLocateAndZoom}
-          title="Locate and zoom to vehicle"
-        >
-          <Locate size={20} />
-        </button>
-
-        <button
-          class="control-btn track-btn"
-          on:click={handleStartTracking}
-          title="Start tracking vehicle"
-        >
-          <Navigation size={20} />
-        </button>
+        {#if isTrailing}
+          <button
+            class="trail-badge-animated"
+            class:active={showInfoPanel && isExpanded}
+            on:click={handleInfoClick}
+            title="Vehicle details"
+          >
+            <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+            </svg>
+            <span class="tbadge-time">{trailHMM ?? trailDur}</span>
+          </button>
+        {:else}
+          <button class="control-btn info-btn" class:active={showInfoPanel && isExpanded} on:click={handleInfoClick} title="Vehicle details"><Info size={20} /></button>
+        {/if}
+        <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
       </div>
     </div>
   </div>
@@ -711,19 +727,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 14px;
     padding: 18px 24px;
     background: rgba(0, 0, 0, 0.95);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
     min-height: 72px;
-  }
-
-  .vehicle-info {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex: 1;
-    min-width: 0;
   }
 
   .vehicle-icon-display {
@@ -844,6 +853,87 @@
     transition: transform 0.1s ease;
   }
 
+  .vstack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .vs-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: white;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+
+  .vs-sub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* ── Trail badge (clickable) ── */
+  .trail-badge-animated {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .trail-badge-animated:hover,
+  .trail-badge-animated.active {
+    background: rgba(34, 197, 94, 0.22);
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+
+  .trail-badge-animated:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+  }
+
+  .tbadge-trail-svg {
+    flex-shrink: 0;
+    fill: #4ade80;
+    stroke: none;
+    animation: trailPulseFill 1.6s ease-in-out infinite;
+    filter: drop-shadow(0 0 3px rgba(74, 222, 128, 0.8));
+  }
+
+  .tbadge-time {
+    font-size: 17px;
+    font-weight: 700;
+    color: #4ade80;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  @keyframes trailPulseFill {
+    0%, 100% {
+      fill-opacity: 1;
+      filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.9));
+    }
+    50% {
+      fill-opacity: 0.1;
+      filter: drop-shadow(0 0 1px rgba(74, 222, 128, 0.2));
+    }
+  }
+
   .info-btn {
     background: rgba(34, 197, 94, 0.2);
     color: #22c55e;
@@ -852,16 +942,6 @@
   .info-btn:hover,
   .info-btn.active {
     background: rgba(34, 197, 94, 0.3);
-    color: white;
-  }
-
-  .locate-btn {
-    background: rgba(96, 165, 250, 0.2);
-    color: #60a5fa;
-  }
-
-  .locate-btn:hover {
-    background: rgba(96, 165, 250, 0.3);
     color: white;
   }
 

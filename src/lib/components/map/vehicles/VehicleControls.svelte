@@ -384,6 +384,18 @@
     return "\u00B7 " + formatLastUpdate(vehicle.last_update)
   }
 
+  function formatTrailingDuration(vehicle) {
+    if (!vehicle?.trailing_since) return ""
+    const ts = typeof vehicle.trailing_since === "string"
+      ? new Date(vehicle.trailing_since).getTime()
+      : vehicle.trailing_since
+    const diff = Date.now() - ts
+    const mins = Math.floor(diff / 60000)
+    const hrs = Math.floor(mins / 60)
+    if (hrs > 0) return `${hrs}h ${mins % 60}m`
+    return `${mins}m`
+  }
+
   function getVehicleDisplayName(vehicle) {
     const vehicleType = vehicle?.vehicle_marker?.type || "Vehicle"
     const shortNames = {
@@ -558,7 +570,7 @@
                     {/if}
                   </div>
 
-                  <!-- Name + type + last seen -->
+                  <!-- Name + type -->
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <p class="truncate text-sm font-medium text-white" title={vehicle.full_name}>
@@ -574,9 +586,8 @@
                     </div>
                   </div>
 
-                  <!-- Right column: speed + unified status + operation -->
+                  <!-- Right column: speed + unified status -->
                   <div class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center">
-                    <!-- Top line: speed + unified status -->
                     <div class="flex items-center gap-1.5">
                       {#if speed > 0}
                         <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90">
@@ -593,7 +604,6 @@
                         {isYou ? 'You' : trailing && online ? 'Trailing' : online ? 'Online' : `Offline ${offlineLabel}`}
                       </span>
                     </div>
-                    <!-- Bottom line: operation name -->
                     {#if opName}
                       <span class="max-w-[100px] truncate text-right text-[10px] text-white/50">{opName}</span>
                     {/if}
