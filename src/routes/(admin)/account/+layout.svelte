@@ -186,7 +186,7 @@
           limitMarkersOn: user_settings.limit_markers,
           limitMarkersDays: user_settings.limit_markers_days,
           limitMarkersDate: currentDate.toISOString(),
-          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? true,
+          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           satelliteDropdownEnabled:
@@ -222,7 +222,7 @@
           limitMarkersDate: new Date(
             Date.now() - 7 * 24 * 60 * 60 * 1000,
           ).toISOString(),
-          zoomToLocationMarkers: true,
+          zoomToLocationMarkers: false,
           zoomToPlacedMarkers: true,
           autoConfirmMarkers: false,
           satelliteDropdownEnabled: false,

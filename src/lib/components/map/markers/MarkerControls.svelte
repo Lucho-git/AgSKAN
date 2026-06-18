@@ -428,10 +428,10 @@
         </div>
 
         <div class="settings-list">
-          <!-- Zoom to location markers -->
+          <!-- Zoom on quick-drop -->
           <label class="settings-row">
             <div class="settings-info">
-              <span class="settings-label">Zoom to location markers</span>
+              <span class="settings-label">Zoom on quick-drop</span>
               <span class="settings-hint">Auto-zoom when dropping at your location</span>
             </div>
             <input
@@ -442,10 +442,10 @@
             />
           </label>
 
-          <!-- Zoom to placed markers -->
+          <!-- Zoom on touch-hold -->
           <label class="settings-row">
             <div class="settings-info">
-              <span class="settings-label">Zoom to placed markers</span>
+              <span class="settings-label">Zoom on touch-hold</span>
               <span class="settings-hint">Auto-zoom when placing pins on the map</span>
             </div>
             <input

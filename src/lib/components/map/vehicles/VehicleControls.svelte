@@ -379,6 +379,11 @@
     return "Just now"
   }
 
+  function getOfflineLabel(vehicle) {
+    if (isVehicleOnline(vehicle)) return ""
+    return "\u00B7 " + formatLastUpdate(vehicle.last_update)
+  }
+
   function getVehicleDisplayName(vehicle) {
     const vehicleType = vehicle?.vehicle_marker?.type || "Vehicle"
     const shortNames = {
@@ -530,6 +535,7 @@
             {@const isTracked = vehicle.id === trackedVehicleId}
             {@const speed = getEffectiveSpeed(vehicle)}
             {@const opName = vehicle.operation_name && vehicle.operation_name !== "No operation" ? vehicle.operation_name : null}
+            {@const offlineLabel = getOfflineLabel(vehicle)}
 
             <div class="flex items-stretch">
               <button
@@ -566,7 +572,6 @@
                       <p class="truncate text-xs text-white/70">{getVehicleDisplayName(vehicle)}</p>
                       <div class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30" style="background-color: {getVehicleColor(vehicle)}" title="Vehicle color"></div>
                     </div>
-                    <p class="truncate text-xs text-white/50">{formatLastUpdate(vehicle.last_update)}</p>
                   </div>
 
                   <!-- Right column: speed + unified status + operation -->
@@ -585,7 +590,7 @@
                         {/if}
                       </div>
                       <span class="text-[10px] font-medium {isYou ? 'text-blue-300' : trailing && online ? 'text-green-300' : online ? 'text-blue-300' : 'text-white/40'}">
-                        {isYou ? 'You' : trailing && online ? 'Trailing' : online ? 'Online' : 'Offline'}
+                        {isYou ? 'You' : trailing && online ? 'Trailing' : online ? 'Online' : `Offline ${offlineLabel}`}
                       </span>
                     </div>
                     <!-- Bottom line: operation name -->
