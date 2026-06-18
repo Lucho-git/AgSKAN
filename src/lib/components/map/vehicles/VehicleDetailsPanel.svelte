@@ -12,6 +12,10 @@
     Ruler,
     User,
   } from "lucide-svelte"
+  import { onDestroy } from "svelte"
+  import * as turf from "@turf/turf"
+  import SVGComponents from "$lib/vehicles/index.js"
+  import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
   import {
@@ -19,8 +23,7 @@
     otherVehiclesStore,
   } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
-  import SVGComponents from "$lib/vehicles/index.js"
-  import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
+  import { calculateZoomDependentWidth } from "$lib/utils/trailGeometry"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -381,6 +384,10 @@
   function handleInfoClick() {
     showInfoPanel = !showInfoPanel
     isExpanded = showInfoPanel
+    if (isTrailing) {
+      if (showInfoPanel) addTrailHighlight()
+      else removeTrailHighlight()
+    }
   }
 
   function handleStartTracking() {
@@ -426,12 +433,152 @@
         : last.timestamp
     return formatDurHMM(end - start)
   })()
+
+  // Normalise a path point to flat {longitude, latitude} regardless of store format
+  function normCoord(p) {
+    if (p.longitude != null) return [p.longitude, p.latitude]
+    if (p.coordinates?.longitude != null) return [p.coordinates.longitude, p.coordinates.latitude]
+    return null
+  }
+
+  // Active trail data — works for own vehicle or other vehicles
+  $: activeTrailData = (() => {
+    if (!isTrailing || !currentVehicle) return null
+    if (currentVehicle.isCurrentUser) return $currentTrailStore
+    return $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id) ?? null
+  })()
+
+  // ── Trail highlight (map layers) ──────────────────────────────
+  const HL_SOURCE = "vdp-hl-source"
+  const HL_LAYERS = ["vdp-hl-glow", "vdp-hl-line", "vdp-hl-inner"]
+
+  function addTrailHighlight() {
+    if (!map) return
+    const trail = activeTrailData
+    const path = trail?.path
+    if (!path?.length) {
+      console.warn("[VDP] addTrailHighlight: no path in activeTrailData", trail)
+      return
+    }
+    removeTrailHighlight()
+    const coords = path
+      .map(normCoord)
+      .filter(Boolean)
+    if (coords.length < 2) {
+      console.warn("[VDP] addTrailHighlight: not enough coords", coords.length)
+      return
+    }
+    const color = trail.trail_color || "#22c55e"
+    const w = trail.trail_width || vehicleSwath || 3
+    console.log("[VDP] addTrailHighlight: adding", coords.length, "points, color", color, "width", w)
+    try {
+      map.addSource(HL_SOURCE, {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: {} },
+      })
+      map.addLayer({ id: "vdp-hl-glow", type: "line", source: HL_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": calculateZoomDependentWidth(w, 3.0), "line-blur": 8, "line-opacity": 0.3 } })
+      map.addLayer({ id: "vdp-hl-line", type: "line", source: HL_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": calculateZoomDependentWidth(w, 2.0), "line-opacity": 0.9 } })
+      map.addLayer({ id: "vdp-hl-inner", type: "line", source: HL_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": color, "line-width": calculateZoomDependentWidth(w, 1.5), "line-opacity": 1.0 } })
+    } catch (e) {
+      console.error("[VDP] addTrailHighlight error:", e)
+    }
+  }
+
+  function removeTrailHighlight() {
+    if (!map) return
+    for (const id of HL_LAYERS) {
+      try { if (map.getLayer(id)) map.removeLayer(id) } catch {}
+    }
+    try { if (map.getSource(HL_SOURCE)) map.removeSource(HL_SOURCE) } catch {}
+  }
+
+  // Live-update highlight source as trail grows
+  $: if (showInfoPanel && isTrailing && activeTrailData?.path?.length >= 2) {
+    const src = map?.getSource(HL_SOURCE)
+    if (src) {
+      const coords = activeTrailData.path
+        .map(normCoord)
+        .filter(Boolean)
+      if (coords.length >= 2) src.setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: {} })
+    }
+  }
+
+  // Remove highlight when trailing stops
+  $: if (!isTrailing) removeTrailHighlight()
+
+  onDestroy(() => removeTrailHighlight())
+
+  // ── Trail stats ───────────────────────────────────────────────
+  $: trailStats = (() => {
+    const trail = activeTrailData
+    if (!trail?.path?.length) return null
+    const path = trail.path
+    if (path.length < 2) return null
+    try {
+      const coords = path
+        .map(normCoord)
+        .filter(Boolean)
+      if (coords.length < 2) return null
+      const line = turf.lineString(coords)
+      const distKm = turf.length(line, { units: "kilometers" })
+      const swathM = trail.trail_width || vehicleSwath || 3
+      const coverageHa = (distKm * 1000 * swathM) / 10000
+      const distStr = distKm < 1
+        ? `${(distKm * 1000).toFixed(0)} m`
+        : `${distKm.toFixed(2)} km`
+      return { distStr, coverageHa: coverageHa.toFixed(2), swathM, points: path.length, trailColor: trail.trail_color }
+    } catch { return null }
+  })()
 </script>
 
 {#if currentVehicle}
   <div class="vehicle-panel" class:expanded={isExpanded}>
     {#if isExpanded && showInfoPanel}
-      {#key `${vehicleType}-${vehicleBodyColor}-${vehicleSwath}`}
+      {#if isTrailing}
+        <!-- ── Trail stats panel ── -->
+        <div class="trail-stats-section">
+          <div class="ts-header">
+            <div class="ts-header-left">
+              <svg
+                class="ts-trail-icon"
+                viewBox="0 0 32 32"
+                width="16"
+                height="16"
+                xmlns="http://www.w3.org/2000/svg"
+                style="--trail-icon-color: {trailStats?.trailColor ?? '#4ade80'}"
+              >
+                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              </svg>
+              <span class="ts-title">Active Trail</span>
+            </div>
+            <span class="ts-swath">{vehicleSwath}m swath</span>
+          </div>
+
+          <div class="ts-grid">
+            <div class="ts-stat">
+              <span class="ts-value">{trailHMM ?? trailDur}</span>
+              <span class="ts-label">Duration</span>
+            </div>
+            <div class="ts-stat">
+              <span class="ts-value">{trailStats?.distStr ?? "—"}</span>
+              <span class="ts-label">Distance</span>
+            </div>
+            <div class="ts-stat ts-stat--green">
+              <span class="ts-value">~{trailStats?.coverageHa ?? "—"} <span class="ts-unit">ha</span></span>
+              <span class="ts-label">Est. coverage</span>
+            </div>
+          </div>
+        </div>
+
+      {:else}
+        <!-- ── Generic info panel (other vehicles / not trailing) ── -->
+        {#key `${vehicleType}-${vehicleBodyColor}-${vehicleSwath}`}
         <div class="info-section">
           <div class="vehicle-header">
             <div class="vehicle-title">
@@ -525,6 +672,8 @@
           {/if}
         </div>
       {/key}
+
+      {/if}
     {/if}
 
     <div class="control-bar">
@@ -592,6 +741,94 @@
     z-index: 1000;
     transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* ── Trail stats section ── */
+  .trail-stats-section {
+    padding: 14px 20px 12px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.93), rgba(0, 0, 0, 0.87));
+    border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .ts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .ts-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ts-trail-icon {
+    flex-shrink: 0;
+    fill: var(--trail-icon-color, #4ade80);
+    stroke: none;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--trail-icon-color, #4ade80) 80%, transparent));
+    animation: trailPulseFill 1.6s ease-in-out infinite;
+  }
+
+  .ts-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .ts-swath {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 500;
+  }
+
+  .ts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .ts-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .ts-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .ts-unit {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .ts-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+
+  .ts-stat--green .ts-value {
+    color: #4ade80;
+  }
+
+  .ts-footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.28);
+    line-height: 1.4;
   }
 
   .info-section {

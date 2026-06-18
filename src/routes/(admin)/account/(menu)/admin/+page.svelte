@@ -4,6 +4,7 @@
   import { toast } from "svelte-sonner"
   import { adminApi, type AdminMapEntry, type AdminMapActivity, type MapDailyRow } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { mapSettingsApi } from "$lib/api/mapSettingsApi"
   import { goto } from "$app/navigation"
   import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
 
@@ -41,6 +42,38 @@
   let smsModalShow = false
   let smsPhone = ""
   let smsOwnerName = ""
+
+  // Limits modal state
+  let showLimitsModal = false
+  let limitsMap: Map<string, boolean> = new Map()
+  let togglingMapId: string | null = null
+  let limitsDialogEl: HTMLDialogElement
+
+  $: if (showLimitsModal && limitsDialogEl && !limitsDialogEl.open) {
+    limitsDialogEl.showModal()
+  } else if (!showLimitsModal && limitsDialogEl?.open) {
+    limitsDialogEl.close()
+  }
+
+  async function openLimitsModal() {
+    if (entries.length === 0) return
+    const ids = entries.map((e) => e.master_map_id)
+    limitsMap = await mapSettingsApi.getBulkEnforceLimits(ids)
+    showLimitsModal = true
+  }
+
+  async function toggleMapLimits(mapId: string, enabled: boolean) {
+    togglingMapId = mapId
+    const result = await mapSettingsApi.setEnforceLimits(mapId, enabled)
+    if (result.success) {
+      limitsMap.set(mapId, enabled)
+      limitsMap = limitsMap // trigger reactivity
+      toast.success(enabled ? "Limits enabled" : "Limits disabled")
+    } else {
+      toast.error(result.error || "Failed to update")
+    }
+    togglingMapId = null
+  }
 
   function openSmsModal(phone: string, name: string) {
     smsPhone = phone
@@ -389,19 +422,34 @@
     </div>
     Admin Dashboard
   </h2>
-  <button
-    class="btn btn-outline btn-sm gap-1"
-    on:click={loadData}
-    disabled={loading}
-  >
-    <Icon
-      icon="solar:refresh-bold-duotone"
-      width="16"
-      height="16"
-      class={loading ? "animate-spin" : ""}
-    />
-    Refresh
-  </button>
+  <div class="flex items-center gap-2">
+    <button
+      class="btn btn-outline btn-sm gap-1"
+      on:click={openLimitsModal}
+      title="Manage limit warnings per map"
+    >
+      <Icon
+        icon="solar:shield-warning-bold-duotone"
+        width="16"
+        height="16"
+        class="text-warning"
+      />
+      Limits
+    </button>
+    <button
+      class="btn btn-outline btn-sm gap-1"
+      on:click={loadData}
+      disabled={loading}
+    >
+      <Icon
+        icon="solar:refresh-bold-duotone"
+        width="16"
+        height="16"
+        class={loading ? "animate-spin" : ""}
+      />
+      Refresh
+    </button>
+  </div>
 </div>
 
 <div class="space-y-6 p-6">
@@ -1076,6 +1124,96 @@
     </div>
   {/if}
 </div>
+
+<!-- Limits modal -->
+<dialog
+  bind:this={limitsDialogEl}
+  class="modal modal-middle"
+  on:close={() => (showLimitsModal = false)}
+>
+  <div class="modal-box w-full max-w-lg">
+    <div class="mb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-warning/20">
+          <Icon icon="solar:shield-warning-bold-duotone" width="18" height="18" class="text-warning" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content">Limit Warnings</h4>
+          <p class="text-xs text-contrast-content/60">
+            Toggle upgrade/seat-limit warnings per map
+          </p>
+        </div>
+      </div>
+      <button
+        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+        on:click={() => (showLimitsModal = false)}
+        title="Close"
+      >
+        <Icon icon="solar:close-circle-bold-duotone" width="20" height="20" class="text-contrast-content/60" />
+      </button>
+    </div>
+
+    <p class="mb-4 text-xs text-contrast-content/50">
+      When a map has limit warnings <strong>ON</strong>, its members see alerts about exceeding or approaching their seat limit.
+      When <strong>OFF</strong>, no upgrade warnings appear.
+    </p>
+
+    <div class="max-h-96 overflow-y-auto rounded-lg border border-base-300">
+      {#if entries.length === 0}
+        <div class="px-4 py-8 text-center text-sm text-contrast-content/50">
+          No maps loaded yet.
+        </div>
+      {:else}
+        {#each entries as entry (entry.master_map_id)}
+          {@const mapId = entry.master_map_id}
+          {@const enabled = limitsMap.get(mapId) ?? false}
+          {@const isExceeding = entry.seat_status === "EXCEEDING"}
+          <div
+            class="flex items-center justify-between border-b border-base-300 px-4 py-3 last:border-b-0 transition-colors hover:bg-base-200/30"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-contrast-content">
+                {entry.map_name || "Unnamed Map"}
+              </p>
+              <p class="truncate text-xs text-contrast-content/50">
+                {entry.owner_name || entry.owner_email || "—"}
+                <span class="mx-1.5">·</span>
+                {entry.connected_vehicles}/{entry.allowed_seats} seats
+                {#if isExceeding}
+                  <span class="badge badge-error badge-xs ml-1">Exceeding</span>
+                {/if}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {enabled
+                ? 'bg-warning'
+                : 'bg-base-300'}"
+              disabled={togglingMapId === mapId}
+              on:click={() => toggleMapLimits(mapId, !enabled)}
+              title={enabled ? "Warnings ON — click to disable" : "Warnings OFF — click to enable"}
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out {enabled
+                  ? 'translate-x-5'
+                  : 'translate-x-0.5'}"
+              ></span>
+            </button>
+          </div>
+        {/each}
+      {/if}
+    </div>
+
+    <div class="modal-action mt-4">
+      <button
+        class="btn btn-outline btn-sm"
+        on:click={() => (showLimitsModal = false)}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+</dialog>
 
 <SendSmsModal
   bind:show={smsModalShow}

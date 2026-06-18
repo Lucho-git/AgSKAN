@@ -34,6 +34,7 @@
   } from "lucide-svelte"
   import { mapApi } from "$lib/api/mapApi"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { mapSettingsApi } from "$lib/api/mapSettingsApi"
 
   // Support team user IDs with kick permissions
   const SUPPORT_TEAM_IDS = [
@@ -70,7 +71,16 @@
   $: is_user = (profileId) => profileId === currentUserId
   $: is_map_owner = (profileId) => profileId === map_owner_id
 
-  let enforceLimits = true
+  let enforceLimits = false
+  let enforceLimitsLoaded = false
+
+  // Load enforce_limits from DB when map ID is available
+  $: if ($connectedMapStore.id && !enforceLimitsLoaded) {
+    enforceLimitsLoaded = true
+    mapSettingsApi.getEnforceLimits($connectedMapStore.id).then((val) => {
+      enforceLimits = val
+    })
+  }
 
   $: memberCount = $mapActivityStore.connected_profiles?.length || 0
   $: seatLimit = $connectedMapStore.masterSubscription?.current_seats ?? null
@@ -334,18 +344,6 @@
     </h2>
     {#if seatLimit != null}
       <div class="flex items-center gap-1.5">
-        {#if rawOverLimit}
-          <button
-            type="button"
-            class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs transition-all hover:scale-110 {enforceLimits
-              ? 'bg-purple-500/20 text-purple-500'
-              : 'bg-green-500/20 text-green-500'}"
-            on:click={() => (enforceLimits = !enforceLimits)}
-            title={enforceLimits ? "Limits enforced — click to disable" : "Limits disabled — click to enable"}
-          >
-            {enforceLimits ? '⚡' : '🛡️'}
-          </button>
-        {/if}
         {#if enforceLimits}
           <button
             type="button"
@@ -364,7 +362,7 @@
           </button>
         {:else}
           <span
-            class="inline-flex items-center rounded-full bg-green-500 px-2.5 py-1 text-xs font-bold text-white ring-1 ring-green-400/50"
+            class="inline-flex items-center rounded-full bg-base-300/60 px-2.5 py-1 text-xs font-medium text-contrast-content/60"
           >
             {memberCount}/{seatLimit}
           </span>
