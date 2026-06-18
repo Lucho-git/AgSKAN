@@ -193,7 +193,7 @@ public class RawGpsPlugin extends Plugin {
                 return;
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 SignalStrength ss = tm.getSignalStrength();
                 if (ss == null) {
                     ret.put("bars", -1);
@@ -208,6 +208,20 @@ public class RawGpsPlugin extends Plugin {
                 ret.put("asu", ss.getAsuLevel());
                 ret.put("level", level);
                 Log.d(TAG, "Signal strength: " + level + " bars, " + dBm + " dBm");
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                SignalStrength ss = tm.getSignalStrength();
+                if (ss == null) {
+                    ret.put("bars", -1);
+                    ret.put("error", "SignalStrength unavailable");
+                    call.resolve(ret);
+                    return;
+                }
+                int level = ss.getLevel();
+                ret.put("bars", level);
+                ret.put("dbm", -1);
+                ret.put("asu", ss.getAsuLevel());
+                ret.put("level", level);
+                Log.d(TAG, "Signal strength (Q): " + level + " bars");
             } else {
                 // Older API — use deprecated getLevel()
                 SignalStrength ss = tm.getSignalStrength();
