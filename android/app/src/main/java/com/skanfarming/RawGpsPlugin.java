@@ -9,7 +9,10 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
+import android.telephony.CellSignalStrength;
 import android.util.Log;
+
+import java.util.List;
 
 import androidx.core.app.ActivityCompat;
 
@@ -193,22 +196,7 @@ public class RawGpsPlugin extends Plugin {
                 return;
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                SignalStrength ss = tm.getSignalStrength();
-                if (ss == null) {
-                    ret.put("bars", -1);
-                    ret.put("error", "SignalStrength unavailable");
-                    call.resolve(ret);
-                    return;
-                }
-                int level = ss.getLevel();
-                int dBm = ss.getDbm();
-                ret.put("bars", level);
-                ret.put("dbm", dBm);
-                ret.put("asu", ss.getAsuLevel());
-                ret.put("level", level);
-                Log.d(TAG, "Signal strength: " + level + " bars, " + dBm + " dBm");
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 SignalStrength ss = tm.getSignalStrength();
                 if (ss == null) {
                     ret.put("bars", -1);
@@ -218,10 +206,21 @@ public class RawGpsPlugin extends Plugin {
                 }
                 int level = ss.getLevel();
                 ret.put("bars", level);
-                ret.put("dbm", -1);
-                ret.put("asu", ss.getAsuLevel());
                 ret.put("level", level);
-                Log.d(TAG, "Signal strength (Q): " + level + " bars");
+
+                // getDbm() / getAsuLevel() were removed from SignalStrength in API 35+,
+                // so we read from the first available cell signal instead.
+                int dbm = -1;
+                int asu = -1;
+                List<CellSignalStrength> cells = ss.getCellSignalStrengths();
+                if (cells != null && !cells.isEmpty()) {
+                    CellSignalStrength first = cells.get(0);
+                    dbm = first.getDbm();
+                    asu = first.getAsuLevel();
+                }
+                ret.put("dbm", dbm);
+                ret.put("asu", asu);
+                Log.d(TAG, "Signal strength: " + level + " bars, " + dbm + " dBm");
             } else {
                 // Older API — use deprecated getLevel()
                 SignalStrength ss = tm.getSignalStrength();

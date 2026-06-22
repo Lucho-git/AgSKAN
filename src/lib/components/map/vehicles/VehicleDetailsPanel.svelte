@@ -3,7 +3,8 @@
 <script>
   import {
     Edit3,
-    Info,
+    Eye,
+    EyeOff,
     Navigation,
     Clock,
     Zap,
@@ -17,7 +18,7 @@
   import SVGComponents from "$lib/vehicles/index.js"
   import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
-  import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
+  import { otherActiveTrailStore, visibleOperationIdsStore } from "$lib/stores/otherTrailStore"
   import {
     userVehicleStore,
     otherVehiclesStore,
@@ -399,6 +400,21 @@
   $: isTrailing = currentVehicle?.is_trailing || false
   $: trailDur = currentVehicle ? formatTrailingDuration(currentVehicle) : "- -"
   $: opName = currentVehicle?.operation_name || ""
+  $: isDifferentOperation = !isCurrentUser && currentVehicle?.operation_id && currentVehicle.operation_id !== $userVehicleStore.operation_id
+  $: diffOpName = currentVehicle?.operation_name || "this operation"
+  $: isDiffOpVisible = $visibleOperationIdsStore.has(currentVehicle?.operation_id || "")
+
+  function toggleViewOperation() {
+    const opId = currentVehicle?.operation_id
+    if (!opId) return
+    visibleOperationIdsStore.update((ids) => {
+      const next = new Set(ids)
+      if (next.has(opId)) next.delete(opId)
+      else next.add(opId)
+      return next
+    })
+  }
+
   $: vehicleOnlineStatus = currentVehicle ? getVehicleStatus(currentVehicle) : "Unknown"
   $: vehicleStatusColor = getStatusColor(vehicleOnlineStatus)
 
@@ -720,10 +736,22 @@
             </svg>
             <span class="tbadge-time">{trailHMM ?? trailDur}</span>
           </button>
-        {:else}
-          <button class="control-btn info-btn" class:active={showInfoPanel && isExpanded} on:click={handleInfoClick} title="Vehicle details"><Info size={20} /></button>
         {/if}
         <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+        {#if isTrailing && isDifferentOperation}
+          <button
+            class="control-btn view-op-btn {isDiffOpVisible ? 'active' : ''}"
+            on:click={toggleViewOperation}
+            title={isDiffOpVisible ? `Hide trails on ${diffOpName}` : `View trails on ${diffOpName}`}
+          >
+            {#if isDiffOpVisible}
+              <EyeOff size={18} />
+            {:else}
+              <Eye size={18} />
+            {/if}
+            <span class="view-op-label">on {diffOpName}</span>
+          </button>
+        {/if}
       </div>
     </div>
   </div>
@@ -1190,6 +1218,40 @@
   .track-btn:hover {
     background: rgba(168, 85, 247, 0.3);
     color: white;
+  }
+
+  .view-op-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border-radius: 20px;
+    padding: 4px 12px 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .view-op-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+    color: white;
+  }
+
+  .view-op-btn.active {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+
+  .view-op-btn.active:hover {
+    background: rgba(34, 197, 94, 0.35);
+    color: white;
+  }
+
+  .view-op-label {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .status-item[data-speed-status="moving"] {
