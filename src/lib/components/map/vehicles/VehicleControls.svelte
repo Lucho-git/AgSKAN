@@ -386,9 +386,10 @@
 
   function formatTrailingDuration(vehicle) {
     if (!vehicle?.trailing_since) return ""
-    const ts = typeof vehicle.trailing_since === "string"
-      ? new Date(vehicle.trailing_since).getTime()
-      : vehicle.trailing_since
+    const ts =
+      typeof vehicle.trailing_since === "string"
+        ? new Date(vehicle.trailing_since).getTime()
+        : vehicle.trailing_since
     const diff = Date.now() - ts
     const mins = Math.floor(diff / 60000)
     const hrs = Math.floor(mins / 60)
@@ -471,7 +472,8 @@
       ? getVehicleById(trackedVehicleId)
       : null
 
-  $: shouldShowTeamButton = !showUnifiedMenu && (!isTrackingVehicle || !trackedVehicle)
+  $: shouldShowTeamButton =
+    !showUnifiedMenu && (!isTrackingVehicle || !trackedVehicle)
 
   // Count of actively online vehicles (updated in 5-min window)
   $: onlineCount = (() => {
@@ -546,7 +548,11 @@
             {@const isYou = Boolean(vehicle.isCurrentUser)}
             {@const isTracked = vehicle.id === trackedVehicleId}
             {@const speed = getEffectiveSpeed(vehicle)}
-            {@const opName = vehicle.operation_name && vehicle.operation_name !== "No operation" ? vehicle.operation_name : null}
+            {@const opName =
+              vehicle.operation_name &&
+              vehicle.operation_name !== "No operation"
+                ? vehicle.operation_name
+                : null}
             {@const offlineLabel = getOfflineLabel(vehicle)}
 
             <div class="flex items-stretch">
@@ -573,39 +579,84 @@
                   <!-- Name + type -->
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
-                      <p class="truncate text-sm font-medium text-white" title={vehicle.full_name}>
+                      <p
+                        class="truncate text-sm font-medium text-white"
+                        title={vehicle.full_name}
+                      >
                         {truncateName(vehicle.full_name)}
                       </p>
                       {#if isTracked}
-                        <span class="flex-shrink-0 rounded bg-green-500/20 px-1 text-[10px] font-medium text-green-300">Tracking</span>
+                        <span
+                          class="flex-shrink-0 rounded bg-green-500/20 px-1 text-[10px] font-medium text-green-300"
+                          >Tracking</span
+                        >
                       {/if}
                     </div>
                     <div class="flex items-center gap-2">
-                      <p class="truncate text-xs text-white/70">{getVehicleDisplayName(vehicle)}</p>
-                      <div class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30" style="background-color: {getVehicleColor(vehicle)}" title="Vehicle color"></div>
+                      <p class="truncate text-xs text-white/70">
+                        {getVehicleDisplayName(vehicle)}
+                      </p>
+                      <div
+                        class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30"
+                        style="background-color: {getVehicleColor(vehicle)}"
+                        title="Vehicle color"
+                      ></div>
                     </div>
                   </div>
 
                   <!-- Right column: speed + unified status -->
-                  <div class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center">
+                  <div
+                    class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center"
+                  >
                     <div class="flex items-center gap-1.5">
                       {#if speed > 0}
-                        <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+                        <span
+                          class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90"
+                        >
                           {speed.toFixed(1)} km/h
                         </span>
                       {/if}
                       <div class="relative flex-shrink-0">
-                        <div class="h-2 w-2 rounded-full {isYou ? 'bg-blue-400' : trailing && online ? 'bg-green-400' : online ? 'bg-blue-400' : 'bg-white/40'}"></div>
+                        <div
+                          class="h-2 w-2 rounded-full {isYou
+                            ? 'bg-blue-400'
+                            : trailing && online
+                              ? 'bg-green-400'
+                              : online
+                                ? 'bg-blue-400'
+                                : 'bg-white/40'}"
+                        ></div>
                         {#if isYou || (trailing && online)}
-                          <div class="absolute -inset-1 animate-ping rounded-full {isYou ? 'bg-blue-400' : 'bg-green-400'} opacity-30"></div>
+                          <div
+                            class="absolute -inset-1 animate-ping rounded-full {isYou
+                              ? 'bg-blue-400'
+                              : 'bg-green-400'} opacity-30"
+                          ></div>
                         {/if}
                       </div>
-                      <span class="text-[10px] font-medium {isYou ? 'text-blue-300' : trailing && online ? 'text-green-300' : online ? 'text-blue-300' : 'text-white/40'}">
-                        {isYou ? 'You' : trailing && online ? 'Trailing' : online ? 'Online' : `Offline ${offlineLabel}`}
+                      <span
+                        class="text-[10px] font-medium {isYou
+                          ? 'text-blue-300'
+                          : trailing && online
+                            ? 'text-green-300'
+                            : online
+                              ? 'text-blue-300'
+                              : 'text-white/40'}"
+                      >
+                        {isYou
+                          ? "You"
+                          : trailing && online
+                            ? "Trailing"
+                            : online
+                              ? "Online"
+                              : `Offline ${offlineLabel}`}
                       </span>
                     </div>
                     {#if opName}
-                      <span class="max-w-[100px] truncate text-right text-[10px] text-white/50">{opName}</span>
+                      <span
+                        class="max-w-[100px] truncate text-right text-[10px] text-white/50"
+                        >{opName}</span
+                      >
                     {/if}
                   </div>
                 </div>
@@ -613,8 +664,13 @@
 
               <!-- Track button -->
               <button
-                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked ? 'bg-green-500/20' : ''}"
-                on:click={() => isTracked ? stopTrackingVehicle() : startTrackingVehicle(vehicle.id)}
+                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked
+                  ? 'bg-green-500/20'
+                  : ''}"
+                on:click={() =>
+                  isTracked
+                    ? stopTrackingVehicle()
+                    : startTrackingVehicle(vehicle.id)}
                 aria-label={isTracked ? "Stop tracking" : "Track vehicle"}
                 title={isTracked ? "Stop tracking" : "Track this vehicle"}
               >
@@ -716,23 +772,37 @@
       on:click={toggleUnifiedMenu}
       title="Open vehicle menu"
     >
-      <div class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5">
+      <div
+        class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20 p-0.5"
+      >
         {#if getVehicleIcon(trackedVehicle)}
-          <svelte:component this={getVehicleIcon(trackedVehicle)} bodyColor={getVehicleColor(trackedVehicle)} size="14px" />
+          <svelte:component
+            this={getVehicleIcon(trackedVehicle)}
+            bodyColor={getVehicleColor(trackedVehicle)}
+            size="14px"
+          />
         {:else}
           <div class="h-2.5 w-2.5 rounded bg-green-300/60"></div>
         {/if}
       </div>
       <span class="text-xs font-medium text-green-300">Tracking</span>
-      <span class="min-w-0 max-w-[100px] truncate text-xs text-white/80">{getTrackedVehicleName(trackedVehicle)}</span>
+      <span class="min-w-0 max-w-[100px] truncate text-xs text-white/80"
+        >{getTrackedVehicleName(trackedVehicle)}</span
+      >
     </div>
 
     <!-- First person toggle -->
     <button
       on:click={toggleFirstPersonMode}
-      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {isFirstPersonMode ? 'bg-yellow-500/30' : 'bg-white/10 hover:bg-white/25'} active:scale-95"
-      aria-label={isFirstPersonMode ? "Disable first-person" : "First-person view"}
-      title={isFirstPersonMode ? "Disable first-person view" : "Enable first-person camera rotation"}
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {isFirstPersonMode
+        ? 'bg-yellow-500/30'
+        : 'bg-white/10 hover:bg-white/25'} active:scale-95"
+      aria-label={isFirstPersonMode
+        ? "Disable first-person"
+        : "First-person view"}
+      title={isFirstPersonMode
+        ? "Disable first-person view"
+        : "Enable first-person camera rotation"}
     >
       {#if isFirstPersonMode}
         <Navigation size={14} class="text-yellow-300" />

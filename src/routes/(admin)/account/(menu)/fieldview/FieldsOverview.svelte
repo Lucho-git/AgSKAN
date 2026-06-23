@@ -1628,12 +1628,20 @@
                   on:click={() => toggleMigrationFarmCollapse(groupName)}
                 >
                   {#if collapsedMigrationFarms.has(groupName)}
-                    <ChevronDown class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50" />
+                    <ChevronDown
+                      class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                    />
                   {:else}
-                    <ChevronUp class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50" />
+                    <ChevronUp
+                      class="h-3.5 w-3.5 flex-shrink-0 text-contrast-content/50"
+                    />
                   {/if}
-                  <LandPlot class="h-3.5 w-3.5 flex-shrink-0 text-base-content" />
-                  <span class="truncate text-xs font-semibold text-contrast-content">
+                  <LandPlot
+                    class="h-3.5 w-3.5 flex-shrink-0 text-base-content"
+                  />
+                  <span
+                    class="truncate text-xs font-semibold text-contrast-content"
+                  >
                     {groupName}
                   </span>
                   <span class="text-xs text-contrast-content/50">
@@ -1657,8 +1665,13 @@
                       ? "background: oklch(var(--bc) / 0.05)"
                       : ""}
                   >
-                    <FieldIcon geojson={createGeoJSON(field.boundary)} size={20} />
-                    <span class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm">
+                    <FieldIcon
+                      geojson={createGeoJSON(field.boundary)}
+                      size={20}
+                    />
+                    <span
+                      class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
+                    >
                       {field.name}
                     </span>
                     <span class="text-xs text-contrast-content/50"
@@ -1683,7 +1696,9 @@
                   : ""}
               >
                 <FieldIcon geojson={createGeoJSON(field.boundary)} size={20} />
-                <span class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm">
+                <span
+                  class="min-w-0 flex-1 truncate text-xs text-contrast-content sm:text-sm"
+                >
                   {field.name}
                 </span>
                 <span class="text-xs text-contrast-content/50"

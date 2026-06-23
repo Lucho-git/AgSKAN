@@ -378,14 +378,24 @@
             </div>
           {/if}
         {:else}
-          {@const title = activePanel === "satellite" ? "Satellite Options"
-            : activePanel === "marker" ? "Marker Tools"
-            : activePanel === "vehicle" ? "Vehicle Setup"
-            : activePanel === "trail" ? "Trail Recording"
-            : activePanel === "layers" ? "Map Layers"
-            : activePanel === "flash" ? "Flash Signals"
-            : activePanel === "collection" ? "Collection Mode"
-            : activePanel === "fields" ? "Fields" : ""}
+          {@const title =
+            activePanel === "satellite"
+              ? "Satellite Options"
+              : activePanel === "marker"
+                ? "Marker Tools"
+                : activePanel === "vehicle"
+                  ? "Vehicle Setup"
+                  : activePanel === "trail"
+                    ? "Trail Recording"
+                    : activePanel === "layers"
+                      ? "Map Layers"
+                      : activePanel === "flash"
+                        ? "Flash Signals"
+                        : activePanel === "collection"
+                          ? "Collection Mode"
+                          : activePanel === "fields"
+                            ? "Fields"
+                            : ""}
           <button class="header-arrow-center" on:click={showMainPanel}>
             <span class="ac-arrow">←</span>
             <h3>{title}</h3>
@@ -688,7 +698,9 @@
     cursor: pointer;
     text-align: center;
   }
-  .header-arrow-center:hover { opacity: 0.7; }
+  .header-arrow-center:hover {
+    opacity: 0.7;
+  }
   .ac-arrow {
     position: absolute;
     left: 0;

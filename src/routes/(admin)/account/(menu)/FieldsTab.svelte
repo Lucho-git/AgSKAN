@@ -913,262 +913,256 @@
   class="modal modal-middle"
   on:close={closeUploadModal}
 >
-  <div
-    class="modal-box max-h-[90vh] w-full max-w-lg overflow-y-auto"
-  >
-      <!-- Modal header -->
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20"
-          >
-            <Upload class="h-5 w-5 text-green-600" />
-          </div>
-          <div>
-            <h3 class="text-lg font-bold text-contrast-content">
-              Upload Fields
-            </h3>
-            <p class="text-sm text-contrast-content/60">
-              Add field boundaries to your map
-            </p>
-          </div>
-        </div>
-        <button
-          on:click={closeUploadModal}
-          class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
-          aria-label="Close"
-        >
-          <X class="h-4 w-4 text-contrast-content/60" />
-        </button>
-      </div>
-
-      <!-- Drop zone -->
-      <input
-        bind:this={fileInput}
-        type="file"
-        accept=".zip,.kml,.kmz,.geojson,.xml,.isoxml"
-        class="hidden"
-        on:change={handleFileChange}
-      />
-
-      <div
-        role="button"
-        tabindex="0"
-        on:click={handleDropZoneClick}
-        on:keydown={(e) =>
-          (e.key === "Enter" || e.key === " ") && handleDropZoneClick()}
-        on:dragover={handleDragOver}
-        on:dragleave={handleDragLeave}
-        on:drop={handleDrop}
-        class="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-10 text-center transition-all
-          {isDragging
-          ? 'scale-[0.99] border-base-content bg-base-content/10 shadow-inner'
-          : hasError
-            ? 'border-error/30 bg-error/5'
-            : hasSuccess
-              ? 'border-success/30 bg-success/5 shadow-md shadow-success/10'
-              : uploadedFile
-                ? 'border-info/30 bg-info/5'
-                : 'border-base-300 bg-base-200/40 hover:border-base-content/40 hover:bg-base-200 hover:shadow-md'}"
-        class:cursor-not-allowed={isProcessing}
-        class:cursor-default={hasSuccess}
-      >
+  <div class="modal-box max-h-[90vh] w-full max-w-lg overflow-y-auto">
+    <!-- Modal header -->
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <div class="flex items-center gap-3">
         <div
-          class="absolute inset-0 bg-gradient-to-tr from-base-content/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
-        ></div>
-
-        {#if hasSuccess}
-          <div
-            class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
-          >
-            <div
-              class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
-            >
-              <div
-                class="flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
-              >
-                <CheckCircle size={28} class="stroke-[2.5] text-white" />
-              </div>
-            </div>
-            <h3 class="text-lg font-bold text-contrast-content">
-              File Uploaded Successfully!
-            </h3>
-            <p
-              class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-500"
-            >
-              {uploadedFile?.name}
-            </p>
-            <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
-              Opening the field processing wizard...
-            </p>
-          </div>
-        {:else if isProcessing}
-          <div
-            class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
-          >
-            {#if uploadStatus === "loading"}
-              <div
-                class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
-              >
-                <div
-                  class="animate-upload-spin absolute inset-1 rounded-full border-2 border-transparent border-t-blue-400"
-                ></div>
-                <Cloud
-                  size={28}
-                  class="animate-upload-pulse relative z-10 text-blue-400"
-                />
-              </div>
-              <p class="text-base font-medium text-contrast-content">
-                Uploading file...
-              </p>
-            {:else}
-              <div
-                class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-info/20"
-              >
-                <div class="loading loading-spinner loading-md text-info"></div>
-              </div>
-              <p class="text-base font-medium text-contrast-content">
-                {uploadStatus === "validating"
-                  ? "Validating file..."
-                  : "Checking file structure..."}
-              </p>
-            {/if}
-            {#if uploadedFile}
-              <p
-                class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
-              >
-                {uploadedFile.name}
-              </p>
-            {/if}
-          </div>
-        {:else if hasError}
-          <div
-            class="animate-scaleIn relative z-10 flex max-w-md flex-col items-center"
-          >
-            <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
-            >
-              <AlertCircle size={32} class="text-error" />
-            </div>
-            <p class="mb-2 text-base font-medium text-error">
-              File Not Compatible
-            </p>
-            <p class="mb-5 text-center text-sm text-error">{uploadError}</p>
-            <button
-              on:click|stopPropagation={resetUploadState}
-              class="flex items-center gap-2 rounded-lg bg-base-200 px-4 py-2 text-sm text-contrast-content transition-all hover:bg-base-300"
-            >
-              <X size={14} />
-              <span>Try a different file</span>
-            </button>
-          </div>
-        {:else}
-          <div class="relative z-10 flex flex-col items-center">
-            <div
-              class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
-            >
-              <div class="flex items-center justify-center space-x-6">
-                <Cloud class="animate-upload-pulse h-8 w-8 text-info" />
-                <div class="relative">
-                  <FileIcon
-                    class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
-                  />
-                  <div
-                    class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
-                  ></div>
-                </div>
-                <Cloud class="animate-upload-pulse h-8 w-8 text-info" />
-              </div>
-              <div
-                class="animate-upload-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
-              ></div>
-            </div>
-            <p class="mb-3 text-lg font-semibold text-contrast-content">
-              Click to upload or drag and drop
-            </p>
-            <p class="mb-2 text-center text-sm text-contrast-content/60">
-              Zipped shapefiles, KML, GeoJSON or ISOXML files (Max 50mb)
-            </p>
-            <div
-              class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-xs text-info/70"
-            >
-              <CheckCircle class="h-3 w-3" />
-              Files are processed securely
-            </div>
-          </div>
-        {/if}
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20"
+        >
+          <Upload class="h-5 w-5 text-green-600" />
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-contrast-content">Upload Fields</h3>
+          <p class="text-sm text-contrast-content/60">
+            Add field boundaries to your map
+          </p>
+        </div>
       </div>
-
-      <!-- Helpers -->
-      <div
-        class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-contrast-content/60"
+      <button
+        on:click={closeUploadModal}
+        class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+        aria-label="Close"
       >
-        <button
-          on:click={downloadExample}
-          class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
-        >
-          <Download class="h-3.5 w-3.5" />
-          Download example file
-        </button>
-        <a
-          href="/account/fieldview"
-          class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
-        >
-          <HelpCircle class="h-3.5 w-3.5" />
-          Need help?
-        </a>
-      </div>
+        <X class="h-4 w-4 text-contrast-content/60" />
+      </button>
+    </div>
 
-      <!-- Previously uploaded files (minimized) -->
-      {#if userFiles.length > 0}
-        <div class="mt-5 border-t border-base-300 pt-4">
-          <h4
-            class="mb-2 text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
+    <!-- Drop zone -->
+    <input
+      bind:this={fileInput}
+      type="file"
+      accept=".zip,.kml,.kmz,.geojson,.xml,.isoxml"
+      class="hidden"
+      on:change={handleFileChange}
+    />
+
+    <div
+      role="button"
+      tabindex="0"
+      on:click={handleDropZoneClick}
+      on:keydown={(e) =>
+        (e.key === "Enter" || e.key === " ") && handleDropZoneClick()}
+      on:dragover={handleDragOver}
+      on:dragleave={handleDragLeave}
+      on:drop={handleDrop}
+      class="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-10 text-center transition-all
+          {isDragging
+        ? 'scale-[0.99] border-base-content bg-base-content/10 shadow-inner'
+        : hasError
+          ? 'border-error/30 bg-error/5'
+          : hasSuccess
+            ? 'border-success/30 bg-success/5 shadow-md shadow-success/10'
+            : uploadedFile
+              ? 'border-info/30 bg-info/5'
+              : 'border-base-300 bg-base-200/40 hover:border-base-content/40 hover:bg-base-200 hover:shadow-md'}"
+      class:cursor-not-allowed={isProcessing}
+      class:cursor-default={hasSuccess}
+    >
+      <div
+        class="absolute inset-0 bg-gradient-to-tr from-base-content/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+      ></div>
+
+      {#if hasSuccess}
+        <div
+          class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+        >
+          <div
+            class="animate-successPulse flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 shadow-lg shadow-green-500/10"
           >
-            Uploaded files
-          </h4>
-          <div class="space-y-1.5">
-            {#each userFiles as file (file.id)}
+            <div
+              class="flex h-14 w-14 items-center justify-center rounded-full bg-green-500"
+            >
+              <CheckCircle size={28} class="stroke-[2.5] text-white" />
+            </div>
+          </div>
+          <h3 class="text-lg font-bold text-contrast-content">
+            File Uploaded Successfully!
+          </h3>
+          <p
+            class="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-sm text-green-500"
+          >
+            {uploadedFile?.name}
+          </p>
+          <p class="animate-delayedFadeIn text-sm text-contrast-content/60">
+            Opening the field processing wizard...
+          </p>
+        </div>
+      {:else if isProcessing}
+        <div
+          class="animate-scaleIn relative z-10 flex flex-col items-center gap-4"
+        >
+          {#if uploadStatus === "loading"}
+            <div
+              class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20"
+            >
               <div
-                class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200/50 p-2"
-              >
+                class="animate-upload-spin absolute inset-1 rounded-full border-2 border-transparent border-t-blue-400"
+              ></div>
+              <Cloud
+                size={28}
+                class="animate-upload-pulse relative z-10 text-blue-400"
+              />
+            </div>
+            <p class="text-base font-medium text-contrast-content">
+              Uploading file...
+            </p>
+          {:else}
+            <div
+              class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-info/20"
+            >
+              <div class="loading loading-spinner loading-md text-info"></div>
+            </div>
+            <p class="text-base font-medium text-contrast-content">
+              {uploadStatus === "validating"
+                ? "Validating file..."
+                : "Checking file structure..."}
+            </p>
+          {/if}
+          {#if uploadedFile}
+            <p
+              class="rounded-full bg-base-200 px-3 py-1 text-sm text-contrast-content/60"
+            >
+              {uploadedFile.name}
+            </p>
+          {/if}
+        </div>
+      {:else if hasError}
+        <div
+          class="animate-scaleIn relative z-10 flex max-w-md flex-col items-center"
+        >
+          <div
+            class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/20"
+          >
+            <AlertCircle size={32} class="text-error" />
+          </div>
+          <p class="mb-2 text-base font-medium text-error">
+            File Not Compatible
+          </p>
+          <p class="mb-5 text-center text-sm text-error">{uploadError}</p>
+          <button
+            on:click|stopPropagation={resetUploadState}
+            class="flex items-center gap-2 rounded-lg bg-base-200 px-4 py-2 text-sm text-contrast-content transition-all hover:bg-base-300"
+          >
+            <X size={14} />
+            <span>Try a different file</span>
+          </button>
+        </div>
+      {:else}
+        <div class="relative z-10 flex flex-col items-center">
+          <div
+            class="relative mb-6 transition-transform duration-300 group-hover:scale-110"
+          >
+            <div class="flex items-center justify-center space-x-6">
+              <Cloud class="animate-upload-pulse h-8 w-8 text-info" />
+              <div class="relative">
+                <FileIcon
+                  class="h-12 w-12 text-base-content transition-all group-hover:rotate-6"
+                />
                 <div
-                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-100"
-                >
-                  <FileIcon class="h-4 w-4 text-contrast-content/70" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div
-                    class="truncate text-sm font-medium text-contrast-content"
-                  >
-                    {file.name}
-                  </div>
-                  <div class="text-xs text-contrast-content/50">
-                    {formatDate(file.uploadedDate)}
-                  </div>
-                </div>
-                <button
-                  on:click={() => navigateToProcess(file.id, file.name)}
-                  class="flex items-center gap-1 rounded-lg bg-base-content px-2.5 py-1.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90"
-                  title="Use this file"
-                >
-                  <Play class="h-3 w-3" />
-                  <span class="hidden sm:inline">Use</span>
-                </button>
-                <button
-                  on:click={() => deleteFile(file.id, file.name)}
-                  disabled={deletingFileId === file.id}
-                  class="flex h-7 w-7 items-center justify-center rounded-lg border border-base-300 bg-base-100 text-contrast-content/60 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
-                  title="Delete file"
-                  aria-label="Delete file"
-                >
-                  <Trash2 class="h-3.5 w-3.5" />
-                </button>
+                  class="absolute inset-0 bg-base-content/20 opacity-0 blur-sm transition-opacity group-hover:opacity-100"
+                ></div>
               </div>
-            {/each}
+              <Cloud class="animate-upload-pulse h-8 w-8 text-info" />
+            </div>
+            <div
+              class="animate-upload-spin-slow absolute -inset-8 rounded-full border border-dashed border-info/30 opacity-50"
+            ></div>
+          </div>
+          <p class="mb-3 text-lg font-semibold text-contrast-content">
+            Click to upload or drag and drop
+          </p>
+          <p class="mb-2 text-center text-sm text-contrast-content/60">
+            Zipped shapefiles, KML, GeoJSON or ISOXML files (Max 50mb)
+          </p>
+          <div
+            class="mt-1 flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-xs text-info/70"
+          >
+            <CheckCircle class="h-3 w-3" />
+            Files are processed securely
           </div>
         </div>
       {/if}
+    </div>
+
+    <!-- Helpers -->
+    <div
+      class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-contrast-content/60"
+    >
+      <button
+        on:click={downloadExample}
+        class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
+      >
+        <Download class="h-3.5 w-3.5" />
+        Download example file
+      </button>
+      <a
+        href="/account/fieldview"
+        class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
+      >
+        <HelpCircle class="h-3.5 w-3.5" />
+        Need help?
+      </a>
+    </div>
+
+    <!-- Previously uploaded files (minimized) -->
+    {#if userFiles.length > 0}
+      <div class="mt-5 border-t border-base-300 pt-4">
+        <h4
+          class="mb-2 text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
+        >
+          Uploaded files
+        </h4>
+        <div class="space-y-1.5">
+          {#each userFiles as file (file.id)}
+            <div
+              class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200/50 p-2"
+            >
+              <div
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-100"
+              >
+                <FileIcon class="h-4 w-4 text-contrast-content/70" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium text-contrast-content">
+                  {file.name}
+                </div>
+                <div class="text-xs text-contrast-content/50">
+                  {formatDate(file.uploadedDate)}
+                </div>
+              </div>
+              <button
+                on:click={() => navigateToProcess(file.id, file.name)}
+                class="flex items-center gap-1 rounded-lg bg-base-content px-2.5 py-1.5 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90"
+                title="Use this file"
+              >
+                <Play class="h-3 w-3" />
+                <span class="hidden sm:inline">Use</span>
+              </button>
+              <button
+                on:click={() => deleteFile(file.id, file.name)}
+                disabled={deletingFileId === file.id}
+                class="flex h-7 w-7 items-center justify-center rounded-lg border border-base-300 bg-base-100 text-contrast-content/60 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
+                title="Delete file"
+                aria-label="Delete file"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>close</button>

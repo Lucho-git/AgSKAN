@@ -86,7 +86,10 @@
   $: seatLimit = $connectedMapStore.masterSubscription?.current_seats ?? null
   $: rawOverLimit = seatLimit != null && memberCount > seatLimit
   $: overLimit = enforceLimits && rawOverLimit
-  $: ownerName = $mapActivityStore.connected_profiles?.find((p: any) => p.id === map_owner_id)?.full_name || "the map owner"
+  $: ownerName =
+    $mapActivityStore.connected_profiles?.find(
+      (p: any) => p.id === map_owner_id,
+    )?.full_name || "the map owner"
 
   // Seats info modal
   let showSeatsModal = false
@@ -347,7 +350,7 @@
         {#if enforceLimits}
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-md active:scale-95 cursor-pointer {overLimit
+            class="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-md active:scale-95 {overLimit
               ? 'bg-red-500 ring-1 ring-red-400/50'
               : 'bg-green-500 ring-1 ring-green-400/50'}"
             on:click={() => (showSeatsModal = true)}
@@ -550,7 +553,12 @@
     {/each}
 
     <!-- Invite person card -->
-    <InviteModal overLimit={overLimit} overLimitCount={memberCount - (seatLimit ?? 0)} isOwner={is_owner} onBillingClick={openBillingPage}>
+    <InviteModal
+      {overLimit}
+      overLimitCount={memberCount - (seatLimit ?? 0)}
+      isOwner={is_owner}
+      onBillingClick={openBillingPage}
+    >
       <div
         slot="trigger"
         class="flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-base-300 bg-base-100/50 p-3 transition-all duration-300 hover:border-yellow-400 hover:bg-base-100 active:scale-[0.99] md:p-4"
@@ -672,7 +680,9 @@
     {#if overLimit}
       <!-- ── Over limit ── -->
       <div class="mb-5 flex items-start gap-3">
-        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20">
+        <div
+          class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-red-500/20"
+        >
           <AlertTriangle class="h-6 w-6 text-red-500" />
         </div>
         <div>
@@ -699,33 +709,47 @@
         <div class="flex items-center gap-2.5">
           <Users class="h-5 w-5 text-red-500" />
           <p class="text-sm font-medium text-contrast-content">
-            {memberCount - seatLimit} member{(memberCount - seatLimit) === 1 ? "" : "s"} over your limit
+            {memberCount - seatLimit} member{memberCount - seatLimit === 1
+              ? ""
+              : "s"} over your limit
           </p>
         </div>
         <p class="mt-2 text-xs text-contrast-content/60">
-          Add {memberCount - seatLimit} more seat{(memberCount - seatLimit) === 1 ? "" : "s"} or remove members to get back within your limit.
+          Add {memberCount - seatLimit} more seat{memberCount - seatLimit === 1
+            ? ""
+            : "s"} or remove members to get back within your limit.
         </p>
       </div>
 
       {#if is_owner}
         <!-- Kickable members list -->
-        <div class="mb-4 max-h-48 overflow-y-auto rounded-lg border border-base-300">
+        <div
+          class="mb-4 max-h-48 overflow-y-auto rounded-lg border border-base-300"
+        >
           {#each sortedProfiles as profile}
             {@const isCurUser = profile.id === currentUserId}
             {@const isOwnerProfile = is_map_owner(profile.id)}
             {#if !isCurUser && !isOwnerProfile}
-              <div class="flex items-center justify-between border-b border-base-200 px-3 py-2.5 last:border-b-0">
+              <div
+                class="flex items-center justify-between border-b border-base-200 px-3 py-2.5 last:border-b-0"
+              >
                 <div class="flex min-w-0 flex-1 items-center gap-2.5">
                   {#if profile.vehicle}
-                    <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-white">
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-white"
+                    >
                       <svelte:component
-                        this={getVehicleIcon(profile.vehicle.vehicle_marker.type)}
+                        this={getVehicleIcon(
+                          profile.vehicle.vehicle_marker.type,
+                        )}
                         bodyColor={profile.vehicle.vehicle_marker.bodyColor}
                         size="70%"
                       />
                     </div>
                   {:else}
-                    <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-xs font-medium text-white">
+                    <div
+                      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-400 text-xs font-medium text-white"
+                    >
                       <User size={14} />
                     </div>
                   {/if}
@@ -748,7 +772,9 @@
 
       {#if !is_owner}
         <p class="mb-1 text-xs text-contrast-content/50">
-          Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+          Owned by <span class="font-medium text-contrast-content/70"
+            >{ownerName}</span
+          >
         </p>
       {/if}
 
@@ -762,7 +788,7 @@
         {#if is_owner}
           <button
             on:click={openBillingPage}
-            class="cursor-pointer flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
+            class="flex cursor-pointer items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
           >
             <ExternalLink class="h-3.5 w-3.5" />
             Manage Billing
@@ -772,7 +798,9 @@
     {:else if seatLimit != null && memberCount >= seatLimit}
       <!-- ── At limit ── -->
       <div class="mb-5 flex items-start gap-3">
-        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+        <div
+          class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20"
+        >
           <UserCheck class="h-6 w-6 text-green-500" />
         </div>
         <div>
@@ -791,7 +819,9 @@
         {/each}
       </div>
 
-      <div class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+      <div
+        class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 p-4"
+      >
         <div class="flex items-center gap-2.5">
           <UserPlus class="h-5 w-5 text-green-500" />
           <p class="text-sm font-medium text-contrast-content">
@@ -813,21 +843,25 @@
         {#if is_owner}
           <button
             on:click={openBillingPage}
-            class="cursor-pointer flex items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
+            class="flex cursor-pointer items-center gap-2 rounded-lg bg-base-content px-4 py-2 text-xs font-medium text-base-100 transition-colors hover:bg-base-content/90 sm:text-sm"
           >
             <ExternalLink class="h-3.5 w-3.5" />
             Manage Billing
           </button>
         {:else}
           <p class="text-xs text-contrast-content/50">
-            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+            Owned by <span class="font-medium text-contrast-content/70"
+              >{ownerName}</span
+            >
           </p>
         {/if}
       </div>
     {:else if seatLimit == null}
       <!-- ── Unlimited ── -->
       <div class="mb-5 flex items-start gap-3">
-        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+        <div
+          class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20"
+        >
           <Users class="h-6 w-6 text-green-500" />
         </div>
         <div>
@@ -856,14 +890,18 @@
         </button>
         {#if !is_owner}
           <p class="text-xs text-contrast-content/50">
-            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+            Owned by <span class="font-medium text-contrast-content/70"
+              >{ownerName}</span
+            >
           </p>
         {/if}
       </div>
     {:else}
       <!-- ── Under limit (seats available) ── -->
       <div class="mb-5 flex items-start gap-3">
-        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20">
+        <div
+          class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-green-500/20"
+        >
           <Users class="h-6 w-6 text-green-500" />
         </div>
         <div>
@@ -883,14 +921,18 @@
           <div class="h-3 w-3 rounded-sm bg-base-content"></div>
         {/each}
         {#each Array(remaining) as _, i}
-          <div class="h-3 w-3 rounded-sm border border-dashed border-base-content/30"></div>
+          <div
+            class="h-3 w-3 rounded-sm border border-dashed border-base-content/30"
+          ></div>
         {/each}
       </div>
 
       <div class="mb-4 flex items-center gap-3 rounded-lg bg-green-500/10 p-4">
         <UserPlus class="h-5 w-5 flex-shrink-0 text-green-500" />
         <p class="text-sm text-contrast-content">
-          You can invite <strong>{remaining} more member{remaining === 1 ? "" : "s"}</strong> to your team.
+          You can invite <strong
+            >{remaining} more member{remaining === 1 ? "" : "s"}</strong
+          > to your team.
         </p>
       </div>
 
@@ -903,7 +945,9 @@
         </button>
         {#if !is_owner}
           <p class="text-xs text-contrast-content/50">
-            Owned by <span class="font-medium text-contrast-content/70">{ownerName}</span>
+            Owned by <span class="font-medium text-contrast-content/70"
+              >{ownerName}</span
+            >
           </p>
         {/if}
       </div>

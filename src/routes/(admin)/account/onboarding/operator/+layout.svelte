@@ -48,7 +48,9 @@
 </script>
 
 <div class="relative min-h-screen overflow-hidden bg-base-100">
-  <div class="sticky top-0 z-30 border-b border-base-200 bg-base-100/80 backdrop-blur-sm">
+  <div
+    class="sticky top-0 z-30 border-b border-base-200 bg-base-100/80 backdrop-blur-sm"
+  >
     <div class="container mx-auto px-4 py-3 md:px-6 md:py-4">
       <div class="flex items-center gap-4">
         <button
@@ -83,15 +85,21 @@
               </div>
               {#if index < totalSteps - 1}
                 <div class="flex flex-1 items-center px-1 md:px-2">
-                  <div class="h-0.5 w-full transition-all {step < currentStep ? 'bg-base-content' : 'bg-base-300'}"></div>
+                  <div
+                    class="h-0.5 w-full transition-all {step < currentStep
+                      ? 'bg-base-content'
+                      : 'bg-base-300'}"
+                  ></div>
                 </div>
               {/if}
             {/each}
           </div>
-          <div class="mt-1 hidden md:flex items-start justify-between">
+          <div class="mt-1 hidden items-start justify-between md:flex">
             {#each Array.from({ length: totalSteps }, (_, i) => i + 1) as _s, index}
               <div class="flex flex-col items-center">
-                <span class="text-center text-xs text-contrast-content/40">{steps[index].label}</span>
+                <span class="text-center text-xs text-contrast-content/40"
+                  >{steps[index].label}</span
+                >
               </div>
               {#if index < totalSteps - 1}
                 <div class="flex flex-1 items-center px-1 md:px-2"></div>

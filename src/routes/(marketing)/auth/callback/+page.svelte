@@ -403,7 +403,9 @@
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-base-100 bg-opacity-50 backdrop-blur-sm"
   >
-    <div class="container mx-auto flex flex-col items-center justify-center px-4">
+    <div
+      class="container mx-auto flex flex-col items-center justify-center px-4"
+    >
       <div class="flex flex-col items-center">
         <div class="skeleton mb-4 h-12 w-12 rounded-full"></div>
         <p class="text-lg">Just a moment...</p>

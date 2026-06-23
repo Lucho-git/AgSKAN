@@ -613,7 +613,10 @@
   function refreshMapMarkers() {
     if (!map || !map.getSource("markers")) return
 
-    if ($selectedMarkerStore?.id && $markerVisibilityStore[$selectedMarkerStore.id] === "hidden") {
+    if (
+      $selectedMarkerStore?.id &&
+      $markerVisibilityStore[$selectedMarkerStore.id] === "hidden"
+    ) {
       selectedMarkerStore.set(null)
       controlStore.update((controls) => ({
         ...controls,
@@ -638,7 +641,9 @@
         selected: $selectedMarkerStore?.id === marker.id,
         confirmed: true,
         // Add truncated note label for display
-        noteLabel: shouldShowNoteLabel(marker) ? truncateNote(marker.notes) : "",
+        noteLabel: shouldShowNoteLabel(marker)
+          ? truncateNote(marker.notes)
+          : "",
         noteLabelVisible: shouldShowNoteLabel(marker),
         // Store full notes for reference (not displayed directly)
         hasNotes: !!marker.notes,
@@ -701,7 +706,11 @@
   }
 
   // Update a marker's note label on the map
-  function updateMarkerNoteLabel(markerId, notes, noteLabelVisible = undefined) {
+  function updateMarkerNoteLabel(
+    markerId,
+    notes,
+    noteLabelVisible = undefined,
+  ) {
     if (!map || !map.getSource("markers")) return
 
     const source = map.getSource("markers")
@@ -725,7 +734,10 @@
   }
 
   function getCurrentIconClass(markerId) {
-    if ($selectedMarkerStore?.id === markerId && $selectedMarkerStore.iconClass) {
+    if (
+      $selectedMarkerStore?.id === markerId &&
+      $selectedMarkerStore.iconClass
+    ) {
       return $selectedMarkerStore.iconClass
     }
 
@@ -740,7 +752,9 @@
   function hasUnconfirmedSelectedMarker() {
     const selectedId = $selectedMarkerStore?.id
     if (!selectedId || !map?.getSource?.("markers")) return false
-    if (($confirmedMarkersStore || []).some((marker) => marker.id === selectedId)) {
+    if (
+      ($confirmedMarkersStore || []).some((marker) => marker.id === selectedId)
+    ) {
       return false
     }
 
@@ -832,13 +846,21 @@
 
       // Green ripple — auto-confirmed
       const markerDef = findMarkerByIconClass(iconClass)
-      showPlacementRipple([lngLat.lng, lngLat.lat], "rgba(34, 197, 94", markerDef?.name || "Marker")
+      showPlacementRipple(
+        [lngLat.lng, lngLat.lat],
+        "rgba(34, 197, 94",
+        markerDef?.name || "Marker",
+      )
 
       updateMarkerSelection(id, false)
       selectedMarkerStore.set(null)
 
       if ($userSettingsStore?.zoomToPlacedMarkers) {
-        map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 15, duration: 1000 })
+        map.flyTo({
+          center: [lngLat.lng, lngLat.lat],
+          zoom: 15,
+          duration: 1000,
+        })
       }
     } else {
       controlStore.update((controls) => ({

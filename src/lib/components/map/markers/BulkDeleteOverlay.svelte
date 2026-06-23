@@ -4,7 +4,10 @@
 <script>
   import { onMount, onDestroy } from "svelte"
   import * as turf from "@turf/turf"
-  import { bulkDeleteStore, confirmedMarkersStore } from "$lib/stores/markerStore"
+  import {
+    bulkDeleteStore,
+    confirmedMarkersStore,
+  } from "$lib/stores/markerStore"
   import { markerApi } from "$lib/api/markerApi"
   import { toast } from "svelte-sonner"
   import { Trash2, X } from "lucide-svelte"
@@ -29,22 +32,64 @@
   function ensureSources() {
     if (!map) return
     if (!map.getSource(LASSO_SRC)) {
-      map.addSource(LASSO_SRC, { type: "geojson", data: { type: "FeatureCollection", features: [] } })
+      map.addSource(LASSO_SRC, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      })
     }
     if (!map.getSource(DOTS_SRC)) {
-      map.addSource(DOTS_SRC, { type: "geojson", data: { type: "FeatureCollection", features: [] } })
+      map.addSource(DOTS_SRC, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      })
     }
     if (!map.getLayer(LASSO_FILL)) {
-      map.addLayer({ id: LASSO_FILL, type: "fill", source: LASSO_SRC, filter: ["==", "$type", "Polygon"], paint: { "fill-color": "#ef4444", "fill-opacity": 0.15 } })
+      map.addLayer({
+        id: LASSO_FILL,
+        type: "fill",
+        source: LASSO_SRC,
+        filter: ["==", "$type", "Polygon"],
+        paint: { "fill-color": "#ef4444", "fill-opacity": 0.15 },
+      })
     }
     if (!map.getLayer(LASSO_LINE)) {
-      map.addLayer({ id: LASSO_LINE, type: "line", source: LASSO_SRC, paint: { "line-color": "#ef4444", "line-width": 2.5, "line-dasharray": [4, 3] } })
+      map.addLayer({
+        id: LASSO_LINE,
+        type: "line",
+        source: LASSO_SRC,
+        paint: {
+          "line-color": "#ef4444",
+          "line-width": 2.5,
+          "line-dasharray": [4, 3],
+        },
+      })
     }
     if (!map.getLayer(DOTS_LAYER)) {
-      map.addLayer({ id: DOTS_LAYER, type: "circle", source: DOTS_SRC, paint: { "circle-radius": 8, "circle-color": "#ef4444", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } })
+      map.addLayer({
+        id: DOTS_LAYER,
+        type: "circle",
+        source: DOTS_SRC,
+        paint: {
+          "circle-radius": 8,
+          "circle-color": "#ef4444",
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 2,
+        },
+      })
     }
     if (!map.getLayer(DOTS_LABEL)) {
-      map.addLayer({ id: DOTS_LABEL, type: "symbol", source: DOTS_SRC, layout: { "text-field": "✕", "text-size": 12, "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"], "text-offset": [0, 0] }, paint: { "text-color": "#fff" } })
+      map.addLayer({
+        id: DOTS_LABEL,
+        type: "symbol",
+        source: DOTS_SRC,
+        layout: {
+          "text-field": "✕",
+          "text-size": 12,
+          "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+          "text-offset": [0, 0],
+        },
+        paint: { "text-color": "#fff" },
+      })
     }
   }
 
@@ -53,9 +98,17 @@
     touchPoints = []
     detachMapListeners()
     try {
-      if (map?.getSource(LASSO_SRC)) map.getSource(LASSO_SRC).setData({ type: "FeatureCollection", features: [] })
-      if (map?.getSource(DOTS_SRC)) map.getSource(DOTS_SRC).setData({ type: "FeatureCollection", features: [] })
-    } catch (e) { /* ignore */ }
+      if (map?.getSource(LASSO_SRC))
+        map
+          .getSource(LASSO_SRC)
+          .setData({ type: "FeatureCollection", features: [] })
+      if (map?.getSource(DOTS_SRC))
+        map
+          .getSource(DOTS_SRC)
+          .setData({ type: "FeatureCollection", features: [] })
+    } catch (e) {
+      /* ignore */
+    }
     if (map) {
       map.dragPan?.enable()
       map.dragRotate?.enable()
@@ -86,7 +139,10 @@
     map.dragPan.disable()
     map.dragRotate.disable()
 
-    const lngLat = e.lngLat || (e.touches?.[0] && map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
+    const lngLat =
+      e.lngLat ||
+      (e.touches?.[0] &&
+        map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
     if (!lngLat) return
 
     touchPoints = [[lngLat.lng, lngLat.lat]]
@@ -99,7 +155,10 @@
 
   function onPointerMove(e) {
     if (!drawing) return
-    const lngLat = e.lngLat || (e.touches?.[0] && map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
+    const lngLat =
+      e.lngLat ||
+      (e.touches?.[0] &&
+        map.unproject([e.touches[0].clientX, e.touches[0].clientY]))
     if (!lngLat) return
     touchPoints = [...touchPoints, [lngLat.lng, lngLat.lat]]
     updateLassoDisplay()
@@ -125,7 +184,16 @@
     if (!map?.getSource(LASSO_SRC)) return
     map.getSource(LASSO_SRC).setData({
       type: "FeatureCollection",
-      features: touchPoints.length >= 2 ? [{ type: "Feature", geometry: { type: "LineString", coordinates: touchPoints }, properties: {} }] : [],
+      features:
+        touchPoints.length >= 2
+          ? [
+              {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: touchPoints },
+                properties: {},
+              },
+            ]
+          : [],
     })
   }
 
@@ -133,13 +201,24 @@
     if (!map?.getSource(LASSO_SRC)) return
     map.getSource(LASSO_SRC).setData({
       type: "FeatureCollection",
-      features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [closedRing] }, properties: {} }],
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [closedRing] },
+          properties: {},
+        },
+      ],
     })
   }
 
   function processLasso(closedRing) {
     let polygon
-    try { polygon = turf.polygon([closedRing]) } catch { bulkDeleteStore.cancel(); return }
+    try {
+      polygon = turf.polygon([closedRing])
+    } catch {
+      bulkDeleteStore.cancel()
+      return
+    }
 
     let allMarkers = []
     const mUnsub = confirmedMarkersStore.subscribe((m) => (allMarkers = m))
@@ -177,8 +256,12 @@
         await markerApi.deleteMarker(m.id)
       }
       // Remove from store
-      confirmedMarkersStore.update((existing) => existing.filter((em) => !markers.some((dm) => dm.id === em.id)))
-      toast.success(`Deleted ${markers.length} marker${markers.length !== 1 ? "s" : ""}`)
+      confirmedMarkersStore.update((existing) =>
+        existing.filter((em) => !markers.some((dm) => dm.id === em.id)),
+      )
+      toast.success(
+        `Deleted ${markers.length} marker${markers.length !== 1 ? "s" : ""}`,
+      )
     } catch (e) {
       toast.error("Some markers could not be deleted")
     } finally {
@@ -232,11 +315,18 @@
   <div class="bd-overlay">
     <div class="bd-card confirm">
       <span class="bd-icon"><Trash2 size={28} /></span>
-      <p class="bd-text"><strong>{selectedCount}</strong> marker{selectedCount !== 1 ? "s" : ""} selected for deletion</p>
+      <p class="bd-text">
+        <strong>{selectedCount}</strong> marker{selectedCount !== 1 ? "s" : ""} selected
+        for deletion
+      </p>
       <p class="bd-hint">This cannot be undone</p>
       <div class="bd-actions">
         <button class="bd-btn cancel" on:click={handleCancel}>Cancel</button>
-        <button class="bd-btn danger" on:click={handleConfirmDelete} disabled={deleting}>
+        <button
+          class="bd-btn danger"
+          on:click={handleConfirmDelete}
+          disabled={deleting}
+        >
           {deleting ? "Deleting..." : `Delete ${selectedCount}`}
         </button>
       </div>
@@ -266,12 +356,30 @@
     color: #fff;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
-  .bd-card.drawing { border: 1px solid rgba(255, 255, 255, 0.15); }
-  .bd-card.confirm { border: 1px solid rgba(239, 68, 68, 0.4); }
-  .bd-icon { font-size: 28px; line-height: 1; color: #ef4444; }
-  .bd-text { font-size: 14px; font-weight: 500; }
-  .bd-hint { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
-  .bd-actions { display: flex; gap: 10px; justify-content: center; }
+  .bd-card.drawing {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .bd-card.confirm {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+  }
+  .bd-icon {
+    font-size: 28px;
+    line-height: 1;
+    color: #ef4444;
+  }
+  .bd-text {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .bd-hint {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .bd-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
   .bd-btn {
     border: none;
     border-radius: 10px;
@@ -281,9 +389,22 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .bd-btn.cancel { background: rgba(255, 255, 255, 0.15); color: #fff; }
-  .bd-btn.cancel:hover { background: rgba(255, 255, 255, 0.25); }
-  .bd-btn.danger { background: #ef4444; color: #fff; }
-  .bd-btn.danger:hover { background: #dc2626; }
-  .bd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .bd-btn.cancel {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+  .bd-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  .bd-btn.danger {
+    background: #ef4444;
+    color: #fff;
+  }
+  .bd-btn.danger:hover {
+    background: #dc2626;
+  }
+  .bd-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 </style>

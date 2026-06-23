@@ -78,11 +78,6 @@
         // Update stores with the map data
         connectedMapStore.set(result.data.connectedMap)
         mapActivityStore.set(result.data.mapActivity)
-        operationStore.set(result.data.operations || [])
-
-        if (result.data.operation) {
-          selectedOperationStore.set(result.data.operation)
-        }
 
         // Clear the pending map ID from storage
         clearPendingMapId()
@@ -186,7 +181,8 @@
           limitMarkersOn: user_settings.limit_markers,
           limitMarkersDays: user_settings.limit_markers_days,
           limitMarkersDate: currentDate.toISOString(),
-          zoomToLocationMarkers: user_settings.zoom_to_location_markers ?? false,
+          zoomToLocationMarkers:
+            user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           satelliteDropdownEnabled:
@@ -328,7 +324,9 @@
           supabase
             .from("operations")
             .select("*")
-            .eq("master_map_id", profile.master_map_id),
+            .eq("master_map_id", profile.master_map_id)
+            .order("year", { ascending: false })
+            .order("created_at", { ascending: false }),
         ])
 
       const masterMap = masterMapResult.data
@@ -494,7 +492,8 @@
       trailsMetaDataStore.set(trailsWithOperations)
 
       // Update operations stores (always set, even if empty)
-      operationStore.set(operations?.length ? [...operations].reverse() : [])
+      operationStore.set(operations?.length ? [...operations] : [])
+      console.log("[ops] loadData → operationStore (first 5):", (operations || []).slice(0, 5).map(o => ({ name: o.name, year: o.year, created: o.created_at })))
 
       if (operations?.length) {
         const selectedOp = operations.find(

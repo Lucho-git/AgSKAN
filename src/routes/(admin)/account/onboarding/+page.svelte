@@ -39,15 +39,12 @@
       id: "operator",
       title: "Operator",
       Icon: Tractor,
-      description:
-        "Run field operations, track progress, and submit reports",
+      description: "Run field operations, track progress, and submit reports",
       mobileDescription: "Execute operations and track progress",
       accentColor: "#3B82F6", // Blue (blue-500)
       hoverColor: "rgb(59 130 246)", // blue-500
       gradientBg: "bg-gradient-to-br to-base-100 from-base-300/50",
-      features: [
-        { text: "Track Progress", icon: Send },
-      ],
+      features: [{ text: "Track Progress", icon: Send }],
     },
     {
       id: "viewer",
@@ -59,9 +56,7 @@
       accentColor: "#8B5CF6", // Purple (violet-500)
       hoverColor: "rgb(139 92 246)", // violet-500
       gradientBg: "bg-gradient-to-br from-base-100 to-base-300/50",
-      features: [
-        { text: "View Maps", icon: MapPin },
-      ],
+      features: [{ text: "View Maps", icon: MapPin }],
     },
   ]
 
@@ -233,8 +228,8 @@
                     role.id && role.id === "manager"}
                   class:group-hover:border-blue-500={selectedRole !== role.id &&
                     role.id === "operator"}
-                  class:group-hover:border-violet-500={selectedRole !== role.id &&
-                    role.id === "viewer"}
+                  class:group-hover:border-violet-500={selectedRole !==
+                    role.id && role.id === "viewer"}
                 >
                   {#if selectedRole === role.id}
                     <svg
@@ -277,7 +272,7 @@
 
               <!-- Description - shorter on mobile -->
               <p
-                class="mb-3 text-xs text-contrast-content/60 lg:mb-5 sm:text-sm min-h-[2.5rem]"
+                class="mb-3 min-h-[2.5rem] text-xs text-contrast-content/60 sm:text-sm lg:mb-5"
               >
                 <span class="lg:hidden">{role.mobileDescription}</span>
                 <span class="hidden lg:block">{role.description}</span>
@@ -347,7 +342,8 @@
         <p
           class="mt-2 px-4 text-center text-xs text-contrast-content/40 lg:mt-4"
         >
-          If you're unsure, select Manager — you can change your role later in settings.
+          If you're unsure, select Manager — you can change your role later in
+          settings.
         </p>
       </div>
     </div>

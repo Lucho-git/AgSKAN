@@ -29,4 +29,10 @@
   </button>
 {/if}
 
-<InviteTeamModal bind:open {overLimit} {overLimitCount} {isOwner} {onBillingClick} />
+<InviteTeamModal
+  bind:open
+  {overLimit}
+  {overLimitCount}
+  {isOwner}
+  {onBillingClick}
+/>

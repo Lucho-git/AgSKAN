@@ -4,7 +4,10 @@
   speed/wifi badges, vertical action menu, trail wave, and stats modal.
 -->
 <script>
-  import { userVehicleStore, userVehicleTrailing } from "$lib/stores/vehicleStore"
+  import {
+    userVehicleStore,
+    userVehicleTrailing,
+  } from "$lib/stores/vehicleStore"
   import {
     currentTrailStore,
     pendingCoordinatesStore,
@@ -85,13 +88,13 @@
   // falls back to GPS-freshness on iOS/desktop where signal API is unavailable.
   const isAndroidNative = Capacitor.getPlatform() === "android"
 
-  let nativeSignalBars = -1   // -1 = not available, 0-4 from TelephonyManager
+  let nativeSignalBars = -1 // -1 = not available, 0-4 from TelephonyManager
   let signalInterval = null
 
   async function pollNativeSignal() {
     try {
       const result = await RawGps.getSignalStrength()
-      nativeSignalBars = (result && result.bars != null) ? result.bars : -1
+      nativeSignalBars = result && result.bars != null ? result.bars : -1
     } catch (e) {
       nativeSignalBars = -1
     }
@@ -108,18 +111,26 @@
     if (signalInterval) clearInterval(signalInterval)
   })
 
-  $: timeBars = isStale ? 0 : timeSinceUpdate < 5 ? 3 : timeSinceUpdate < 15 ? 2 : 1
-  $: signalBars = nativeSignalBars >= 0
-    ? Math.min(timeBars, Math.round(nativeSignalBars * 3 / 4))  // map 0-4 bars → 0-3 scale
-    : timeBars
-  $: wifiBorderColor = signalBars >= 1 ? 'rgba(59,130,246,0.4)' : 'rgba(239,68,68,0.4)'
-  $: barFill1 = signalBars >= 1 ? '#3b82f6' : 'rgba(255,255,255,0.2)'
-  $: barFill2 = signalBars >= 2 ? '#3b82f6' : 'rgba(255,255,255,0.2)'
-  $: barFill3 = signalBars >= 3 ? '#3b82f6' : 'rgba(255,255,255,0.2)'
+  $: timeBars = isStale
+    ? 0
+    : timeSinceUpdate < 5
+      ? 3
+      : timeSinceUpdate < 15
+        ? 2
+        : 1
+  $: signalBars =
+    nativeSignalBars >= 0
+      ? Math.min(timeBars, Math.round((nativeSignalBars * 3) / 4)) // map 0-4 bars → 0-3 scale
+      : timeBars
+  $: wifiBorderColor =
+    signalBars >= 1 ? "rgba(59,130,246,0.4)" : "rgba(239,68,68,0.4)"
+  $: barFill1 = signalBars >= 1 ? "#3b82f6" : "rgba(255,255,255,0.2)"
+  $: barFill2 = signalBars >= 2 ? "#3b82f6" : "rgba(255,255,255,0.2)"
+  $: barFill3 = signalBars >= 3 ? "#3b82f6" : "rgba(255,255,255,0.2)"
   $: modalBarFills = [
-    signalBars >= 1 ? '#3b82f6' : 'rgba(255,255,255,0.15)',
-    signalBars >= 2 ? '#3b82f6' : 'rgba(255,255,255,0.15)',
-    signalBars >= 3 ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+    signalBars >= 1 ? "#3b82f6" : "rgba(255,255,255,0.15)",
+    signalBars >= 2 ? "#3b82f6" : "rgba(255,255,255,0.15)",
+    signalBars >= 3 ? "#3b82f6" : "rgba(255,255,255,0.15)",
   ]
 
   // ── Trail data for badge & modal ──
@@ -156,8 +167,20 @@
 
   $: clampedSpeed = Math.min(speed, MAX_SPEED)
   $: arcAngle = (clampedSpeed / MAX_SPEED) * ARC_SPAN
-  $: arcPath = describeArc(CENTER, CENTER, RADIUS, ARC_START_ANGLE, ARC_START_ANGLE + arcAngle)
-  $: bgArcPath = describeArc(CENTER, CENTER, RADIUS, ARC_START_ANGLE, ARC_START_ANGLE + ARC_SPAN)
+  $: arcPath = describeArc(
+    CENTER,
+    CENTER,
+    RADIUS,
+    ARC_START_ANGLE,
+    ARC_START_ANGLE + arcAngle,
+  )
+  $: bgArcPath = describeArc(
+    CENTER,
+    CENTER,
+    RADIUS,
+    ARC_START_ANGLE,
+    ARC_START_ANGLE + ARC_SPAN,
+  )
 
   $: arcColor = isTrailing
     ? "#eab308"
@@ -168,7 +191,14 @@
         : "#ef4444"
 
   // ── Connection level label ──
-  $: connectionLabel = signalBars === 3 ? 'Excellent' : signalBars === 2 ? 'Good' : signalBars === 1 ? 'Weak' : 'Offline'
+  $: connectionLabel =
+    signalBars === 3
+      ? "Excellent"
+      : signalBars === 2
+        ? "Good"
+        : signalBars === 1
+          ? "Weak"
+          : "Offline"
 
   // ── Vehicle info for modal ──
   $: operationName = $userVehicleStore.operation_name || "No operation"
@@ -318,13 +348,12 @@
 
 <!-- HUD Container -->
 <div class="fixed bottom-4 left-4 z-50" style="width: 110px; height: 110px;">
-
   <!-- ── Operation Name Badge (top-left above hub) ── -->
 
   {#if !vehiclePickerOpen && !broadcastPickerOpen}
     {#each actions as action, i}
       <button
-        class="hub-action absolute flex items-center gap-3 rounded-full border border-white/20 bg-black/85 backdrop-blur shadow-lg transition-all duration-300 ease-out"
+        class="hub-action absolute flex items-center gap-3 rounded-full border border-white/20 bg-black/85 shadow-lg backdrop-blur transition-all duration-300 ease-out"
         class:hub-action-open={menuOpen}
         style="
           height: 48px;
@@ -334,8 +363,8 @@
           bottom: 35px;
           transform:
             {menuOpen
-              ? `translateY(-${i * 56}px) scale(1)`
-              : 'translateY(0px) scale(0.8)'};
+          ? `translateY(-${i * 56}px) scale(1)`
+          : 'translateY(0px) scale(0.8)'};
           opacity: {menuOpen ? 1 : 0};
           transition-delay: {menuOpen ? i * 60 : (actions.length - i) * 30}ms;
           pointer-events: {menuOpen ? 'auto' : 'none'};
@@ -352,7 +381,7 @@
   {#if vehiclePickerOpen}
     {#each vehicles as v, i}
       <button
-        class="hub-action hub-action-open absolute flex items-center gap-3 rounded-full border border-white/20 bg-black/85 backdrop-blur shadow-lg transition-all duration-300 ease-out"
+        class="hub-action hub-action-open absolute flex items-center gap-3 rounded-full border border-white/20 bg-black/85 shadow-lg backdrop-blur transition-all duration-300 ease-out"
         style="
           height: 48px;
           padding: 0 16px 0 8px;
@@ -367,12 +396,22 @@
         on:click|stopPropagation={() => handleVehiclePick(v.id)}
         title="Track {v.name}"
       >
-        <div class="flex h-7 w-7 items-center justify-center rounded-full" style="background: {v.bodyColor}22; border: 1.5px solid {v.bodyColor}66;">
-          <svelte:component this={SVGComponents[v.vehicleType] || SVGComponents.SimpleTractor} bodyColor={v.bodyColor} size="20px" />
+        <div
+          class="flex h-7 w-7 items-center justify-center rounded-full"
+          style="background: {v.bodyColor}22; border: 1.5px solid {v.bodyColor}66;"
+        >
+          <svelte:component
+            this={SVGComponents[v.vehicleType] || SVGComponents.SimpleTractor}
+            bodyColor={v.bodyColor}
+            size="20px"
+          />
         </div>
         <span class="text-sm font-semibold text-white/90">{v.name}</span>
         {#if v.isCurrentUser}
-          <span class="ml-auto rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400">YOU</span>
+          <span
+            class="ml-auto rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400"
+            >YOU</span
+          >
         {/if}
       </button>
     {:else}
@@ -389,7 +428,7 @@
   {#if broadcastPickerOpen}
     {#each broadcastMessages as msg, i}
       <button
-        class="hub-action hub-action-open absolute flex items-center rounded-full border border-white/20 bg-black/85 backdrop-blur shadow-lg transition-all duration-300 ease-out"
+        class="hub-action hub-action-open absolute flex items-center rounded-full border border-white/20 bg-black/85 shadow-lg backdrop-blur transition-all duration-300 ease-out"
         style="
           height: 44px;
           padding: 0 18px;
@@ -420,7 +459,13 @@
       style="width: 120px; height: 120px; transform: translate(-50%, -50%) rotate({compassRotation}deg); transition: transform 0.3s ease-out;"
     >
       <!-- North triangle -->
-      <svg class="absolute left-1/2 -translate-x-1/2" style="top: -4px;" width="18" height="14" viewBox="0 0 18 14">
+      <svg
+        class="absolute left-1/2 -translate-x-1/2"
+        style="top: -4px;"
+        width="18"
+        height="14"
+        viewBox="0 0 18 14"
+      >
         <polygon points="9,0 2,14 16,14" fill="#3b82f6" />
         <polygon points="9,2 4,12 14,12" fill="#60a5fa" opacity="0.6" />
       </svg>
@@ -428,38 +473,74 @@
       <span
         class="absolute left-1/2 -translate-x-1/2 font-black"
         style="top: 11px; font-size: 10px; color: #3b82f6; text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(59,130,246,0.4);"
-      >N</span>
+        >N</span
+      >
       <!-- Cardinal tick marks: E, S, W -->
-      <span class="compass-tick" style="top: 50%; right: -2px; transform: translateY(-50%);">E</span>
-      <span class="compass-tick" style="bottom: -2px; left: 50%; transform: translateX(-50%);">S</span>
-      <span class="compass-tick" style="top: 50%; left: -2px; transform: translateY(-50%);">W</span>
+      <span
+        class="compass-tick"
+        style="top: 50%; right: -2px; transform: translateY(-50%);">E</span
+      >
+      <span
+        class="compass-tick"
+        style="bottom: -2px; left: 50%; transform: translateX(-50%);">S</span
+      >
+      <span
+        class="compass-tick"
+        style="top: 50%; left: -2px; transform: translateY(-50%);">W</span
+      >
       <!-- Minor tick marks at 45° intervals -->
-      <span class="compass-tick-minor" style="top: 14%; right: 14%; transform: translate(50%, -50%);"></span>
-      <span class="compass-tick-minor" style="bottom: 14%; right: 14%; transform: translate(50%, 50%);"></span>
-      <span class="compass-tick-minor" style="bottom: 14%; left: 14%; transform: translate(-50%, 50%);"></span>
-      <span class="compass-tick-minor" style="top: 14%; left: 14%; transform: translate(-50%, -50%);"></span>
+      <span
+        class="compass-tick-minor"
+        style="top: 14%; right: 14%; transform: translate(50%, -50%);"
+      ></span>
+      <span
+        class="compass-tick-minor"
+        style="bottom: 14%; right: 14%; transform: translate(50%, 50%);"
+      ></span>
+      <span
+        class="compass-tick-minor"
+        style="bottom: 14%; left: 14%; transform: translate(-50%, 50%);"
+      ></span>
+      <span
+        class="compass-tick-minor"
+        style="top: 14%; left: 14%; transform: translate(-50%, -50%);"
+      ></span>
     </div>
 
     <!-- Trailing: spinning red/yellow conic ring -->
     {#if isTrailing}
-      <div class="trail-ring-spinner pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      <div
+        class="trail-ring-spinner pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
         style="width: 104px; height: 104px;"
       />
     {/if}
 
     <!-- Speed Arc Gauge (SVG overlay) -->
     <svg
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-      width="108" height="108" viewBox="0 0 108 108"
+      class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      width="108"
+      height="108"
+      viewBox="0 0 108 108"
     >
       {#if bgArcPath}
-        <path d={bgArcPath} fill="none" stroke="white" stroke-opacity="0.15"
-          stroke-width={STROKE} stroke-linecap="round" />
+        <path
+          d={bgArcPath}
+          fill="none"
+          stroke="white"
+          stroke-opacity="0.15"
+          stroke-width={STROKE}
+          stroke-linecap="round"
+        />
       {/if}
       {#if arcPath && !isTrailing}
-        <path d={arcPath} fill="none" stroke={arcColor}
-          stroke-width={STROKE} stroke-linecap="round"
-          class="transition-all duration-500 ease-out" />
+        <path
+          d={arcPath}
+          fill="none"
+          stroke={arcColor}
+          stroke-width={STROKE}
+          stroke-linecap="round"
+          class="transition-all duration-500 ease-out"
+        />
       {/if}
     </svg>
 
@@ -478,12 +559,16 @@
         class="flex items-center justify-center transition-transform duration-300 ease-out"
         style="transform: rotate({cumulativeRotation}deg);"
       >
-        <svelte:component this={VehicleIcon} bodyColor={vehicleColor} size="48px" />
+        <svelte:component
+          this={VehicleIcon}
+          bodyColor={vehicleColor}
+          size="48px"
+        />
       </div>
 
       {#if speed > 2 && !isStale}
         <div
-          class="absolute inset-0 rounded-full border-2 animate-ping pointer-events-none"
+          class="pointer-events-none absolute inset-0 animate-ping rounded-full border-2"
           style="border-color: {statusColor}; opacity: 0.3;"
         />
       {/if}
@@ -493,27 +578,30 @@
   <!-- ── Operation Name Badge (bottom-right, under speed) ── -->
   {#if operationName && operationName !== "No operation"}
     <div
-      class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 backdrop-blur shadow-lg"
+      class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 shadow-lg backdrop-blur"
       style="bottom: 6px; left: 73px; max-width: 150px;"
       title="Current operation: {operationName}"
     >
-      <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400"></span>
-      <span class="truncate text-[10px] font-medium text-white/90">{operationName}</span>
+      <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400"
+      ></span>
+      <span class="truncate text-[10px] font-medium text-white/90"
+        >{operationName}</span
+      >
     </div>
   {/if}
 
   <!-- ── Speed Badge (bottom-right, above operation) ── -->
   <div
-    class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 font-mono text-xs font-bold text-white backdrop-blur shadow-lg"
+    class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 font-mono text-xs font-bold text-white shadow-lg backdrop-blur"
     style="top: 44px; left: 82px; min-width: 54px; justify-content: center;"
   >
     <span style="color: {arcColor};">{speed.toFixed(1)}</span>
-    <span class="text-white/50 text-[10px]">km/h</span>
+    <span class="text-[10px] text-white/50">km/h</span>
   </div>
 
   <!-- ── Wifi Signal Badge (top-right) — clickable to open stats modal ── -->
   <button
-    class="absolute flex items-center gap-1.5 rounded-full border bg-black/85 px-2 py-1 backdrop-blur shadow-lg transition-all hover:scale-105"
+    class="absolute flex items-center gap-1.5 rounded-full border bg-black/85 px-2 py-1 shadow-lg backdrop-blur transition-all hover:scale-105"
     style="top: 6px; left: 73px; min-width: 44px; justify-content: center; border-color: {wifiBorderColor};"
     on:click|stopPropagation={openStatsModal}
     title="Signal: {signalBars}/3 bars — Tap for stats"
@@ -525,10 +613,14 @@
       <rect x="10" y="1" width="4" height="14" rx="0.7" fill={barFill3} />
     </svg>
     {#if isTrailing && totalTrailPoints > 0}
-      <span class="font-mono text-[10px] font-bold text-blue-400">{totalTrailPoints}</span>
+      <span class="font-mono text-[10px] font-bold text-blue-400"
+        >{totalTrailPoints}</span
+      >
     {/if}
     {#if hasUnsyncedChanges}
-      <span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+      <span
+        class="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-red-500"
+      />
     {/if}
   </button>
 
@@ -536,7 +628,14 @@
   {#if menuOpen || vehiclePickerOpen || broadcastPickerOpen}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="fixed inset-0 z-[-1]" on:click={() => { menuOpen = false; vehiclePickerOpen = false; broadcastPickerOpen = false; }} />
+    <div
+      class="fixed inset-0 z-[-1]"
+      on:click={() => {
+        menuOpen = false
+        vehiclePickerOpen = false
+        broadcastPickerOpen = false
+      }}
+    />
   {/if}
 </div>
 
@@ -551,13 +650,15 @@
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="conn-modal" on:click|stopPropagation>
       <!-- Header -->
-      <div
-        class="conn-modal-header {isTrailing ? 'recording' : 'stopped'}"
-      >
+      <div class="conn-modal-header {isTrailing ? 'recording' : 'stopped'}">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <h3 class="text-base font-semibold text-white">Connection Status</h3>
-            <div class="status-dot {isTrailing ? 'recording' : 'stopped'}"></div>
+            <h3 class="text-base font-semibold text-white">
+              Connection Status
+            </h3>
+            <div
+              class="status-dot {isTrailing ? 'recording' : 'stopped'}"
+            ></div>
           </div>
           <button
             class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
@@ -586,7 +687,8 @@
                   {#each [0, 1, 2] as idx}
                     <div
                       class="rounded-sm transition-colors"
-                      style="width: 5px; height: {(idx + 1) * 5 + 3}px; background: {modalBarFills[idx]};"
+                      style="width: 5px; height: {(idx + 1) * 5 +
+                        3}px; background: {modalBarFills[idx]};"
                     />
                   {/each}
                 </div>
@@ -595,11 +697,14 @@
             </div>
           </div>
           <div class="connection-banner-row">
-            <Database size={14} class={isTrailing ? 'text-green-400' : 'text-white/40'} />
+            <Database
+              size={14}
+              class={isTrailing ? "text-green-400" : "text-white/40"}
+            />
             <div class="connection-banner-content">
               <span class="connection-banner-label">Trail Recording</span>
               <span class="connection-banner-value">
-                {isTrailing ? 'Active' : 'Not Recording'}
+                {isTrailing ? "Active" : "Not Recording"}
               </span>
             </div>
           </div>
@@ -639,10 +744,14 @@
                 <span class="stat-compact-value">{syncedPoints}</span>
               </div>
             </div>
-            <div class="stat-compact {hasUnsyncedTrailChanges ? 'warning' : ''}">
+            <div
+              class="stat-compact {hasUnsyncedTrailChanges ? 'warning' : ''}"
+            >
               <WifiOff
                 size={14}
-                class={hasUnsyncedTrailChanges ? 'text-amber-400' : 'text-white/40'}
+                class={hasUnsyncedTrailChanges
+                  ? "text-amber-400"
+                  : "text-white/40"}
               />
               <div class="stat-compact-content">
                 <span class="stat-compact-label">Queued</span>
@@ -662,21 +771,28 @@
             <div class="stat-compact {unsyncedMarkerChanges ? 'warning' : ''}">
               <Wifi
                 size={14}
-                class={unsyncedMarkerChanges ? 'text-amber-400' : 'text-green-400'}
+                class={unsyncedMarkerChanges
+                  ? "text-amber-400"
+                  : "text-green-400"}
               />
               <div class="stat-compact-content">
                 <span class="stat-compact-label">Changes</span>
                 <span class="stat-compact-value">{unsyncedMarkerChanges}</span>
               </div>
             </div>
-            <div class="stat-compact {unsyncedMarkerDeletions ? 'warning' : ''}">
+            <div
+              class="stat-compact {unsyncedMarkerDeletions ? 'warning' : ''}"
+            >
               <WifiOff
                 size={14}
-                class={unsyncedMarkerDeletions ? 'text-amber-400' : 'text-white/40'}
+                class={unsyncedMarkerDeletions
+                  ? "text-amber-400"
+                  : "text-white/40"}
               />
               <div class="stat-compact-content">
                 <span class="stat-compact-label">Deletions</span>
-                <span class="stat-compact-value">{unsyncedMarkerDeletions}</span>
+                <span class="stat-compact-value">{unsyncedMarkerDeletions}</span
+                >
               </div>
             </div>
           </div>
@@ -688,16 +804,30 @@
             <AlertTriangle size={16} class="flex-shrink-0 text-amber-400" />
             <div class="text-xs">
               {#if hasUnsyncedTrailChanges}
-                <strong>{unsyncedPoints} trail point{unsyncedPoints !== 1 ? 's' : ''}</strong>
+                <strong
+                  >{unsyncedPoints} trail point{unsyncedPoints !== 1
+                    ? "s"
+                    : ""}</strong
+                >
                 {#if $pendingClosuresStore.length}
-                  and <strong>{$pendingClosuresStore.length} closure{$pendingClosuresStore.length !== 1 ? 's' : ''}</strong>
+                  and <strong
+                    >{$pendingClosuresStore.length} closure{$pendingClosuresStore.length !==
+                    1
+                      ? "s"
+                      : ""}</strong
+                  >
                 {/if}
               {/if}
               {#if hasUnsyncedTrailChanges && hasUnsyncedMarkerChanges}
-                {' + '}
+                {" + "}
               {/if}
               {#if hasUnsyncedMarkerChanges}
-                <strong>{totalUnsyncedMarkers} marker change{totalUnsyncedMarkers !== 1 ? 's' : ''}</strong>
+                <strong
+                  >{totalUnsyncedMarkers} marker change{totalUnsyncedMarkers !==
+                  1
+                    ? "s"
+                    : ""}</strong
+                >
               {/if}
               waiting to sync
             </div>
@@ -714,7 +844,7 @@
           title="Clear all queued data and reset trail state"
         >
           <Trash2 size={14} />
-          {purging ? 'Clearing...' : 'Purge Data'}
+          {purging ? "Clearing..." : "Purge Data"}
         </button>
         <button class="modal-btn primary" on:click={closeStatsModal}>
           Close
@@ -743,7 +873,9 @@
     font-size: 9px;
     font-weight: 800;
     color: rgba(255, 255, 255, 0.55);
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.5);
+    text-shadow:
+      0 1px 4px rgba(0, 0, 0, 0.9),
+      0 0 6px rgba(0, 0, 0, 0.5);
     letter-spacing: -0.3px;
   }
   .compass-tick-minor {
@@ -770,25 +902,29 @@
       black 62%,
       black 100%
     );
-    mask: radial-gradient(
-      circle,
-      transparent 60%,
-      black 62%,
-      black 100%
-    );
+    mask: radial-gradient(circle, transparent 60%, black 62%, black 100%);
     animation: trailSpin 2s linear infinite;
   }
   @keyframes trailSpin {
-    0% { transform: translate(-50%, -50%) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) rotate(360deg); }
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(360deg);
+    }
   }
 
   .trail-glow {
     animation: trailGlow 1.5s ease-in-out infinite;
   }
   @keyframes trailGlow {
-    0%, 100% { box-shadow: 0 0 12px rgba(234, 179, 8, 0.25); }
-    50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+    0%,
+    100% {
+      box-shadow: 0 0 12px rgba(234, 179, 8, 0.25);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
   }
 
   /* ══════════════════════════════════ */
@@ -860,8 +996,15 @@
     background: #6b7280;
   }
   @keyframes pulseDot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.8); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(0.8);
+    }
   }
 
   /* Body */
@@ -1084,8 +1227,12 @@
 
   /* Animations */
   @keyframes connFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes connSlideIn {
     from {

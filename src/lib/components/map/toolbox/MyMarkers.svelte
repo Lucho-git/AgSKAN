@@ -2,7 +2,10 @@
 <script>
   // @ts-nocheck
   import { createEventDispatcher, onMount, onDestroy } from "svelte"
-  import { confirmedMarkersStore, bulkDeleteStore } from "$lib/stores/markerStore"
+  import {
+    confirmedMarkersStore,
+    bulkDeleteStore,
+  } from "$lib/stores/markerStore"
   import { markerApi } from "$lib/api/markerApi"
   import { selectedMarkerStore } from "$lib/stores/markerStore"
   import { controlStore } from "$lib/stores/controlStore"

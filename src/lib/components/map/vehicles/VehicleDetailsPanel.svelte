@@ -4,7 +4,6 @@
   import {
     Edit3,
     Eye,
-    EyeOff,
     Navigation,
     Clock,
     Zap,
@@ -18,13 +17,18 @@
   import SVGComponents from "$lib/vehicles/index.js"
   import { getVehicleTypeName } from "$lib/utils/vehicleDisplayName"
   import { currentTrailStore } from "$lib/stores/currentTrailStore"
-  import { otherActiveTrailStore, visibleOperationIdsStore } from "$lib/stores/otherTrailStore"
+  import {
+    otherActiveTrailStore,
+    visibleOperationIdsStore,
+  } from "$lib/stores/otherTrailStore"
   import {
     userVehicleStore,
     otherVehiclesStore,
   } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { calculateZoomDependentWidth } from "$lib/utils/trailGeometry"
+  import { trailsApi } from "$lib/api/trailsApi"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -36,6 +40,7 @@
 
   let showInfoPanel = false
   let isExpanded = false
+  let trailStatsLoading = false
 
   const STALE_THRESHOLD_MS = 30000 // 30 seconds
 
@@ -400,22 +405,64 @@
   $: isTrailing = currentVehicle?.is_trailing || false
   $: trailDur = currentVehicle ? formatTrailingDuration(currentVehicle) : "- -"
   $: opName = currentVehicle?.operation_name || ""
-  $: isDifferentOperation = !isCurrentUser && currentVehicle?.operation_id && currentVehicle.operation_id !== $userVehicleStore.operation_id
+  $: isDifferentOperation =
+    !isCurrentUser &&
+    currentVehicle?.operation_id &&
+    currentVehicle.operation_id !== $userVehicleStore.operation_id
   $: diffOpName = currentVehicle?.operation_name || "this operation"
-  $: isDiffOpVisible = $visibleOperationIdsStore.has(currentVehicle?.operation_id || "")
+  $: isDiffOpVisible = $visibleOperationIdsStore.has(
+    currentVehicle?.operation_id || "",
+  )
 
-  function toggleViewOperation() {
+  async function toggleViewOperation() {
     const opId = currentVehicle?.operation_id
     if (!opId) return
+
+    // Reveal the operation immediately so map layers + toast fire in parallel
     visibleOperationIdsStore.update((ids) => {
       const next = new Set(ids)
-      if (next.has(opId)) next.delete(opId)
-      else next.add(opId)
+      next.add(opId)
       return next
     })
+
+    trailStatsLoading = true
+    try {
+      const currentUserId = $profileStore?.id
+      if (!currentUserId) { trailStatsLoading = false; return }
+      const data = await trailsApi.checkOtherActiveTrails(opId, currentUserId)
+      if (data.activeTrails?.length) {
+        const formatted = data.activeTrails.map((trail) => ({
+          id: trail.id,
+          vehicle_id: trail.vehicle_id,
+          operation_id: trail.operation_id,
+          trail_color: trail.trail_color,
+          trail_width: trail.trail_width,
+          path: (trail.trailData || []).map((coord) => ({
+            coordinates: {
+              latitude: coord.coordinates?.latitude ?? coord.latitude,
+              longitude: coord.coordinates?.longitude ?? coord.longitude,
+            },
+            timestamp: typeof coord.timestamp === "string"
+              ? new Date(coord.timestamp).getTime()
+              : coord.timestamp,
+          })).sort((a, b) => a.timestamp - b.timestamp),
+        }))
+        otherActiveTrailStore.update((trails) => {
+          const existing = new Map(trails.map((t) => [t.vehicle_id, t]))
+          for (const ft of formatted) existing.set(ft.vehicle_id, ft)
+          return [...existing.values()]
+        })
+      }
+    } catch (e) {
+      console.error("[VDP] Failed to fetch active trails for op:", opId, e)
+    } finally {
+      trailStatsLoading = false
+    }
   }
 
-  $: vehicleOnlineStatus = currentVehicle ? getVehicleStatus(currentVehicle) : "Unknown"
+  $: vehicleOnlineStatus = currentVehicle
+    ? getVehicleStatus(currentVehicle)
+    : "Unknown"
   $: vehicleStatusColor = getStatusColor(vehicleOnlineStatus)
 
   function formatDurHMM(ms) {
@@ -432,7 +479,9 @@
     if (currentVehicle.isCurrentUser) {
       path = $currentTrailStore?.path
     } else {
-      const t = $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id)
+      const t = $otherActiveTrailStore?.find(
+        (t) => t.vehicle_id === currentVehicle.id,
+      )
       path = t?.path
     }
     if (!path?.length) return null
@@ -453,7 +502,8 @@
   // Normalise a path point to flat {longitude, latitude} regardless of store format
   function normCoord(p) {
     if (p.longitude != null) return [p.longitude, p.latitude]
-    if (p.coordinates?.longitude != null) return [p.coordinates.longitude, p.coordinates.latitude]
+    if (p.coordinates?.longitude != null)
+      return [p.coordinates.longitude, p.coordinates.latitude]
     return null
   }
 
@@ -461,7 +511,10 @@
   $: activeTrailData = (() => {
     if (!isTrailing || !currentVehicle) return null
     if (currentVehicle.isCurrentUser) return $currentTrailStore
-    return $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id) ?? null
+    return (
+      $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id) ??
+      null
+    )
   })()
 
   // ── Trail highlight (map layers) ──────────────────────────────
@@ -477,30 +530,64 @@
       return
     }
     removeTrailHighlight()
-    const coords = path
-      .map(normCoord)
-      .filter(Boolean)
+    const coords = path.map(normCoord).filter(Boolean)
     if (coords.length < 2) {
       console.warn("[VDP] addTrailHighlight: not enough coords", coords.length)
       return
     }
     const color = trail.trail_color || "#22c55e"
     const w = trail.trail_width || vehicleSwath || 3
-    console.log("[VDP] addTrailHighlight: adding", coords.length, "points, color", color, "width", w)
+    console.log(
+      "[VDP] addTrailHighlight: adding",
+      coords.length,
+      "points, color",
+      color,
+      "width",
+      w,
+    )
     try {
       map.addSource(HL_SOURCE, {
         type: "geojson",
-        data: { type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: {} },
+        data: {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: coords },
+          properties: {},
+        },
       })
-      map.addLayer({ id: "vdp-hl-glow", type: "line", source: HL_SOURCE,
+      map.addLayer({
+        id: "vdp-hl-glow",
+        type: "line",
+        source: HL_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": calculateZoomDependentWidth(w, 3.0), "line-blur": 8, "line-opacity": 0.3 } })
-      map.addLayer({ id: "vdp-hl-line", type: "line", source: HL_SOURCE,
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": calculateZoomDependentWidth(w, 3.0),
+          "line-blur": 8,
+          "line-opacity": 0.3,
+        },
+      })
+      map.addLayer({
+        id: "vdp-hl-line",
+        type: "line",
+        source: HL_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": calculateZoomDependentWidth(w, 2.0), "line-opacity": 0.9 } })
-      map.addLayer({ id: "vdp-hl-inner", type: "line", source: HL_SOURCE,
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": calculateZoomDependentWidth(w, 2.0),
+          "line-opacity": 0.9,
+        },
+      })
+      map.addLayer({
+        id: "vdp-hl-inner",
+        type: "line",
+        source: HL_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": color, "line-width": calculateZoomDependentWidth(w, 1.5), "line-opacity": 1.0 } })
+        paint: {
+          "line-color": color,
+          "line-width": calculateZoomDependentWidth(w, 1.5),
+          "line-opacity": 1.0,
+        },
+      })
     } catch (e) {
       console.error("[VDP] addTrailHighlight error:", e)
     }
@@ -509,19 +596,26 @@
   function removeTrailHighlight() {
     if (!map) return
     for (const id of HL_LAYERS) {
-      try { if (map.getLayer(id)) map.removeLayer(id) } catch {}
+      try {
+        if (map.getLayer(id)) map.removeLayer(id)
+      } catch {}
     }
-    try { if (map.getSource(HL_SOURCE)) map.removeSource(HL_SOURCE) } catch {}
+    try {
+      if (map.getSource(HL_SOURCE)) map.removeSource(HL_SOURCE)
+    } catch {}
   }
 
   // Live-update highlight source as trail grows
   $: if (showInfoPanel && isTrailing && activeTrailData?.path?.length >= 2) {
     const src = map?.getSource(HL_SOURCE)
     if (src) {
-      const coords = activeTrailData.path
-        .map(normCoord)
-        .filter(Boolean)
-      if (coords.length >= 2) src.setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: {} })
+      const coords = activeTrailData.path.map(normCoord).filter(Boolean)
+      if (coords.length >= 2)
+        src.setData({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: coords },
+          properties: {},
+        })
     }
   }
 
@@ -537,19 +631,26 @@
     const path = trail.path
     if (path.length < 2) return null
     try {
-      const coords = path
-        .map(normCoord)
-        .filter(Boolean)
+      const coords = path.map(normCoord).filter(Boolean)
       if (coords.length < 2) return null
       const line = turf.lineString(coords)
       const distKm = turf.length(line, { units: "kilometers" })
       const swathM = trail.trail_width || vehicleSwath || 3
       const coverageHa = (distKm * 1000 * swathM) / 10000
-      const distStr = distKm < 1
-        ? `${(distKm * 1000).toFixed(0)} m`
-        : `${distKm.toFixed(2)} km`
-      return { distStr, coverageHa: coverageHa.toFixed(2), swathM, points: path.length, trailColor: trail.trail_color }
-    } catch { return null }
+      const distStr =
+        distKm < 1
+          ? `${(distKm * 1000).toFixed(0)} m`
+          : `${distKm.toFixed(2)} km`
+      return {
+        distStr,
+        coverageHa: coverageHa.toFixed(2),
+        swathM,
+        points: path.length,
+        trailColor: trail.trail_color,
+      }
+    } catch {
+      return null
+    }
   })()
 </script>
 
@@ -567,9 +668,12 @@
                 width="16"
                 height="16"
                 xmlns="http://www.w3.org/2000/svg"
-                style="--trail-icon-color: {trailStats?.trailColor ?? '#4ade80'}"
+                style="--trail-icon-color: {trailStats?.trailColor ??
+                  '#4ade80'}"
               >
-                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                />
               </svg>
               <span class="ts-title">Active Trail</span>
             </div>
@@ -586,109 +690,112 @@
               <span class="ts-label">Distance</span>
             </div>
             <div class="ts-stat ts-stat--green">
-              <span class="ts-value">~{trailStats?.coverageHa ?? "—"} <span class="ts-unit">ha</span></span>
+              <span class="ts-value"
+                >~{trailStats?.coverageHa ?? "—"}
+                <span class="ts-unit">ha</span></span
+              >
               <span class="ts-label">Est. coverage</span>
             </div>
           </div>
         </div>
-
       {:else}
         <!-- ── Generic info panel (other vehicles / not trailing) ── -->
         {#key `${vehicleType}-${vehicleBodyColor}-${vehicleSwath}`}
-        <div class="info-section">
-          <div class="vehicle-header">
-            <div class="vehicle-title">
-              <span class="vehicle-label"
-                >{currentVehicle.full_name || "Unknown Operator"}</span
+          <div class="info-section">
+            <div class="vehicle-header">
+              <div class="vehicle-title">
+                <span class="vehicle-label"
+                  >{currentVehicle.full_name || "Unknown Operator"}</span
+                >
+                <span class="vehicle-type">{displayName}</span>
+              </div>
+              <div
+                class="vehicle-status"
+                style="color: {getStatusColor(
+                  getVehicleStatus(currentVehicle),
+                )}"
               >
-              <span class="vehicle-type">{displayName}</span>
-            </div>
-            <div
-              class="vehicle-status"
-              style="color: {getStatusColor(getVehicleStatus(currentVehicle))}"
-            >
-              {getVehicleStatus(currentVehicle)}
-            </div>
-          </div>
-
-          <div class="status-grid">
-            <!-- Speed display - now fully reactive -->
-            <div class="status-item" data-speed-status={speedStatus}>
-              <div class="status-icon" style="color: {speedColor}">
-                <Zap size={16} />
-              </div>
-              <div class="status-content">
-                <span class="status-label">Speed</span>
-                <span class="status-value" style="color: {speedColor}"
-                  >{currentSpeed}</span
-                >
+                {getVehicleStatus(currentVehicle)}
               </div>
             </div>
 
-            <div class="status-item">
-              <div class="status-icon">
-                <Truck size={16} />
-              </div>
-              <div class="status-content">
-                <span class="status-label">Operation</span>
-                <span class="status-value"
-                  >{getCurrentOperation(currentVehicle)}</span
-                >
-              </div>
-            </div>
-
-            <div class="status-item">
-              <div class="status-icon">
-                <Ruler size={16} />
-              </div>
-              <div class="status-content">
-                <span class="status-label">Trail Swath</span>
-                <span class="status-value">{getTrailSwath()}</span>
-              </div>
-            </div>
-
-            <div class="status-item">
-              <div class="status-icon">
-                <Palette size={16} />
-              </div>
-              <div class="status-content">
-                <span class="status-label">Trail Color</span>
-                <div class="trail-color-display">
-                  <div
-                    class="color-swatch"
-                    style="background-color: {getTrailColorValue()}"
-                  ></div>
-                  <span class="status-value">{getTrailColor()}</span>
+            <div class="status-grid">
+              <!-- Speed display - now fully reactive -->
+              <div class="status-item" data-speed-status={speedStatus}>
+                <div class="status-icon" style="color: {speedColor}">
+                  <Zap size={16} />
+                </div>
+                <div class="status-content">
+                  <span class="status-label">Speed</span>
+                  <span class="status-value" style="color: {speedColor}"
+                    >{currentSpeed}</span
+                  >
                 </div>
               </div>
+
+              <div class="status-item">
+                <div class="status-icon">
+                  <Truck size={16} />
+                </div>
+                <div class="status-content">
+                  <span class="status-label">Operation</span>
+                  <span class="status-value"
+                    >{getCurrentOperation(currentVehicle)}</span
+                  >
+                </div>
+              </div>
+
+              <div class="status-item">
+                <div class="status-icon">
+                  <Ruler size={16} />
+                </div>
+                <div class="status-content">
+                  <span class="status-label">Trail Swath</span>
+                  <span class="status-value">{getTrailSwath()}</span>
+                </div>
+              </div>
+
+              <div class="status-item">
+                <div class="status-icon">
+                  <Palette size={16} />
+                </div>
+                <div class="status-content">
+                  <span class="status-label">Trail Color</span>
+                  <div class="trail-color-display">
+                    <div
+                      class="color-swatch"
+                      style="background-color: {getTrailColorValue()}"
+                    ></div>
+                    <span class="status-value">{getTrailColor()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {#if currentVehicle.is_trailing}
+                <div class="status-item">
+                  <div class="status-icon">
+                    <Clock size={16} />
+                  </div>
+                  <div class="status-content">
+                    <span class="status-label">Trailing for</span>
+                    <span class="status-value"
+                      >{formatTrailingDuration(currentVehicle)}</span
+                    >
+                  </div>
+                </div>
+              {/if}
             </div>
 
             {#if currentVehicle.is_trailing}
-              <div class="status-item">
-                <div class="status-icon">
-                  <Clock size={16} />
-                </div>
-                <div class="status-content">
-                  <span class="status-label">Trailing for</span>
-                  <span class="status-value"
-                    >{formatTrailingDuration(currentVehicle)}</span
-                  >
+              <div class="trailing-section">
+                <div class="trailing-indicator">
+                  <Navigation size={14} />
+                  <span>Currently trailing</span>
                 </div>
               </div>
             {/if}
           </div>
-
-          {#if currentVehicle.is_trailing}
-            <div class="trailing-section">
-              <div class="trailing-indicator">
-                <Navigation size={14} />
-                <span>Currently trailing</span>
-              </div>
-            </div>
-          {/if}
-        </div>
-      {/key}
-
+        {/key}
       {/if}
     {/if}
 
@@ -718,13 +825,49 @@
 
       <div class="vehicle-text-info">
         <div class="vstack">
-          <span class="vs-name">{isCurrentUser ? "You" : currentVehicle.full_name || "Unknown"}</span>
-          <span class="vs-sub">{displayName}{#if opName} · {opName}{/if}</span>
+          <span class="vs-name"
+            >{isCurrentUser
+              ? "You"
+              : currentVehicle.full_name || "Unknown"}</span
+          >
+          <span class="vs-sub"
+            >{displayName}{#if opName}
+              · {opName}{/if}</span
+          >
         </div>
       </div>
 
       <div class="action-controls">
-        {#if isTrailing}
+        {#if isTrailing && isDifferentOperation}
+          {#if trailStatsLoading}
+            <button class="trail-badge-animated trail-badge-loading" disabled>
+              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              </svg>
+              <span class="tbadge-loading-text">Loading trails...</span>
+            </button>
+          {:else if !isDiffOpVisible}
+            <button
+              class="trail-badge-animated trail-badge-v2-reveal"
+              on:click={toggleViewOperation}
+              title="View trails on {diffOpName}"
+            >
+              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              </svg>
+              <span class="tbadge-time">{trailHMM ?? trailDur}</span>
+              <Eye size={13} class="tbadge-v2-eye" />
+            </button>
+          {:else}
+            <button class="trail-badge-animated" class:active={showInfoPanel && isExpanded} on:click={handleInfoClick} title="Vehicle details">
+              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              </svg>
+              <span class="tbadge-time">{trailHMM ?? trailDur}</span>
+            </button>
+          {/if}
+          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+        {:else if isTrailing}
           <button
             class="trail-badge-animated"
             class:active={showInfoPanel && isExpanded}
@@ -736,21 +879,9 @@
             </svg>
             <span class="tbadge-time">{trailHMM ?? trailDur}</span>
           </button>
-        {/if}
-        <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
-        {#if isTrailing && isDifferentOperation}
-          <button
-            class="control-btn view-op-btn {isDiffOpVisible ? 'active' : ''}"
-            on:click={toggleViewOperation}
-            title={isDiffOpVisible ? `Hide trails on ${diffOpName}` : `View trails on ${diffOpName}`}
-          >
-            {#if isDiffOpVisible}
-              <EyeOff size={18} />
-            {:else}
-              <Eye size={18} />
-            {/if}
-            <span class="view-op-label">on {diffOpName}</span>
-          </button>
+          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+        {:else}
+          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
         {/if}
       </div>
     </div>
@@ -774,7 +905,11 @@
   /* ── Trail stats section ── */
   .trail-stats-section {
     padding: 14px 20px 12px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.93), rgba(0, 0, 0, 0.87));
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.93),
+      rgba(0, 0, 0, 0.87)
+    );
     border-bottom: 1px solid rgba(34, 197, 94, 0.2);
   }
 
@@ -795,7 +930,10 @@
     flex-shrink: 0;
     fill: var(--trail-icon-color, #4ade80);
     stroke: none;
-    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--trail-icon-color, #4ade80) 80%, transparent));
+    filter: drop-shadow(
+      0 0 3px
+        color-mix(in srgb, var(--trail-icon-color, #4ade80) 80%, transparent)
+    );
     animation: trailPulseFill 1.6s ease-in-out infinite;
   }
 
@@ -1155,7 +1293,9 @@
     border-radius: 8px;
     padding: 7px 12px;
     cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
     touch-action: manipulation;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -1188,8 +1328,37 @@
     letter-spacing: -0.02em;
   }
 
+  /* V2: one-click reveal badge — eye icon inline with time */
+  .trail-badge-v2-reveal {
+    gap: 6px;
+    padding-right: 12px;
+    background: rgba(59, 130, 246, 0.12);
+  }
+
+  .trail-badge-v2-reveal:hover {
+    background: rgba(59, 130, 246, 0.22);
+  }
+
+  .tbadge-v2-eye {
+    color: #60a5fa;
+    flex-shrink: 0;
+  }
+
+  .trail-badge-loading {
+    gap: 6px;
+    opacity: 0.7;
+    cursor: default;
+  }
+
+  .tbadge-loading-text {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
   @keyframes trailPulseFill {
-    0%, 100% {
+    0%,
+    100% {
       fill-opacity: 1;
       filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.9));
     }
@@ -1218,40 +1387,6 @@
   .track-btn:hover {
     background: rgba(168, 85, 247, 0.3);
     color: white;
-  }
-
-  .view-op-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border-radius: 20px;
-    padding: 4px 12px 4px 10px;
-    font-size: 11px;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  .view-op-btn:hover {
-    background: rgba(59, 130, 246, 0.3);
-    color: white;
-  }
-
-  .view-op-btn.active {
-    background: rgba(34, 197, 94, 0.2);
-    color: #4ade80;
-  }
-
-  .view-op-btn.active:hover {
-    background: rgba(34, 197, 94, 0.35);
-    color: white;
-  }
-
-  .view-op-label {
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .status-item[data-speed-status="moving"] {

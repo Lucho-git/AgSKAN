@@ -36,6 +36,7 @@
     X,
     Cloud,
     Check,
+    Truck,
   } from "lucide-svelte"
 
   import { v4 as uuidv4 } from "uuid"
@@ -140,6 +141,24 @@
   // 🆕 NEW: Helper function to get trail count for an operation
   function getTrailCountForOperation(operationId: string): number {
     return trailCountsByOperation[operationId] || 0
+  }
+
+  // 🆕 Trailing vehicle count per operation — join vehicle_states (vehicle_id) → connected_profiles (id → operation_id)
+  $: opIdByVehicleId = $mapActivityStore.connected_profiles.reduce((map, p) => {
+    if (p.operation_id) map[p.id] = p.operation_id
+    return map
+  }, {} as Record<string, string>)
+
+  $: trailingVehiclesByOperation = $mapActivityStore.vehicle_states.reduce((counts, v) => {
+    if (v.is_trailing) {
+      const opId = opIdByVehicleId[v.vehicle_id]
+      if (opId) counts[opId] = (counts[opId] || 0) + 1
+    }
+    return counts
+  }, {} as Record<string, number>)
+
+  function getOpTrailingCount(operationId: string): number {
+    return trailingVehiclesByOperation[operationId] || 0
   }
 
   // 🆕 NEW: Click outside to close dropdown
@@ -1377,6 +1396,7 @@
               >
                 {#each $operationStore as operation (operation.id)}
                   {@const trailCount = getTrailCountForOperation(operation.id)}
+                  {@const trailingCount = getOpTrailingCount(operation.id)}
                   <button
                     class="group flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-base-200 {$selectedOperationStore?.id ===
                     operation.id
@@ -1392,6 +1412,14 @@
                       </div>
                     </div>
                     <div class="ml-2 flex shrink-0 items-center gap-1">
+                      {#if trailingCount > 0}
+                        <div
+                          class="flex items-center gap-1 rounded-full bg-green-500/20 px-1.5 py-1 text-xs text-green-600 sm:px-2"
+                        >
+                          <Truck class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          <span>{trailingCount}</span>
+                        </div>
+                      {/if}
                       <div
                         class="group-hover:bg-base-400 flex items-center gap-1 rounded-full bg-base-300 px-1.5 py-1 text-xs {$selectedOperationStore?.id ===
                         operation.id

@@ -45,7 +45,8 @@ export const mapApi = {
                 .from("operations")
                 .select("*")
                 .eq("master_map_id", resolvedMapId)
-                .order("year", { ascending: false });
+                .order("year", { ascending: false })
+                .order("created_at", { ascending: false });
 
             if (operationError) {
                 console.error("Error fetching operations:", operationError);

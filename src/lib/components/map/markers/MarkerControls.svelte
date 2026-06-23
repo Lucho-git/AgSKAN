@@ -54,17 +54,29 @@
 
   async function toggleZoomToLocation() {
     const newVal = !zoomToLocation
-    userSettingsApi.updateMarkerInteractionSettings(newVal, zoomToPlaced, autoConfirm)
+    userSettingsApi.updateMarkerInteractionSettings(
+      newVal,
+      zoomToPlaced,
+      autoConfirm,
+    )
   }
 
   async function toggleZoomToPlaced() {
     const newVal = !zoomToPlaced
-    userSettingsApi.updateMarkerInteractionSettings(zoomToLocation, newVal, autoConfirm)
+    userSettingsApi.updateMarkerInteractionSettings(
+      zoomToLocation,
+      newVal,
+      autoConfirm,
+    )
   }
 
   async function toggleAutoConfirm() {
     const newVal = !autoConfirm
-    userSettingsApi.updateMarkerInteractionSettings(zoomToLocation, zoomToPlaced, newVal)
+    userSettingsApi.updateMarkerInteractionSettings(
+      zoomToLocation,
+      zoomToPlaced,
+      newVal,
+    )
   }
 
   let selectedMarker: MarkerDefinition = fallbackMarker
@@ -80,7 +92,8 @@
     return (
       allMarkers.find(
         (icon) =>
-          icon.id === preferredMarker.id && icon.class === preferredMarker.class,
+          icon.id === preferredMarker.id &&
+          icon.class === preferredMarker.class,
       ) || fallbackMarker
     )
   })()
@@ -111,7 +124,8 @@
   }
 
   async function selectMarker(marker: MarkerDefinition) {
-    const previousDefaultMarker = $userSettingsStore?.defaultMarker ?? fallbackMarker
+    const previousDefaultMarker =
+      $userSettingsStore?.defaultMarker ?? fallbackMarker
     selectedMarker = marker
 
     console.log("📊 Current userSettingsStore:", $userSettingsStore)
@@ -432,7 +446,9 @@
           <label class="settings-row">
             <div class="settings-info">
               <span class="settings-label">Zoom on quick-drop</span>
-              <span class="settings-hint">Auto-zoom when dropping at your location</span>
+              <span class="settings-hint"
+                >Auto-zoom when dropping at your location</span
+              >
             </div>
             <input
               type="checkbox"
@@ -446,7 +462,9 @@
           <label class="settings-row">
             <div class="settings-info">
               <span class="settings-label">Zoom on touch-hold</span>
-              <span class="settings-hint">Auto-zoom when placing pins on the map</span>
+              <span class="settings-hint"
+                >Auto-zoom when placing pins on the map</span
+              >
             </div>
             <input
               type="checkbox"
@@ -460,7 +478,9 @@
           <label class="settings-row">
             <div class="settings-info">
               <span class="settings-label">Auto-confirm markers</span>
-              <span class="settings-hint">Skip icon picker and confirm instantly</span>
+              <span class="settings-hint"
+                >Skip icon picker and confirm instantly</span
+              >
             </div>
             <input
               type="checkbox"

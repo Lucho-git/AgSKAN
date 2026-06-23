@@ -27,7 +27,8 @@
   let historicalDirectionalLayers: string[] = []
   // Seed from current store value to avoid a mismatched-default
   // firing updateHistoricalTrailVisibility before the map style has loaded.
-  let previousHistoricalVisibility = get(layerVisibilityStore).historicalTrails ?? true
+  let previousHistoricalVisibility =
+    get(layerVisibilityStore).historicalTrails ?? true
   let previousArrowsVisibility = get(layerVisibilityStore).trailArrows ?? false
 
   // ============================================
