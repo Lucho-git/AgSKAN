@@ -274,8 +274,14 @@ font-size: 12px;
 
     const animationBorderLayerId = `animation-border-layer-${trail.id}`
 
+    const animationCenterLineLayerId = `animation-center-line-${trail.id}`
+
     // Must remove layers BEFORE sources (Mapbox throws if source has dependent layers)
     try {
+      if (map.getLayer(animationCenterLineLayerId)) {
+        map.removeLayer(animationCenterLineLayerId)
+      }
+
       if (map.getLayer(animationLayerId)) {
         map.removeLayer(animationLayerId)
       }
@@ -366,6 +372,22 @@ font-size: 12px;
         ),
 
         "line-opacity": 1.0,
+      },
+    })
+
+    // Thin black center line — same source as main fill, so animation drives it automatically
+    map.addLayer({
+      id: animationCenterLineLayerId,
+      type: "line",
+      source: animationSourceId,
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
+      paint: {
+        "line-color": "#000000",
+        "line-width": calculateZoomDependentWidth(0.3, 1),
+        "line-opacity": 0.8,
       },
     })
 
@@ -891,7 +913,13 @@ font-size: 12px;
 
       const animationBorderLayerId = `animation-border-layer-${currentTrail.id}`
 
+      const animationCenterLineLayerId = `animation-center-line-${currentTrail.id}`
+
       try {
+        if (map.getLayer(animationCenterLineLayerId)) {
+          map.removeLayer(animationCenterLineLayerId)
+        }
+
         if (map.getLayer(animationLayerId)) {
           map.removeLayer(animationLayerId)
         }
