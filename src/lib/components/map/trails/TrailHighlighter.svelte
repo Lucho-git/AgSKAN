@@ -89,6 +89,8 @@
 
   let currentlySelectedTrailId: string | null = null
 
+  let styleReady = false
+
   // Centralized animation state
 
   let animationState: AnimationState = {
@@ -133,7 +135,7 @@
 
   $: currentTrail = $historicalTrailStore[currentTrailIndex] || null
 
-  $: if (currentTrail) {
+  $: if (currentTrail && styleReady) {
     initializeTrailAnimation(currentTrail)
   }
 
@@ -1529,6 +1531,14 @@ font-size: 12px;
   }
 
   onMount(() => {
+    // Track style readiness so initializeTrailAnimation never fires before the map is ready
+    const onStyleLoad = () => { styleReady = true }
+    if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+      styleReady = true
+    } else {
+      map?.on("style.load", onStyleLoad)
+    }
+
     const cleanup = () => {
       stopPulsingGlow()
 

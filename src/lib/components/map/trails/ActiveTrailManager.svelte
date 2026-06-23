@@ -26,8 +26,10 @@
 
   export let map: Map
 
-  let previousActiveVisibility = true
-  let previousArrowsVisibility = false
+  // Seed from current store value to avoid a mismatched-default
+  // firing updateActiveTrailVisibility before the map style has loaded.
+  let previousActiveVisibility = get(layerVisibilityStore).activeTrails ?? true
+  let previousArrowsVisibility = get(layerVisibilityStore).trailArrows ?? false
 
   // Track segment counts AND coordinate counts per trail
   let lastSegmentIndices = new Map<string, number>()
@@ -56,6 +58,8 @@
   $: {
     if (
       map &&
+      map.isStyleLoaded &&
+      map.isStyleLoaded() &&
       $layerVisibilityStore &&
       $layerVisibilityStore.activeTrails !== previousActiveVisibility
     ) {
