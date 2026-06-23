@@ -605,17 +605,24 @@
     } catch {}
   }
 
-  // Live-update highlight source as trail grows
-  $: if (showInfoPanel && isTrailing && activeTrailData?.path?.length >= 2) {
-    const src = map?.getSource(HL_SOURCE)
-    if (src) {
-      const coords = activeTrailData.path.map(normCoord).filter(Boolean)
-      if (coords.length >= 2)
-        src.setData({
-          type: "Feature",
-          geometry: { type: "LineString", coordinates: coords },
-          properties: {},
-        })
+  // Live-update highlight source as trail grows.
+  // Watching the raw stores directly (rather than the derived activeTrailData)
+  // ensures Svelte picks up every path mutation pushed by the realtime sync.
+  $: if (showInfoPanel && isTrailing && currentVehicle) {
+    const trail = currentVehicle.isCurrentUser
+      ? $currentTrailStore
+      : $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id)
+    if (trail?.path?.length >= 2) {
+      const src = map?.getSource(HL_SOURCE)
+      if (src) {
+        const coords = trail.path.map(normCoord).filter(Boolean)
+        if (coords.length >= 2)
+          src.setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: coords },
+            properties: {},
+          })
+      }
     }
   }
 
@@ -855,8 +862,7 @@
               <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
                 <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
               </svg>
-              <span class="tbadge-time">{trailHMM ?? trailDur}</span>
-              <Eye size={13} class="tbadge-v2-eye" />
+              <Eye size={17} class="tbadge-v2-eye" />
             </button>
           {:else}
             <button class="trail-badge-animated" class:active={showInfoPanel && isExpanded} on:click={handleInfoClick} title="Vehicle details">
@@ -1331,7 +1337,7 @@
   /* V2: one-click reveal badge — eye icon inline with time */
   .trail-badge-v2-reveal {
     gap: 6px;
-    padding-right: 12px;
+    padding: 6px 14px;
     background: rgba(59, 130, 246, 0.12);
   }
 

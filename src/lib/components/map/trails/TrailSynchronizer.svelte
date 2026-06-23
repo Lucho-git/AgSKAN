@@ -25,6 +25,7 @@
     historicalTrailStore,
     otherActiveTrailStore,
     trailsLoadingStore,
+    visibleOperationIdsStore,
   } from "$lib/stores/otherTrailStore"
 
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -186,6 +187,17 @@
     await subscribeToTrailObservation()
     console.log("✅ TrailSynchronizer: Ready")
   })
+
+  // Rebuild the realtime channel when visible operations change
+  // (e.g. user clicks "view trails" on a different operation)
+  let lastVisibleIds = ""
+  $: {
+    const ids = [...$visibleOperationIdsStore].sort().join(",")
+    if (ids !== lastVisibleIds && supabaseChannel) {
+      lastVisibleIds = ids
+      subscribeToTrailObservation()
+    }
+  }
 
   onDestroy(() => {
     if (cleanup.coordinateBufferUnsubscribe)
@@ -996,6 +1008,12 @@
     const currentVehicleId = $profileStore.id
     const opId = selectedOperation.id
 
+    // Build filter: selected operation + any additionally visible operations
+    const visibleIds = [...$visibleOperationIdsStore]
+    if (!visibleIds.includes(opId)) visibleIds.push(opId)
+    const idList = visibleIds.join(",")
+    const channelKey = `trail_obs_${idList.slice(0, 40)}`
+
     // Clean up any existing channel
     if (supabaseChannel) {
       try {
@@ -1006,7 +1024,7 @@
     }
 
     supabaseChannel = supabase
-      .channel(`trail_observation_${opId}`)
+      .channel(channelKey)
       // ── trails table: detect new/closed/deleted trails ──
       .on(
         "postgres_changes",
@@ -1014,7 +1032,7 @@
           event: "INSERT",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${opId}`,
+          filter: `operation_id=in.(${idList})`,
         },
         (payload) => handleTrailInsert(payload, currentVehicleId),
       )
@@ -1024,7 +1042,7 @@
           event: "UPDATE",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${opId}`,
+          filter: `operation_id=in.(${idList})`,
         },
         (payload) => handleTrailUpdate(payload, currentVehicleId),
       )
@@ -1034,7 +1052,7 @@
           event: "DELETE",
           schema: "public",
           table: "trails",
-          filter: `operation_id=eq.${opId}`,
+          filter: `operation_id=in.(${idList})`,
         },
         (payload) => handleTrailDelete(payload, currentVehicleId),
       )
@@ -1045,7 +1063,7 @@
           event: "INSERT",
           schema: "public",
           table: "trail_stream",
-          filter: `operation_id=eq.${opId}`,
+          filter: `operation_id=in.(${idList})`,
         },
         handleTrailStreamInsert,
       )
@@ -1053,7 +1071,7 @@
         channelStatus = status
         if (status === "SUBSCRIBED") {
           console.log(
-            `🟢 [TRAIL-RT] Realtime channel subscribed for operation ${opId.slice(0, 8)}`,
+            `🟢 [TRAIL-RT] Realtime channel subscribed for ${visibleIds.length} operation(s)`,
           )
         } else if (status === "CHANNEL_ERROR") {
           console.warn(`🔴 [TRAIL-RT] Channel error — will auto-reconnect`, err)
