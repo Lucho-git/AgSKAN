@@ -386,7 +386,7 @@ font-size: 12px;
       },
       paint: {
         "line-color": "#000000",
-        "line-width": calculateZoomDependentWidth(0.3, 1),
+        "line-width": calculateZoomDependentWidth(1.2, 1),
         "line-opacity": 0.8,
       },
     })
@@ -1560,7 +1560,9 @@ font-size: 12px;
 
   onMount(() => {
     // Track style readiness so initializeTrailAnimation never fires before the map is ready
-    const onStyleLoad = () => { styleReady = true }
+    const onStyleLoad = () => {
+      styleReady = true
+    }
     if (map && map.isStyleLoaded && map.isStyleLoaded()) {
       styleReady = true
     } else {
