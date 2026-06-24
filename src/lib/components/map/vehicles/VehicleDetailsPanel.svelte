@@ -24,6 +24,7 @@
   import {
     userVehicleStore,
     otherVehiclesStore,
+    userVehicleTrailing,
   } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -58,7 +59,7 @@
         coordinates: $userVehicleStore.coordinates,
         heading: $userVehicleStore.heading,
         speed: $userVehicleStore.speed, // 🔥 This will now update reactively!
-        is_trailing: $userVehicleStore.is_trailing,
+        is_trailing: $userVehicleTrailing,
         last_update: $userVehicleStore.last_update,
         isCurrentUser: true,
         active_preset_id: $userVehicleStore.active_preset_id,
