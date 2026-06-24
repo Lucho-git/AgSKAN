@@ -182,17 +182,14 @@
 
     try {
       await supabase.auth.signOut({ scope: "local" })
+      // The SIGNED_OUT event from signOut triggers handleAuthStateChange in
+      // the account layout, which handles the redirect to /login.
+      // No setTimeout hard redirect needed here — that was a double-redirect
+      // that could interrupt the login flow and cause the map connection to
+      // not be re-established.
     } catch (error) {
       console.warn("[BG-DIAG] Local sign-out after native auth failure failed:", error)
     }
-
-    setTimeout(() => {
-      try {
-        window.location.href = "/login?reason=session_expired"
-      } catch (error) {
-        console.warn("[BG-DIAG] Could not redirect to login:", error)
-      }
-    }, 1500)
   }
 
   /** @param {string} [context] */
@@ -1787,6 +1784,17 @@
     }
 
     // (removed diagnostic toast for Full 1Hz toggles)
+
+    // Dev-only: simulate a JWT auth failure to test the logout + re-login flow.
+    // Open browser console and run: window.__simulateAuthFailure()
+    if (typeof window !== "undefined") {
+      window.__simulateAuthFailure = () => {
+        nativeSyncAuthPromptShown = false
+        console.log("[TEST] Simulating auth failure — force logout in 3s...")
+        toast.info("Simulating auth failure — signing out in 3 seconds", { duration: 3000 })
+        setTimeout(() => handleNativeSyncAuthRequired({ simulated: true }), 3000)
+      }
+    }
   })
 
   onDestroy(() => {
