@@ -36,20 +36,6 @@
     }
   }
 
-  function handleUpgrade() {
-    // Only redirect if not on native platform
-    if (!isNativePlatform) {
-      goto("/account/billing")
-    }
-  }
-
-  function handleManageBilling() {
-    // Only redirect if not on native platform
-    if (!isNativePlatform) {
-      goto("/account/billing")
-    }
-  }
-
   onMount(async () => {
     if (!$session) {
       goto("/login")
@@ -96,247 +82,48 @@
 </div>
 
 <!-- Content -->
-<div class="space-y-6 p-6">
+<div class="space-y-4 p-6">
   {#if loading}
     <div class="flex h-32 items-center justify-center">
       <div class="loading loading-spinner loading-md"></div>
     </div>
   {:else}
-    <!-- Current Plan -->
-    <div>
-      <h3
-        class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
-      >
-        <div class="rounded-lg bg-base-content/10 p-1.5">
-          <Icon
-            icon="solar:crown-bold-duotone"
-            width="16"
-            height="16"
-            class="text-base-content"
-          />
-        </div>
-        Current Plan
-      </h3>
-
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h4 class="text-lg font-semibold text-contrast-content">
-              {formattedPlanName}
-            </h4>
-            {#if isPaidPlan && nextBillingFormatted}
-              <p class="text-sm text-contrast-content/60">
-                Next billing: {nextBillingFormatted}
-              </p>
-            {:else if !isPaidPlan}
-              <p class="text-sm text-contrast-content/60">
-                No billing - Free forever
-              </p>
-            {/if}
-          </div>
-          <div class="badge badge-outline badge-lg">
-            {isPaidPlan ? "Pro" : "Free"}
-          </div>
-        </div>
+    <!-- Current Plan (clickable) -->
+    <button
+      class="flex w-full items-center gap-3 text-left rounded-lg border border-base-300 bg-base-200/30 p-4 transition-colors hover:border-base-content/20"
+      on:click={() => !isNativePlatform && goto("/account/billing")}
+      disabled={isNativePlatform}
+    >
+      <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+        <Icon icon="solar:crown-bold-duotone" width="18" height="18" class="text-base-content" />
       </div>
-    </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-sm text-contrast-content/60">Current Plan</label>
+        <p class="font-medium text-contrast-content">{formattedPlanName}</p>
+        {#if isPaidPlan && nextBillingFormatted}
+          <p class="text-xs text-contrast-content/60">Next billing: {nextBillingFormatted}</p>
+        {:else if !isPaidPlan}
+          <p class="text-xs text-contrast-content/60">No billing - Free forever</p>
+        {/if}
+      </div>
+      <div class="flex-shrink-0 flex h-7 items-center justify-center rounded-lg bg-base-content px-2.5 text-xs font-medium text-base-100 shadow-sm transition-all duration-300 md:h-8">
+        <span class="font-semibold">Manage</span>
+      </div>
+    </button>
 
     <!-- Plan Details -->
-    <div>
-      <h3
-        class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
-      >
-        <div class="rounded-lg bg-base-content/10 p-1.5">
-          <Icon
-            icon="solar:users-group-two-rounded-bold-duotone"
-            width="16"
-            height="16"
-            class="text-base-content"
-          />
+    <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+      <div class="flex items-center gap-3">
+        <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <Icon icon="solar:users-group-two-rounded-bold-duotone" width="18" height="18" class="text-base-content" />
         </div>
-        Plan Details
-      </h3>
-
-      <div class="grid gap-4">
-        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="mb-1 text-sm text-contrast-content/60">Team Members</p>
-              <p class="font-medium text-contrast-content">
-                {planQuantity}
-                {planQuantity === "1" ? "seat" : "seats"} available
-              </p>
-            </div>
-            <div class="rounded-lg bg-base-content/10 p-2">
-              <Icon
-                icon="solar:users-group-two-rounded-bold-duotone"
-                width="18"
-                height="18"
-                class="text-base-content"
-              />
-            </div>
-          </div>
+        <div class="flex-1 min-w-0">
+          <label class="block text-sm text-contrast-content/60">Team Members</label>
+          <p class="font-medium text-contrast-content">{planQuantity} {planQuantity === "1" ? "seat" : "seats"} available</p>
         </div>
       </div>
     </div>
 
-    {#if currentPlan === "FREE"}
-      <!-- Upgrade Sales Pitch -->
-      <div>
-        <h3
-          class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
-        >
-          <div class="rounded-lg bg-base-content/10 p-1.5">
-            <Icon
-              icon="solar:star-bold-duotone"
-              width="16"
-              height="16"
-              class="text-base-content"
-            />
-          </div>
-          Upgrade to Premium
-        </h3>
 
-        <div
-          class="rounded-lg border border-base-content/20 bg-base-content/5 p-6"
-        >
-          <div class="mb-4 flex items-start gap-3">
-            <div class="rounded-full bg-base-content p-2">
-              <Icon
-                icon="solar:users-group-two-rounded-bold"
-                width="20"
-                height="20"
-                class="text-base-100"
-              />
-            </div>
-            <div>
-              <h4 class="text-lg font-semibold text-contrast-content">
-                Collaborate with Your Team
-              </h4>
-              <p class="mt-1 text-sm text-contrast-content/80">
-                Upgrade to Premium and invite team members to share your farm
-                tracking map. Perfect for coordinating field operations across
-                multiple operators.
-              </p>
-            </div>
-          </div>
-
-          <div class="mb-6 space-y-3">
-            <div class="flex items-center gap-3">
-              <Icon
-                icon="solar:check-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-base-content"
-              />
-              <span class="text-sm text-contrast-content">
-                Invite unlimited team members to your map
-              </span>
-            </div>
-            <div class="flex items-center gap-3">
-              <Icon
-                icon="solar:check-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-base-content"
-              />
-              <span class="text-sm text-contrast-content">
-                Real-time collaboration and tracking
-              </span>
-            </div>
-            <div class="flex items-center gap-3">
-              <Icon
-                icon="solar:check-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-base-content"
-              />
-              <span class="text-sm text-contrast-content">
-                Advanced reporting and analytics
-              </span>
-            </div>
-            <div class="flex items-center gap-3">
-              <Icon
-                icon="solar:check-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-base-content"
-              />
-              <span class="text-sm text-contrast-content">
-                Priority support and updates
-              </span>
-            </div>
-          </div>
-
-          <button
-            class="btn btn-outline w-full gap-2 border-base-content text-base-content hover:bg-base-content hover:text-base-100"
-            class:btn-disabled={isNativePlatform}
-            disabled={isNativePlatform}
-            on:click={handleUpgrade}
-          >
-            <Icon icon="solar:crown-bold-duotone" width="16" height="16" />
-            {isNativePlatform ? "Upgrade via Web App" : "Upgrade to Premium"}
-          </button>
-
-          {#if isNativePlatform}
-            <p class="mt-2 text-center text-xs text-contrast-content/60">
-              Billing management is not avaliable in app
-            </p>
-          {/if}
-        </div>
-      </div>
-    {:else}
-      <!-- Billing Management for paid plans -->
-      <div>
-        <h3
-          class="mb-3 flex items-center gap-2 font-medium text-contrast-content"
-        >
-          <div class="rounded-lg bg-base-content/10 p-1.5">
-            <Icon
-              icon="solar:bill-list-bold-duotone"
-              width="16"
-              height="16"
-              class="text-base-content"
-            />
-          </div>
-          Billing Management
-        </h3>
-
-        <div class="space-y-3">
-          <button
-            class="btn btn-outline w-full justify-start gap-3"
-            class:btn-disabled={isNativePlatform}
-            disabled={isNativePlatform}
-            on:click={handleManageBilling}
-          >
-            <Icon icon="solar:settings-bold-duotone" width="18" height="18" />
-            {isNativePlatform
-              ? "Manage Billing (Web Only)"
-              : "Manage Billing & Payment"}
-          </button>
-
-          <div class="rounded-lg border border-info/20 bg-info/5 p-4">
-            <div class="flex items-start gap-3">
-              <Icon
-                icon="solar:info-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="mt-0.5 text-info"
-              />
-              <div>
-                <p class="text-sm font-medium text-contrast-content">
-                  Billing Information
-                </p>
-                <p class="mt-1 text-xs text-contrast-content/60">
-                  {isNativePlatform
-                    ? "Billing management is not avaliable in the app."
-                    : "Manage your payment methods, view billing history, and update subscription settings in the billing portal."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    {/if}
   {/if}
 </div>

@@ -29,7 +29,7 @@
 
 <dialog bind:this={dialogEl} class="modal modal-middle" on:close={close}>
   <div class="modal-box max-h-[90vh] w-full max-w-md overflow-y-auto">
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-3">
       <div class="flex items-center gap-3">
         <div
           class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600/20 sm:h-10 sm:w-10"

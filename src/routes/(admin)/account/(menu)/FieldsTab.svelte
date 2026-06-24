@@ -915,7 +915,7 @@
 >
   <div class="modal-box max-h-[90vh] w-full max-w-lg overflow-y-auto">
     <!-- Modal header -->
-    <div class="mb-4 flex items-start justify-between gap-3">
+    <div class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3">
       <div class="flex items-center gap-3">
         <div
           class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20"

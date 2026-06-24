@@ -594,75 +594,40 @@
 <!-- Edit Name Modal -->
 {#if showEditName}
   <div
-    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
     on:click={closeEditName}
     on:keydown={(e) => e.key === "Escape" && closeEditName()}
     role="presentation"
   >
     <div
-      class="w-full max-w-sm rounded-2xl bg-base-100 p-5 shadow-xl sm:p-6"
+      class="w-full max-w-sm rounded-2xl bg-base-100 shadow-2xl overflow-hidden"
       on:click|stopPropagation
       role="dialog"
       aria-modal="true"
     >
-      <div class="mb-4 flex items-center justify-between">
+      <div class="flex items-center justify-between border-b border-base-300 px-5 py-4">
         <div class="flex items-center gap-3">
-          <div
-            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10 sm:h-10 sm:w-10"
-          >
+          <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10">
             <Pencil class="h-4 w-4 text-base-content sm:h-5 sm:w-5" />
           </div>
-          <div>
-            <h4
-              class="text-base font-semibold text-contrast-content sm:text-lg"
-            >
-              Edit Name
-            </h4>
-            <p class="text-xs text-contrast-content/60 sm:text-sm">
-              Update your display name
-            </p>
-          </div>
+          <h4 class="text-base font-semibold text-contrast-content">Edit Name</h4>
         </div>
         <button
-          class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
-          on:click={closeEditName}
-          title="Close"
-        >
+          class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-base-200"
+          on:click={closeEditName} title="Close">
           <X class="h-4 w-4 text-contrast-content/60" />
         </button>
       </div>
-
-      <div class="space-y-2">
-        <label
-          for="edit-name-input"
-          class="block text-sm font-medium text-contrast-content"
-        >
-          Full Name
-        </label>
-        <!-- svelte-ignore a11y-autofocus -->
-        <input
-          id="edit-name-input"
-          type="text"
-          bind:value={editNameValue}
-          on:keydown={(e) => e.key === "Enter" && saveEditName()}
-          autofocus
+      <div class="border-t border-base-300 px-5 py-4">
+        <label for="edit-name-input" class="mb-1 block text-sm font-medium text-contrast-content">Full Name</label>
+        <input id="edit-name-input" type="text" bind:value={editNameValue}
+          on:keydown={(e) => e.key === "Enter" && saveEditName()} autofocus
           placeholder="Enter your full name"
-          class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        />
+          class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
       </div>
-
-      <div class="mt-5 flex justify-end gap-3">
-        <button
-          on:click={closeEditName}
-          class="rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content transition-colors hover:bg-base-200"
-        >
-          Cancel
-        </button>
-        <button
-          on:click={saveEditName}
-          disabled={savingName}
-          class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:opacity-50"
-        >
+      <div class="flex justify-end px-5 py-3">
+        <button on:click={saveEditName} disabled={savingName}
+          class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:opacity-50">
           {savingName ? "Saving..." : "Save"}
         </button>
       </div>

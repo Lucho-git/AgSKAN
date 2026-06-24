@@ -508,13 +508,6 @@
         .eq("master_map_id", masterMapId)
         .or("deleted.is.null,deleted.eq.false")
 
-      // Apply date filtering if enabled
-      if (userSettings?.limitMarkersOn && userSettings?.limitMarkersDays) {
-        const cutoffDate = new Date()
-        cutoffDate.setDate(cutoffDate.getDate() - userSettings.limitMarkersDays)
-        query = query.gte("created_at", cutoffDate.toISOString())
-      }
-
       const { data: markers, error } = await query
 
       if (error) throw error

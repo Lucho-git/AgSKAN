@@ -171,16 +171,7 @@
     const defaultSource = $userSettingsStore.defaultImagerySource
 
     // Filter sources based on user preferences
-    const availableSources = Object.entries(IMAGERY_SOURCES).filter(
-      ([key, source]) => {
-        // Always show Mapbox
-        if (key === "mapbox") return true
-        // Check if this provider is enabled by the user
-        return (
-          $userSettingsStore.enabledImageryProviders?.includes(key) || false
-        )
-      },
-    )
+    const availableSources = Object.entries(IMAGERY_SOURCES)
 
     // Check if the default source is available
     const isAvailable = availableSources.some(([key]) => key === defaultSource)

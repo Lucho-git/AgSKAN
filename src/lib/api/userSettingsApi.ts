@@ -150,11 +150,9 @@ export const userSettingsApi = {
                 });
 
                 if (signInError) {
-                    toast.error("Incorrect password. Please try again.");
-                    goto("/login/current_password_error");
                     return {
                         success: false,
-                        message: "Incorrect password",
+                        message: "Incorrect current password",
                         errorFields: ["currentPassword"]
                     };
                 }
@@ -173,7 +171,6 @@ export const userSettingsApi = {
                 };
             }
 
-            toast.success("Password updated");
             return { success: true, message: "Password updated" };
         } catch (error) {
             console.error("Error in updatePassword:", error);
@@ -272,10 +269,9 @@ export const userSettingsApi = {
                 await profileStore.loadProfile(userId);
             }
 
-            toast.success("Profile updated successfully");
             return {
                 success: true,
-                message: "Profile updated successfully",
+                message: "Profile updated",
                 profile: profileData
             };
         } catch (error) {
@@ -283,73 +279,6 @@ export const userSettingsApi = {
             return {
                 success: false,
                 message: "Unknown error 005. If this persists please contact us.",
-                errorFields: []
-            };
-        }
-    },
-
-    /**
-     * Updates marker display settings
-     */
-    async updateMarkerSettings(limitMarkers: boolean, limitMarkersDays: number) {
-        try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (!sessionData?.session?.user) {
-                toast.error("You must be logged in to update settings");
-                goto("/login");
-                return {
-                    success: false,
-                    message: "Not logged in",
-                    errorFields: []
-                };
-            }
-
-            const userId = sessionData.session.user.id;
-
-            // Calculate the date from days
-            const limitMarkersDate = limitMarkers && limitMarkersDays > 0
-                ? (() => {
-                    const date = new Date();
-                    date.setDate(date.getDate() - limitMarkersDays);
-                    return date.toISOString();
-                })()
-                : null;
-
-            const { error } = await supabase.from("user_settings").upsert(
-                {
-                    user_id: userId,
-                    limit_markers: limitMarkers,
-                    limit_markers_days: limitMarkersDays,
-                },
-                { onConflict: "user_id" }
-            );
-
-            if (error) {
-                console.error("Error saving marker settings:", error);
-                return {
-                    success: false,
-                    message: "Failed to save marker settings",
-                    errorFields: []
-                };
-            }
-
-            // Update store
-            userSettingsStore.update((settings) => ({
-                ...settings,
-                limitMarkersOn: limitMarkers,
-                limitMarkersDays: limitMarkersDays,
-                limitMarkersDate: limitMarkersDate,
-            }));
-
-            return {
-                success: true,
-                message: "Marker display settings updated"
-            };
-        } catch (error) {
-            console.error("Error in updateMarkerSettings:", error);
-            return {
-                success: false,
-                message: "An error occurred while saving marker settings",
                 errorFields: []
             };
         }

@@ -1836,6 +1836,7 @@
         maxTileCacheSize: 100,
         attributionControl: false,
         doubleClickZoom: false,
+        scrollZoom: true,
       })
 
       map.doubleClickZoom.disable()
@@ -1852,6 +1853,15 @@
         if (map.touchZoomRotate._tapDragZoom) {
           map.touchZoomRotate._tapDragZoom.disable()
         }
+
+        // Kill pinch-zoom momentum — stop immediately on finger release
+        map.on("touchend", () => {
+          map.stop()
+        })
+
+        // Faster scroll-wheel zoom: more zoom per tick + quicker animation
+        map.scrollZoom.setWheelZoomRate(1 / 150) // default 1/450 — lower = faster per tick
+        map.scrollZoom.setZoomRate(1 / 60)       // default 1/100 — lower = faster animation
 
         const draw = new MapboxDraw({
           displayControlsDefault: false,

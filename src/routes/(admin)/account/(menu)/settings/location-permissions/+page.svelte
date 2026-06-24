@@ -335,10 +335,10 @@
       <div class="space-y-3">
         <!-- Web Geolocation -->
         <div
-          class="flex items-center justify-between rounded-lg border border-base-300 bg-base-200/30 p-4"
+          class="flex flex-col gap-3 rounded-lg border border-base-300 bg-base-200/30 p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-base-content/10 p-2">
+            <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
               <Icon
                 icon="solar:global-bold-duotone"
                 width="18"
@@ -359,7 +359,7 @@
             </div>
           </div>
           <button
-            class="btn btn-outline btn-sm gap-2"
+            class="btn btn-outline btn-sm gap-2 w-full sm:w-auto"
             disabled={!webLocationSupported}
             on:click={testWebLocation}
           >
@@ -367,56 +367,7 @@
             Test Location
           </button>
         </div>
-
-        <!-- Web Limitations Info -->
-        <div class="rounded-lg border border-warning/20 bg-warning/5 p-4">
-          <div class="flex items-start gap-3">
-            <Icon
-              icon="solar:danger-triangle-bold-duotone"
-              width="20"
-              height="20"
-              class="mt-0.5 text-warning"
-            />
-            <div>
-              <p class="text-sm font-medium text-contrast-content">
-                Web Browser Limitations
-              </p>
-              <ul class="mt-1 space-y-1 text-xs text-contrast-content/60">
-                <li>• Location only available when page is active</li>
-                <li>• No background tracking capability</li>
-                <li>• Requires user permission for each session</li>
-                <li>• Less accurate than native GPS</li>
-                <li>• For best tracking, use the mobile app</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   {/if}
-
-  <!-- Information Section -->
-  <div class="rounded-lg border border-base-300 bg-base-200/10 p-4">
-    <div class="flex items-start gap-3">
-      <Icon
-        icon="solar:info-circle-bold-duotone"
-        width="20"
-        height="20"
-        class="mt-0.5 text-info"
-      />
-      <div>
-        <p class="text-sm font-medium text-contrast-content">
-          About Location Permissions
-        </p>
-        <p class="mt-1 text-xs text-contrast-content/60">
-          Location permissions are required to track your position during field
-          operations.
-          {#if isNativePlatform}
-            In the mobile app, tracking is scoped to the active map session and
-            can continue while the app is backgrounded or the screen is locked.
-          {/if}
-        </p>
-      </div>
-    </div>
-  </div>
 </div>

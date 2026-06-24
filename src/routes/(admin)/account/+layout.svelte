@@ -171,16 +171,9 @@
 
       // Update user settings store
       if (user_settings) {
-        const currentDate = new Date()
-        currentDate.setDate(
-          currentDate.getDate() - user_settings.limit_markers_days,
-        )
         const currentSettings = get(userSettingsStore)
 
         userSettingsStore.set({
-          limitMarkersOn: user_settings.limit_markers,
-          limitMarkersDays: user_settings.limit_markers_days,
-          limitMarkersDate: currentDate.toISOString(),
           zoomToLocationMarkers:
             user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
@@ -213,11 +206,6 @@
       } else {
         // If no user settings exist, use defaults
         userSettingsStore.set({
-          limitMarkersOn: false,
-          limitMarkersDays: 7,
-          limitMarkersDate: new Date(
-            Date.now() - 7 * 24 * 60 * 60 * 1000,
-          ).toISOString(),
           zoomToLocationMarkers: false,
           zoomToPlacedMarkers: true,
           autoConfirmMarkers: false,

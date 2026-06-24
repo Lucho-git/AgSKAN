@@ -10,8 +10,36 @@
   } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapSettingsApi } from "$lib/api/mapSettingsApi"
+  import { adminUserSettingsApi, type UserSettingsRow } from "$lib/api/adminUserSettingsApi"
   import { goto } from "$app/navigation"
   import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
+
+  // Imagery sources (mirrors SatelliteControls.svelte)
+  const IMAGERY_SOURCES: Record<string, { name: string; canBeDefault?: boolean }> = {
+    mapbox:            { name: "Mapbox Satellite", canBeDefault: true },
+    google_satellite:  { name: "Google Satellite", canBeDefault: true },
+    bing_aerial:       { name: "Microsoft Bing Aerial", canBeDefault: true },
+    esri_standard:     { name: "Esri World Imagery", canBeDefault: true },
+    ndvi:              { name: "NDVI Vegetation Index" },
+  }
+
+  // Default settings values (mirrors userSettingsStore defaults + DB defaults)
+  const SETTING_DEFAULTS: Record<string, any> = {
+    devToolsEnabled: false,
+    autoConfirmMarkers: false,
+    zoomToLocationMarkers: false,
+    zoomToPlacedMarkers: true,
+    enableFull1Hz: false,
+    showGpsPopups: false,
+    showGpsAcceptedPopups: false,
+    showGpsRejectedPopups: false,
+    satelliteDropdownEnabled: true,
+    defaultImagerySource: "mapbox",
+    gpsIntervalSeconds: 2,
+    defaultMarker: { id: "default", name: "Default Marker", class: "default" },
+    extraMarkers: [],
+    layerVisibility: {},
+  }
 
   let loading = false
   let entries: AdminMapEntry[] = []
@@ -80,11 +108,110 @@
     togglingMapId = null
   }
 
+  // User settings modal state
+  let showUserSettingsModal = false
+  let settingsTargetUser: { id: string; name: string } | null = null
+  let settingsData: UserSettingsRow | null = null
+  let settingsLoading = false
+  let settingsSaving: string | null = null // field being saved
+  let userSettingsDialogEl: HTMLDialogElement
+
+  $: if (showUserSettingsModal && userSettingsDialogEl && !userSettingsDialogEl.open) {
+    userSettingsDialogEl.showModal()
+  } else if (!showUserSettingsModal && userSettingsDialogEl?.open) {
+    userSettingsDialogEl.close()
+  }
+
+  async function openUserSettingsModal(member: { id: string; full_name: string | null }) {
+    settingsTargetUser = { id: member.id, name: member.full_name || "Unknown" }
+    settingsLoading = true
+    showUserSettingsModal = true
+    const result = await adminUserSettingsApi.getUserSettings(member.id)
+    settingsData = result.success ? (result.data ?? null) : null
+    settingsLoading = false
+  }
+
+  async function toggleUserSetting(field: string, value: any) {
+    if (!settingsTargetUser) return
+    settingsSaving = field
+    const result = await adminUserSettingsApi.setUserSetting(settingsTargetUser.id, field, value)
+    if (result.success) {
+      // Update local state optimistically
+      settingsData = { ...(settingsData || {}), [field]: value } as UserSettingsRow
+      toast.success("Setting updated")
+    } else {
+      toast.error(result.error || "Failed to update setting")
+    }
+    settingsSaving = null
+  }
+
+  async function resetUserSettings() {
+    if (!settingsTargetUser) return
+    if (!confirm(`Reset ALL settings for ${settingsTargetUser.name} to defaults?`)) return
+    settingsSaving = "__reset__"
+    const result = await adminUserSettingsApi.resetUserSettings(settingsTargetUser.id)
+    if (result.success) {
+      settingsData = null
+      toast.success("Settings reset to defaults")
+    } else {
+      toast.error(result.error || "Failed to reset settings")
+    }
+    settingsSaving = null
+  }
+
   function openSmsModal(phone: string, name: string) {
     smsPhone = phone
     smsOwnerName = name
     smsModalShow = true
   }
+
+  function getSettingVal(col: string, def: any): any {
+    return (settingsData as any)?.[col] ?? def
+  }
+
+  // Reactive snapshot so Svelte can track individual property reads in templates
+  $: s = (settingsData as Record<string, any>) ?? {}
+
+  function isDefault(col: string): boolean {
+    const val = getSettingVal(col, SETTING_DEFAULTS[col])
+    const def = SETTING_DEFAULTS[col]
+    return JSON.stringify(val) === JSON.stringify(def)
+  }
+
+  function diffDot(col: string): string {
+    return isDefault(col) ? "" : "● "
+  }
+
+  $: diffFields = settingsData
+    ? Object.keys(SETTING_DEFAULTS).filter((k) => !isDefault(k))
+    : []
+
+  $: diffCount = diffFields.length
+
+  $: diffTooltip = diffFields.length
+    ? "Different: " + diffFields.join(", ")
+    : "All settings at defaults"
+
+  // Simple boolean toggle fields (miscellaneous)
+  const MISC_BOOL_FIELDS = [
+    { col: "devToolsEnabled",         label: "Dev tools" },
+    { col: "satelliteDropdownEnabled",label: "Satellite dropdown" },
+  ]
+
+  // Marker-related settings
+  const MARKER_BOOL_FIELDS = [
+    { col: "zoomToLocationMarkers",   label: "Zoom to location markers" },
+    { col: "zoomToPlacedMarkers",     label: "Zoom to placed markers" },
+    { col: "autoConfirmMarkers",      label: "Auto-confirm markers" },
+  ]
+
+  // GPS-related settings
+  const GPS_BOOL_FIELDS = [
+    { col: "enableFull1Hz",           label: "Full 1Hz GPS" },
+    { col: "showGpsPopups",           label: "GPS popups (legacy)" },
+    { col: "showGpsAcceptedPopups",   label: "GPS accepted popups" },
+    { col: "showGpsRejectedPopups",   label: "GPS rejected popups" },
+  ]
 
   function autofocus(node: HTMLInputElement) {
     node.focus()
@@ -1183,6 +1310,7 @@
                                 <th>Last Sign-In</th>
                                 <th>Last Location</th>
                                 <th>Role</th>
+                                <th class="w-16">Settings</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1269,6 +1397,16 @@
                                       </span>
                                     {/if}
                                   </td>
+                                  <td>
+                                    <button
+                                      type="button"
+                                      class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-base-300 hover:text-contrast-content"
+                                      on:click={() => openUserSettingsModal(member)}
+                                      title="View/edit user settings"
+                                    >
+                                      <Icon icon="solar:settings-bold-duotone" width="12" height="12" />
+                                    </button>
+                                  </td>
                                 </tr>
                               {/each}
                             </tbody>
@@ -1307,7 +1445,7 @@
   on:close={() => (showLimitsModal = false)}
 >
   <div class="modal-box w-full max-w-lg">
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-3">
       <div class="flex items-center gap-3">
         <div
           class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-warning/20"
@@ -1404,6 +1542,175 @@
         Close
       </button>
     </div>
+  </div>
+</dialog>
+
+<!-- User Settings modal -->
+<dialog
+  bind:this={userSettingsDialogEl}
+  class="modal modal-middle"
+  on:close={() => (showUserSettingsModal = false)}
+>
+  <div class="modal-box w-full max-w-lg">
+    <div class="mb-4 flex items-center justify-between border-b border-base-300 pb-3">
+      <div class="flex items-center gap-3">
+        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/20">
+          <Icon icon="solar:settings-bold-duotone" width="18" height="18" class="text-primary" />
+        </div>
+        <div>
+          <h4 class="text-base font-semibold text-contrast-content">User Settings</h4>
+          <p class="text-xs text-contrast-content/60">{settingsTargetUser?.name || "—"}</p>
+        </div>
+      </div>
+      <button
+        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-base-200 transition-colors hover:bg-base-300"
+        on:click={() => (showUserSettingsModal = false)}
+        title="Close"
+      >
+        <Icon icon="solar:close-circle-bold-duotone" width="20" height="20" class="text-contrast-content/60" />
+      </button>
+    </div>
+
+    {#if settingsLoading}
+      <div class="flex items-center justify-center py-8">
+        <span class="loading loading-spinner loading-md text-primary"></span>
+      </div>
+    {:else}
+      <div class="max-h-96 overflow-y-auto space-y-4">
+        <!-- Diff summary -->
+        <div class="rounded-lg bg-base-200/50 px-3 py-2 text-center text-xs" title={diffTooltip}>
+          {#if diffCount > 0}
+            <span class="font-semibold text-warning">{diffCount}</span>
+            <span class="text-contrast-content/60"> of {Object.keys(SETTING_DEFAULTS).length} settings differ from defaults</span>
+          {:else}
+            <span class="text-contrast-content/60">All settings at defaults</span>
+          {/if}
+        </div>
+
+        <!-- Section: Misc toggles -->
+        <div class="space-y-1">
+          <h5 class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40">General</h5>
+          {#each MISC_BOOL_FIELDS as field}
+            {@const val = s[field.col] ?? false}
+            <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+              <span class="text-xs text-contrast-content">{diffDot(field.col)}{field.label}</span>
+              <button type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {val ? 'bg-primary' : 'bg-base-300'}"
+                disabled={settingsSaving === field.col}
+                on:click={() => toggleUserSetting(field.col, !val)}>
+                <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {val ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+              </button>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Section: Markers -->
+        <div class="space-y-1">
+          <h5 class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40">Markers</h5>
+          {#each MARKER_BOOL_FIELDS as field}
+            {@const val = s[field.col] ?? false}
+            <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+              <span class="text-xs text-contrast-content">{diffDot(field.col)}{field.label}</span>
+              <button type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {val ? 'bg-primary' : 'bg-base-300'}"
+                disabled={settingsSaving === field.col}
+                on:click={() => toggleUserSetting(field.col, !val)}>
+                <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {val ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+              </button>
+            </div>
+          {/each}
+          <div class="rounded px-2 py-1.5 text-xs text-contrast-content/60">
+            {diffDot("defaultMarker")}Default: <span class="text-contrast-content">{(s.defaultMarker ?? SETTING_DEFAULTS.defaultMarker)?.name || "Default Marker"}</span>
+          </div>
+          <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+            <span class="text-xs text-contrast-content">
+              {diffDot("extraMarkers")}Extra markers ({((s.extraMarkers ?? []) || []).length})
+            </span>
+            <button type="button"
+              class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {((s.extraMarkers ?? []) || []).length ? 'bg-primary' : 'bg-base-300'}"
+              disabled={settingsSaving === "extraMarkers"}
+              on:click={() => toggleUserSetting("extraMarkers", ((s.extraMarkers ?? []) || []).length ? [] : [{ id: "custom", class: "default", name: "Custom" }])}>
+              <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {((s.extraMarkers ?? []) || []).length ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: GPS -->
+        <div class="space-y-1">
+          <h5 class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40">GPS</h5>
+          {#each GPS_BOOL_FIELDS as field}
+            {@const val = s[field.col] ?? false}
+            <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+              <span class="text-xs text-contrast-content">{diffDot(field.col)}{field.label}</span>
+              <button type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {val ? 'bg-primary' : 'bg-base-300'}"
+                disabled={settingsSaving === field.col}
+                on:click={() => toggleUserSetting(field.col, !val)}>
+                <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {val ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+              </button>
+            </div>
+          {/each}
+          <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+            <span class="text-xs text-contrast-content">{diffDot("gpsIntervalSeconds")}GPS interval (s)</span>
+            <div class="flex items-center gap-1">
+              <button class="flex h-5 w-5 items-center justify-center rounded text-xs text-contrast-content/50 hover:bg-base-300 disabled:opacity-30"
+                disabled={settingsSaving === "gpsIntervalSeconds" || getSettingVal('gpsIntervalSeconds', 2) <= 1}
+                on:click={() => toggleUserSetting("gpsIntervalSeconds", getSettingVal('gpsIntervalSeconds', 2) - 1)}>−</button>
+              <span class="w-6 text-center text-xs font-medium text-contrast-content">{getSettingVal('gpsIntervalSeconds', 2)}</span>
+              <button class="flex h-5 w-5 items-center justify-center rounded text-xs text-contrast-content/50 hover:bg-base-300 disabled:opacity-30"
+                disabled={settingsSaving === "gpsIntervalSeconds" || getSettingVal('gpsIntervalSeconds', 2) >= 10}
+                on:click={() => toggleUserSetting("gpsIntervalSeconds", getSettingVal('gpsIntervalSeconds', 2) + 1)}>+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Satellite -->
+        <div class="space-y-1">
+          <h5 class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40">Satellite Imagery</h5>
+          <div class="rounded px-2 py-1.5">
+            <span class="text-xs text-contrast-content">{diffDot("defaultImagerySource")}Default source: <span class="text-contrast-content/60">{s.defaultImagerySource ?? "mapbox"}</span></span>
+          </div>
+          {#each Object.entries(IMAGERY_SOURCES).filter(([, src]) => src.canBeDefault) as [key, src]}
+            <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+              <span class="text-xs text-contrast-content">{src.name}</span>
+              <button type="button"
+                class="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors {(s.defaultImagerySource ?? 'mapbox') === key ? 'bg-primary/20 text-primary' : 'text-contrast-content/40 hover:bg-base-300'}"
+                disabled={settingsSaving === "defaultImagerySource"}
+                on:click={() => toggleUserSetting("defaultImagerySource", key)}>
+                {(s.defaultImagerySource ?? 'mapbox') === key ? "Default" : "Set default"}
+              </button>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Section: Layer visibility -->
+        <div class="space-y-1">
+          <h5 class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40">Layer Visibility</h5>
+          {#if true}
+            {@const lv = s.layerVisibility ?? {}}
+            <div class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30">
+              <span class="text-xs text-contrast-content">
+                {diffDot("layerVisibility")}Custom visibility ({Object.keys(lv || {}).length} layers)
+              </span>
+              <button type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {Object.keys(lv || {}).length > 0 ? 'bg-primary' : 'bg-base-300'}"
+                disabled={settingsSaving === "layerVisibility"}
+                on:click={() => toggleUserSetting("layerVisibility", Object.keys(lv || {}).length > 0 ? {} : { historicalTrails: false })}>
+                <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {Object.keys(lv || {}).length > 0 ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+              </button>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <div class="modal-action mt-4 flex items-center justify-between">
+        <button class="btn btn-outline btn-sm text-error" disabled={settingsSaving === "__reset__"}
+          on:click={resetUserSettings}>
+          {settingsSaving === "__reset__" ? "Resetting..." : "Reset to defaults"}
+        </button>
+        <button class="btn btn-outline btn-sm" on:click={() => (showUserSettingsModal = false)}>Close</button>
+      </div>
+    {/if}
   </div>
 </dialog>
 

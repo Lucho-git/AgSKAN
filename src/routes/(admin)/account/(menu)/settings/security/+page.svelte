@@ -5,21 +5,13 @@
   import { page } from "$app/stores"
   import { toast } from "svelte-sonner"
   import Icon from "@iconify/svelte"
+  import { X } from "lucide-svelte"
 
   // Security state
   let editingEmail = false
   let editingPassword = false
   let formEmail = ""
-  let formPassword = {
-    current: "",
-    new: "",
-    confirm: "",
-  }
-
-  // Password visibility state
-  let showCurrentPassword = false
-  let showNewPassword = false
-  let showConfirmPassword = false
+  let formPassword = { current: "", new: "", confirm: "" }
 
   // Validation state
   let emailError = ""
@@ -86,6 +78,8 @@
   let usingOAuth = false
   let sendingPasswordEmail = false
   let sentPasswordEmail = false
+  let savingEmail = false
+  let savingPassword = false
 
   // Check user's authentication method
   $: if ($session?.user) {
@@ -111,24 +105,22 @@
   }
 
   async function handleEmailUpdate() {
-    if (!emailFormValid) return
+    if (!emailFormValid || savingEmail) return
+    savingEmail = true
 
     try {
-      // Direct update without verification
       const { data, error } = await supabase.auth.updateUser({
         email: formEmail,
       })
 
       if (error) throw error
 
-      // Update was successful
       editingEmail = false
       emailError = ""
 
-      // Show success message
-      toast.success("Email updated successfully!", {
-        description: "Your email has been changed.",
-        duration: 4000,
+      toast.success("Confirmation email sent", {
+        description: "Check your inbox to complete the change",
+        duration: 6000,
       })
 
       // Update the session store to reflect the new email
@@ -144,11 +136,14 @@
     } catch (error) {
       console.error("Error updating email:", error)
       emailError = error.message || "Failed to update email address"
+    } finally {
+      savingEmail = false
     }
   }
 
   async function handlePasswordUpdate() {
-    if (!passwordFormValid) return
+    if (!passwordFormValid || savingPassword) return
+    savingPassword = true
 
     try {
       const result = await userSettingsApi.updatePassword(
@@ -160,22 +155,21 @@
       if (result.success) {
         editingPassword = false
         formPassword = { current: "", new: "", confirm: "" }
-        // Reset password visibility
-        showCurrentPassword = false
-        showNewPassword = false
-        showConfirmPassword = false
         passwordErrors = {
           current: "",
           new: "",
           confirm: "",
           general: "",
         }
+        toast.success("Password updated")
       } else {
-        passwordErrors.general = result.error || "Failed to update password"
+        passwordErrors.general = result.message || "Failed to update password"
       }
     } catch (error) {
       console.error("Error updating password:", error)
       passwordErrors.general = "An unexpected error occurred"
+    } finally {
+      savingPassword = false
     }
   }
 
@@ -216,9 +210,6 @@
 
   function startPasswordEdit() {
     formPassword = { current: "", new: "", confirm: "" }
-    showCurrentPassword = false
-    showNewPassword = false
-    showConfirmPassword = false
     passwordErrors = {
       current: "",
       new: "",
@@ -230,9 +221,6 @@
 
   function cancelPasswordEdit() {
     formPassword = { current: "", new: "", confirm: "" }
-    showCurrentPassword = false
-    showNewPassword = false
-    showConfirmPassword = false
     passwordErrors = {
       current: "",
       new: "",
@@ -267,363 +255,168 @@
 </div>
 
 <!-- Content -->
-<div class="divide-y divide-base-300">
-  <!-- Email -->
-  <div class="p-6">
-    <div class="mb-4">
-      <h3 class="flex items-center gap-2 font-medium text-contrast-content">
-        <div class="rounded-lg bg-base-content/10 p-1.5">
-          <Icon
-            icon="solar:letter-bold-duotone"
-            width="16"
-            height="16"
-            class="text-base-content"
-          />
-        </div>
-        Email Address
-      </h3>
-    </div>
+<div class="p-6">
+  <div class="space-y-4">
 
-    {#if editingEmail}
-      <div class="space-y-4">
-        <div>
-          <input
-            type="email"
-            bind:value={formEmail}
-            class="w-full rounded-lg border {emailError
-              ? 'border-error'
-              : 'border-base-300'} bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            placeholder="Enter new email address"
-          />
-          {#if emailError}
-            <p class="mt-1 flex items-center gap-1 text-sm text-error">
-              <Icon
-                icon="solar:info-circle-bold-duotone"
-                width="16"
-                height="16"
-              />
-              {emailError}
-            </p>
-          {/if}
-        </div>
-
-        <div class="flex justify-end gap-3">
-          <button
-            on:click={cancelEmailEdit}
-            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          >
-            <Icon
-              icon="solar:close-circle-bold-duotone"
-              width="16"
-              height="16"
-            />
-            Cancel
-          </button>
-          <button
-            on:click={handleEmailUpdate}
-            disabled={!emailFormValid}
-            class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon icon="solar:diskette-bold-duotone" width="16" height="16" />
-            Save
-          </button>
-        </div>
+    <!-- ===== EMAIL ===== -->
+    <button type="button" on:click={startEmailEdit}
+      class="flex w-full items-center gap-3 text-left rounded-lg border border-base-300 bg-base-200/30 p-4 transition-colors hover:border-base-content/20">
+      <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+        <Icon icon="solar:letter-bold-duotone" width="18" height="18" class="text-base-content" />
       </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-sm text-contrast-content/60">Email Address</label>
+        <p class="font-medium text-contrast-content">{$session?.user?.email || "No email set"}</p>
+        <p class="mt-0.5 text-xs text-success">Verified</p>
+      </div>
+      <div class="flex-shrink-0 text-contrast-content/40">
+        <Icon icon="solar:pen-bold-duotone" width="18" height="18" />
+      </div>
+    </button>
+
+    <!-- ===== PASSWORD ===== -->
+    {#if hasPassword}
+      <button type="button" on:click={startPasswordEdit}
+        class="flex w-full items-center gap-3 text-left rounded-lg border border-base-300 bg-base-200/30 p-4 transition-colors hover:border-base-content/20">
+        <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <Icon icon="solar:lock-password-bold-duotone" width="18" height="18" class="text-base-content" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <label class="block text-sm text-contrast-content/60">Password</label>
+          <p class="font-medium text-contrast-content">••••••••••••</p>
+        </div>
+        <div class="flex-shrink-0 text-contrast-content/40">
+          <Icon icon="solar:pen-bold-duotone" width="18" height="18" />
+        </div>
+      </button>
     {:else}
-      <div
-        class="flex items-center gap-3 rounded-lg border border-base-300 bg-base-200/30 p-4"
-      >
-        <div class="rounded-full bg-base-content/10 p-2">
-          <Icon
-            icon="solar:letter-bold-duotone"
-            width="18"
-            height="18"
-            class="text-base-content"
-          />
+      <button type="button" on:click={sendPasswordSetupEmail} disabled={sendingPasswordEmail || sentPasswordEmail}
+        class="flex w-full items-center gap-3 text-left rounded-lg border border-base-300 bg-base-200/30 p-4 transition-colors hover:border-base-content/20">
+        <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <Icon icon="solar:lock-password-bold-duotone" width="18" height="18" class="text-base-content" />
         </div>
-        <div>
+        <div class="flex-1 min-w-0">
+          <label class="block text-sm text-contrast-content/60">Password</label>
           <p class="font-medium text-contrast-content">
-            {$session?.user?.email || "No email set"}
+            {sentPasswordEmail ? "Email sent — check your inbox" : sendingPasswordEmail ? "Sending..." : "Set a password"}
           </p>
-          <p class="mt-0.5 text-xs text-contrast-content/60">Verified</p>
         </div>
-      </div>
-      <button
-        on:click={startEmailEdit}
-        class="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
-      >
-        <Icon icon="solar:letter-bold-duotone" width="16" height="16" />
-        Change Email
+        <div class="flex-shrink-0 text-contrast-content/40">
+          <Icon icon="solar:pen-bold-duotone" width="18" height="18" />
+        </div>
       </button>
     {/if}
   </div>
+</div>
 
-  <!-- Password -->
-  <div class="p-6">
-    <div class="mb-4">
-      <h3 class="flex items-center gap-2 font-medium text-contrast-content">
-        <div class="rounded-lg bg-base-content/10 p-1.5">
-          <Icon
-            icon="solar:lock-password-bold-duotone"
-            width="16"
-            height="16"
-            class="text-base-content"
-          />
-        </div>
-        Password
-      </h3>
-    </div>
-
-    {#if editingPassword && hasPassword}
-      <div class="space-y-4">
-        {#if passwordErrors.general}
-          <div class="rounded-lg border border-error bg-error/10 p-4">
-            <div class="flex items-center gap-2">
-              <Icon
-                icon="solar:danger-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-error"
-              />
-              <p class="font-medium text-error">Error</p>
-            </div>
-            <p class="mt-1 text-sm text-error/80">{passwordErrors.general}</p>
+<!-- Email Modal -->
+{#if editingEmail}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    on:click={cancelEmailEdit} on:keydown={(e) => e.key === "Escape" && cancelEmailEdit()} role="presentation">
+    <div class="w-full max-w-sm rounded-2xl bg-base-100 shadow-2xl overflow-hidden" on:click|stopPropagation role="dialog" aria-modal="true">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-base-300 px-5 py-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10">
+            <Icon icon="solar:letter-bold-duotone" width="18" height="18" class="text-base-content" />
           </div>
+          <h4 class="text-base font-semibold text-contrast-content">Change Email</h4>
+        </div>
+        <button class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-base-200"
+          on:click={cancelEmailEdit} title="Close">
+          <X class="h-4 w-4 text-contrast-content/60" />
+        </button>
+      </div>
+      <div class="border-t border-base-300 px-5 py-4">
+        <label for="email-input" class="mb-1 block text-sm font-medium text-contrast-content">Email Address</label>
+        <input id="email-input" type="email" bind:value={formEmail}
+          on:keydown={(e) => e.key === "Enter" && handleEmailUpdate()}
+          class="w-full rounded-lg border {emailError ? 'border-error' : 'border-base-300'} bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          placeholder="Enter new email address" />
+        {#if emailError}
+          <p class="mt-1 flex items-center gap-1 text-sm text-error"><Icon icon="solar:info-circle-bold-duotone" width="16" height="16" /> {emailError}</p>
         {/if}
+      </div>
+      <!-- Footer -->
+      <div class="flex justify-end px-5 py-3">
+        <button on:click={handleEmailUpdate} disabled={!emailFormValid || savingEmail}
+          class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:opacity-50">
+          {savingEmail ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
+<!-- Password Modal -->
+{#if editingPassword}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    on:click={cancelPasswordEdit} on:keydown={(e) => e.key === "Escape" && cancelPasswordEdit()} role="presentation">
+    <div class="w-full max-w-sm rounded-2xl bg-base-100 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto" on:click|stopPropagation role="dialog" aria-modal="true">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-base-300 px-5 py-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-base-content/10">
+            <Icon icon="solar:lock-password-bold-duotone" width="18" height="18" class="text-base-content" />
+          </div>
+          <h4 class="text-base font-semibold text-contrast-content">Change Password</h4>
+        </div>
+        <button class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-base-200"
+          on:click={cancelPasswordEdit} title="Close">
+          <X class="h-4 w-4 text-contrast-content/60" />
+        </button>
+      </div>
+      <!-- Body -->
+      <div class="border-t border-base-300 px-5 py-4">
+
+      {#if passwordErrors.general}
+        <div class="mb-4 rounded-lg border border-error bg-error/10 p-3">
+          <div class="flex items-center gap-2">
+            <Icon icon="solar:danger-circle-bold-duotone" width="16" height="16" class="text-error" />
+            <p class="text-sm font-medium text-error">{passwordErrors.general}</p>
+          </div>
+        </div>
+      {/if}
+
+      <div class="space-y-3">
         <!-- Current Password -->
         <div>
-          <label class="mb-1 block text-sm text-contrast-content/60"
-            >Current Password</label
-          >
-          <div class="relative">
-            {#if showCurrentPassword}
-              <input
-                type="text"
-                bind:value={formPassword.current}
-                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Enter current password"
-              />
-            {:else}
-              <input
-                type="password"
-                bind:value={formPassword.current}
-                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Enter current password"
-              />
-            {/if}
-            <button
-              type="button"
-              on:click={() => (showCurrentPassword = !showCurrentPassword)}
-              class="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-base-content/60 hover:bg-base-200 hover:text-base-content"
-            >
-              <Icon
-                icon={showCurrentPassword
-                  ? "solar:eye-closed-bold-duotone"
-                  : "solar:eye-bold-duotone"}
-                width="18"
-                height="18"
-              />
-            </button>
-          </div>
+          <label class="mb-1 block text-sm text-contrast-content/60">Current Password</label>
+          <input type="text" bind:value={formPassword.current}
+            on:keydown={(e) => e.key === "Enter" && handlePasswordUpdate()}
+            class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Enter current password" />
         </div>
 
         <!-- New Password -->
         <div>
-          <label class="mb-1 block text-sm text-contrast-content/60"
-            >New Password</label
-          >
-          <div class="relative">
-            {#if showNewPassword}
-              <input
-                type="text"
-                bind:value={formPassword.new}
-                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Enter new password"
-              />
-            {:else}
-              <input
-                type="password"
-                bind:value={formPassword.new}
-                class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Enter new password"
-              />
-            {/if}
-            <button
-              type="button"
-              on:click={() => (showNewPassword = !showNewPassword)}
-              class="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-base-content/60 hover:bg-base-200 hover:text-base-content"
-            >
-              <Icon
-                icon={showNewPassword
-                  ? "solar:eye-closed-bold-duotone"
-                  : "solar:eye-bold-duotone"}
-                width="18"
-                height="18"
-              />
-            </button>
-          </div>
+          <label class="mb-1 block text-sm text-contrast-content/60">New Password</label>
+          <input type="text" bind:value={formPassword.new}
+            on:keydown={(e) => e.key === "Enter" && handlePasswordUpdate()}
+            class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Enter new password" />
         </div>
 
         <!-- Confirm New Password -->
         <div>
-          <label class="mb-1 block text-sm text-contrast-content/60"
-            >Confirm New Password</label
-          >
-          <div class="relative">
-            {#if showConfirmPassword}
-              <input
-                type="text"
-                bind:value={formPassword.confirm}
-                class="w-full rounded-lg border {passwordErrors.confirm
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Confirm new password"
-              />
-            {:else}
-              <input
-                type="password"
-                bind:value={formPassword.confirm}
-                class="w-full rounded-lg border {passwordErrors.confirm
-                  ? 'border-error'
-                  : 'border-base-300'} bg-base-100 px-4 py-3 pr-12 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Confirm new password"
-              />
-            {/if}
-            <button
-              type="button"
-              on:click={() => (showConfirmPassword = !showConfirmPassword)}
-              class="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-base-content/60 hover:bg-base-200 hover:text-base-content"
-            >
-              <Icon
-                icon={showConfirmPassword
-                  ? "solar:eye-closed-bold-duotone"
-                  : "solar:eye-bold-duotone"}
-                width="18"
-                height="18"
-              />
-            </button>
-          </div>
+          <label class="mb-1 block text-sm text-contrast-content/60">Confirm New Password</label>
+          <input type="text" bind:value={formPassword.confirm}
+            on:keydown={(e) => e.key === "Enter" && handlePasswordUpdate()}
+            class="w-full rounded-lg border {passwordErrors.confirm ? 'border-error' : 'border-base-300'} bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Confirm new password" />
           {#if passwordErrors.confirm}
-            <p class="mt-1 flex items-center gap-1 text-sm text-error">
-              <Icon
-                icon="solar:info-circle-bold-duotone"
-                width="16"
-                height="16"
-              />
-              {passwordErrors.confirm}
-            </p>
+            <p class="mt-1 flex items-center gap-1 text-sm text-error"><Icon icon="solar:info-circle-bold-duotone" width="16" height="16" /> {passwordErrors.confirm}</p>
           {/if}
         </div>
-
-        <div class="flex justify-end gap-3">
-          <button
-            on:click={cancelPasswordEdit}
-            class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          >
-            <Icon
-              icon="solar:close-circle-bold-duotone"
-              width="16"
-              height="16"
-            />
-            Cancel
-          </button>
-          <button
-            on:click={handlePasswordUpdate}
-            disabled={!passwordFormValid}
-            class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon icon="solar:key-bold-duotone" width="16" height="16" />
-            Update Password
-          </button>
-        </div>
       </div>
-    {:else if hasPassword}
-      <div
-        class="flex items-center gap-3 rounded-lg border border-base-300 bg-base-200/30 p-4"
-      >
-        <div class="rounded-full bg-base-content/10 p-2">
-          <Icon
-            icon="solar:lock-password-bold-duotone"
-            width="18"
-            height="18"
-            class="text-base-content"
-          />
-        </div>
-        <div>
-          <p class="font-medium text-contrast-content">••••••••••••</p>
-          <p class="mt-0.5 text-xs text-contrast-content/60">
-            Last updated: 2 months ago
-          </p>
-        </div>
       </div>
-      <button
-        on:click={startPasswordEdit}
-        class="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
-      >
-        <Icon icon="solar:key-bold-duotone" width="16" height="16" />
-        Change Password
-      </button>
-    {:else}
-      <!-- OAuth users or users without password -->
-      <div class="space-y-4">
-        {#if usingOAuth}
-          <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-            <h4 class="mb-2 font-medium text-contrast-content">
-              Set Password By Email
-            </h4>
-            <p class="mb-4 text-sm text-contrast-content/60">
-              You use OAuth to sign in ("Sign in with Github" or similar). You
-              can continue to access your account using only OAuth if you like,
-              or set a password for additional security.
-            </p>
-          </div>
-        {:else}
-          <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
-            <h4 class="mb-2 font-medium text-contrast-content">
-              Change Password By Email
-            </h4>
-          </div>
-        {/if}
-
-        <p class="text-sm text-contrast-content/60">
-          The button below will send you an email at {$session?.user?.email} which
-          will allow you to set your password.
-        </p>
-
-        {#if !sentPasswordEmail}
-          <button
-            on:click={sendPasswordSetupEmail}
-            disabled={sendingPasswordEmail}
-            class="flex w-full items-center justify-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-contrast-content hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {#if sendingPasswordEmail}
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-contrast-content/20 border-t-contrast-content"
-              ></div>
-              Sending...
-            {:else}
-              <Icon icon="solar:letter-bold-duotone" width="16" height="16" />
-              Send Set Password Email
-            {/if}
-          </button>
-        {:else}
-          <div class="rounded-lg border border-success bg-success/10 p-4">
-            <div class="flex items-center gap-2">
-              <Icon
-                icon="solar:check-circle-bold-duotone"
-                width="20"
-                height="20"
-                class="text-success"
-              />
-              <p class="font-medium text-success">Email Sent!</p>
-            </div>
-            <p class="mt-1 text-sm text-success/80">
-              Please check your inbox and use the link to set your password.
-            </p>
-          </div>
-        {/if}
+      <!-- Footer -->
+      <div class="flex justify-end px-5 py-3">
+        <button on:click={handlePasswordUpdate} disabled={!passwordFormValid || savingPassword}
+          class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 disabled:opacity-50">
+          {savingPassword ? "Saving..." : "Save"}
+        </button>
       </div>
-    {/if}
+    </div>
   </div>
-</div>
+{/if}

@@ -40,6 +40,7 @@
     ArrowUp,
     ArrowRightLeft,
     Check,
+    X,
   } from "lucide-svelte"
 
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
@@ -1299,57 +1300,54 @@
 <!-- Edit Field Modal -->
 <dialog id={editModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
-    <div class="flex items-center gap-3">
-      <div
-        class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200"
-      >
-        <SquarePen class="h-5 w-5 text-contrast-content" />
+    <div class="flex items-center justify-between border-b border-base-300 pb-3">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200">
+          <SquarePen class="h-5 w-5 text-contrast-content" />
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-contrast-content">Edit Field</h3>
+          <p class="text-sm text-contrast-content/60">Change field information</p>
+        </div>
       </div>
-      <div>
-        <h3 class="text-lg font-bold text-contrast-content">Edit Field</h3>
-        <p class="text-sm text-contrast-content/60">Change field information</p>
-      </div>
+      <button
+        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-base-300"
+        on:click={closeEditModal} title="Close">
+        <X class="h-4 w-4 text-contrast-content/60" />
+      </button>
     </div>
 
     <div class="space-y-4 p-4">
       <div class="grid gap-2">
-        <Label for="name">Field Name</Label>
-        <Input
-          id="name"
+        <label for="edit-field-name" class="text-sm font-medium text-contrast-content">Field Name</label>
+        <input
+          id="edit-field-name"
           bind:value={newFieldName}
           placeholder="Enter field name"
-          class="w-full"
+          class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
         />
       </div>
 
       <div class="grid gap-2">
-        <Label for="area">Area (ha)</Label>
-        <Input
-          id="area"
+        <label for="edit-field-area" class="text-sm font-medium text-contrast-content">Area (ha)</label>
+        <input
+          id="edit-field-area"
           type="number"
           step="0.1"
           bind:value={newFieldArea}
           placeholder="Enter area in hectares"
-          class="w-full"
+          class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
         />
       </div>
     </div>
 
     <div class="modal-action">
-      <form method="dialog" class="flex w-full gap-2 sm:w-auto">
-        <button
-          class="btn btn-outline flex-1 sm:flex-none"
-          on:click={closeEditModal}
-        >
-          Cancel
-        </button>
-        <button
-          class="btn flex-1 bg-base-content text-base-100 hover:bg-base-content/90 sm:flex-none"
-          on:click={handleEditField}
-        >
-          Save changes
-        </button>
-      </form>
+      <button
+        class="btn flex-1 bg-base-content text-base-100 hover:bg-base-content/90 sm:flex-none"
+        on:click={handleEditField}
+      >
+        Save changes
+      </button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -1360,7 +1358,7 @@
 <!-- Delete Field Modal -->
 <dialog id={deleteModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 border-b border-base-300 pb-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-error/20"
       >
@@ -1407,7 +1405,7 @@
 <!-- Delete All Fields Modal -->
 <dialog id={deleteAllModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 border-b border-base-300 pb-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-error/20"
       >
@@ -1469,7 +1467,7 @@
 <!-- Delete Farm Fields Modal -->
 <dialog id={deleteFarmModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 border-b border-base-300 pb-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-error/20"
       >
@@ -1538,7 +1536,7 @@
   <div
     class="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto sm:w-full"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 border-b border-base-300 pb-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-info/20"
       >
@@ -1757,7 +1755,7 @@
   <div
     class="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto sm:w-full"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 border-b border-base-300 pb-3">
       <div
         class="flex h-10 w-10 items-center justify-center rounded-full bg-info/20"
       >

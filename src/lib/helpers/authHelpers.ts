@@ -236,9 +236,7 @@ export async function createUserSettingsIfNeeded(userId: string) {
         const { error: settingsError } = await supabase
             .from("user_settings")
             .insert({
-                user_id: userId,
-                limit_markers: false,
-                limit_markers_days: 7
+                user_id: userId
             });
 
         // Handle creation result

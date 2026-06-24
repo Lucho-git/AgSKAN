@@ -47,15 +47,7 @@
   }
 
   // ✅ Make these explicitly reactive by including currentSource in the dependencies
-  $: availableSources = Object.entries(IMAGERY_SOURCES).filter(
-    ([key, source]) => {
-      // Always show Mapbox
-      if (key === "mapbox") return true
-
-      // Check if this provider is enabled by the user
-      return $userSettingsStore.enabledImageryProviders?.includes(key) || false
-    },
-  )
+  $: availableSources = Object.entries(IMAGERY_SOURCES)
 
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource || "mapbox"
 
