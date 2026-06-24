@@ -1854,10 +1854,13 @@
           map.touchZoomRotate._tapDragZoom.disable()
         }
 
-        // Kill pinch-zoom momentum — stop immediately on finger release
-        map.on("touchend", () => {
+        // Kill pinch-zoom momentum — snap zoom immediately on finger release
+        const killZoomMomentum = () => {
           map.stop()
-        })
+          map.zoomTo(map.getZoom(), { duration: 0 })
+        }
+        map.on("touchend", killZoomMomentum)
+        map.on("touchcancel", killZoomMomentum)
 
         // Faster scroll-wheel zoom: more zoom per tick + quicker animation
         map.scrollZoom.setWheelZoomRate(1 / 150) // default 1/450 — lower = faster per tick
