@@ -654,8 +654,7 @@
           last_confirmed: marker.created_at || new Date().toISOString(),
           created_at: marker.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          update_user_id: userId, // Set the user ID
-          deleted: null,
+          update_user_id: userId,
         }
       })
 

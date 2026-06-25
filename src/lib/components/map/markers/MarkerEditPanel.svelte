@@ -1,6 +1,6 @@
 <!-- src/lib/components/map/markers/MarkerEditPanel.svelte -->
 <script>
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import {
     Edit3,
@@ -57,6 +57,7 @@
   let selectedIconForEdit = null
   let pendingIconChange = false
   let originalIconClass = null
+  let pendingMarkerId = null // captured at preview time for onDestroy revert
 
   // Preview icon state for bottom bar
   let previewIconClass = null
@@ -69,6 +70,18 @@
     ? $confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id)
     : null
   $: selectedMarkerIsNew = $selectedMarkerStore && !currentMarker
+
+  // Revert pending icon change when component is destroyed (deselected, clicked away, etc.)
+  onDestroy(() => {
+    if (pendingIconChange) {
+      console.log("🔄 MarkerEditPanel: Destroying with pending icon change — reverting", {
+        originalIconClass,
+        pendingMarkerId,
+        selectedIconForEdit,
+      })
+      revertIconChange()
+    }
+  })
 
   // Auto-open edit menu for new markers
   $: if (selectedMarkerIsNew && !showEditMenu) {
@@ -212,6 +225,7 @@
     selectedIconForEdit = null
     pendingIconChange = false
     originalIconClass = null
+    pendingMarkerId = null
     markerNotes = ""
     originalNotes = ""
     showNotesSection = false
@@ -321,6 +335,7 @@
     if (!pendingIconChange) {
       originalIconClass = getCurrentIconClass($selectedMarkerStore.id)
       pendingIconChange = true
+      pendingMarkerId = $selectedMarkerStore.id
     }
 
     selectedIconForEdit = icon
@@ -407,6 +422,11 @@
     markerNotes = ""
     originalNotes = ""
     showNotesSection = false
+    pendingIconChange = false
+    pendingMarkerId = null
+    originalIconClass = null
+    selectedIconForEdit = null
+    previewIconClass = null
     selectedMarkerStore.set(null)
     showEditMenu = false
     isExpanded = false
@@ -480,6 +500,7 @@
     selectedIconForEdit = null
     pendingIconChange = false
     originalIconClass = null
+    pendingMarkerId = null
     originalNotes = markerNotes.trim()
     showEditMenu = false
     isExpanded = false
@@ -531,12 +552,11 @@
 
   // Revert icon change
   function revertIconChange() {
-    if (!originalIconClass || !$selectedMarkerStore) return
+    if (!originalIconClass || !pendingMarkerId) return
 
-    const { id } = $selectedMarkerStore
     const source = map.getSource("markers")
     const data = source._data
-    const feature = data.features.find((f) => f.properties.id === id)
+    const feature = data.features.find((f) => f.properties.id === pendingMarkerId)
 
     if (feature) {
       feature.properties.icon = getIconImageName(originalIconClass)
