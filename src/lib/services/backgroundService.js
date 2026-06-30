@@ -592,6 +592,7 @@ class BackgroundService {
    * Removes the URL config so the plugin stops POSTing.
    */
   async disableNativeSync() {
+    if (!Capacitor.isNativePlatform()) return;
     try {
       await BackgroundGeolocation.setConfig({
         url: '',
@@ -658,6 +659,7 @@ class BackgroundService {
    * re-creating trail_stream rows after close_trail_fast deletes them.
    */
   async destroyNativeLocations() {
+    if (!Capacitor.isNativePlatform()) return;
     try {
       await BackgroundGeolocation.destroyLocations();
       console.log("[BG-DIAG] Destroyed native queued locations (trail stop cleanup)");
