@@ -930,42 +930,50 @@ export const trailsApi = {
 
             console.log(`✅ All ${coordinatesBatch.length} coordinates validated successfully`);
 
-            // Prepare the batch of coordinates for insertion
-            const coordinatesForInsert = coordinatesBatch.map(
+            // Prepare points for the insert_trail_stream RPC.
+            // The RPC has a DB-level guard: it only inserts if the trail exists
+            // AND end_time IS NULL. This prevents FK violations from stale
+            // trail_ids (deleted/closed trails) across ALL insert paths.
+            const pointsForRpc = coordinatesBatch.map(
                 ({ coordinates, timestamp }) => ({
-                    operation_id: operationId,
-                    trail_id: trailId,
-                    coordinate: `POINT(${coordinates.longitude} ${coordinates.latitude})`,
+                    lat: coordinates.latitude,
+                    lng: coordinates.longitude,
                     timestamp: new Date(timestamp).toISOString(),
+                    operation_id: operationId || '',
                 })
             );
 
-            console.log(`📤 Inserting coordinates:`, {
-                count: coordinatesForInsert.length,
-                sample: coordinatesForInsert[0]
+            console.log(`📤 Inserting via RPC:`, {
+                count: pointsForRpc.length,
+                trailId: trailId.slice(0, 8),
+                sample: pointsForRpc[0]
             });
 
-            const { data, error } = await supabase
-                .from("trail_stream")
-                .insert(coordinatesForInsert)
-                .select();
+            const { data: rpcResult, error: rpcError } = await supabase
+                .rpc("insert_trail_stream", {
+                    p_trail_id: trailId,
+                    p_points: pointsForRpc,
+                    p_operation_id: operationId || null,
+                });
 
-            if (error) {
-                // Duplicate key (23505) means the data is already saved — treat as success
-                if (error.code === '23505') {
-                    console.log(`ℹ️ ${coordinatesForInsert.length} duplicate coordinates ignored (already in DB)`);
-                    return { coordinates: [] };
-                }
+            if (rpcError) {
                 // Only log if it's NOT a network error
-                if (!error.message?.includes('Failed to fetch') &&
-                    !error.message?.includes('ERR_INTERNET_DISCONNECTED')) {
-                    console.error("❌ Error saving coordinates:", error);
+                if (!rpcError.message?.includes('Failed to fetch') &&
+                    !rpcError.message?.includes('ERR_INTERNET_DISCONNECTED')) {
+                    console.error("❌ Error saving coordinates via RPC:", rpcError);
                 }
-                throw new Error(`Failed to save coordinates: ${error.message}`);
+                throw new Error(`Failed to save coordinates: ${rpcError.message}`);
             }
 
-            console.log(`✅ Successfully saved ${data.length} coordinates`);
-            return { coordinates: data };
+            // RPC returns { success, inserted, skipped, error? }
+            if (rpcResult && rpcResult.success === false) {
+                console.log(`⏭️ Skipping ${pointsForRpc.length} coordinates — trail ${trailId.slice(0, 8)} no longer open (RPC: ${rpcResult.error})`);
+                return { coordinates: [] };
+            }
+
+            const inserted = rpcResult?.inserted ?? 0;
+            console.log(`✅ Successfully saved ${inserted} coordinates via RPC`);
+            return { coordinates: new Array(inserted) };
 
         } catch (error) {
             // Only log unexpected errors (not network failures)

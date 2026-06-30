@@ -401,6 +401,18 @@
       )
 
       try {
+        // Disable native sync BEFORE deleting the trail.
+        // The native plugin has the trail_id baked into its HTTP template.
+        // If we delete the trail without disabling sync, the plugin keeps
+        // POSTing to trail_stream with the stale trail_id, causing FK
+        // violations that flood the Postgres error logs.
+        try {
+          await backgroundService.disableNativeSync()
+          await backgroundService.destroyNativeLocations()
+        } catch (e) {
+          console.warn("⚠️ Could not disable native sync before delete:", e)
+        }
+
         const deleteResult = await trailsApi.deleteTrail(trailId)
 
         if (deleteResult.error) {
@@ -473,9 +485,18 @@
         // with the old trailId baked in. Destroying them prevents late arrivals
         // from re-creating trail_stream rows after close_trail_fast deletes them.
         try {
+          // Disable native sync FIRST to stop new POSTs from being queued.
+          // This is critical: destroyNativeLocations() only clears the SQLite
+          // queue, but in-flight POSTs can still arrive if the native engine
+          // hasn't processed the disable yet. We add a short delay to let
+          // in-flight requests settle before proceeding.
+          await backgroundService.disableNativeSync()
           await backgroundService.destroyNativeLocations()
+          // Brief delay to let any in-flight native HTTP POSTs complete/error
+          // before close_trail_fast deletes trail_stream rows.
+          await new Promise((resolve) => setTimeout(resolve, 1000))
         } catch (e) {
-          console.warn("⚠️ Could not flush native location queue:", e)
+          console.warn("⚠️ Could not disable native sync / flush queue:", e)
         }
 
         // Now close the trail and AWAIT
@@ -501,7 +522,9 @@
             if (sweepErr) {
               console.warn("⚠️ Post-close trail_stream sweep error:", sweepErr)
             } else {
-              console.log(`🧹 Post-close sweep: cleaned trail_stream for ${trailId}`)
+              console.log(
+                `🧹 Post-close sweep: cleaned trail_stream for ${trailId}`,
+              )
             }
           } catch (e) {
             console.warn("⚠️ Post-close trail_stream sweep failed:", e)
@@ -1100,7 +1123,7 @@
       const { data: activeTrails, error: trailsErr } = await supabase
         .from("trails")
         .select(
-          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, task_id",
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
         )
         .eq("operation_id", opId)
         .is("end_time", null)
@@ -1134,7 +1157,6 @@
               end_time: t.end_time,
               trail_color: t.trail_color,
               trail_width: t.trail_width,
-              task_id: t.task_id,
               path: [],
             },
           ])
@@ -1244,7 +1266,6 @@
           operation_id: trailData.operation_id,
           start_time: trailData.start_time,
           end_time: trailData.end_time,
-          task_id: trailData.task_id,
           trail_color: trailData.trail_color,
           trail_width: trailData.trail_width,
           path: [],
@@ -1596,14 +1617,11 @@
             id: trail.id,
             vehicle_id: trail.vehicle_id,
             operation_id: trail.operation_id,
-            task_id: trail.task_id || null,
             start_time: trail.start_time,
             end_time: trail.end_time,
             trail_color: trail.trail_color,
             trail_width: trail.trail_width,
-            path: normalizedTrailData.sort(
-              (a, b) => a.timestamp - b.timestamp,
-            ),
+            path: normalizedTrailData.sort((a, b) => a.timestamp - b.timestamp),
           }
         })
 

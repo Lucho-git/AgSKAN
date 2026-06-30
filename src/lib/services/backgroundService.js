@@ -546,11 +546,10 @@ class BackgroundService {
         + '}';
 
       // ── Build the native HTTP config ──
-      // Use transistorsoft's built-in `authorization` for automatic JWT refresh.
-      // When the native engine receives a 401 from our RPC endpoint, it will
-      // automatically POST to refreshUrl to get a new access_token, then retry.
-      // This is critical for background sessions >1 hour where the JWT expires
-      // and the WebView JS is frozen (can't run Supabase autoRefreshToken).
+      // No authorization strategy — requests go through as anon (apikey only).
+      // The vehicle identity is carried in p_vehicle_id in the locationTemplate body.
+      // This avoids the PostgREST 401 → /token → 400 → retry loop when the JWT
+      // expires and the refresh token is dead (OS-killed app restart scenario).
       const httpConfig = {
         url: `${supabaseUrl}/rest/v1/rpc/background_sync`,
         autoSync: true,
@@ -568,23 +567,6 @@ class BackgroundService {
         headers: {
           'apikey': anonKey,
           'Content-Type': 'application/json',
-          // NOTE: Do NOT set 'Authorization' here — the `authorization` config below
-          // handles it automatically, including refresh on 401.
-        },
-        authorization: {
-          strategy: 'JWT',
-          accessToken: authToken,
-          refreshToken: refreshToken || '',
-          refreshUrl: `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
-          refreshPayload: {
-            refresh_token: '{refreshToken}',
-          },
-          refreshHeaders: {
-            'apikey': anonKey,
-            'Content-Type': 'application/json',
-          },
-          // Supabase JWTs default to 3600s. Tell the plugin so it knows the window.
-          expires: 3600,
         },
         // NOTE: Do NOT use `extras` here — the plugin merges extras into the HTTP body,
         // which would add duplicate un-prefixed params alongside the p_* params in locationTemplate,
