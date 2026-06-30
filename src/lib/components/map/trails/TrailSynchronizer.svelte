@@ -19,6 +19,7 @@
     pendingClosuresStore,
     trailPausedStore,
     trailPausePointStore,
+    trailClosingStore,
   } from "$lib/stores/currentTrailStore"
 
   import {
@@ -319,6 +320,15 @@
       return
     }
 
+    // Guard against double-clicks / spam clicks.
+    // The close cycle can take several seconds (sync pending coords,
+    // flush native queue, call close_trail_fast RPC). Without this
+    // guard, each click fires a duplicate close request to the server.
+    if (get(trailClosingStore)) {
+      console.log("⏸️ Trail already closing, ignoring duplicate click")
+      return
+    }
+
     if (!$currentTrailStore) {
       toast.error("No trail data found")
       userVehicleTrailing.set(false)
@@ -448,6 +458,7 @@
     )
 
     // Use toast.promise for better UX
+    trailClosingStore.set(true)
     const closurePromise = (async () => {
       try {
         // If we have pending coordinates, sync them FIRST and AWAIT
@@ -605,6 +616,7 @@
     userVehicleTrailing.set(false)
     trailPausedStore.set(false)
     trailPausePointStore.set(null)
+    trailClosingStore.set(false)
   }
 
   // ============================================

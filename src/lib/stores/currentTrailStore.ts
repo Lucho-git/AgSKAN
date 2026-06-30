@@ -165,6 +165,10 @@ export const unsavedTrailsStore = createUnsavedTrailsStore()
 export const pendingCoordinatesStore = createPendingCoordinatesStore()
 export const pendingClosuresStore = createPendingClosuresStore()
 
+// Trail closing state — true while stopTrail() is in flight.
+// Used to disable the stop button and prevent duplicate close requests.
+export const trailClosingStore = writable<boolean>(false)
+
 // Trail pause state
 export const trailPausedStore = writable<boolean>(false)
 
