@@ -19,6 +19,7 @@
     Loader2,
     FileText,
     Layers,
+    X,
   } from "lucide-svelte"
   import { getRecordSnapshotUrl } from "$lib/utils/fieldSnapshot"
   import FieldTrailOverlay from "$lib/components/map/trails/FieldTrailOverlay.svelte"
@@ -48,6 +49,10 @@
   // Snapshot URL cache (per record ID)
   let snapshotCache: Record<string, string> = {}
 
+  // Fullscreen snapshot state — now uses locked interactive map
+  let fullscreenSnapshot = false
+  let fullscreenRecord = null as any
+
   // Field trail overlay state
   let showFieldOverlay = false
   let overlayFieldBoundary = null
@@ -66,7 +71,10 @@
   // Build snapshot URL for a record (cached)
   function getSnapshot(record) {
     if (snapshotCache[record.id]) return snapshotCache[record.id]
-    if (!record.field_boundary) return ""
+    if (!record.field_boundary) {
+      console.warn("[records] No field_boundary for record", record.id, record.field_name)
+      return ""
+    }
     try {
       const url = getRecordSnapshotUrl(record.field_boundary, record, {
         width: 120,
@@ -76,9 +84,17 @@
       snapshotCache[record.id] = url
       return url
     } catch (e) {
-      console.warn("Failed to build snapshot URL:", e)
+      console.error("[records] Failed to build snapshot URL for record", record.id, e)
       return ""
     }
+  }
+
+  // Build a large snapshot for fullscreen view (unused now — replaced with locked interactive map)
+  // function getLargeSnapshot(record) { ... }
+
+  function openSnapshotFullscreen(record) {
+    fullscreenRecord = record
+    fullscreenSnapshot = true
   }
 
   // Filtered + sorted records
@@ -326,6 +342,12 @@
                   alt="Field snapshot"
                   class="record-snapshot"
                   loading="lazy"
+                  on:click={() => openSnapshotFullscreen(record)}
+                  on:keydown={(e) => e.key === "Enter" && openSnapshotFullscreen(record)}
+                  on:error={() => console.error("[records] Snapshot image failed to load", record.id)}
+                  role="button"
+                  tabindex="0"
+                  title="Click to view fullscreen"
                 />
               {:else}
                 <div class="record-snapshot-placeholder">
@@ -448,6 +470,16 @@
     {/if}
   {/if}
 </div>
+
+{#if fullscreenSnapshot && fullscreenRecord}
+  <FieldTrailOverlay
+    fieldBoundary={fullscreenRecord.field_boundary}
+    records={[fullscreenRecord]}
+    fieldName={fullscreenRecord.field_name}
+    lockedMode={true}
+    on:close={() => { fullscreenSnapshot = false; fullscreenRecord = null }}
+  />
+{/if}
 
 {#if showFieldOverlay}
   <FieldTrailOverlay
@@ -639,7 +671,16 @@
     object-fit: cover;
     flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
   }
+
+  .record-snapshot:hover {
+    transform: scale(1.05);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+
+  /* Fullscreen snapshot now uses FieldTrailOverlay in locked mode */
 
   .record-snapshot-placeholder {
     width: 120px;

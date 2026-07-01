@@ -50,9 +50,9 @@ function simplifyLineString(
     coordinates: [number, number][],
     tolerance = 0.00001
 ): [number, number][] {
-    if (coordinates.length <= 2) return coordinates
+    if (coordinates.length <= 2) return [roundCoords(coordinates[0]), roundCoords(coordinates[coordinates.length - 1])]
 
-    const result: [number, number][] = [coordinates[0]]
+    const result: [number, number][] = [roundCoords(coordinates[0])]
     let lastKept = coordinates[0]
 
     for (let i = 1; i < coordinates.length - 1; i++) {
@@ -60,12 +60,25 @@ function simplifyLineString(
         const dy = coordinates[i][1] - lastKept[1]
         const dist = Math.sqrt(dx * dx + dy * dy)
         if (dist >= tolerance) {
-            result.push(coordinates[i])
+            result.push(roundCoords(coordinates[i]))
             lastKept = coordinates[i]
         }
     }
-    result.push(coordinates[coordinates.length - 1])
+    result.push(roundCoords(coordinates[coordinates.length - 1]))
     return result
+}
+
+function roundCoords(c: [number, number]): [number, number] {
+    return [Math.round(c[0] * 1e5) / 1e5, Math.round(c[1] * 1e5) / 1e5]
+}
+
+/** Strip CRS from PostGIS GeoJSON (unnecessary for Mapbox, saves 55 chars). */
+function stripCrs(geometry: any): any {
+    if (geometry?.crs) {
+        const { crs, ...rest } = geometry
+        return rest
+    }
+    return geometry
 }
 
 /**
@@ -77,11 +90,51 @@ function getEndpoints(coords: [number, number][]): { entry: [number, number]; ex
 }
 
 /**
+ * Get the bounding box of a GeoJSON Polygon/MultiPolygon.
+ */
+function getBBox(boundary: { type: string; coordinates: number[][][] | number[][][][] }): [number, number, number, number] {
+    const allCoords = boundary.type === "Polygon"
+        ? boundary.coordinates[0]
+        : boundary.coordinates[0][0]
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+    for (const [lng, lat] of allCoords) {
+        minLng = Math.min(minLng, lng)
+        minLat = Math.min(minLat, lat)
+        maxLng = Math.max(maxLng, lng)
+        maxLat = Math.max(maxLat, lat)
+    }
+    return [minLng, minLat, maxLng, maxLat]
+}
+
+/**
+ * Create circle polygon features for static map overlays.
+ * Draws a filled outer circle with a smaller inner circle on top,
+ * creating a "ring" effect (outer color ring + inner color dot).
+ * Returns an array of 2 GeoJSON Features to be spread into the features array.
+ */
+/** Create a visible endpoint cap: a short thick LineString at the given point. */
+function makeCircleFeatures(
+    center: [number, number],
+    outerColor: string,
+    _innerColor: string,
+    _opacity: number = 0.9
+): object[] {
+    // Draw a 2-coordinate LineString at the endpoint — renders as a thick cap.
+    // Using a very short segment at high width creates a visible dot.
+    const dx = 0.00002  // tiny offset to make a visible "dot"
+    return [{
+        type: "Feature",
+        properties: { stroke: `#${outerColor}`, "stroke-width": 8, "stroke-opacity": 0.9 },
+        geometry: { type: "LineString", coordinates: [center, [center[0] + dx, center[1]]] },
+    }]
+}
+
+/**
  * Build a GeoJSON FeatureCollection for the overlay:
  * - Field boundary (green semi-transparent fill + outline)
  * - A large grey polygon covering the whole viewport EXCEPT the field (greyscale effect)
  * - Trail paths (color-coded per interval, separate for gap rendering)
- * - Entry/exit markers (numbered dots) for each interval
+ * - Start/stop markers (filled circle at start, white-filled circle at end)
  */
 function buildOverlayGeoJSON(
     fieldBoundary: { type: string; coordinates: number[][][] | number[][][][] },
@@ -95,23 +148,16 @@ function buildOverlayGeoJSON(
     const showMarkers = options?.showMarkers ?? true
     const greyscaleOutside = options?.greyscaleOutside ?? true
 
-    // ── Greyscale outside: draw a large rectangle covering the viewport,
-    //    then "cut out" the field using a hole. The rectangle is semi-opaque grey.
-    //    We use the field's bounding box expanded by ~50% as the outer ring.
+    const [minLng, minLat, maxLng, maxLat] = getBBox(fieldBoundary)
+    const lngSpan = maxLng - minLng
+    const latSpan = maxLat - minLat
+
+    // ── Greyscale outside: draw a large rectangle with a hole for the field.
+    //    The rectangle is 10x the field bbox to ensure it covers the entire image
+    //    (the image is framed to the field bbox, so 10x is always enough).
     if (greyscaleOutside) {
-        const allCoords = fieldBoundary.type === "Polygon"
-            ? fieldBoundary.coordinates[0]
-            : fieldBoundary.coordinates[0][0]
-        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-        for (const [lng, lat] of allCoords) {
-            minLng = Math.min(minLng, lng)
-            minLat = Math.min(minLat, lat)
-            maxLng = Math.max(maxLng, lng)
-            maxLat = Math.max(maxLat, lat)
-        }
-        // Expand the bbox by 50% to ensure full coverage
-        const lngPad = (maxLng - minLng) * 0.5
-        const latPad = (maxLat - minLat) * 0.5
+        const lngPad = lngSpan * 5
+        const latPad = latSpan * 5
         const outerRing: [number, number][] = [
             [minLng - lngPad, minLat - latPad],
             [maxLng + lngPad, minLat - latPad],
@@ -120,7 +166,6 @@ function buildOverlayGeoJSON(
             [minLng - lngPad, minLat - latPad],
         ]
 
-        // The field boundary as the hole (reversed winding)
         const fieldRing = fieldBoundary.type === "Polygon"
             ? fieldBoundary.coordinates[0]
             : fieldBoundary.coordinates[0][0]
@@ -130,10 +175,10 @@ function buildOverlayGeoJSON(
             type: "Feature",
             properties: {
                 fill: "#1a1a1a",
-                "fill-opacity": 0.55,
-                stroke: "#1a1a1a",
-                "stroke-width": 0,
-                "stroke-opacity": 0,
+                "fill-opacity": 0.6,
+                stroke: "#22c55e",
+                "stroke-width": 2,
+                "stroke-opacity": 0.8,
             },
             geometry: {
                 type: "Polygon",
@@ -141,26 +186,20 @@ function buildOverlayGeoJSON(
             },
         })
     }
+    // NOTE: No separate field boundary feature — the grey box hole
+    // already renders the boundary outline with the green stroke above.
 
-    // ── Field boundary (green outline + light fill)
-    features.push({
-        type: "Feature",
-        properties: {
-            fill: "#22c55e",
-            "fill-opacity": 0.08,
-            stroke: "#22c55e",
-            "stroke-width": 2,
-            "stroke-opacity": 0.8,
-        },
-        geometry: fieldBoundary,
-    })
-
-    // ── Trail paths + entry/exit markers
+    // ── Trail paths + start/end circles
     let intervalIdx = 0
+    let skippedPaths = 0
     for (const record of records) {
         if (record.interval_paths && record.interval_paths.length > 0) {
             for (const interval of record.interval_paths) {
-                if (!interval.path_geojson?.coordinates?.length) continue
+                // Skip paths with fewer than 2 coordinates — invalid LineString
+                if (!interval.path_geojson?.coordinates || interval.path_geojson.coordinates.length < 2) {
+                    skippedPaths++
+                    continue
+                }
                 const color = INTERVAL_COLORS[intervalIdx % INTERVAL_COLORS.length]
                 const simplified = simplifyLineString(interval.path_geojson.coordinates)
 
@@ -178,34 +217,14 @@ function buildOverlayGeoJSON(
                     },
                 })
 
-                // Entry/exit markers
+                // Start/end circles — no Mapbox markers, use polygon circles
                 if (showMarkers) {
                     const endpoints = getEndpoints(simplified)
                     if (endpoints) {
-                        // Entry marker (green dot)
-                        features.push({
-                            type: "Feature",
-                            properties: {
-                                "marker-color": color,
-                                "marker-size": "small",
-                            },
-                            geometry: {
-                                type: "Point",
-                                coordinates: endpoints.entry,
-                            },
-                        })
-                        // Exit marker (hollow/different color)
-                        features.push({
-                            type: "Feature",
-                            properties: {
-                                "marker-color": "#ffffff",
-                                "marker-size": "small",
-                            },
-                            geometry: {
-                                type: "Point",
-                                coordinates: endpoints.exit,
-                            },
-                        })
+                        // Start: white outer circle, colored inner (white ring with colored dot)
+                        features.push(...makeCircleFeatures(endpoints.entry, "ffffff", color.replace("#", ""), 0.9))
+                        // End: colored outer circle, white inner (colored ring with white dot)
+                        features.push(...makeCircleFeatures(endpoints.exit, color.replace("#", ""), "ffffff", 0.9))
                     }
                 }
                 intervalIdx++
@@ -229,20 +248,16 @@ function buildOverlayGeoJSON(
             if (showMarkers) {
                 const endpoints = getEndpoints(simplified)
                 if (endpoints) {
-                    features.push({
-                        type: "Feature",
-                        properties: { "marker-color": color, "marker-size": "small" },
-                        geometry: { type: "Point", coordinates: endpoints.entry },
-                    })
-                    features.push({
-                        type: "Feature",
-                        properties: { "marker-color": "#ffffff", "marker-size": "small" },
-                        geometry: { type: "Point", coordinates: endpoints.exit },
-                    })
+                    features.push(...makeCircleFeatures(endpoints.entry, "ffffff", color.replace("#", ""), 0.9))
+                    features.push(...makeCircleFeatures(endpoints.exit, color.replace("#", ""), "ffffff", 0.9))
                 }
             }
             intervalIdx++
         }
+    }
+
+    if (skippedPaths > 0) {
+        console.warn(`[fieldSnapshot] Skipped ${skippedPaths} interval path(s) with < 2 coordinates`)
     }
 
     return {
@@ -279,7 +294,30 @@ export function getFieldSnapshotUrl(
     const overlayJson = JSON.stringify(overlay)
     const encoded = encodeURIComponent(overlayJson)
 
-    return `${MAPBOX_STATIC_BASE}/geojson(${encoded})/auto/${width}x${height}@2x?access_token=${PUBLIC_MAPBOX_ACCESS_TOKEN}&attribution=false&logo=false`
+    // Use bbox (field bounds) to frame the image — not auto (which would include the grey rectangle)
+    const [minLng, minLat, maxLng, maxLat] = getBBox(fieldBoundary)
+    const lngPad = (maxLng - minLng) * 0.05
+    const latPad = (maxLat - minLat) * 0.05
+    const bbox = `[${minLng - lngPad},${minLat - latPad},${maxLng + lngPad},${maxLat + latPad}]`
+
+    // Check URL length — Mapbox limit is 8,192 characters
+    const fullUrl = `${MAPBOX_STATIC_BASE}/geojson(${encoded})/${bbox}/${width}x${height}@2x?access_token=${PUBLIC_MAPBOX_ACCESS_TOKEN}&attribution=false&logo=false`
+    if (fullUrl.length > 8192) {
+        console.warn(`[fieldSnapshot] URL too long (${fullUrl.length} chars). Overlay: ${overlayJson.length} chars, geo features: ${overlay.features?.length || 0}`)
+        // Log per-feature size to find the culprit
+        if (overlay.features) {
+            for (let i = 0; i < overlay.features.length; i++) {
+                const f = (overlay as any).features[i]
+                const fStr = JSON.stringify(f)
+                if (fStr.length > 500) {
+                    console.warn(`  Feature ${i}: ${fStr.length} chars, type=${f.geometry?.type}, coords=${f.geometry?.coordinates?.length ?? '?'}`)
+                }
+            }
+        }
+    }
+    console.log(`[fieldSnapshot] Generated URL: ${fullUrl.length} chars, overlay: ${overlayJson.length} chars, ${(overlay as any).features?.length || 0} features`)
+
+    return fullUrl
 }
 
 /**
@@ -316,19 +354,12 @@ export function getFieldHistorySnapshotUrl(
 
     const features: object[] = []
 
-    // Greyscale outside
-    const allCoords = fieldBoundary.type === "Polygon"
-        ? fieldBoundary.coordinates[0]
-        : fieldBoundary.coordinates[0][0]
-    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-    for (const [lng, lat] of allCoords) {
-        minLng = Math.min(minLng, lng)
-        minLat = Math.min(minLat, lat)
-        maxLng = Math.max(maxLng, lng)
-        maxLat = Math.max(maxLat, lat)
-    }
-    const lngPad = (maxLng - minLng) * 0.5
-    const latPad = (maxLat - minLat) * 0.5
+    // Greyscale outside — use 10x bbox for full coverage
+    const [minLng, minLat, maxLng, maxLat] = getBBox(fieldBoundary)
+    const lngSpan = maxLng - minLng
+    const latSpan = maxLat - minLat
+    const lngPad = lngSpan * 5
+    const latPad = latSpan * 5
     const outerRing: [number, number][] = [
         [minLng - lngPad, minLat - latPad],
         [maxLng + lngPad, minLat - latPad],
@@ -343,16 +374,10 @@ export function getFieldHistorySnapshotUrl(
 
     features.push({
         type: "Feature",
-        properties: { fill: "#1a1a1a", "fill-opacity": 0.55, stroke: "#1a1a1a", "stroke-width": 0 },
+        properties: { fill: "#1a1a1a", "fill-opacity": 0.6, stroke: "#22c55e", "stroke-width": 2, "stroke-opacity": 0.6 },
         geometry: { type: "Polygon", coordinates: [outerRing, holeRing] },
     })
-
-    // Field boundary
-    features.push({
-        type: "Feature",
-        properties: { fill: "#22c55e", "fill-opacity": 0.08, stroke: "#22c55e", "stroke-width": 2, "stroke-opacity": 0.6 },
-        geometry: fieldBoundary,
-    })
+    // NOTE: No separate field boundary — green stroke on the grey box renders it.
 
     // All trail paths — color per record, opacity by age
     records.forEach((record, i) => {
@@ -361,7 +386,7 @@ export function getFieldHistorySnapshotUrl(
 
         if (record.interval_paths?.length) {
             for (const interval of record.interval_paths) {
-                if (!interval.path_geojson?.coordinates?.length) continue
+                if (!interval.path_geojson?.coordinates || interval.path_geojson.coordinates.length < 2) continue
                 const simplified = simplifyLineString(interval.path_geojson.coordinates)
                 features.push({
                     type: "Feature",
@@ -369,7 +394,7 @@ export function getFieldHistorySnapshotUrl(
                     geometry: { type: "LineString", coordinates: simplified },
                 })
             }
-        } else if (record.field_path?.coordinates?.length) {
+        } else if (record.field_path?.coordinates && record.field_path.coordinates.length >= 2) {
             const simplified = simplifyLineString(record.field_path.coordinates)
             features.push({
                 type: "Feature",
@@ -381,5 +406,9 @@ export function getFieldHistorySnapshotUrl(
 
     const overlay = { type: "FeatureCollection", features }
     const encoded = encodeURIComponent(JSON.stringify(overlay))
-    return `${MAPBOX_STATIC_BASE}/geojson(${encoded})/auto/${width}x${height}@2x?access_token=${PUBLIC_MAPBOX_ACCESS_TOKEN}&attribution=false&logo=false`
+    // Use bbox for framing (not auto, which would include the grey rectangle)
+    const bLngPad = lngSpan * 0.05
+    const bLatPad = latSpan * 0.05
+    const bbox = `[${minLng - bLngPad},${minLat - bLatPad},${maxLng + bLngPad},${maxLat + bLatPad}]`
+    return `${MAPBOX_STATIC_BASE}/geojson(${encoded})/${bbox}/${width}x${height}@2x?access_token=${PUBLIC_MAPBOX_ACCESS_TOKEN}&attribution=false&logo=false`
 }
