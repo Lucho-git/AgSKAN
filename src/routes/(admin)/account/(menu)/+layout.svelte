@@ -125,6 +125,16 @@
       path: "fieldview",
       requiresMap: true,
     },
+    {
+      href: "/account/records",
+      icon: "solar:document-bold-duotone",
+      label: "Records",
+      labelId: "records",
+      topBarIcon: "solar:document-bold-duotone",
+      topBarLabel: "Spray Records",
+      path: "records",
+      requiresMap: true,
+    },
     // {
     //   href: "/account/pathplanner",
     //   icon: "solar:routing-2-bold-duotone",

@@ -153,6 +153,14 @@ async function closeTrailWithPath(
         }
 
         console.log(`✅ Trail ${trail_id}: Successfully closed (paths stored, points deleted)`);
+
+        // Extract spray records from the close_trail_fast response
+        // (generate_spray_records RPC runs inside close_trail_fast)
+        const sprayRecords = data?.spray_records?.records || [];
+        if (sprayRecords.length > 0) {
+            console.log(`📋 Generated ${sprayRecords.length} spray record(s) for trail ${trail_id}`);
+        }
+
         console.log(`   Attempting metrics calculation in background...`);
 
         // Attempt metrics calculation in background (non-blocking, failures are OK)
@@ -178,7 +186,7 @@ async function closeTrailWithPath(
                 console.warn(`⚠️  Trail ${trail_id}: Metrics calculation error (will calculate later)`, err.message);
             });
 
-        return { data, error: null };
+        return { data, error: null, sprayRecords };
 
     } catch (error) {
         console.error(`❌ Error closing trail ${trail_id}:`, error);
@@ -404,7 +412,7 @@ export const trailsApi = {
             }));
 
             // Use the updated closeTrailWithPath function
-            const { error: closeError } = await closeTrailWithPath(
+            const { error: closeError, sprayRecords } = await closeTrailWithPath(
                 trailData.trail_id,
                 new Date().toISOString(),
                 pathForClosing
@@ -435,8 +443,8 @@ export const trailsApi = {
                     operation_id: trailData.operation_id,
                     trail_color: trailData.trail_color,
                     trail_width: trailData.trail_width,
-                    // We don't have the start/end times without the DB query
-                }
+                },
+                sprayRecords: sprayRecords || [],
             };
 
         } catch (error) {
@@ -445,6 +453,62 @@ export const trailsApi = {
                 error: true,
                 message: error.message || "Failed to close trail"
             };
+        }
+    },
+
+    /**
+     * Confirm spray records — set operator_confirmed = true
+     * and optionally update the operator_id/operator_name.
+     */
+    async confirmSprayRecords(
+        trailId: string,
+        operatorId?: string,
+        operatorName?: string,
+    ) {
+        try {
+            const update: Record<string, unknown> = {
+                operator_confirmed: true,
+                updated_at: new Date().toISOString(),
+            };
+            if (operatorId) update.operator_id = operatorId;
+            if (operatorName) update.operator_name = operatorName;
+
+            const { error } = await supabase
+                .from("spray_records")
+                .update(update)
+                .eq("trail_id", trailId);
+
+            if (error) throw error;
+
+            return { success: true };
+        } catch (error) {
+            console.error("Error confirming spray records:", error);
+            return { error: true, message: error.message };
+        }
+    },
+
+    /**
+     * Load spray records for a specific field (chronological history)
+     */
+    async loadFieldSprayRecords(fieldId: string) {
+        try {
+            const { data, error } = await supabase
+                .from("spray_records")
+                .select(`
+                    id, start_time, end_time, duration_seconds,
+                    area_hectares, distance_km, point_count,
+                    vehicle_type, operator_name, operator_confirmed,
+                    chem_mix, weather_data,
+                    trail_id
+                `)
+                .eq("field_id", fieldId)
+                .order("start_time", { ascending: false });
+
+            if (error) throw error;
+            return { records: data || [] };
+        } catch (error) {
+            console.error("Error loading field spray records:", error);
+            return { error: true, message: error.message };
         }
     },
 

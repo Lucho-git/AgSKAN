@@ -34,6 +34,7 @@
   import { session, initializeSession } from "$lib/stores/sessionStore"
 
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
+  import SprayRecordConfirm from "./SprayRecordConfirm.svelte"
   import {
     persistPendingCoordinate,
     deletePersistedCoordinate,
@@ -64,6 +65,13 @@
 
   // Prevent infinite sync loop
   let isSyncing = false
+
+  // Spray record confirmation popup state
+  let showSprayConfirm = false
+  let pendingSprayRecords = []
+  let pendingSprayTrailId = ""
+  let pendingSprayOperatorName = ""
+  let pendingSprayOperatorId = ""
 
   // Pause marker on the map
   let pauseMarker = null
@@ -558,8 +566,28 @@
 
         historicalTrailStore.update((trails) => [...trails, historicalTrail])
 
-        // Clear everything
-        resetTrailState()
+        // Clear trail state immediately (buttons, stores) but DON'T
+        // reset trailClosingStore yet — it stays true until the spray
+        // record confirmation popup is dismissed.
+        currentTrailStore.set(null)
+        userVehicleTrailing.set(false)
+        trailPausedStore.set(false)
+        trailPausePointStore.set(null)
+        removePauseMarker()
+
+        // Show spray record confirmation popup if records were generated
+        const sprayRecords = result.sprayRecords || []
+        if (sprayRecords.length > 0) {
+          pendingSprayRecords = sprayRecords
+          pendingSprayTrailId = trailId
+          pendingSprayOperatorName = sprayRecords[0]?.operator_name || ""
+          pendingSprayOperatorId = $userVehicleStore?.vehicle_id || ""
+          showSprayConfirm = true
+          console.log(`📋 Showing spray record confirmation (${sprayRecords.length} fields)`)
+        } else {
+          // No spray records (trail didn't intersect any fields) — just close
+          trailClosingStore.set(false)
+        }
 
         return {
           success: true,
@@ -1669,8 +1697,36 @@
       console.error("Failed to check other active trails:", error)
     }
   }
+
+  // ── Spray record confirmation handlers ──
+  function handleSprayConfirm(event) {
+    showSprayConfirm = false
+    trailClosingStore.set(false)
+    pendingSprayRecords = []
+    pendingSprayTrailId = ""
+    console.log("✅ Spray records confirmed for trail", event.detail.trailId)
+  }
+
+  function handleSpraySkip() {
+    showSprayConfirm = false
+    trailClosingStore.set(false)
+    pendingSprayRecords = []
+    pendingSprayTrailId = ""
+    console.log("⏭️ Spray record confirmation skipped")
+  }
 </script>
 
 {#if areTrailsLoaded}
   <TrailView {map} />
+{/if}
+
+{#if showSprayConfirm && pendingSprayRecords.length > 0}
+  <SprayRecordConfirm
+    sprayRecords={pendingSprayRecords}
+    trailId={pendingSprayTrailId}
+    defaultOperatorName={pendingSprayOperatorName}
+    defaultOperatorId={pendingSprayOperatorId}
+    on:confirmed={handleSprayConfirm}
+    on:skip={handleSpraySkip}
+  />
 {/if}
