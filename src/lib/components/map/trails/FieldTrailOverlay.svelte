@@ -37,10 +37,28 @@
   let sliderEnd = 100
   let rangeInitialized = false
 
+  // High-contrast palette optimized for satellite imagery visibility.
+  // 12 colors — enough for most field views without adjacent duplicates.
   const TRAIL_COLORS = [
     "#ef4444", "#3b82f6", "#22c55e", "#f97316",
     "#a855f7", "#06b6d4", "#eab308", "#ec4899",
+    "#84cc16", "#f43f5e", "#8b5cf6", "#14b8a6",
   ]
+
+  // Deterministic color assignment: hash the record ID to a stable index.
+  // This ensures the same record always gets the same color regardless of
+  // sort order or filter state, which helps users recognize patterns.
+  // In locked mode (single record preview), always use red to match thumbnails.
+  function getTrailColor(record: any, idx: number): string {
+    if (lockedMode) return "#ef4444"
+    if (record.id) {
+      let hash = 0
+      const s = String(record.id)
+      for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0
+      return TRAIL_COLORS[Math.abs(hash) % TRAIL_COLORS.length]
+    }
+    return TRAIL_COLORS[idx % TRAIL_COLORS.length]
+  }
 
   // Compute the time range from records
   $: recordTimes = records.map(r => new Date(r.start_time).getTime()).sort((a, b) => a - b)
@@ -87,23 +105,54 @@
   $: sliderStartPct = sliderMax > sliderMin ? ((sliderStart - sliderMin) / (sliderMax - sliderMin)) * 100 : 0
   $: sliderEndPct = sliderMax > sliderMin ? ((sliderEnd - sliderMin) / (sliderMax - sliderMin)) * 100 : 100
 
+  // Tick marks for each record's start time along the slider
+  $: sliderTicks = records.map(r => {
+    const t = new Date(r.start_time).getTime()
+    if (sliderMax > sliderMin) {
+      return Math.max(0, Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100))
+    }
+    return 0
+  })
+
   function formatSliderDate(ts: number): string {
     return new Date(ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
   }
 
+  // Minimum gap between handles (1 hour)
+  const SLIDER_MIN_GAP = 3600000
+
   function onSliderStartChange(e: Event) {
-    const val = parseInt((e.target as HTMLInputElement).value)
-    sliderStart = Math.min(val, sliderEnd - 3600000)
-    console.log("[FieldOverlay] Slider start changed", { val, sliderStart: new Date(sliderStart).toISOString(), sliderEnd: new Date(sliderEnd).toISOString() })
+    const input = e.target as HTMLInputElement
+    const val = parseInt(input.value)
+    // Prevent start handle from crossing past end handle
+    const clamped = Math.min(val, sliderEnd - SLIDER_MIN_GAP)
+    sliderStart = clamped
+    // Force the DOM input to reflect the clamped position (prevents visual crossing)
+    if (clamped !== val) input.value = String(clamped)
   }
   function onSliderEndChange(e: Event) {
-    const val = parseInt((e.target as HTMLInputElement).value)
-    sliderEnd = Math.max(val, sliderStart + 3600000)
-    console.log("[FieldOverlay] Slider end changed", { val, sliderEnd: new Date(sliderEnd).toISOString(), sliderStart: new Date(sliderStart).toISOString() })
+    const input = e.target as HTMLInputElement
+    const val = parseInt(input.value)
+    // Prevent end handle from crossing past start handle
+    const clamped = Math.max(val, sliderStart + SLIDER_MIN_GAP)
+    sliderEnd = clamped
+    // Force the DOM input to reflect the clamped position (prevents visual crossing)
+    if (clamped !== val) input.value = String(clamped)
+  }
+
+  // Extract all outer ring coordinates from Polygon or MultiPolygon
+  function getAllOuterRings(boundary: any): [number, number][] {
+    if (boundary.type === "Polygon") {
+      return boundary.coordinates[0]
+    } else if (boundary.type === "MultiPolygon") {
+      // Flatten all sub-polygon outer rings into one array
+      return boundary.coordinates.flatMap((poly: number[][][]) => poly[0])
+    }
+    return []
   }
 
   function getBoundsFromBoundary(boundary: any): mapboxgl.LngLatBoundsLike {
-    const coords = boundary.type === "Polygon" ? boundary.coordinates[0] : boundary.coordinates[0][0]
+    const coords = getAllOuterRings(boundary)
     let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
     for (const [lng, lat] of coords) {
       minLng = Math.min(minLng, lng); minLat = Math.min(minLat, lat)
@@ -127,7 +176,7 @@
 
   // Get the centroid of a polygon for label placement
   function getFieldCentroid(boundary: any): [number, number] | null {
-    const coords = boundary.type === "Polygon" ? boundary.coordinates[0] : boundary.coordinates[0][0]
+    const coords = getAllOuterRings(boundary)
     let lng = 0, lat = 0
     for (const [cLng, cLat] of coords) { lng += cLng; lat += cLat }
     return coords.length > 0 ? [lng / coords.length, lat / coords.length] : null
@@ -144,25 +193,38 @@
 
   // Highlight selected trail with a thin white outline (not a colored glow)
   function highlightSelectedTrail() {
-    if (!map || !map.loaded()) return
-    // Reset all outline layers to 0 opacity
-    for (const layer of map.getStyle().layers.filter((l: any) => l.id.endsWith("-outline"))) {
-      map.setPaintProperty(layer.id, "line-opacity", 0)
+    if (!map) {
+      console.log("[FieldOverlay] highlightSelectedTrail early return — no map")
+      return
+    }
+    // Reset all TRAIL outline layers to 0 opacity (only trail- prefixed, not field-outline)
+    const trailOutlines = map.getStyle().layers.filter(
+      (l: any) => l.id.startsWith("trail-") && l.id.endsWith("-outline")
+    )
+    console.log("[FieldOverlay] highlightSelectedTrail resetting", trailOutlines.length, "trail outline layers")
+    for (const layer of trailOutlines) {
+      try { map.setPaintProperty(layer.id, "line-opacity", 0) }
+      catch (err) { console.error("[FieldOverlay] Failed to reset outline", layer.id, err) }
     }
     // Show white outline on selected trail
     if (selectedTrail) {
-      const baseId = selectedTrail.intervalIdx !== undefined
+      const baseId = selectedTrail.intervalIdx !== undefined && selectedTrail.intervalIdx !== null
         ? `trail-${selectedTrail.recordIdx}-${selectedTrail.intervalIdx}`
         : `trail-${selectedTrail.recordIdx}`
       const outlineId = `${baseId}-outline`
+      console.log("[FieldOverlay] highlightSelectedTrail", { baseId, outlineId, layerExists: map.getLayer(outlineId) })
       if (map.getLayer(outlineId)) {
-        map.setPaintProperty(outlineId, "line-opacity", 1.0)
+        try {
+          map.setPaintProperty(outlineId, "line-opacity", 1.0)
+          console.log("[FieldOverlay] outline opacity set to 1.0 ✓")
+        } catch (err) {
+          console.error("[FieldOverlay] Failed to set outline opacity", outlineId, err)
+        }
+      } else {
+        console.warn("[FieldOverlay] outline layer NOT found!", outlineId)
       }
     }
   }
-
-  // Re-highlight when selection changes
-  $: if (mapLoaded && selectedTrail) { highlightSelectedTrail() }
 
   function renderTrails() {
     if (!map) {
@@ -193,8 +255,13 @@
       return
     }
 
-    activeRecords.forEach((record, recordIdx) => {
-      const color = TRAIL_COLORS[recordIdx % TRAIL_COLORS.length]
+    // Sort by start_time so older trails are underneath, newer on top
+    const sortedRecords = activeRecords.slice().sort((a, b) =>
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    )
+
+    sortedRecords.forEach((record, recordIdx) => {
+      const color = getTrailColor(record, recordIdx)
       const trailWidth = record.swath_width || 3
 
       if (record.interval_paths?.length) {
@@ -259,8 +326,14 @@
               },
             })
             map!.addLayer({
-              id: `${layerId}-markers`, type: "circle", source: markerSourceId,
-              paint: { "circle-radius": 5, "circle-color": color, "circle-stroke-width": 2, "circle-stroke-color": "#ffffff", "circle-opacity": 0.9 },
+              id: `${layerId}-markers-entry`, type: "circle", source: markerSourceId,
+              filter: ["==", ["get", "type"], "entry"],
+              paint: { "circle-radius": 6, "circle-color": "#22c55e", "circle-stroke-width": 2, "circle-stroke-color": "#ffffff", "circle-opacity": 0.9 },
+            })
+            map!.addLayer({
+              id: `${layerId}-markers-exit`, type: "circle", source: markerSourceId,
+              filter: ["==", ["get", "type"], "exit"],
+              paint: { "circle-radius": 4, "circle-color": "#ef4444", "circle-stroke-width": 2, "circle-stroke-color": "#ffffff", "circle-opacity": 0.9 },
             })
           }
         })
@@ -289,61 +362,166 @@
     })
 
     setupHover()
-    if (selectedTrail) highlightSelectedTrail()
-  }
-
-  function setupHover() {
-    if (!map) return
-    const trailLayers = map.getStyle().layers.filter((l: any) => l.id.startsWith("trail-") && !l.id.endsWith("-outline") && !l.id.endsWith("-markers") && l.type === "line")
-    for (const layer of trailLayers) {
-      map.on("mouseenter", layer.id, onTrailHover)
-      map.on("mouseleave", layer.id, onTrailLeave)
-      map.on("click", layer.id, onTrailClick)
+    // Ensure field label is always on top of all trail layers
+    if (map!.getLayer("field-label")) map!.moveLayer("field-label")
+    if (selectedTrail) {
+      highlightSelectedTrail()
+      bringTrailToTop(selectedTrail)
     }
-    map.getCanvas().style.cursor = "default"
   }
 
-  function onTrailHover(e: any) {
+  // Track registered handlers so we can remove them before re-adding
+  let hoverHandlerActive = false
+  let clickHandlerActive = false
+
+  // Get the current trail layer IDs (recomputed each render)
+  function getTrailLayerIds(): string[] {
+    if (!map) return []
+    return map.getStyle().layers
+      .filter((l: any) => l.id.startsWith("trail-") && !l.id.endsWith("-outline") && !l.id.endsWith("-entry") && !l.id.endsWith("-exit") && l.type === "line")
+      .map((l: any) => l.id)
+  }
+
+  // Single mousemove handler on the map — queries features at cursor point.
+  // This is the standard Mapbox pattern for hover with overlapping layers.
+  // mouseenter/mouseleave on individual layers doesn't fire reliably when
+  // trails overlap (moving from one trail to another underneath doesn't
+  // trigger mouseenter on the second layer).
+  function onMapMouseMove(e: any) {
     if (!map) return
-    map.getCanvas().style.cursor = "pointer"
-    const props = e.features?.[0]?.properties
-    if (!props) return
-    if (popup) popup.remove()
-    popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
-      .setLngLat(e.lngLat)
-      .setHTML(`
-        <div style="padding: 8px 12px; font-size: 13px; color: #333; min-width: 180px;">
-          <div style="font-weight: 600; margin-bottom: 6px; color: ${props.color};">${props.date}</div>
-          <div style="margin-bottom: 4px;">👤 ${props.operator}</div>
-          <div style="margin-bottom: 4px;">🚜 ${props.vehicle}</div>
-          ${props.startTime ? `<div style="margin-bottom: 4px;">⏰ ${props.startTime} – ${props.endTime}</div>` : ""}
-          <div style="margin-bottom: 4px;">📐 ${props.area}</div>
-          <div>📏 ${props.distance}</div>
-        </div>
-      `)
-      .addTo(map)
+    const trailLayerIds = getTrailLayerIds()
+    const features = map.queryRenderedFeatures(e.point, { layers: trailLayerIds })
+
+    if (features.length > 0) {
+      map.getCanvas().style.cursor = "pointer"
+      const props = features[0].properties
+      if (!props) return
+      if (popup) popup.remove()
+      popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 10, className: "trail-popup" })
+        .setLngLat(e.lngLat)
+        .setHTML(`
+          <div style="padding: 8px 12px; font-size: 13px; color: #333; min-width: 180px;">
+            <div style="font-weight: 600; margin-bottom: 6px; color: ${props.color};">${props.date}</div>
+            <div style="margin-bottom: 4px;">👤 ${props.operator}</div>
+            <div style="margin-bottom: 4px;">🚜 ${props.vehicle}</div>
+            ${props.startTime ? `<div style="margin-bottom: 4px;">⏰ ${props.startTime} – ${props.endTime}</div>` : ""}
+            <div style="margin-bottom: 4px;">📐 ${props.area}</div>
+            <div>📏 ${props.distance}</div>
+          </div>
+        `)
+        .addTo(map)
+    } else {
+      map.getCanvas().style.cursor = "default"
+      if (popup) { popup.remove(); popup = null }
+    }
   }
 
-  function onTrailLeave() {
+  // Single mouseleave handler — clear cursor + popup when leaving the map canvas
+  function onMapMouseLeave() {
     if (!map) return
     map.getCanvas().style.cursor = "default"
     if (popup) { popup.remove(); popup = null }
   }
 
-  function onTrailClick(e: any) {
-    const props = e.features?.[0]?.properties
-    if (!props) return
-    selectedTrail = props
+  // Single click handler on the map — handles both trail clicks and deadspace clicks
+  function onMapClick(e: any) {
+    if (!map) return
+    const trailLayerIds = getTrailLayerIds()
+    const features = map.queryRenderedFeatures(e.point, { layers: trailLayerIds })
+
+    if (features.length > 0) {
+      // Clicked on a trail — select it
+      const props = features[0].properties
+      if (!props) return
+      console.log("[FieldOverlay] onMapClick → trail selected", { recordIdx: props.recordIdx, intervalIdx: props.intervalIdx, layerId: features[0].layer?.id })
+      selectedTrail = props
+      bringTrailToTop(props)
+      highlightSelectedTrail()
+    } else {
+      // Clicked on deadspace — deselect
+      if (selectedTrail) {
+        console.log("[FieldOverlay] onMapClick → deadspace, deselecting")
+        selectedTrail = null
+        restoreLayerOrder()
+        highlightSelectedTrail()
+      }
+    }
   }
+
+  function setupHover() {
+    if (!map) return
+    // Only register once — these are map-level handlers, not per-layer
+    if (!hoverHandlerActive) {
+      map.on("mousemove", onMapMouseMove)
+      map.on("mouseleave", onMapMouseLeave)
+      hoverHandlerActive = true
+    }
+    if (!clickHandlerActive) {
+      map.on("click", onMapClick)
+      clickHandlerActive = true
+    }
+    map.getCanvas().style.cursor = "default"
+  }
+
+  function onTrailClick(e: any) {
+    // No longer used — replaced by onMapClick
+    // Kept for reference; all click logic is now in onMapClick
+  }
+
+  // Move clicked trail's layers to the top of the render order
+  function bringTrailToTop(props: any) {
+    if (!map) return
+    const baseId = props.intervalIdx !== undefined && props.intervalIdx !== null
+      ? `trail-${props.recordIdx}-${props.intervalIdx}`
+      : `trail-${props.recordIdx}`
+    // Move outline first (so it stays under main), then main line, then markers
+    if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+    if (map.getLayer(baseId)) map.moveLayer(baseId)
+    if (map.getLayer(`${baseId}-markers-entry`)) map.moveLayer(`${baseId}-markers-entry`)
+    if (map.getLayer(`${baseId}-markers-exit`)) map.moveLayer(`${baseId}-markers-exit`)
+    // Always keep field label on top
+    if (map.getLayer("field-label")) map.moveLayer("field-label")
+  }
+
+  // Restore original layer order (by start_time) when deselected
+  function restoreLayerOrder() {
+    if (!map) return
+    const activeRecords = getFilteredRecords()
+      .slice()
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    for (const record of activeRecords) {
+      const recordIdx = activeRecords.indexOf(record)
+      if (record.interval_paths?.length) {
+        for (let i = 0; i < record.interval_paths.length; i++) {
+          const baseId = `trail-${recordIdx}-${i}`
+          if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+          if (map.getLayer(baseId)) map.moveLayer(baseId)
+          if (map.getLayer(`${baseId}-markers-entry`)) map.moveLayer(`${baseId}-markers-entry`)
+          if (map.getLayer(`${baseId}-markers-exit`)) map.moveLayer(`${baseId}-markers-exit`)
+        }
+      } else {
+        const baseId = `trail-${recordIdx}`
+        if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+        if (map.getLayer(baseId)) map.moveLayer(baseId)
+      }
+    }
+    // Always keep field label on top
+    if (map!.getLayer("field-label")) map!.moveLayer("field-label")
+  }
+
+  // onMapDeadSpaceClick removed — replaced by onMapClick which handles
+  // both trail clicks and deadspace clicks in a single handler
 
   onMount(() => {
     if (!fieldBoundary) return
+    const allRings = getAllOuterRings(fieldBoundary)
+    const fp = (allRings[0] as any)?.[0]
+    console.log(`[Overlay] Mounting field="${fieldName}" type=${fieldBoundary.type} coords=[${fp?.[0]},${fp?.[1]}] rings=${allRings.length} records=${records.length}`)
     mapboxgl.accessToken = PUBLIC_MAPBOX_ACCESS_TOKEN
     const fieldBBox = getBoundsFromBoundary(fieldBoundary)
     // Calculate max zoom bounds — slightly larger than the field bbox
-    const coords = fieldBoundary.type === "Polygon" ? fieldBoundary.coordinates[0] : fieldBoundary.coordinates[0][0]
     let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-    for (const [lng, lat] of coords) { minLng = Math.min(minLng, lng); minLat = Math.min(minLat, lat); maxLng = Math.max(maxLng, lng); maxLat = Math.max(maxLat, lat) }
+    for (const [lng, lat] of allRings) { minLng = Math.min(minLng, lng); minLat = Math.min(minLat, lat); maxLng = Math.max(maxLng, lng); maxLat = Math.max(maxLat, lat) }
     const lngSpan = maxLng - minLng, latSpan = maxLat - minLat
     const maxBounds: mapboxgl.LngLatBoundsLike = [
       [minLng - lngSpan * 3.0, minLat - latSpan * 3.0],
@@ -396,9 +574,9 @@
 
       // Greyscale outside the field — use a very large mask (15x) to cover max zoom
       {
-        const coords = fieldBoundary.type === "Polygon" ? fieldBoundary.coordinates[0] : fieldBoundary.coordinates[0][0]
+        const allRings = getAllOuterRings(fieldBoundary)
         let minLngB = Infinity, minLatB = Infinity, maxLngB = -Infinity, maxLatB = -Infinity
-        for (const [lng, lat] of coords) { minLngB = Math.min(minLngB, lng); minLatB = Math.min(minLatB, lat); maxLngB = Math.max(maxLngB, lng); maxLatB = Math.max(maxLatB, lat) }
+        for (const [lng, lat] of allRings) { minLngB = Math.min(minLngB, lng); minLatB = Math.min(minLatB, lat); maxLngB = Math.max(maxLngB, lng); maxLatB = Math.max(maxLatB, lat) }
         const lngSpanB = maxLngB - minLngB, latSpanB = maxLatB - minLatB
         const outerRing: [number, number][] = [
           [minLngB - lngSpanB * 15, minLatB - latSpanB * 15],
@@ -407,10 +585,13 @@
           [minLngB - lngSpanB * 15, maxLatB + latSpanB * 15],
           [minLngB - lngSpanB * 15, minLatB - latSpanB * 15],
         ]
-        const holeRing = [...coords].reverse() as [number, number][]
+        // For multipolygon, use all outer rings as holes in the mask
+        const holeRings = fieldBoundary.type === "MultiPolygon"
+          ? fieldBoundary.coordinates.map((poly: number[][][]) => [...poly[0]].reverse() as [number, number][])
+          : [[...fieldBoundary.coordinates[0]].reverse() as [number, number][]]
         map!.addSource("greyscale-mask", {
           type: "geojson",
-          data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [outerRing, holeRing] } },
+          data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [outerRing, ...holeRings] } },
         })
         map!.addLayer({ id: "greyscale-overlay", type: "fill", source: "greyscale-mask", paint: { "fill-color": "#1a1a1a", "fill-opacity": 0.6 } })
       }
@@ -481,6 +662,12 @@
           class="slider-range"
           style="left: {sliderStartPct}%; right: {100 - sliderEndPct}%"
         ></div>
+        <!-- Tick marks for each record's start time -->
+        {#if !lockedMode}
+          {#each sliderTicks as tickPct}
+            <div class="slider-tick" style="left: {tickPct}%"></div>
+          {/each}
+        {/if}
       </div>
       <input
         type="range"
@@ -510,53 +697,57 @@
   <!-- Map -->
   <div class="map-container" bind:this={container}></div>
 
-  <!-- Legend -->
-  {#if filteredRecords.length > 0}
-    <div class="legend">
-      {#each filteredRecords as record, i}
-        <div class="legend-item">
-          <span class="legend-color" style="background: {TRAIL_COLORS[i % TRAIL_COLORS.length]}"></span>
-          <span class="legend-date">{new Date(record.start_time).toLocaleDateString()}</span>
-          <span class="legend-operator">{record.operator_name || "Unknown"}</span>
-          {#if record.intervals?.length > 1}
-            <span class="legend-intervals">{record.intervals.length} visits</span>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
-
-  <!-- Selected trail detail panel -->
-  {#if selectedTrail}
-    <div class="trail-detail-panel">
-      <button class="close-detail" on:click={() => { selectedTrail = null; highlightSelectedTrail() }}>
-        <X size={16} />
-      </button>
-      <div class="detail-header" style="color: {selectedTrail.color}">
-        {selectedTrail.date}
+  <!-- Shared bottom-right info panel: legend when unselected, trail detail when selected -->
+  <div class="info-panel">
+    {#if selectedTrail}
+      <!-- Trail detail view -->
+      <div class="info-panel-header">
+        <span class="info-panel-color-dot" style="background: {selectedTrail.color}"></span>
+        <span class="info-panel-title" style="color: {selectedTrail.color}">{selectedTrail.date}</span>
+        <button class="info-panel-close" on:click={() => { selectedTrail = null; restoreLayerOrder(); highlightSelectedTrail() }}>
+          <X size={14} />
+        </button>
       </div>
-      <div class="detail-rows">
-        <div class="detail-row">
-          <User size={14} class="text-white/40" />
+      <div class="info-panel-rows">
+        <div class="info-panel-row">
+          <User size={13} class="text-white/40" />
           <span>{selectedTrail.operator}</span>
         </div>
-        <div class="detail-row">
-          <Tractor size={14} class="text-white/40" />
+        <div class="info-panel-row">
+          <Tractor size={13} class="text-white/40" />
           <span>{selectedTrail.vehicle}</span>
         </div>
         {#if selectedTrail.startTime}
-          <div class="detail-row">
-            <Clock size={14} class="text-white/40" />
+          <div class="info-panel-row">
+            <Clock size={13} class="text-white/40" />
             <span>{selectedTrail.startTime} – {selectedTrail.endTime}</span>
           </div>
         {/if}
-        <div class="detail-row">
-          <Ruler size={14} class="text-white/40" />
+        <div class="info-panel-row">
+          <Ruler size={13} class="text-white/40" />
           <span>{selectedTrail.area} · {selectedTrail.distance}</span>
         </div>
       </div>
-    </div>
-  {/if}
+    {:else if filteredRecords.length > 0}
+      <!-- Legend view -->
+      <div class="info-panel-header">
+        <span class="info-panel-title">Legend</span>
+        <span class="info-panel-count">{filteredRecords.length} record{filteredRecords.length !== 1 ? "s" : ""}</span>
+      </div>
+      <div class="info-panel-legend">
+        {#each filteredRecords as record, i}
+          <button class="legend-item" on:click={() => { selectedTrail = { recordIdx: i, intervalIdx: 0, color: getTrailColor(record, i), date: formatDate(record.start_time), operator: record.operator_name || "Unknown", vehicle: formatVehicleType(record.vehicle_type), area: formatHa(record.area_hectares), distance: formatKm(record.distance_km) }; bringTrailToTop(selectedTrail); highlightSelectedTrail() }}>
+            <span class="legend-color" style="background: {getTrailColor(record, i)}"></span>
+            <span class="legend-date">{new Date(record.start_time).toLocaleDateString()}</span>
+            <span class="legend-operator">{record.operator_name || "Unknown"}</span>
+            {#if record.intervals?.length > 1}
+              <span class="legend-intervals">{record.intervals.length} visits</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -670,6 +861,17 @@
     border-radius: 2px;
   }
 
+  .slider-tick {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
   .slider-handle {
     position: absolute;
     width: 100%;
@@ -722,29 +924,115 @@
   .map-container {
     flex: 1;
     width: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .legend {
-    padding: 12px 20px;
-    background: rgba(0, 0, 0, 0.8);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    max-height: 120px;
+  .map-container :global(canvas) {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .field-overlay-container {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Shared bottom-right info panel */
+  .info-panel {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    width: 240px;
+    max-height: 300px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 14px;
+    z-index: 10;
     overflow-y: auto;
+  }
+
+  .info-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .info-panel-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .info-panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .info-panel-count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .info-panel-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+  }
+
+  .info-panel-close:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .info-panel-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .info-panel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .info-panel-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .legend-item {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 3px 4px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .legend-item:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .legend-color {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 3px;
     flex-shrink: 0;
   }
@@ -759,54 +1047,19 @@
 
   .legend-intervals {
     color: #60a5fa;
-    font-size: 10px;
-    padding: 1px 5px;
+    font-size: 9px;
+    padding: 1px 4px;
     background: rgba(59, 130, 246, 0.15);
     border-radius: 4px;
   }
 
-  /* Trail detail panel */
-  .trail-detail-panel {
-    position: absolute;
-    bottom: 140px;
-    right: 20px;
-    width: 260px;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 14px 16px;
-    z-index: 10;
+  /* Suppress Mapbox popup fade animation that causes yellow flash on deselect */
+  :global(.trail-popup) {
+    animation: none !important;
+    transition: none !important;
   }
-
-  .close-detail {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.4);
-    cursor: pointer;
-    padding: 2px;
-  }
-
-  .detail-header {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 10px;
-  }
-
-  .detail-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .detail-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.8);
+  :global(.trail-popup .mapboxgl-popup-content) {
+    animation: none !important;
+    transition: none !important;
   }
 </style>

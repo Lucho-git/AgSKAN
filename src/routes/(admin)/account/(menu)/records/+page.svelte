@@ -20,14 +20,20 @@
     FileText,
     Layers,
     X,
+    Trash2,
   } from "lucide-svelte"
-  import { getRecordSnapshotUrl } from "$lib/utils/fieldSnapshot"
   import FieldTrailOverlay from "$lib/components/map/trails/FieldTrailOverlay.svelte"
+  import SprayRecordThumbnail from "$lib/components/map/trails/SprayRecordThumbnail.svelte"
+  import { clearThumbnailCache } from "$lib/utils/thumbnailRenderer"
+  import { RefreshCw } from "lucide-svelte"
 
   export let data
 
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("records")
+
+  // Force fresh thumbnails on every page visit
+  clearThumbnailCache()
 
   // State
   let records = data.records || []
@@ -35,19 +41,78 @@
   let operations = data.operations || []
   let loading = data.loading
   let pageError = data.error
+  let masterMapId = data.masterMapId
+
+  // Backfill state
+  let backfilling = false
+  let backfillDays = 10
+  let backfillResult = null as any
+
+  async function runBackfill() {
+    backfilling = true
+    backfillResult = null
+    let generated = 0
+    try {
+      // 1. Get list of trail IDs that need backfill
+      const { data: candidates, error: listErr } = await supabase.rpc("get_backfill_candidates", {
+        p_count: backfillDays,
+        p_master_map_id: masterMapId,
+      })
+      if (listErr) throw listErr
+      if (!candidates || candidates.length === 0) {
+        backfillResult = { message: "No trails to backfill — all recent trails already have records" }
+        return
+      }
+
+      // 2. Process each trail one at a time to avoid timeouts
+      for (const row of candidates) {
+        const { data: res, error: trailErr } = await supabase.rpc("backfill_one_trail", {
+          p_trail_id: row.trail_id,
+        })
+        if (trailErr) {
+          console.warn(`Backfill failed for trail ${row.trail_id}:`, trailErr)
+          continue
+        }
+        if (res?.success) generated++
+      }
+
+      backfillResult = { success: true, trails_checked: candidates.length, records_generated: generated }
+      toast.success(`Backfilled ${generated} records from ${candidates.length} trails`)
+      window.location.reload()
+    } catch (e: any) {
+      backfillResult = { error: e.message }
+      toast.error(e.message || "Backfill failed")
+    } finally {
+      backfilling = false
+    }
+  }
+
+  // Delete spray record
+  async function deleteRecord(recordId: string) {
+    if (!confirm("Delete this spray record? This cannot be undone.")) return
+    try {
+      const { error } = await supabase.rpc("delete_spray_record", { p_record_id: recordId })
+      if (error) throw error
+      records = records.filter(r => r.id !== recordId)
+      toast.success("Record deleted")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete record")
+    }
+  }
 
   // Filters
   let searchQuery = ""
   let selectedFieldId = ""
   let selectedOperationId = ""
-  let sortBy = "start_time" // start_time | field_name | area_hectares | distance_km | operation_name
+  let sortBy = "start_time" // start_time | operator_name | operation_name
   let sortDir = "desc" // asc | desc
+
+  // Pagination
+  const PAGE_SIZE = 50
+  let currentPage = 1
 
   // Track expanded records (for showing intervals)
   let expandedRecords = new Set()
-
-  // Snapshot URL cache (per record ID)
-  let snapshotCache: Record<string, string> = {}
 
   // Fullscreen snapshot state — now uses locked interactive map
   let fullscreenSnapshot = false
@@ -68,31 +133,11 @@
     showFieldOverlay = true
   }
 
-  // Build snapshot URL for a record (cached)
-  function getSnapshot(record) {
-    if (snapshotCache[record.id]) return snapshotCache[record.id]
-    if (!record.field_boundary) {
-      console.warn("[records] No field_boundary for record", record.id, record.field_name)
-      return ""
-    }
-    try {
-      const url = getRecordSnapshotUrl(record.field_boundary, record, {
-        width: 120,
-        height: 90,
-        trailColor: "#ef4444",
-      })
-      snapshotCache[record.id] = url
-      return url
-    } catch (e) {
-      console.error("[records] Failed to build snapshot URL for record", record.id, e)
-      return ""
-    }
-  }
-
-  // Build a large snapshot for fullscreen view (unused now — replaced with locked interactive map)
-  // function getLargeSnapshot(record) { ... }
-
   function openSnapshotFullscreen(record) {
+    const b = record.field_boundary
+    const firstRing = b?.type === "MultiPolygon" ? b.coordinates[0][0] : b?.coordinates?.[0]
+    const fp = (firstRing as any)?.[0]
+    console.log(`[RecordsPage] openSnapshotFullscreen record=${record.id?.slice(0,8)} field=${record.field_name} type=${b?.type || "none"} firstCoord=[${fp?.[0] || "?"},${fp?.[1] || "?"}]`)
     fullscreenRecord = record
     fullscreenSnapshot = true
   }
@@ -120,17 +165,20 @@
       let cmp = 0
       if (sortBy === "start_time") {
         cmp = new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-      } else if (sortBy === "field_name") {
-        cmp = (a.field_name || "").localeCompare(b.field_name || "")
-      } else if (sortBy === "area_hectares") {
-        cmp = parseFloat(a.area_hectares) - parseFloat(b.area_hectares)
-      } else if (sortBy === "distance_km") {
-        cmp = parseFloat(a.distance_km) - parseFloat(b.distance_km)
+      } else if (sortBy === "operator_name") {
+        cmp = (a.operator_name || "").localeCompare(b.operator_name || "")
       } else if (sortBy === "operation_name") {
         cmp = (a.operation_name || "").localeCompare(b.operation_name || "")
       }
       return sortDir === "asc" ? cmp : -cmp
     })
+
+  // Reset to page 1 when filters/sort change
+  $: searchQuery, selectedFieldId, selectedOperationId, sortBy, sortDir, (currentPage = 1)
+
+  // Paginated records for chronological view
+  $: totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE)
+  $: paginatedRecords = filteredRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   // Group by field for the "field history" view
   $: recordsByField = (() => {
@@ -233,11 +281,52 @@
         </div>
       </div>
       <div class="header-right">
+        <div class="backfill-section">
+          <input
+            type="number"
+            class="backfill-days"
+            bind:value={backfillDays}
+            min="1"
+            max="500"
+            title="Number of recent trails to backfill"
+          />
+          <button
+            class="backfill-btn"
+            on:click={runBackfill}
+            disabled={backfilling}
+            title="Generate spray records from recent closed trails"
+          >
+            {#if backfilling}
+              <Loader2 size={14} class="animate-spin" />
+            {:else}
+              <RefreshCw size={14} />
+            {/if}
+            <span>Backfill</span>
+          </button>
+        </div>
         <div class="confirm-badge">
           <CheckCircle2 size={14} class="text-green-400" />
           <span>{confirmedCount}/{filteredRecords.length} confirmed</span>
         </div>
       </div>
+    </div>
+
+    <!-- View Toggle — prominent segmented control -->
+    <div class="view-toggle-container">
+      <button
+        class="view-toggle-btn"
+        class:active={viewMode === "list"}
+        on:click={() => (viewMode = "list")}
+      >
+        <span>Chronological</span>
+      </button>
+      <button
+        class="view-toggle-btn"
+        class:active={viewMode === "fields"}
+        on:click={() => (viewMode = "fields")}
+      >
+        <span>By Field</span>
+      </button>
     </div>
 
     <!-- Filters Bar -->
@@ -251,13 +340,6 @@
         />
       </div>
 
-      <select bind:value={selectedFieldId} class="field-select">
-        <option value="">All Fields</option>
-        {#each fields as field}
-          <option value={field.field_id}>{field.name}</option>
-        {/each}
-      </select>
-
       <select bind:value={selectedOperationId} class="field-select">
         <option value="">All Operations</option>
         {#each operations as op}
@@ -265,20 +347,14 @@
         {/each}
       </select>
 
-      <div class="view-toggle">
-        <button
-          class:active={viewMode === "list"}
-          on:click={() => (viewMode = "list")}
-        >
-          Chronological
-        </button>
-        <button
-          class:active={viewMode === "fields"}
-          on:click={() => (viewMode = "fields")}
-        >
-          By Field
-        </button>
-      </div>
+      {#if viewMode === "fields"}
+        <select bind:value={selectedFieldId} class="field-select">
+          <option value="">All Fields</option>
+          {#each fields as field}
+            <option value={field.field_id}>{field.name}</option>
+          {/each}
+        </select>
+      {/if}
     </div>
 
     <!-- Sort Bar (list view only) -->
@@ -289,20 +365,10 @@
           Date
           {#if sortBy === "start_time"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
-        <button class="sort-btn" on:click={() => toggleSort("field_name")} class:active={sortBy === "field_name"}>
-          <MapPin size={12} />
-          Field
-          {#if sortBy === "field_name"}{sortDir === "asc" ? "↑" : "↓"}{/if}
-        </button>
-        <button class="sort-btn" on:click={() => toggleSort("area_hectares")} class:active={sortBy === "area_hectares"}>
-          <Ruler size={12} />
-          Area
-          {#if sortBy === "area_hectares"}{sortDir === "asc" ? "↑" : "↓"}{/if}
-        </button>
-        <button class="sort-btn" on:click={() => toggleSort("distance_km")} class:active={sortBy === "distance_km"}>
-          <Ruler size={12} />
-          Distance
-          {#if sortBy === "distance_km"}{sortDir === "asc" ? "↑" : "↓"}{/if}
+        <button class="sort-btn" on:click={() => toggleSort("operator_name")} class:active={sortBy === "operator_name"}>
+          <User size={12} />
+          Operator
+          {#if sortBy === "operator_name"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
         <button class="sort-btn" on:click={() => toggleSort("operation_name")} class:active={sortBy === "operation_name"}>
           <Layers size={12} />
@@ -324,7 +390,7 @@
     {:else if viewMode === "list"}
       <!-- Chronological List -->
       <div class="records-list">
-        {#each filteredRecords as record}
+        {#each paginatedRecords as record (record.id)}
           <div
             class="record-card"
             class:expandable={hasMultipleIntervals(record)}
@@ -335,49 +401,55 @@
               class:clickable={hasMultipleIntervals(record)}
               on:click={() => hasMultipleIntervals(record) && toggleExpand(record.id)}
             >
-              <!-- Snapshot thumbnail -->
-              {#if getSnapshot(record)}
-                <img
-                  src={getSnapshot(record)}
-                  alt="Field snapshot"
-                  class="record-snapshot"
-                  loading="lazy"
+              <!-- Row 1: Thumbnail + Field name + Date + Stats -->
+              <div class="card-top-row">
+                <div
+                  class="thumbnail-wrapper"
                   on:click={() => openSnapshotFullscreen(record)}
                   on:keydown={(e) => e.key === "Enter" && openSnapshotFullscreen(record)}
-                  on:error={() => console.error("[records] Snapshot image failed to load", record.id)}
                   role="button"
                   tabindex="0"
                   title="Click to view fullscreen"
-                />
-              {:else}
-                <div class="record-snapshot-placeholder">
-                  <MapPin size={20} class="text-white/20" />
+                >
+                  <SprayRecordThumbnail
+                    fieldBoundary={record.field_boundary}
+                    {record}
+                    width={120}
+                    height={90}
+                  />
                 </div>
-              {/if}
 
-              <div class="record-date">
-                <span class="date-day">{formatDate(record.start_time)}</span>
-                <span class="date-time">{formatTime(record.start_time)}</span>
-              </div>
-              <div class="record-field">
-                <MapPin size={14} class="text-green-400" />
-                <span>{record.field_name}</span>
+                <div class="card-info">
+                  <div class="card-field-name">
+                    <MapPin size={14} class="text-green-400" />
+                    <span>{record.field_name}</span>
+                    {#if hasMultipleIntervals(record)}
+                      <span class="visit-badge">{record.intervals.length} visits</span>
+                    {/if}
+                  </div>
+                  <div class="card-date-row">
+                    <span class="date-day">{formatDate(record.start_time)}</span>
+                    <span class="date-time">{formatTime(record.start_time)}</span>
+                  </div>
+                  <div class="card-stats">
+                    <span class="stat stat-area">{formatHa(record.area_hectares)}</span>
+                    <span class="stat">{formatKm(record.distance_km)}</span>
+                  </div>
+                </div>
+
                 {#if hasMultipleIntervals(record)}
-                  <span class="visit-badge">{record.intervals.length} visits</span>
                   <span class="expand-icon">
                     {#if expandedRecords.has(record.id)}
-                      <ChevronDown size={14} />
+                      <ChevronDown size={16} />
                     {:else}
-                      <ChevronRight size={14} />
+                      <ChevronRight size={16} />
                     {/if}
                   </span>
                 {/if}
               </div>
-              <div class="record-stats">
-                <span class="stat">{formatKm(record.distance_km)}</span>
-                <span class="stat stat-area">{formatHa(record.area_hectares)}</span>
-              </div>
-              <div class="record-meta">
+
+              <!-- Row 2: Meta details (operator, vehicle, operation) -->
+              <div class="card-meta-row">
                 <div class="meta-row">
                   <User size={11} class="text-white/30" />
                   <span>{record.operator_name || "Unknown"}</span>
@@ -390,11 +462,16 @@
                   <Layers size={11} class="text-white/30" />
                   <span>{record.operation_name || "Unknown"}</span>
                 </div>
-              </div>
-              <div class="record-status">
                 {#if record.operator_confirmed}
-                  <CheckCircle2 size={16} class="text-green-400" />
+                  <CheckCircle2 size={14} class="text-green-400 card-confirmed" />
                 {/if}
+                <button
+                  class="delete-record-btn"
+                  on:click|stopPropagation={() => deleteRecord(record.id)}
+                  title="Delete record"
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
             </div>
 
@@ -421,15 +498,50 @@
           </div>
         {/each}
       </div>
+
+      <!-- Pagination -->
+      {#if totalPages > 1}
+        <div class="pagination">
+          <button class="page-btn" disabled={currentPage === 1} on:click={() => currentPage--}>
+            ← Prev
+          </button>
+          <span class="page-info">
+            Page {currentPage} of {totalPages}
+            <span class="page-range">({(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredRecords.length)} of {filteredRecords.length})</span>
+          </span>
+          <button class="page-btn" disabled={currentPage === totalPages} on:click={() => currentPage++}>
+            Next →
+          </button>
+        </div>
+      {/if}
     {:else}
       <!-- Grouped by Field -->
       <div class="fields-grouped">
         {#each recordsByField as [fieldId, group]}
           <div class="field-group">
             <div class="field-group-header" on:click={() => toggleExpand(`field-${fieldId}`)}>
-              <MapPin size={16} class="text-green-400" />
-              <span class="field-group-name">{group.field_name}</span>
-              <span class="field-group-count">{group.records.length} record{group.records.length !== 1 ? "s" : ""}</span>
+              <div
+                class="field-thumb-wrapper"
+                on:click|stopPropagation={() => openFieldOverlay(fieldId)}
+                on:keydown={(e) => e.key === "Enter" && openFieldOverlay(fieldId)}
+                role="button"
+                tabindex="0"
+                title="View on map"
+              >
+                <SprayRecordThumbnail
+                  fieldBoundary={fields.find(f => f.field_id === fieldId)?.boundary}
+                  record={{ id: `field-thumb-${fieldId}` }}
+                  width={80}
+                  height={60}
+                />
+              </div>
+              <div class="field-group-info">
+                <div class="field-group-name-row">
+                  <MapPin size={16} class="text-green-400" />
+                  <span class="field-group-name">{group.field_name}</span>
+                </div>
+                <span class="field-group-count">#{group.records.length}</span>
+              </div>
               <button
                 class="view-map-btn"
                 on:click|stopPropagation={() => openFieldOverlay(fieldId)}
@@ -536,6 +648,82 @@
     color: rgba(255, 255, 255, 0.7);
   }
 
+  .backfill-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 12px;
+  }
+  .backfill-days {
+    width: 42px;
+    padding: 5px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    text-align: center;
+    outline: none;
+  }
+  .backfill-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 8px;
+    color: #60a5fa;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .backfill-btn:hover:not(:disabled) {
+    background: rgba(59, 130, 246, 0.25);
+  }
+  .backfill-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Prominent view toggle — segmented control */
+  .view-toggle-container {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .view-toggle-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .view-toggle-btn.active {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+
+  .view-toggle-btn:hover:not(.active) {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
   /* Filters */
   .filters-bar {
     display: flex;
@@ -582,28 +770,6 @@
 
   .field-select option {
     background: #1a1a1a;
-  }
-
-  .view-toggle {
-    display: flex;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .view-toggle button {
-    padding: 8px 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .view-toggle button.active {
-    background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
   }
 
   /* Sort bar */
@@ -659,49 +825,83 @@
 
   .record-card-header {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    gap: 10px;
     padding: 12px 16px;
   }
 
-  .record-snapshot {
-    width: 120px;
-    height: 90px;
-    border-radius: 8px;
-    object-fit: cover;
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s;
-  }
-
-  .record-snapshot:hover {
-    transform: scale(1.05);
-    border-color: rgba(59, 130, 246, 0.4);
-  }
-
-  /* Fullscreen snapshot now uses FieldTrailOverlay in locked mode */
-
-  .record-snapshot-placeholder {
-    width: 120px;
-    height: 90px;
-    border-radius: 8px;
-    flex-shrink: 0;
+  .card-top-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 12px;
   }
+
+  .thumbnail-wrapper {
+    flex-shrink: 0;
+  }
+
+  .card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .card-field-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-date-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-stats {
+    display: flex;
+    gap: 12px;
+  }
+
+  .card-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .card-confirmed {
+    margin-left: auto;
+  }
+
+  .delete-record-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .delete-record-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  /* Snapshot thumbnails handled by SprayRecordThumbnail component */
 
   .record-card-header.clickable {
     cursor: pointer;
-  }
-
-  .record-date {
-    display: flex;
-    flex-direction: column;
-    min-width: 80px;
   }
 
   .date-day {
@@ -714,15 +914,6 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
-  .record-field {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    font-size: 14px;
-    font-weight: 500;
-  }
-
   .visit-badge {
     font-size: 10px;
     padding: 2px 6px;
@@ -730,19 +921,14 @@
     background: rgba(59, 130, 246, 0.2);
     color: #60a5fa;
     font-weight: 500;
+    flex-shrink: 0;
   }
 
   .expand-icon {
     display: flex;
     align-items: center;
     color: rgba(255, 255, 255, 0.4);
-  }
-
-  .record-stats {
-    display: flex;
-    gap: 12px;
-    min-width: 120px;
-    justify-content: flex-end;
+    flex-shrink: 0;
   }
 
   .stat {
@@ -755,23 +941,12 @@
     font-weight: 600;
   }
 
-  .record-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 100px;
-  }
-
   .meta-row {
     display: flex;
     align-items: center;
     gap: 4px;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.4);
-  }
-
-  .record-status {
-    width: 20px;
   }
 
   /* Intervals (expandable) */
@@ -833,20 +1008,42 @@
   .field-group-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 16px;
+    gap: 12px;
+    padding: 12px 16px;
     cursor: pointer;
+  }
+
+  .field-group-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .field-group-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .field-group-name {
     font-size: 15px;
     font-weight: 600;
-    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .field-group-count {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.4);
+    padding-left: 22px;
+  }
+
+  .field-thumb-wrapper {
+    flex-shrink: 0;
+    cursor: pointer;
   }
 
   .view-map-btn {
@@ -920,6 +1117,50 @@
     text-align: right;
   }
 
+  /* Pagination */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 20px;
+    padding: 12px;
+  }
+
+  .page-btn {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+
+  .page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .page-info {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    text-align: center;
+  }
+
+  .page-range {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    display: block;
+    margin-top: 2px;
+  }
+
   /* States */
   .loading-state, .error-state, .empty-state {
     display: flex;
@@ -939,5 +1180,81 @@
   .empty-subtitle {
     font-size: 13px !important;
     color: rgba(255, 255, 255, 0.3) !important;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 640px) {
+    .records-page {
+      padding: 16px 12px;
+    }
+
+    .page-header {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .header-left {
+      gap: 8px;
+      flex: 1;
+    }
+
+    .header-left h1 {
+      font-size: 18px;
+    }
+
+    .header-subtitle {
+      font-size: 12px;
+    }
+
+    .view-toggle-btn {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .filters-bar {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .search-box {
+      min-width: 0;
+    }
+
+    .field-select {
+      width: 100%;
+    }
+
+    .sort-bar {
+      gap: 6px;
+    }
+
+    .sort-btn {
+      padding: 5px 10px;
+      font-size: 11px;
+    }
+
+    .record-card {
+      border-radius: 10px;
+    }
+
+    .record-card-header {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .card-top-row {
+      gap: 10px;
+    }
+
+    .card-meta-row {
+      gap: 12px;
+      padding-left: 2px;
+    }
+
+    .intervals-section {
+      padding: 8px 12px 10px 12px;
+    }
   }
 </style>

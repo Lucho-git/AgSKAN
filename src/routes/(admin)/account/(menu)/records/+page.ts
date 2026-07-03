@@ -89,6 +89,7 @@ export const load: PageLoad = async () => {
             fields: fields || [],
             operations: operations || [],
             operatorName: profile?.full_name || "",
+            masterMapId,
         };
     } catch (error) {
         console.error("Error loading records page:", error);
