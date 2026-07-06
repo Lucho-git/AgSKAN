@@ -59,7 +59,7 @@
       <Loader2 size={14} class="animate-spin text-white/30" />
     </div>
   {:else if dataUrl}
-    <img src={dataUrl} alt="Field snapshot" class="thumbnail-img" />
+    <img src={dataUrl} alt="Field snapshot" class="thumbnail-img" title="{record?.field_name || 'Unknown'} — {record?.id?.slice(0,8)}" />
   {:else}
     <div class="thumbnail-error">✗</div>
   {/if}

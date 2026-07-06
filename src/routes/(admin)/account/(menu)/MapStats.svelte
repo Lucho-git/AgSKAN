@@ -57,7 +57,7 @@
   }
 
   function goToFieldView() {
-    goto("/account/fieldview")
+    goto("/account?tab=fields")
   }
 </script>
 

@@ -33,7 +33,7 @@
   // Get params from URL
   $: fileId = $page.url.searchParams.get("fileId")
   $: fileName = $page.url.searchParams.get("fileName")
-  $: returnUrl = $page.url.searchParams.get("returnUrl") || "/admin/fieldview"
+  $: returnUrl = $page.url.searchParams.get("returnUrl") || "/account?tab=fields"
 
   $: connectedMap = $connectedMapStore
 

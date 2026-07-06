@@ -116,7 +116,7 @@
       requiresMap: true,
     },
     {
-      href: "/account/fieldview",
+      href: "/account",
       icon: "solar:map-bold-duotone",
       label: "Fields",
       labelId: "fieldview",

@@ -12,6 +12,7 @@
   import { userFilesStore } from "./fieldview/userFilesStore"
 
   import FieldsOverview from "./fieldview/FieldsOverview.svelte"
+  import DuplicateFieldCleaner from "./fieldview/DuplicateFieldCleaner.svelte"
 
   import {
     LandPlot,
@@ -98,6 +99,22 @@
   // ========================================
   let showUploadModal = false
   let uploadDialogEl: HTMLDialogElement
+  let showHelpModal = false
+  let helpDialogEl: HTMLDialogElement
+
+  $: if (showHelpModal && helpDialogEl && !helpDialogEl.open) {
+    helpDialogEl.showModal()
+  } else if (!showHelpModal && helpDialogEl?.open) {
+    helpDialogEl.close()
+  }
+
+  function openHelpModal() {
+    showHelpModal = true
+  }
+
+  function closeHelpModal() {
+    showHelpModal = false
+  }
 
   $: if (showUploadModal && uploadDialogEl && !uploadDialogEl.open) {
     uploadDialogEl.showModal()
@@ -677,6 +694,11 @@
     <div class="rounded-xl border border-base-300 bg-base-100">
       <FieldsOverview {navigateToProcess} />
     </div>
+
+    <!-- Duplicate field cleaner -->
+    <div class="mt-4">
+      <DuplicateFieldCleaner />
+    </div>
   {:else}
     <!-- No fields: the whole component is the upload dropzone -->
     <input
@@ -847,13 +869,13 @@
         <Download class="h-3.5 w-3.5" />
         Download example file
       </button>
-      <a
-        href="/account/fieldview"
+      <button
+        on:click={openHelpModal}
         class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
       >
         <HelpCircle class="h-3.5 w-3.5" />
         Need help?
-      </a>
+      </button>
     </div>
 
     <!-- Previously uploaded (but not yet processed) files -->
@@ -1106,13 +1128,13 @@
         <Download class="h-3.5 w-3.5" />
         Download example file
       </button>
-      <a
-        href="/account/fieldview"
+      <button
+        on:click={openHelpModal}
         class="flex items-center gap-1.5 transition-colors hover:text-contrast-content"
       >
         <HelpCircle class="h-3.5 w-3.5" />
         Need help?
-      </a>
+      </button>
     </div>
 
     <!-- Previously uploaded files (minimized) -->
@@ -1163,6 +1185,65 @@
         </div>
       </div>
     {/if}
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Help Modal -->
+<dialog
+  bind:this={helpDialogEl}
+  class="modal modal-middle"
+  on:close={closeHelpModal}
+>
+  <div class="modal-box w-full max-w-md">
+    <div class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20">
+          <HelpCircle class="h-5 w-5 text-blue-600" />
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-contrast-content">Need Help Getting Your Fields?</h3>
+          <p class="text-xs text-contrast-content/60">Upload boundaries from your farm software</p>
+        </div>
+      </div>
+      <button on:click={closeHelpModal} class="btn btn-circle btn-ghost btn-sm">
+        <X class="h-4 w-4" />
+      </button>
+    </div>
+
+    <div class="space-y-4 text-sm text-contrast-content/80">
+      <div>
+        <h4 class="mb-1.5 font-semibold text-contrast-content">Download from your farm software</h4>
+        <ul class="ml-4 list-disc space-y-1 text-xs text-contrast-content/70">
+          <li><strong>Agworld:</strong> Export field boundaries as KML or Shapefile from your Agworld account</li>
+          <li><strong>John Deere Operations Center:</strong> Export boundaries as Shapefile or ISOXML from the Operations Center</li>
+          <li><strong>Climate FieldView:</strong> Export field boundaries as Shapefile from FieldView</li>
+          <li><strong>Google Earth:</strong> Draw paddocks and export as KML</li>
+        </ul>
+      </div>
+
+      <div class="rounded-lg bg-base-200 p-3">
+        <p class="text-xs text-contrast-content/70">
+          Supported file formats: <strong>.zip, .kml, .kmz, .geojson, .xml, .isoxml</strong>
+        </p>
+      </div>
+
+      <div class="border-t border-base-300 pt-3">
+        <h4 class="mb-1.5 font-semibold text-contrast-content">We can do it for you</h4>
+        <p class="text-xs text-contrast-content/70">
+          Email your field boundary files to <a href="mailto:service@agskan.com" class="font-semibold text-blue-600 underline">service@agskan.com</a> and we'll upload them for you right away.
+        </p>
+        <p class="mt-1.5 text-xs text-contrast-content/70">
+          Or call us at <a href="tel:+61800000000" class="font-semibold text-blue-600 underline">(08) 0000 0000</a>
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-5 flex justify-end">
+      <button on:click={closeHelpModal} class="btn btn-sm btn-primary">Got it</button>
+    </div>
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>close</button>

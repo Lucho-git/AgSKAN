@@ -80,6 +80,7 @@ export const load: PageLoad = async () => {
                 field_name: field?.name || "Unknown",
                 operation_name: opMap.get(r.operation_id) || "Unknown",
                 field_boundary: field?.boundary || null,
+                field_area: field?.area || 0,
             }
         });
 

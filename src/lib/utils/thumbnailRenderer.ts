@@ -31,6 +31,7 @@ export const thumbnailCache: Writable<Record<string, string>> = writable({})
 const queue: RenderRequest[] = []
 const seen = new Set<string>()
 const completed = new Map<string, string>()
+let generation = 0 // bumped on cache clear to invalidate stale worker results
 
 interface PoolWorker {
   map: mapboxgl.Map
@@ -150,6 +151,7 @@ async function processOnWorker(worker: PoolWorker): Promise<void> {
 
   const req = queue.shift()!
   const { recordId, fieldBoundary, record } = req
+  const myGeneration = generation // snapshot generation at start
 
   try {
     const firstRing = fieldBoundary.type === "MultiPolygon" ? fieldBoundary.coordinates[0][0] : fieldBoundary.coordinates[0]
@@ -161,27 +163,39 @@ async function processOnWorker(worker: PoolWorker): Promise<void> {
     // from showing on the next record's thumbnail)
     try { cleanTrailLayers(worker.map) } catch (_) { /* map style not ready yet */ }
 
-    worker.map.fitBounds(getBoundsFromBoundary(fieldBoundary), { padding: 5, animate: false })
-
-    await new Promise<void>(resolve => {
-      worker.map.once("idle", () => resolve())
-      setTimeout(() => resolve(), 4000)
-    })
-
+    // Set up ALL layers FIRST, then move the map, then wait for idle.
+    // This ensures the capture sees the correct boundary + trails together.
     addGreyscaleMask(worker.map, fieldBoundary)
     addTrailLayers(worker.map, record)
+    worker.map.fitBounds(getBoundsFromBoundary(fieldBoundary), { padding: 5, animate: false })
 
-    // Register idle listener AFTER all layers are added to avoid race
+    // Wait for the map to be fully loaded and rendered.
+    // Use a two-phase approach: wait for "idle" (all tiles loaded),
+    // then wait one more animation frame for the GPU to finish painting.
     await new Promise<void>(resolve => {
-      worker.map.once("idle", () => setTimeout(() => resolve(), 300))
-      setTimeout(() => resolve(), 5000)
+      const onIdle = () => {
+        worker.map.off("idle", onIdle)
+        // One more frame to ensure GPU has painted the final result
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }
+      worker.map.on("idle", onIdle)
+      // Hard timeout — if idle never fires (e.g. map stuck), still capture
+      setTimeout(() => {
+        worker.map.off("idle", onIdle)
+        resolve()
+      }, 8000)
     })
 
     const dataUrl = worker.map.getCanvas().toDataURL("image/png")
     if (dataUrl) {
-      console.log(`[Thumbnail] Captured record=${recordId.slice(0,8)} dataUrl=${dataUrl.slice(0,40)}...`)
-      completed.set(recordId, dataUrl)
-      thumbnailCache.update(cache => ({ ...cache, [recordId]: dataUrl }))
+      // Discard result if the cache was cleared (generation changed) while we were rendering
+      if (myGeneration !== generation) {
+        console.log(`[Thumbnail] Stale result discarded for record=${recordId.slice(0,8)} (generation changed)`)
+      } else {
+        console.log(`[Thumbnail] Captured record=${recordId.slice(0,8)} dataUrl=${dataUrl.slice(0,40)}...`)
+        completed.set(recordId, dataUrl)
+        thumbnailCache.update(cache => ({ ...cache, [recordId]: dataUrl }))
+      }
     }
   } catch (e) {
     console.error(`[ThumbnailRenderer] Failed ${recordId}:`, e)
@@ -224,7 +238,7 @@ function initPool() {
       preserveDrawingBuffer: true,
     })
 
-    const worker: PoolWorker = { map: mapInstance, container, busy: false }
+    const worker: PoolWorker = { map: mapInstance, container, busy: true } // busy until load fires
     pool.push(worker)
 
     mapInstance.on("load", () => {
@@ -232,9 +246,12 @@ function initPool() {
       drainQueue()
     })
 
-    // Fallback: if load never fires, still try
+    // Fallback: if load never fires, force-ready after 10 seconds
     setTimeout(() => {
-      if (!worker.busy && queue.length > 0) drainQueue()
+      if (worker.busy) {
+        worker.busy = false
+        drainQueue()
+      }
     }, 10000)
   }
 }
@@ -252,8 +269,12 @@ export function getCachedThumbnail(recordId: string): string | undefined {
   return completed.get(recordId)
 }
 
-// Clear the in-memory cache between page visits to prevent stale thumbnails
+// Clear the in-memory cache between page visits to prevent stale thumbnails.
+// Bumps the generation counter so any in-flight pool workers discard their
+// results instead of writing stale data into the fresh cache.
 export function clearThumbnailCache(): void {
+  generation++
+  queue.length = 0
   completed.clear()
   seen.clear()
   thumbnailCache.set({})

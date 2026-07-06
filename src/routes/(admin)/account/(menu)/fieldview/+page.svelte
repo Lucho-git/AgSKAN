@@ -5,6 +5,7 @@
   import type { Writable } from "svelte/store"
   import FieldsOverview from "./FieldsOverview.svelte"
   import FileUpload from "./FileUpload.svelte"
+  import DuplicateFieldCleaner from "./DuplicateFieldCleaner.svelte"
   import {
     Info,
     HelpCircle,
@@ -502,7 +503,7 @@
           const params = new URLSearchParams({
             fileId: result.file.file_id,
             fileName: result.file.file_name,
-            returnUrl: "/account/fieldview",
+            returnUrl: "/account?tab=fields",
           })
           goto(`/account/fieldview/process?${params.toString()}`)
         }, SUCCESS_DISPLAY_TIME)
@@ -551,7 +552,7 @@
             const params = new URLSearchParams({
               fileId: existingFile.id,
               fileName: existingFile.name,
-              returnUrl: "/account/fieldview",
+              returnUrl: "/account?tab=fields",
             })
             goto(`/account/fieldview/process?${params.toString()}`)
           }, SUCCESS_DISPLAY_TIME)
@@ -618,7 +619,7 @@
     const params = new URLSearchParams({
       fileId: fileId,
       fileName: fileName,
-      returnUrl: "/account/fieldview",
+      returnUrl: "/account?tab=fields",
     })
     goto(`/account/fieldview/process?${params.toString()}`)
   }
@@ -671,6 +672,8 @@
         </div>
 
         <Separator class="my-6" />
+
+        <DuplicateFieldCleaner />
 
         {#if loading}
           <div class="flex h-64 w-full items-center justify-center">

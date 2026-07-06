@@ -48,7 +48,7 @@ export const load: PageLoad = async ({ url }) => {
     const connectedMap = get(connectedMapStore)
     if (!connectedMap.is_connected || !connectedMap.id) {
         await showErrorToast("Please connect to a map before processing files.")
-        throw redirect(303, "/account/fieldview/")
+        throw redirect(303, "/account?tab=fields")
     }
 
     const fileName = url.searchParams.get("fileName")
@@ -101,6 +101,6 @@ export const load: PageLoad = async ({ url }) => {
         )
 
         // Redirect back to the original page
-        throw redirect(303, "/account/fieldview/")
+        throw redirect(303, "/account?tab=fields")
     }
 }

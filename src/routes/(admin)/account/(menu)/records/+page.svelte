@@ -122,6 +122,7 @@
   let showFieldOverlay = false
   let overlayFieldBoundary = null
   let overlayFieldName = ""
+  let overlayFieldArea = 0
   let overlayRecords: any[] = []
 
   function openFieldOverlay(fieldId: string) {
@@ -129,6 +130,7 @@
     if (!field?.boundary) return
     overlayFieldBoundary = field.boundary
     overlayFieldName = field.name
+    overlayFieldArea = field.area || 0
     overlayRecords = filteredRecords.filter(r => r.field_id === fieldId)
     showFieldOverlay = true
   }
@@ -195,7 +197,7 @@
   })()
 
   // View mode: "list" (chronological) or "fields" (grouped by field)
-  let viewMode = "list"
+  let viewMode = "fields"
 
   // Format helpers
   function formatDate(ts) {
@@ -315,17 +317,17 @@
     <div class="view-toggle-container">
       <button
         class="view-toggle-btn"
-        class:active={viewMode === "list"}
-        on:click={() => (viewMode = "list")}
-      >
-        <span>Chronological</span>
-      </button>
-      <button
-        class="view-toggle-btn"
         class:active={viewMode === "fields"}
         on:click={() => (viewMode = "fields")}
       >
         <span>By Field</span>
+      </button>
+      <button
+        class="view-toggle-btn"
+        class:active={viewMode === "list"}
+        on:click={() => (viewMode = "list")}
+      >
+        <span>Chronological</span>
       </button>
     </div>
 
@@ -540,7 +542,7 @@
                   <MapPin size={16} class="text-green-400" />
                   <span class="field-group-name">{group.field_name}</span>
                 </div>
-                <span class="field-group-count">#{group.records.length}</span>
+                <span class="field-group-count"><span class="visit-badge">{group.records.length} record{group.records.length !== 1 ? "s" : ""}</span></span>
               </div>
               <button
                 class="view-map-btn"
@@ -588,6 +590,7 @@
     fieldBoundary={fullscreenRecord.field_boundary}
     records={[fullscreenRecord]}
     fieldName={fullscreenRecord.field_name}
+    fieldAreaHa={fullscreenRecord.field_area || 0}
     lockedMode={true}
     on:close={() => { fullscreenSnapshot = false; fullscreenRecord = null }}
   />
@@ -598,6 +601,7 @@
     fieldBoundary={overlayFieldBoundary}
     records={overlayRecords}
     fieldName={overlayFieldName}
+    fieldAreaHa={overlayFieldArea || 0}
     on:close={() => (showFieldOverlay = false)}
   />
 {/if}
@@ -1036,9 +1040,7 @@
   }
 
   .field-group-count {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-    padding-left: 22px;
+    padding-left: 4px;
   }
 
   .field-thumb-wrapper {
