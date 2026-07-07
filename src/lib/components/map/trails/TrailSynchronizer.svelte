@@ -32,9 +32,13 @@
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { session, initializeSession } from "$lib/stores/sessionStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
+  import { operatorStore } from "$lib/stores/operatorStore"
+  import { operatorApi } from "$lib/api/operatorApi"
   import SprayRecordConfirm from "./SprayRecordConfirm.svelte"
+  import OperatorPicker from "./OperatorPicker.svelte"
   import {
     persistPendingCoordinate,
     deletePersistedCoordinate,
@@ -72,6 +76,10 @@
   let pendingSprayTrailId = ""
   let pendingSprayOperatorName = ""
   let pendingSprayOperatorId = ""
+
+  // Operator picker state
+  let showOperatorPicker = false
+  let operatorJustSelected = false
 
   // Pause marker on the map
   let pauseMarker = null
@@ -254,6 +262,22 @@
       toast.warning("Trail recording already active")
       return
     }
+
+    // Gate: require an operator to be selected before trailing
+    if (!$operatorStore?.operator) {
+      showOperatorPicker = true
+      return
+    }
+
+    // Re-verify if we haven't just selected an operator from the picker
+    if (!operatorJustSelected && $profileStore?.master_map_id) {
+      const check = await operatorApi.checkOperatorStatus($profileStore.master_map_id)
+      if (!check.operator) {
+        showOperatorPicker = true
+        return
+      }
+    }
+    operatorJustSelected = false
 
     try {
       const vehicleId = $userVehicleStore.vehicle_id
@@ -575,15 +599,17 @@
         trailPausePointStore.set(null)
         removePauseMarker()
 
-        // Show spray record confirmation popup if records were generated
+        // Show spray record confirmation popup if records were generated AND setting is enabled
         const sprayRecords = result.sprayRecords || []
-        if (sprayRecords.length > 0) {
+        if (sprayRecords.length > 0 && $userSettingsStore?.sprayConfirmEnabled) {
           pendingSprayRecords = sprayRecords
           pendingSprayTrailId = trailId
-          pendingSprayOperatorName = sprayRecords[0]?.operator_name || ""
-          pendingSprayOperatorId = $userVehicleStore?.vehicle_id || ""
+          pendingSprayOperatorName = $operatorStore?.operator?.name || sprayRecords[0]?.operator_name || ""
+          pendingSprayOperatorId = $operatorStore?.operator?.id || $userVehicleStore?.vehicle_id || ""
           showSprayConfirm = true
-          console.log(`📋 Showing spray record confirmation (${sprayRecords.length} fields)`)
+          console.log(
+            `📋 Showing spray record confirmation (${sprayRecords.length} fields)`,
+          )
         } else {
           // No spray records (trail didn't intersect any fields) — just close
           trailClosingStore.set(false)
@@ -1714,6 +1740,17 @@
     pendingSprayTrailId = ""
     console.log("⏭️ Spray record confirmation skipped")
   }
+
+  // ── Operator picker handlers ──
+  function handleOperatorSelected() {
+    showOperatorPicker = false
+    operatorJustSelected = true
+    commandStore.dispatch(COMMANDS.TRAIL_START)
+  }
+
+  function handleOperatorPickerClose() {
+    showOperatorPicker = false
+  }
 </script>
 
 {#if areTrailsLoaded}
@@ -1726,7 +1763,17 @@
     trailId={pendingSprayTrailId}
     defaultOperatorName={pendingSprayOperatorName}
     defaultOperatorId={pendingSprayOperatorId}
+    mapId={$profileStore?.master_map_id || ""}
     on:confirmed={handleSprayConfirm}
     on:skip={handleSpraySkip}
+  />
+{/if}
+
+{#if showOperatorPicker && $profileStore?.master_map_id}
+  <OperatorPicker
+    mapId={$profileStore.master_map_id}
+    context="start"
+    on:selected={handleOperatorSelected}
+    on:close={handleOperatorPickerClose}
   />
 {/if}

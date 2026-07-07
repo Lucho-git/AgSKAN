@@ -113,6 +113,22 @@
     }
   }
 
+  // Spray record confirmation popup
+  $: sprayConfirmEnabled = $userSettingsStore.sprayConfirmEnabled
+
+  async function handleSprayConfirmToggle() {
+    const newValue = !($userSettingsStore.sprayConfirmEnabled)
+    userSettingsStore.update((s) => ({ ...s, sprayConfirmEnabled: newValue }))
+    try {
+      const res = await userSettingsApi.updateSprayConfirmEnabled(newValue)
+      if (!res?.success) throw new Error("update failed")
+      toast.success(newValue ? "Spray confirmation popup enabled" : "Spray confirmation popup disabled")
+    } catch (err) {
+      userSettingsStore.update((s) => ({ ...s, sprayConfirmEnabled: !newValue }))
+      toast.error("Failed to update spray confirmation setting")
+    }
+  }
+
   // App information
   const appInfo = {
     version: APP_VERSION,
@@ -299,6 +315,22 @@
         <input type="checkbox" class="toggle toggle-error flex-shrink-0 mt-0.5" checked={gpsRejectedPopupsEnabled} on:change={handleGpsRejectedPopupsToggle} />
       </label>
     </div>
+  </div>
+
+  <!-- Spray Record Confirmation -->
+  <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+    <label class="flex items-start justify-between gap-3 cursor-pointer">
+      <div class="flex items-start gap-3 min-w-0">
+        <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <Icon icon="solar:document-check-bold-duotone" width="18" height="18" class="text-info" />
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-contrast-content">Spray Record Confirmation</p>
+          <p class="text-xs text-contrast-content/60">Show a confirmation popup when closing a trail to review and confirm spray records.</p>
+        </div>
+      </div>
+      <input type="checkbox" class="toggle toggle-info flex-shrink-0 mt-0.5" checked={sprayConfirmEnabled} on:change={handleSprayConfirmToggle} />
+    </label>
   </div>
 
   <!-- Dev Mode -->

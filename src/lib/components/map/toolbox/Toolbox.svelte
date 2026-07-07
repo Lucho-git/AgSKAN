@@ -13,6 +13,7 @@
     Magnet,
     Radio,
     LandPlot,
+    UserCircle,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import {
@@ -35,6 +36,7 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { operatorStore } from "$lib/stores/operatorStore"
   import {
     userVehicleTrailing,
     userVehicleStore,
@@ -65,6 +67,7 @@
   import LayerControls from "./LayerControls.svelte"
   import CollectionControls from "./CollectionControls.svelte"
   import FieldControls from "./FieldControls.svelte"
+  import ProfileControls from "./ProfileControls.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
 
   export let isOpen = false
@@ -143,6 +146,15 @@
 
   $: defaultMarker = getDefaultMarker()
 
+  // Operator initials for profile avatar (from operatorStore, not profile name)
+  $: operatorInitials = (() => {
+    const name = $operatorStore?.operator?.name?.trim()
+    if (!name) return ""
+    const parts = name.split(/\s+/).filter(Boolean)
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  })()
+
   function closeToolbox() {
     operationDropdownOpen = false
     dispatch("close")
@@ -198,6 +210,10 @@
 
   function showCollectionPanel() {
     activePanel = "collection"
+  }
+
+  function showProfilePanel() {
+    activePanel = "profile"
   }
 
   function toggleDevMode() {
@@ -395,7 +411,9 @@
                           ? "Collection Mode"
                           : activePanel === "fields"
                             ? "Fields"
-                            : ""}
+                            : activePanel === "profile"
+                              ? "Profile"
+                              : ""}
           <button class="header-arrow-center" on:click={showMainPanel}>
             <span class="ac-arrow">←</span>
             <h3>{title}</h3>
@@ -483,6 +501,8 @@
           on:addField={handleAddField}
           on:editField={handleEditField}
         />
+      {:else if activePanel === "profile"}
+        <ProfileControls />
       {:else}
         <div class="tool-grid">
           <button class="tool-button" on:click={showVehiclePanel}>
@@ -540,6 +560,17 @@
             {#if fieldCount > 0}
               <span class="tool-badge field-badge">{fieldCount}</span>
             {/if}
+          </button>
+
+          <button class="tool-button" on:click={showProfilePanel}>
+            <div class="profile-avatar-circle">
+              {#if operatorInitials}
+                {operatorInitials}
+              {:else}
+                <UserCircle size={26} />
+              {/if}
+            </div>
+            <span>Profile</span>
           </button>
 
           <div class="tool-grid-separator"></div>
@@ -1001,6 +1032,22 @@
     background: rgba(74, 222, 128, 0.2);
     color: #4ade80;
     border: 1px solid rgba(74, 222, 128, 0.3);
+  }
+
+  .profile-avatar-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.3), rgba(59, 130, 246, 0.2));
+    border: 2px solid rgba(96, 165, 250, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #93c5fd;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 
   /* Separator between primary and secondary tools */

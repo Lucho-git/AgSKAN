@@ -116,16 +116,6 @@
       requiresMap: true,
     },
     {
-      href: "/account",
-      icon: "solar:map-bold-duotone",
-      label: "Fields",
-      labelId: "fieldview",
-      topBarIcon: "solar:map-bold-duotone",
-      topBarLabel: "Field Overview",
-      path: "fieldview",
-      requiresMap: true,
-    },
-    {
       href: "/account/records",
       icon: "solar:document-bold-duotone",
       label: "Records",

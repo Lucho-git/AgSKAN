@@ -6,24 +6,64 @@
   User can change the operator or confirm as-is.
 -->
 <script>
-  import { createEventDispatcher } from "svelte"
+  import { createEventDispatcher, onMount } from "svelte"
   import { trailsApi } from "$lib/api/trailsApi"
+  import { operatorApi } from "$lib/api/operatorApi"
+  import { operatorStore } from "$lib/stores/operatorStore"
+  import OperatorPicker from "./OperatorPicker.svelte"
   import { toast } from "svelte-sonner"
-  import { X, Check, User, Tractor, MapPin, Clock, Ruler, Loader2, ChevronDown, ChevronRight } from "lucide-svelte"
+  import {
+    X,
+    Check,
+    User,
+    Repeat,
+    Tractor,
+    MapPin,
+    Clock,
+    Ruler,
+    Loader2,
+    ChevronDown,
+    ChevronRight,
+  } from "lucide-svelte"
 
   export let sprayRecords = []
   export let trailId = ""
   export let defaultOperatorName = ""
   export let defaultOperatorId = ""
+  export let mapId = ""
 
   const dispatch = createEventDispatcher()
 
   // Track which field cards are expanded (to show intervals)
   let expandedFields = new Set()
 
-  let selectedOperatorId = defaultOperatorId
-  let selectedOperatorName = defaultOperatorName
+  // Operator state
+  let selectedOperatorId = ""
+  let selectedOperatorName = ""
   let isConfirming = false
+  let showOperatorPicker = false
+
+  onMount(async () => {
+    // Auto-select the current operator from the store
+    if ($operatorStore?.operator) {
+      selectedOperatorId = $operatorStore.operator.id
+      selectedOperatorName = $operatorStore.operator.name
+    } else if (defaultOperatorId) {
+      selectedOperatorId = defaultOperatorId
+      selectedOperatorName = defaultOperatorName
+    }
+  })
+
+  function openOperatorPicker() {
+    showOperatorPicker = true
+  }
+
+  function handleOperatorPicked(event) {
+    const op = event.detail
+    selectedOperatorId = op.id
+    selectedOperatorName = op.name
+    showOperatorPicker = false
+  }
 
   // Format duration seconds → "1h 23m" or "5m 30s"
   function formatDuration(seconds) {
@@ -39,7 +79,10 @@
   // Format timestamp → "2:15 PM"
   function formatTime(ts) {
     if (!ts) return ""
-    return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    return new Date(ts).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    })
   }
 
   // Format hectares → "6.03 ha"
@@ -71,10 +114,12 @@
 
   // Total area across all fields
   $: totalArea = sprayRecords.reduce(
-    (sum, r) => sum + parseFloat(r.area_hectares || 0), 0
+    (sum, r) => sum + parseFloat(r.area_hectares || 0),
+    0,
   )
   $: totalDistance = sprayRecords.reduce(
-    (sum, r) => sum + parseFloat(r.distance_km || 0), 0
+    (sum, r) => sum + parseFloat(r.distance_km || 0),
+    0,
   )
   $: vehicleType = sprayRecords[0]?.vehicle_type || "Unknown"
 
@@ -109,6 +154,14 @@
   function handleSkip() {
     dispatch("skip", { trailId })
   }
+
+  function getInitials(name) {
+    if (!name) return "?"
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return "?"
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
 </script>
 
 <div class="modal-overlay" on:click={handleSkip}>
@@ -123,7 +176,8 @@
         <button
           class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
           on:click={handleSkip}
-          aria-label="Close"
+          aria-label="Skip confirmation"
+          title="Skip — records are already saved"
         >
           <X size={16} class="text-white/70" />
         </button>
@@ -141,12 +195,18 @@
           </div>
           <div class="info-content">
             <span class="info-label">Operator</span>
-            <input
-              type="text"
-              class="operator-input"
-              bind:value={selectedOperatorName}
-              placeholder="Operator name"
-            />
+            <button
+              type="button"
+              class="operator-select-btn"
+              on:click={openOperatorPicker}
+            >
+              {#if selectedOperatorName}
+                <span class="operator-select-name">{selectedOperatorName}</span>
+              {:else}
+                <span class="operator-select-name operator-select-placeholder">Select operator</span>
+              {/if}
+              <Repeat size={14} class="operator-add-icon" />
+            </button>
           </div>
         </div>
 
@@ -174,16 +234,23 @@
 
         <div class="fields-list">
           {#each sprayRecords as record, i}
-            <div class="field-card" class:expandable={hasMultipleIntervals(record)}>
+            <div
+              class="field-card"
+              class:expandable={hasMultipleIntervals(record)}
+            >
               <div
                 class="field-card-header"
                 class:clickable={hasMultipleIntervals(record)}
-                on:click={() => hasMultipleIntervals(record) && toggleFieldExpand(record.field_id)}
+                on:click={() =>
+                  hasMultipleIntervals(record) &&
+                  toggleFieldExpand(record.field_id)}
               >
                 <span class="field-index">{i + 1}</span>
                 <span class="field-name">{record.field_name}</span>
                 {#if hasMultipleIntervals(record)}
-                  <span class="field-badge">{record.intervals.length} visits</span>
+                  <span class="field-badge"
+                    >{record.intervals.length} visits</span
+                  >
                   <span class="expand-icon">
                     {#if expandedFields.has(record.field_id)}
                       <ChevronDown size={14} class="text-white/50" />
@@ -196,7 +263,11 @@
               <div class="field-card-stats">
                 <div class="field-stat">
                   <Clock size={11} class="text-white/40" />
-                  <span>{formatTime(record.start_time)} – {formatTime(record.end_time)}</span>
+                  <span
+                    >{formatTime(record.start_time)} – {formatTime(
+                      record.end_time,
+                    )}</span
+                  >
                 </div>
                 <div class="field-stat">
                   <Ruler size={11} class="text-white/40" />
@@ -214,10 +285,16 @@
                     <div class="interval-row">
                       <span class="interval-label">Visit {j + 1}</span>
                       <span class="interval-time">
-                        {formatTime(interval.entry_time)} – {formatTime(interval.exit_time)}
+                        {formatTime(interval.entry_time)} – {formatTime(
+                          interval.exit_time,
+                        )}
                       </span>
-                      <span class="interval-duration">{formatDuration(interval.duration_seconds)}</span>
-                      <span class="interval-distance">{formatKm(interval.distance_km)}</span>
+                      <span class="interval-duration"
+                        >{formatDuration(interval.duration_seconds)}</span
+                      >
+                      <span class="interval-distance"
+                        >{formatKm(interval.distance_km)}</span
+                      >
                     </div>
                     {#if j < record.intervals.length - 1}
                       <div class="interval-gap">
@@ -247,21 +324,38 @@
 
     <!-- Footer -->
     <div class="spray-modal-footer">
-      <button class="modal-btn secondary" on:click={handleSkip} disabled={isConfirming}>
+      <button
+        class="modal-btn secondary"
+        on:click={handleSkip}
+        disabled={isConfirming}
+      >
         Skip
       </button>
-      <button class="modal-btn primary" on:click={handleConfirm} disabled={isConfirming}>
+      <button
+        class="modal-btn primary"
+        on:click={handleConfirm}
+        disabled={isConfirming}
+      >
         {#if isConfirming}
           <Loader2 size={16} class="animate-spin" />
-          Confirming...
+          Approving...
         {:else}
           <Check size={16} />
-          Confirm & Save
+          Approve
         {/if}
       </button>
     </div>
   </div>
 </div>
+
+{#if showOperatorPicker && mapId}
+  <OperatorPicker
+    mapId={mapId}
+    context="select"
+    on:selected={handleOperatorPicked}
+    on:close={() => (showOperatorPicker = false)}
+  />
+{/if}
 
 <style>
   .modal-overlay {
@@ -297,7 +391,11 @@
   .spray-modal-header {
     padding: 16px 18px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.1) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(34, 197, 94, 0.15) 0%,
+      rgba(22, 163, 74, 0.1) 100%
+    );
   }
 
   .spray-modal-body {
@@ -367,6 +465,47 @@
 
   .operator-input:focus {
     border-color: rgba(34, 197, 94, 0.5);
+  }
+
+  /* Operator select button (opens OperatorPicker modal) */
+  .operator-select-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+  }
+
+  .operator-select-btn:hover {
+    background: rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+
+  .operator-select-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .operator-select-placeholder {
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 400;
+  }
+
+  .operator-add-icon {
+    flex-shrink: 0;
+    color: #93c5fd;
+    opacity: 0.7;
   }
 
   /* Fields section */
@@ -601,12 +740,22 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideIn {
-    from { transform: translateY(20px) scale(0.95); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
+    from {
+      transform: translateY(20px) scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
   }
 </style>

@@ -14,7 +14,19 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import { supabase } from "$lib/supabaseClient"
   import { calculateZoomDependentWidth } from "$lib/utils/trailGeometry"
-  import { Calendar, X, User, Tractor, Ruler, Clock, FileText, MapPin, Layers, Loader2, Download } from "lucide-svelte"
+  import {
+    Calendar,
+    X,
+    User,
+    Tractor,
+    Ruler,
+    Clock,
+    FileText,
+    MapPin,
+    Layers,
+    Loader2,
+    Download,
+  } from "lucide-svelte"
   import { jsPDF } from "jspdf"
 
   const dispatch = createEventDispatcher()
@@ -31,7 +43,7 @@
   let selectedTrail = null as any
 
   // Mobile bottom-sheet drag state
-  let panelHeight = 0   // 0 = auto-fit to content
+  let panelHeight = 0 // 0 = auto-fit to content
   let dragging = false
   let dragStartY = 0
   let dragStartHeight = 0
@@ -43,7 +55,9 @@
     dragStartY = pos.clientY
     // Measure current height in vh
     const panelEl = document.querySelector(".info-panel") as HTMLElement
-    dragStartHeight = panelEl ? (panelEl.offsetHeight / window.innerHeight) * 100 : 30
+    dragStartHeight = panelEl
+      ? (panelEl.offsetHeight / window.innerHeight) * 100
+      : 30
     document.addEventListener("mousemove", onPanelDragMove)
     document.addEventListener("mouseup", onPanelDragEnd)
     document.addEventListener("touchmove", onPanelDragMove, { passive: false })
@@ -53,7 +67,7 @@
   function onPanelDragMove(e: MouseEvent | TouchEvent) {
     if (!dragging) return
     const pos = "touches" in e ? e.touches[0] : e
-    const dy = dragStartY - pos.clientY  // positive = dragging up
+    const dy = dragStartY - pos.clientY // positive = dragging up
     const vhPx = window.innerHeight / 100
     panelHeight = Math.max(HEADER_HEIGHT_PX / vhPx, dragStartHeight + dy / vhPx)
   }
@@ -64,7 +78,8 @@
     document.removeEventListener("touchmove", onPanelDragMove)
     document.removeEventListener("touchend", onPanelDragEnd)
     // Snap: below 15vh snaps to header-only
-    if (panelHeight < 15) panelHeight = HEADER_HEIGHT_PX / (window.innerHeight / 100)
+    if (panelHeight < 15)
+      panelHeight = HEADER_HEIGHT_PX / (window.innerHeight / 100)
   }
 
   // Full GPS trail highlight state
@@ -86,11 +101,21 @@
     const snapshot = map.getCanvas().toDataURL("image/png")
 
     // Compute totals
-    const totalArea = sortedRecords.reduce((sum, r) => sum + parseFloat(r.area_hectares || 0), 0)
-    const totalDistance = sortedRecords.reduce((sum, r) => sum + parseFloat(r.distance_km || 0), 0)
+    const totalArea = sortedRecords.reduce(
+      (sum, r) => sum + parseFloat(r.area_hectares || 0),
+      0,
+    )
+    const totalDistance = sortedRecords.reduce(
+      (sum, r) => sum + parseFloat(r.distance_km || 0),
+      0,
+    )
     const startTime = sortedRecords[0]?.start_time
-    const endTime = sortedRecords[sortedRecords.length - 1]?.end_time || sortedRecords[sortedRecords.length - 1]?.start_time
-    const operators = [...new Set(sortedRecords.map(r => r.operator_name || "Unknown"))].join(", ")
+    const endTime =
+      sortedRecords[sortedRecords.length - 1]?.end_time ||
+      sortedRecords[sortedRecords.length - 1]?.start_time
+    const operators = [
+      ...new Set(sortedRecords.map((r) => r.operator_name || "Unknown")),
+    ].join(", ")
 
     // Stub weather data — generate hourly readings during the spray window
     const weatherStart = new Date(startTime)
@@ -98,16 +123,30 @@
     const weather: any[] = []
     const conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Clear"]
     const windDirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    for (let t = weatherStart; t <= weatherEnd; t = new Date(t.getTime() + 3600000)) {
+    for (
+      let t = weatherStart;
+      t <= weatherEnd;
+      t = new Date(t.getTime() + 3600000)
+    ) {
       const hour = t.getHours()
-      const baseTemp = 15 + 10 * Math.sin((hour - 6) * Math.PI / 12) // peaks at midday
+      const baseTemp = 15 + 10 * Math.sin(((hour - 6) * Math.PI) / 12) // peaks at midday
       const temp = Math.round(baseTemp + (Math.random() - 0.5) * 3)
-      const humidity = Math.round(60 - 20 * Math.sin((hour - 6) * Math.PI / 12) + (Math.random() - 0.5) * 10)
+      const humidity = Math.round(
+        60 -
+          20 * Math.sin(((hour - 6) * Math.PI) / 12) +
+          (Math.random() - 0.5) * 10,
+      )
       const windSpeed = Math.round(8 + Math.random() * 12)
       const gust = windSpeed + Math.round(3 + Math.random() * 5)
-      const deltaT = Math.round((temp - (humidity / 100) * (temp + 8)) * 10) / 10
+      const deltaT =
+        Math.round((temp - (humidity / 100) * (temp + 8)) * 10) / 10
       weather.push({
-        time: t.toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+        time: t.toLocaleString([], {
+          day: "numeric",
+          month: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        }),
         conditions: conditions[Math.floor(Math.random() * conditions.length)],
         temp,
         windSpeed,
@@ -120,14 +159,34 @@
 
     // Stub products — default spray rates × treated area
     const products = [
-      { name: "Glyphosate 450", activeIngredient: "Glyphosate", rate: "2 L/ha", usage: `${(totalArea * 2).toFixed(0)} L`, cost: `$${(totalArea * 2 * 8.5).toFixed(2)}` },
-      { name: "LI700 Surfactant", activeIngredient: "Surfactant", rate: "0.2 L/ha", usage: `${(totalArea * 0.2).toFixed(1)} L`, cost: `$${(totalArea * 0.2 * 15).toFixed(2)}` },
-      { name: "Ammonium Sulphate", activeIngredient: "Nitrogen\nSulphur", rate: "1 kg/ha", usage: `${(totalArea * 1).toFixed(0)} kg`, cost: `$${(totalArea * 1 * 1.2).toFixed(2)}` },
+      {
+        name: "Glyphosate 450",
+        activeIngredient: "Glyphosate",
+        rate: "2 L/ha",
+        usage: `${(totalArea * 2).toFixed(0)} L`,
+        cost: `$${(totalArea * 2 * 8.5).toFixed(2)}`,
+      },
+      {
+        name: "LI700 Surfactant",
+        activeIngredient: "Surfactant",
+        rate: "0.2 L/ha",
+        usage: `${(totalArea * 0.2).toFixed(1)} L`,
+        cost: `$${(totalArea * 0.2 * 15).toFixed(2)}`,
+      },
+      {
+        name: "Ammonium Sulphate",
+        activeIngredient: "Nitrogen\nSulphur",
+        rate: "1 kg/ha",
+        usage: `${(totalArea * 1).toFixed(0)} kg`,
+        cost: `$${(totalArea * 1 * 1.2).toFixed(2)}`,
+      },
     ]
 
     // Operations — pull actual operation names from records
-    const opNames = [...new Set(sortedRecords.map(r => r.operation_name || "Unknown"))]
-    const operations = opNames.map(name => ({
+    const opNames = [
+      ...new Set(sortedRecords.map((r) => r.operation_name || "Unknown")),
+    ]
+    const operations = opNames.map((name) => ({
       name,
       rate: "1 ha/ha",
       area: `${totalArea.toFixed(2)} ha`,
@@ -146,9 +205,19 @@
           const durH = Math.floor(durMin / 60)
           const durM = durMin % 60
           operatingHours.push({
-            date: entry.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }),
-            entry: entry.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-            exit: exit.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+            date: entry.toLocaleDateString([], {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            entry: entry.toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+            exit: exit.toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            }),
             duration: durH > 0 ? `${durH}h ${durM}m` : `${durM}m`,
             operator: r.operator_name || "Unknown",
           })
@@ -161,9 +230,19 @@
         const durH = Math.floor(durMin / 60)
         const durM = durMin % 60
         operatingHours.push({
-          date: entry.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }),
-          entry: entry.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-          exit: exit.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          date: entry.toLocaleDateString([], {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+          entry: entry.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          exit: exit.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
           duration: durH > 0 ? `${durH}h ${durM}m` : `${durM}m`,
           operator: r.operator_name || "Unknown",
         })
@@ -171,17 +250,35 @@
     }
     // Total operating time
     const totalDurSec = operatingHours.reduce((sum, o) => {
-      const [h, m] = o.duration.includes("h") ? o.duration.match(/(\d+)h\s*(\d+)?m?/).slice(1).map(Number) : [0, parseInt(o.duration)]
+      const [h, m] = o.duration.includes("h")
+        ? o.duration
+            .match(/(\d+)h\s*(\d+)?m?/)
+            .slice(1)
+            .map(Number)
+        : [0, parseInt(o.duration)]
       return sum + (h || 0) * 3600 + (m || 0) * 60
     }, 0)
     const totalH = Math.floor(totalDurSec / 3600)
     const totalM = Math.floor((totalDurSec % 3600) / 60)
-    const totalOperatingTime = totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`
+    const totalOperatingTime =
+      totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`
 
     reportData = {
       crop: "Wheat",
-      started: new Date(startTime).toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
-      completed: new Date(endTime).toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+      started: new Date(startTime).toLocaleString([], {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      completed: new Date(endTime).toLocaleString([], {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
       treatedArea: totalArea.toFixed(2),
       totalDistance: totalDistance.toFixed(2),
       operators,
@@ -223,7 +320,12 @@
       `Treated Area: ${reportData.treatedArea} ha`,
       `Total Distance: ${reportData.totalDistance} km`,
       `Records: ${sortedRecords.length}`,
-      ...(includeOperators ? [`Operators: ${reportData.operators}`, `Total Operating Hours: ${reportData.totalOperatingTime}`] : []),
+      ...(includeOperators
+        ? [
+            `Operators: ${reportData.operators}`,
+            `Total Operating Hours: ${reportData.totalOperatingTime}`,
+          ]
+        : []),
     ]
     for (const line of summary) {
       doc.text(line, margin, y)
@@ -249,7 +351,10 @@
 
     // Products
     if (includeProducts && reportData.products?.length) {
-      if (y > pageH - 80) { doc.addPage(); y = margin }
+      if (y > pageH - 80) {
+        doc.addPage()
+        y = margin
+      }
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
       doc.text("Products Applied", margin, y)
@@ -258,14 +363,24 @@
       const pCols = ["Product", "Active Ingredient", "Rate", "Usage", "Cost"]
       const pColW = [0.22, 0.22, 0.14, 0.18, 0.18]
       let cx = margin
-      pCols.forEach(h => { doc.setFont("helvetica", "bold"); doc.text(h, cx, y); cx += pColW[pCols.indexOf(h)] * (pageW - margin * 2) })
+      pCols.forEach((h) => {
+        doc.setFont("helvetica", "bold")
+        doc.text(h, cx, y)
+        cx += pColW[pCols.indexOf(h)] * (pageW - margin * 2)
+      })
       y += 12
       doc.setFont("helvetica", "normal")
       for (const p of reportData.products) {
-        if (y > pageH - 30) { doc.addPage(); y = margin }
+        if (y > pageH - 30) {
+          doc.addPage()
+          y = margin
+        }
         cx = margin
         const vals = [p.name, p.activeIngredient, p.rate, p.usage, p.cost]
-        vals.forEach((v, i) => { doc.text(String(v).split("\n").join(" / "), cx, y); cx += pColW[i] * (pageW - margin * 2) })
+        vals.forEach((v, i) => {
+          doc.text(String(v).split("\n").join(" / "), cx, y)
+          cx += pColW[i] * (pageW - margin * 2)
+        })
         y += 11
       }
       y += 10
@@ -273,23 +388,40 @@
 
     // Operating hours
     if (includeOperators && reportData.operatingHours?.length) {
-      if (y > pageH - 80) { doc.addPage(); y = margin }
+      if (y > pageH - 80) {
+        doc.addPage()
+        y = margin
+      }
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
-      doc.text(`Operating Hours (Total: ${reportData.totalOperatingTime})`, margin, y)
+      doc.text(
+        `Operating Hours (Total: ${reportData.totalOperatingTime})`,
+        margin,
+        y,
+      )
       y += 14
       doc.setFontSize(9)
       const ohCols = ["Date", "Entry", "Exit", "Duration", "Operator"]
       const ohColW = [0.24, 0.16, 0.16, 0.16, 0.28]
       let cx = margin
-      ohCols.forEach((h, i) => { doc.setFont("helvetica", "bold"); doc.text(h, cx, y); cx += ohColW[i] * (pageW - margin * 2) })
+      ohCols.forEach((h, i) => {
+        doc.setFont("helvetica", "bold")
+        doc.text(h, cx, y)
+        cx += ohColW[i] * (pageW - margin * 2)
+      })
       y += 12
       doc.setFont("helvetica", "normal")
       for (const oh of reportData.operatingHours) {
-        if (y > pageH - 30) { doc.addPage(); y = margin }
+        if (y > pageH - 30) {
+          doc.addPage()
+          y = margin
+        }
         cx = margin
         const vals = [oh.date, oh.entry, oh.exit, oh.duration, oh.operator]
-        vals.forEach((v, i) => { doc.text(String(v), cx, y); cx += ohColW[i] * (pageW - margin * 2) })
+        vals.forEach((v, i) => {
+          doc.text(String(v), cx, y)
+          cx += ohColW[i] * (pageW - margin * 2)
+        })
         y += 11
       }
       y += 10
@@ -297,23 +429,52 @@
 
     // Weather
     if (includeWeather && reportData.weather?.length) {
-      if (y > pageH - 80) { doc.addPage(); y = margin }
+      if (y > pageH - 80) {
+        doc.addPage()
+        y = margin
+      }
       doc.setFont("helvetica", "bold")
       doc.text("Weather Records", margin, y)
       y += 14
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
-      const wCols = ["Time", "Conditions", "Temp", "Wind", "Gust", "Humidity", "Delta T"]
+      const wCols = [
+        "Time",
+        "Conditions",
+        "Temp",
+        "Wind",
+        "Gust",
+        "Humidity",
+        "Delta T",
+      ]
       const wColW = [0.22, 0.16, 0.08, 0.16, 0.1, 0.1, 0.1]
       let cx = margin
-      wCols.forEach((h, i) => { doc.setFont("helvetica", "bold"); doc.text(h, cx, y); cx += wColW[i] * (pageW - margin * 2) })
+      wCols.forEach((h, i) => {
+        doc.setFont("helvetica", "bold")
+        doc.text(h, cx, y)
+        cx += wColW[i] * (pageW - margin * 2)
+      })
       y += 12
       doc.setFont("helvetica", "normal")
       for (const w of reportData.weather) {
-        if (y > pageH - 30) { doc.addPage(); y = margin }
+        if (y > pageH - 30) {
+          doc.addPage()
+          y = margin
+        }
         cx = margin
-        const vals = [w.time, w.conditions, `${w.temp}°C`, `${w.windSpeed} km/h ${w.windDir}`, `${w.gust} km/h`, `${w.humidity}%`, w.deltaT]
-        vals.forEach((v, i) => { doc.text(String(v), cx, y); cx += wColW[i] * (pageW - margin * 2) })
+        const vals = [
+          w.time,
+          w.conditions,
+          `${w.temp}°C`,
+          `${w.windSpeed} km/h ${w.windDir}`,
+          `${w.gust} km/h`,
+          `${w.humidity}%`,
+          w.deltaT,
+        ]
+        vals.forEach((v, i) => {
+          doc.text(String(v), cx, y)
+          cx += wColW[i] * (pageW - margin * 2)
+        })
         y += 11
       }
       y += 10
@@ -321,23 +482,40 @@
 
     // Operations
     if (reportData.operations?.length) {
-      if (y > pageH - 60) { doc.addPage(); y = margin }
+      if (y > pageH - 60) {
+        doc.addPage()
+        y = margin
+      }
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
       doc.text("Operations", margin, y)
       y += 14
       doc.setFontSize(9)
-      const oCols = includeProducts ? ["Operation", "Rate", "Area", "Cost"] : ["Operation", "Rate", "Area"]
+      const oCols = includeProducts
+        ? ["Operation", "Rate", "Area", "Cost"]
+        : ["Operation", "Rate", "Area"]
       const oColW = includeProducts ? [0.35, 0.2, 0.2, 0.2] : [0.4, 0.3, 0.3]
       let cx = margin
-      oCols.forEach(h => { doc.setFont("helvetica", "bold"); doc.text(h, cx, y); cx += oColW[oCols.indexOf(h)] * (pageW - margin * 2) })
+      oCols.forEach((h) => {
+        doc.setFont("helvetica", "bold")
+        doc.text(h, cx, y)
+        cx += oColW[oCols.indexOf(h)] * (pageW - margin * 2)
+      })
       y += 12
       doc.setFont("helvetica", "normal")
       for (const op of reportData.operations) {
-        if (y > pageH - 30) { doc.addPage(); y = margin }
+        if (y > pageH - 30) {
+          doc.addPage()
+          y = margin
+        }
         cx = margin
-        const vals = includeProducts ? [op.name, op.rate, op.area, op.cost] : [op.name, op.rate, op.area]
-        vals.forEach((v, i) => { doc.text(String(v), cx, y); cx += oColW[i] * (pageW - margin * 2) })
+        const vals = includeProducts
+          ? [op.name, op.rate, op.area, op.cost]
+          : [op.name, op.rate, op.area]
+        vals.forEach((v, i) => {
+          doc.text(String(v), cx, y)
+          cx += oColW[i] * (pageW - margin * 2)
+        })
         y += 11
       }
     }
@@ -363,12 +541,19 @@
     highlightTrailLoading = true
     highlightTrailId = trailId
     try {
-      const { data, error } = await supabase.rpc("get_trail_geojson", { p_trail_id: trailId })
+      const { data, error } = await supabase.rpc("get_trail_geojson", {
+        p_trail_id: trailId,
+      })
       if (error) throw error
-      if (data?.path_geojson?.type === "LineString" && data.path_geojson.coordinates?.length >= 2) {
+      if (
+        data?.path_geojson?.type === "LineString" &&
+        data.path_geojson.coordinates?.length >= 2
+      ) {
         highlightPath = data.path_geojson
         updateHighlightTrail()
-        console.log(`[FieldOverlay] Loaded full trail: ${data.path_geojson.coordinates.length} points`)
+        console.log(
+          `[FieldOverlay] Loaded full trail: ${data.path_geojson.coordinates.length} points`,
+        )
       } else {
         console.error("[FieldOverlay] Invalid trail GeoJSON:", data)
         highlightTrailId = null
@@ -399,9 +584,18 @@
   // High-contrast palette optimized for satellite imagery visibility.
   // 12 colors — enough for most field views without adjacent duplicates.
   const TRAIL_COLORS = [
-    "#ef4444", "#3b82f6", "#22c55e", "#f97316",
-    "#a855f7", "#06b6d4", "#eab308", "#ec4899",
-    "#84cc16", "#f43f5e", "#8b5cf6", "#14b8a6",
+    "#ef4444",
+    "#3b82f6",
+    "#22c55e",
+    "#f97316",
+    "#a855f7",
+    "#06b6d4",
+    "#eab308",
+    "#ec4899",
+    "#84cc16",
+    "#f43f5e",
+    "#8b5cf6",
+    "#14b8a6",
   ]
 
   // Deterministic color assignment: hash the record ID to a stable index.
@@ -413,16 +607,20 @@
     if (record.id) {
       let hash = 0
       const s = String(record.id)
-      for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0
+      for (let i = 0; i < s.length; i++)
+        hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0
       return TRAIL_COLORS[Math.abs(hash) % TRAIL_COLORS.length]
     }
     return TRAIL_COLORS[idx % TRAIL_COLORS.length]
   }
 
   // Compute the time range from records
-  $: recordTimes = records.map(r => new Date(r.start_time).getTime()).sort((a, b) => a - b)
+  $: recordTimes = records
+    .map((r) => new Date(r.start_time).getTime())
+    .sort((a, b) => a - b)
   $: timeMin = recordTimes.length > 0 ? recordTimes[0] : Date.now() - 86400000
-  $: timeMax = recordTimes.length > 0 ? recordTimes[recordTimes.length - 1] : Date.now()
+  $: timeMax =
+    recordTimes.length > 0 ? recordTimes[recordTimes.length - 1] : Date.now()
 
   // Auto-escalate time range on initial load only: start at 7d, expand until at least one record is visible
   let autoEscalationDone = false
@@ -437,7 +635,7 @@
       { mode: "all", span: Infinity },
     ]
     for (const step of escalationSteps) {
-      const hasRecords = recordTimes.some(t => t >= now - step.span)
+      const hasRecords = recordTimes.some((t) => t >= now - step.span)
       if (hasRecords || step.mode === "all") {
         rangeMode = step.mode
         break
@@ -451,7 +649,13 @@
       sliderMin = timeMin
       sliderMax = timeMax
     } else {
-      const periods: Record<string, number> = { "1d": 86400000, "7d": 604800000, "30d": 2592000000, "3m": 7776000000, "1y": 31536000000 }
+      const periods: Record<string, number> = {
+        "1d": 86400000,
+        "7d": 604800000,
+        "30d": 2592000000,
+        "3m": 7776000000,
+        "1y": 31536000000,
+      }
       const span = periods[rangeMode] || 604800000
       sliderMax = Date.now()
       sliderMin = sliderMax - span
@@ -469,46 +673,66 @@
   function getFilteredRecords() {
     // In locked mode, show all records regardless of slider
     if (lockedMode) return records
-    return records.filter(r => {
+    return records.filter((r) => {
       const t = new Date(r.start_time).getTime()
       return t >= sliderStart && t <= sliderEnd
     })
   }
 
   // Reactive version for stats display
-  $: filteredRecords = records.filter(r => {
+  $: filteredRecords = records.filter((r) => {
     const t = new Date(r.start_time).getTime()
     if (t < sliderStart || t > sliderEnd) return false
-    if (selectedOperationId && r.operation_id !== selectedOperationId) return false
+    if (selectedOperationId && r.operation_id !== selectedOperationId)
+      return false
     return true
   })
 
   // Sorted by start_time — MUST match renderTrails ordering for index-based layer IDs
-  $: sortedRecords = filteredRecords.slice().sort((a, b) =>
-    new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-  )
+  $: sortedRecords = filteredRecords
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+    )
 
   // Available operations from records
   $: availableOperations = records
-    .filter((r, i, arr) => arr.findIndex(x => x.operation_id === r.operation_id) === i)
-    .map(r => ({ id: r.operation_id, name: r.operation_name || "Unknown" }))
+    .filter(
+      (r, i, arr) =>
+        arr.findIndex((x) => x.operation_id === r.operation_id) === i,
+    )
+    .map((r) => ({ id: r.operation_id, name: r.operation_name || "Unknown" }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // Format slider positions to dates
-  $: sliderStartPct = sliderMax > sliderMin ? ((sliderStart - sliderMin) / (sliderMax - sliderMin)) * 100 : 0
-  $: sliderEndPct = sliderMax > sliderMin ? ((sliderEnd - sliderMin) / (sliderMax - sliderMin)) * 100 : 100
+  $: sliderStartPct =
+    sliderMax > sliderMin
+      ? ((sliderStart - sliderMin) / (sliderMax - sliderMin)) * 100
+      : 0
+  $: sliderEndPct =
+    sliderMax > sliderMin
+      ? ((sliderEnd - sliderMin) / (sliderMax - sliderMin)) * 100
+      : 100
 
   // Tick marks for each record's start time along the slider
-  $: sliderTicks = records.map(r => {
+  $: sliderTicks = records.map((r) => {
     const t = new Date(r.start_time).getTime()
     if (sliderMax > sliderMin) {
-      return Math.max(0, Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100))
+      return Math.max(
+        0,
+        Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100),
+      )
     }
     return 0
   })
 
   function formatSliderDate(ts: number): string {
-    return new Date(ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
+    return new Date(ts).toLocaleDateString([], {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
 
   // Minimum gap between handles (1 hour)
@@ -546,32 +770,62 @@
 
   function getBoundsFromBoundary(boundary: any): mapboxgl.LngLatBoundsLike {
     const coords = getAllOuterRings(boundary)
-    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+    let minLng = Infinity,
+      minLat = Infinity,
+      maxLng = -Infinity,
+      maxLat = -Infinity
     for (const [lng, lat] of coords) {
-      minLng = Math.min(minLng, lng); minLat = Math.min(minLat, lat)
-      maxLng = Math.max(maxLng, lng); maxLat = Math.max(maxLat, lat)
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
     }
-    return [[minLng, minLat], [maxLng, maxLat]] as mapboxgl.LngLatBoundsLike
+    return [
+      [minLng, minLat],
+      [maxLng, maxLat],
+    ] as mapboxgl.LngLatBoundsLike
   }
 
   function formatDuration(seconds: number): string {
     if (!seconds) return "0s"
-    const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60)
+    const h = Math.floor(seconds / 3600),
+      m = Math.floor((seconds % 3600) / 60)
     if (h > 0) return `${h}h ${m}m`
     if (m > 0) return `${m}m`
     return `${seconds}s`
   }
-  function formatDate(ts: string): string { return new Date(ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) }
-  function formatTime(ts: string): string { return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) }
-  function formatHa(ha: any): string { return `${parseFloat(String(ha || 0)).toFixed(2)} ha` }
-  function formatKm(km: any): string { return `${parseFloat(String(km || 0)).toFixed(2)} km` }
-  function formatVehicleType(type: string): string { return type ? type.replace(/([A-Z])/g, " $1").trim() : "Unknown" }
+  function formatDate(ts: string): string {
+    return new Date(ts).toLocaleDateString([], {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  }
+  function formatTime(ts: string): string {
+    return new Date(ts).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  }
+  function formatHa(ha: any): string {
+    return `${parseFloat(String(ha || 0)).toFixed(2)} ha`
+  }
+  function formatKm(km: any): string {
+    return `${parseFloat(String(km || 0)).toFixed(2)} km`
+  }
+  function formatVehicleType(type: string): string {
+    return type ? type.replace(/([A-Z])/g, " $1").trim() : "Unknown"
+  }
 
   // Get the centroid of a polygon for label placement
   function getFieldCentroid(boundary: any): [number, number] | null {
     const coords = getAllOuterRings(boundary)
-    let lng = 0, lat = 0
-    for (const [cLng, cLat] of coords) { lng += cLng; lat += cLat }
+    let lng = 0,
+      lat = 0
+    for (const [cLng, cLat] of coords) {
+      lng += cLng
+      lat += cLat
+    }
     return coords.length > 0 ? [lng / coords.length, lat / coords.length] : null
   }
 
@@ -588,20 +842,30 @@
   function highlightSelectedTrail() {
     if (!map) return
     // Reset all trail outline layers
-    const trailOutlines = map.getStyle().layers.filter(
-      (l: any) => l.id.startsWith("trail-") && l.id.endsWith("-outline")
-    )
+    const trailOutlines = map
+      .getStyle()
+      .layers.filter(
+        (l: any) => l.id.startsWith("trail-") && l.id.endsWith("-outline"),
+      )
     for (const layer of trailOutlines) {
-      try { map.setPaintProperty(layer.id, "line-opacity", 0) }
-      catch (err) { /* ignore */ }
+      try {
+        map.setPaintProperty(layer.id, "line-opacity", 0)
+      } catch (err) {
+        /* ignore */
+      }
     }
     if (!selectedTrail) return
 
     // Build list of base IDs to highlight
     const baseIds: string[] = []
-    if (selectedTrail.intervalIdx !== undefined && selectedTrail.intervalIdx !== null) {
+    if (
+      selectedTrail.intervalIdx !== undefined &&
+      selectedTrail.intervalIdx !== null
+    ) {
       // Single interval
-      baseIds.push(`trail-${selectedTrail.recordIdx}-${selectedTrail.intervalIdx}`)
+      baseIds.push(
+        `trail-${selectedTrail.recordIdx}-${selectedTrail.intervalIdx}`,
+      )
     } else {
       // All intervals for this record
       const record = sortedRecords[selectedTrail.recordIdx]
@@ -617,8 +881,11 @@
     for (const baseId of baseIds) {
       const outlineId = `${baseId}-outline`
       if (map.getLayer(outlineId)) {
-        try { map.setPaintProperty(outlineId, "line-opacity", 1.0) }
-        catch (err) { /* ignore */ }
+        try {
+          map.setPaintProperty(outlineId, "line-opacity", 1.0)
+        } catch (err) {
+          /* ignore */
+        }
       }
     }
   }
@@ -630,10 +897,14 @@
     console.log(`[FieldOverlay] renderTrails: ${activeRecords.length} records`)
 
     // Remove existing trail layers/sources
-    for (const layer of map.getStyle().layers.filter((l: any) => l.id.startsWith("trail-"))) {
+    for (const layer of map
+      .getStyle()
+      .layers.filter((l: any) => l.id.startsWith("trail-"))) {
       if (map.getLayer(layer.id)) map.removeLayer(layer.id)
     }
-    for (const source of Object.keys(map.getStyle().sources).filter(s => s.startsWith("trail-"))) {
+    for (const source of Object.keys(map.getStyle().sources).filter((s) =>
+      s.startsWith("trail-"),
+    )) {
       if (map.getSource(source)) map.removeSource(source)
     }
 
@@ -658,7 +929,8 @@
             data: {
               type: "Feature",
               properties: {
-                recordIdx, intervalIdx,
+                recordIdx,
+                intervalIdx,
                 recordId: record.id,
                 operator: record.operator_name || "Unknown",
                 vehicle: formatVehicleType(record.vehicle_type),
@@ -676,7 +948,9 @@
 
           // White outline layer (under main trail, slightly wider — shown when selected)
           map!.addLayer({
-            id: `${layerId}-outline`, type: "line", source: sourceId,
+            id: `${layerId}-outline`,
+            type: "line",
+            source: sourceId,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
               "line-color": "#ffffff",
@@ -686,7 +960,9 @@
           })
 
           map!.addLayer({
-            id: layerId, type: "line", source: sourceId,
+            id: layerId,
+            type: "line",
+            source: sourceId,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
               "line-color": color,
@@ -703,20 +979,47 @@
               data: {
                 type: "FeatureCollection",
                 features: [
-                  { type: "Feature", properties: { type: "entry" }, geometry: { type: "Point", coordinates: coords[0] } },
-                  { type: "Feature", properties: { type: "exit" }, geometry: { type: "Point", coordinates: coords[coords.length - 1] } },
+                  {
+                    type: "Feature",
+                    properties: { type: "entry" },
+                    geometry: { type: "Point", coordinates: coords[0] },
+                  },
+                  {
+                    type: "Feature",
+                    properties: { type: "exit" },
+                    geometry: {
+                      type: "Point",
+                      coordinates: coords[coords.length - 1],
+                    },
+                  },
                 ],
               },
             })
             map!.addLayer({
-              id: `${layerId}-markers-entry`, type: "circle", source: markerSourceId,
+              id: `${layerId}-markers-entry`,
+              type: "circle",
+              source: markerSourceId,
               filter: ["==", ["get", "type"], "entry"],
-              paint: { "circle-radius": 6, "circle-color": "#22c55e", "circle-stroke-width": 2, "circle-stroke-color": "#ffffff", "circle-opacity": 0.9 },
+              paint: {
+                "circle-radius": 6,
+                "circle-color": "#22c55e",
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+                "circle-opacity": 0.9,
+              },
             })
             map!.addLayer({
-              id: `${layerId}-markers-exit`, type: "circle", source: markerSourceId,
+              id: `${layerId}-markers-exit`,
+              type: "circle",
+              source: markerSourceId,
               filter: ["==", ["get", "type"], "exit"],
-              paint: { "circle-radius": 4, "circle-color": "#ef4444", "circle-stroke-width": 2, "circle-stroke-color": "#ffffff", "circle-opacity": 0.9 },
+              paint: {
+                "circle-radius": 4,
+                "circle-color": "#ef4444",
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+                "circle-opacity": 0.9,
+              },
             })
           }
         })
@@ -727,19 +1030,40 @@
           type: "geojson",
           data: {
             type: "Feature",
-            properties: { recordIdx, recordId: record.id, operator: record.operator_name || "Unknown", vehicle: formatVehicleType(record.vehicle_type), date: formatDate(record.start_time), area: formatHa(record.area_hectares), distance: formatKm(record.distance_km), color },
+            properties: {
+              recordIdx,
+              recordId: record.id,
+              operator: record.operator_name || "Unknown",
+              vehicle: formatVehicleType(record.vehicle_type),
+              date: formatDate(record.start_time),
+              area: formatHa(record.area_hectares),
+              distance: formatKm(record.distance_km),
+              color,
+            },
             geometry: record.field_path,
           },
         })
         map!.addLayer({
-          id: `${layerId}-outline`, type: "line", source: sourceId,
+          id: `${layerId}-outline`,
+          type: "line",
+          source: sourceId,
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#ffffff", "line-width": calculateZoomDependentWidth(trailWidth, 1.3), "line-opacity": 0 },
+          paint: {
+            "line-color": "#ffffff",
+            "line-width": calculateZoomDependentWidth(trailWidth, 1.3),
+            "line-opacity": 0,
+          },
         })
         map!.addLayer({
-          id: layerId, type: "line", source: sourceId,
+          id: layerId,
+          type: "line",
+          source: sourceId,
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": color, "line-width": calculateZoomDependentWidth(trailWidth, 1), "line-opacity": 0.85 },
+          paint: {
+            "line-color": color,
+            "line-width": calculateZoomDependentWidth(trailWidth, 1),
+            "line-opacity": 0.85,
+          },
         })
       }
     })
@@ -760,8 +1084,16 @@
   // Get the current trail layer IDs (recomputed each render)
   function getTrailLayerIds(): string[] {
     if (!map) return []
-    return map.getStyle().layers
-      .filter((l: any) => l.id.startsWith("trail-") && !l.id.endsWith("-outline") && !l.id.endsWith("-entry") && !l.id.endsWith("-exit") && l.type === "line")
+    return map
+      .getStyle()
+      .layers.filter(
+        (l: any) =>
+          l.id.startsWith("trail-") &&
+          !l.id.endsWith("-outline") &&
+          !l.id.endsWith("-entry") &&
+          !l.id.endsWith("-exit") &&
+          l.type === "line",
+      )
       .map((l: any) => l.id)
   }
 
@@ -773,16 +1105,24 @@
   function onMapMouseMove(e: any) {
     if (!map) return
     const trailLayerIds = getTrailLayerIds()
-    const features = map.queryRenderedFeatures(e.point, { layers: trailLayerIds })
+    const features = map.queryRenderedFeatures(e.point, {
+      layers: trailLayerIds,
+    })
 
     if (features.length > 0) {
       map.getCanvas().style.cursor = "pointer"
       const props = features[0].properties
       if (!props) return
       if (popup) popup.remove()
-      popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 10, className: "trail-popup" })
+      popup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 10,
+        className: "trail-popup",
+      })
         .setLngLat(e.lngLat)
-        .setHTML(`
+        .setHTML(
+          `
           <div style="padding: 8px 12px; font-size: 13px; color: #333; min-width: 180px;">
             <div style="font-weight: 600; margin-bottom: 6px; color: ${props.color};">${props.date}</div>
             <div style="margin-bottom: 4px;">👤 ${props.operator}</div>
@@ -791,11 +1131,15 @@
             <div style="margin-bottom: 4px;">📐 ${props.area}</div>
             <div>📏 ${props.distance}</div>
           </div>
-        `)
+        `,
+        )
         .addTo(map)
     } else {
       map.getCanvas().style.cursor = "default"
-      if (popup) { popup.remove(); popup = null }
+      if (popup) {
+        popup.remove()
+        popup = null
+      }
     }
   }
 
@@ -803,7 +1147,10 @@
   function onMapMouseLeave() {
     if (!map) return
     map.getCanvas().style.cursor = "default"
-    if (popup) { popup.remove(); popup = null }
+    if (popup) {
+      popup.remove()
+      popup = null
+    }
   }
 
   // Select a trail from the legend — highlights ALL intervals by default
@@ -812,7 +1159,10 @@
     highlightTrailId = null
     highlightPath = null
     updateHighlightTrail()
-    if (selectedTrail?.recordId === record.id && selectedTrail?.intervalIdx === null) {
+    if (
+      selectedTrail?.recordId === record.id &&
+      selectedTrail?.intervalIdx === null
+    ) {
       selectedTrail = null
       restoreLayerOrder()
       highlightSelectedTrail()
@@ -821,7 +1171,7 @@
     selectedTrail = {
       recordIdx: idx,
       recordId: record.id,
-      intervalIdx: null,  // null = highlight all intervals
+      intervalIdx: null, // null = highlight all intervals
       color: getTrailColor(record, idx),
       date: formatDate(record.start_time),
       operator: record.operator_name || "Unknown",
@@ -842,7 +1192,10 @@
     highlightTrailId = null
     highlightPath = null
     updateHighlightTrail()
-    if (selectedTrail?.recordId === record.id && selectedTrail?.intervalIdx === intervalIdx) {
+    if (
+      selectedTrail?.recordId === record.id &&
+      selectedTrail?.intervalIdx === intervalIdx
+    ) {
       selectedTrail = null
       restoreLayerOrder()
       highlightSelectedTrail()
@@ -887,7 +1240,9 @@
   function onMapClick(e: any) {
     if (!map) return
     const trailLayerIds = getTrailLayerIds()
-    const features = map.queryRenderedFeatures(e.point, { layers: trailLayerIds })
+    const features = map.queryRenderedFeatures(e.point, {
+      layers: trailLayerIds,
+    })
 
     if (features.length > 0) {
       // Clicked on a trail — select it
@@ -953,8 +1308,10 @@
     for (const baseId of baseIds) {
       if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
       if (map.getLayer(baseId)) map.moveLayer(baseId)
-      if (map.getLayer(`${baseId}-markers-entry`)) map.moveLayer(`${baseId}-markers-entry`)
-      if (map.getLayer(`${baseId}-markers-exit`)) map.moveLayer(`${baseId}-markers-exit`)
+      if (map.getLayer(`${baseId}-markers-entry`))
+        map.moveLayer(`${baseId}-markers-entry`)
+      if (map.getLayer(`${baseId}-markers-exit`))
+        map.moveLayer(`${baseId}-markers-exit`)
     }
     if (map.getLayer("field-label")) map.moveLayer("field-label")
   }
@@ -967,14 +1324,18 @@
       if (record.interval_paths?.length) {
         for (let i = 0; i < record.interval_paths.length; i++) {
           const baseId = `trail-${recordIdx}-${i}`
-          if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+          if (map.getLayer(`${baseId}-outline`))
+            map.moveLayer(`${baseId}-outline`)
           if (map.getLayer(baseId)) map.moveLayer(baseId)
-          if (map.getLayer(`${baseId}-markers-entry`)) map.moveLayer(`${baseId}-markers-entry`)
-          if (map.getLayer(`${baseId}-markers-exit`)) map.moveLayer(`${baseId}-markers-exit`)
+          if (map.getLayer(`${baseId}-markers-entry`))
+            map.moveLayer(`${baseId}-markers-entry`)
+          if (map.getLayer(`${baseId}-markers-exit`))
+            map.moveLayer(`${baseId}-markers-exit`)
         }
       } else {
         const baseId = `trail-${recordIdx}`
-        if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+        if (map.getLayer(`${baseId}-outline`))
+          map.moveLayer(`${baseId}-outline`)
         if (map.getLayer(baseId)) map.moveLayer(baseId)
       }
     }
@@ -993,33 +1354,66 @@
     document.body.style.width = "100%"
     const allRings = getAllOuterRings(fieldBoundary)
     const fp = (allRings[0] as any)?.[0]
-    console.log(`[Overlay] Mounting field="${fieldName}" type=${fieldBoundary.type} coords=[${fp?.[0]},${fp?.[1]}] rings=${allRings.length} records=${records.length}`)
+    console.log(
+      `[Overlay] Mounting field="${fieldName}" type=${fieldBoundary.type} coords=[${fp?.[0]},${fp?.[1]}] rings=${allRings.length} records=${records.length}`,
+    )
     mapboxgl.accessToken = PUBLIC_MAPBOX_ACCESS_TOKEN
     const fieldBBox = getBoundsFromBoundary(fieldBoundary)
     // Calculate max zoom bounds — slightly larger than the field bbox
-    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-    for (const [lng, lat] of allRings) { minLng = Math.min(minLng, lng); minLat = Math.min(minLat, lat); maxLng = Math.max(maxLng, lng); maxLat = Math.max(maxLat, lat) }
-    const lngSpan = maxLng - minLng, latSpan = maxLat - minLat
+    let minLng = Infinity,
+      minLat = Infinity,
+      maxLng = -Infinity,
+      maxLat = -Infinity
+    for (const [lng, lat] of allRings) {
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
+    }
+    const lngSpan = maxLng - minLng,
+      latSpan = maxLat - minLat
     const maxBounds: mapboxgl.LngLatBoundsLike = [
       [minLng - lngSpan * 3.0, minLat - latSpan * 3.0],
       [maxLng + lngSpan * 3.0, maxLat + latSpan * 3.0],
     ]
 
     map = new mapboxgl.Map({
-      container, style: "mapbox://styles/mapbox/satellite-v9",
+      container,
+      style: "mapbox://styles/mapbox/satellite-v9",
       bounds: fieldBBox,
       fitBoundsOptions: { padding: 40 },
       maxBounds, // prevent panning outside the field area
-      interactive: !lockedMode, attributionControl: false,
+      interactive: !lockedMode,
+      attributionControl: false,
       preserveDrawingBuffer: true, // required for toDataURL() snapshot in reports
-      dragPan: !lockedMode, scrollZoom: !lockedMode,
-      boxZoom: !lockedMode, doubleClickZoom: !lockedMode,
-      touchZoomRotate: !lockedMode, keyboard: !lockedMode,
+      dragPan: !lockedMode,
+      scrollZoom: !lockedMode,
+      boxZoom: !lockedMode,
+      doubleClickZoom: !lockedMode,
+      touchZoomRotate: !lockedMode,
+      keyboard: !lockedMode,
     })
     map.on("load", () => {
-      map!.addSource("field-boundary", { type: "geojson", data: { type: "Feature", properties: {}, geometry: fieldBoundary } })
-      map!.addLayer({ id: "field-fill", type: "fill", source: "field-boundary", paint: { "fill-color": "#22c55e", "fill-opacity": 0.08 } })
-      map!.addLayer({ id: "field-outline", type: "line", source: "field-boundary", paint: { "line-color": "#22c55e", "line-width": 2, "line-opacity": 0.8 } })
+      map!.addSource("field-boundary", {
+        type: "geojson",
+        data: { type: "Feature", properties: {}, geometry: fieldBoundary },
+      })
+      map!.addLayer({
+        id: "field-fill",
+        type: "fill",
+        source: "field-boundary",
+        paint: { "fill-color": "#22c55e", "fill-opacity": 0.08 },
+      })
+      map!.addLayer({
+        id: "field-outline",
+        type: "line",
+        source: "field-boundary",
+        paint: {
+          "line-color": "#22c55e",
+          "line-width": 2,
+          "line-opacity": 0.8,
+        },
+      })
 
       // Field name + hectares label at centroid
       const centroid = getFieldCentroid(fieldBoundary)
@@ -1028,7 +1422,10 @@
           type: "geojson",
           data: {
             type: "Feature",
-            properties: { name: fieldName, area: (fieldAreaHa || totalArea).toFixed(1) + " ha" },
+            properties: {
+              name: fieldName,
+              area: (fieldAreaHa || totalArea).toFixed(1) + " ha",
+            },
             geometry: { type: "Point", coordinates: centroid },
           },
         })
@@ -1053,9 +1450,18 @@
       // Greyscale outside the field — use a very large mask (15x) to cover max zoom
       {
         const allRings = getAllOuterRings(fieldBoundary)
-        let minLngB = Infinity, minLatB = Infinity, maxLngB = -Infinity, maxLatB = -Infinity
-        for (const [lng, lat] of allRings) { minLngB = Math.min(minLngB, lng); minLatB = Math.min(minLatB, lat); maxLngB = Math.max(maxLngB, lng); maxLatB = Math.max(maxLatB, lat) }
-        const lngSpanB = maxLngB - minLngB, latSpanB = maxLatB - minLatB
+        let minLngB = Infinity,
+          minLatB = Infinity,
+          maxLngB = -Infinity,
+          maxLatB = -Infinity
+        for (const [lng, lat] of allRings) {
+          minLngB = Math.min(minLngB, lng)
+          minLatB = Math.min(minLatB, lat)
+          maxLngB = Math.max(maxLngB, lng)
+          maxLatB = Math.max(maxLatB, lat)
+        }
+        const lngSpanB = maxLngB - minLngB,
+          latSpanB = maxLatB - minLatB
         const outerRing: [number, number][] = [
           [minLngB - lngSpanB * 15, minLatB - latSpanB * 15],
           [maxLngB + lngSpanB * 15, minLatB - latSpanB * 15],
@@ -1064,24 +1470,51 @@
           [minLngB - lngSpanB * 15, minLatB - latSpanB * 15],
         ]
         // For multipolygon, use all outer rings as holes in the mask
-        const holeRings = fieldBoundary.type === "MultiPolygon"
-          ? fieldBoundary.coordinates.map((poly: number[][][]) => [...poly[0]].reverse() as [number, number][])
-          : [[...fieldBoundary.coordinates[0]].reverse() as [number, number][]]
+        const holeRings =
+          fieldBoundary.type === "MultiPolygon"
+            ? fieldBoundary.coordinates.map(
+                (poly: number[][][]) =>
+                  [...poly[0]].reverse() as [number, number][],
+              )
+            : [
+                [...fieldBoundary.coordinates[0]].reverse() as [
+                  number,
+                  number,
+                ][],
+              ]
         map!.addSource("greyscale-mask", {
           type: "geojson",
-          data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [outerRing, ...holeRings] } },
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [outerRing, ...holeRings],
+            },
+          },
         })
-        map!.addLayer({ id: "greyscale-overlay", type: "fill", source: "greyscale-mask", paint: { "fill-color": "#1a1a1a", "fill-opacity": 0.6 } })
+        map!.addLayer({
+          id: "greyscale-overlay",
+          type: "fill",
+          source: "greyscale-mask",
+          paint: { "fill-color": "#1a1a1a", "fill-opacity": 0.6 },
+        })
       }
 
       mapLoaded = true
-      console.log("[FieldOverlay] Map loaded, rendering trails", { rangeInitialized, recordsCount: records.length, lockedMode })
+      console.log("[FieldOverlay] Map loaded, rendering trails", {
+        rangeInitialized,
+        recordsCount: records.length,
+        lockedMode,
+      })
       renderTrails()
     })
   })
 
   // Re-render when filter changes (debounced to prevent flicker)
-  $: if (mapLoaded && rangeInitialized && filteredRecords) { scheduleRender() }
+  $: if (mapLoaded && rangeInitialized && filteredRecords) {
+    scheduleRender()
+  }
 
   onDestroy(() => {
     document.body.style.overflow = ""
@@ -1091,11 +1524,19 @@
     document.removeEventListener("mouseup", onPanelDragEnd)
     document.removeEventListener("touchmove", onPanelDragMove)
     document.removeEventListener("touchend", onPanelDragEnd)
-    if (renderTimer) clearTimeout(renderTimer); if (popup) popup.remove(); if (map) map.remove()
+    if (renderTimer) clearTimeout(renderTimer)
+    if (popup) popup.remove()
+    if (map) map.remove()
   })
 
-  $: totalArea = filteredRecords.reduce((sum, r) => sum + parseFloat(r.area_hectares || 0), 0)
-  $: totalDistance = filteredRecords.reduce((sum, r) => sum + parseFloat(r.distance_km || 0), 0)
+  $: totalArea = filteredRecords.reduce(
+    (sum, r) => sum + parseFloat(r.area_hectares || 0),
+    0,
+  )
+  $: totalDistance = filteredRecords.reduce(
+    (sum, r) => sum + parseFloat(r.distance_km || 0),
+    0,
+  )
 
   // Render/remove the full trail highlight path
   function updateHighlightTrail() {
@@ -1115,14 +1556,27 @@
         data: { type: "Feature", properties: {}, geometry: highlightPath },
       })
       map.addLayer({
-        id: HIGHLIGHT_OUTLINE, type: "line", source: HIGHLIGHT_SOURCE,
+        id: HIGHLIGHT_OUTLINE,
+        type: "line",
+        source: HIGHLIGHT_SOURCE,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#000000", "line-width": 7, "line-opacity": 0.6 },
+        paint: {
+          "line-color": "#000000",
+          "line-width": 7,
+          "line-opacity": 0.6,
+        },
       })
       map.addLayer({
-        id: HIGHLIGHT_LAYER, type: "line", source: HIGHLIGHT_SOURCE,
+        id: HIGHLIGHT_LAYER,
+        type: "line",
+        source: HIGHLIGHT_SOURCE,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#fbbf24", "line-width": 3, "line-opacity": 0.95, "line-dasharray": [4, 2] },
+        paint: {
+          "line-color": "#fbbf24",
+          "line-width": 3,
+          "line-opacity": 0.95,
+          "line-dasharray": [4, 2],
+        },
       })
     }
   }
@@ -1137,12 +1591,15 @@
         <div class="stat-item">
           <FileText size={14} class="text-blue-400" />
           <span class="stat-value">{filteredRecords.length}</span>
-          <span class="stat-label">record{filteredRecords.length !== 1 ? "s" : ""}</span>
+          <span class="stat-label"
+            >record{filteredRecords.length !== 1 ? "s" : ""}</span
+          >
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <Ruler size={14} class="text-green-400" />
-          <span class="stat-value">{(fieldAreaHa || totalArea).toFixed(2)}</span>
+          <span class="stat-value">{(fieldAreaHa || totalArea).toFixed(2)}</span
+          >
           <span class="stat-label">ha</span>
         </div>
         <div class="stat-divider"></div>
@@ -1159,77 +1616,81 @@
   </div>
 
   {#if !lockedMode}
-  <!-- Timeline filter -->
-  <div class="timeline-filter">
-    <div class="range-selector">
-      <Calendar size={14} class="text-white/40" />
-      <span class="range-label">Last</span>
-      <select bind:value={rangeMode} class="range-select">
-        <option value="1d">1 Day</option>
-        <option value="7d">7 Days</option>
-        <option value="30d">1 Month</option>
-        <option value="3m">3 Months</option>
-        <option value="1y">1 Year</option>
-        <option value="all">All Time</option>
-      </select>
-    </div>
-
-    {#if availableOperations.length > 1}
+    <!-- Timeline filter -->
+    <div class="timeline-filter">
       <div class="range-selector">
-        <Layers size={14} class="text-white/40" />
-        <select bind:value={selectedOperationId} class="range-select">
-          <option value="">All Operations</option>
-          {#each availableOperations as op}
-            <option value={op.id}>{op.name}</option>
-          {/each}
+        <Calendar size={14} class="text-white/40" />
+        <span class="range-label">Last</span>
+        <select bind:value={rangeMode} class="range-select">
+          <option value="1d">1 Day</option>
+          <option value="7d">7 Days</option>
+          <option value="30d">1 Month</option>
+          <option value="3m">3 Months</option>
+          <option value="1y">1 Year</option>
+          <option value="all">All Time</option>
         </select>
       </div>
-    {/if}
 
-    <div class="slider-container">
-      <div class="slider-track">
-        <div
-          class="slider-range"
-          style="left: {sliderStartPct}%; right: {100 - sliderEndPct}%"
-        ></div>
-        <!-- Tick marks for each record's start time -->
-        {#if !lockedMode}
-          {#each sliderTicks as tickPct}
-            <div class="slider-tick" style="left: {tickPct}%"></div>
-          {/each}
-        {/if}
+      {#if availableOperations.length > 1}
+        <div class="range-selector">
+          <Layers size={14} class="text-white/40" />
+          <select bind:value={selectedOperationId} class="range-select">
+            <option value="">All Operations</option>
+            {#each availableOperations as op}
+              <option value={op.id}>{op.name}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      <div class="slider-container">
+        <div class="slider-track">
+          <div
+            class="slider-range"
+            style="left: {sliderStartPct}%; right: {100 - sliderEndPct}%"
+          ></div>
+          <!-- Tick marks for each record's start time -->
+          {#if !lockedMode}
+            {#each sliderTicks as tickPct}
+              <div class="slider-tick" style="left: {tickPct}%"></div>
+            {/each}
+          {/if}
+        </div>
+        <input
+          type="range"
+          class="slider-handle slider-start"
+          min={sliderMin}
+          max={sliderMax}
+          value={sliderStart}
+          on:input={onSliderStartChange}
+        />
+        <input
+          type="range"
+          class="slider-handle slider-end"
+          min={sliderMin}
+          max={sliderMax}
+          value={sliderEnd}
+          on:input={onSliderEndChange}
+        />
       </div>
-      <input
-        type="range"
-        class="slider-handle slider-start"
-        min={sliderMin}
-        max={sliderMax}
-        value={sliderStart}
-        on:input={onSliderStartChange}
-      />
-      <input
-        type="range"
-        class="slider-handle slider-end"
-        min={sliderMin}
-        max={sliderMax}
-        value={sliderEnd}
-        on:input={onSliderEndChange}
-      />
-    </div>
 
-    <div class="slider-labels">
-      <span class="slider-label-start">{formatSliderDate(sliderStart)}</span>
-      <span class="slider-label-end">{formatSliderDate(sliderEnd)}</span>
+      <div class="slider-labels">
+        <span class="slider-label-start">{formatSliderDate(sliderStart)}</span>
+        <span class="slider-label-end">{formatSliderDate(sliderEnd)}</span>
+      </div>
     </div>
-  </div>
   {/if}
 
   <!-- Map + sidebar in flex row (desktop: side by side; mobile: stacked) -->
   <div class="main-area">
     <div class="map-container" bind:this={container}></div>
 
-    <div class="info-panel" style="--panel-vh: {panelHeight > 0 ? panelHeight + 'vh' : 'auto'}">
-      <div class="info-panel-header"
+    <div
+      class="info-panel"
+      style="--panel-vh: {panelHeight > 0 ? panelHeight + 'vh' : 'auto'}"
+    >
+      <div
+        class="info-panel-header"
         role="button"
         tabindex="0"
         on:mousedown={onPanelDragStart}
@@ -1237,19 +1698,41 @@
       >
         <span class="panel-drag-handle"></span>
         <span class="info-panel-title">Legend</span>
-        <span class="info-panel-count">{sortedRecords.length} record{sortedRecords.length !== 1 ? "s" : ""}</span>
+        <span class="info-panel-count"
+          >{sortedRecords.length} record{sortedRecords.length !== 1
+            ? "s"
+            : ""}</span
+        >
       </div>
       <div class="info-panel-legend">
         {#each sortedRecords as record, i}
           {@const isSelected = selectedTrail?.recordId === record.id}
           {@const prevRecord = i > 0 ? sortedRecords[i - 1] : null}
-          {@const timeSincePrev = prevRecord ? formatTimeBetween(new Date(prevRecord.start_time).getTime(), new Date(record.start_time).getTime()) : null}
-          <button class="legend-item" class:active={isSelected} on:click={() => selectTrail(i, record)}>
-            <span class="legend-color" style="background: {getTrailColor(record, i)}"></span>
-            <span class="legend-date">{new Date(record.start_time).toLocaleDateString()}</span>
-            <span class="legend-operator">{record.operator_name || "Unknown"}</span>
+          {@const timeSincePrev = prevRecord
+            ? formatTimeBetween(
+                new Date(prevRecord.start_time).getTime(),
+                new Date(record.start_time).getTime(),
+              )
+            : null}
+          <button
+            class="legend-item"
+            class:active={isSelected}
+            on:click={() => selectTrail(i, record)}
+          >
+            <span
+              class="legend-color"
+              style="background: {getTrailColor(record, i)}"
+            ></span>
+            <span class="legend-date"
+              >{new Date(record.start_time).toLocaleDateString()}</span
+            >
+            <span class="legend-operator"
+              >{record.operator_name || "Unknown"}</span
+            >
             {#if record.intervals?.length > 1}
-              <span class="legend-intervals">{record.intervals.length} visits</span>
+              <span class="legend-intervals"
+                >{record.intervals.length} visits</span
+              >
             {/if}
             {#if timeSincePrev}
               <span class="legend-time-gap">↑ {timeSincePrev} before</span>
@@ -1268,12 +1751,18 @@
               {#if selectedTrail.intervalIdx !== null && selectedTrail.intervalIdx !== undefined}
                 <div class="legend-detail-row">
                   <Clock size={12} class="text-white/40" />
-                  <span>{selectedTrail.startTime} – {selectedTrail.endTime}</span>
+                  <span
+                    >{selectedTrail.startTime} – {selectedTrail.endTime}</span
+                  >
                 </div>
               {:else}
                 <div class="legend-detail-row">
                   <Clock size={12} class="text-white/40" />
-                  <span>{formatTime(record.start_time)} – {formatTime(record.end_time)}</span>
+                  <span
+                    >{formatTime(record.start_time)} – {formatTime(
+                      record.end_time,
+                    )}</span
+                  >
                 </div>
               {/if}
               <div class="legend-detail-row">
@@ -1294,10 +1783,15 @@
                     <button
                       class="interval-chip"
                       class:active={selectedTrail.intervalIdx === j}
-                      on:click|stopPropagation={() => selectInterval(i, record, j)}
+                      on:click|stopPropagation={() =>
+                        selectInterval(i, record, j)}
                     >
                       Visit {j + 1}
-                      <span class="interval-chip-time">{formatTime(interval.entry_time)} – {formatTime(interval.exit_time)}</span>
+                      <span class="interval-chip-time"
+                        >{formatTime(interval.entry_time)} – {formatTime(
+                          interval.exit_time,
+                        )}</span
+                      >
                     </button>
                   {/each}
                 </div>
@@ -1307,14 +1801,17 @@
                   class="show-trail-btn"
                   class:active={highlightTrailId === record.trail_id}
                   disabled={highlightTrailLoading}
-                  on:click|stopPropagation={() => showFullTrail(record.trail_id)}
+                  on:click|stopPropagation={() =>
+                    showFullTrail(record.trail_id)}
                 >
                   {#if highlightTrailLoading && highlightTrailId === record.trail_id}
                     <Loader2 size={12} class="animate-spin" />
                   {:else}
                     <MapPin size={12} />
                   {/if}
-                  {highlightTrailId === record.trail_id ? "Hide GPS trail" : "Show full GPS trail"}
+                  {highlightTrailId === record.trail_id
+                    ? "Hide GPS trail"
+                    : "Show full GPS trail"}
                 </button>
               {/if}
             </div>
@@ -1328,21 +1825,30 @@
           Generate Report
         </button>
       {/if}
-  </div>
+    </div>
   </div>
 
   <!-- Report panel -->
   {#if showReport}
-    <div class="report-overlay" role="button" tabindex="0" on:click|self={() => showReport = false} on:keydown={(e) => e.key === "Escape" && (showReport = false)}>
+    <div
+      class="report-overlay"
+      role="button"
+      tabindex="0"
+      on:click|self={() => (showReport = false)}
+      on:keydown={(e) => e.key === "Escape" && (showReport = false)}
+    >
       <div class="report-panel">
         <div class="report-header">
           <h2>Spray Report — {fieldName}</h2>
           <div class="report-header-actions">
-            <button class="report-download-btn" on:click={() => downloadReportPDF()}>
+            <button
+              class="report-download-btn"
+              on:click={() => downloadReportPDF()}
+            >
               <Download size={16} />
               PDF
             </button>
-            <button class="report-close" on:click={() => showReport = false}>
+            <button class="report-close" on:click={() => (showReport = false)}>
               <X size={18} />
             </button>
           </div>
@@ -1394,14 +1900,16 @@
                 <span class="report-value">{sortedRecords.length}</span>
               </div>
               {#if includeOperators}
-              <div class="report-summary-item">
-                <span class="report-label">Operators</span>
-                <span class="report-value">{reportData.operators}</span>
-              </div>
-              <div class="report-summary-item">
-                <span class="report-label">Total Operating Hours</span>
-                <span class="report-value">{reportData.totalOperatingTime}</span>
-              </div>
+                <div class="report-summary-item">
+                  <span class="report-label">Operators</span>
+                  <span class="report-value">{reportData.operators}</span>
+                </div>
+                <div class="report-summary-item">
+                  <span class="report-label">Total Operating Hours</span>
+                  <span class="report-value"
+                    >{reportData.totalOperatingTime}</span
+                  >
+                </div>
               {/if}
             </div>
           </div>
@@ -1410,43 +1918,51 @@
           {#if reportData.snapshot}
             <div class="report-section">
               <h3>Coverage Map</h3>
-              <img src={reportData.snapshot} alt="Coverage map" class="report-snapshot" />
+              <img
+                src={reportData.snapshot}
+                alt="Coverage map"
+                class="report-snapshot"
+              />
             </div>
           {/if}
 
           <!-- Products / Inputs -->
           {#if includeProducts}
-          <div class="report-section">
-            <h3>Products Applied</h3>
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Active Ingredient</th>
-                  <th>Rate</th>
-                  <th>Usage</th>
-                  <th>Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each reportData.products as p}
+            <div class="report-section">
+              <h3>Products Applied</h3>
+              <table class="report-table">
+                <thead>
                   <tr>
-                    <td>{p.name}</td>
-                    <td>{p.activeIngredient}</td>
-                    <td>{p.rate}</td>
-                    <td>{p.usage}</td>
-                    <td>{p.cost}</td>
+                    <th>Product</th>
+                    <th>Active Ingredient</th>
+                    <th>Rate</th>
+                    <th>Usage</th>
+                    <th>Cost</th>
                   </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {#each reportData.products as p}
+                    <tr>
+                      <td>{p.name}</td>
+                      <td>{p.activeIngredient}</td>
+                      <td>{p.rate}</td>
+                      <td>{p.usage}</td>
+                      <td>{p.cost}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
           {/if}
 
           <!-- Operating hours -->
           {#if includeOperators && reportData.operatingHours?.length}
             <div class="report-section">
-              <h3>Operating Hours <span class="report-section-total">Total: {reportData.totalOperatingTime}</span></h3>
+              <h3>
+                Operating Hours <span class="report-section-total"
+                  >Total: {reportData.totalOperatingTime}</span
+                >
+              </h3>
               <table class="report-table">
                 <thead>
                   <tr>
@@ -1474,35 +1990,35 @@
 
           <!-- Weather records -->
           {#if includeWeather}
-          <div class="report-section">
-            <h3>Weather Records</h3>
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Conditions</th>
-                  <th>Temp</th>
-                  <th>Wind</th>
-                  <th>Gust</th>
-                  <th>Humidity</th>
-                  <th>Delta T</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each reportData.weather as w}
+            <div class="report-section">
+              <h3>Weather Records</h3>
+              <table class="report-table">
+                <thead>
                   <tr>
-                    <td>{w.time}</td>
-                    <td>{w.conditions}</td>
-                    <td>{w.temp}°C</td>
-                    <td>{w.windSpeed} km/h {w.windDir}</td>
-                    <td>{w.gust} km/h</td>
-                    <td>{w.humidity}%</td>
-                    <td>{w.deltaT}</td>
+                    <th>Time</th>
+                    <th>Conditions</th>
+                    <th>Temp</th>
+                    <th>Wind</th>
+                    <th>Gust</th>
+                    <th>Humidity</th>
+                    <th>Delta T</th>
                   </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {#each reportData.weather as w}
+                    <tr>
+                      <td>{w.time}</td>
+                      <td>{w.conditions}</td>
+                      <td>{w.temp}°C</td>
+                      <td>{w.windSpeed} km/h {w.windDir}</td>
+                      <td>{w.gust} km/h</td>
+                      <td>{w.humidity}%</td>
+                      <td>{w.deltaT}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
           {/if}
 
           <!-- Operations -->
@@ -1557,13 +2073,37 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .header-info h3 { font-size: 18px; font-weight: 600; color: white; margin: 0 0 6px 0; }
+  .header-info h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 6px 0;
+  }
 
-  .header-stats { display: flex; align-items: center; gap: 12px; }
-  .stat-item { display: flex; align-items: center; gap: 5px; }
-  .stat-value { font-size: 15px; font-weight: 600; color: white; }
-  .stat-label { font-size: 12px; color: rgba(255, 255, 255, 0.4); }
-  .stat-divider { width: 1px; height: 16px; background: rgba(255, 255, 255, 0.1); }
+  .header-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .stat-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .stat-divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.1);
+  }
 
   .close-btn {
     background: rgba(255, 255, 255, 0.05);
@@ -1701,7 +2241,8 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
-  .slider-label-start, .slider-label-end {
+  .slider-label-start,
+  .slider-label-end {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
   }
@@ -1750,7 +2291,9 @@
     flex-shrink: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
-  .panel-drag-handle { display: none; }
+  .panel-drag-handle {
+    display: none;
+  }
 
   .info-panel-title {
     font-size: 14px;
@@ -1962,7 +2505,9 @@
       cursor: grab;
       user-select: none;
     }
-    .info-panel-header:active { cursor: grabbing; }
+    .info-panel-header:active {
+      cursor: grabbing;
+    }
   }
 
   /* Generate Report button */
@@ -1993,7 +2538,10 @@
   /* Report panel */
   .report-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.7);
     z-index: 200;
     display: flex;
@@ -2022,23 +2570,50 @@
     background: #1a1a1a;
     z-index: 1;
   }
-  .report-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
-  .report-header-actions { display: flex; align-items: center; gap: 8px; }
+  .report-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .report-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .report-download-btn {
-    display: flex; align-items: center; gap: 5px;
-    background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3);
-    color: #60a5fa; padding: 5px 12px; border-radius: 6px;
-    font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
   }
   .report-download-btn:hover {
-    background: rgba(59, 130, 246, 0.25); border-color: rgba(59, 130, 246, 0.5); color: #93c5fd;
+    background: rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
   }
   .report-close {
-    background: none; border: none; color: rgba(255, 255, 255, 0.4);
-    cursor: pointer; padding: 4px; border-radius: 4px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
   }
-  .report-close:hover { color: white; background: rgba(255, 255, 255, 0.1); }
-  .report-body { padding: 20px; }
+  .report-close:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .report-body {
+    padding: 20px;
+  }
   .report-toggles {
     display: flex;
     gap: 16px;
@@ -2054,18 +2629,32 @@
     cursor: pointer;
     user-select: none;
   }
-  .report-toggle input { accent-color: #3b82f6; cursor: pointer; }
-  .report-section { margin-bottom: 24px; }
+  .report-toggle input {
+    accent-color: #3b82f6;
+    cursor: pointer;
+  }
+  .report-section {
+    margin-bottom: 24px;
+  }
   .report-section h3 {
-    font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.6);
-    text-transform: uppercase; letter-spacing: 0.5px;
-    margin: 0 0 10px 0; padding-bottom: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 10px 0;
+    padding-bottom: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   .report-section-total {
-    font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.4);
-    text-transform: none; letter-spacing: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: none;
+    letter-spacing: 0;
   }
   .report-summary-grid {
     display: grid;
@@ -2077,8 +2666,16 @@
     flex-direction: column;
     gap: 2px;
   }
-  .report-label { font-size: 11px; color: rgba(255, 255, 255, 0.4); text-transform: uppercase; letter-spacing: 0.5px; }
-  .report-value { font-size: 14px; font-weight: 500; }
+  .report-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .report-value {
+    font-size: 14px;
+    font-weight: 500;
+  }
   .report-snapshot {
     width: 100%;
     border-radius: 8px;
@@ -2101,5 +2698,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     white-space: pre-line;
   }
-  .report-table tr:last-child td { border-bottom: none; }
+  .report-table tr:last-child td {
+    border-bottom: none;
+  }
 </style>

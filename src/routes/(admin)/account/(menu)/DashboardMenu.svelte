@@ -447,11 +447,11 @@
         if ($profileStore) {
           profileStore.update((profile) => ({
             ...profile,
-            master_map_id: trimmedMapId,
+            master_map_id: connectedMap.id,
             recent_maps: [
-              trimmedMapId,
+              connectedMap.id,
               ...(profile.recent_maps || []).filter(
-                (id) => id !== trimmedMapId,
+                (id) => id !== connectedMap.id,
               ),
             ].slice(0, 10),
           }))

@@ -14,6 +14,7 @@ import {
 import { connectedMapStore } from "./connectedMapStore"
 import { mapActivityStore } from "./mapActivityStore"
 import { trailsMetaDataStore } from "./trailsMetaDataStore"
+import { clearOperator } from "./operatorStore"
 
 /**
  * Reset all map-scoped stores to empty/default values.
@@ -44,6 +45,7 @@ export function resetMapStores() {
         is_owner: false,
         masterSubscription: null,
         is_connected: false,
+        join_code: null,
     })
 
     mapActivityStore.set({
@@ -55,4 +57,7 @@ export function resetMapStores() {
 
     // Trails metadata
     trailsMetaDataStore.set([])
+
+    // Operator
+    clearOperator()
 }

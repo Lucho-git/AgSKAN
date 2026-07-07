@@ -30,6 +30,9 @@
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore" // 🆕 NEW
   import { resetMapStores } from "$lib/stores/resetMapStores"
+  import { operatorApi } from "$lib/api/operatorApi"
+  import { operatorStore } from "$lib/stores/operatorStore"
+  import OperatorPicker from "$lib/components/map/trails/OperatorPicker.svelte"
 
   // Import map API
   import { mapApi } from "$lib/api/mapApi"
@@ -43,6 +46,9 @@
   let redirecting = false
 
   let authStateUnsubscribe = null
+  let showMapLoadOperatorPicker = false
+  let operatorRealtimeChannel = null
+  let visibilityListenerSet = false
   let userDataLoaded = false
   let pendingMapProcessed = false
   let isNative = false
@@ -198,6 +204,7 @@
           showGpsRejectedPopups:
             user_settings.show_gps_rejected_popups ?? false,
           layerVisibility: user_settings.layer_visibility ?? {},
+          sprayConfirmEnabled: user_settings.spray_confirm_enabled ?? false,
         })
 
         layerVisibilityStore.applySavedState(
@@ -496,6 +503,13 @@
         selectedOperationStore.set(null)
       }
 
+      // 🆕 Check operator status for this map
+      if (profile.master_map_id) {
+        // Update operator store — does NOT force picker on map load.
+        // Users are prompted when they press trail start or get realtime-kicked.
+        await operatorApi.checkOperatorStatus(profile.master_map_id)
+      }
+
       return {
         profile,
         subscription,
@@ -679,9 +693,68 @@
 
     return () => {
       console.log("Account layout unmounting")
-      if (authStateUnsubscribe) {
-        authStateUnsubscribe()
+      if (authStateUnsubscribe) authStateUnsubscribe()
+      if (operatorRealtimeChannel) supabase.removeChannel(operatorRealtimeChannel)
+    }
+  })
+
+  // ── Operator kick detection: check on tab focus + realtime ──
+  // Tab-focus check covers the common "switch tab to kick, switch back" flow
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible" && $profileStore?.master_map_id) {
+      // Only re-check if user had an operator selected (skip if they never picked one)
+      if ($operatorStore?.operator) {
+        console.log("[op-kick] Tab focused — re-checking operator")
+        operatorApi.checkOperatorStatus($profileStore.master_map_id).then(check => {
+          if (!check.operator) showMapLoadOperatorPicker = true
+        })
       }
+    }
+  }
+
+  $: {
+    const mapId = $profileStore?.master_map_id
+    const userId = $session?.user?.id
+    
+    if (mapId && userId) {
+      // Set up visibility listener (tab focus)
+      if (!visibilityListenerSet) {
+        visibilityListenerSet = true
+        document.addEventListener("visibilitychange", handleVisibilityChange)
+      }
+
+      // Set up realtime channel (best-effort, may not deliver in all cases)
+      if (!operatorRealtimeChannel) {
+        console.log("[op-realtime] Creating channel")
+        operatorRealtimeChannel = supabase
+          .channel(`op-kicks-${userId.slice(0, 8)}`)
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "operator_sessions" },
+            (payload) => {
+              if (payload.old?.account_id === userId &&
+                  payload.old?.ended_at === null &&
+                  payload.new?.ended_at !== null &&
+                  payload.old?.map_id === mapId) {
+                console.log("[op-realtime] KICKED!")
+                operatorApi.checkOperatorStatus(mapId).then(check => {
+                  if (!check.operator) showMapLoadOperatorPicker = true
+                })
+              }
+            }
+          )
+          .subscribe()
+      }
+    }
+  }
+
+  // Cleanup on destroy
+  onDestroy(() => {
+    if (visibilityListenerSet) {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+    if (operatorRealtimeChannel) {
+      supabase.removeChannel(operatorRealtimeChannel)
     }
   })
 
@@ -767,6 +840,15 @@
       <slot />
     </div>
   {/if}
+{/if}
+
+{#if showMapLoadOperatorPicker && $profileStore?.master_map_id}
+  <OperatorPicker
+    mapId={$profileStore.master_map_id}
+    context="start"
+    on:selected={() => (showMapLoadOperatorPicker = false)}
+    on:close={() => (showMapLoadOperatorPicker = false)}
+  />
 {/if}
 
 <style>

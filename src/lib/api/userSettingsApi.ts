@@ -830,6 +830,38 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle spray record confirmation popup on trail close
+     */
+    async updateSprayConfirmEnabled(sprayConfirmEnabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save spray confirm setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, spray_confirm_enabled: sprayConfirmEnabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving spray confirm setting:", error);
+                return { success: false, message: "Failed to save setting", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, sprayConfirmEnabled }));
+
+            return { success: true, message: "Spray confirm setting updated" };
+        } catch (error) {
+            console.error("Error in updateSprayConfirmEnabled:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Save map layer visibility preferences
      */
     async updateLayerVisibilitySettings(layerVisibility: Record<string, boolean>) {

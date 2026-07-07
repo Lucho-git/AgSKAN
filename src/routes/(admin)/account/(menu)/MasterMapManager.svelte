@@ -225,7 +225,7 @@
 
         profileStore.update((profile) => ({
           ...profile,
-          master_map_id: trimmedMapId,
+          master_map_id: connectedMap.id,
         }))
 
         toast.success("Connected to map")

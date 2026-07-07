@@ -23,6 +23,7 @@ const defaultSettings = {
     showGpsAcceptedPopups: false, // Show "GPS Accepted" popups
     showGpsRejectedPopups: false, // Show "GPS Rejected" popups
     layerVisibility: {} as Record<string, boolean>,
+    sprayConfirmEnabled: false, // Show spray record confirmation popup on trail close (default off)
 };
 
 export const userSettingsStore = writable(defaultSettings);

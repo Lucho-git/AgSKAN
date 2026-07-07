@@ -54,21 +54,30 @@
     let generated = 0
     try {
       // 1. Get list of trail IDs that need backfill
-      const { data: candidates, error: listErr } = await supabase.rpc("get_backfill_candidates", {
-        p_count: backfillDays,
-        p_master_map_id: masterMapId,
-      })
+      const { data: candidates, error: listErr } = await supabase.rpc(
+        "get_backfill_candidates",
+        {
+          p_count: backfillDays,
+          p_master_map_id: masterMapId,
+        },
+      )
       if (listErr) throw listErr
       if (!candidates || candidates.length === 0) {
-        backfillResult = { message: "No trails to backfill — all recent trails already have records" }
+        backfillResult = {
+          message:
+            "No trails to backfill — all recent trails already have records",
+        }
         return
       }
 
       // 2. Process each trail one at a time to avoid timeouts
       for (const row of candidates) {
-        const { data: res, error: trailErr } = await supabase.rpc("backfill_one_trail", {
-          p_trail_id: row.trail_id,
-        })
+        const { data: res, error: trailErr } = await supabase.rpc(
+          "backfill_one_trail",
+          {
+            p_trail_id: row.trail_id,
+          },
+        )
         if (trailErr) {
           console.warn(`Backfill failed for trail ${row.trail_id}:`, trailErr)
           continue
@@ -76,8 +85,14 @@
         if (res?.success) generated++
       }
 
-      backfillResult = { success: true, trails_checked: candidates.length, records_generated: generated }
-      toast.success(`Backfilled ${generated} records from ${candidates.length} trails`)
+      backfillResult = {
+        success: true,
+        trails_checked: candidates.length,
+        records_generated: generated,
+      }
+      toast.success(
+        `Backfilled ${generated} records from ${candidates.length} trails`,
+      )
       window.location.reload()
     } catch (e: any) {
       backfillResult = { error: e.message }
@@ -91,9 +106,11 @@
   async function deleteRecord(recordId: string) {
     if (!confirm("Delete this spray record? This cannot be undone.")) return
     try {
-      const { error } = await supabase.rpc("delete_spray_record", { p_record_id: recordId })
+      const { error } = await supabase.rpc("delete_spray_record", {
+        p_record_id: recordId,
+      })
       if (error) throw error
-      records = records.filter(r => r.id !== recordId)
+      records = records.filter((r) => r.id !== recordId)
       toast.success("Record deleted")
     } catch (e: any) {
       toast.error(e.message || "Failed to delete record")
@@ -126,20 +143,23 @@
   let overlayRecords: any[] = []
 
   function openFieldOverlay(fieldId: string) {
-    const field = fields.find(f => f.field_id === fieldId)
+    const field = fields.find((f) => f.field_id === fieldId)
     if (!field?.boundary) return
     overlayFieldBoundary = field.boundary
     overlayFieldName = field.name
     overlayFieldArea = field.area || 0
-    overlayRecords = filteredRecords.filter(r => r.field_id === fieldId)
+    overlayRecords = filteredRecords.filter((r) => r.field_id === fieldId)
     showFieldOverlay = true
   }
 
   function openSnapshotFullscreen(record) {
     const b = record.field_boundary
-    const firstRing = b?.type === "MultiPolygon" ? b.coordinates[0][0] : b?.coordinates?.[0]
+    const firstRing =
+      b?.type === "MultiPolygon" ? b.coordinates[0][0] : b?.coordinates?.[0]
     const fp = (firstRing as any)?.[0]
-    console.log(`[RecordsPage] openSnapshotFullscreen record=${record.id?.slice(0,8)} field=${record.field_name} type=${b?.type || "none"} firstCoord=[${fp?.[0] || "?"},${fp?.[1] || "?"}]`)
+    console.log(
+      `[RecordsPage] openSnapshotFullscreen record=${record.id?.slice(0, 8)} field=${record.field_name} type=${b?.type || "none"} firstCoord=[${fp?.[0] || "?"},${fp?.[1] || "?"}]`,
+    )
     fullscreenRecord = record
     fullscreenSnapshot = true
   }
@@ -150,7 +170,8 @@
       // Field filter
       if (selectedFieldId && r.field_id !== selectedFieldId) return false
       // Operation filter
-      if (selectedOperationId && r.operation_id !== selectedOperationId) return false
+      if (selectedOperationId && r.operation_id !== selectedOperationId)
+        return false
       // Search filter (field name, operator name, vehicle type, operation name)
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
@@ -166,7 +187,8 @@
     .sort((a, b) => {
       let cmp = 0
       if (sortBy === "start_time") {
-        cmp = new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+        cmp =
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
       } else if (sortBy === "operator_name") {
         cmp = (a.operator_name || "").localeCompare(b.operator_name || "")
       } else if (sortBy === "operation_name") {
@@ -176,11 +198,19 @@
     })
 
   // Reset to page 1 when filters/sort change
-  $: searchQuery, selectedFieldId, selectedOperationId, sortBy, sortDir, (currentPage = 1)
+  $: (searchQuery,
+    selectedFieldId,
+    selectedOperationId,
+    sortBy,
+    sortDir,
+    (currentPage = 1))
 
   // Paginated records for chronological view
   $: totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE)
-  $: paginatedRecords = filteredRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  $: paginatedRecords = filteredRecords.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  )
 
   // Group by field for the "field history" view
   $: recordsByField = (() => {
@@ -192,7 +222,7 @@
       groups[r.field_id].records.push(r)
     }
     return Object.entries(groups).sort((a, b) =>
-      a[1].field_name.localeCompare(b[1].field_name)
+      a[1].field_name.localeCompare(b[1].field_name),
     )
   })()
 
@@ -202,11 +232,18 @@
   // Format helpers
   function formatDate(ts) {
     if (!ts) return ""
-    return new Date(ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
+    return new Date(ts).toLocaleDateString([], {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
   function formatTime(ts) {
     if (!ts) return ""
-    return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    return new Date(ts).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    })
   }
   function formatDuration(seconds) {
     if (!seconds) return "0s"
@@ -253,9 +290,15 @@
   }
 
   // Stats
-  $: totalArea = filteredRecords.reduce((sum, r) => sum + parseFloat(r.area_hectares || 0), 0)
-  $: totalDistance = filteredRecords.reduce((sum, r) => sum + parseFloat(r.distance_km || 0), 0)
-  $: confirmedCount = filteredRecords.filter(r => r.operator_confirmed).length
+  $: totalArea = filteredRecords.reduce(
+    (sum, r) => sum + parseFloat(r.area_hectares || 0),
+    0,
+  )
+  $: totalDistance = filteredRecords.reduce(
+    (sum, r) => sum + parseFloat(r.distance_km || 0),
+    0,
+  )
+  $: confirmedCount = filteredRecords.filter((r) => r.operator_confirmed).length
 </script>
 
 <div class="records-page">
@@ -276,9 +319,10 @@
         <div>
           <h1>Spray Records</h1>
           <p class="header-subtitle">
-            {filteredRecords.length} record{filteredRecords.length !== 1 ? "s" : ""}
-            · {formatHa(totalArea)} total
-            · {formatKm(totalDistance)} traveled
+            {filteredRecords.length} record{filteredRecords.length !== 1
+              ? "s"
+              : ""}
+            · {formatHa(totalArea)} total · {formatKm(totalDistance)} traveled
           </p>
         </div>
       </div>
@@ -362,17 +406,29 @@
     <!-- Sort Bar (list view only) -->
     {#if viewMode === "list"}
       <div class="sort-bar">
-        <button class="sort-btn" on:click={() => toggleSort("start_time")} class:active={sortBy === "start_time"}>
+        <button
+          class="sort-btn"
+          on:click={() => toggleSort("start_time")}
+          class:active={sortBy === "start_time"}
+        >
           <Calendar size={12} />
           Date
           {#if sortBy === "start_time"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
-        <button class="sort-btn" on:click={() => toggleSort("operator_name")} class:active={sortBy === "operator_name"}>
+        <button
+          class="sort-btn"
+          on:click={() => toggleSort("operator_name")}
+          class:active={sortBy === "operator_name"}
+        >
           <User size={12} />
           Operator
           {#if sortBy === "operator_name"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
-        <button class="sort-btn" on:click={() => toggleSort("operation_name")} class:active={sortBy === "operation_name"}>
+        <button
+          class="sort-btn"
+          on:click={() => toggleSort("operation_name")}
+          class:active={sortBy === "operation_name"}
+        >
           <Layers size={12} />
           Operation
           {#if sortBy === "operation_name"}{sortDir === "asc" ? "↑" : "↓"}{/if}
@@ -386,7 +442,9 @@
         <FileText size={48} class="text-white/20" />
         <p>No spray records found</p>
         <p class="empty-subtitle">
-          {searchQuery || selectedFieldId ? "Try adjusting your filters" : "Records are created automatically when you close a trail"}
+          {searchQuery || selectedFieldId
+            ? "Try adjusting your filters"
+            : "Records are created automatically when you close a trail"}
         </p>
       </div>
     {:else if viewMode === "list"}
@@ -401,14 +459,16 @@
             <div
               class="record-card-header"
               class:clickable={hasMultipleIntervals(record)}
-              on:click={() => hasMultipleIntervals(record) && toggleExpand(record.id)}
+              on:click={() =>
+                hasMultipleIntervals(record) && toggleExpand(record.id)}
             >
               <!-- Row 1: Thumbnail + Field name + Date + Stats -->
               <div class="card-top-row">
                 <div
                   class="thumbnail-wrapper"
                   on:click={() => openSnapshotFullscreen(record)}
-                  on:keydown={(e) => e.key === "Enter" && openSnapshotFullscreen(record)}
+                  on:keydown={(e) =>
+                    e.key === "Enter" && openSnapshotFullscreen(record)}
                   role="button"
                   tabindex="0"
                   title="Click to view fullscreen"
@@ -426,15 +486,22 @@
                     <MapPin size={14} class="text-green-400" />
                     <span>{record.field_name}</span>
                     {#if hasMultipleIntervals(record)}
-                      <span class="visit-badge">{record.intervals.length} visits</span>
+                      <span class="visit-badge"
+                        >{record.intervals.length} visits</span
+                      >
                     {/if}
                   </div>
                   <div class="card-date-row">
-                    <span class="date-day">{formatDate(record.start_time)}</span>
-                    <span class="date-time">{formatTime(record.start_time)}</span>
+                    <span class="date-day">{formatDate(record.start_time)}</span
+                    >
+                    <span class="date-time"
+                      >{formatTime(record.start_time)}</span
+                    >
                   </div>
                   <div class="card-stats">
-                    <span class="stat stat-area">{formatHa(record.area_hectares)}</span>
+                    <span class="stat-area stat"
+                      >{formatHa(record.area_hectares)}</span
+                    >
                     <span class="stat">{formatKm(record.distance_km)}</span>
                   </div>
                 </div>
@@ -465,7 +532,10 @@
                   <span>{record.operation_name || "Unknown"}</span>
                 </div>
                 {#if record.operator_confirmed}
-                  <CheckCircle2 size={14} class="text-green-400 card-confirmed" />
+                  <CheckCircle2
+                    size={14}
+                    class="card-confirmed text-green-400"
+                  />
                 {/if}
                 <button
                   class="delete-record-btn"
@@ -484,10 +554,16 @@
                   <div class="interval-row">
                     <span class="interval-label">Visit {j + 1}</span>
                     <span class="interval-time">
-                      {formatTime(interval.entry_time)} – {formatTime(interval.exit_time)}
+                      {formatTime(interval.entry_time)} – {formatTime(
+                        interval.exit_time,
+                      )}
                     </span>
-                    <span class="interval-duration">{formatDuration(interval.duration_seconds)}</span>
-                    <span class="interval-distance">{formatKm(interval.distance_km)}</span>
+                    <span class="interval-duration"
+                      >{formatDuration(interval.duration_seconds)}</span
+                    >
+                    <span class="interval-distance"
+                      >{formatKm(interval.distance_km)}</span
+                    >
                   </div>
                   {#if j < record.intervals.length - 1}
                     <div class="interval-gap">
@@ -504,14 +580,27 @@
       <!-- Pagination -->
       {#if totalPages > 1}
         <div class="pagination">
-          <button class="page-btn" disabled={currentPage === 1} on:click={() => currentPage--}>
+          <button
+            class="page-btn"
+            disabled={currentPage === 1}
+            on:click={() => currentPage--}
+          >
             ← Prev
           </button>
           <span class="page-info">
             Page {currentPage} of {totalPages}
-            <span class="page-range">({(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredRecords.length)} of {filteredRecords.length})</span>
+            <span class="page-range"
+              >({(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(
+                currentPage * PAGE_SIZE,
+                filteredRecords.length,
+              )} of {filteredRecords.length})</span
+            >
           </span>
-          <button class="page-btn" disabled={currentPage === totalPages} on:click={() => currentPage++}>
+          <button
+            class="page-btn"
+            disabled={currentPage === totalPages}
+            on:click={() => currentPage++}
+          >
             Next →
           </button>
         </div>
@@ -521,17 +610,22 @@
       <div class="fields-grouped">
         {#each recordsByField as [fieldId, group]}
           <div class="field-group">
-            <div class="field-group-header" on:click={() => toggleExpand(`field-${fieldId}`)}>
+            <div
+              class="field-group-header"
+              on:click={() => toggleExpand(`field-${fieldId}`)}
+            >
               <div
                 class="field-thumb-wrapper"
                 on:click|stopPropagation={() => openFieldOverlay(fieldId)}
-                on:keydown={(e) => e.key === "Enter" && openFieldOverlay(fieldId)}
+                on:keydown={(e) =>
+                  e.key === "Enter" && openFieldOverlay(fieldId)}
                 role="button"
                 tabindex="0"
                 title="View on map"
               >
                 <SprayRecordThumbnail
-                  fieldBoundary={fields.find(f => f.field_id === fieldId)?.boundary}
+                  fieldBoundary={fields.find((f) => f.field_id === fieldId)
+                    ?.boundary}
                   record={{ id: `field-thumb-${fieldId}` }}
                   width={80}
                   height={60}
@@ -542,7 +636,13 @@
                   <MapPin size={16} class="text-green-400" />
                   <span class="field-group-name">{group.field_name}</span>
                 </div>
-                <span class="field-group-count"><span class="visit-badge">{group.records.length} record{group.records.length !== 1 ? "s" : ""}</span></span>
+                <span class="field-group-count"
+                  ><span class="visit-badge"
+                    >{group.records.length} record{group.records.length !== 1
+                      ? "s"
+                      : ""}</span
+                  ></span
+                >
               </div>
               <button
                 class="view-map-btn"
@@ -565,12 +665,25 @@
               <div class="field-group-records">
                 {#each group.records as record}
                   <div class="record-row">
-                    <span class="record-row-date">{formatDate(record.start_time)} {formatTime(record.start_time)}</span>
-                    <span class="record-row-operator">{record.operator_name || "Unknown"}</span>
-                    <span class="record-row-vehicle">{formatVehicleType(record.vehicle_type)}</span>
-                    <span class="record-row-operation">{record.operation_name || "Unknown"}</span>
-                    <span class="record-row-area">{formatHa(record.area_hectares)}</span>
-                    <span class="record-row-distance">{formatKm(record.distance_km)}</span>
+                    <span class="record-row-date"
+                      >{formatDate(record.start_time)}
+                      {formatTime(record.start_time)}</span
+                    >
+                    <span class="record-row-operator"
+                      >{record.operator_name || "Unknown"}</span
+                    >
+                    <span class="record-row-vehicle"
+                      >{formatVehicleType(record.vehicle_type)}</span
+                    >
+                    <span class="record-row-operation"
+                      >{record.operation_name || "Unknown"}</span
+                    >
+                    <span class="record-row-area"
+                      >{formatHa(record.area_hectares)}</span
+                    >
+                    <span class="record-row-distance"
+                      >{formatKm(record.distance_km)}</span
+                    >
                     {#if record.operator_confirmed}
                       <CheckCircle2 size={14} class="text-green-400" />
                     {/if}
@@ -592,7 +705,10 @@
     fieldName={fullscreenRecord.field_name}
     fieldAreaHa={fullscreenRecord.field_area || 0}
     lockedMode={true}
-    on:close={() => { fullscreenSnapshot = false; fullscreenRecord = null }}
+    on:close={() => {
+      fullscreenSnapshot = false
+      fullscreenRecord = null
+    }}
   />
 {/if}
 
@@ -1164,7 +1280,9 @@
   }
 
   /* States */
-  .loading-state, .error-state, .empty-state {
+  .loading-state,
+  .error-state,
+  .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;

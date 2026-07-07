@@ -245,7 +245,7 @@
 
         profileStore.update((profile) => ({
           ...profile,
-          master_map_id: trimmedMapId,
+          master_map_id: connectedMap.id,
         }))
 
         // Ensure minimum animation time

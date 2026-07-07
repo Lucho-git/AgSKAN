@@ -6,7 +6,10 @@
   import { toast } from "svelte-sonner"
 
   import { commands } from "$lib/stores/commandStore"
-  import { trailPausedStore, trailClosingStore } from "$lib/stores/currentTrailStore"
+  import {
+    trailPausedStore,
+    trailClosingStore,
+  } from "$lib/stores/currentTrailStore"
 
   import { Play, Square, Route, Pause } from "lucide-svelte"
   import MyTrails from "$lib/components/map/toolbox/MyTrails.svelte"
@@ -79,7 +82,11 @@
         </div>
       </button>
 
-      <button class="trail-control-btn stop-btn" on:click={stopTrailing} disabled={$trailClosingStore}>
+      <button
+        class="trail-control-btn stop-btn"
+        on:click={stopTrailing}
+        disabled={$trailClosingStore}
+      >
         <div class="trail-icon">
           <Square size={20} />
         </div>

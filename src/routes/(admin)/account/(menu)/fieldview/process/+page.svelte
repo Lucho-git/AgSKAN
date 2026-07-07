@@ -33,7 +33,8 @@
   // Get params from URL
   $: fileId = $page.url.searchParams.get("fileId")
   $: fileName = $page.url.searchParams.get("fileName")
-  $: returnUrl = $page.url.searchParams.get("returnUrl") || "/account?tab=fields"
+  $: returnUrl =
+    $page.url.searchParams.get("returnUrl") || "/account?tab=fields"
 
   $: connectedMap = $connectedMapStore
 
@@ -446,7 +447,7 @@
 
         <!-- Processing Card -->
         <div
-          class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+          class="relative mx-auto max-w-3xl animate-fadeIn overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
           <div class="p-4 md:p-6">
             <div class="flex flex-col items-center justify-center py-12">
@@ -475,7 +476,7 @@
 
         <!-- Error Card -->
         <div
-          class="animate-fadeIn relative mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+          class="relative mx-auto max-w-3xl animate-fadeIn overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
         >
           <div class="p-4 md:p-6">
             <div class="flex flex-col items-center justify-center py-12">
@@ -579,7 +580,7 @@
 
           <!-- Enhanced Field Card -->
           <div
-            class="animate-fadeIn relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
+            class="relative mx-auto max-w-4xl animate-fadeIn overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xl"
           >
             <div class="p-3 md:p-5">
               <!-- Field Name Section with Field Counter -->

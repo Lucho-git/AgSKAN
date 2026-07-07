@@ -359,7 +359,11 @@
             <ChevronDown size={16} />
             Continue
           </button>
-          <button class="modal-btn danger" on:click={endTrailFromModal} disabled={$trailClosingStore}>
+          <button
+            class="modal-btn danger"
+            on:click={endTrailFromModal}
+            disabled={$trailClosingStore}
+          >
             {#if $trailClosingStore}Closing...{:else}Stop Trail{/if}
           </button>
         {:else}

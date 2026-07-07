@@ -937,7 +937,9 @@
 >
   <div class="modal-box max-h-[90vh] w-full max-w-lg overflow-y-auto">
     <!-- Modal header -->
-    <div class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3">
+    <div
+      class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3"
+    >
       <div class="flex items-center gap-3">
         <div
           class="flex h-10 w-10 items-center justify-center rounded-full bg-green-600/20"
@@ -1198,14 +1200,22 @@
   on:close={closeHelpModal}
 >
   <div class="modal-box w-full max-w-md">
-    <div class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3">
+    <div
+      class="mb-4 flex items-start justify-between gap-3 border-b border-base-300 pb-3"
+    >
       <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20"
+        >
           <HelpCircle class="h-5 w-5 text-blue-600" />
         </div>
         <div>
-          <h3 class="text-base font-bold text-contrast-content">Need Help Getting Your Fields?</h3>
-          <p class="text-xs text-contrast-content/60">Upload boundaries from your farm software</p>
+          <h3 class="text-base font-bold text-contrast-content">
+            Need Help Getting Your Fields?
+          </h3>
+          <p class="text-xs text-contrast-content/60">
+            Upload boundaries from your farm software
+          </p>
         </div>
       </div>
       <button on:click={closeHelpModal} class="btn btn-circle btn-ghost btn-sm">
@@ -1215,34 +1225,59 @@
 
     <div class="space-y-4 text-sm text-contrast-content/80">
       <div>
-        <h4 class="mb-1.5 font-semibold text-contrast-content">Download from your farm software</h4>
+        <h4 class="mb-1.5 font-semibold text-contrast-content">
+          Download from your farm software
+        </h4>
         <ul class="ml-4 list-disc space-y-1 text-xs text-contrast-content/70">
-          <li><strong>Agworld:</strong> Export field boundaries as KML or Shapefile from your Agworld account</li>
-          <li><strong>John Deere Operations Center:</strong> Export boundaries as Shapefile or ISOXML from the Operations Center</li>
-          <li><strong>Climate FieldView:</strong> Export field boundaries as Shapefile from FieldView</li>
-          <li><strong>Google Earth:</strong> Draw paddocks and export as KML</li>
+          <li>
+            <strong>Agworld:</strong> Export field boundaries as KML or Shapefile
+            from your Agworld account
+          </li>
+          <li>
+            <strong>John Deere Operations Center:</strong> Export boundaries as Shapefile
+            or ISOXML from the Operations Center
+          </li>
+          <li>
+            <strong>Climate FieldView:</strong> Export field boundaries as Shapefile
+            from FieldView
+          </li>
+          <li>
+            <strong>Google Earth:</strong> Draw paddocks and export as KML
+          </li>
         </ul>
       </div>
 
       <div class="rounded-lg bg-base-200 p-3">
         <p class="text-xs text-contrast-content/70">
-          Supported file formats: <strong>.zip, .kml, .kmz, .geojson, .xml, .isoxml</strong>
+          Supported file formats: <strong
+            >.zip, .kml, .kmz, .geojson, .xml, .isoxml</strong
+          >
         </p>
       </div>
 
       <div class="border-t border-base-300 pt-3">
-        <h4 class="mb-1.5 font-semibold text-contrast-content">We can do it for you</h4>
+        <h4 class="mb-1.5 font-semibold text-contrast-content">
+          We can do it for you
+        </h4>
         <p class="text-xs text-contrast-content/70">
-          Email your field boundary files to <a href="mailto:service@agskan.com" class="font-semibold text-blue-600 underline">service@agskan.com</a> and we'll upload them for you right away.
+          Email your field boundary files to <a
+            href="mailto:service@agskan.com"
+            class="font-semibold text-blue-600 underline">service@agskan.com</a
+          > and we'll upload them for you right away.
         </p>
         <p class="mt-1.5 text-xs text-contrast-content/70">
-          Or call us at <a href="tel:+61800000000" class="font-semibold text-blue-600 underline">(08) 0000 0000</a>
+          Or call us at <a
+            href="tel:+61800000000"
+            class="font-semibold text-blue-600 underline">(08) 0000 0000</a
+          >
         </p>
       </div>
     </div>
 
     <div class="mt-5 flex justify-end">
-      <button on:click={closeHelpModal} class="btn btn-sm btn-primary">Got it</button>
+      <button on:click={closeHelpModal} class="btn btn-primary btn-sm"
+        >Got it</button
+      >
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">

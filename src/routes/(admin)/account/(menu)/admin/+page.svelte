@@ -39,6 +39,7 @@
     defaultMarker: { id: "default", name: "Default Marker", class: "default" },
     extraMarkers: [],
     layerVisibility: {},
+    sprayConfirmEnabled: false,
   }
 
   let loading = false
@@ -196,6 +197,7 @@
   const MISC_BOOL_FIELDS = [
     { col: "devToolsEnabled",         label: "Dev tools" },
     { col: "satelliteDropdownEnabled",label: "Satellite dropdown" },
+    { col: "sprayConfirmEnabled",     label: "Spray confirm popup" },
   ]
 
   // Marker-related settings

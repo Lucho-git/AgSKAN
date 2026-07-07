@@ -168,7 +168,7 @@
     } finally {
       // Redirect to fieldview page after a short delay to allow toasts to be seen
       setTimeout(() => {
-        goto(`/account/fieldview/`)
+        goto(`/account?tab=fields`)
       }, 500)
     }
   }
