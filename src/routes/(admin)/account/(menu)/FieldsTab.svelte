@@ -1286,7 +1286,7 @@
 </dialog>
 
 <style>
-  @keyframes dashboardSlideDown {
+  @keyframes fieldsSlideDown {
     from {
       opacity: 0;
       transform: translateY(-12px);
@@ -1298,10 +1298,10 @@
   }
 
   .dashboard-slide-down {
-    animation: dashboardSlideDown 0.2s ease-out;
+    animation: fieldsSlideDown 0.2s ease-out;
   }
 
-  @keyframes scaleIn {
+  @keyframes fieldsScaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -1313,10 +1313,10 @@
   }
 
   .animate-scaleIn {
-    animation: scaleIn 0.2s ease-out;
+    animation: fieldsScaleIn 0.2s ease-out;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes fieldsDelayedFadeIn {
     0%,
     60% {
       opacity: 0;
@@ -1329,7 +1329,7 @@
   }
 
   .animate-delayedFadeIn {
-    animation: delayedFadeIn 1s ease-out;
+    animation: fieldsDelayedFadeIn 1s ease-out;
   }
 
   @keyframes upload-spin {
@@ -1372,7 +1372,7 @@
     animation: upload-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  @keyframes successPulse {
+  @keyframes fieldsSuccessPulse {
     0%,
     100% {
       transform: scale(1);
@@ -1385,6 +1385,6 @@
   }
 
   .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+    animation: fieldsSuccessPulse 2s ease-in-out infinite;
   }
 </style>

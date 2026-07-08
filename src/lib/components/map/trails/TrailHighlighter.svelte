@@ -2007,7 +2007,7 @@ font-size: 12px;
     max-width: 400px;
     width: calc(100% - 32px);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-    animation: scaleIn 0.15s ease-out;
+    animation: trailScaleIn 0.15s ease-out;
   }
   .delete-modal-actions {
     display: flex;
@@ -2023,7 +2023,7 @@ font-size: 12px;
       opacity: 1;
     }
   }
-  @keyframes scaleIn {
+  @keyframes trailScaleIn {
     from {
       transform: scale(0.95);
       opacity: 0;

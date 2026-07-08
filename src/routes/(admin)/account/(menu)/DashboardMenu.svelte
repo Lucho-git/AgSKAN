@@ -1878,7 +1878,7 @@
 </div>
 
 <style>
-  @keyframes dashboardSlideDown {
+  @keyframes dashSlideDown {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -1890,10 +1890,10 @@
   }
 
   .dashboard-slide-down {
-    animation: dashboardSlideDown 0.2s ease-out;
+    animation: dashSlideDown 0.2s ease-out;
   }
 
-  @keyframes scaleIn {
+  @keyframes dashScaleIn {
     from {
       opacity: 0;
       transform: scale(0.9);
@@ -1904,10 +1904,10 @@
     }
   }
   .animate-scaleIn {
-    animation: scaleIn 0.3s ease-out;
+    animation: dashScaleIn 0.3s ease-out;
   }
 
-  @keyframes cloudPulse {
+  @keyframes dashCloudPulse {
     0%,
     100% {
       opacity: 1;
@@ -1917,10 +1917,10 @@
     }
   }
   .animate-cloudPulse {
-    animation: cloudPulse 2s ease-in-out infinite;
+    animation: dashCloudPulse 2s ease-in-out infinite;
   }
 
-  @keyframes delayedFadeIn {
+  @keyframes dashDelayedFadeIn {
     0% {
       opacity: 0;
     }
@@ -1932,10 +1932,10 @@
     }
   }
   .animate-delayedFadeIn {
-    animation: delayedFadeIn 1.2s ease-out;
+    animation: dashDelayedFadeIn 1.2s ease-out;
   }
 
-  @keyframes successPulse {
+  @keyframes dashSuccessPulse {
     0%,
     100% {
       transform: scale(1);
@@ -1945,10 +1945,10 @@
     }
   }
   .animate-successPulse {
-    animation: successPulse 2s ease-in-out infinite;
+    animation: dashSuccessPulse 2s ease-in-out infinite;
   }
 
-  @keyframes checkScale {
+  @keyframes dashCheckScale {
     0% {
       transform: scale(0);
     }
@@ -1960,10 +1960,10 @@
     }
   }
   .animate-checkScale {
-    animation: checkScale 0.6s ease-out 0.3s both;
+    animation: dashCheckScale 0.6s ease-out 0.3s both;
   }
 
-  @keyframes checkDraw {
+  @keyframes dashCheckDraw {
     0% {
       stroke-dasharray: 80;
       stroke-dashoffset: 80;
@@ -1974,6 +1974,6 @@
     }
   }
   .animate-checkDraw {
-    animation: checkDraw 0.4s ease-out 0.6s both;
+    animation: dashCheckDraw 0.4s ease-out 0.6s both;
   }
 </style>
