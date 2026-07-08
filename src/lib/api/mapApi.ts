@@ -357,7 +357,7 @@ export const mapApi = {
                 .insert({
                     master_map_id: mapId,
                     name: "Farm Management",
-                    year: 2024,
+                    year: new Date().getFullYear(),
                     description: `Completing work around '${mapName}'s farm`,
                 })
                 .select()

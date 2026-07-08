@@ -17,8 +17,6 @@
   import { Capacitor } from "@capacitor/core"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
-  import CrispChatWidget from "$lib/components/general/CrispChatWidget.svelte"
-
   const adminSectionStore = writable("")
   const isNavigating = writable(false)
   setContext("adminSection", adminSectionStore)
@@ -40,14 +38,6 @@
 
   function toggleSidebar() {
     isExpanded = !isExpanded
-  }
-
-  let crispComponent: any
-
-  function handleChatClick() {
-    if (crispComponent) {
-      crispComponent.toggleChat()
-    }
   }
 
   // Theme functions
@@ -286,17 +276,6 @@
               height="20"
             />
           </button>
-          <!-- Chat Button -->
-          <button
-            on:click={handleChatClick}
-            class="bg-neutral-focus rounded-full p-1 transition-colors duration-200"
-          >
-            <Icon
-              icon="solar:chat-round-line-bold-duotone"
-              width="24"
-              height="24"
-            />
-          </button>
         </div>
       </div>
     {/if}
@@ -489,8 +468,6 @@
     </div>
   {/if}
 </div>
-
-<CrispChatWidget bind:this={crispComponent} />
 
 <style>
   /* Only apply focus styles to navigation links, not utility buttons */

@@ -117,44 +117,51 @@
       ...new Set(sortedRecords.map((r) => r.operator_name || "Unknown")),
     ].join(", ")
 
-    // Stub weather data — generate hourly readings during the spray window
-    const weatherStart = new Date(startTime)
-    const weatherEnd = new Date(endTime)
-    const weather: any[] = []
+    // Stub weather data — generate hourly readings only during field visit intervals
     const conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Clear"]
     const windDirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    for (
-      let t = weatherStart;
-      t <= weatherEnd;
-      t = new Date(t.getTime() + 3600000)
-    ) {
-      const hour = t.getHours()
-      const baseTemp = 15 + 10 * Math.sin(((hour - 6) * Math.PI) / 12) // peaks at midday
-      const temp = Math.round(baseTemp + (Math.random() - 0.5) * 3)
-      const humidity = Math.round(
-        60 -
-          20 * Math.sin(((hour - 6) * Math.PI) / 12) +
-          (Math.random() - 0.5) * 10,
-      )
-      const windSpeed = Math.round(8 + Math.random() * 12)
-      const gust = windSpeed + Math.round(3 + Math.random() * 5)
-      const deltaT =
-        Math.round((temp - (humidity / 100) * (temp + 8)) * 10) / 10
-      weather.push({
-        time: t.toLocaleString([], {
-          day: "numeric",
-          month: "short",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        conditions: conditions[Math.floor(Math.random() * conditions.length)],
-        temp,
-        windSpeed,
-        windDir: windDirs[Math.floor(Math.random() * windDirs.length)],
-        gust,
-        humidity: Math.max(20, Math.min(95, humidity)),
-        deltaT: deltaT.toFixed(1),
-      })
+    const weather: any[] = []
+    const seenHours = new Set<string>() // dedupe overlapping intervals on the same hour
+
+    for (const record of sortedRecords) {
+      const recStart = new Date(record.start_time)
+      const recEnd = new Date(record.end_time || record.start_time)
+      // Snap to the top of each hour within this interval
+      const hourStart = new Date(recStart)
+      hourStart.setMinutes(0, 0, 0)
+      for (let t = hourStart; t <= recEnd; t = new Date(t.getTime() + 3600000)) {
+        const key = t.toISOString()
+        if (seenHours.has(key)) continue
+        seenHours.add(key)
+
+        const hour = t.getHours()
+        const baseTemp = 15 + 10 * Math.sin(((hour - 6) * Math.PI) / 12)
+        const temp = Math.round(baseTemp + (Math.random() - 0.5) * 3)
+        const humidity = Math.round(
+          60 -
+            20 * Math.sin(((hour - 6) * Math.PI) / 12) +
+            (Math.random() - 0.5) * 10,
+        )
+        const windSpeed = Math.round(8 + Math.random() * 12)
+        const gust = windSpeed + Math.round(3 + Math.random() * 5)
+        const deltaT =
+          Math.round((temp - (humidity / 100) * (temp + 8)) * 10) / 10
+        weather.push({
+          time: t.toLocaleString([], {
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          conditions: conditions[Math.floor(Math.random() * conditions.length)],
+          temp,
+          windSpeed,
+          windDir: windDirs[Math.floor(Math.random() * windDirs.length)],
+          gust,
+          humidity: Math.max(20, Math.min(95, humidity)),
+          deltaT: deltaT.toFixed(1),
+        })
+      }
     }
 
     // Stub products — default spray rates × treated area
