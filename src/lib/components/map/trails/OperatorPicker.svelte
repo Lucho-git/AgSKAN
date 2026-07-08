@@ -125,7 +125,7 @@
           <label for="op-name-input" class="op-label">Operator Name</label>
           <input id="op-name-input" type="text" bind:value={newName} placeholder="e.g. John Smith"
             maxlength="60" use:autofocus on:keydown={(e) => e.key === "Enter" && handleCreate()} />
-          <p class="op-hint">This name will be saved to all spray records.</p>
+          <p class="op-hint">This name will be saved to all records.</p>
           <div class="op-create-actions">
             {#if operators.length > 0}
               <button type="button" class="op-back-btn" on:click={() => (mode = "list")}>Back</button>

@@ -156,7 +156,7 @@ export const surveyApi = {
                         answer: surveyAnswers.pathRecreateInterest
                     },
                     spray_records_interest: { // Updated field name and question
-                        question: "Rate your interest in Spray Records feature",
+                        question: "Rate your interest in Records feature",
                         answer: surveyAnswers.sprayRecordsInterest
                     },
                     enterprise_goals: {

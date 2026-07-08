@@ -160,13 +160,13 @@
       </div>
     </div>
 
-    <!-- Spray Record Confirmation -->
+    <!-- Record Confirmation -->
     <label class="setting-row">
       <div class="setting-icon spray-icon">
         <Droplets size={16} />
       </div>
       <div class="setting-label">
-        <span class="setting-name">Spray confirm popup</span>
+        <span class="setting-name">Record confirm popup</span>
         <span class="setting-desc">Show confirmation when closing a trail</span>
       </div>
       <input type="checkbox" class="toggle toggle-sm" checked={sprayConfirmEnabled}

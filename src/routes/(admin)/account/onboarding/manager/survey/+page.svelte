@@ -147,7 +147,7 @@
     },
     {
       id: "spray-records",
-      title: "Spray Records",
+      title: "Records",
       description:
         "Easy automated recording of spray records for compliance based on your location (which paddocks you're spraying) and timing/weather according to your farm plan.",
     },

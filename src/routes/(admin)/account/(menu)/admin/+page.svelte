@@ -197,7 +197,7 @@
   const MISC_BOOL_FIELDS = [
     { col: "devToolsEnabled",         label: "Dev tools" },
     { col: "satelliteDropdownEnabled",label: "Satellite dropdown" },
-    { col: "sprayConfirmEnabled",     label: "Spray confirm popup" },
+    { col: "sprayConfirmEnabled",     label: "Record confirm popup" },
   ]
 
   // Marker-related settings

@@ -138,8 +138,8 @@
         throw new Error(result.message || "Failed to confirm")
       }
 
-      toast.success("Spray records confirmed", {
-        description: `${sprayRecords.length} field record(s) saved`,
+      toast.success("Records confirmed", {
+        description: `${sprayRecords.length} record(s) saved`,
         duration: 3000,
       })
 

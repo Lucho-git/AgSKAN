@@ -310,7 +310,7 @@
     // Title
     doc.setFontSize(18)
     doc.setFont("helvetica", "bold")
-    doc.text(`Spray Report — ${fieldName}`, margin, y)
+    doc.text(`Input Report — ${fieldName}`, margin, y)
     y += 24
 
     // Summary
@@ -364,7 +364,7 @@
       }
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
-      doc.text("Products Applied", margin, y)
+      doc.text("Inputs Applied", margin, y)
       y += 14
       doc.setFontSize(9)
       const pCols = ["Product", "Active Ingredient", "Rate", "Usage", "Cost"]
@@ -527,7 +527,7 @@
       }
     }
 
-    const filename = `spray-report-${fieldName}-${new Date().toISOString().split("T")[0]}.pdf`
+    const filename = `input-report-${fieldName}-${new Date().toISOString().split("T")[0]}.pdf`
     doc.save(filename)
     // Also open in a new tab
     const blob = doc.output("blob")
@@ -1846,7 +1846,7 @@
     >
       <div class="report-panel">
         <div class="report-header">
-          <h2>Spray Report — {fieldName}</h2>
+          <h2>Input Report — {fieldName}</h2>
           <div class="report-header-actions">
             <button
               class="report-download-btn"
@@ -1871,7 +1871,7 @@
           </label>
           <label class="report-toggle">
             <input type="checkbox" bind:checked={includeProducts} />
-            <span>Products</span>
+            <span>Inputs</span>
           </label>
         </div>
         <div class="report-body">
@@ -1936,7 +1936,7 @@
           <!-- Products / Inputs -->
           {#if includeProducts}
             <div class="report-section">
-              <h3>Products Applied</h3>
+              <h3>Inputs Applied</h3>
               <table class="report-table">
                 <thead>
                   <tr>

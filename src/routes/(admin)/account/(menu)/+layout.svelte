@@ -111,7 +111,7 @@
       label: "Records",
       labelId: "records",
       topBarIcon: "solar:document-bold-duotone",
-      topBarLabel: "Spray Records",
+      topBarLabel: "Records",
       path: "records",
       requiresMap: true,
     },

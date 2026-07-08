@@ -105,7 +105,7 @@
 
   // Delete spray record
   async function deleteRecord(recordId: string) {
-    if (!confirm("Delete this spray record? This cannot be undone.")) return
+    if (!confirm("Delete this record? This cannot be undone.")) return
     try {
       const { error } = await supabase.rpc("delete_spray_record", {
         p_record_id: recordId,
@@ -318,7 +318,7 @@
       <div class="header-left">
         <FileText size={24} class="text-blue-400" />
         <div>
-          <h1>Spray Records</h1>
+          <h1>Records</h1>
           <p class="header-subtitle">
             {filteredRecords.length} record{filteredRecords.length !== 1
               ? "s"
@@ -342,7 +342,7 @@
               class="backfill-btn"
               on:click={runBackfill}
               disabled={backfilling}
-              title="Generate spray records from recent closed trails"
+              title="Generate records from recent closed trails"
             >
               {#if backfilling}
                 <Loader2 size={14} class="animate-spin" />
@@ -443,7 +443,7 @@
     {#if filteredRecords.length === 0}
       <div class="empty-state">
         <FileText size={48} class="text-white/20" />
-        <p>No spray records found</p>
+        <p>No records found</p>
         <p class="empty-subtitle">
           {searchQuery || selectedFieldId
             ? "Try adjusting your filters"
