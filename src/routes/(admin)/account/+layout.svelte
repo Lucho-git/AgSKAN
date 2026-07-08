@@ -204,7 +204,7 @@
           showGpsRejectedPopups:
             user_settings.show_gps_rejected_popups ?? false,
           layerVisibility: user_settings.layer_visibility ?? {},
-          sprayConfirmEnabled: user_settings.spray_confirm_enabled ?? false,
+          sprayConfirmEnabled: user_settings.spray_confirm_enabled ?? true,
         })
 
         layerVisibilityStore.applySavedState(

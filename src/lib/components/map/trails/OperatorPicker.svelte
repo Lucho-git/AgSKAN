@@ -146,13 +146,13 @@
 {#if pendingTakeOp}
   <div class="op-confirm-overlay" on:click|self={cancelTakeOperator}>
     <div class="op-confirm-dialog">
-      <h4>Take operator name?</h4>
+      <h4>Switch operator name?</h4>
       <p><strong>{pendingTakeOp.name}</strong> was last being used by <strong>{pendingTakeOp.in_use_by}</strong>.</p>
       <div class="op-confirm-buttons">
         <button type="button" class="op-confirm-cancel" on:click={cancelTakeOperator}>Cancel</button>
         <button type="button" class="op-confirm-take" disabled={saving} on:click={confirmTakeOperator}>
           {#if saving}<Loader2 size={14} class="spin" />{/if}
-          {saving ? "Taking…" : "Take Operator"}
+          {saving ? "Switching…" : "Switch Operator"}
         </button>
       </div>
     </div>
@@ -211,16 +211,15 @@
   .op-confirm-btn:disabled { opacity:0.4; cursor:not-allowed; }
   .op-confirm-btn :global(.spin) { animation:spin 1s linear infinite; }
   .op-confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1300; display:flex; align-items:center; justify-content:center; padding:16px; animation:fadeIn 0.15s ease-out; }
-  .op-confirm-dialog { background:#1a1a1a; border:1px solid rgba(251,191,36,0.3); border-radius:14px; width:340px; max-width:100%; padding:20px; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation:slideUp 0.2s ease-out; }
-  .op-confirm-icon { width:40px; height:40px; border-radius:10px; background:rgba(251,191,36,0.15); color:#fbbf24; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .op-confirm-dialog { background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); border-radius:14px; width:340px; max-width:100%; padding:20px; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation:slideUp 0.2s ease-out; }
   .op-confirm-dialog h4 { margin:0 0 8px; font-size:16px; font-weight:600; color:#fff; }
   .op-confirm-dialog p { margin:0 0 18px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.6); }
   .op-confirm-dialog p strong { color:rgba(255,255,255,0.9); }
   .op-confirm-buttons { display:flex; gap:8px; }
   .op-confirm-cancel { flex:1; padding:10px 16px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:rgba(255,255,255,0.7); font-size:14px; font-weight:500; cursor:pointer; transition:all 0.15s ease; }
   .op-confirm-cancel:hover { background:rgba(255,255,255,0.12); }
-  .op-confirm-take { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; background:rgba(251,191,36,0.2); border:1px solid rgba(251,191,36,0.4); border-radius:10px; color:#fbbf24; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
-  .op-confirm-take:hover:not(:disabled) { background:rgba(251,191,36,0.3); }
+  .op-confirm-take { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; background:rgba(96,165,250,0.2); border:1px solid rgba(96,165,250,0.4); border-radius:10px; color:#93c5fd; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+  .op-confirm-take:hover:not(:disabled) { background:rgba(96,165,250,0.3); }
   .op-confirm-take:disabled { opacity:0.5; cursor:not-allowed; }
 
   @keyframes fadeIn { from{opacity:0} to{opacity:1} }

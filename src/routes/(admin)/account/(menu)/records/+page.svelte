@@ -26,6 +26,7 @@
   import SprayRecordThumbnail from "$lib/components/map/trails/SprayRecordThumbnail.svelte"
   import { clearThumbnailCache } from "$lib/utils/thumbnailRenderer"
   import { RefreshCw } from "lucide-svelte"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   export let data
 
@@ -327,29 +328,31 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="backfill-section">
-          <input
-            type="number"
-            class="backfill-days"
-            bind:value={backfillDays}
-            min="1"
-            max="500"
-            title="Number of recent trails to backfill"
-          />
-          <button
-            class="backfill-btn"
-            on:click={runBackfill}
-            disabled={backfilling}
-            title="Generate spray records from recent closed trails"
-          >
-            {#if backfilling}
-              <Loader2 size={14} class="animate-spin" />
-            {:else}
-              <RefreshCw size={14} />
-            {/if}
-            <span>Backfill</span>
-          </button>
-        </div>
+        {#if $userSettingsStore?.devToolsEnabled}
+          <div class="backfill-section">
+            <input
+              type="number"
+              class="backfill-days"
+              bind:value={backfillDays}
+              min="1"
+              max="500"
+              title="Number of recent trails to backfill"
+            />
+            <button
+              class="backfill-btn"
+              on:click={runBackfill}
+              disabled={backfilling}
+              title="Generate spray records from recent closed trails"
+            >
+              {#if backfilling}
+                <Loader2 size={14} class="animate-spin" />
+              {:else}
+                <RefreshCw size={14} />
+              {/if}
+              <span>Backfill</span>
+            </button>
+          </div>
+        {/if}
         <div class="confirm-badge">
           <CheckCircle2 size={14} class="text-green-400" />
           <span>{confirmedCount}/{filteredRecords.length} confirmed</span>

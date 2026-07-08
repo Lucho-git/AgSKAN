@@ -39,7 +39,7 @@
     defaultMarker: { id: "default", name: "Default Marker", class: "default" },
     extraMarkers: [],
     layerVisibility: {},
-    sprayConfirmEnabled: false,
+    sprayConfirmEnabled: true,
   }
 
   let loading = false

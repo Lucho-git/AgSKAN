@@ -505,6 +505,17 @@
         <ProfileControls />
       {:else}
         <div class="tool-grid">
+          <button class="tool-button" on:click={showProfilePanel}>
+            <div class="profile-avatar-circle">
+              {#if operatorInitials}
+                {operatorInitials}
+              {:else}
+                <UserCircle size={26} />
+              {/if}
+            </div>
+            <span>Profile</span>
+          </button>
+
           <button class="tool-button" on:click={showVehiclePanel}>
             <div class="vehicle-icon-container">
               {#if VehicleIcon}
@@ -560,17 +571,6 @@
             {#if fieldCount > 0}
               <span class="tool-badge field-badge">{fieldCount}</span>
             {/if}
-          </button>
-
-          <button class="tool-button" on:click={showProfilePanel}>
-            <div class="profile-avatar-circle">
-              {#if operatorInitials}
-                {operatorInitials}
-              {:else}
-                <UserCircle size={26} />
-              {/if}
-            </div>
-            <span>Profile</span>
           </button>
 
           <div class="tool-grid-separator"></div>

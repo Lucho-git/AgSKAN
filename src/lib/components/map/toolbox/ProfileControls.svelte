@@ -1,7 +1,7 @@
 <!-- src/lib/components/map/toolbox/ProfileControls.svelte -->
 <script lang="ts">
   import { toast } from "svelte-sonner"
-  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck } from "lucide-svelte"
+  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock } from "lucide-svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -78,6 +78,25 @@
   $: sprayConfirmEnabled = $userSettingsStore.sprayConfirmEnabled ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
+  $: gpsIntervalSeconds = $userSettingsStore.gpsIntervalSeconds ?? 2
+  $: gpsIntervalStr = String(gpsIntervalSeconds)
+
+  async function updateGpsInterval(value: number) {
+    saving = "gpsIntervalSeconds"
+    try {
+      const result = await userSettingsApi.updateGpsIntervalSeconds(value)
+      if (result?.success) {
+        toast.success("GPS interval: " + value + "s")
+      } else {
+        toast.error(result?.message || "Failed to update")
+        userSettingsStore.update((s) => ({ ...s, gpsIntervalSeconds: $userSettingsStore.gpsIntervalSeconds }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+    } finally {
+      saving = null
+    }
+  }
 
   function getInitials(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -150,15 +169,9 @@
         <span class="setting-name">Spray confirm popup</span>
         <span class="setting-desc">Show confirmation when closing a trail</span>
       </div>
-      <button
-        type="button"
-        class="toggle"
-        class:toggle-on={sprayConfirmEnabled}
+      <input type="checkbox" class="toggle toggle-sm" checked={sprayConfirmEnabled}
         disabled={saving === "sprayConfirmEnabled"}
-        on:click={() => toggleSprayConfirm(!sprayConfirmEnabled)}
-      >
-        <span class="toggle-knob"></span>
-      </button>
+        on:change={() => toggleSprayConfirm(!sprayConfirmEnabled)} />
     </label>
 
     <!-- Auto-confirm Markers -->
@@ -170,15 +183,9 @@
         <span class="setting-name">Auto-confirm markers</span>
         <span class="setting-desc">Skip edit panel when placing markers</span>
       </div>
-      <button
-        type="button"
-        class="toggle"
-        class:toggle-on={autoConfirmMarkers}
+      <input type="checkbox" class="toggle toggle-sm" checked={autoConfirmMarkers}
         disabled={saving === "autoConfirmMarkers"}
-        on:click={() => toggleAutoConfirm(!autoConfirmMarkers)}
-      >
-        <span class="toggle-knob"></span>
-      </button>
+        on:change={() => toggleAutoConfirm(!autoConfirmMarkers)} />
     </label>
 
     <!-- Zoom to Location Markers -->
@@ -190,15 +197,29 @@
         <span class="setting-name">Zoom to quick-drop markers</span>
         <span class="setting-desc">Auto-zoom map when dropping location markers</span>
       </div>
-      <button
-        type="button"
-        class="toggle"
-        class:toggle-on={zoomToLocationMarkers}
+      <input type="checkbox" class="toggle toggle-sm" checked={zoomToLocationMarkers}
         disabled={saving === "zoomToLocationMarkers"}
-        on:click={() => toggleZoomLocation(!zoomToLocationMarkers)}
-      >
-        <span class="toggle-knob"></span>
-      </button>
+        on:change={() => toggleZoomLocation(!zoomToLocationMarkers)} />
+    </label>
+
+    <!-- GPS interval -->
+    <label class="setting-row">
+      <div class="setting-icon gps-icon">
+        <Clock size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">GPS update interval</span>
+        <span class="setting-desc">How often GPS position updates</span>
+      </div>
+      <select class="gps-select" value={gpsIntervalStr}
+        disabled={saving === "gpsIntervalSeconds"}
+        on:change={(e) => updateGpsInterval(parseInt(e.target.value))}>
+        <option value="1">1s</option>
+        <option value="2">2s</option>
+        <option value="3">3s</option>
+        <option value="5">5s</option>
+        <option value="10">10s</option>
+      </select>
     </label>
   </div>
 </div>
@@ -428,42 +449,21 @@
     line-height: 1.3;
   }
 
-  /* Toggle switch */
-  .toggle {
-    position: relative;
-    width: 38px;
-    height: 22px;
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.15);
-    border: none;
+  /* GPS select */
+  .gps-select {
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    outline: none;
     cursor: pointer;
-    transition: background 0.2s ease;
     flex-shrink: 0;
-    padding: 0;
   }
 
-  .toggle.toggle-on {
-    background: rgba(96, 165, 250, 0.6);
-  }
-
-  .toggle:disabled {
-    opacity: 0.5;
-    cursor: wait;
-  }
-
-  .toggle-knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #ffffff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: transform 0.2s ease;
-  }
-
-  .toggle-on .toggle-knob {
-    transform: translateX(16px);
+  .gps-icon {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
   }
 </style>
