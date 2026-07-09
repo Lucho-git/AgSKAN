@@ -38,6 +38,52 @@ async function getUserIdFromCustomer(stripeCustomerId: string): Promise<string> 
         .single()
 
     if (data?.user_id) {
+        // Check if this user has a subscription — if not, they may be a duplicate
+        const { data: sub } = await supabase
+            .from("user_subscriptions")
+            .select("subscription_status")
+            .eq("user_id", data.user_id)
+            .maybeSingle()
+
+        if (sub?.subscription_status && sub.subscription_status !== "free") {
+            // This user has a real subscription — use them
+            return data.user_id
+        }
+
+        // This user is "free" — try to find a sibling account with the same email that has a subscription
+        console.log(`[Webhook] User ${data.user_id} has status "${sub?.subscription_status || "none"}", checking for subscription-bearing sibling...`)
+
+        const { data: profile } = await supabase
+            .from("profiles").select("email").eq("id", data.user_id).single()
+
+        if (profile?.email) {
+            const { data: siblings } = await supabase
+                .from("profiles")
+                .select("id, email")
+                .eq("email", profile.email)
+                .neq("id", data.user_id)
+
+            if (siblings) {
+                for (const sib of siblings) {
+                    const { data: sibSub } = await supabase
+                        .from("user_subscriptions")
+                        .select("subscription_status")
+                        .eq("user_id", sib.id)
+                        .maybeSingle()
+
+                    if (sibSub?.subscription_status && !["free", "canceled"].includes(sibSub.subscription_status)) {
+                        console.log(`[Webhook] Consolidating: using sibling ${sib.id} (${sibSub.subscription_status}) instead of ${data.user_id}`)
+                        // Update stripe_customers to point to the correct user
+                        await supabase.from("stripe_customers")
+                            .update({ user_id: sib.id })
+                            .eq("stripe_customer_id", stripeCustomerId)
+                        return sib.id
+                    }
+                }
+            }
+        }
+
+        // No subscription-bearing sibling found — use the original user
         return data.user_id
     }
 

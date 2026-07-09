@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "deploy-cron-reminder",
+			"type": "shell",
+			"command": "cd c:/Users/lachl/Repos/AgSKAN && npx supabase functions deploy cron-invoice-reminders --project-ref hmxxqacnzxqpcheoeidn",
+			"isBackground": false
+		}
+	]
+}
