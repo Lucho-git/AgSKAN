@@ -119,10 +119,10 @@
   }
 
   .refresh-button :global(.spinning) {
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     from {
       transform: rotate(0deg);
     }

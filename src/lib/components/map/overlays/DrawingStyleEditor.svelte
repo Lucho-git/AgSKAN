@@ -388,10 +388,10 @@
     color: white;
     z-index: 1000;
     border-top: 1px solid rgba(168, 85, 247, 0.5);
-    animation: slideUp 0.3s ease-out;
+    animation: agskan-slideUp 0.3s ease-out;
   }
 
-  @keyframes slideUp {
+  @keyframes agskan-slideUp {
     from {
       transform: translateY(100%);
     }

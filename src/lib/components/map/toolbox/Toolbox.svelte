@@ -685,7 +685,7 @@
     height: 100%;
     background-color: rgba(0, 0, 0, 0.6);
     z-index: 1000;
-    animation: fadeIn 0.2s ease-out;
+    animation: agskan-fadeIn 0.2s ease-out;
   }
 
   .toolbox-panel {
@@ -699,7 +699,7 @@
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    animation: slideInLeft 0.3s ease-out;
+    animation: agskan-slideInLeft 0.3s ease-out;
     color: rgba(255, 255, 255, 0.95);
   }
 
@@ -811,7 +811,7 @@
     padding: 6px 10px 10px;
     max-height: calc(100vh - 80px);
     overflow-y: auto;
-    animation: fadeIn 0.15s ease-out;
+    animation: agskan-fadeIn 0.15s ease-out;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
     z-index: 1;
   }
@@ -1010,10 +1010,10 @@
   }
 
   .trail-badge-loading :global(.spin) {
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     from {
       transform: rotate(0deg);
     }
@@ -1068,7 +1068,7 @@
     overflow: visible;
   }
 
-  @keyframes fadeIn {
+  @keyframes agskan-fadeIn {
     from {
       opacity: 0;
     }
@@ -1077,7 +1077,7 @@
     }
   }
 
-  @keyframes slideInLeft {
+  @keyframes agskan-slideInLeft {
     from {
       transform: translateX(-100%);
     }
@@ -1112,7 +1112,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: fadeIn 0.15s ease-out;
+    animation: agskan-fadeIn 0.15s ease-out;
   }
 
   .confirm-modal {
@@ -1122,7 +1122,7 @@
     width: 320px;
     max-width: 90vw;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-    animation: slideUp 0.2s ease-out;
+    animation: agskan-slideUp 0.2s ease-out;
   }
 
   .confirm-header {
@@ -1196,7 +1196,7 @@
     background: rgba(251, 191, 36, 0.3);
   }
 
-  @keyframes slideUp {
+  @keyframes agskan-slideUp {
     from {
       opacity: 0;
       transform: translateY(20px);

@@ -943,7 +943,7 @@
     background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
     color: white;
     box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
-    animation: pulse-badge 2s ease-in-out infinite;
+    animation: agskan-pulse-badge 2s ease-in-out infinite;
   }
 
   .trail-status-badge.red:hover {
@@ -963,7 +963,7 @@
     flex-shrink: 0;
   }
 
-  @keyframes pulse-badge {
+  @keyframes agskan-pulse-badge {
     0%,
     100% {
       transform: scale(1);
@@ -1016,10 +1016,10 @@
 
   /* Spinning animation for refresh icon */
   .menu-button :global(.spinning) {
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     from {
       transform: rotate(0deg);
     }
@@ -1028,7 +1028,7 @@
     }
   }
 
-  @keyframes draw {
+  @keyframes agskan-draw {
     0% {
       stroke-dashoffset: 1000;
     }
@@ -1053,8 +1053,7 @@
     stroke-width: 1;
     fill: currentColor;
     stroke-dasharray: 105;
-    animation:
-      draw 10s linear infinite,
+    animation: agskan-draw 10s linear infinite,
       fillUnfill 3s linear infinite;
   }
 

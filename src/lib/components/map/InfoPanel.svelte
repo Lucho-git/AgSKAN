@@ -898,10 +898,10 @@
     height: 6px;
     background: #22c55e;
     border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
+    animation: agskan-pulse 2s ease-in-out infinite;
   }
 
-  @keyframes pulse {
+  @keyframes agskan-pulse {
     0%,
     100% {
       opacity: 1;
@@ -1350,10 +1350,10 @@
     border: 2px solid rgba(34, 197, 94, 0.3);
     border-top: 2px solid #22c55e;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     to {
       transform: rotate(360deg);
     }

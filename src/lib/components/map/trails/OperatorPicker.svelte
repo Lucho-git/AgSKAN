@@ -160,8 +160,8 @@
 {/if}
 
 <style>
-  .op-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1200; display:flex; align-items:center; justify-content:center; padding:16px; animation:fadeIn 0.15s ease-out; }
-  .op-modal { background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); border-radius:16px; width:380px; max-width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation:slideUp 0.2s ease-out; }
+  .op-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1200; display:flex; align-items:center; justify-content:center; padding:16px; animation: agskan-fadeIn 0.15s ease-out; }
+  .op-modal { background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); border-radius:16px; width:380px; max-width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation: agskan-slideUp 0.2s ease-out; }
   .op-header { display:flex; align-items:center; gap:12px; padding:18px 20px 14px; border-bottom:1px solid rgba(255,255,255,0.1); }
   .op-header-icon { width:40px; height:40px; border-radius:10px; background:rgba(96,165,250,0.15); color:#93c5fd; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .op-header-text h3 { margin:0; font-size:17px; font-weight:600; color:#fff; }
@@ -182,7 +182,7 @@
   .op-current-empty-text { font-size:14px; color:rgba(255,255,255,0.4); }
 
   .op-loading { display:flex; flex-direction:column; align-items:center; gap:10px; padding:30px 0; color:rgba(255,255,255,0.5); font-size:13px; }
-  .op-loading :global(.spin) { animation:spin 1s linear infinite; }
+  .op-loading :global(.spin) { animation: agskan-spin 1s linear infinite; }
   .op-list { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
   .op-option { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:10px; cursor:pointer; transition:all 0.15s ease; color:rgba(255,255,255,0.85); text-align:left; }
   .op-option:hover { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2); }
@@ -209,9 +209,9 @@
   .op-confirm-btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 22px; background:rgba(96,165,250,0.2); border:1px solid rgba(96,165,250,0.4); border-radius:10px; color:#93c5fd; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
   .op-confirm-btn:hover:not(:disabled) { background:rgba(96,165,250,0.3); border-color:rgba(96,165,250,0.5); }
   .op-confirm-btn:disabled { opacity:0.4; cursor:not-allowed; }
-  .op-confirm-btn :global(.spin) { animation:spin 1s linear infinite; }
-  .op-confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1300; display:flex; align-items:center; justify-content:center; padding:16px; animation:fadeIn 0.15s ease-out; }
-  .op-confirm-dialog { background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); border-radius:14px; width:340px; max-width:100%; padding:20px; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation:slideUp 0.2s ease-out; }
+  .op-confirm-btn :global(.spin) { animation: agskan-spin 1s linear infinite; }
+  .op-confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1300; display:flex; align-items:center; justify-content:center; padding:16px; animation: agskan-fadeIn 0.15s ease-out; }
+  .op-confirm-dialog { background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); border-radius:14px; width:340px; max-width:100%; padding:20px; box-shadow:0 16px 48px rgba(0,0,0,0.6); animation: agskan-slideUp 0.2s ease-out; }
   .op-confirm-dialog h4 { margin:0 0 8px; font-size:16px; font-weight:600; color:#fff; }
   .op-confirm-dialog p { margin:0 0 18px; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.6); }
   .op-confirm-dialog p strong { color:rgba(255,255,255,0.9); }
@@ -222,7 +222,7 @@
   .op-confirm-take:hover:not(:disabled) { background:rgba(96,165,250,0.3); }
   .op-confirm-take:disabled { opacity:0.5; cursor:not-allowed; }
 
-  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-  @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
-  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes agskan-fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes agskan-slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+  @keyframes agskan-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 </style>

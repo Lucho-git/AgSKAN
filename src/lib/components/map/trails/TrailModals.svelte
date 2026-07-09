@@ -484,7 +484,7 @@
     align-items: center;
     justify-content: center;
     z-index: 50;
-    animation: fadeIn 0.2s ease-out;
+    animation: agskan-fadeIn 0.2s ease-out;
   }
 
   /* Trail Modal */
@@ -499,7 +499,7 @@
     flex-direction: column;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    animation: slideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    animation: agskan-slideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     overflow: hidden;
   }
 
@@ -543,14 +543,14 @@
 
   .status-dot.recording {
     background: #22c55e;
-    animation: pulse-dot 2s ease-in-out infinite;
+    animation: agskan-pulse-dot 2s ease-in-out infinite;
   }
 
   .status-dot.stopped {
     background: #6b7280;
   }
 
-  @keyframes pulse-dot {
+  @keyframes agskan-pulse-dot {
     0%,
     100% {
       opacity: 1;
@@ -805,7 +805,7 @@
   }
 
   /* Animations */
-  @keyframes fadeIn {
+  @keyframes agskan-fadeIn {
     from {
       opacity: 0;
     }
@@ -814,7 +814,7 @@
     }
   }
 
-  @keyframes slideIn {
+  @keyframes agskan-slideIn {
     from {
       transform: translateY(-20px) scale(0.95);
       opacity: 0;

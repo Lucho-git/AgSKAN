@@ -1294,7 +1294,7 @@
 {/if}
 
 <style>
-  @keyframes shake {
+  @keyframes agskan-shake {
     0%,
     100% {
       transform: translateX(0);
@@ -1308,10 +1308,10 @@
   }
 
   .animate-shake {
-    animation: shake 0.3s ease-in-out;
+    animation: agskan-shake 0.3s ease-in-out;
   }
 
-  @keyframes fadeIn {
+  @keyframes agskan-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -1323,6 +1323,6 @@
   }
 
   .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+    animation: agskan-fadeIn 0.2s ease-out;
   }
 </style>

@@ -86,10 +86,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: pulse 1s ease-in-out infinite;
+    animation: agskan-pulse 1s ease-in-out infinite;
   }
 
-  @keyframes pulse {
+  @keyframes agskan-pulse {
     0%,
     100% {
       opacity: 1;

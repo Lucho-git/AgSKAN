@@ -1802,7 +1802,7 @@ font-size: 12px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     from {
       transform: rotate(0deg);
     }
@@ -1811,9 +1811,9 @@ font-size: 12px;
     }
   }
   :global(.animate-spin) {
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
-  @keyframes slideUp {
+  @keyframes agskan-slideUp {
     from {
       transform: translateY(20px);
       opacity: 0;
@@ -1835,7 +1835,7 @@ font-size: 12px;
     color: white;
     z-index: 1000;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    animation: slideUp 0.25s ease-out;
+    animation: agskan-slideUp 0.25s ease-out;
     display: flex;
     flex-direction: column;
   }
@@ -1997,7 +1997,7 @@ font-size: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: fadeIn 0.15s ease-out;
+    animation: agskan-fadeIn 0.15s ease-out;
   }
   .delete-modal {
     background: #1d232a;
@@ -2015,7 +2015,7 @@ font-size: 12px;
     gap: 8px;
     margin-top: 16px;
   }
-  @keyframes fadeIn {
+  @keyframes agskan-fadeIn {
     from {
       opacity: 0;
     }

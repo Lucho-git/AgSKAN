@@ -1086,10 +1086,10 @@
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-top: 2px solid rgba(96, 165, 250, 0.8);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: agskan-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes agskan-spin {
     0% {
       transform: rotate(0deg);
     }

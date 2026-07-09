@@ -610,7 +610,7 @@
 </div>
 
 <style>
-  @keyframes slideDown {
+  @keyframes agskan-slideDown {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -622,6 +622,6 @@
   }
 
   .animate-slideDown {
-    animation: slideDown 0.2s ease-out;
+    animation: agskan-slideDown 0.2s ease-out;
   }
 </style>

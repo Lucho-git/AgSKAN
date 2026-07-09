@@ -302,10 +302,10 @@
     cursor: pointer;
     transition: all 0.3s ease;
     flex-shrink: 0;
-    animation: slideInRight 0.3s ease;
+    animation: agskan-slideInRight 0.3s ease;
   }
 
-  @keyframes slideInRight {
+  @keyframes agskan-slideInRight {
     from {
       opacity: 0;
       transform: translateX(20px);

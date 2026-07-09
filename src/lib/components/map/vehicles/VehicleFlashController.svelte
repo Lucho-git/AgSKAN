@@ -230,10 +230,10 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    animation: pulse 1s ease-in-out infinite;
+    animation: agskan-pulse 1s ease-in-out infinite;
   }
 
-  @keyframes pulse {
+  @keyframes agskan-pulse {
     0%,
     100% {
       opacity: 1;

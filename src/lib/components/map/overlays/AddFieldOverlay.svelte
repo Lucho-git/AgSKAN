@@ -1252,7 +1252,7 @@
     color: white;
     padding: 14px 14px max(14px, env(safe-area-inset-bottom));
     backdrop-filter: blur(14px);
-    animation: slideUp 0.22s ease-out;
+    animation: agskan-slideUp 0.22s ease-out;
   }
 
   .close-badge {
@@ -1287,7 +1287,7 @@
     cursor: not-allowed;
   }
 
-  @keyframes slideUp {
+  @keyframes agskan-slideUp {
     from {
       opacity: 0;
       transform: translateY(18px);

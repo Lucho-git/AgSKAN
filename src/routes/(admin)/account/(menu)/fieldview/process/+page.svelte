@@ -931,7 +931,7 @@
 </div>
 
 <style>
-  @keyframes fadeIn {
+  @keyframes agskan-fadeIn {
     from {
       opacity: 0;
       transform: scale(0.95);
@@ -943,10 +943,10 @@
   }
 
   .animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
+    animation: agskan-fadeIn 0.2s ease-out;
   }
 
-  @keyframes slideInLeft {
+  @keyframes agskan-slideInLeft {
     from {
       opacity: 0;
       transform: translateX(-20px);
@@ -958,6 +958,6 @@
   }
 
   .animate-slideInLeft {
-    animation: slideInLeft 0.3s ease-out;
+    animation: agskan-slideInLeft 0.3s ease-out;
   }
 </style>

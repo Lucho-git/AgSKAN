@@ -512,7 +512,7 @@
 {/if}
 
 <style>
-  @keyframes shake {
+  @keyframes agskan-shake {
     0%,
     100% {
       transform: translateX(0);
