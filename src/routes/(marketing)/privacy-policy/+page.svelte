@@ -1,582 +1,226 @@
 <script>
-  // Svelte script section
-  const companyName = "SKAN Farming Logistics Pty Ltd"
-  const websiteUrl = "https://www.skanfarming.com/" // Corrected URL
-  const contactEmail = "ryan@skanfarming.com"
-  const postalAddressLine1 = "Unit 24, Level 1"
-  const postalAddressLine2 = "199 Balcatta Road"
-  const postalAddressLine3 = "Balcatta Junction Balcatta WA 6021"
-  const poBoxAddress = "PO Box 650 Balcatta WA 6914"
-  const phoneNumber = "0439 405 248"
+  // Privacy Policy for AgSKAN
 </script>
 
 <div class="page-container">
   <h1>Privacy Policy</h1>
 
-  <h2>About this Privacy Policy</h2>
-  <p>
-    {companyName} (referred to as "SKAN", "we", "us", or "our") is committed to respecting
-    your right to privacy and protecting your personal information.
-  </p>
-  <p>
-    This Policy applies to all your dealings with us when you use our services,
-    whether in person, or via telephone, email, correspondence, our website,
-    social media or otherwise.
-  </p>
-  <p>The purpose of this Policy is to:</p>
+  <p class="company-info">SKAN Farming Logistics Pty Ltd ACN 675 693 464, trading as AgSKAN</p>
+  <p class="last-updated"><em>Last updated: 1/07/2026</em></p>
+
+  <!-- Section 1 -->
+  <h2>1. About This Privacy Policy</h2>
+  <p>SKAN Farming Logistics Pty Ltd, trading as AgSKAN ("AgSKAN", "we", "us" or "our"), is committed to protecting your privacy and handling your personal information responsibly.</p>
+  <p>This Policy applies to all of your dealings with us, whether through our Website, our platform and services, or in person, by phone, email or other correspondence. It explains:</p>
   <ul>
-    <li>
-      Give you a better and more complete understanding of the kinds of personal
-      information we collect and hold;
-    </li>
-    <li>
-      Clearly and concisely communicate how and when we collect, disclose, use,
-      store and otherwise handle personal information;
-    </li>
-    <li>
-      Inform you about the purposes for which we collect, hold, use and disclose
-      personal information;
-    </li>
-    <li>
-      Provide you with information about how you may access your personal
-      information, and seek correction of your personal information;
-    </li>
-    <li>
-      Provide you with information about how you may make a complaint, and how
-      we will deal with any such complaint;
-    </li>
-    <li>
-      Advise you of the circumstances in which we are likely to disclose
-      personal information to recipients in other countries, if applicable; and
-    </li>
-    <li>Enhance the transparency of our operations.</li>
+    <li>what kinds of personal information we collect and hold;</li>
+    <li>how and when we collect, use, disclose and otherwise handle personal information;</li>
+    <li>the purposes for which we collect, hold, use and disclose personal information;</li>
+    <li>how you can access or correct your personal information;</li>
+    <li>how you can make a complaint, and how we will handle it; and</li>
+    <li>the circumstances in which we may disclose personal information overseas.</li>
   </ul>
-  <p>
-    For the purpose of this Policy, <strong>Personal Information</strong> means information
-    or an opinion about an identified individual, or an individual who is reasonably
-    identifiable, whether the information or opinion is true or not, and whether
-    the information or opinion is recorded in a material form or not. This may include,
-    for example, your name, contact details, and information about your use of our
-    services.
-  </p>
-  <p>
-    <strong>Sensitive Information</strong> is a subset of personal information that
-    is generally afforded a higher level of privacy protection. Examples might include
-    information about your racial or ethnic origin, political opinions, religious
-    beliefs, or health information. We will only collect sensitive information if
-    it is reasonably necessary for our functions or activities and with your explicit
-    consent, or if the collection is required or authorized by law. For our farming
-    agtech services, we typically do not need to collect this type of information.
-  </p>
+  <p><span class="definition-term">Personal Information</span> means information or an opinion about an identified individual, or an individual who is reasonably identifiable, whether true or not and whether recorded in a material form or not — for example, your name, contact details, and information about your use of the AgSKAN Services.</p>
+  <p><span class="definition-term">Sensitive Information</span> is a subset of personal information given a higher level of protection under privacy law (for example, health, racial or ethnic information). We do not generally need this type of information to provide the AgSKAN Services, and will only collect it with your consent or where the law requires or permits it.</p>
 
-  <h2>Collection of Personal Information</h2>
-  <p>
-    We will, if it is reasonable or practicable to do so, collect your personal
-    information directly from you. This may happen when you fill out a form,
-    create an account, subscribe to our services, or when you give us personal
-    information in person, or via telephone, email, correspondence, our website,
-    or social media.
-  </p>
-  <p>
-    You might also provide personal information about other individuals to us
-    (e.g., an authorized representative for your farming operation). If so, we
-    rely on you to have obtained their authority to release their personal
-    information to us.
-  </p>
-  <p>
-    Sometimes we may collect personal information from a third party or a
-    publicly available source if it is relevant to the services we provide you
-    (e.g., publicly available agricultural data) and if it's unreasonable or
-    impractical to collect it directly from you.
-  </p>
-  <p>
-    If we receive personal information that we did not solicit, we will
-    determine as soon as reasonably practicable whether we could have lawfully
-    collected that information as part of our functions or activities. If we are
-    not satisfied that we could have lawfully collected the information, then we
-    will (if it is lawful and reasonable) destroy the information or ensure that
-    it is de-identified.
-  </p>
-  <p>
-    You may choose to deal with us anonymously or under a pseudonym where lawful
-    and practical. However, where anonymity or use of a pseudonym will render us
-    unable to provide the relevant services or do business with you (e.g., for
-    account management, billing, or providing specific farm data services), we
-    may request that you identify yourself.
-  </p>
+  <!-- Section 2 -->
+  <h2>2. How We Collect Personal Information</h2>
+  <p>Where reasonable and practicable, we collect personal information directly from you — for example, when you create an account, request a quote, subscribe to the AgSKAN Services, or otherwise contact us.</p>
+  <p>You may give us personal information about someone else (for example, another person at your farming operation). If you do, you confirm that you are authorised to provide it to us.</p>
+  <p>Occasionally we may collect information from a third party or a publicly available source, where it is relevant to the AgSKAN Services and it is impractical to collect it from you directly.</p>
+  <p>If we receive personal information we did not request, we will assess whether we could have lawfully collected it. If not, we will destroy or de-identify it where lawful and reasonable to do so.</p>
+  <p>You may deal with us anonymously or under a pseudonym where that is lawful and practical. However, some AgSKAN Services — such as account management, billing, or Live Mapping and Coverage Sharing tied to your farm data — cannot be provided unless we know who you are.</p>
 
-  <h3>Information we collect from users</h3>
-  <p>
-    When you use our farming agtech services, we may collect personal
-    information in order to provide and improve those services to you. We strive
-    to only collect personal information that is reasonably necessary for, or
-    directly related to, one or more of the services we provide or functions we
-    carry out.
-  </p>
-  <p>
-    If you use free informational services available on our website, you might
-    be required to create a username (which may be a pseudonym) and/or provide
-    your email address for updates or access.
-  </p>
-  <p>
-    If you use our paid services, platform, or services requiring an account, we
-    may collect the following types of personal information:
-  </p>
+  <!-- Section 3 -->
+  <h2>3. Information We Collect</h2>
+
+  <h3>3.1 Free and informational services</h3>
+  <p>If you use free informational parts of the Website, we may only need a username (which may be a pseudonym) and/or an email address.</p>
+
+  <h3>3.2 Account, subscription and platform users</h3>
+  <p>If you create an account or use a paid AgSKAN Service, we may collect:</p>
   <ul>
-    <li>Name.</li>
-    <li>Farm or Company name (if applicable).</li>
-    <li>Email address.</li>
-    <li>Phone number.</li>
-    <li>Billing address.</li>
-    <li>
-      Financial information including credit card details or bank account
-      details for payment processing.
-    </li>
-    <li>
-      Information related to your farm operations that you provide for use with
-      our services (e.g., field locations, crop types, sensor data, operational
-      practices).
-    </li>
-    <li>
-      Other information you voluntarily provide to us to tailor your service
-      experience or for support.
-    </li>
+    <li>your name, farm or company name, email address and phone number;</li>
+    <li>your billing address and payment details (such as credit card or bank account information) for processing payments;</li>
+    <li>information about your farm operations that you provide for use with the AgSKAN Services — for example, field or paddock locations, crop types, coverage areas, and other data used for Live Mapping or Coverage Sharing; and</li>
+    <li>any other information you choose to give us to support or tailor your use of the AgSKAN Services.</li>
   </ul>
-  <p>
-    Some of the information we may ask you to provide may be identified as
-    mandatory to enable us to provide the core service. If you do not provide
-    the mandatory data, we may be unable to provide the services requested by
-    you.
-  </p>
-  <p>
-    Like many websites and online platforms, we may utilize “cookies” and
-    similar technologies which automatically collect information to help us
-    recognize you, customize your experience, and improve our services. For
-    example, when visiting our website or using our platform, we may
-    automatically record information that your browser or device sends such as
-    the web address you came from or are going to, your device model, operating
-    system, browser type, unique device identifier, IP address, mobile network
-    carrier, time zone and general location (e.g., country or city). Our
-    third-party service providers may also help us to track activity within our
-    services. A cookie does not identify you personally but may identify your
-    internet service provider or computer. You can usually set your browser to
-    notify you when you receive a cookie and this will provide you with an
-    opportunity to either accept or reject it in each instance. Rejecting
-    cookies may affect your ability to use some features of our services.
-  </p>
+  <p>Where information is mandatory for us to provide a core part of the AgSKAN Services, we will let you know — if you don't provide it, we may not be able to provide that part of the service.</p>
 
-  <h2>Use and Disclosure of Personal Information</h2>
-  <p>
-    Personal information collected by SKAN will ordinarily be used for the
-    following purposes:
-  </p>
+  <h3>3.3 Automatically collected information and cookies</h3>
+  <p>Like most websites and platforms, the Website may use cookies and similar technologies to recognise you, remember your preferences, and understand how the AgSKAN Services are used. This may include your browser or device type, operating system, unique device identifiers, IP address, general location (such as city or country), and pages or features you use. We may use third-party analytics providers to help us understand usage of the Website and platform. You can usually set your browser to notify or block cookies, though this may affect your ability to use some features.</p>
+
+  <!-- Section 4 -->
+  <h2>4. How We Use and Disclose Personal Information</h2>
+  <p>We ordinarily use personal information to:</p>
   <ul>
-    <li>
-      Providing you with the agtech services and platform access requested.
-    </li>
-    <li>
-      To modify, improve, and develop the services provided to you and other
-      users.
-    </li>
-    <li>Customer support and troubleshooting.</li>
-    <li>To manage the contractual relationship between you and SKAN.</li>
-    <li>User and business relationship management.</li>
-    <li>To perform audits, security and fraud monitoring and prevention.</li>
-    <li>To process transactions and manage billing.</li>
-    <li>
-      To ask for feedback, ratings, and reviews of the products and services we
-      offer.
-    </li>
-    <li>
-      Marketing of products and services to you (with your consent where
-      required, and always with an option to opt-out).
-    </li>
-    <li>
-      To comply with legal process or to protect SKAN’s interests and legal
-      rights.
-    </li>
-    <li>
-      For data aggregation and anonymization to generate insights, improve our
-      services, and for research (ensuring individual users are not
-      identifiable).
-    </li>
+    <li>provide, operate and maintain the AgSKAN Services and your account;</li>
+    <li>develop, improve and troubleshoot the AgSKAN Services, including Live Mapping and Coverage Sharing;</li>
+    <li>manage our relationship with you, including billing and customer support;</li>
+    <li>carry out security, audit and fraud-prevention checks;</li>
+    <li>ask for feedback, ratings or reviews;</li>
+    <li>market our products and services to you, with your consent where required and always with the ability to opt out; and</li>
+    <li>comply with our legal obligations, or protect our legal rights.</li>
   </ul>
-  <p>
-    In order to achieve the purposes described above, we may disclose your
-    personal information to the persons/organizations described below:
-  </p>
+  <p>We may disclose personal information to:</p>
   <ul>
-    <li>Your authorized representative or advisor (if you provide consent).</li>
-    <li>
-      Third-party service providers engaged by us who assist in providing parts
-      of our service (such as payment processors, data hosting providers, cloud
-      computing services, analytics providers, and customer support tools). We
-      ensure these providers have appropriate safeguards for your information.
-    </li>
-    <li>
-      Persons or organizations involved in marketing goods and services on our
-      behalf (where you have consented).
-    </li>
-    <li>
-      Government agencies or other persons/organizations if required by law or
-      to comply with legal obligations.
-    </li>
-    <li>
-      Organizations involved in maintaining, reviewing, and developing our
-      business systems, procedures and infrastructure including maintaining or
-      upgrading our computer systems.
-    </li>
-    <li>
-      Potential purchasers or new owners if SKAN is involved in a merger,
-      acquisition, or sale of all or a portion of its assets (in such cases,
-      information is typically shared under confidentiality agreements).
-    </li>
-    <li>
-      Organizations involved in the payments systems including financial
-      institutions, merchants and payment organizations.
-    </li>
+    <li>an authorised representative or adviser you've told us about, or an Invited User you've granted access to via Coverage Sharing (see clause 5);</li>
+    <li>third-party service providers who help us deliver the AgSKAN Services, such as payment processors, cloud hosting and data storage providers, and analytics or customer support tools — subject to appropriate confidentiality and security arrangements;</li>
+    <li>organisations assisting with our business systems, infrastructure or IT;</li>
+    <li>government agencies or other bodies where required or authorised by law; and</li>
+    <li>a potential purchaser or new owner, if AgSKAN is involved in a merger, acquisition, or sale of all or part of its business, generally under a confidentiality agreement.</li>
   </ul>
-  <p>
-    We will only use and disclose personal information for the primary purpose
-    for which it was initially collected, for directly related secondary
-    purposes that you would reasonably expect, or for other purposes to which
-    you have consented.
-  </p>
-  <p>
-    We will not disclose your personal information to other third parties unless
-    one of the following applies:
-  </p>
+  <p>We will only use or disclose your personal information for the purpose it was collected, for a related purpose you would reasonably expect, or for a purpose you've consented to — and otherwise only where required or authorised by law.</p>
+
+  <!-- Section 5 -->
+  <h2>5. Coverage Sharing and Other Third-Party Integrations</h2>
+  <p>If you use Coverage Sharing to give another User or an Invited User access to your maps, coverage areas or other farm data, you are directing us to make that information available to them. We are not responsible for how a recipient subsequently uses, stores, or further discloses information you have chosen to share — clause 3.2(b) of our Terms of Service sets out more detail on how Coverage Sharing works.</p>
+  <p>If you choose to connect the AgSKAN Services to a third-party application (for example, another farm management platform), we will only disclose your information to that third party at your direction, and we do not control how that third party subsequently handles it. We encourage you to review the privacy practices of any third-party service before connecting it.</p>
+
+  <!-- Section 6 -->
+  <h2>6. Aggregated and De-Identified Information</h2>
+  <p>We may combine and de-identify information (including farm and agronomic data) so that it can no longer identify you or your business, and use that aggregated information to identify trends, benchmark performance, and improve the AgSKAN Services and our other products. Aggregated information of this kind is not personal information, and we may share it with others, including business partners and researchers.</p>
+  <p>If you would prefer that your data not be included in aggregated information used for these purposes, contact us (see clause 15) and we will discuss the options available to you.</p>
+
+  <!-- Section 7 -->
+  <h2>7. Marketing</h2>
+  <p>We may use your personal information to tell you about AgSKAN products, services, features or offers that may interest you, where we have your consent or another legitimate basis to do so. You can opt out of marketing at any time by contacting us or using the unsubscribe link in our communications.</p>
+
+  <!-- Section 8 -->
+  <h2>8. Accuracy of Your Information</h2>
+  <p>We take reasonable steps to keep the personal information we hold accurate, complete and up to date, and we rely on you to provide us with current and correct information. If any of your details change, or you believe information we hold about you is incorrect, please contact us (see clause 15).</p>
+
+  <!-- Section 9 -->
+  <h2>9. Data Security</h2>
+  <p>We take the security of your personal information seriously, and use measures appropriate to the risk, including:</p>
   <ul>
-    <li>You have consented.</li>
-    <li>
-      You would reasonably expect, or you have been told, that information of
-      that kind is usually passed to those individuals, bodies or agencies for a
-      specific purpose.
-    </li>
-    <li>
-      It is otherwise required or authorized by law (e.g., by a court order or
-      subpoena).
-    </li>
-    <li>
-      It is reasonably necessary for enforcement related activities conducted
-      by, or on behalf of, a law enforcement body.
-    </li>
+    <li>technical safeguards such as encryption, access controls and network security;</li>
+    <li>access restrictions on our systems and platform;</li>
+    <li>confidentiality obligations for staff and contractors who handle personal information; and</li>
+    <li>secure storage of any hard-copy records.</li>
   </ul>
-  <p>
-    If we transfer your personal information to a recipient in another country
-    (for example, if we use cloud services with servers located overseas), we
-    will take reasonable steps to ensure that the overseas recipient handles
-    your personal information in a manner consistent with recognized privacy
-    principles and in accordance with applicable data protection laws.
-  </p>
+  <p>We review our security measures from time to time, and periodically review the personal information we hold to securely destroy or de-identify information we no longer need for the purpose it was collected, subject to any legal or operational requirement to retain it.</p>
 
-  <h2>Marketing our products and services</h2>
-  <p>
-    SKAN may use or disclose your personal information to let you know about
-    products and services (including new features, offers, or events) in which
-    you may be interested, where we have your consent or a legitimate interest
-    to do so. You can contact us at any time if you no longer wish us to market
-    our products and services to you (see the Contacting Us section for more
-    information), or use the unsubscribe mechanism provided in our marketing
-    communications.
-  </p>
+  <!-- Section 10 -->
+  <h2>10. Overseas Disclosure</h2>
+  <p>Some of our service providers, such as cloud hosting or data storage providers, may store or process personal information outside Australia. Where this occurs, we take reasonable steps to ensure the overseas recipient handles your personal information consistently with applicable privacy laws and this Policy.</p>
 
-  <h2>Accuracy of Personal Information</h2>
-  <p>
-    SKAN will take reasonable steps to ensure that all personal information it
-    collects, uses or discloses is accurate, complete and up-to-date. We rely on
-    you to provide us with accurate and current information.
-  </p>
-  <p>
-    If you believe your personal information held by us is not accurate,
-    complete or up-to-date, please contact us (see the Contacting Us section for
-    more information).
-  </p>
+  <!-- Section 11 -->
+  <h2>11. Children's Privacy</h2>
+  <p>The AgSKAN Services are not directed at, or intended for use by, children under the age of 18. If we become aware that we have collected personal information from a child without appropriate consent, we will take reasonable steps to delete it.</p>
 
-  <h2>Security</h2>
-  <p>
-    Your personal information may be stored in hard copy documents (though
-    primarily electronically for our services). SKAN is committed to keeping
-    your personal information secure and safe. Some of the ways we do this are:
-  </p>
-  <ul>
-    <li>
-      Implementing technical and organizational security measures appropriate to
-      the risk, such as encryption, access controls, and network security.
-    </li>
-    <li>
-      Secure hard copy document storage (if applicable, in locked filing
-      cabinets).
-    </li>
-    <li>Security measures for access to our computer systems and platform.</li>
-    <li>
-      Requiring employees and contractors who handle personal information to
-      maintain confidentiality.
-    </li>
-    <li>Security measures for our websites and online services.</li>
-  </ul>
-  <p>We will review and update our security measures from time to time.</p>
-  <p>
-    We will also review the personal information held by us from time to time,
-    ensuring that information which is no longer needed for a purpose for which
-    it was initially collected (and for which there is no legal or operational
-    retention requirement) is securely destroyed or de-identified.
-  </p>
+  <!-- Section 12 -->
+  <h2>12. Third-Party Websites</h2>
+  <p>The Website may contain links to third-party websites for your convenience. Those websites are not subject to this Policy, and we are not responsible for their content or privacy practices. We recommend you review the privacy policy of any third-party website you visit.</p>
 
-  <h2>Your Privacy on the Internet</h2>
-  <p>
-    SKAN takes care to ensure that the information you provide to us via our
-    website and platform is protected. For example, our online services have
-    electronic security systems in place, which may include the use of
-    firewalls, data encryption, and secure authentication protocols.
-  </p>
-  <p>
-    You may be able to access external websites by clicking on links we have
-    provided on our website. Those other websites are not subject to our privacy
-    standards, policies and procedures. You will need to contact or review those
-    websites directly to ascertain their privacy standards, policies and
-    procedures.
-  </p>
+  <!-- Section 13 -->
+  <h2>13. Accessing, Correcting or Deleting Your Information</h2>
+  <p>You can ask us to delete your personal information or account data from our active systems at any time by contacting us, except where we are required to retain it for legal, accounting, audit, or backup and disaster-recovery purposes. We will action deletion requests as soon as reasonably possible. Some aggregated or de-identified data (see clause 6) may be retained even after deletion of your account.</p>
+  <p>You can also ask us for access to the personal information we hold about you, or ask us to correct it. We will need to verify your identity before actioning either request. We will generally respond within a reasonable period — usually within one month — and will let you know if we expect a delay.</p>
+  <p>We will act on an access or correction request unless there is a sound reason under privacy law not to — for example, if it would pose a serious threat to someone's safety, unreasonably affect another person's privacy, or is otherwise prevented by law. If we decline your request, we will explain why in writing, and let you know how you can complain about that decision. If we don't agree to a requested correction, you may ask us to attach a statement noting your requested correction alongside the disputed information.</p>
 
-  <h2>Deletion of and access to Personal Information</h2>
-  <p>
-    If you would like SKAN to delete your platform data or personal information
-    permanently from our active records (excluding data which we may be required
-    to keep for legal, accounting, auditing purposes, or for backup and disaster
-    recovery until it is cycled out according to our retention policies), you
-    may do so by contacting us (see the Contacting Us section for more
-    information). Your information will be deleted from our active systems as
-    soon as reasonably possible and in accordance with applicable law. Please
-    note that some data, once anonymized and aggregated, may be retained for
-    analytical purposes.
-  </p>
-  <p>
-    You may request access to personal information that SKAN holds about you
-    (see the Contacting Us section for more information).
-  </p>
-  <p>
-    We will acknowledge your request within a reasonable timeframe of the
-    request being made. Access will usually be granted within a reasonable
-    period, typically within one month, unless the request is complex or
-    involves voluminous information, in which case we may extend this period as
-    permitted by law. We will inform you if any delays are anticipated.
-  </p>
-  <p>
-    You will need to verify your identity before access to your personal
-    information is granted or corrections/deletions are made.
-  </p>
-  <p>
-    Once your request has been processed, we will endeavor to make the
-    information available to you in the manner requested by you unless it is
-    unreasonable for us to do so (e.g., providing a data export or secure online
-    access).
-  </p>
-  <p>
-    If you are aware that we hold personal information about you that is no
-    longer accurate, complete or up-to-date, please contact us (see the
-    Contacting Us section for more information) to request a correction.
-  </p>
-  <p>
-    If you request access to your personal information, or if you request that
-    we correct your personal information, we will allow access or make the
-    correction unless we consider that there is a sound reason under applicable
-    law to withhold the information, or not make the correction.
-  </p>
-  <p>
-    We may refuse to grant access or make a correction to personal information
-    under certain circumstances as permitted by law, for example, if:
-  </p>
-  <ul>
-    <li>
-      Granting access would pose a serious threat to the life, health, or safety
-      of any individual.
-    </li>
-    <li>
-      Granting access would have an unreasonable impact upon the privacy of
-      other individuals.
-    </li>
-    <li>The request is frivolous, vexatious, or manifestly unfounded.</li>
-    <li>
-      Denial of access is required or authorized by law or by a Court or
-      Tribunal order.
-    </li>
-    <li>
-      Giving access would reveal commercially sensitive information or prejudice
-      legal proceedings.
-    </li>
-  </ul>
-  <p>
-    If we do not agree to make a correction to your personal information, you
-    may provide a statement about the requested corrections, and we will ensure
-    that the statement is noted with the relevant personal information.
-  </p>
-  <p>
-    If we do not agree to provide access to your personal information or to
-    correct your personal information, we will provide written reasons for the
-    refusal and the mechanisms available to complain about the refusal.
-  </p>
+  <!-- Section 14 -->
+  <h2>14. Complaints</h2>
+  <p>If you have a concern about how we have handled your personal information, please contact us first (see clause 15) so we can try to resolve it. We will acknowledge your complaint promptly and aim to respond with the outcome of our investigation within a reasonable timeframe.</p>
+  <p>If you are not satisfied with our response, you may refer your complaint to the Office of the Australian Information Commissioner (OAIC) at <a href="https://www.oaic.gov.au" target="_blank" rel="noopener noreferrer">www.oaic.gov.au</a>.</p>
 
-  <div class="contact-info-wrapper">
-    <h2>Contacting us</h2>
-    <div class="contact-details">
-      <p>
-        If you have any questions about this Privacy Policy, wish to access or
-        correct your personal information, request deletion of your data, or
-        make a complaint, you may contact us by website, mail, email or
-        telephone as follows:
-      </p>
-      <p>
-        🌐 <a href={websiteUrl} target="_blank" rel="noopener noreferrer"
-          >{websiteUrl}</a
-        >
-      </p>
-      <div class="address-block">
-        <p>
-          ✉️ {postalAddressLine1}<br />
-          {postalAddressLine2}<br />
-          {postalAddressLine3}
-        </p>
-        <p><em>{poBoxAddress}</em></p>
-      </div>
-      <p>📧 <a href="mailto:{contactEmail}">{contactEmail}</a></p>
-      <p>📞 {phoneNumber}</p>
-    </div>
-  </div>
+  <!-- Section 15 -->
+  <h2>15. Contacting Us and Updates to This Policy</h2>
+  <p>If you have any questions about this Policy, or want to exercise any of the rights described in it, please contact us at <a href="mailto:service@skanfarming.com">service@skanfarming.com</a>.</p>
+  <p>We may update this Policy from time to time to reflect changes to our practices or the law. Where we make a material change, we will take reasonable steps to notify you, such as by posting a notice on the Website or notifying you through your account. Please check back periodically to review the current version.</p>
 
-  <div class="policy-meta-section">
-    <h2>Changes to this Policy</h2>
-    <p>
-      We may update this Privacy Policy from time to time to reflect changes in
-      our practices or for other operational, legal, or regulatory reasons. If
-      we make material changes, we will notify you by posting the updated policy
-      on our website and updating the "Last Updated" date, or by other means as
-      appropriate (such as email or a notice on our platform). We encourage you
-      to review this Policy periodically.
-    </p>
-    <p class="last-updated"><em>Last Updated: May 30, 2025</em></p>
-  </div>
+  <p class="end-marker">— End of Privacy Policy —</p>
 </div>
 
 <style>
   .page-container {
-    max-width: 900px; /* Max width for content readability */
-    margin: 3rem auto; /* Center the container with top/bottom margin */
-    padding: 2.5rem; /* Padding inside the container */
-    background-color: #ffffff; /* White background for the content area */
+    max-width: 900px;
+    margin: 3rem auto;
+    padding: 2.5rem;
+    background-color: #ffffff;
     box-shadow:
       0 10px 15px -3px rgba(0, 0, 0, 0.1),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Softer shadow */
-    border-radius: 0.75rem; /* Slightly larger rounded corners */
-    line-height: 1.7; /* Improved line height for readability */
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+    line-height: 1.7;
   }
 
   .page-container h1 {
     text-align: center;
-    font-size: 2.5rem; /* Larger main title */
+    font-size: 2.5rem;
     font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+  }
+
+  .company-info {
+    text-align: center;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+
+  .last-updated {
+    text-align: center;
+    color: #888;
     margin-bottom: 2.5rem;
-    color: #2c3e50; /* Darker, slightly desaturated blue for title */
   }
 
   .page-container h2 {
-    font-size: 1.75rem; /* Slightly larger section titles */
+    font-size: 1.75rem;
     font-weight: 600;
     margin-top: 3rem;
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e0e0e0; /* Slightly more prominent border */
-    color: #34495e; /* Darker grey-blue for section titles */
+    border-bottom: 2px solid #e0e0e0;
+    color: #34495e;
   }
   .page-container h2:first-of-type {
-    margin-top: 0; /* Remove top margin for the very first H2 */
+    margin-top: 0;
   }
 
   .page-container h3 {
     font-size: 1.35rem;
     font-weight: 600;
-    margin-top: 2.5rem;
+    margin-top: 2rem;
     margin-bottom: 1rem;
     color: #34495e;
   }
 
   .page-container p,
   .page-container li {
-    margin-bottom: 1.25rem; /* Slightly more spacing between paragraphs/list items */
-    color: #555; /* Softer text color for body content */
-    font-size: 1rem; /* Standard font size */
+    margin-bottom: 1.25rem;
+    color: #555;
+    font-size: 1rem;
   }
 
   .page-container ul {
     list-style-type: disc;
-    margin-left: 1.5rem; /* Standard indentation for lists */
+    margin-left: 1.5rem;
     padding-left: 0.5rem;
-  }
-  .page-container ul ul {
-    /* Nested lists */
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
   }
 
   .page-container strong {
     font-weight: 600;
-    color: #333; /* Strong text stands out a bit more */
+    color: #333;
+  }
+
+  .page-container .definition-term {
+    font-weight: 600;
+    color: #333;
   }
 
   .page-container a {
-    color: #3498db; /* A clear, accessible blue for links */
+    color: #3498db;
     text-decoration: none;
-    font-weight: 500;
   }
-
   .page-container a:hover {
     text-decoration: underline;
-    color: #2980b9; /* Darker blue on hover */
   }
 
-  .contact-info-wrapper {
-    margin-top: 3rem;
-    padding: 2rem;
-    background-color: #f9f9f9; /* Very light grey for contact section background */
-    border-radius: 0.5rem;
-    border: 1px solid #eee;
-  }
-
-  .contact-info-wrapper h2 {
-    margin-top: 0; /* Reset margin for H2 inside this wrapper */
-    border-bottom: none; /* No border for H2 in contact block if it's just "Contacting Us" */
+  .end-marker {
     text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .contact-details p {
-    margin-bottom: 0.75rem; /* Spacing for contact details */
-    font-size: 1rem;
-  }
-  .contact-details .address-block {
-    margin-bottom: 1rem;
-    line-height: 1.5;
-  }
-  .contact-details .address-block em {
-    color: #666;
-  }
-
-  .policy-meta-section {
-    /* For "Changes to this Policy" and "Last Updated" */
+    color: #aaa;
     margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e0e0e0;
-  }
-
-  .policy-meta-section h2 {
-    border-bottom: none;
-    margin-top: 0;
-  }
-
-  .last-updated {
-    margin-top: 1rem;
-    text-align: right;
     font-style: italic;
-    color: #777; /* Grey for less prominent meta text */
-    font-size: 0.9rem;
   }
 </style>

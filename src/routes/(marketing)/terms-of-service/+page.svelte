@@ -1,643 +1,235 @@
 <script>
-  // Svelte script section
-  const companyName = "SKAN Farming Logistics Pty Ltd"
-  const companyACN = "ACN 675 693 464"
-  const websiteUrl = "https://www.skanfarming.com/" // User preferred general website URL
-  // Note: The body of the Terms of Service text below uses skanfarming.com as per the provided PDF.
+  // Terms of Service for AgSKAN
 </script>
 
 <div class="page-container">
-  <h1>SKAN General Terms and Conditions</h1>
+  <h1>Terms of Service</h1>
 
-  <h2>1. Terms and Conditions</h2>
-  <p>
-    <strong>1.1.</strong> This website is operated by SKAN Farming Logistics Pty
-    Ltd {companyACN} (“SKAN”).
-  </p>
-  <p>
-    <strong>1.2.</strong> These terms and conditions ("the Terms") apply whenever
-    you access the Website, regardless of how you access the Website, and when you
-    use the SKAN Services or access the SKAN Products.
-  </p>
-  <p>
-    <strong>1.3.</strong> Your use and access of this Website, the SKAN Services
-    or SKAN Products indicates your acceptance of the Terms (“Effective Date”) as
-    they exist at the time you use the Website, the SKAN Services or SKAN Products.
-  </p>
+  <p class="company-info">SKAN Farming Logistics Pty Ltd ACN 675 693 464, trading as AgSKAN</p>
+  <p class="last-updated"><em>Last updated: 1/07/2026</em></p>
 
-  <h2>2. Product Purchase</h2>
-  <p>
-    If you are buying or have bought SKANs ‘SKAN Unlimited’ service you agree
-    and are subject to the SKAN Unlimited terms of purchase. Found on our
-    website at
-    <a
-      href="https://www.skanfarming.com/docs/Sales-contract.pdf"
-      target="_blank"
-      rel="noopener noreferrer"
-      >https://www.skanfarming.com/docs/Sales-contract.pdf</a
-    >
-  </p>
+  <!-- Section 1 -->
+  <h2>1. About These Terms</h2>
+  <p><strong>1.1</strong> These terms and conditions, together with any Order Form, quote, and any product-specific terms referred to in them (together, the "Terms"), govern your access to and use of the Website, the AgSKAN Services and the AgSKAN Products.</p>
+  <p><strong>1.2</strong> The Terms apply regardless of how you access the Website, and apply to your use of any AgSKAN Services or AgSKAN Products, whether accessed directly through the Website or through any application, portal or interface that we make available.</p>
+  <p><strong>1.3</strong> By accessing the Website or using any AgSKAN Services or AgSKAN Products, you accept and agree to be bound by the Terms as they exist at that time (the "Effective Date"). If you are accepting these Terms on behalf of a company or other entity, you confirm that you have authority to bind that entity.</p>
+  <p><strong>1.4</strong> If you purchase 'AgSKAN Unlimited' or any other product with its own sales contract or product terms, that document forms part of the Terms as they apply to that product, and takes precedence over these Terms to the extent of any inconsistency in relation to that product. The current AgSKAN Unlimited sales contract is available at <a href="https://www.skanfarming.com/docs/Sales-contract.pdf" target="_blank" rel="noopener noreferrer">https://www.skanfarming.com/docs/Sales-contract.pdf</a>.</p>
 
-  <h2>3. Definitions</h2>
-  <p><span class="definition-term">‘us', 'we' and 'our'</span> means SKAN.</p>
-  <p>
-    <span class="definition-term">‘SKAN Products’</span> means all products available
-    using the SKAN Services, including but not limited to data file downloads generated
-    using SKAN Services.
-  </p>
-  <p>
-    <span class="definition-term">‘SKAN Services’</span> means the products and services
-    made available through the Website including but not limited to SKAN’s free services,
-    SKAN’s paid services including pay per use or subscription-based SKAN Services
-    from time to time.
-  </p>
-  <p>
-    <span class="definition-term">‘Intellectual Property Rights’</span> means any
-    and all intellectual and industrial property rights throughout the world including
-    the various rights and property conferred under statute, common law, and equity
-    in relation to patents, inventions, designs, copyrights, trademarks, trade names,
-    business names, corporate names, logos, get up, know-how, trade secrets and confidential
-    information, and the right to have trade secrets and confidential information
-    kept confidential whether or not now existing and whether or not registered or
-    registrable including any right to apply for the registration of such rights
-    and all renewals and extensions.
-  </p>
-  <p>
-    <span class="definition-term">‘Product Fee’</span> means the fee charged by SKAN
-    for SKAN Products, this may be a one-off fee or a fee per hectare as described
-    in Your quote.
-  </p>
-  <p>
-    <span class="definition-term">‘Subscription Fee’</span> means a premium paid
-    by you to access the SKAN Services at the frequency and amount described in Your
-    quote.
-  </p>
-  <p>
-    <span class="definition-term">‘Subscription’</span> means your subscription for
-    the SKAN Services for the subscription period as described in Your quote.
-  </p>
-  <p>
-    <span class="definition-term">‘User’</span> means the person who registers to
-    use the SKAN Services, and, where the context permits, includes any entity on
-    whose behalf that person registers to use the SKAN Service.
-  </p>
-  <p>
-    <span class="definition-term">‘Website’</span> means the Internet site at the
-    domain skanfarming.com or any other website operated by SKAN and includes SKAN
-    Services.
-  </p>
-  <p>
-    <span class="definition-term">‘You’, ‘you’, ‘your’ and ‘Your’</span> means the
-    person using the Website and where the context permits includes any entity on
-    whose behalf that person registers to use the SKAN Service.
-  </p>
+  <!-- Section 2 -->
+  <h2>2. Definitions</h2>
+  <p><span class="definition-term">AgSKAN, us, we and our</span> mean SKAN Farming Logistics Pty Ltd ACN 675 693 464, trading as AgSKAN.</p>
+  <p><span class="definition-term">AgSKAN Products</span> means all products made available through the AgSKAN Services, including data file downloads, maps and reports generated through the AgSKAN Services.</p>
+  <p><span class="definition-term">AgSKAN Services</span> means the products and services made available through the Website from time to time, including Live Mapping, Coverage Sharing, and any free or paid, pay-per-use or subscription-based services we offer.</p>
+  <p><span class="definition-term">Client Data</span> means any data or material created, uploaded or otherwise made available by you to AgSKAN through the Website or otherwise, including farm, paddock, crop or coverage information.</p>
+  <p><span class="definition-term">Coverage Sharing</span> has the meaning given in clause 3.2(b).</p>
+  <p><span class="definition-term">Intellectual Property Rights</span> means all intellectual and industrial property rights of any kind, anywhere in the world, whether or not registered or registrable, including rights in relation to patents, designs, copyright, trademarks, trade names, know-how, trade secrets and confidential information.</p>
+  <p><span class="definition-term">Invited User</span> means a person or entity that a User invites, or with whom a User shares access, coverage or data, via the AgSKAN Services (including via Coverage Sharing).</p>
+  <p><span class="definition-term">Live Mapping</span> has the meaning given in clause 3.2(a).</p>
+  <p><span class="definition-term">Product Fee</span> means the fee charged for an AgSKAN Product, whether a one-off fee, a fee per hectare, or a fee calculated on another basis described in your quote.</p>
+  <p><span class="definition-term">Subscription</span> means your subscription for AgSKAN Services for the subscription period described in your quote, and <span class="definition-term">Subscription Fee</span> means the fee payable for that Subscription.</p>
+  <p><span class="definition-term">User</span> means a person who registers to use the AgSKAN Services and, where the context permits, includes any entity on whose behalf that person has registered.</p>
+  <p><span class="definition-term">Website</span> means skanfarming.com and any other website, application or platform operated by AgSKAN through which the AgSKAN Services are made available.</p>
+  <p><span class="definition-term">You, you and your</span> mean the person using the Website and, where the context permits, includes any entity on whose behalf that person has registered.</p>
 
-  <h2>4. Use of Services</h2>
-  <p>
-    SKAN grants to You a non-transferable, terminable, non-sublicensable,
-    non-exclusive and limited licence to access and use the SKAN Services
-    subject to the Terms. The term of the licence commences on your acceptance
-    of the Terms and (subject to the Terms) ends on termination or cancellation
-    of SKAN Services in accordance with the Terms. You must not use the Website
-    for any purpose or in any way which is unlawful or for the purpose of data
-    mining.
-  </p>
+  <!-- Section 3 -->
+  <h2>3. The AgSKAN Services</h2>
 
-  <h2>5. Access Obligations</h2>
-  <ol>
-    <li>
-      You must ensure the security and confidentiality of your User details,
-      including any username and/or password assigned to, or created by, you and
-      not share those details with anyone else.
-    </li>
-    <li>
-      You are wholly and solely responsible for all activities which occur
-      through the use of your User details by you or any person acting on your
-      behalf or acting with knowledge of your username and/or password
-      (including any transactions made through the Website, any SKAN
-      application, SKAN Services or SKAN Products and any unauthorised use of
-      credit cards or bank accounts). Without limiting this provision, if Your
-      negligence results in unauthorised access to Your SKAN account then You
-      will be responsible for the transactions conducted through Your SKAN
-      account as a result of the unauthorised access.
-    </li>
-    <li>
-      You must notify us immediately if you become aware of any unauthorised
-      access to your profile account or business account subscription or any
-      unauthorised use of your User details, and You must take all other actions
-      that SKAN reasonably deems necessary to maintain or enhance the security
-      of SKAN systems and networks and Your access to the SKAN Services and SKAN
-      Products.
-    </li>
-    <li>
-      You must not allow your User details to be used by any other person.
-    </li>
-  </ol>
+  <h3>3.1 What we offer</h3>
+  <p><strong>(a)</strong> The AgSKAN Services and AgSKAN Products may include, without limitation, Live Mapping, Coverage Sharing, data file downloads, yield and crop data processing, and subscription-based access to any of the above.</p>
+  <p><strong>(b)</strong> The specific AgSKAN Services and AgSKAN Products available to you, and the fees that apply, will be set out in your quote, your account settings, or as otherwise notified to you. We may add, change, or discontinue individual AgSKAN Services or AgSKAN Products from time to time, and clause 7 (Availability) applies to all of them.</p>
 
-  <h2>6. Payment Obligations / Subscription / Cancellation</h2>
-  <p>The fees for the SKAN Services and SKAN Products are as follows:</p>
+  <h3>3.2 Product-specific terms</h3>
+  <p><strong>(a) Live Mapping.</strong> 'Live Mapping' refers to mapping, dashboards or visualisations within the Website that display recent or regularly updated information about your paddocks, crops or coverage. Live Mapping is intended to reflect the most current information reasonably available to us, but it is not a real-time feed: display of information may lag behind the underlying event (for example, a data update or a change to your Client Data) due to processing time, third-party data availability, or connectivity. You should not rely on Live Mapping for time-critical decisions without independent verification.</p>
+  <p><strong>(b) Coverage Sharing.</strong> 'Coverage Sharing' refers to functionality that allows a User to share maps, coverage areas or other Client Data within the AgSKAN Services with another User or an Invited User (for example, an agronomist, adviser or business partner). If you use Coverage Sharing: (i) you remain responsible for deciding what to share and with whom, and for ensuring you have the right to share that Client Data; (ii) once shared, a recipient may view and, if you permit it, download or further use the shared data in accordance with the access you have given them, and we are not responsible for a recipient's use, storage, or further disclosure of data shared with them; (iii) sharing data with another person does not transfer ownership of that data, and does not permit that person to access any other part of your account; and (iv) you can manage or revoke sharing permissions through your account settings, but revocation does not affect copies already made, downloaded, or relied upon by the recipient before revocation.</p>
+  <p><strong>(c) AgSKAN Unlimited and other subscription products.</strong> Where you purchase AgSKAN Unlimited or another named subscription product, the terms of purchase for that product (available on the Website) apply in addition to these Terms.</p>
+
+  <!-- Section 4 -->
+  <h2>4. Licence to Use the Services</h2>
+  <p><strong>4.1</strong> Subject to the Terms, we grant you a non-exclusive, non-transferable, non-sublicensable, limited licence to access and use the AgSKAN Services for your own lawful internal business purposes. This licence commences on the Effective Date and ends when your access to the AgSKAN Services is terminated or cancelled in accordance with the Terms.</p>
+  <p><strong>4.2</strong> You must not use the Website or the AgSKAN Services for any unlawful purpose, or for the purpose of data mining.</p>
+  <p><strong>4.3</strong> You may allow an Invited User to access AgSKAN Services on your behalf (for example, via Coverage Sharing or a linked account), provided you ensure they are authorised to do so and comply with the Terms. You remain responsible for their acts and omissions as if they were your own.</p>
+
+  <!-- Section 5 -->
+  <h2>5. Your Account and Access Obligations</h2>
+  <p><strong>5.1</strong> You must keep your username, password and other account details secure and confidential, and must not share them with any other person.</p>
+  <p><strong>5.2</strong> You are responsible for all activity that occurs through your account, whether by you or anyone else acting with your knowledge or using your credentials, including any unauthorised use resulting from your own negligence.</p>
+  <p><strong>5.3</strong> You must notify us immediately if you become aware of any unauthorised access to your account, and take any steps we reasonably require to protect the security of the AgSKAN Services and your account.</p>
+  <p><strong>5.4</strong> Clause 5 applies in addition to, and does not limit, the Coverage Sharing provisions in clause 3.2(b).</p>
+
+  <!-- Section 6 -->
+  <h2>6. Fees, Payment, Subscriptions and Cancellation</h2>
+  <p><strong>6.1</strong> Product Fees for AgSKAN Products must be paid before you receive the relevant data file, map or report, in Australian dollars, unless we agree otherwise in writing.</p>
+  <p><strong>6.2</strong> Subscription Fees must be paid before you receive access to the relevant AgSKAN Services for your Subscription period. We will contact you before the end of your Subscription period to let you know it is due for renewal.</p>
+  <p><strong>6.3</strong> You can manage or cancel your Subscription at any time through your account or by contacting us. Cancelling means your Subscription will not renew at the end of the current period — you will keep access until then, and cancellation does not entitle you to a refund for the current period except as set out in clause 7.</p>
+  <p><strong>6.4</strong> Fees are stated exclusive of GST unless we say otherwise. We will add GST to any amount where we are required to charge it.</p>
+
+  <!-- Section 7 -->
+  <h2>7. Availability of the Services</h2>
+  <p><strong>7.1</strong> We do not guarantee that your access to the Website or the AgSKAN Services will be uninterrupted, error-free, or available at all times. Access may be suspended without notice due to maintenance, technical failure, telecommunications issues, or other matters beyond our reasonable control, including the unavailability of services provided by our third-party suppliers.</p>
+  <p><strong>7.2</strong> The AgSKAN Services (including Live Mapping and data processing) depend on third-party providers, including data and mapping providers. From time to time, maps or data may be delayed or unavailable due to factors outside our reasonable control, including weather events or third-party outages.</p>
+
+  <!-- Section 8 -->
+  <h2>8. Support</h2>
+  <p><strong>8.1</strong> We provide reasonable technical support in relation to the AgSKAN Services and AgSKAN Products, but this does not extend to training in general computer skills. Please check the support resources on the Website in the first instance.</p>
+  <p><strong>8.2</strong> While we intend the AgSKAN Services to be available at all times, we may need to make them unavailable from time to time for maintenance or development, and we will try to minimise the impact of this on you.</p>
+
+  <!-- Section 9 -->
+  <h2>9. Term, Suspension and Termination</h2>
+  <p><strong>9.1</strong> You may stop using the AgSKAN Services, or cancel a Subscription, at any time by contacting us or through your account settings.</p>
+  <p><strong>9.2</strong> We may suspend or terminate your access to the AgSKAN Services immediately and without notice if you breach the Terms, or engage in Unacceptable Activity under clause 12. Where reasonably practicable, we will let you know if we do this.</p>
+  <p><strong>9.3</strong> Fees already paid for AgSKAN Services or AgSKAN Products that have been provided to you are non-refundable, except as expressly set out in clause 7.</p>
+
+  <!-- Section 10 -->
+  <h2>10. Data, Ownership and Intellectual Property</h2>
+
+  <h3>10.1 Our Intellectual Property</h3>
+  <p><strong>(a)</strong> Title to, and all Intellectual Property Rights in, the Website, the AgSKAN Services, the AgSKAN Products and all related documentation and Content (including text, graphics, logos, software, maps and data visualisations we create) belong to AgSKAN or our licensors.</p>
+  <p><strong>(b)</strong> Your use of the AgSKAN Services does not transfer any Intellectual Property Rights to you. We grant you a licence to access and use the Content only as needed to use the AgSKAN Services in accordance with the Terms.</p>
+  <p><strong>(c)</strong> You must not copy, modify, distribute, publish, commercially exploit, reverse engineer, or create derivative works from any Content, software or other materials made available through the AgSKAN Services, except as we authorise in writing.</p>
+
+  <h3>10.2 Your Client Data</h3>
+  <p><strong>(a)</strong> You own all Client Data. Your access to AgSKAN Products through the Website is contingent on payment of applicable fees, but ownership of your Client Data is not affected by that.</p>
+  <p><strong>(b)</strong> By uploading or otherwise making Client Data available to us, you grant us an irrevocable, non-exclusive, worldwide, royalty-free, sub-licensable, perpetual licence to use, host, reproduce, adapt and otherwise deal with that Client Data for the purpose of providing the AgSKAN Services and AgSKAN Products to you, and to develop and improve our products and services for existing and future customers. You warrant that you have the right to grant this licence and that the Client Data does not infringe any third party's rights.</p>
+  <p><strong>(c)</strong> Where we make any of your Client Data available publicly (for example, in case studies), we will do so only in a de-identified form.</p>
+  <p><strong>(d)</strong> We recommend you keep your own copies of any Client Data you upload. You can ask us for your original uploaded data files and we will endeavour to respond within 10 working days. While we take reasonable steps to prevent data loss, we do not guarantee against it, and to the extent permitted by law, we exclude liability for any loss of data.</p>
+  <p><strong>(e)</strong> Clause 3.2(b) (Coverage Sharing) sets out additional terms that apply where you choose to share Client Data with other Users or Invited Users.</p>
+
+  <!-- Section 11 -->
+  <h2>11. Acceptable Use</h2>
+  <p>You must not, in connection with the Website, the AgSKAN Services or the AgSKAN Products:</p>
   <ul>
-    <li>
-      Pre-payment of the Product Fee for SKAN Product downloads must be made by
-      You prior to obtaining the data file/s. Payment for SKAN Products is in
-      Australian Dollars (A$).
-    </li>
-    <li>
-      The Subscription Fee must be made by You prior to receiving access to the
-      SKAN Services in accordance with your Subscription. On or before the end
-      of your Subscription, we will contact you to remind you that your
-      subscription maybe renewed. You will be able to manage your subscription,
-      including cancelling the subscription at any time. Cancelling of the
-      subscription means that your subscription will not be renewed at the end
-      of the subscription period. You will still have access to the subscription
-      services until the current period is finished.
-    </li>
+    <li>breach any person's privacy or other legal rights, including by uploading personal information without consent;</li>
+    <li>upload or transmit viruses, malware or other harmful code, or attempt to undermine the security or integrity of our systems or networks;</li>
+    <li>use the AgSKAN Services in a way that impairs their functionality, or impairs another User's ability to use them;</li>
+    <li>attempt to gain unauthorised access to any part of the AgSKAN Services, or to any materials you have not been given permission to access;</li>
+    <li>resell any Content, AgSKAN Services or AgSKAN Products without our prior written consent;</li>
+    <li>reverse engineer, decompile, or attempt to circumvent the security or navigational structure of the Website or the software used to deliver the AgSKAN Services;</li>
+    <li>extract maps, data or other AgSKAN Products other than through an explicitly provided download or report function; or</li>
+    <li>allow any other person to access your account, or disclose your login details to a third party, other than in accordance with clause 4.3 or Coverage Sharing under clause 3.2(b).</li>
   </ul>
+  <p>You may only use the AgSKAN Services for your own lawful internal business purposes, including on behalf of others as an Invited User, provided you are authorised to do so and comply with the Terms.</p>
 
-  <h2>7. Accessibility and Availability</h2>
-  <ol>
-    <li>
-      Without limiting the Terms:
-      <ol>
-        <li>
-          SKAN does not guarantee, represent or warrant that Your access will be
-          uninterrupted, reliable, timely, secure, error free or bug free.
-        </li>
-        <li>
-          Your access to the SKAN Services and SKAN Products may be suspended
-          without notice in the case of telecommunications interruption or
-          bottleneck, system failure, maintenance or repair or any reason beyond
-          our control (including services provided by third parties becoming
-          unavailable).
-        </li>
-        <li>
-          the availability of SKAN Services and SKAN Products is dependent on
-          third party providers including access to maps generated through
-          satellite imagery and yield data processing providers, and from time
-          to time, these maps may not be available due to factors beyond SKAN’s
-          reasonable control including but not limited to cloud cover or other
-          weather events.
-        </li>
-      </ol>
-    </li>
-    <li>
-      There is a risk that there will be cloud cover over your property at the
-      time of image capture (which is outside of our control). Where our third
-      party satellite imagery supplier deems a capture as ‘successful’, we are
-      required to purchase the image. If on a ‘successful’ image capture there
-      is cloud over the paddock identified by You in your quote, we are unable
-      to give a refund in those circumstances.
-    </li>
-    <li>
-      Where we have guaranteed a certain number of captures during a selected
-      period, we offer a refund for the captures that did we did not deliver.
-    </li>
-    <li>
-      For our low priority single captures, if we are unable to capture the
-      single image during the time window supplied, we will refund the full
-      purchase price.
-    </li>
-  </ol>
+  <!-- Section 12 -->
+  <h2>12. Third-Party Links and Services</h2>
+  <p><strong>12.1</strong> The Website may link to third-party websites for convenience. We do not endorse, and are not responsible for, the content of any linked website, and we have no control over it.</p>
+  <p><strong>12.2</strong> If you choose to connect or use a third-party application alongside the AgSKAN Services, you acknowledge that the provider of that application may need to access your Content and data for the two services to work together. To the extent permitted by law, we are not responsible for any disclosure, modification or deletion of your data resulting from that third party's access.</p>
 
-  <h2>8. Support Centre</h2>
-  <ul>
-    <li>
-      <strong>Technical Problems:</strong> Support assistance will be available to
-      You in respect of the SKAN Services and SKAN Products in the case of technical
-      problems and does not include training in computer skills that are considered
-      pre-requisite for use of the SKAN Services and SKAN Products. If You need technical
-      help, please check the support provided online by SKAN on the Website. SKAN
-      will endeavour to respond to your request for technical help as soon as possible.
-    </li>
-    <li>
-      <strong>Service availability:</strong> Whilst it is SKAN’s intention that the
-      SKAN Services and SKAN Products should be available 24 hours a day, seven days
-      a week, it is possible that on occasions the SKAN Services, SKAN Products or
-      Website may be unavailable to permit maintenance or other development activity
-      to take place. SKAN will endeavour to minimise the impact to Users in relation
-      to any planned maintenance.
-    </li>
-  </ul>
+  <!-- Section 13 -->
+  <h2>13. Warranties and Liability</h2>
+  <p><strong>13.1</strong> The Website's content is provided for general information only. You should verify any information on the Website and seek independent advice suited to your circumstances before making decisions based on it.</p>
+  <p><strong>13.2</strong> To the fullest extent the law allows: (a) we do not warrant that the Website or AgSKAN Services will be uninterrupted, error-free, or free of bugs or viruses; (b) we do not warrant the accuracy of any content on the Website, including Live Mapping outputs; and (c) we exclude all warranties and conditions other than those which cannot be excluded by law, including the consumer guarantees under the Australian Consumer Law (Schedule 2 to the Competition and Consumer Act 2010 (Cth)), where they apply.</p>
+  <p><strong>13.3</strong> Where our liability for a breach of a term implied by law cannot be excluded, our liability is limited, at our discretion, to replacing or repairing the relevant goods (or paying the cost of doing so), or re-supplying the relevant services (or paying the cost of doing so).</p>
+  <p><strong>13.4</strong> To the extent the law permits, we are not liable for any loss of profit, revenue, opportunity, goodwill, anticipated savings, or any indirect or consequential loss, arising from your use of the Website, the AgSKAN Services or the AgSKAN Products.</p>
+  <p><strong>13.5</strong> For any liability that cannot otherwise be excluded, our total liability arising out of or in connection with your use of the Website, the AgSKAN Services or the AgSKAN Products is limited to the amount you paid us for the relevant AgSKAN Services or AgSKAN Products.</p>
 
-  <h2>9. Termination and Refunds</h2>
-  <p>
-    You may terminate SKAN Services at any time by contacting us. Or by
-    canceling your plan on our website at skanfarming.com
-  </p>
-  <p>
-    SKAN may also terminate or suspend any and all services and access to the
-    SKAN Services immediately, without prior notice or liability, if the user
-    breaches any of the terms or conditions of the Terms. Any fees paid for SKAN
-    Products and SKAN Services which have already been provided are
-    non-refundable.
-  </p>
-  <p>
-    SKAN shall use reasonable endeavours to notify a User if SKAN has terminated
-    or suspended access to the SKAN Services.
-  </p>
+  <!-- Section 14 -->
+  <h2>14. Product Fees</h2>
+  <p><strong>14.1</strong> Unless we say otherwise, all fees are stated exclusive of GST, and we will add GST where we are required to charge it.</p>
+  <p><strong>14.2</strong> Product Fees are calculated in Australian dollars on the basis set out in your quote (for example, a flat fee or a fee per hectare).</p>
+  <p><strong>14.3</strong> Subscription Fees are payable annually in advance, unless your quote says otherwise.</p>
+  <p><strong>14.4</strong> You must pay for an AgSKAN Product or AgSKAN Service before we make it available to you, or in accordance with the payment terms we notify to you.</p>
 
-  <h2>10. Warranties and Liabilities</h2>
-  <ol>
-    <li>
-      Except where expressly specified, the Website’s contents are provided for
-      your information only. You should verify any information contained on or
-      provided through the Website and seek independent advice suited to your
-      specific circumstances prior to making any decisions.
-    </li>
-    <li>
-      To the fullest extent possible:
-      <ol>
-        <li>
-          SKAN does not warrant the accuracy of the content on or through the
-          Website nor that the functions contained in the Website will be
-          uninterrupted or error free or free of any computer viruses or
-          programming bugs.
-        </li>
-        <li>
-          You acknowledge that SKAN has no control over the truth or accuracy of
-          the information contained on the Website and that any information
-          provided on the Website is solely for guidance and is not to be relied
-          on.
-        </li>
-        <li>
-          SKAN excludes all liability, rights, conditions and warranties
-          including those implied by law (other than those which cannot be
-          excluded and those expressly set out in this document) to the extent
-          the law permits.
-        </li>
-        <li>
-          Nothing in this document, will exclude, restrict or modify any
-          condition, warranty, right or liability implied into this document by
-          law which cannot be excluded, restricted or modified by agreement.
-          This may include the guarantees relating to the supply of goods and
-          services contained in the Australian Consumer Law which is contained
-          in Schedule 2 of the Competition and Consumer Act 2010 (Cth).
-        </li>
-        <li>
-          Liability of SKAN for any breach of any terms and conditions implied
-          by law is limited to, at SKAN’s discretion, replacement of the goods,
-          the cost of replacing the goods, repair of the goods or payment of the
-          cost of having the goods repaired, supplying the services again or
-          payment of the cost of re- supplying the services.
-        </li>
-        <li>
-          SKAN is not liable for any loss of opportunity, loss of revenue, loss
-          of profit, loss of contracts with third parties, loss of production,
-          increase in operating cost, loss of goodwill, loss arising from
-          business interruption, or loss of production, or any other loss which
-          is also consequential or indirect loss, arising in connection to your
-          use of the Website, any SKAN Services or any SKAN Products.
-        </li>
-        <li>
-          For any liability that cannot be excluded, and to the extent the law
-          permits SKAN’s maximum liability arising out of or in connection with
-          your use of the Website, any SKAN Services or SKAN Products will not
-          exceed the amount paid to SKAN by you for the SKAN Products and/or
-          SKAN Services.
-        </li>
-      </ol>
-    </li>
-  </ol>
+  <!-- Section 15 -->
+  <h2>15. Indemnity</h2>
+  <p>To the extent the law permits, you agree to indemnify us, our related companies, and our directors, officers, employees and agents, against any liability, cost, loss or damage arising from your use of, or access to, the Website, the AgSKAN Services or the AgSKAN Products, including any breach of the Terms by you, or any unauthorised access to your account, except to the extent caused by our own negligence.</p>
 
-  <h2>11. Product fees</h2>
-  <p>
-    SKAN charges fees for certain SKAN Products or other features or services
-    made available through SKAN Services (including the Product Fee and the
-    Subscription Fee). Unless stated to be otherwise:
-  </p>
-  <ol>
-    <li>
-      charges for any goods or services supplied (or offered for supply) via
-      SKAN are stated exclusive of GST. SKAN will charge GST (to persons liable
-      to pay GST) in addition to the charges at the time that SKAN levies the
-      charges;
-    </li>
-    <li>
-      Product fees are calculated AU$. The total fee will be stated exclusive of
-      GST prior to payment;
-    </li>
-    <li>
-      Subscription Fee is payable annually in advance and will be stated
-      exclusive of GST prior to payment;
-    </li>
-    <li>
-      You must pay for the relevant SKAN Product or, features or services prior
-      to us making the SKAN Product, features or services available to You, or
-      must pay for it in accordance with the payment terms notified to You.
-    </li>
-  </ol>
+  <!-- Section 16 -->
+  <h2>16. Privacy</h2>
+  <p>Our Privacy Policy and Collection Notice apply to your use of the Website, the AgSKAN Services and the AgSKAN Products, and form part of the Terms. Please review them before using the Website — if you do not agree with how we collect and handle personal information, you should not use the Website, the AgSKAN Services or the AgSKAN Products.</p>
 
-  <h2>12. Usage and Intellectual Property Rights</h2>
-  <p>
-    Title to, and all Intellectual Property Rights in the SKAN Services, SKAN
-    Products, the Website and any documentation relating to the SKAN Services
-    remain the property of SKAN (or its licensors).
-  </p>
-  <p>
-    Unless otherwise indicated, we own or license from third parties all rights,
-    title and interest (including copyright, designs, patents, trademarks and
-    other intellectual property rights) in all material (including all text,
-    graphics, logos, audio and software) made available through the Website,
-    SKAN Services and SKAN Products (Content).
-  </p>
-  <p>
-    Your use of the SKAN Services and SKAN Products and use of and access to any
-    Content does not grant or transfer any rights, title or interest to You in
-    relation to SKAN or the Content. However, we do grant You a licence to
-    access SKAN and view or create Content on the terms and conditions set out
-    in these SKAN Terms of Use and, where applicable, as expressly authorised by
-    us and/or our third-party licensors.
-  </p>
-  <p>
-    SKAN Services and SKAN Products are for your personal use only. You may not
-    modify, copy, distribute, transmit, display, perform, reproduce, publish,
-    license, commercially exploit, create derivative works from, transfer, or
-    sell any Content, software, products or services available through SKAN
-    without the prior written consent of SKAN.
-  </p>
-  <p>
-    Title to, and all Intellectual Property Rights in, the data or material
-    created by You, uploaded by You or is otherwise made available (Client Data)
-    to SKAN through its website or otherwise remains Your property. However,
-    Your access to SKAN Products through the Website is contingent on full
-    payment of the SKAN fees where applicable.
-  </p>
-  <p>
-    If You upload or otherwise disclose or make available any Client Data to
-    SKAN, You:
-  </p>
-  <ol>
-    <li>
-      grant Us an irrevocable, non-exclusive, worldwide, royalty-free,
-      sub-licensable, perpetual licence to use, modify, reproduce, edit, adapt,
-      transmit, store, back-up, communicate, exploit and otherwise commercialise
-      the data or material in any form and for any purpose including but not
-      limited to the purpose of providing the SKAN Services and SKAN Products to
-      You and to improve its product offerings to existing and future customers;
-    </li>
-    <li>
-      warrant that You have the right to grant the licence granted in paragraph
-      (a) above;
-    </li>
-    <li>
-      warrant that the material does not breach the SKAN Terms of Use or
-      infringe any third party intellectual property rights.
-    </li>
-  </ol>
-  <p>
-    Your Client Data will remain unidentifiable where made available publicly by
-    SKAN through materials such as case studies.
-  </p>
-  <p>
-    SKAN recommends that you maintain copies of all Client Data that you input
-    into the SKAN website. You can request your original uploaded data files by
-    contacting SKAN. SKAN will endeavour to respond to this file retrieval
-    request within 10 working days. Whilst SKAN makes all reasonable endeavours
-    to prevent data loss, SKAN does not make any warranty or guarantee that
-    there will be no loss of data. To the extent permitted by law, SKAN
-    expressly excludes liability for any loss of data no matter how caused.
-  </p>
+  <!-- Section 17 -->
+  <h2>17. General</h2>
+  <p><strong>17.1 Waiver.</strong> A failure or delay by either party in exercising a right under the Terms does not operate as a waiver of that right, and a single exercise of a right does not prevent any future exercise of it. A waiver is only effective if given in writing.</p>
+  <p><strong>17.2 Severance.</strong> If any part of the Terms is found to be invalid or unenforceable, that part is severed and the rest of the Terms continue to apply.</p>
+  <p><strong>17.3 Assignment.</strong> You must not assign or transfer your rights under the Terms without our prior written consent. We may assign the Terms, including in connection with a sale, merger or restructure of our business.</p>
+  <p><strong>17.4 Governing law and jurisdiction.</strong> The Terms are governed by the laws of Western Australia, and each party submits to the non-exclusive jurisdiction of the courts of Western Australia and any courts of appeal from them.</p>
+  <p><strong>17.5 Changes to these Terms.</strong> We may update the Terms from time to time. If we make a material change, we will take reasonable steps to notify you, and your continued use of the Website or the AgSKAN Services after that notice means you accept the updated Terms.</p>
 
-  <h2>13. Unacceptable Activity</h2>
-  <p>
-    You must not do any act in relation to the use of the website, SKAN Services
-    or SKAN Products that SKAN in its opinion deems to be inappropriate,
-    deceptive, defamatory, obscene or that is unlawful or is prohibited by any
-    applicable laws, including but not limited to:
-  </p>
-  <ol>
-    <li>
-      any act that would constitute a breach of either the privacy (including
-      uploading private or personal information without an individual's consent)
-      or any other of the legal rights of individuals;
-    </li>
-    <li>
-      uploading files that contain viruses, worms or other malicious computer
-      programming or in any other way introduce or permit the introduction of
-      any virus, worms or other malicious computer programming that may cause
-      damage to our property or the property of other individuals;
-    </li>
-    <li>
-      attempting to undermine the security or integrity of SKAN computing
-      systems or networks or, where the SKAN Services or SKAN Products are
-      hosted by a third party, that third party's computing systems and
-      networks;
-    </li>
-    <li>
-      using, or misusing, the SKAN Services or the SKAN Products in any way
-      which may impair the functionality of the SKAN Services, SKAN Products or
-      website, or other systems used to deliver the SKAN Services or the SKAN
-      Products or impair the ability of any other User to use the SKAN Services,
-      SKAN Products or website;
-    </li>
-    <li>
-      attempting to gain unauthorised access to any materials other than those
-      to which You have been given express permission to access or to the
-      information technology system on which the SKAN Services and SKAN Products
-      are hosted;
-    </li>
-    <li>
-      transmitting, or inputting into the website, SKAN Services and SKAN
-      Products, any files that may damage any other person's computing devices
-      or software, any content that may be offensive, or material or data in
-      violation of any law (including data or other material protected by
-      copyright or trade secrets which You do not have the right to use);
-    </li>
-    <li>
-      reselling any of the Content or SKAN Services or SKAN Products made
-      available by SKAN through the website;
-    </li>
-    <li>
-      use any device or process to copy, adapt, disassemble, decompile, reverse
-      engineer or in any way reproduce, modify or circumvent the navigational
-      structure, security or presentation of SKAN or any computer programs used
-      to deliver the SKAN Services or the SKAN Products or to operate the
-      website;
-    </li>
-    <li>
-      unauthorised extraction of imagery or other products including through
-      inspection of browser history files, web page elements, screen shots, or
-      any other download not provided through an explicitly identified
-      download/report function in the application;
-    </li>
-    <li>
-      allowing other people to access Your User account or Your SKAN licence or
-      disclosing Your password and login details to any third party.
-    </li>
-  </ol>
-  <p>
-    Without limiting any other provision of these Terms, You must only use the
-    SKAN Services, SKAN Products and Website for Your own lawful internal
-    business purposes, in accordance with these Terms. You may use the SKAN
-    Services and SKAN Products on behalf of others as an Invited User but if You
-    do so you must ensure that You are authorised to do so, and that you do so
-    only in accordance with these Terms.
-  </p>
-
-  <h2>14. Linked sites</h2>
-  <p>
-    The website may contain links to websites operated by third parties. Those
-    links are provided for convenience and may not remain current or be
-    maintained. Unless expressly stated otherwise, we do not endorse and are not
-    responsible for the content on those linked websites and have no control
-    over or rights in those linked websites.
-  </p>
-
-  <h2>15. Third Party Terms and Conditions</h2>
-  <p>
-    If You enable third-party applications for use in conjunction with the SKAN
-    Services, You acknowledge that SKAN may allow the providers of those
-    third-party applications to access Content and Your data and as required for
-    the interoperation of such third-party applications with the SKAN Services
-    and the SKAN Products. To the extent permitted by law, SKAN shall not be
-    responsible for any disclosure, modification or deletion of Content and Your
-    data resulting from any such access by third-party application providers.
-  </p>
-
-  <h2>16. Indemnity</h2>
-  <p>
-    To the extent permitted by law, You agree to fully indemnify us and our
-    affiliated companies, and each of their directors, officers, employees and
-    agents, and hold us harmless, against any liability, expenses, costs, loss
-    or damage arising out of, or in connection with:
-  </p>
-  <ol>
-    <li>
-      Your use of, access to or conduct in connection with SKAN Services, SKAN
-      Products or any Content, including any breach by You of the Terms, and
-    </li>
-    <li>
-      any unauthorised access to SKAN Services or SKAN Products through your
-      account,
-    </li>
-  </ol>
-  <p>
-    except to the extent that such liability, loss, cost, expense or damage is
-    the result of our negligent act or omission.
-  </p>
-
-  <h2>17. Privacy</h2>
-  <p>
-    In addition to these Terms, our Privacy Policy and Collection Notice apply
-    to the use of the Website, the SKAN Products and SKAN Services. These
-    documents are available here. You should review the Privacy Policy and
-    Collection Notice and not use the Website, our SKAN Products or SKAN
-    Services if you do not consent to the collection of your personal
-    information.
-  </p>
-  <!-- Note: The PDF says "available here" but doesn't provide a link for the Privacy Policy in section 17.
-       You might want to add a direct link to your privacy policy page here.
-       Example: <a href="/privacy-policy">available here</a>
-  -->
-
-  <h2>18. Waiver</h2>
-  <p>
-    The failure or delay on the part of any party in exercising any power or
-    right conferred on it under these Terms will not operate as a waiver of the
-    power or right, nor will any single exercise of any power or right preclude
-    any other or future exercise of it, or the exercise of any other power or
-    right under these Terms. Any waiver by a party will only be binding and
-    effective if it is given in writing.
-  </p>
-
-  <h2>19. Severance</h2>
-  <p>
-    If the whole or any part of a provision of the Terms is invalid, illegal or
-    unenforceable, then such provision will be severed from the Terms and
-    neither that part or provision or its severance will affect the validity or
-    enforceability of the remaining parts or provisions of the Terms.
-  </p>
-
-  <h2>20. Governing Law</h2>
-  <ol>
-    <li>
-      These Terms shall be governed by and interpreted in accordance with the
-      laws of Australia.
-    </li>
-    <li>
-      Each party irrevocably and unconditionally submits to the non-exclusive
-      jurisdiction of the courts of Australia and courts of appeal therefrom.
-    </li>
-  </ol>
-
-  <!-- Optional: Add a last updated date if you maintain one for ToS -->
-  <!-- <p class="last-updated"><em>Last Updated: May 30, 2025</em></p> -->
+  <p class="end-marker">— End of Terms of Service —</p>
 </div>
 
 <style>
   .page-container {
-    max-width: 900px; /* Max width for content readability */
-    margin: 3rem auto; /* Center the container with top/bottom margin */
-    padding: 2.5rem; /* Padding inside the container */
-    background-color: #ffffff; /* White background for the content area */
+    max-width: 900px;
+    margin: 3rem auto;
+    padding: 2.5rem;
+    background-color: #ffffff;
     box-shadow:
       0 10px 15px -3px rgba(0, 0, 0, 0.1),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Softer shadow */
-    border-radius: 0.75rem; /* Slightly larger rounded corners */
-    line-height: 1.7; /* Improved line height for readability */
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+    line-height: 1.7;
   }
 
   .page-container h1 {
     text-align: center;
-    font-size: 2.5rem; /* Larger main title */
+    font-size: 2.5rem;
     font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+  }
+
+  .company-info {
+    text-align: center;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+
+  .last-updated {
+    text-align: center;
+    color: #888;
     margin-bottom: 2.5rem;
-    color: #2c3e50; /* Darker, slightly desaturated blue for title */
   }
 
   .page-container h2 {
-    font-size: 1.75rem; /* Slightly larger section titles */
+    font-size: 1.75rem;
     font-weight: 600;
     margin-top: 3rem;
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e0e0e0; /* Slightly more prominent border */
-    color: #34495e; /* Darker grey-blue for section titles */
+    border-bottom: 2px solid #e0e0e0;
+    color: #34495e;
   }
   .page-container h2:first-of-type {
-    margin-top: 0; /* Remove top margin for the very first H2 */
+    margin-top: 0;
   }
 
   .page-container h3 {
-    /* Used for sub-sections if needed, or p strong for numbered points */
     font-size: 1.35rem;
     font-weight: 600;
-    margin-top: 2.5rem;
+    margin-top: 2rem;
     margin-bottom: 1rem;
     color: #34495e;
   }
 
   .page-container p,
   .page-container li {
-    margin-bottom: 1.25rem; /* Slightly more spacing between paragraphs/list items */
-    color: #555; /* Softer text color for body content */
-    font-size: 1rem; /* Standard font size */
+    margin-bottom: 1.25rem;
+    color: #555;
+    font-size: 1rem;
   }
 
   .page-container ul {
-    list-style-type: disc; /* Default bullet points */
-    margin-left: 1.5rem; /* Standard indentation for lists */
+    list-style-type: disc;
+    margin-left: 1.5rem;
     padding-left: 0.5rem;
   }
   .page-container ul ul {
-    /* Nested lists */
     margin-top: 0.5rem;
     margin-bottom: 0.5rem;
   }
   .page-container ol {
-    /* Ordered lists */
-    list-style-type: lower-alpha; /* For a, b, c style */
+    list-style-type: lower-alpha;
     margin-left: 1.5rem;
     padding-left: 0.5rem;
   }
   .page-container ol ol {
-    /* Nested ordered lists */
-    list-style-type: lower-roman; /* For i, ii, iii style */
+    list-style-type: lower-roman;
   }
 
   .page-container strong {
     font-weight: 600;
-    color: #333; /* Strong text stands out a bit more */
+    color: #333;
   }
 
   .page-container .definition-term {
@@ -646,24 +238,17 @@
   }
 
   .page-container a {
-    color: #3498db; /* A clear, accessible blue for links */
+    color: #3498db;
     text-decoration: none;
-    font-weight: 500;
   }
-
   .page-container a:hover {
     text-decoration: underline;
-    color: #2980b9; /* Darker blue on hover */
   }
 
-  .last-updated {
-    /* If you add a last updated date for ToS */
+  .end-marker {
+    text-align: center;
+    color: #aaa;
     margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e0e0e0;
-    text-align: right;
     font-style: italic;
-    color: #777;
-    font-size: 0.9rem;
   }
 </style>
