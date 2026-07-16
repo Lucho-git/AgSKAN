@@ -24,23 +24,14 @@
 
   async function handleOperationSelect(event) {
     const selectedId = event.target.value
-    console.log("1. Select Event - Selected ID:", selectedId)
-    console.log("2. Current Operation Store:", $operationStore)
-
     const selectedOperation = $operationStore.find((op) => op.id === selectedId)
-    console.log("3. Found Selected Operation:", selectedOperation)
 
     if (selectedOperation && $profileStore?.id) {
       try {
-        console.log("4. Starting API Call...")
-
-        // Use the operationApi.updateSelectedOperation function
         const result = await operationApi.updateSelectedOperation(
           $profileStore.id,
           selectedId,
         )
-
-        console.log("5. API Response:", result)
 
         if (!result.success) {
           console.error("Failed to update selected operation:", result.message)

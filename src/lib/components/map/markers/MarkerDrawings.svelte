@@ -78,12 +78,6 @@
           shouldShowDrawings ? "visible" : "none",
         )
       }
-
-      console.log("✅ Updated marker drawing visibility:", {
-        markers: markersVisible,
-        drawings: drawingsVisible,
-        showing: shouldShowDrawings,
-      })
     } catch (error) {
       if (!isDestroyed) {
         console.error("Error updating marker drawing visibility:", error)

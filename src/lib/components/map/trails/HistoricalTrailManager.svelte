@@ -302,10 +302,6 @@
       markersLayerId,
     ]
 
-    console.log(
-      `✅ Added historical trail ${trail.id}${markerCount > 0 ? ` with ${markerCount} arrow markers` : " (arrows deferred)"}`,
-    )
-
     return layerId
   }
 
@@ -482,27 +478,15 @@
   let styleLoadHandler: (() => void) | null = null
 
   onMount(() => {
-    console.log("🏔️ HistoricalTrailManager mounted")
-
     let previousTrails: any[] = []
     historicalTrailsUnsubscribe = historicalTrailStore.subscribe(
       (currentTrails) => {
-        console.log("🏔️ HistoricalTrailManager: Store changed", {
-          previousCount: previousTrails?.length,
-          currentCount: currentTrails?.length,
-          styleReady,
-        })
-
         if (!map || !styleReady) {
-          console.log(
-            "  ⏸️ Style not ready, deferring — will render on style.load",
-          )
           previousTrails = [...currentTrails]
           return
         }
 
         if (previousTrails && currentTrails) {
-          // Check for NEW trails
           const newTrails = currentTrails.filter(
             (currTrail) =>
               !previousTrails.some(
@@ -511,48 +495,10 @@
           )
 
           if (newTrails.length > 0) {
-            console.log(
-              "  ➕ NEW trails detected:",
-              newTrails.map((t) => ({
-                id: t.id,
-                hasPath: !!t.path,
-                pathType: t.path?.type,
-                coords: t.path?.coordinates?.length,
-                color: t.trail_color,
-                width: t.trail_width,
-              })),
-            )
-
             newTrails.forEach((trail) => {
-              if (!trail.path) {
-                console.warn(`  ⚠️ Skipping trail ${trail.id}: no path data`)
-                return
-              }
-              console.log(`  🎨 Calling addTrail() for ${trail.id}...`)
-              try {
-                const layerId = addTrail(trail)
-                console.log(
-                  `  ✅ addTrail() succeeded for ${trail.id}, layerId: ${layerId}`,
-                )
-
-                // Verify the layer was actually added to the map
-                setTimeout(() => {
-                  const layerExists = map.getLayer(layerId)
-                  const sourceExists = map.getSource(
-                    generateTrailIds(trail.id).sourceId,
-                  )
-                  console.log(`  🔍 Post-add verification for ${trail.id}:`, {
-                    layerExists: !!layerExists,
-                    sourceExists: !!sourceExists,
-                    layerId,
-                  })
-                }, 100)
-              } catch (error) {
-                console.error(`  ❌ addTrail() failed for ${trail.id}:`, error)
-              }
+              if (!trail.path) return
+              addTrail(trail)
             })
-          } else {
-            console.log("  ℹ️ No new trails to add")
           }
 
           // Check for DELETED trails
@@ -562,13 +508,7 @@
           )
 
           if (deletedTrails.length > 0) {
-            console.log(
-              "  🗑️ Trails to remove:",
-              deletedTrails.map((t) => t.id),
-            )
-
             deletedTrails.forEach((trail) => {
-              console.log(`  🗑️ Removing trail from map: ${trail.id}`)
               removeTrail(trail.id)
 
               if (!map) return
@@ -592,10 +532,9 @@
                 try {
                   if (map.getLayer(layerId)) {
                     map.removeLayer(layerId)
-                    console.log(`    ✓ Removed layer: ${layerId}`)
                   }
                 } catch (error) {
-                  console.warn(`    ⚠️ Error removing layer ${layerId}:`, error)
+                  // Layer may already be removed
                 }
               })
 
@@ -609,18 +548,12 @@
                 try {
                   if (map.getSource(sourceId)) {
                     map.removeSource(sourceId)
-                    console.log(`    ✓ Removed source: ${sourceId}`)
                   }
                 } catch (error) {
-                  console.warn(
-                    `    ⚠️ Error removing source ${sourceId}:`,
-                    error,
-                  )
+                  // Source may already be removed
                 }
               })
             })
-          } else {
-            console.log("  ℹ️ No trails to remove")
           }
         }
         previousTrails = [...currentTrails]

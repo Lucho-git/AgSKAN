@@ -29,10 +29,7 @@ let initialized = false;
 export async function initializeSession() {
     if (!browser || initialized) return;
 
-    console.log("Initializing session store...");
-
     try {
-        // Get the current session
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
@@ -40,28 +37,21 @@ export async function initializeSession() {
             return;
         }
 
-        console.log("Session initialization result:", data.session ? "Found session" : "No session");
-
         if (data.session) {
             session.set(data.session);
         }
 
-        // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-            console.log("Auth state changed:", event);
 
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                console.log("Setting session in store due to auth event");
                 session.set(newSession);
             } else if (event === 'SIGNED_OUT') {
-                console.log("Clearing session in store due to sign out");
                 session.set(null);
             }
         });
 
         initialized = true;
         return () => {
-            console.log("Cleaning up session subscription");
             subscription.unsubscribe();
         };
     } catch (e) {

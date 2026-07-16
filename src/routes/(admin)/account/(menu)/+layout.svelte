@@ -163,6 +163,16 @@
       path: "admin",
       devOnly: true,
     },
+    {
+      href: "/account/agworld",
+      icon: "solar:cloud-check-bold-duotone",
+      label: "Agworld",
+      labelId: "agworld",
+      topBarIcon: "solar:cloud-check-bold-duotone",
+      topBarLabel: "Agworld API",
+      path: "agworld",
+      devOnly: true,
+    },
   ]
 
   // Directly determine the current section from the URL path

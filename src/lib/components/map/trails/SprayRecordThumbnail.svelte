@@ -9,6 +9,7 @@
   import {
     requestThumbnail,
     thumbnailCache,
+    getCachedThumbnail,
   } from "$lib/utils/thumbnailRenderer"
   import { Loader2 } from "lucide-svelte"
 
@@ -22,43 +23,49 @@
   let dataUrl = ""
   let loading = true
   let unsub: (() => void) | null = null
+  let currentRid = ""
 
-  onMount(() => {
+  function loadThumbnail() {
     if (!fieldBoundary || !record) {
       loading = false
       return
     }
 
+    // Unsubscribe from previous record
+    if (unsub) { unsub(); unsub = null }
+
     const rid = record.id
-    console.log(
-      `[Thumbnail] Requesting record=${rid.slice(0, 8)} field=${record.field_name || "?"} intervals=${record.interval_paths?.length || 0} hasFieldPath=${!!record.field_path?.coordinates?.length}`,
-    )
-    if (fieldBoundary) {
-      const firstRing =
-        fieldBoundary.type === "MultiPolygon"
-          ? fieldBoundary.coordinates[0][0]
-          : fieldBoundary.coordinates[0]
-      const fp = (firstRing as any)[0]
-      console.log(
-        `[Thumbnail]   boundary type=${fieldBoundary.type} coords=[${fp[0]},${fp[1]}]`,
-      )
+    currentRid = rid
+
+    // Check cache first
+    const cached = getCachedThumbnail(rid)
+    if (cached) {
+      dataUrl = cached
+      loading = false
+      return
     }
 
+    loading = true
+    dataUrl = ""
     requestThumbnail({ recordId: rid, fieldBoundary, record })
 
     unsub = thumbnailCache.subscribe((cache) => {
       const url = cache[rid]
-      if (url) {
-        console.log(`[Thumbnail] Cache hit record=${rid.slice(0, 8)}`)
+      if (url && rid === currentRid) {
         dataUrl = url
         loading = false
-        dispatch("ready", { dataUrl: url, recordId: rid })
-        if (unsub) {
-          unsub()
-          unsub = null
-        }
+        if (unsub) { unsub(); unsub = null }
       }
     })
+  }
+
+  // React when record changes (e.g., filtering)
+  $: if (record?.id && record.id !== currentRid) {
+    loadThumbnail()
+  }
+
+  onMount(() => {
+    loadThumbnail()
   })
 
   onDestroy(() => {

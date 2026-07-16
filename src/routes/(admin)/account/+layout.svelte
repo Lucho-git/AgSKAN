@@ -57,10 +57,6 @@
   let operationStartTime = 0
   const MIN_ANIMATION_TIME = 1200
 
-  console.log("Account layout initializing")
-  console.log("Current session status:", data.sessionStatus)
-  console.log("Current session state:", $session)
-
   async function checkForPendingMap() {
     if (!browser || !$session?.user?.id || pendingMapProcessed) return false
 
@@ -365,10 +361,7 @@
           operation_year: trail.operations?.year || new Date().getFullYear(),
         })) || []
 
-      console.log("🆕 Trail hectares data:", trailHectaresResult.data)
-      console.log("🆕 Total trail hectares:", totalTrailHectares)
-      console.log("🆕 Trail details:", trailsWithOperations)
-      console.log("🆕 Field count:", fieldCount.count)
+
 
       // Process connected profiles with operation data
       const connectedProfiles = connectedProfilesResult.data || []
@@ -393,10 +386,7 @@
         }),
       )
 
-      console.log(
-        "🔍 Connected profiles with operations:",
-        connectedProfilesWithOperations,
-      )
+
 
       // Load additional map-related data
       const [
@@ -424,21 +414,7 @@
           ),
       ])
 
-      console.log(
-        "🔍 Connected profiles IDs:",
-        connectedProfilesWithOperations.map((p) => p.id),
-      )
-      console.log(
-        "🔍 Vehicle states returned:",
-        vehicleStatesResult.data?.map((v) => v.vehicle_id),
-      )
-      console.log("🔍 Tablet 1 ID:", "a2ff2047-1465-4775-a98d-df0a9c3351d8")
-      console.log(
-        "🔍 Is Tablet 1 in connected profiles?",
-        connectedProfilesWithOperations.some(
-          (p) => p.id === "a2ff2047-1465-4775-a98d-df0a9c3351d8",
-        ),
-      )
+
 
       // Create connected map object
       const connected_map = {
@@ -459,8 +435,6 @@
       }
 
       const master_subscription = masterSubscriptionResult.data
-
-      console.log("🔍 Map activity with new metrics:", map_activity)
 
       // Update connected map store
       connectedMapStore.set({
@@ -488,8 +462,6 @@
 
       // Update operations stores (always set, even if empty)
       operationStore.set(operations?.length ? [...operations] : [])
-      console.log("[ops] loadData → operationStore (first 5):", (operations || []).slice(0, 5).map(o => ({ name: o.name, year: o.year, created: o.created_at })))
-
       if (operations?.length) {
         const selectedOp = operations.find(
           (op) => op.id === profile.selected_operation_id,
@@ -555,12 +527,6 @@
   }
 
   function handleAuthStateChange(event, newSession) {
-    console.log("Auth State Change:", {
-      event,
-      hasSession: !!newSession,
-      userId: newSession?.user?.id,
-    })
-
     // When signed out, show loading before redirecting to avoid flash of content
     if (event === "SIGNED_OUT" && !redirecting) {
       // If the sign-out page is performing a hard reload, let it own the redirect
@@ -602,8 +568,6 @@
       const userData = await loadUserData()
       userDataLoaded = true
 
-      console.log("Loaded User Data:", userData)
-
       // Calculate elapsed time and ensure minimum animation time
       const elapsedTime = Date.now() - operationStartTime
       const remainingTime = Math.max(0, MIN_ANIMATION_TIME - elapsedTime)
@@ -621,7 +585,7 @@
         )
       }
 
-      console.log("Data loading complete")
+
     } catch (e) {
       console.error("Data loading error:", e)
       error = e
@@ -658,15 +622,10 @@
 
   // Initialize the component
   onMount(() => {
-    console.log("Account layout mounted")
-
-    // Check if running in Capacitor native environment
     if (browser) {
       try {
         isNative = Capacitor.isNativePlatform()
-        console.log("Running in native environment:", isNative)
       } catch (error) {
-        console.error("Error checking native platform:", error)
         isNative = false
       }
     }

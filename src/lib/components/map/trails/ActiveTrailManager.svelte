@@ -195,24 +195,12 @@
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path)
 
-    console.log(
-      `🔍 ATM updateCombinedIncremental: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map((t) => (Array.isArray(t.path) ? t.path.length : "geojson")).join(", ")}]`,
-    )
-
-    if (allActiveTrails.length === 0) {
-      console.log(
-        "🔍 ATM updateCombinedIncremental: No trails, returning early",
-      )
-      return
-    }
+    if (allActiveTrails.length === 0) return
 
     const source = map.getSource(
       COMBINED_ACTIVE_SOURCE_ID,
     ) as mapboxgl.GeoJSONSource
     if (!source) {
-      console.log(
-        "🔍 ATM updateCombinedIncremental: No source exists, calling rebuildCombinedActiveTrails",
-      )
       rebuildCombinedActiveTrails()
       return
     }
@@ -235,7 +223,6 @@
     )
 
     if (removedTrails.length > 0) {
-      console.log(`  🗑️ Trails removed: ${removedTrails.join(", ")}`)
       removedTrails.forEach((id) => {
         lastSegmentIndices.delete(id)
         lastCoordinateCounts.delete(id)
@@ -339,8 +326,6 @@
         previousArrowMarkers = result.updatedMarkers
         trailDistanceState = result.updatedDistanceState
       }
-    } else {
-      console.log(`  ⏭️ No changes`)
     }
   }
 
@@ -571,34 +556,19 @@
           ? currentTrail.path.length
           : "geojson"
         : 0
-      console.log(
-        `🔔 ATM currentTrailStore subscription fired: styleReady=${styleReady}, hasPath=${!!hasPath}, pathLen=${pathLen}, trailId=${currentTrail?.id || "null"}`,
-      )
       if (map && styleReady) {
         if (hasPath) {
-          console.log(`🔔 ATM → calling updateCurrentTrail`)
           updateCurrentTrail(currentTrail)
-        } else {
-          console.log(`🔔 ATM → skipped: no path data`)
         }
-      } else {
-        console.log(`🔔 ATM → BLOCKED: map=${!!map}, styleReady=${styleReady}`)
       }
     })
 
     otherActiveTrailsUnsubscribe = otherActiveTrailStore.subscribe(
       (activeTrails) => {
-        console.log(
-          `🔔 ATM otherActiveTrailStore subscription fired: styleReady=${styleReady}, trailCount=${activeTrails?.length || 0}`,
-        )
         if (map && styleReady) {
           if (activeTrails && activeTrails.length > 0) {
             updateCombinedActiveTrailsIncremental()
           }
-        } else {
-          console.log(
-            `🔔 ATM other trails → BLOCKED: map=${!!map}, styleReady=${styleReady}`,
-          )
         }
       },
     )

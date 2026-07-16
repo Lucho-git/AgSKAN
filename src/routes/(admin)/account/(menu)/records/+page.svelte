@@ -25,7 +25,7 @@
   import FieldTrailOverlay from "$lib/components/map/trails/FieldTrailOverlay.svelte"
   import SprayRecordThumbnail from "$lib/components/map/trails/SprayRecordThumbnail.svelte"
   import { clearThumbnailCache } from "$lib/utils/thumbnailRenderer"
-  import { RefreshCw } from "lucide-svelte"
+  import { RefreshCw, RotateCcw } from "lucide-svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   export let data
@@ -103,6 +103,116 @@
     }
   }
 
+  // Field path backfill state
+  let backfillingPaths = false
+  let backfillPathResult = null as any
+
+  async function runFieldPathBackfill() {
+    backfillingPaths = true
+    backfillPathResult = null
+    let updated = 0
+    let pathFixed = 0
+    let swathFixed = 0
+    try {
+      const { data: candidates, error: listErr } = await supabase.rpc(
+        "get_field_path_backfill_candidates",
+        { p_master_map_id: masterMapId },
+      )
+      if (listErr) throw listErr
+      if (!candidates || candidates.length === 0) {
+        backfillPathResult = {
+          message: "All records complete — nothing to fix",
+        }
+        return
+      }
+
+      for (const row of candidates) {
+        const { data: res, error: recErr } = await supabase.rpc(
+          "backfill_record_field_path",
+          { p_record_id: row.record_id },
+        )
+        if (recErr) {
+          console.warn(
+            `Backfill failed for record ${row.record_id}:`,
+            recErr,
+          )
+          continue
+        }
+        if (res?.success) {
+          updated++
+          if (res.fixes?.includes('field_path')) pathFixed++
+          if (res.fixes?.includes('swath_width')) swathFixed++
+        }
+      }
+
+      backfillPathResult = {
+        success: true,
+        records_checked: candidates.length,
+        records_updated: updated,
+        path_fixed: pathFixed,
+        swath_fixed: swathFixed,
+      }
+      const parts = []
+      if (pathFixed) parts.push(`${pathFixed} paths`)
+      if (swathFixed) parts.push(`${swathFixed} swaths`)
+      toast.success(`Fixed ${parts.join(', ')} across ${updated} records`)
+      window.location.reload()
+    } catch (e: any) {
+      backfillPathResult = { error: e.message }
+      toast.error(e.message || "Field path backfill failed")
+    } finally {
+      backfillingPaths = false
+    }
+  }
+
+  // Regenerate all records for the map
+  let regenerating = false
+  let regenProgress = ""
+
+  async function runRegenerateAll() {
+    if (!confirm("This will DELETE and recreate ALL spray records for this map using the latest logic. Continue?")) return
+    regenerating = true
+    regenProgress = "Finding trails..."
+    let total = 0
+    let done = 0
+    let generated = 0
+    try {
+      const { data: trails, error: listErr } = await supabase.rpc(
+        "get_regeneration_candidates",
+        { p_master_map_id: masterMapId },
+      )
+      if (listErr) throw listErr
+      if (!trails || trails.length === 0) {
+        toast.success("No records to regenerate")
+        return
+      }
+
+      total = trails.length
+      for (const t of trails) {
+        regenProgress = `Trail ${done + 1}/${total}...`
+        const { data: res, error: regenErr } = await supabase.rpc(
+          "regenerate_trail_records",
+          { p_trail_id: t.trail_id },
+        )
+        if (regenErr) {
+          console.warn(`Regen failed for trail ${t.trail_id}:`, regenErr)
+        } else if (res?.success) {
+          generated += parseInt(res.records_generated) || 0
+        }
+        done++
+      }
+
+      regenProgress = ""
+      toast.success(`Regenerated ${generated} records from ${done} trails`)
+      window.location.reload()
+    } catch (e: any) {
+      regenProgress = ""
+      toast.error(e.message || "Regeneration failed")
+    } finally {
+      regenerating = false
+    }
+  }
+
   // Delete spray record
   async function deleteRecord(recordId: string) {
     if (!confirm("Delete this record? This cannot be undone.")) return
@@ -124,6 +234,16 @@
   let selectedOperationId = ""
   let sortBy = "start_time" // start_time | operator_name | operation_name
   let sortDir = "desc" // asc | desc
+
+  // Operations with record counts, sorted by recency
+  $: operationsWithCounts = operations.map(op => {
+    const opRecords = records.filter(r => r.operation_id === op.id)
+    return {
+      ...op,
+      recordCount: opRecords.length,
+      latestDate: opRecords.length ? Math.max(...opRecords.map(r => new Date(r.start_time).getTime())) : 0
+    }
+  }).sort((a, b) => b.latestDate - a.latestDate)
 
   // Pagination
   const PAGE_SIZE = 50
@@ -302,7 +422,7 @@
   $: confirmedCount = filteredRecords.filter((r) => r.operator_confirmed).length
 </script>
 
-<div class="records-page">
+<div class="records-page rounded-xl bg-base-100 shadow-lg">
   {#if loading}
     <div class="loading-state">
       <Loader2 size={32} class="animate-spin text-blue-400" />
@@ -332,7 +452,7 @@
           <div class="backfill-section">
             <input
               type="number"
-              class="backfill-days"
+              class="backfill-days bg-base-100 border border-base-300"
               bind:value={backfillDays}
               min="1"
               max="500"
@@ -352,6 +472,36 @@
               <span>Backfill</span>
             </button>
           </div>
+          <div class="backfill-section">
+            <button
+              class="backfill-btn"
+              on:click={runFieldPathBackfill}
+              disabled={backfillingPaths}
+              title="Fix missing field_path on existing records (via trail path intersection)"
+            >
+              {#if backfillingPaths}
+                <Loader2 size={14} class="animate-spin" />
+              {:else}
+                <MapPin size={14} />
+              {/if}
+              <span>Fix Paths</span>
+            </button>
+          </div>
+          <div class="backfill-section">
+            <button
+              class="backfill-btn backfill-btn-danger"
+              on:click={runRegenerateAll}
+              disabled={regenerating}
+              title="Delete & recreate ALL records with current logic (island detection, field_path, swath)"
+            >
+              {#if regenerating}
+                <Loader2 size={14} class="animate-spin" />
+              {:else}
+                <RotateCcw size={14} />
+              {/if}
+              <span>{regenerating ? regenProgress : "Regen All"}</span>
+            </button>
+          </div>
         {/if}
         <div class="confirm-badge">
           <CheckCircle2 size={14} class="text-green-400" />
@@ -360,28 +510,20 @@
       </div>
     </div>
 
-    <!-- View Toggle — prominent segmented control -->
-    <div class="view-toggle-container">
-      <button
-        class="view-toggle-btn"
-        class:active={viewMode === "fields"}
-        on:click={() => (viewMode = "fields")}
-      >
-        <span>By Field</span>
+    <!-- View Toggle -->
+    <div class="view-toggle">
+      <button class="toggle-btn" class:active={viewMode === "fields"} on:click={() => (viewMode = "fields")}>
+        <Layers size={14} /> By Field
       </button>
-      <button
-        class="view-toggle-btn"
-        class:active={viewMode === "list"}
-        on:click={() => (viewMode = "list")}
-      >
-        <span>Chronological</span>
+      <button class="toggle-btn" class:active={viewMode === "list"} on:click={() => (viewMode = "list")}>
+        <Clock size={14} /> Chronological
       </button>
     </div>
 
     <!-- Filters Bar -->
     <div class="filters-bar">
-      <div class="search-box">
-        <Search size={16} class="text-white/40" />
+      <div class="search-box bg-base-100 border border-base-300">
+        <Search size={16} class="text-contrast-content/40" />
         <input
           type="text"
           placeholder="Search fields, operators, vehicles..."
@@ -389,28 +531,20 @@
         />
       </div>
 
-      <select bind:value={selectedOperationId} class="field-select">
+      <select bind:value={selectedOperationId} class="field-select bg-base-100 border border-base-300">
         <option value="">All Operations</option>
-        {#each operations as op}
-          <option value={op.id}>{op.name}</option>
+        {#each operationsWithCounts as op}
+          <option value={op.id}>{op.name} &nbsp;· {op.recordCount}</option>
         {/each}
       </select>
 
-      {#if viewMode === "fields"}
-        <select bind:value={selectedFieldId} class="field-select">
-          <option value="">All Fields</option>
-          {#each fields as field}
-            <option value={field.field_id}>{field.name}</option>
-          {/each}
-        </select>
-      {/if}
     </div>
 
     <!-- Sort Bar (list view only) -->
     {#if viewMode === "list"}
       <div class="sort-bar">
         <button
-          class="sort-btn"
+          class="sort-btn bg-base-100 border border-base-300"
           on:click={() => toggleSort("start_time")}
           class:active={sortBy === "start_time"}
         >
@@ -419,7 +553,7 @@
           {#if sortBy === "start_time"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
         <button
-          class="sort-btn"
+          class="sort-btn bg-base-100 border border-base-300"
           on:click={() => toggleSort("operator_name")}
           class:active={sortBy === "operator_name"}
         >
@@ -428,7 +562,7 @@
           {#if sortBy === "operator_name"}{sortDir === "asc" ? "↑" : "↓"}{/if}
         </button>
         <button
-          class="sort-btn"
+          class="sort-btn bg-base-100 border border-base-300"
           on:click={() => toggleSort("operation_name")}
           class:active={sortBy === "operation_name"}
         >
@@ -442,7 +576,7 @@
     <!-- Records List -->
     {#if filteredRecords.length === 0}
       <div class="empty-state">
-        <FileText size={48} class="text-white/20" />
+        <FileText size={48} class="text-contrast-content/20" />
         <p>No records found</p>
         <p class="empty-subtitle">
           {searchQuery || selectedFieldId
@@ -455,7 +589,7 @@
       <div class="records-list">
         {#each paginatedRecords as record (record.id)}
           <div
-            class="record-card"
+            class="record-card bg-base-200 border border-base-300"
             class:expandable={hasMultipleIntervals(record)}
             class:confirmed={record.operator_confirmed}
           >
@@ -523,15 +657,18 @@
               <!-- Row 2: Meta details (operator, vehicle, operation) -->
               <div class="card-meta-row">
                 <div class="meta-row">
-                  <User size={11} class="text-white/30" />
+                  <User size={11} class="text-contrast-content/30" />
                   <span>{record.operator_name || "Unknown"}</span>
                 </div>
                 <div class="meta-row">
-                  <Tractor size={11} class="text-white/30" />
+                  <Tractor size={11} class="text-contrast-content/30" />
                   <span>{formatVehicleType(record.vehicle_type)}</span>
+                  {#if record.swath_width}
+                    <span class="meta-tag">{record.swath_width}m</span>
+                  {/if}
                 </div>
                 <div class="meta-row">
-                  <Layers size={11} class="text-white/30" />
+                  <Layers size={11} class="text-contrast-content/30" />
                   <span>{record.operation_name || "Unknown"}</span>
                 </div>
                 {#if record.operator_confirmed}
@@ -539,6 +676,14 @@
                     size={14}
                     class="card-confirmed text-green-400"
                   />
+                {/if}
+                {#if record.field_path}
+                  <span class="meta-tag meta-tag-ok">path</span>
+                {:else}
+                  <span class="meta-tag meta-tag-warn">no path</span>
+                {/if}
+                {#if !record.swath_width}
+                  <span class="meta-tag meta-tag-warn">no swath</span>
                 {/if}
                 <button
                   class="delete-record-btn"
@@ -584,7 +729,7 @@
       {#if totalPages > 1}
         <div class="pagination">
           <button
-            class="page-btn"
+            class="page-btn bg-base-100 border border-base-300"
             disabled={currentPage === 1}
             on:click={() => currentPage--}
           >
@@ -600,7 +745,7 @@
             >
           </span>
           <button
-            class="page-btn"
+            class="page-btn bg-base-100 border border-base-300"
             disabled={currentPage === totalPages}
             on:click={() => currentPage++}
           >
@@ -611,8 +756,8 @@
     {:else}
       <!-- Grouped by Field -->
       <div class="fields-grouped">
-        {#each recordsByField as [fieldId, group]}
-          <div class="field-group">
+        {#each recordsByField as [fieldId, group] (fieldId)}
+          <div class="field-group bg-base-200 border border-base-300">
             <div
               class="field-group-header"
               on:click={() => toggleExpand(`field-${fieldId}`)}
@@ -666,7 +811,7 @@
 
             {#if expandedRecords.has(`field-${fieldId}`)}
               <div class="field-group-records">
-                {#each group.records as record}
+                {#each group.records as record (record.id)}
                   <div class="record-row">
                     <span class="record-row-date"
                       >{formatDate(record.start_time)}
@@ -676,7 +821,11 @@
                       >{record.operator_name || "Unknown"}</span
                     >
                     <span class="record-row-vehicle"
-                      >{formatVehicleType(record.vehicle_type)}</span
+                      >{formatVehicleType(record.vehicle_type)}
+                      {#if record.swath_width}
+                        <span class="meta-tag">{record.swath_width}m</span>
+                      {/if}
+                    </span
                     >
                     <span class="record-row-operation"
                       >{record.operation_name || "Unknown"}</span
@@ -689,6 +838,14 @@
                     >
                     {#if record.operator_confirmed}
                       <CheckCircle2 size={14} class="text-green-400" />
+                    {/if}
+                    {#if record.field_path}
+                      <span class="meta-tag meta-tag-ok">path</span>
+                    {:else}
+                      <span class="meta-tag meta-tag-warn">no path</span>
+                    {/if}
+                    {#if !record.swath_width}
+                      <span class="meta-tag meta-tag-warn">no swath</span>
                     {/if}
                   </div>
                 {/each}
@@ -730,7 +887,6 @@
     padding: 24px;
     max-width: 1000px;
     margin: 0 auto;
-    color: rgba(255, 255, 255, 0.9);
   }
 
   /* Header */
@@ -755,7 +911,7 @@
 
   .header-subtitle {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.5);
+    color: oklch(var(--contrast-content) / 0.5);
     margin: 2px 0 0 0;
   }
 
@@ -768,7 +924,7 @@
     border: 1px solid rgba(34, 197, 94, 0.2);
     border-radius: 8px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: oklch(var(--contrast-content) / 0.7);
   }
 
   .backfill-section {
@@ -780,10 +936,8 @@
   .backfill-days {
     width: 42px;
     padding: 5px 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
-    color: white;
+    color: oklch(var(--contrast-content));
     font-size: 12px;
     text-align: center;
     outline: none;
@@ -809,49 +963,54 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-
-  /* Prominent view toggle — segmented control */
-  .view-toggle-container {
-    display: flex;
-    gap: 0;
-    margin-bottom: 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 4px;
+  .backfill-btn-danger {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+  .backfill-btn-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.2);
   }
 
-  .view-toggle-btn {
+  /* View toggle */
+  .view-toggle {
+    display: flex;
+    margin-bottom: 16px;
+    border-bottom: 2px solid oklch(var(--base-300));
+  }
+
+  .toggle-btn {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 12px 0;
     background: none;
     border: none;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 14px;
-    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    color: oklch(var(--contrast-content) / 0.4);
+    font-size: 15px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .view-toggle-btn.active {
-    background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+  .toggle-btn.active {
+    color: oklch(var(--contrast-content));
+    border-bottom-color: oklch(var(--contrast-content));
   }
 
-  .view-toggle-btn:hover:not(.active) {
-    color: rgba(255, 255, 255, 0.7);
+  .toggle-btn:hover:not(.active) {
+    color: oklch(var(--contrast-content) / 0.65);
   }
 
   /* Filters */
   .filters-bar {
     display: flex;
     gap: 12px;
-    margin-bottom: 16px;
+    margin: 16px 0;
     flex-wrap: wrap;
   }
 
@@ -862,8 +1021,6 @@
     flex: 1;
     min-width: 200px;
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
   }
 
@@ -871,28 +1028,27 @@
     background: none;
     border: none;
     outline: none;
-    color: white;
+    color: oklch(var(--contrast-content));
     font-size: 14px;
     width: 100%;
   }
 
   .search-box input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: oklch(var(--contrast-content) / 0.35);
   }
 
   .field-select {
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    color: white;
+    color: oklch(var(--contrast-content));
     font-size: 14px;
     outline: none;
     cursor: pointer;
   }
 
   .field-select option {
-    background: #1a1a1a;
+    background: oklch(var(--base-100));
+    color: oklch(var(--contrast-content));
   }
 
   /* Sort bar */
@@ -908,19 +1064,17 @@
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.5);
+    color: oklch(var(--contrast-content) / 0.5);
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .sort-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
-    color: #60a5fa;
+    background: oklch(var(--base-100));
+    color: oklch(var(--contrast-content));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
 
   /* Records list */
@@ -931,19 +1085,21 @@
   }
 
   .record-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     overflow: hidden;
-    transition: border-color 0.2s;
+    transition: box-shadow 0.2s;
+  }
+
+  .record-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
 
   .record-card.expandable {
-    border-color: rgba(59, 130, 246, 0.15);
+    border-color: oklch(var(--base-300));
   }
 
   .record-card.confirmed {
-    border-left: 3px solid rgba(34, 197, 94, 0.4);
+    border-left: 3px solid rgba(34, 197, 94, 0.5);
   }
 
   .record-card-header {
@@ -1007,7 +1163,7 @@
   .delete-record-btn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.2);
+    color: oklch(var(--contrast-content) / 0.25);
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -1021,8 +1177,6 @@
     background: rgba(239, 68, 68, 0.1);
   }
 
-  /* Snapshot thumbnails handled by SprayRecordThumbnail component */
-
   .record-card-header.clickable {
     cursor: pointer;
   }
@@ -1034,7 +1188,7 @@
 
   .date-time {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
   }
 
   .visit-badge {
@@ -1050,13 +1204,13 @@
   .expand-icon {
     display: flex;
     align-items: center;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     flex-shrink: 0;
   }
 
   .stat {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    color: oklch(var(--contrast-content) / 0.5);
   }
 
   .stat-area {
@@ -1069,13 +1223,32 @@
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
+  }
+
+  .meta-tag {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: oklch(var(--base-300));
+    color: oklch(var(--contrast-content) / 0.5);
+    white-space: nowrap;
+  }
+
+  .meta-tag-ok {
+    background: oklch(0.6 0.18 150 / 0.15);
+    color: oklch(0.6 0.18 150);
+  }
+
+  .meta-tag-warn {
+    background: oklch(0.7 0.16 80 / 0.15);
+    color: oklch(0.7 0.16 80);
   }
 
   /* Intervals (expandable) */
   .intervals-section {
     padding: 8px 16px 12px 96px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid oklch(var(--base-300));
   }
 
   .interval-row {
@@ -1093,16 +1266,16 @@
   }
 
   .interval-time {
-    color: rgba(255, 255, 255, 0.6);
+    color: oklch(var(--contrast-content) / 0.6);
   }
 
   .interval-duration {
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     margin-left: auto;
   }
 
   .interval-distance {
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     min-width: 60px;
     text-align: right;
   }
@@ -1118,14 +1291,17 @@
   .fields-grouped {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
 
   .field-group {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+
+  .field-group:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
 
   .field-group-header {
@@ -1186,7 +1362,7 @@
   }
 
   .field-group-records {
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid oklch(var(--base-300));
     padding: 4px 0;
   }
 
@@ -1194,9 +1370,13 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 16px 8px 40px;
+    padding: 9px 16px 9px 40px;
     font-size: 13px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid oklch(var(--base-300) / 0.5);
+  }
+
+  .record-row:nth-child(even) {
+    background: oklch(var(--base-200) / 0.5);
   }
 
   .record-row:last-child {
@@ -1205,23 +1385,23 @@
 
   .record-row-date {
     min-width: 140px;
-    color: rgba(255, 255, 255, 0.7);
+    color: oklch(var(--contrast-content) / 0.7);
   }
 
   .record-row-operator {
     min-width: 100px;
-    color: rgba(255, 255, 255, 0.5);
+    color: oklch(var(--contrast-content) / 0.5);
   }
 
   .record-row-vehicle {
     min-width: 100px;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     font-size: 12px;
   }
 
   .record-row-operation {
     flex: 1;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     font-size: 12px;
   }
 
@@ -1233,7 +1413,7 @@
   }
 
   .record-row-distance {
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     min-width: 60px;
     text-align: right;
   }
@@ -1250,18 +1430,15 @@
 
   .page-btn {
     padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    color: white;
+    color: oklch(var(--contrast-content));
     font-size: 13px;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .page-btn:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
+    background: oklch(var(--base-200));
   }
 
   .page-btn:disabled {
@@ -1271,13 +1448,13 @@
 
   .page-info {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
+    color: oklch(var(--contrast-content) / 0.6);
     text-align: center;
   }
 
   .page-range {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: oklch(var(--contrast-content) / 0.4);
     display: block;
     margin-top: 2px;
   }
@@ -1292,7 +1469,7 @@
     justify-content: center;
     padding: 60px 20px;
     text-align: center;
-    color: rgba(255, 255, 255, 0.5);
+    color: oklch(var(--contrast-content) / 0.5);
   }
 
   .empty-state p {
@@ -1302,13 +1479,14 @@
 
   .empty-subtitle {
     font-size: 13px !important;
-    color: rgba(255, 255, 255, 0.3) !important;
+    color: oklch(var(--contrast-content) / 0.3) !important;
   }
 
   /* Mobile responsive */
   @media (max-width: 640px) {
     .records-page {
       padding: 16px 12px;
+      border-radius: 0.5rem;
     }
 
     .page-header {
@@ -1331,8 +1509,7 @@
       font-size: 12px;
     }
 
-    .view-toggle-btn {
-      padding: 8px 12px;
+    .toggle-btn {
       font-size: 13px;
     }
 

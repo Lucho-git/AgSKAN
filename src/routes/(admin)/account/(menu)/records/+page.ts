@@ -47,8 +47,7 @@ export const load: PageLoad = async () => {
         const { data: operations, error: operationsError } = await supabase
             .from("operations")
             .select("id, name, year")
-            .eq("master_map_id", masterMapId)
-            .order("name");
+            .eq("master_map_id", masterMapId);
 
         if (operationsError) throw operationsError;
 
@@ -62,7 +61,10 @@ export const load: PageLoad = async () => {
                 area_hectares, distance_km, point_count,
                 vehicle_type, swath_width, intervals, interval_paths,
                 field_path, status, activity_type,
-                chem_mix, weather_data, created_at
+                chem_mix, weather_data, created_at,
+                gen_dominant_field_id, gen_pct_of_dominant, gen_area_ratio,
+                gen_max_dist_to_dominant_m, gen_edge_noise, gen_method, gen_gap_merges,
+                gen_pct_of_trail_area, gen_pct_of_field
             `)
             .eq("master_map_id", masterMapId)
             .order("start_time", { ascending: false });

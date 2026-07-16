@@ -38,6 +38,13 @@ export default defineConfig({
                 .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])
         )
     },
+    server: {
+        proxy: {
+            '/agworld-v3-proxy/au': { target: 'https://au.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/au/, '') },
+            '/agworld-v3-proxy/us': { target: 'https://us.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/us/, '') },
+            '/agworld-v3-proxy/nz': { target: 'https://nz.agworld.co', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/nz/, '') },
+        },
+    },
     optimizeDeps: {
         include: [
             '@supabase/supabase-js',

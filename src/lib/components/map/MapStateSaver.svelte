@@ -76,36 +76,12 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         async (payload) => {
-          console.log("🔔 RAW REALTIME EVENT:", {
-            eventType: payload.eventType,
-            newUpdateUserId: payload.new?.update_user_id,
-            oldUpdateUserId: payload.old?.update_user_id,
-            myUserId: userId,
-            isDeleted: payload.new?.deleted,
-            markerId: payload.new?.id || payload.old?.id,
-          })
+          if (payload.new?.update_user_id === userId) return
 
-          // Double-check: Skip if it's our own change
-          if (payload.new?.update_user_id === userId) {
-            console.log("⏭️ Skipping own change - user ID match")
-            return
-          }
-
-          // Also skip if old data has our user ID (for updates)
           if (
             payload.old?.update_user_id === userId &&
             payload.eventType === "UPDATE"
-          ) {
-            console.log("⏭️ Skipping own update - old user ID match")
-            return
-          }
-
-          console.log(
-            "🔄 Received real-time change from another user:",
-            payload.eventType,
-            "User ID:",
-            payload.new?.update_user_id,
-          )
+          ) return
 
           // Handle the change immediately using payload data
           handleRealtimeMarkerChange(payload)
@@ -180,7 +156,7 @@
         })
       }
 
-      console.log("🗑️ Removed marker from realtime event:", markerId)
+
       return
     }
 
@@ -214,7 +190,7 @@
         if (existingIndex >= 0) {
           // Update existing marker
           markers[existingIndex] = processedMarker
-          console.log("✏️ Updated marker from realtime event:", newData.id)
+
 
           // Trigger edit animation for remote marker edits
           remoteMarkerEditStore.set({
@@ -224,7 +200,7 @@
         } else {
           // Add new marker
           markers.push(processedMarker)
-          console.log("➕ Added marker from realtime event:", newData.id)
+
 
           // Trigger ripple animation for new remote markers
           remoteMarkerRippleStore.set({
@@ -264,18 +240,14 @@
 
   // Separate function to setup change tracking after initialization
   function setupChangeTracking() {
-    console.log("🎯 Setting up change tracking after initialization")
-
     markersUnsubscribe = confirmedMarkersStore.subscribe((markers) => {
       if (!isSyncing && isInitialized) {
-        console.log("📊 Tracking changes for", markers.length, "markers")
         trackChangedMarkers(markers)
 
         if (
           isOnline &&
           (pendingChanges.size > 0 || pendingDeletions.size > 0)
         ) {
-          console.log("🚀 Debouncing sync due to changes")
           debouncedSync()
         }
       }
@@ -283,8 +255,6 @@
   }
 
   onDestroy(() => {
-    console.log("🧹 MapStateSaver cleanup - preserving markers")
-
     if (browser) {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
@@ -302,17 +272,7 @@
 
   function trackChangedMarkers(currentMarkers) {
     // Don't track changes until we're initialized
-    if (!isInitialized) {
-      console.log("⏸️ Skipping change tracking - not initialized yet")
-      return
-    }
-
-    console.log("🔍 Tracking changes:", {
-      current: currentMarkers.length,
-      lastKnown: lastKnownState.size,
-      pendingChanges: pendingChanges.size,
-      pendingDeletions: pendingDeletions.size,
-    })
+    if (!isInitialized) return
 
     const currentMap = new Map(currentMarkers.map((m) => [m.id, m]))
 
@@ -329,8 +289,7 @@
         lastKnown.noteLabelVisible !== marker.noteLabelVisible
       ) {
         pendingChanges.add(id)
-        persistPendingMarkerChange(marker) // Persist to IndexedDB immediately
-        console.log(`✏️ Tracked change for marker ${id}`)
+        persistPendingMarkerChange(marker)
       }
     }
 
@@ -339,8 +298,7 @@
       for (const [id] of lastKnownState) {
         if (!currentMap.has(id)) {
           pendingDeletions.add(id)
-          persistPendingMarkerDeletion(id) // Persist to IndexedDB immediately
-          console.log(`🗑️ Tracked deletion for marker ${id}`)
+          persistPendingMarkerDeletion(id)
         }
       }
     }
@@ -699,13 +657,6 @@
     const coordinates = payload.new?.marker_data?.geometry?.coordinates
     const isDeleted = payload.new?.deleted === true
 
-    console.log("🔍 DEBUG Notification:", {
-      updateUserId: payload.new?.update_user_id,
-      currentUserId: userId,
-      match: payload.new?.update_user_id === userId,
-    })
-
-    // Get username
     let username = "Another user"
     const connectedUser = $mapActivityStore.connected_profiles?.find(
       (profile) => profile.id === payload.new?.update_user_id,
@@ -713,7 +664,6 @@
 
     if (connectedUser) {
       username = connectedUser.full_name
-      console.log("👤 Found connected user:", username, connectedUser.id)
     } else if (payload.new?.update_user_id) {
       const { data: user } = await supabase
         .from("profiles")
@@ -723,7 +673,6 @@
 
       if (user) {
         username = user.full_name
-        console.log("👤 Fetched user from DB:", username, user.id)
       }
     }
     // Show appropriate notification

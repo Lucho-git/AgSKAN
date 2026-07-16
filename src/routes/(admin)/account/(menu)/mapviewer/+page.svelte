@@ -25,25 +25,15 @@
   let objectLocation = null
   let initialLocation = null
 
-  console.log("1. MapViewer Page Load - Initial data:", data)
   let adminSection: Writable<string> = getContext("adminSection")
   adminSection.set("mapviewer")
 
   let wakeLock: WakeLockSentinel | null = null
 
-  // Add logging for store value
-  console.log(
-    "2. Current selectedOperationStore value:",
-    $selectedOperationStore,
-  )
   let selectedOperation = $selectedOperationStore
-  console.log("3. Local selectedOperation variable set to:", selectedOperation)
 
-  // Subscribe to store changes
   selectedOperationStore.subscribe((value) => {
-    console.log("4. selectedOperationStore changed to:", value)
     selectedOperation = value
-    console.log("5. Local selectedOperation updated to:", selectedOperation)
   })
 
   function isAndroid() {
@@ -97,20 +87,13 @@
 
       fields = result.fields || []
       mapFieldsStore.set(fields)
-      console.log("Fields loaded successfully:", fields)
 
       const mapId = $connectedMapStore?.id || fields[0]?.map_id
       if (mapId) {
         const farmsResult = await farmApi.loadFarms(mapId)
         if (!farmsResult.error) {
           farmsStore.set(farmsResult.farms)
-          console.log("Farms loaded successfully:", farmsResult.farms)
-        } else {
-          console.error("Farms API error:", farmsResult.error)
         }
-      } else {
-        farmsStore.set([])
-        console.warn("No connected map id available for loading farms")
       }
 
       return fields
@@ -147,37 +130,17 @@
     }
   }
 
-  // Check session status - with more detailed logging
   $: if (browser) {
     if (!$session) {
-      console.log("No session found, redirecting to login")
       goto("/login")
-    } else {
-      console.log("Session found:", $session.user?.email)
     }
   }
 
   onMount(async () => {
-    console.log(
-      "6. MapViewer Page Mount - selectedOperation:",
-      selectedOperation,
-    )
-    console.log(
-      "7. MapViewer Page Mount - store value:",
-      $selectedOperationStore,
-    )
-
     if (browser) {
-      // First check session with enhanced logging
       if (!$session) {
-        console.log("No session on mount, redirecting to login")
         goto("/login")
         return
-      } else {
-        console.log("Session available on mount:", {
-          userId: $session.user?.id,
-          hasToken: !!$session.access_token,
-        })
       }
 
       loading = true

@@ -167,8 +167,12 @@
     // merge recovered coordinates into the visible trail path.
     await recoverPersistedData()
 
-    checkOtherActiveTrails()
-    await fetchOperationTrails()
+    // Fetch closed trails AND other users' active trails in parallel
+    // so all trail data is ready before the loading toast dismisses
+    await Promise.all([
+      checkOtherActiveTrails(),
+      fetchOperationTrails(),
+    ])
 
     // Instant coordinate sending
     cleanup.coordinateBufferUnsubscribe = coordinateBufferStore.subscribe(

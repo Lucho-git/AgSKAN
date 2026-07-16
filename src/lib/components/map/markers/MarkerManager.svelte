@@ -332,10 +332,7 @@
         )
       }
 
-      console.log("✅ Updated marker layer visibility:", {
-        markers: markersVisible,
-        markerLabels: markerLabelsVisible,
-      })
+      console.log("✅ Updated marker layer visibility")
     } catch (error) {
       console.error("Error updating marker layer visibility:", error)
     }
@@ -476,10 +473,8 @@
 
       if (mapContext?.addLayerOrdered) {
         mapContext.addLayerOrdered(layerConfig)
-        console.log("✅ Added markers-layer with proper ordering")
       } else {
         map.addLayer(layerConfig)
-        console.log("⚠️ Added markers-layer without ordering (fallback)")
       }
     }
 
@@ -505,10 +500,8 @@
 
       if (mapContext?.addLayerOrdered) {
         mapContext.addLayerOrdered(selectionLayerConfig)
-        console.log("✅ Added markers selection circle layer")
       } else {
         map.addLayer(selectionLayerConfig)
-        console.log("⚠️ Added markers selection circle layer without ordering")
       }
     }
 
@@ -535,12 +528,8 @@
 
       if (mapContext?.addLayerOrdered) {
         mapContext.addLayerOrdered(selectedLayerConfig)
-        console.log("✅ Added markers-selected-layer with proper ordering")
       } else {
         map.addLayer(selectedLayerConfig)
-        console.log(
-          "⚠️ Added markers-selected-layer without ordering (fallback)",
-        )
       }
     }
 
@@ -592,17 +581,13 @@
 
       if (mapContext?.addLayerOrdered) {
         mapContext.addLayerOrdered(noteLabelsConfig)
-        console.log("✅ Added markers-note-labels layer with proper ordering")
       } else {
         map.addLayer(noteLabelsConfig)
-        console.log(
-          "⚠️ Added markers-note-labels layer without ordering (fallback)",
-        )
       }
     }
 
     markersInitialized = true
-    console.log("✅ Marker layers initialization complete")
+    console.log("✅ Marker layers ready")
 
     // Apply initial visibility state after layers are created
     updateMarkerLayerVisibility()

@@ -124,37 +124,37 @@ export async function processAndCloseTrail(
     supabase: SupabaseClient,
     trail_id: string,
 ) {
-    console.log(`Processing and closing trail ${trail_id}`)
+    console.log(`Processing and closing trail ${trail_id}`);
 
     const { data: trailPoints, error: pointsError } = await supabase
         .from("trail_stream")
         .select("*")
         .eq("trail_id", trail_id)
-        .order("timestamp", { ascending: true })
+        .order("timestamp", { ascending: true });
 
     if (pointsError) {
         throw new Error(
             `Error fetching points for trail ${trail_id}: ${pointsError.message}`,
-        )
+        );
     }
 
     if (!trailPoints || trailPoints.length < 3) {
         console.log(
             `Trail ${trail_id} has insufficient points (${trailPoints?.length || 0}), deleting`,
-        )
-        await supabase.from("trail_stream").delete().eq("trail_id", trail_id)
-        await supabase.from("trails").delete().eq("id", trail_id)
-        return { deleted: true, reason: "insufficient_points" }
+        );
+        await supabase.from("trail_stream").delete().eq("trail_id", trail_id);
+        await supabase.from("trails").delete().eq("id", trail_id);
+        return { deleted: true, reason: "insufficient_points" };
     }
 
     const pathPoints = trailPoints.map((point) => ({
         longitude: point.coordinate.coordinates[0],
         latitude: point.coordinate.coordinates[1],
         timestamp: new Date(point.timestamp).getTime(),
-    }))
+    }));
 
-    const trailEndTime = trailPoints[trailPoints.length - 1].timestamp
-    return await closeTrailWithPath(supabase, trail_id, trailEndTime, pathPoints)
+    const trailEndTime = trailPoints[trailPoints.length - 1].timestamp;
+    return await closeTrailWithPath(supabase, trail_id, trailEndTime, pathPoints);
 }
 
 export async function handleOpenTrails(

@@ -740,6 +740,7 @@ export const trailsApi = {
                 if (trails.length === 0) continue;
 
                 const [mostRecentTrail, ...olderTrails] = trails;
+                console.log(`[checkOther] vehicle=${vehicleId}: mostRecent=${mostRecentTrail.id} (${mostRecentTrail.start_time}), olderCount=${olderTrails.length}`);
 
                 if (olderTrails.length > 0) {
                     console.log(

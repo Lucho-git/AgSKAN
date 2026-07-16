@@ -189,21 +189,6 @@
     ""
   // Only show PMTiles tap-to-select tiles when the user is on the Select tab.
   $: showPmtilesSelectTiles = createFieldActive && createFieldTab === "select"
-  $: console.log("[CreateField] state", {
-    createFieldActive,
-    createFieldTab,
-    showPmtilesSelectTiles,
-    creatingFieldFarm: creatingFieldFarm?.farmName || null,
-    addFieldFarm: addFieldFarm?.farmName || null,
-    selectingAdditionalFieldArea,
-    boundaryEditField: boundaryEditField?.name || null,
-    selectedPmtilesFeatureCount,
-    selectedPmtilesFeatureHectares,
-    selectedPmtilesUnionHectares,
-    selectedPmtilesOverlapHectares,
-    selectedPmtilesAreaPending,
-    selectedPmtilesResolving,
-  })
   let savingAddField = false
   let fieldEditTarget = null
   let fieldEditName = ""

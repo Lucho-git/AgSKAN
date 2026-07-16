@@ -99,7 +99,7 @@
   const dispatch = createEventDispatcher()
 
   onMount(async () => {
-    console.log("Mounting ButtonSection")
+
 
     setTimeout(() => {
       isExpanded = true

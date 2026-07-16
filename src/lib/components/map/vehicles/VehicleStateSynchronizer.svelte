@@ -117,9 +117,13 @@
       if (!clientItem) {
         change.update_types.push("new_vehicle")
       } else {
+        const sm = serverItem.vehicle_marker || {}
+        const cm = clientItem.vehicle_marker || {}
         const vehicleMarkerChanged =
-          JSON.stringify(serverItem.vehicle_marker) !==
-          JSON.stringify(clientItem.vehicle_marker)
+          sm.size !== cm.size ||
+          sm.type !== cm.type ||
+          sm.bodyColor !== cm.bodyColor ||
+          sm.swath !== cm.swath
         const coordinatesChanged =
           serverItem.coordinates !== clientItem.coordinates
         const headingChanged = serverItem.heading !== clientItem.heading
@@ -462,9 +466,6 @@
       .channel(`vehicle_updates_${masterMapId}`)
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         if (payload.payload.vehicle_id !== userId) {
-          console.log(
-            `📡 [BROADCAST] vehicle_update from ${payload.payload.vehicle_id?.slice(0, 8)}`,
-          )
           serverOtherVehiclesData.update((vehicles) => {
             const existingVehicleIndex = vehicles.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
@@ -555,9 +556,6 @@
         },
         (payload) => {
           if (payload.new.vehicle_id !== userId) {
-            console.log(
-              `🛢️ [CDC] postgres_changes vehicle_state from ${payload.new.vehicle_id?.slice(0, 8)} | coords=${payload.new.coordinates} | last_update=${payload.new.last_update}`,
-            )
             serverOtherVehiclesData.update((vehicles) => {
               const existingVehicleIndex = vehicles.findIndex(
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,

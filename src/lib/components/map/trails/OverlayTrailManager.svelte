@@ -60,7 +60,9 @@
     try {
       const { data: trails, error } = await supabase
         .from("trails")
-        .select("*")
+        .select(
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
+        )
         .eq("operation_id", operationId)
         .not("end_time", "is", null)
         .order("start_time", { ascending: true })

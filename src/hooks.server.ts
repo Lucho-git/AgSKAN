@@ -39,13 +39,11 @@ async function logErrorToDatabase(
             timestamp: errorDetails.timestamp,
             error_details: {
                 method: errorDetails.method,
-                headers: errorDetails.headers,
                 userAgent: errorDetails.userAgent,
                 referer: errorDetails.referer,
                 route: errorDetails.route,
                 message: errorDetails.message,
                 stack: errorDetails.stack,
-                details: errorDetails.details,
             },
         })
 
@@ -59,18 +57,49 @@ async function logErrorToDatabase(
     }
 }
 
-// Check if a URL is for browser DevTools or similar requests we want to ignore
-function shouldIgnoreRequest(url: URL): boolean {
+// Check if a URL is for browser DevTools, bot crawlers, or static asset requests we want to ignore
+function shouldIgnoreRequest(url: URL, userAgent: string | null): boolean {
     const pathsToIgnore = [
         '/.well-known/appspecific/com.chrome.devtools.json',
-        '/.well-known/appspecific/', // Catch all DevTools paths
+        '/.well-known/appspecific/',
         '/chrome-extension',
-        '/favicon.ico', // Often causes 404s and not important to log
-        '/apple-touch-icon', // iOS device requests even if not present
+        '/favicon.ico',
+        '/apple-touch-icon',
         '/apple-touch-icon-precomposed',
+        '/robots.txt',
+        '/sitemap',
+        '/.env',
+        '/wp-admin',
+        '/wp-login',
+        '/.git',
     ]
 
-    return pathsToIgnore.some(path => url.pathname.includes(path))
+    if (pathsToIgnore.some(path => url.pathname.toLowerCase().includes(path))) {
+        return true
+    }
+
+    // Ignore common bot/crawler user agents
+    if (userAgent) {
+        const botPatterns = [
+            'bot', 'crawler', 'spider', 'scraper', 'curl', 'wget',
+            'censys', 'zgrab', 'guzzlehttp', 'go-http-client', 'python-requests',
+            'scan', 'security', 'masscan', 'nmap',
+        ]
+        const ua = userAgent.toLowerCase()
+        if (botPatterns.some(pattern => ua.includes(pattern))) {
+            return true
+        }
+    }
+
+    return false
+}
+
+// Strip sensitive/large data from headers — only keep useful diagnostics
+function getSafeDiagnostics(headers: Headers): { userAgent: string | null; referer: string | null } {
+    return {
+        userAgent: headers.get('user-agent'),
+        referer: headers.get('referer'),
+    }
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -106,7 +135,9 @@ export const handle: Handle = async ({ event, resolve }) => {
                 ),
         })
 
-        if (response.status === 404 && !shouldIgnoreRequest(event.url)) {
+        // Only log server errors (5xx), not client errors like 404s
+        // 404s are mostly bots/crawlers and not actionable
+        if (response.status >= 500) {
             const session = await event.locals.getSession()
             const errorId = uuidv4()
             const userId = session?.user?.id
@@ -114,22 +145,23 @@ export const handle: Handle = async ({ event, resolve }) => {
                 event.locals.supabaseServiceRole,
                 userId,
             )
+            const diag = getSafeDiagnostics(event.request.headers)
 
             const errorDetails = {
                 id: errorId,
-                status: 404,
+                status: response.status,
                 url: event.url.toString(),
                 method: event.request.method,
-                headers: Object.fromEntries(event.request.headers),
-                userAgent: event.request.headers.get("user-agent"),
-                referer: event.request.headers.get("referer"),
+                userAgent: diag.userAgent,
+                referer: diag.referer,
                 userId: userId,
                 userFullName: userFullName,
                 timestamp: new Date().toISOString(),
                 route: event.route?.id,
+                message: `Server error: ${response.status}`,
             }
 
-            console.error("404 Error:", errorDetails)
+            console.error(`${response.status} Error:`, errorDetails)
             await logErrorToDatabase(
                 event.locals.supabaseServiceRole,
                 errorDetails,
@@ -144,8 +176,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 }
 
 export const handleError: HandleServerError = async ({ error, event }) => {
-    // Don't log errors for certain browser-specific requests
-    if (shouldIgnoreRequest(event.url)) {
+    const status = (error as any).status || 500
+    const userAgent = event.request.headers.get('user-agent')
+
+    // Don't log errors for browser-specific requests or bots
+    if (shouldIgnoreRequest(event.url, userAgent)) {
+        return {
+            message: "Not found",
+            status: 404,
+        }
+    }
+
+    // Don't log 404s — they're not actionable
+    if (status === 404) {
         return {
             message: "Not found",
             status: 404,
@@ -159,19 +202,18 @@ export const handleError: HandleServerError = async ({ error, event }) => {
         event.locals.supabaseServiceRole,
         userId,
     )
+    const diag = getSafeDiagnostics(event.request.headers)
 
     const errorDetails = {
         id: errorId,
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        status: (error as any).status || 500,
+        status,
         url: event.url.toString(),
         route: event.route?.id,
-        details: error.toString(),
         method: event.request.method,
-        headers: Object.fromEntries(event.request.headers),
-        userAgent: event.request.headers.get("user-agent"),
-        referer: event.request.headers.get("referer"),
+        userAgent: diag.userAgent,
+        referer: diag.referer,
         userId: userId,
         userFullName: userFullName,
         timestamp: new Date().toISOString(),
@@ -179,12 +221,14 @@ export const handleError: HandleServerError = async ({ error, event }) => {
 
     console.error("Detailed error:", errorDetails)
 
-    // Log all errors to the database
-    await logErrorToDatabase(
-        event.locals.supabaseServiceRole,
-        errorDetails,
-        errorId,
-    )
+    // Only log server errors (5xx) to the database to avoid bloat
+    if (status >= 500) {
+        await logErrorToDatabase(
+            event.locals.supabaseServiceRole,
+            errorDetails,
+            errorId,
+        )
+    }
 
     // Return an object that will be passed to the error page
     return {

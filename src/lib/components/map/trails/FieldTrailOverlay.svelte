@@ -703,14 +703,20 @@
         new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
     )
 
-  // Available operations from records
-  $: availableOperations = records
-    .filter(
-      (r, i, arr) =>
-        arr.findIndex((x) => x.operation_id === r.operation_id) === i,
-    )
-    .map((r) => ({ id: r.operation_id, name: r.operation_name || "Unknown" }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  // Available operations from records, with counts, sorted by recency
+  $: availableOperations = (() => {
+    const seen = new Map()
+    for (const r of records) {
+      if (!seen.has(r.operation_id)) {
+        seen.set(r.operation_id, { id: r.operation_id, name: r.operation_name || "Unknown", count: 0, latest: 0 })
+      }
+      const entry = seen.get(r.operation_id)
+      entry.count++
+      const t = new Date(r.start_time).getTime()
+      if (t > entry.latest) entry.latest = t
+    }
+    return [...seen.values()].sort((a, b) => b.latest - a.latest)
+  })()
 
   // Format slider positions to dates
   $: sliderStartPct =
@@ -1638,13 +1644,13 @@
         </select>
       </div>
 
-      {#if availableOperations.length > 1}
+      {#if availableOperations.length >= 1}
         <div class="range-selector">
           <Layers size={14} class="text-white/40" />
           <select bind:value={selectedOperationId} class="range-select">
             <option value="">All Operations</option>
             {#each availableOperations as op}
-              <option value={op.id}>{op.name}</option>
+              <option value={op.id}>{op.name} &nbsp;· {op.count}</option>
             {/each}
           </select>
         </div>
@@ -1776,6 +1782,42 @@
                 <Ruler size={12} class="text-white/40" />
                 <span>{selectedTrail.area} · {selectedTrail.distance}</span>
               </div>
+              <!-- Diagnostics (dev) -->
+              {#if record.gen_method}
+                <div class="legend-diagnostics">
+                  <div class="diag-header" role="button" tabindex="0"
+                    on:click|stopPropagation={() => (record._showDiag = !record._showDiag)}
+                    on:keydown={(e) => e.key === 'Enter' && (record._showDiag = !record._showDiag)}>
+                    <span class="diag-method">{record.gen_method}</span>
+                    {#if record.gen_edge_noise}
+                      <span class="diag-tag diag-tag-warn">edge_noise</span>
+                    {/if}
+                    {#if record.gen_gap_merges > 0}
+                      <span class="diag-tag">merged {record.gen_gap_merges}</span>
+                    {/if}
+                    <span class="diag-toggle">{record._showDiag ? '▾' : '▸'}</span>
+                  </div>
+                  {#if record._showDiag}
+                    <div class="diag-body">
+                      <div class="diag-row"><span>Dominant field</span><span>{record.gen_dominant_field_id?.slice(0, 8) || '—'}</span></div>
+                      <div class="diag-row"><span>% of trail pts</span><span>{record.gen_pct_of_dominant != null ? record.gen_pct_of_dominant + '%' : '—'}</span></div>
+                      {#if record.gen_pct_of_trail_area != null}
+                        <div class="diag-row"><span>% of trail area</span><span>{record.gen_pct_of_trail_area}%</span></div>
+                      {/if}
+                      {#if record.gen_pct_of_field != null}
+                        <div class="diag-row"><span>% of field</span><span>{record.gen_pct_of_field}%</span></div>
+                      {/if}
+                      {#if record.gen_area_ratio != null}
+                        <div class="diag-row"><span>% of dom. area</span><span>{Number(record.gen_area_ratio * 100).toFixed(2)}%</span></div>
+                      {/if}
+                      {#if record.gen_max_dist_to_dominant_m != null}
+                        <div class="diag-row"><span>Dist to dominant</span><span>{record.gen_max_dist_to_dominant_m}m</span></div>
+                      {/if}
+                      <div class="diag-row"><span>Gap merges</span><span>{record.gen_gap_merges || 0}</span></div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
               <!-- Individual visit selector -->
               {#if record.intervals?.length > 1}
                 <div class="interval-selector">
@@ -2392,6 +2434,61 @@
     gap: 6px;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Diagnostics panel */
+  .legend-diagnostics {
+    margin-top: 2px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  .diag-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .diag-header:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .diag-method {
+    font-family: monospace;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .diag-tag {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .diag-tag-warn {
+    background: rgba(251, 191, 36, 0.15);
+    color: rgba(251, 191, 36, 0.7);
+  }
+  .diag-toggle {
+    margin-left: auto;
+    font-size: 10px;
+  }
+  .diag-body {
+    padding: 4px 8px 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .diag-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    padding: 2px 0;
+    color: rgba(255, 255, 255, 0.35);
+  }
+  .diag-row span:last-child {
+    font-family: monospace;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   /* Suppress Mapbox popup fade animation that causes yellow flash on deselect */
