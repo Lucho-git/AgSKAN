@@ -1,5 +1,5 @@
 <!-- src/lib/components/map/ConsolidationMap.svelte -->
-<!-- Interactive map for AgSKAN ↔ Agworld field consolidation -->
+<!-- Visual map for AgSKAN ↔ Agworld field consolidation (view-only, no click interactions) -->
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import mapboxgl from "mapbox-gl"
@@ -7,25 +7,49 @@
 
   export let agskanFields: any[] = []
   export let agworldBoundaries: any[] = []
-  export let linkedFields: Map<string, string> = new Map()
   export let focusField: { id: string; source: "agskan" | "agworld" } | null = null
   export let highlightFieldId: string | null = null
   export let selectedFieldIds: string[] = []
+  export let dominantFieldIds: string[] = []  // multiple fields that should appear as dominant (split scenario)
   export let inspectorMode = false
-  export let height = 500
+  export let interactive = false  // enables click-to-select for consolidated preview
+  export let selectedConsolidatedId: string | null = null  // highlighted field in consolidated preview
+  export let fadedFocus = false  // when true (split mode), the focused field is faded (being deleted), not dominant
+  export let height: string | number = 500
 
   const dispatch = createEventDispatcher()
 
   let mapContainer: HTMLDivElement
   let map: mapboxgl.Map | null = null
   let mapReady = false
+  let resizeObserver: ResizeObserver | null = null
+
+  // --- Color schemes ---
+  // Review (merge/split): cyan/orange
+  // Preview (consolidated): blue/white matching MapFields defaults
+  const REVIEW_SCHEME = {
+    dominant: { fill: "#06b6d4", line: "#ffffff", opacity: 0.7, lineOpacity: 1 },
+    nonDom: { fill: "#3a1a0a", line: "#f97316", opacity: 0.08, lineOpacity: 0.3, selOpacity: 0.5, selLineOpacity: 1 },
+    bg: { fill: "#1a1a1a", line: "#222222", opacity: 0.03 },
+    labelColor: "#ffffff", labelHalo: "#000000",
+    skanFill: "#06b6d4", skanOutline: "#ffffff", awFill: "#f97316", awOutline: "#ffffff",
+  }
+  const PREVIEW_SCHEME = {
+    dominant: { fill: "#0080ff", line: "#ffffff", opacity: 0.3, lineOpacity: 1 },
+    nonDom: { fill: "#94a3b8", line: "#cbd5e1", opacity: 0.12, lineOpacity: 0.5, selOpacity: 0.25, selLineOpacity: 1 },
+    bg: { fill: "#1a1a1a", line: "#222222", opacity: 0.03 },
+    labelColor: "#ffffff", labelHalo: "#000000",
+    skanFill: "#0080ff", skanOutline: "#bfffbf", awFill: "#0080ff", awOutline: "#bfffbf",
+  }
+  $: scheme = interactive ? PREVIEW_SCHEME : REVIEW_SCHEME
+  const bgDim = 0.5  // fixed background dim — always applied, no user control
 
   export let overlapCandidates: Array<{
     id: string; name: string; source: "agskan" | "agworld"
     overlapPct: number; areaHa: number; selected: boolean
   }> = []
 
-  $: if (mapReady) { agskanFields.length; agworldBoundaries.length; linkedFields.size; focusField; highlightFieldId; selectedFieldIds; updateAllLayers() }
+  $: if (mapReady) { agskanFields.length; agworldBoundaries.length; focusField; highlightFieldId; selectedFieldIds; dominantFieldIds; selectedConsolidatedId; fadedFocus; updateAllLayers() }
 
   // React to external focusField prop changes (from parent clicking table)
   let lastExternalFocus = ""
@@ -42,6 +66,21 @@
   $: if (mapReady && !focusField && lastExternalFocus && !settingFromProp) {
     lastExternalFocus = ""
     clearFocus()
+  }
+  // Zoom to selected consolidated field
+  let overviewDone = false
+  $: if (mapReady && selectedConsolidatedId && map) {
+    const field = agskanFields.find(f => f.field_id === selectedConsolidatedId)
+    if (field?.boundary) {
+      import("@turf/turf").then(turf => {
+        try {
+          const feat = { type: "Feature", geometry: field.boundary, properties: {} }
+          const bbox = turf.bbox(feat)
+          const pad = Math.min(100, Math.floor(Math.min(mapContainer.clientWidth, mapContainer.clientHeight) * 0.15))
+          map!.fitBounds(bbox as [number, number, number, number], { padding: pad, maxZoom: 17, duration: 300 })
+        } catch { /* skip */ }
+      })
+    }
   }
 
   async function computeOverlaps(focusGeom: any, focusSource: "agskan" | "agworld", focusId: string) {
@@ -74,23 +113,18 @@
       if (existing) {
         if (overlapPct > existing.overlapPct) {
           existing.overlapPct = Math.round(overlapPct)
-          existing.areaHa = Math.round(fArea / 100) / 10
+          existing.areaHa = Math.round(fArea / 10000 * 10) / 10
         }
         continue
       }
 
-      const alreadyLinked =
-        focusSource === "agskan"
-          ? linkedFields.get(focusId) === fid
-          : Array.from(linkedFields.entries()).some(([k, v]) => v === focusId && k === fid)
-
-      // Only include if overlap > 1% OR it is the linked counterpart
-      if (overlapPct > 1 || alreadyLinked) {
+      // Only include if overlap > 1% (tiny overlap threshold)
+      if (overlapPct > 1) {
         candidates.push({
           id: fid, name: fname, source: fSource,
           overlapPct: Math.round(overlapPct),
-          areaHa: Math.round(fArea / 100) / 10,
-          selected: !!alreadyLinked,
+          areaHa: Math.round(fArea / 10000 * 10) / 10,
+          selected: false,
         })
       }
     }
@@ -118,8 +152,27 @@
     if (geom && map) {
       try {
         const turf = await import("@turf/turf")
-        const bbox = turf.bbox({ type: "Feature", geometry: geom, properties: {} })
-        map.fitBounds(bbox as [number, number, number, number], { padding: 80, maxZoom: 17 })
+        // Collect all relevant geometries for bbox (focused + overlap candidates + selected fields)
+        const allGeoms: any[] = [{ type: "Feature", geometry: geom, properties: {} }]
+        for (const c of overlapCandidates) {
+          const cGeom = getGeometry(c.source, c.id)
+          if (cGeom) allGeoms.push({ type: "Feature", geometry: cGeom, properties: {} })
+        }
+        for (const sf of agskanFields) {
+          if (selectedFieldIds.includes(sf.field_id) && sf.boundary) {
+            allGeoms.push({ type: "Feature", geometry: sf.boundary, properties: {} })
+          }
+        }
+        for (const aw of agworldBoundaries) {
+          const fid = aw.field_id || aw.id
+          if (selectedFieldIds.includes(fid) && aw.boundary) {
+            allGeoms.push({ type: "Feature", geometry: aw.boundary, properties: {} })
+          }
+        }
+        const fc = turf.featureCollection(allGeoms)
+        const bbox = turf.bbox(fc)
+        const pad = Math.min(80, Math.floor(Math.min(mapContainer.clientWidth, mapContainer.clientHeight) * 0.12))
+        map.fitBounds(bbox as [number, number, number, number], { padding: pad, maxZoom: 17, duration: 300 })
       } catch { /* skip */ }
     }
   }
@@ -130,7 +183,7 @@
     if (!map) return
     const focused = focusField
 
-    // When focused, only show relevant fields
+    // When focused, show the focused field + all selected fields + overlap candidates
     const relevantSkanIds = new Set<string>()
     const relevantAwIds = new Set<string>()
     if (focused) {
@@ -140,68 +193,204 @@
         if (c.source === "agskan") relevantSkanIds.add(c.id)
         else relevantAwIds.add(c.id)
       }
+      // Also include all selectedFieldIds and dominantFieldIds
+      for (const sf of agskanFields) {
+        if (selectedFieldIds.includes(sf.field_id) || dominantFieldIds.includes(sf.field_id)) relevantSkanIds.add(sf.field_id)
+      }
+      for (const aw of agworldBoundaries) {
+        const fid = aw.field_id || aw.id
+        if (selectedFieldIds.includes(fid) || dominantFieldIds.includes(fid)) relevantAwIds.add(fid)
+      }
     }
 
-    const skanFeatures = agskanFields.filter(f => f.boundary?.type && (!focused || relevantSkanIds.has(f.field_id))).map(f => {
-      const isFocused = focused?.source === "agskan" && focused.id === f.field_id
-      const isLinked = linkedFields.has(f.field_id)
-      const isHighlighted = highlightFieldId === f.field_id || selectedFieldIds.includes(f.field_id)
+    // Dim the satellite background using a background layer (inserted at bottom, before any field layers)
+    const dimOpacity = bgDim
+    if (!map.getLayer('bg-dim')) {
+      // Insert before 'bg-skan-fill' if it exists, otherwise just add (will be at bottom)
+      const beforeLayer = map.getLayer('bg-skan-fill') ? 'bg-skan-fill' : undefined
+      map.addLayer({ id: 'bg-dim', type: 'background', paint: { 'background-color': '#000000', 'background-opacity': dimOpacity } }, beforeLayer)
+    } else {
+      map.setPaintProperty('bg-dim', 'background-opacity', dimOpacity)
+    }
+
+    // Background fields (not involved in selection) — rendered first (bottom layer)
+    const bgSkanFeatures = agskanFields.filter(f => f.boundary?.type && focused && !relevantSkanIds.has(f.field_id)).map(f => ({
+      type: "Feature", geometry: f.boundary, properties: {
+        id: f.field_id, name: f.name, source: "agskan",
+        opacity: scheme.bg.opacity, fillColor: scheme.bg.fill, lineColor: scheme.bg.line, lineWidth: 1,
+      }
+    }))
+    const bgAwFeatures = agworldBoundaries.filter(b => b.boundary?.type && focused && !relevantAwIds.has(b.field_id || b.id)).map(b => ({
+      type: "Feature", geometry: b.boundary, properties: {
+        id: b.field_id || b.id, name: b.name, source: "agworld",
+        opacity: scheme.bg.opacity, fillColor: scheme.bg.fill, lineColor: scheme.bg.line, lineWidth: 1,
+      }
+    }))
+
+    // When fadedFocus is true (split mode), the focused field is being deleted —
+    // don't render it as dominant; it'll appear in the non-dominant layer instead.
+    const focusIsDominant = focused && !fadedFocus
+
+    // Foreground non-dominant fields — single color for all (no AgSKAN/Agworld distinction)
+    const fgSkanNonDom = agskanFields.filter(f => f.boundary?.type && (!focused || relevantSkanIds.has(f.field_id)) && !(focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) && !dominantFieldIds.includes(f.field_id)).map(f => {
+      const isSelected = selectedFieldIds.includes(f.field_id)
+      const isHighlighted = highlightFieldId === f.field_id
       return { type: "Feature", geometry: f.boundary, properties: {
         id: f.field_id, name: f.name, source: "agskan",
-        opacity: isFocused ? 1 : isHighlighted ? 0.7 : isLinked ? 0.5 : 0.15,
-        fillColor: isFocused ? "#00ff88" : isHighlighted ? "#ffcc00" : "#0080ff",
-        lineColor: isFocused ? "#00ff88" : isHighlighted ? "#ffcc00" : isLinked ? "#bfffbf" : "#4466aa",
-        lineWidth: isFocused ? 4 : isHighlighted ? 3 : isLinked ? 2 : 1,
-        olPct: 0,
+        opacity: isSelected ? scheme.nonDom.selOpacity : isHighlighted ? scheme.nonDom.selOpacity * 0.8 : scheme.nonDom.opacity,
+        lineOpacity: isSelected ? scheme.nonDom.selLineOpacity : isHighlighted ? scheme.nonDom.selLineOpacity * 0.9 : scheme.nonDom.lineOpacity,
+        fillColor: scheme.nonDom.fill,
+        lineColor: scheme.nonDom.line,
+        lineWidth: isSelected ? 3 : 2,
       }}
     })
-
-    const awFeatures = agworldBoundaries.filter(b => b.boundary?.type && (!focused || relevantAwIds.has(b.field_id || b.id))).map(b => {
+    const fgAwNonDom = agworldBoundaries.filter(b => b.boundary?.type && (!focused || relevantAwIds.has(b.field_id || b.id)) && !(focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) && !dominantFieldIds.includes(b.field_id || b.id)).map(b => {
       const fid = b.field_id || b.id
-      const isFocused = focused?.source === "agworld" && focused.id === fid
-      const isLinked = Array.from(linkedFields.values()).includes(fid)
-      const isHighlighted = highlightFieldId === fid || selectedFieldIds.includes(fid)
+      const isSelected = selectedFieldIds.includes(fid)
+      const isHighlighted = highlightFieldId === fid
       return { type: "Feature", geometry: b.boundary, properties: {
         id: fid, name: b.name, source: "agworld",
-        opacity: isFocused ? 1 : isHighlighted ? 0.7 : isLinked ? 0.5 : 0.15,
-        fillColor: isFocused ? "#00ff88" : isHighlighted ? "#ffcc00" : "#ff8040",
-        lineColor: isFocused ? "#00ff88" : isHighlighted ? "#ffcc00" : isLinked ? "#ffb080" : "#886644",
-        lineWidth: isFocused ? 4 : isHighlighted ? 3 : isLinked ? 2 : 1,
-        olPct: 0,
+        opacity: isSelected ? scheme.nonDom.selOpacity : isHighlighted ? scheme.nonDom.selOpacity * 0.8 : scheme.nonDom.opacity,
+        lineOpacity: isSelected ? scheme.nonDom.selLineOpacity : isHighlighted ? scheme.nonDom.selLineOpacity * 0.9 : scheme.nonDom.lineOpacity,
+        fillColor: scheme.nonDom.fill,
+        lineColor: scheme.nonDom.line,
+        lineWidth: isSelected ? 3 : 2,
       }}
     })
 
-    ensureLayer("agskan-fields", "agskan-fill", "fill",
-      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, skanFeatures)
-    ensureLayer("agskan-fields", "agskan-outline", "line",
-      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"] },
-      {}, skanFeatures) // line-dasharray can't use data expressions, so skip it
-    ensureLayer("agskan-fields", "agskan-labels", "symbol",
-      { "text-color": "#ccddff", "text-halo-color": "#000000", "text-halo-width": 1.5 },
-      { "text-field": ["get", "name"], "text-size": 10, "text-anchor": "center" }, skanFeatures)
+    // Dominant field(s) — rendered last (top layer).
+    const domSkanFeatures = agskanFields.filter(f => f.boundary?.type &&
+      ((focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) || dominantFieldIds.includes(f.field_id))
+    ).map(f => ({
+      type: "Feature", geometry: f.boundary, properties: {
+        id: f.field_id, name: f.name, source: "agskan",
+        opacity: scheme.dominant.opacity, lineOpacity: scheme.dominant.lineOpacity,
+        fillColor: scheme.dominant.fill, lineColor: scheme.dominant.line, lineWidth: 4,
+      }
+    }))
+    const domAwFeatures = agworldBoundaries.filter(b => b.boundary?.type &&
+      ((focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) || dominantFieldIds.includes(b.field_id || b.id))
+    ).map(b => ({
+      type: "Feature", geometry: b.boundary, properties: {
+        id: b.field_id || b.id, name: b.name, source: "agworld",
+        opacity: scheme.dominant.opacity, lineOpacity: scheme.dominant.lineOpacity,
+        fillColor: scheme.dominant.fill, lineColor: scheme.dominant.line, lineWidth: 4,
+      }
+    }))
 
-    ensureLayer("agworld-fields", "agworld-fill", "fill",
-      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, awFeatures)
-    ensureLayer("agworld-fields", "agworld-outline", "line",
-      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"] },
-      {}, awFeatures)
-    ensureLayer("agworld-fields", "agworld-labels", "symbol",
-      { "text-color": "#ffaa66", "text-halo-color": "#000000", "text-halo-width": 1.5 },
-      { "text-field": ["get", "name"], "text-size": 10, "text-anchor": "center" }, awFeatures)
+    // Highlighted consolidated field (for preview mode) — white outline highlight
+    const highlightSkanFeatures = agskanFields.filter(f => f.boundary?.type && selectedConsolidatedId && f.field_id === selectedConsolidatedId).map(f => ({
+      type: "Feature", geometry: f.boundary, properties: {
+        id: f.field_id, name: f.name, source: "agskan",
+        opacity: 0.3, lineOpacity: 1, fillColor: "#0080ff", lineColor: "#ffffff", lineWidth: 4,
+      }
+    }))
 
-    // Overlap % labels
-    if (focused && overlapCandidates.length > 0) {
-      const olFeats = [...skanFeatures, ...awFeatures].filter((f: any) => f.properties.olPct > 0)
-      if (map.getLayer("overlap-pct-labels")) map.removeLayer("overlap-pct-labels")
-      if (map.getSource("overlap-pct-src")) (map.getSource("overlap-pct-src") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: olFeats })
-      else map.addSource("overlap-pct-src", { type: "geojson", data: { type: "FeatureCollection", features: olFeats } })
-      map.addLayer({
-        id: "overlap-pct-labels", type: "symbol", source: "overlap-pct-src",
-        layout: { "text-field": ["to-string", ["get", "olPct"]], "text-size": 12, "text-anchor": "top", "text-offset": [0, 0.4] },
-        paint: { "text-color": "#ffcc00", "text-halo-color": "#000000", "text-halo-width": 2 },
-      })
+    // Background layers (bottom) — line-opacity tied to fill opacity so borders don't pop
+    ensureLayer("bg-skan", "bg-skan-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, bgSkanFeatures)
+    ensureLayer("bg-skan", "bg-skan-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "opacity"] }, {}, bgSkanFeatures)
+    ensureLayer("bg-aw", "bg-aw-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, bgAwFeatures)
+    ensureLayer("bg-aw", "bg-aw-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "opacity"] }, {}, bgAwFeatures)
+
+    // Foreground non-dominant layers (middle) — merged into single source so AgSKAN/Agworld look identical
+    const allNonDom = [...fgSkanNonDom, ...fgAwNonDom]
+    ensureLayer("fg-all", "fg-all-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, allNonDom)
+    ensureLayer("fg-all", "fg-all-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, allNonDom)
+
+    // Dominant field layers (top) — border uses lineOpacity (full) not fill opacity
+    ensureLayer("dom-skan", "dom-skan-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, domSkanFeatures)
+    ensureLayer("dom-skan", "dom-skan-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, domSkanFeatures)
+    ensureLayer("dom-aw", "dom-aw-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, domAwFeatures)
+    ensureLayer("dom-aw", "dom-aw-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, domAwFeatures)
+
+    // Labels: MapViewer-style — name + hectares, zoom-interpolated
+    // Create label points from field centroids
+    if (interactive && agskanFields.length > 0) {
+      createAndShowLabels()
+    }
+    if (!interactive) {
+      // Review mode: simpler labels
+      const labelTextSize = ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 9, 13, 14, 15, 22]
+      ensureLayer("fg-all-labels", "fg-all-labels", "symbol",
+        { "text-color": "#fff", "text-halo-color": "#000", "text-halo-width": 1.5 },
+        { "text-field": ["get", "name"], "text-anchor": "center", "text-size": labelTextSize }, allNonDom)
+      ensureLayer("dom-labels", "dom-labels", "symbol",
+        { "text-color": "#fff", "text-halo-color": "#000", "text-halo-width": 2 },
+        { "text-field": ["get", "name"], "text-anchor": "center", "text-size": labelTextSize }, [...domSkanFeatures, ...domAwFeatures])
+    }
+
+    // Highlight layer for consolidated preview
+    ensureLayer("hl", "hl-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, highlightSkanFeatures)
+    ensureLayer("hl", "hl-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, highlightSkanFeatures)
+  }
+
+  async function createAndShowLabels() {
+    if (!map) return
+    const turf = await import("@turf/turf")
+    const features = agskanFields.filter(f => f.boundary?.type).map((f, i) => {
+      try {
+        let poly: any
+        if (f.boundary.type === "Polygon") {
+          poly = turf.polygon(f.boundary.coordinates)
+        } else if (f.boundary.type === "MultiPolygon") {
+          poly = turf.multiPolygon(f.boundary.coordinates)
+        } else return null
+        const center = turf.center(poly)
+        const inside = turf.booleanPointInPolygon(center.geometry.coordinates, poly)
+        const pt = inside ? center : turf.pointOnFeature(poly)
+        return {
+          type: "Feature", geometry: pt.geometry, properties: {
+            id: f.field_id, name: f.name,
+            area: Math.round((f._turfAreaHa || 0) * 10) / 10,
+          }
+        }
+      } catch { return null }
+    }).filter(Boolean)
+
+    const labelFC = { type: "FeatureCollection", features }
+
+    // Update or create source and layers
+    if (map.getSource("label-points")) {
+      (map.getSource("label-points") as mapboxgl.GeoJSONSource).setData(labelFC)
     } else {
-      if (map.getLayer("overlap-pct-labels")) map.removeLayer("overlap-pct-labels")
+      map.addSource("label-points", { type: "geojson", data: labelFC })
+    }
+    if (!map.getLayer("fields-labels")) {
+      map.addLayer({
+        id: "fields-labels", type: "symbol", source: "label-points",
+        layout: {
+          "text-field": ["get", "name"], "text-anchor": "center",
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 8, 13, 12, 15, 28, 17, 48, 19, 96],
+          "text-allow-overlap": true, "text-ignore-placement": false,
+        },
+        paint: { "text-color": "#ffffff", "text-halo-color": "#000000", "text-halo-width": 2 },
+      })
+    }
+    if (!map.getLayer("fields-labels-area")) {
+      map.addLayer({
+        id: "fields-labels-area", type: "symbol", source: "label-points",
+        layout: {
+          "text-field": ["concat", ["get", "area"], " ha"],
+          "text-anchor": "top", "text-offset": [0, 1.2],
+          "text-font": ["DIN Pro Regular", "Arial Unicode MS Regular"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 6, 13, 9, 15, 21, 17, 36, 19, 72],
+          "text-allow-overlap": false, "text-ignore-placement": false,
+        },
+        paint: { "text-color": "#c0ffc0", "text-halo-color": "#000000", "text-halo-width": 2, "text-opacity": 0.9 },
+      })
     }
   }
 
@@ -225,39 +414,67 @@
       center: [116.2, -30.7], zoom: 12,
       attributionControl: false,
     })
-    map.addControl(new mapboxgl.NavigationControl(), "top-right")
-
-    map.on("click", "agskan-fill", (e) => {
-      const id = e.features?.[0]?.properties?.id
-      if (id) {
-        if (inspectorMode) dispatch("toggleCandidate", { id, source: "agskan" })
-        else { setFocus(id, "agskan"); dispatch("selectField", { id, source: "agskan" }) }
+    // Keep Mapbox's internal canvas size in sync with the container.
+    // Without this, layout changes (e.g. sidebar width changing) leave the map
+    // using a stale size, which throws off fitBounds calculations badly
+    // (fields can appear tiny/panned far away because the projection math
+    // is based on the wrong viewport dimensions).
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        map?.resize()
+      })
+      resizeObserver.observe(mapContainer)
+    }
+    // Click handlers for interactive consolidated preview
+    if (interactive) {
+      ["dom-skan-fill", "fg-all-fill", "agskan-fill"].forEach(l => {
+        map!.on("click", l, (e) => {
+          const id = e.features?.[0]?.properties?.id
+          if (id) dispatch("selectField", { id })
+        })
+        map!.on("mouseenter", l, () => { map!.getCanvas().style.cursor = "pointer" })
+        map!.on("mouseleave", l, () => { map!.getCanvas().style.cursor = "" })
+      })
+    }
+    map.on("load", () => {
+      mapReady = true
+      updateAllLayers()
+      if (interactive && !overviewDone) {
+        overviewDone = true
+        setTimeout(async () => {
+          if (!map || agskanFields.length === 0) return
+          const turf = await import("@turf/turf")
+          const bounds = new mapboxgl.LngLatBounds()
+          for (const f of agskanFields) {
+            if (f.boundary?.type) {
+              try {
+                const feat = { type: "Feature", geometry: f.boundary, properties: {} }
+                const bbox = turf.bbox(feat)
+                bounds.extend([bbox[0], bbox[1]])
+                bounds.extend([bbox[2], bbox[3]])
+              } catch {}
+            }
+          }
+          if (!bounds.isEmpty()) {
+            const pad = Math.min(80, Math.floor(Math.min(mapContainer.clientWidth, mapContainer.clientHeight) * 0.12))
+            map.fitBounds(bounds, { padding: pad, maxZoom: 15, duration: 500 })
+          }
+        }, 300)
       }
     })
-    map.on("click", "agworld-fill", (e) => {
-      const id = e.features?.[0]?.properties?.id
-      if (id) {
-        if (inspectorMode) dispatch("toggleCandidate", { id, source: "agworld" })
-        else { setFocus(id, "agworld"); dispatch("selectField", { id, source: "agworld" }) }
-      }
-    })
-    ;["agskan-fill", "agworld-fill"].forEach(l => {
-      map!.on("mouseenter", l, () => { map!.getCanvas().style.cursor = "pointer" })
-      map!.on("mouseleave", l, () => { map!.getCanvas().style.cursor = "" })
-    })
-    map.on("click", (e) => {
-      const feats = map!.queryRenderedFeatures(e.point, { layers: ["agskan-fill", "agworld-fill"] })
-      if (feats.length === 0) { clearFocus(); dispatch("selectField", { id: null, source: null }) }
-    })
-    map.on("load", () => { mapReady = true; updateAllLayers() })
   })
 
-  onDestroy(() => { map?.remove() })
+  onDestroy(() => {
+    resizeObserver?.disconnect()
+    map?.remove()
+  })
 </script>
 
-<div bind:this={mapContainer} class="consolidation-map" style="height:{height}px"></div>
+<div class="relative" style="height:{height}">
+  <div bind:this={mapContainer} class="consolidation-map" style="height:100%"></div>
+</div>
 
 <style>
-  .consolidation-map { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+  .consolidation-map { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); width: 100%; }
   :global(.consolidation-map .mapboxgl-ctrl-top-right) { top: 8px; right: 8px; }
 </style>

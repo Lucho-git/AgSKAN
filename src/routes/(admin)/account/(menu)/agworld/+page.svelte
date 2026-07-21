@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte"
+  import { fade } from "svelte/transition"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
   import { goto } from "$app/navigation"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { supabase } from "$lib/supabaseClient"
   import ConsolidationMap from "$lib/components/map/ConsolidationMap.svelte"
+  import ConsolidationShell from "$lib/components/map/ConsolidationShell.svelte"
   import FieldOutlineThumbnail from "$lib/components/map/FieldOutlineThumbnail.svelte"
   import {
     agworldAccountStore,
@@ -120,6 +122,51 @@
     // Auto-fill grower ID from account
     const acct = accounts.find((a) => a.id === id)
     queryGrowerId = acct?.growerId || ""
+    linkSearchQuery = ""
+    linkSearchResults = []
+  }
+
+  // --- Link Agworld account to a specific AgSKAN customer's map ---
+  let linkSearchQuery = ""
+  let linkSearchResults: Array<{ id: string; email: string; full_name: string; master_map_id: string | null }> = []
+  let linkSearching = false
+
+  async function searchAgskanProfiles() {
+    const q = linkSearchQuery.trim()
+    if (!q) { linkSearchResults = []; return }
+    linkSearching = true
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, master_map_id")
+        .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
+        .limit(10)
+      linkSearchResults = error ? [] : (data || [])
+    } finally {
+      linkSearching = false
+    }
+  }
+
+  function linkAccountToProfile(profile: { email: string; full_name: string; master_map_id: string | null }) {
+    if (!selectedAccount) return
+    if (!profile.master_map_id) {
+      toast.error("This profile has no AgSKAN map assigned")
+      return
+    }
+    agworldAccountStore.update(selectedAccount.id, {
+      linkedMapId: profile.master_map_id,
+      linkedProfileLabel: profile.full_name || profile.email,
+    })
+    accounts = agworldAccountStore.getAll()
+    linkSearchResults = []
+    linkSearchQuery = ""
+    toast.success(`Linked to ${profile.full_name || profile.email}`)
+  }
+
+  function unlinkAccount() {
+    if (!selectedAccount) return
+    agworldAccountStore.update(selectedAccount.id, { linkedMapId: "", linkedProfileLabel: "" })
+    accounts = agworldAccountStore.getAll()
   }
 
   async function runQuery(endpoint: string) {
@@ -289,6 +336,7 @@
 
   // --- Comparison state ---
   let compareLoading = false
+  let compareToken = 0 // incremented per startCompare() call to guard against overlapping/stale async runs
   let compareLogs: AgworldRequestLog[] = []
   let agskanFields: any[] = []
   let agskanFarms: any[] = []
@@ -296,46 +344,126 @@
   let agworldFarms: any[] = []
   let agworldBoundaries: any[] = []
   let compareError: string | null = null
-  let linkedFields: Map<string, string> = new Map() // AgSKAN fieldId → Agworld fieldId
-  let mapFocus: { id: string; source: "agskan" | "agworld" } | null = null
-  let mapCandidates: Array<{ id: string; name: string; source: "agskan" | "agworld"; overlapPct: number; areaHa: number; selected: boolean }> = []
-  let categorized: any = { confirmed: [], review: [], unmatchedSkanNoOverlap: [], unmatchedSkanPartial: [], unmatchedAwNoOverlap: [], unmatchedAwPartial: [] }
-  let reviewSkan: any[] = []
+
+  // --- Consolidated field package (the output) ---
+  interface ConsolidatedField {
+    id: string
+    name: string
+    boundary: any
+    area_ha: number
+    name_source: "agskan" | "agworld"
+    geometry_source: "agskan" | "agworld"
+    category: "identical" | "basically_identical" | "auto_imported" | "merged"
+    agskan: { keep: string[]; create: boolean; delete: string[] }
+    agworld: { keep: string[]; create: boolean; delete: string[] }
+  }
+  let consolidatedFields: ConsolidatedField[] = []
+
+  // --- Categorization results ---
+  let identicalPairs: any[] = []          // IoU=1.0 + name exact → locked
+  let basicallyIdenticalPairs: any[] = [] // same name+IoU≥0.95 OR diff name+IoU=1.0 → choose dominant
+  let autoImportedSkan: any[] = []        // 0 overlap → import to agworld
+  let autoImportedAw: any[] = []          // 0 overlap → import to agskan
+  let reviewSkan: any[] = []              // needs manual merge via map
   let reviewAw: any[] = []
-  let selectedCandidates = new Set<string>()
-  let linkedAwIds = new Set<string>()
-  let dominantSide: "agskan" | "agworld" = "agskan"
-  let showSkan: any[] = []
-  let showAw: any[] = []
-  let inspectorSubject: { id: string; source: "agskan" | "agworld" } | null = null
+
+  // Resolved tracking (removed from lists after approval)
+  let resolvedSkanIds = new Set<string>()
+  let resolvedAwIds = new Set<string>()
+
+  // --- Inspector state (review section) ---
+  // Connected group: all fields directly overlapping (with 5% threshold)
+  let connectedGroup: { skanIds: string[]; awIds: string[] } | null = null
+  // The proposed outcome: "match" (1-to-1), "merge" (N→1), or "split" (1→N)
+  let proposalType: "match" | "merge" | "split" | null = null
+  // For match: the two fields being compared; for merge/split: the single dominant field
+  let proposalDominant: { id: string; source: "agskan" | "agworld" } | null = null
+  // The other fields involved (opposite side for match, candidates for merge/split)
+  let proposalCandidates: Array<{ id: string; name: string; source: "agskan" | "agworld"; overlapPct: number; areaHa: number }> = []
+  let mapFocus: { id: string; source: "agskan" | "agworld" } | null = null
   let highlightedCandidate: string | null = null
   let selectedOverlayIds: string[] = []
-  let canonicalChoice: "agskan" | "agworld" | null = null
-  let resolvedFields = new Set<string>()
+  // For match: independent choice of boundary and name source
+  let boundaryChoice: "agskan" | "agworld" = "agskan"
+  let nameChoice: "agskan" | "agworld" = "agskan"
+  let finalFieldName: string = ""  // editable name for the final consolidated field
+  // For split: editable names for each resulting field
+  let splitFieldNames: string[] = []
+  // For split scenarios: user picks which side wins
+  let dominantSideChoice: "agskan" | "agworld" = "agskan"
+  let dominantFieldIds: string[] = []  // which fields appear dominant on the map (cyan)
 
-  $: {
-    if (!mapFocus) {
-      showSkan = reviewSkan
-      showAw = reviewAw
-    } else if (dominantSide === "agskan") {
-      showSkan = [...reviewSkan].sort((a, b) => (a.field_id === mapFocus.id ? -1 : 0))
-      const connected = new Set<string>()
-      const linkedAwId = linkedFields.get(mapFocus.id)
-      if (linkedAwId) connected.add(linkedAwId)
-      for (const c of mapCandidates) if (c.source === "agworld") connected.add(c.id)
-      showAw = reviewAw.filter(f => connected.has(f.id))
-    } else {
-      showAw = [...reviewAw].sort((a, b) => (a.id === mapFocus.id ? -1 : 0))
-      const connected = new Set<string>()
-      const linkedEntry = Array.from(linkedFields.entries()).find(([, v]) => v === mapFocus.id)
-      if (linkedEntry) connected.add(linkedEntry[0])
-      for (const c of mapCandidates) if (c.source === "agskan") connected.add(c.id)
-      showSkan = reviewSkan.filter(f => connected.has(f.field_id))
+  // --- Review fullscreen overlay (same shell as the consolidated preview) ---
+  let reviewOverlayDismissed = false
+  $: showReviewOverlay = view === "compare" && !compareLoading && !reviewOverlayDismissed && (reviewSkan.length > 0 || reviewAw.length > 0)
+
+  // --- Consolidated preview fullscreen ---
+  let showConsolidatedPreview = false
+  let selectedPreviewId: string | null = null
+  let editingPreviewName: string = ""
+  let editingPreviewArea: number = 0
+  let previewSearchQuery: string = ""
+  let previewNameInputEl: HTMLInputElement
+  let previewAreaInputEl: HTMLInputElement
+  let savedFlash = false
+  let savedFlashTimeout: ReturnType<typeof setTimeout> | null = null
+  function flashSaved() {
+    savedFlash = true
+    if (savedFlashTimeout) clearTimeout(savedFlashTimeout)
+    savedFlashTimeout = setTimeout(() => { savedFlash = false }, 1400)
+  }
+
+  function commitPreviewName() {
+    const cf = consolidatedFields.find(f => f.id === selectedPreviewId)
+    if (cf) { cf.name = editingPreviewName; consolidatedFields = consolidatedFields }
+    flashSaved()
+  }
+  function commitPreviewArea() {
+    editingPreviewArea = Math.round(editingPreviewArea * 10) / 10
+    const cf = consolidatedFields.find(f => f.id === selectedPreviewId)
+    if (cf) { cf.area_ha = editingPreviewArea; consolidatedFields = consolidatedFields }
+    flashSaved()
+  }
+  function advanceToNextPreviewField() {
+    const list = [...consolidatedFields].sort((a, b) => a.name.localeCompare(b.name))
+    const idx = list.findIndex(f => f.id === selectedPreviewId)
+    if (idx === -1 || list.length === 0) return
+    const next = list[(idx + 1) % list.length]
+    if (next) {
+      selectedPreviewId = next.id
+      editingPreviewName = next.name
+      editingPreviewArea = Math.round(next.area_ha * 10) / 10
+      setTimeout(() => previewNameInputEl?.focus(), 0)
     }
   }
 
+  function deletePreviewField() {
+    if (!selectedPreviewId) return
+    const list = [...consolidatedFields].sort((a, b) => a.name.localeCompare(b.name))
+    const idx = list.findIndex(f => f.id === selectedPreviewId)
+    consolidatedFields = consolidatedFields.filter(f => f.id !== selectedPreviewId)
+    if (list.length > 1) {
+      const next = list[(idx + 1) % list.length]
+      selectedPreviewId = next.id === selectedPreviewId ? (list[(idx + 2) % list.length]?.id ?? null) : next.id
+      const cf = consolidatedFields.find(f => f.id === selectedPreviewId)
+      if (cf) { editingPreviewName = cf.name; editingPreviewArea = Math.round(cf.area_ha * 10) / 10 }
+      else { selectedPreviewId = null }
+    } else {
+      selectedPreviewId = null
+    }
+    toast.success("Field deleted")
+  }
+
+  // --- Duplicate name validation ---
+  function findDuplicateField(name: string, excludeId?: string) {
+    const n = (name || "").trim().toLowerCase()
+    if (!n) return null
+    return consolidatedFields.find(f => f.id !== excludeId && f.name.trim().toLowerCase() === n) || null
+  }
+
   async function startCompare() {
-    if (!selectedAccount) return
+    if (!selectedAccount || compareLoading) return
+    const myCompareToken = ++compareToken
     view = "compare"
     compareLoading = true
     compareError = null
@@ -345,15 +473,23 @@
     agworldFields = []
     agworldFarms = []
     agworldBoundaries = []
+    reviewOverlayDismissed = false
 
     try {
-      const { data: session } = await supabase.auth.getSession()
-      const userId = session?.session?.user?.id
-      if (!userId) { compareError = "Not logged in to AgSKAN"; compareLoading = false; return }
+      let mapId: string | null = null
 
-      const { data: profile } = await supabase.from("profiles").select("master_map_id").eq("id", userId).single()
-      const mapId = profile?.master_map_id
-      if (!mapId) { compareError = "No AgSKAN map connected."; compareLoading = false; return }
+      if (selectedAccount.linkedMapId) {
+        // This Agworld account is explicitly linked to a specific AgSKAN customer's map
+        mapId = selectedAccount.linkedMapId
+      } else {
+        const { data: session } = await supabase.auth.getSession()
+        const userId = session?.session?.user?.id
+        if (!userId) { compareError = "Not logged in to AgSKAN"; compareLoading = false; return }
+
+        const { data: profile } = await supabase.from("profiles").select("master_map_id").eq("id", userId).single()
+        mapId = profile?.master_map_id
+      }
+      if (!mapId) { compareError = "No AgSKAN map connected. Link this account to a customer profile below to compare their specific map."; compareLoading = false; return }
 
       const { data: farms } = await supabase.from("farms").select("*").eq("map_id", mapId).order("name")
       agskanFarms = farms || []
@@ -403,6 +539,7 @@
         const toFetch = allBounds
         let rateLimited = 0
         for (let i = 0; i < toFetch.length; i += 4) {
+          if (myCompareToken !== compareToken) return // a newer compare has started — abandon this one
           const batch = toFetch.slice(i, i + 4)
           const results = await Promise.all(batch.map(b =>
             agworldApiV3.getFieldBoundary(selectedAccount, selectedAccount.growerId, b.id)
@@ -443,134 +580,192 @@
         // No growerId set — skip Agworld fetch
       }
 
-      // Always auto-link using combined name + geometry scoring
+      // Categorize all fields by IoU overlap
+      if (myCompareToken !== compareToken) return // a newer compare has started — abandon this one
       if (agskanFields.length > 0 && agworldBoundaries.length > 0) {
-        await autoLinkByGeometry()
+        await categorizeFields()
       }
     } catch (e: any) {
       compareError = e.message
     } finally {
-      compareLoading = false
+      if (myCompareToken === compareToken) compareLoading = false
     }
   }
 
-  async function autoLinkByGeometry() {
-    try {
-      const turf = await import("@turf/turf")
-      const newLinks = new Map(linkedFields)
+  // --- IoU-based categorization ---
+  async function categorizeFields() {
+    const turf = await import("@turf/turf")
 
-      // --- Helper: intersect two GeoJSON geometries ---
-      function intersectGeoms(g1: any, g2: any): any {
-        if (!g1?.type || !g2?.type) return null
-        const fc = {
-          type: "FeatureCollection",
-          features: [
-            { type: "Feature", geometry: g1, properties: {} },
-            { type: "Feature", geometry: g2, properties: {} },
-          ],
-        }
-        try { return turf.intersect(fc) } catch { return null }
+    function intersectGeoms(g1: any, g2: any): any {
+      if (!g1?.type || !g2?.type) return null
+      const fc = {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", geometry: g1, properties: {} },
+          { type: "Feature", geometry: g2, properties: {} },
+        ],
       }
-
-      for (const skan of agskanFields) {
-        if (newLinks.has(skan.field_id)) continue
-        if (!skan.boundary) continue
-
-        let bestScore = 0
-        let bestAwId = ""
-        let bestAwOverlap = 0
-        let bestAwOverlapSkan = 0
-        let bestAwOverlapAw = 0
-
-        for (const aw of agworldBoundaries) {
-          if (!aw.boundary) continue
-          const awFieldId = aw.field_id
-          if (!awFieldId) continue
-
-          try {
-            const skanFeat = { type: "Feature", geometry: skan.boundary, properties: {} }
-            const awFeat = { type: "Feature", geometry: aw.boundary, properties: {} }
-
-            const skanArea = turf.area(skanFeat)
-            const awArea = turf.area(awFeat)
-            if (skanArea <= 0 || awArea <= 0) continue
-
-            // Name score (0-1)
-            const nameScore = findMatchScore(skan.name, aw.name || "") / 100
-
-            // Area ratio (0-1)
-            const areaRatio = Math.min(skanArea, awArea) / Math.max(skanArea, awArea)
-
-            // Overlap: IoU for scoring + directional for display
-            let overlapRatio = 0
-            let overlapSkanPct = 0
-            let overlapAwPct = 0
-            const intersection = intersectGeoms(skan.boundary, aw.boundary)
-            if (intersection) {
-              const intersectArea = turf.area(intersection)
-              if (intersectArea > 0) {
-                overlapRatio = intersectArea / (skanArea + awArea - intersectArea)
-                overlapSkanPct = Math.round(intersectArea / skanArea * 100)
-                overlapAwPct = Math.round(intersectArea / awArea * 100)
-              }
-            }
-
-            // Centroid distance score (0-1, 0 at 5km+)
-            const skanCentroid = turf.centroid(skanFeat)
-            const awCentroid = turf.centroid(awFeat)
-            const distKm = turf.distance(skanCentroid, awCentroid)
-            const distScore = Math.max(0, 1 - distKm / 5)
-
-            // Adaptive scoring: exact name matches don't need geometry overlap
-            let score: number
-            if (nameScore >= 0.95) {
-              // Exact/near-exact name: trust name + area, geometry is bonus
-              score = (nameScore * 0.55 + areaRatio * 0.30 + distScore * 0.10 + overlapRatio * 0.05) * 100
-            } else if (nameScore >= 0.80) {
-              // Strong name match: less geometry required
-              score = (nameScore * 0.40 + overlapRatio * 0.30 + areaRatio * 0.20 + distScore * 0.10) * 100
-            } else {
-              // Normal: geometry + name balanced
-              score = (nameScore * 0.35 + overlapRatio * 0.35 + areaRatio * 0.15 + distScore * 0.15) * 100
-            }
-
-            if (score > bestScore && score >= 50) {
-              bestScore = score
-              bestAwId = awFieldId
-              bestAwOverlap = overlapRatio
-              bestAwOverlapSkan = overlapSkanPct
-              bestAwOverlapAw = overlapAwPct
-            }
-          } catch { /* skip invalid geometries */ }
-        }
-
-        if (bestAwId) {
-          newLinks.set(skan.field_id, bestAwId)
-          skan._overlapPct = Math.round((bestAwOverlap || 0) * 100)
-          skan._overlapSkanPct = bestAwOverlapSkan || 0
-          skan._overlapAwPct = bestAwOverlapAw || 0
-        }
-      }
-
-      linkedFields = newLinks
-    } catch {
-      // Auto-link failed silently — manual matching still works
+      try { return turf.intersect(fc) } catch { return null }
     }
-  }
 
-  function linkFields(agskanId: string, agworldId: string) {
-    linkedFields.set(agskanId, agworldId)
-    linkedFields = linkedFields // trigger reactivity
-    toast.success("Fields linked")
-  }
+    // Compute IoU for all agskan × agworld pairs
+    const allPairs: Array<{ skanId: string; awId: string; iou: number; nameScore: number }> = []
+    for (const skan of agskanFields) {
+      if (!skan.boundary) continue
+      const skanFeat = { type: "Feature", geometry: skan.boundary, properties: {} }
+      const skanArea = turf.area(skanFeat)
+      if (skanArea <= 0) continue
 
-  function unlinkField(agskanId: string) {
-    linkedFields.delete(agskanId)
-    linkedFields = linkedFields
-  }
+      for (const awB of agworldBoundaries) {
+        if (!awB.boundary) continue
+        const awFeat = { type: "Feature", geometry: awB.boundary, properties: {} }
+        const awArea = turf.area(awFeat)
+        if (awArea <= 0) continue
 
-  function getLinkedAgworldId(agskanId: string): string | undefined {
-    return linkedFields.get(agskanId)
+        let iou = 0
+        const intersection = intersectGeoms(skan.boundary, awB.boundary)
+        if (intersection) {
+          const intersectArea = turf.area(intersection)
+          if (intersectArea > 0) {
+            iou = intersectArea / (skanArea + awArea - intersectArea)
+          }
+        }
+
+        const awField = agworldFields.find(f => f.id === awB.field_id)
+        const nameScore = findMatchScore(skan.name, awField?.attributes?.name || "")
+
+        allPairs.push({ skanId: skan.field_id, awId: awB.field_id, iou, nameScore })
+      }
+    }
+
+    // Greedy 1-to-1 matching: sort by IoU desc, assign if both unassigned
+    const sortedPairs = [...allPairs].sort((a, b) => b.iou - a.iou)
+    const matchedSkan = new Set<string>()
+    const matchedAw = new Set<string>()
+    const matchedPairs: Array<{ skan: any; aw: any; awB: any; iou: number; nameScore: number }> = []
+
+    for (const p of sortedPairs) {
+      if (p.iou < 0.01) break
+      if (matchedSkan.has(p.skanId) || matchedAw.has(p.awId)) continue
+      const skan = agskanFields.find(f => f.field_id === p.skanId)
+      const aw = agworldFields.find(f => f.id === p.awId)
+      const awB = agworldBoundaries.find(b => b.field_id === p.awId)
+      if (!skan || !aw || !awB) continue // stale/mismatched data (e.g. account switched mid-fetch) — skip rather than crash downstream
+      matchedPairs.push({ skan, aw, awB, iou: p.iou, nameScore: p.nameScore })
+      matchedSkan.add(p.skanId)
+      matchedAw.add(p.awId)
+    }
+
+    // Categorize matched pairs
+    for (const p of matchedPairs) {
+      if (p.iou >= 0.9999 && p.nameScore >= 100) {
+        identicalPairs.push(p)
+      } else if ((p.nameScore >= 95 && p.iou >= 0.95) || p.iou >= 0.9999) {
+        basicallyIdenticalPairs.push(p)
+      } else {
+        // Imperfect 1-to-1 match → review
+        reviewSkan.push(p.skan)
+        reviewAw.push(p.aw)
+      }
+    }
+
+    // Unmatched agskan fields
+    for (const skan of agskanFields) {
+      if (matchedSkan.has(skan.field_id) || !skan.boundary) continue
+      const hasOverlap = allPairs.some(p => p.skanId === skan.field_id && p.iou > 0.01)
+      if (hasOverlap) {
+        reviewSkan.push(skan)
+      } else {
+        autoImportedSkan.push(skan)
+      }
+    }
+
+    // Unmatched agworld fields (deduplicate by field_id — multiple boundaries can exist per field)
+    const seenAwFieldIds = new Set<string>()
+    for (const awB of agworldBoundaries) {
+      if (matchedAw.has(awB.field_id) || !awB.boundary) continue
+      if (seenAwFieldIds.has(awB.field_id)) continue
+      seenAwFieldIds.add(awB.field_id)
+      const hasOverlap = allPairs.some(p => p.awId === awB.field_id && p.iou > 0.01)
+      if (hasOverlap) {
+        const awField = agworldFields.find(f => f.id === awB.field_id)
+        if (awField) reviewAw.push(awField)
+      } else {
+        autoImportedAw.push(awB)
+      }
+    }
+
+    // Auto-add identical pairs to consolidated
+    for (const p of identicalPairs) {
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name: p.skan.name,
+        boundary: p.skan.boundary,
+        area_ha: Math.round((p.skan._turfAreaHa || 0) * 10) / 10,
+        name_source: "agskan" as const,
+        geometry_source: "agskan" as const,
+        category: "identical" as const,
+        agskan: { keep: [p.skan.field_id], create: false, delete: [] },
+        agworld: { keep: [p.awB.field_id], create: false, delete: [] },
+      }]
+      resolvedSkanIds.add(p.skan.field_id)
+      resolvedAwIds.add(p.awB.field_id)
+    }
+
+    // Auto-add basically-identical pairs to consolidated too — if they need no real decision,
+    // there's nothing to "confirm"; default to AgSKAN name & geometry (editable later in the preview)
+    for (const p of basicallyIdenticalPairs) {
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name: p.skan.name,
+        boundary: p.skan.boundary,
+        area_ha: Math.round((p.skan._turfAreaHa || 0) * 10) / 10,
+        name_source: "agskan" as const,
+        geometry_source: "agskan" as const,
+        category: "basically_identical" as const,
+        agskan: { keep: [p.skan.field_id], create: false, delete: [] },
+        agworld: { keep: [p.awB.field_id], create: false, delete: [] },
+      }]
+      resolvedSkanIds.add(p.skan.field_id)
+      resolvedAwIds.add(p.awB.field_id)
+    }
+
+    // Auto-add auto-imported to consolidated
+    for (const skan of autoImportedSkan) {
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name: skan.name,
+        boundary: skan.boundary,
+        area_ha: Math.round((skan._turfAreaHa || 0) * 10) / 10,
+        name_source: "agskan" as const,
+        geometry_source: "agskan" as const,
+        category: "auto_imported" as const,
+        agskan: { keep: [skan.field_id], create: false, delete: [] },
+        agworld: { keep: [], create: true, delete: [] },
+      }]
+      resolvedSkanIds.add(skan.field_id)
+    }
+
+    for (const awB of autoImportedAw) {
+      const awField = agworldFields.find(f => f.id === awB.field_id)
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name: awField?.attributes?.name || "",
+        boundary: awB.boundary,
+        area_ha: Math.round((awB._turfAreaHa || 0) * 10) / 10,
+        name_source: "agworld" as const,
+        geometry_source: "agworld" as const,
+        category: "auto_imported" as const,
+        agskan: { keep: [], create: true, delete: [] },
+        agworld: { keep: [awB.field_id], create: false, delete: [] },
+      }]
+      resolvedAwIds.add(awB.field_id)
+    }
+
+    // Trigger reactivity
+    consolidatedFields = consolidatedFields
+    resolvedSkanIds = resolvedSkanIds
+    resolvedAwIds = resolvedAwIds
   }
 
   function findMatchScore(agskanName: string, agworldName: string): number {
@@ -578,7 +773,6 @@
     const b = agworldName.toLowerCase().trim()
     if (a === b) return 100
     if (a.includes(b) || b.includes(a)) return 80
-    // Check for common patterns like "W2" matching "W2" but not "W20"
     const aWords = a.split(/[\s_-]+/)
     const bWords = b.split(/[\s_-]+/)
     const matches = aWords.filter(w => bWords.includes(w)).length
@@ -590,71 +784,337 @@
     view = "account"
   }
 
-  // --- Consolidation Categorization ---
-  interface CategorizedLink {
-    skan: any; aw: any; awB: any
-    nameScore: number; areaRatio: number; overlapPct: number
-    confidence: "confirmed" | "review"
-  }
+  // --- Inspector (review section) ---
+  // 5% overlap threshold — fields with less than 5% overlap are ignored
+  const OVERLAP_THRESHOLD = 0.05
 
-  function categorizeAll() {
-    const confirmed: CategorizedLink[] = []
-    const review: CategorizedLink[] = []
-    const unmatchedSkanNoOverlap: any[] = []
-    const unmatchedSkanPartial: any[] = []
-    const unmatchedAwNoOverlap: any[] = []
-    const unmatchedAwPartial: any[] = []
+  // Find fields directly overlapping the clicked field, then check if opposite fields also overlap siblings
+  async function findConnectedGroup(id: string, source: "agskan" | "agworld") {
+    const turf = await import("@turf/turf")
+    const skanIds = new Set<string>()
+    const awIds = new Set<string>()
 
-    const linkedAwIds = new Set(Array.from(linkedFields.values()))
+    if (source === "agskan") skanIds.add(id)
+    else awIds.add(id)
 
-    for (const skan of agskanFields) {
-      const awId = linkedFields.get(skan.field_id)
-      if (!awId) {
-        unmatchedSkanNoOverlap.push(skan)
-        continue
-      }
-      const aw = agworldFields?.find(f => f.id === awId)
-      const awB = agworldBoundaries?.find(b => b.field_id === awId)
+    // Hop 1: find opposite-side fields that directly overlap the clicked field (>5%)
+    const clickedGeom = source === "agskan"
+      ? agskanFields.find(f => f.field_id === id)?.boundary
+      : agworldBoundaries.find(b => b.field_id === id)?.boundary
+    if (!clickedGeom) return { skanIds: Array.from(skanIds), awIds: Array.from(awIds) }
 
-      const nameScore = aw?.attributes?.name
-        ? findMatchScore(skan.name, aw.attributes.name)
-        : 0
-      const areaRatio = skan._turfAreaHa && awB?._turfAreaHa
-        ? Math.min(skan._turfAreaHa, awB._turfAreaHa) / Math.max(skan._turfAreaHa, awB._turfAreaHa)
-        : 0
-
-      const overlapPct = areaRatio >= 0.95 ? 100 : areaRatio >= 0.8 ? 70 : 30
-
-      const item: CategorizedLink = { skan, aw, awB, nameScore, areaRatio, overlapPct, confidence: "review" }
-
-      if (nameScore >= 95 && areaRatio >= 0.95) {
-        item.confidence = "confirmed"
-        confirmed.push(item)
-      } else {
-        review.push(item)
+    const oppositeFields = source === "agskan" ? agworldBoundaries : agskanFields
+    const directOverlaps: string[] = []
+    for (const f of oppositeFields) {
+      if (!f.boundary) continue
+      const fid = f.field_id || f.id
+      // Skip fields that were already resolved (identical/basically/auto-imported/previous review)
+      // — including them would create duplicate consolidated entries
+      if (source === "agskan" && resolvedAwIds.has(fid)) continue
+      if (source === "agworld" && resolvedSkanIds.has(fid)) continue
+      const overlapPct = overlapPercentage(turf, clickedGeom, f.boundary)
+      if (overlapPct >= OVERLAP_THRESHOLD) {
+        directOverlaps.push(fid)
+        if (source === "agskan") awIds.add(fid)
+        else skanIds.add(fid)
       }
     }
 
-    for (const aw of (agworldFields || [])) {
-      if (linkedAwIds.has(aw.id)) continue
-      // Skip fields with no boundary data (0 area = no geometry to compare)
-      const awB = agworldBoundaries?.find(b => b.field_id === aw.id)
-      if (!awB?.boundary?.type) continue
-      unmatchedAwNoOverlap.push(aw)
+    // Hop 2: for each opposite field found, check if it also overlaps other same-side fields (>5%)
+    // This detects splits: SS5 overlaps SS10, SS10 also overlaps Cow Pen → 2 AgSKAN vs 1 Agworld
+    for (const oppId of directOverlaps) {
+      const oppGeom = source === "agskan"
+        ? agworldBoundaries.find(b => b.field_id === oppId)?.boundary
+        : agskanFields.find(f => f.field_id === oppId)?.boundary
+      if (!oppGeom) continue
+      const sameSideFields = source === "agskan" ? agskanFields : agworldBoundaries
+      for (const f of sameSideFields) {
+        if (!f.boundary) continue
+        const fid = f.field_id || f.id
+        if (skanIds.has(fid) || awIds.has(fid)) continue
+        // Skip already-resolved fields (same reason as hop 1)
+        if (source === "agskan" && resolvedSkanIds.has(fid)) continue
+        if (source === "agworld" && resolvedAwIds.has(fid)) continue
+        const overlapPct = overlapPercentage(turf, oppGeom, f.boundary)
+        if (overlapPct >= OVERLAP_THRESHOLD) {
+          if (source === "agskan") skanIds.add(fid)
+          else awIds.add(fid)
+        }
+      }
     }
 
-    return { confirmed, review, unmatchedSkanNoOverlap, unmatchedSkanPartial, unmatchedAwNoOverlap, unmatchedAwPartial }
+    return { skanIds: Array.from(skanIds), awIds: Array.from(awIds) }
   }
 
-  // Inline reactive categorization
+  function overlapPercentage(turf: any, g1: any, g2: any): number {
+    if (!g1?.type || !g2?.type) return 0
+    try {
+      const fc = { type: "FeatureCollection", features: [
+        { type: "Feature", geometry: g1, properties: {} },
+        { type: "Feature", geometry: g2, properties: {} },
+      ] }
+      const inter = turf.intersect(fc)
+      if (!inter) return 0
+      const intersectArea = turf.area(inter)
+      const area1 = turf.area({ type: "Feature", geometry: g1, properties: {} })
+      const area2 = turf.area({ type: "Feature", geometry: g2, properties: {} })
+      if (area1 <= 0 || area2 <= 0) return 0
+      // Use the smaller field's area as denominator (directional)
+      return Math.min(intersectArea / area1, intersectArea / area2)
+    } catch { return 0 }
+  }
+
+  async function openInspector(id: string, source: "agskan" | "agworld") {
+    const group = await findConnectedGroup(id, source)
+    connectedGroup = group
+
+    const skanCount = group.skanIds.length
+    const awCount = group.awIds.length
+
+    // Build candidate objects
+    const buildSkanCand = (sid: string) => {
+      const skan = agskanFields.find(f => f.field_id === sid)
+      return { id: sid, name: skan?.name || sid, source: "agskan" as const, overlapPct: 0, areaHa: skan?._turfAreaHa || 0 }
+    }
+    const buildAwCand = (aid: string) => {
+      const awB = agworldBoundaries.find(b => b.field_id === aid)
+      const awField = agworldFields.find(f => f.id === aid)
+      return { id: aid, name: awField?.attributes?.name || aid, source: "agworld" as const, overlapPct: 0, areaHa: awB?._turfAreaHa || 0 }
+    }
+
+    if (skanCount === 1 && awCount === 1) {
+      // 1-to-1 match — let user pick boundary and name independently
+      proposalType = "match"
+      proposalDominant = { id, source }
+      const otherId = source === "agskan" ? group.awIds[0] : group.skanIds[0]
+      const otherSource = source === "agskan" ? "agworld" : "agskan"
+      proposalCandidates = [otherSource === "agskan" ? buildSkanCand(otherId) : buildAwCand(otherId)]
+      // Default: clicked field's boundary and name
+      boundaryChoice = source
+      nameChoice = source
+      selectedOverlayIds = [otherId]
+    } else if (skanCount > 1 && awCount === 1) {
+      // N AgSKAN vs 1 Agworld → default keep AgSKAN side
+      proposalType = "split"
+      dominantSideChoice = "agskan"
+      proposalDominant = { id: group.awIds[0], source: "agworld" }  // the 1 field
+      proposalCandidates = group.skanIds.map(buildSkanCand)          // the N fields
+      selectedOverlayIds = group.skanIds
+      splitFieldNames = proposalCandidates.map(c => c.name)
+      dominantFieldIds = group.skanIds
+      mapFocus = { id: group.skanIds[0], source: "agskan" }
+    } else if (awCount > 1 && skanCount === 1) {
+      // 1 AgSKAN vs N Agworld → default keep AgSKAN side
+      proposalType = "split"
+      dominantSideChoice = "agskan"
+      proposalDominant = { id: group.skanIds[0], source: "agskan" } // the 1 field
+      proposalCandidates = group.awIds.map(buildAwCand)              // the N fields
+      selectedOverlayIds = group.awIds
+      splitFieldNames = proposalCandidates.map(c => c.name)
+      finalFieldName = agskanFields.find(f => f.field_id === group.skanIds[0])?.name || ""
+      dominantFieldIds = [group.skanIds[0]]
+      mapFocus = { id: group.skanIds[0], source: "agskan" }
+    } else {
+      // N vs M → merge with clicked field as dominant
+      proposalType = "merge"
+      proposalDominant = { id, source }
+      dominantFieldIds = [id]
+      proposalCandidates = []
+      for (const sid of group.skanIds) {
+        if (sid === id && source === "agskan") continue
+        proposalCandidates.push(buildSkanCand(sid))
+      }
+      for (const aid of group.awIds) {
+        if (aid === id && source === "agworld") continue
+        proposalCandidates.push(buildAwCand(aid))
+      }
+      selectedOverlayIds = proposalCandidates.map(c => c.id)
+      const domField = source === "agskan"
+        ? agskanFields.find(f => f.field_id === id)
+        : agworldFields.find(f => f.id === id)
+      finalFieldName = source === "agskan" ? (domField?.name || "") : (domField?.attributes?.name || "")
+    }
+
+    mapFocus = proposalDominant
+    highlightedCandidate = null
+
+    // Pre-fill names for match
+    if (proposalType === "match") {
+      const domField = source === "agskan"
+        ? agskanFields.find(f => f.field_id === id)
+        : agworldFields.find(f => f.id === id)
+      finalFieldName = source === "agskan" ? (domField?.name || "") : (domField?.attributes?.name || "")
+      splitFieldNames = []
+    }
+  }
+
+  function closeInspector() {
+    connectedGroup = null
+    proposalType = null
+    proposalDominant = null
+    proposalCandidates = []
+    mapFocus = null
+    highlightedCandidate = null
+    selectedOverlayIds = []
+    boundaryChoice = "agskan"
+    nameChoice = "agskan"
+    finalFieldName = ""
+    splitFieldNames = []
+    dominantSideChoice = "agskan"
+    dominantFieldIds = []
+  }
+
+  function toggleCandidateSelection(id: string) {
+    selectedOverlayIds = selectedOverlayIds.includes(id)
+      ? selectedOverlayIds.filter(i => i !== id)
+      : [...selectedOverlayIds, id]
+    highlightedCandidate = id
+  }
+
+  function confirmProposal() {
+    if (!proposalType || !proposalDominant) return
+    const dom = proposalDominant
+    const selectedCands = proposalCandidates.filter(c => selectedOverlayIds.includes(c.id))
+
+    if (proposalType === "match") {
+      // 1-to-1: use boundaryChoice and nameChoice independently
+      const skanId = dom.source === "agskan" ? dom.id : selectedCands[0]?.id
+      const awId = dom.source === "agworld" ? dom.id : selectedCands[0]?.id
+      const skanField = agskanFields.find(f => f.field_id === skanId)
+      const awB = agworldBoundaries.find(b => b.field_id === awId)
+      const awField = agworldFields.find(f => f.id === awId)
+
+      const boundary = boundaryChoice === "agskan" ? skanField?.boundary : awB?.boundary
+      const area = boundaryChoice === "agskan" ? (skanField?._turfAreaHa || 0) : (awB?._turfAreaHa || 0)
+      const name = finalFieldName || (nameChoice === "agskan" ? (skanField?.name || "") : (awField?.attributes?.name || ""))
+
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name,
+        boundary,
+        area_ha: Math.round(area * 10) / 10,
+        name_source: nameChoice,
+        geometry_source: boundaryChoice,
+        category: "merged" as const,
+        agskan: { keep: boundaryChoice === "agskan" ? [skanId] : [], create: boundaryChoice === "agworld", delete: [] },
+        agworld: { keep: boundaryChoice === "agworld" ? [awId] : [], create: boundaryChoice === "agskan", delete: [] },
+      }]
+
+      if (skanId) resolvedSkanIds.add(skanId)
+      if (awId) resolvedAwIds.add(awId)
+    } else if (proposalType === "merge" || (proposalType === "split" && dominantSideChoice === proposalDominant.source)) {
+      // Merge: the 1-field side wins (dominantSideChoice matches proposalDominant.source)
+      const domField = dom.source === "agskan"
+        ? agskanFields.find(f => f.field_id === dom.id)
+        : agworldFields.find(f => f.id === dom.id)
+      const domBoundary = dom.source === "agskan"
+        ? domField?.boundary
+        : agworldBoundaries.find(b => b.field_id === dom.id)?.boundary
+      const domArea = dom.source === "agskan"
+        ? (domField?._turfAreaHa || 0)
+        : (agworldBoundaries.find(b => b.field_id === dom.id)?._turfAreaHa || 0)
+
+      const absorbedSkanIds = selectedCands.filter(c => c.source === "agskan").map(c => c.id)
+      const absorbedAwIds = selectedCands.filter(c => c.source === "agworld").map(c => c.id)
+
+      consolidatedFields = [...consolidatedFields, {
+        id: crypto.randomUUID(),
+        name: finalFieldName || "",
+        boundary: domBoundary,
+        area_ha: Math.round(domArea * 10) / 10,
+        name_source: dom.source,
+        geometry_source: dom.source,
+        category: "merged" as const,
+        agskan: { keep: dom.source === "agskan" ? [dom.id] : [], create: dom.source === "agworld" && absorbedSkanIds.length > 0, delete: dom.source === "agskan" ? [] : absorbedSkanIds },
+        agworld: { keep: dom.source === "agworld" ? [dom.id] : [], create: dom.source === "agskan" && absorbedAwIds.length > 0, delete: dom.source === "agworld" ? [] : absorbedAwIds },
+      }]
+
+      resolvedSkanIds.add(dom.id)
+      resolvedAwIds.add(dom.id)
+      for (const id of absorbedSkanIds) resolvedSkanIds.add(id)
+      for (const id of absorbedAwIds) resolvedAwIds.add(id)
+    } else if (proposalType === "split" && dominantSideChoice !== proposalDominant.source) {
+      // Split: the N-field side wins (dominantSideChoice differs from proposalDominant.source)
+      // Split: 1→N
+      const domDeleteId = dom.id
+      const domSource = dom.source
+
+      for (let i = 0; i < selectedCands.length; i++) {
+        const cand = selectedCands[i]
+        const candField = cand.source === "agskan"
+          ? agskanFields.find(f => f.field_id === cand.id)
+          : agworldBoundaries.find(b => b.field_id === cand.id)
+        const candBoundary = candField?.boundary
+        const candArea = cand.areaHa
+        const candName = splitFieldNames[proposalCandidates.findIndex(c => c.id === cand.id)] || cand.name
+        const shouldDeleteDom = i === 0
+
+        consolidatedFields = [...consolidatedFields, {
+          id: crypto.randomUUID(),
+          name: candName,
+          boundary: candBoundary,
+          area_ha: Math.round(candArea * 10) / 10,
+          name_source: cand.source,
+          geometry_source: cand.source,
+          category: "merged" as const,
+          agskan: {
+            keep: cand.source === "agskan" ? [cand.id] : [],
+            create: domSource === "agskan" && shouldDeleteDom,
+            delete: domSource === "agskan" && shouldDeleteDom ? [domDeleteId] : [],
+          },
+          agworld: {
+            keep: cand.source === "agworld" ? [cand.id] : [],
+            create: domSource === "agworld" && shouldDeleteDom,
+            delete: domSource === "agworld" && shouldDeleteDom ? [domDeleteId] : [],
+          },
+        }]
+
+        if (cand.source === "agskan") resolvedSkanIds.add(cand.id)
+        else resolvedAwIds.add(cand.id)
+      }
+      if (domSource === "agskan") resolvedSkanIds.add(domDeleteId)
+      else resolvedAwIds.add(domDeleteId)
+    }
+
+    resolvedSkanIds = resolvedSkanIds
+    resolvedAwIds = resolvedAwIds
+    consolidatedFields = consolidatedFields
+    toast.success("Confirmed")
+
+    // Auto-advance
+    const nextSkan = reviewSkan.find(f => !resolvedSkanIds.has(f.field_id))
+    const nextAw = reviewAw.find(f => !resolvedAwIds.has(f.id))
+    if (nextSkan) {
+      openInspector(nextSkan.field_id, "agskan")
+    } else if (nextAw) {
+      openInspector(nextAw.id, "agworld")
+    } else {
+      closeInspector()
+      // Review queue is empty — automatically open the consolidated preview
+      toast.success("Review complete! Opening consolidated map...")
+      showConsolidatedPreview = true
+    }
+  }
+
+  // Reactive: filter review lists by resolved ids
   $: {
-    categorized = categorizeAll()
-    linkedAwIds = new Set(Array.from(linkedFields.values()))
-    const confirmedIds = new Set(categorized.confirmed.map((c: any) => c.skan?.field_id))
-    reviewSkan = agskanFields.filter(f => linkedFields.has(f.field_id) && !confirmedIds.has(f.field_id) && !resolvedFields.has(f.field_id))
-    const confirmedAwIds = new Set(categorized.confirmed.map((c: any) => c.aw?.id))
-    reviewAw = agworldFields.filter(f => linkedAwIds.has(f.id) && !confirmedAwIds.has(f.id) && agworldBoundaries.some(b => b.field_id === f.id && b.boundary?.type))
+    reviewSkan = reviewSkan.filter(f => f && !resolvedSkanIds.has(f.field_id))
+    reviewAw = reviewAw.filter(f => f && !resolvedAwIds.has(f.id))
   }
+
+  // Auto-open inspector for first unresolved field when entering review section
+  let autoOpened = false
+  $: if (view === "compare" && !compareLoading && !proposalDominant && !autoOpened && (reviewSkan.length > 0 || reviewAw.length > 0)) {
+    autoOpened = true
+    const first = reviewSkan[0] || reviewAw[0]
+    if (first) {
+      const source = first.field_id ? "agskan" : "agworld"
+      const id = first.field_id || first.id
+      openInspector(id, source)
+    }
+  }
+  // Reset auto-open when leaving compare view
+  $: if (view !== "compare") { autoOpened = false }
 </script>
 
 <div class="agworld-container">
@@ -863,6 +1323,66 @@
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Linked AgSKAN customer -->
+      <div class="card bg-base-200 mb-6">
+        <div class="card-body p-4">
+          <h3 class="card-title text-base">
+            <Icon icon="solar:link-bold-duotone" width="20" height="20" />
+            Linked AgSKAN Customer
+          </h3>
+          <p class="text-xs opacity-50 -mt-1 mb-1">
+            Compare data always uses this specific customer's map, regardless of which account you're logged in as.
+          </p>
+
+          {#if selectedAccount.linkedMapId}
+            <div class="flex items-center gap-2 bg-success/10 border border-success/20 rounded-lg p-3">
+              <Icon icon="solar:check-circle-bold" width="18" height="18" class="text-success" />
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold truncate">{selectedAccount.linkedProfileLabel || "Linked"}</div>
+                <div class="text-xs opacity-50 font-mono truncate">map_id: {selectedAccount.linkedMapId}</div>
+              </div>
+              <button class="btn btn-ghost btn-xs" on:click={unlinkAccount}>Unlink</button>
+            </div>
+          {:else}
+            <div class="alert alert-warning py-2 mb-2">
+              <Icon icon="solar:danger-triangle-bold" width="16" height="16" />
+              <span class="text-xs">Not linked — compare will fall back to your own logged-in map.</span>
+            </div>
+            <div class="flex gap-2">
+              <input type="text"
+                class="input input-bordered input-sm flex-1"
+                placeholder="Search by name or email..."
+                bind:value={linkSearchQuery}
+                on:keydown={(e) => { if (e.key === 'Enter') searchAgskanProfiles() }} />
+              <button class="btn btn-sm" on:click={searchAgskanProfiles} disabled={linkSearching}>
+                {#if linkSearching}<span class="loading loading-spinner loading-xs"></span>{:else}<Icon icon="solar:magnifer-linear" width="16" height="16" />{/if}
+                Search
+              </button>
+            </div>
+            {#if linkSearchResults.length > 0}
+              <div class="mt-2 space-y-1 max-h-[240px] overflow-y-auto">
+                {#each linkSearchResults as p (p.id)}
+                  <button class="w-full text-left p-2 rounded border border-base-300 hover:bg-base-300/50 flex items-center justify-between gap-2"
+                    on:click={() => linkAccountToProfile(p)}>
+                    <div class="min-w-0">
+                      <div class="text-sm truncate">{p.full_name || "(no name)"}</div>
+                      <div class="text-xs opacity-50 truncate">{p.email}</div>
+                    </div>
+                    {#if p.master_map_id}
+                      <span class="badge badge-xs badge-success shrink-0">has map</span>
+                    {:else}
+                      <span class="badge badge-xs badge-ghost shrink-0">no map</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {:else if linkSearchQuery && !linkSearching}
+              <p class="text-xs opacity-40 mt-1">No matches yet — try searching.</p>
+            {/if}
+          {/if}
         </div>
       </div>
 
@@ -1134,331 +1654,492 @@
           <span>{compareError}</span>
         </div>
       {:else}
-        {@const totalUnmatched = categorized.unmatchedSkanNoOverlap.length + categorized.unmatchedAwNoOverlap.length}
+        {@const totalReview = reviewSkan.length + reviewAw.length}
 
         <!-- Summary cards -->
-        <div class="grid grid-cols-5 gap-3 mb-6">
-          <div class="card bg-base-200"><div class="card-body p-3 text-center"><div class="text-2xl font-bold">{agskanFields.length}</div><div class="text-xs opacity-50">AgSKAN</div></div></div>
-          <div class="card bg-base-200"><div class="card-body p-3 text-center"><div class="text-2xl font-bold">{agworldFields.length}</div><div class="text-xs opacity-50">Agworld</div></div></div>
-          <div class="card bg-base-200"><div class="card-body p-3 text-center"><div class="text-2xl font-bold text-success">{linkedFields.size}</div><div class="text-xs opacity-50">Linked</div></div></div>
-          <div class="card bg-base-200"><div class="card-body p-3 text-center"><div class="text-2xl font-bold text-warning">{categorized.review.length}</div><div class="text-xs opacity-50">Need Review</div></div></div>
-          <div class="card bg-warning/10"><div class="card-body p-3 text-center"><div class="text-2xl font-bold text-warning">{totalUnmatched}</div><div class="text-xs opacity-50">Unmatched</div></div></div>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-3">
+          <div class="card bg-base-200"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold">{agskanFields.length}</div><div class="text-[11px] opacity-50">AgSKAN</div></div></div>
+          <div class="card bg-base-200"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold">{agworldFields.length}</div><div class="text-[11px] opacity-50">Agworld</div></div></div>
+          <div class="card bg-success/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-success">{identicalPairs.length + basicallyIdenticalPairs.length}</div><div class="text-[11px] opacity-50">Matched</div></div></div>
+          <div class="card bg-info/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-info">{autoImportedSkan.length + autoImportedAw.length}</div><div class="text-[11px] opacity-50">Imported</div></div></div>
+          <div class="card bg-warning/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-warning">{totalReview}</div><div class="text-[11px] opacity-50">Review</div></div></div>
+          <div class="card bg-primary/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-primary">{consolidatedFields.length}</div><div class="text-[11px] opacity-50">Consolidated</div></div></div>
         </div>
 
         <!-- API Logs (collapsed by default) -->
         {#if compareLogs.length > 0}
-          <details class="mb-6">
+          <details class="mb-3">
             <summary class="text-xs opacity-40 cursor-pointer hover:opacity-80">
               {compareLogs.length} API calls · {agworldBoundaries.filter(b => b.boundary).length} boundaries loaded
             </summary>
-            <!-- logs collapsed by default -->
           </details>
         {/if}
 
-        <!-- SECTION 1: Confirmed Matches -->
-        {#if categorized.confirmed.length > 0}
-          <div class="mb-6">
-            <h3 class="text-lg font-semibold mb-3">
-              <Icon icon="solar:check-circle-bold" width="20" height="20" class="inline mr-1 text-success" />
-              Confirmed Matches
-              <span class="text-sm opacity-50 ml-2">({categorized.confirmed.length} fields — same name, area & boundary)</span>
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {#each categorized.confirmed as item (item?.skan?.field_id || '')}
-                <div class="card bg-success/5 border border-success/20">
-                  <div class="card-body p-3">
-                    <div class="flex items-start gap-2">
-                      <FieldOutlineThumbnail boundary={item.skan.boundary} width={44} height={32} fillColor="#22c55e" outlineColor="#86efac" />
-                      {#if item.awB?.boundary}
-                        <FieldOutlineThumbnail boundary={item.awB.boundary} width={44} height={32} fillColor="#22c55e" outlineColor="#86efac" />
-                      {/if}
-                    </div>
-                    <div class="flex items-center gap-2 mt-1">
-                      <span class="badge badge-xs badge-success">✓</span>
-                      <span class="text-sm font-mono truncate">{item.skan.name}</span>
-                    </div>
-                    <div class="text-xs opacity-50 mt-1">
-                      {(item.skan._turfAreaHa || item.skan.area || 0).toFixed(1)} ha ↔ {(item.awB?._turfAreaHa || item.awB?.area_scalar || 0).toFixed(1)} ha
-                    </div>
-                    <button class="btn btn-ghost btn-xs text-error mt-1"
-                      on:click={() => unlinkField(item.skan.field_id)}>
-                      Unlink
-                    </button>
+        <!-- Resolved automatically: matched (identical + basically identical) & auto-imported, unified -->
+        {@const resolvedCombined = [
+          ...identicalPairs.map(p => ({ key: 'id-' + p.skan.field_id, name: p.skan.name, area: p.skan._turfAreaHa || p.skan.area || 0, boundary: p.skan.boundary, status: 'matched' })),
+          ...basicallyIdenticalPairs.map(p => ({ key: 'bi-' + p.skan.field_id, name: p.skan.name, area: p.skan._turfAreaHa || p.skan.area || 0, boundary: p.skan.boundary, status: 'matched' })),
+          ...autoImportedSkan.map(f => ({ key: 'as-' + f.field_id, name: f.name, area: f._turfAreaHa || f.area || 0, boundary: f.boundary, status: 'imported-skan' })),
+          ...autoImportedAw.map(awB => {
+            const awField = agworldFields.find(f => f.id === awB.field_id)
+            return { key: 'aw-' + awB.field_id, name: awField?.attributes?.name || awB.field_id, area: awB._turfAreaHa || awB.area_scalar || 0, boundary: awB.boundary, status: 'imported-agworld' }
+          }),
+        ].sort((a, b) => a.name.localeCompare(b.name))}
+
+        {#if resolvedCombined.length > 0}
+          <details class="mb-3 bg-base-200/40 rounded-lg">
+            <summary class="cursor-pointer px-3 py-2 text-sm font-semibold flex items-center gap-2 select-none">
+              <Icon icon="solar:check-circle-bold" width="18" height="18" class="text-success shrink-0" />
+              <span>{resolvedCombined.length} fields resolved automatically</span>
+              <span class="text-xs opacity-50 font-normal">— matched &amp; imported, no action needed</span>
+            </summary>
+            <div class="px-3 pb-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 max-h-[260px] overflow-y-auto">
+              {#each resolvedCombined as item (item.key)}
+                {@const statusStyle = item.status === 'matched'
+                  ? { fill: '#22c55e', outline: '#86efac', icon: 'solar:check-circle-bold', text: 'text-success' }
+                  : item.status === 'imported-skan'
+                  ? { fill: '#0080ff', outline: '#bfffbf', icon: 'solar:arrow-right-bold', text: 'text-info' }
+                  : { fill: '#ff8040', outline: '#ffb080', icon: 'solar:arrow-left-bold', text: 'text-warning' }}
+                <div class="flex items-center gap-1.5 p-1.5 rounded bg-base-100/60">
+                  <FieldOutlineThumbnail boundary={item.boundary} width={28} height={20} fillColor={statusStyle.fill} outlineColor={statusStyle.outline} />
+                  <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-mono truncate">{item.name}</div>
+                    <div class="text-[10px] opacity-40">{item.area.toFixed(1)} ha</div>
                   </div>
+                  <Icon icon={statusStyle.icon} width="12" height="12" class="{statusStyle.text} shrink-0" />
                 </div>
               {/each}
             </div>
-          </div>
+          </details>
         {/if}
 
-        <!-- SECTION 2: Unmatched (no overlap) Fields -->
-        {#if categorized.unmatchedAwNoOverlap.length > 0 || categorized.unmatchedSkanNoOverlap.length > 0}
-          <div class="mb-6">
-            <h3 class="text-lg font-semibold mb-3">
-              <Icon icon="solar:map-point-bold" width="20" height="20" class="inline mr-1 opacity-50" />
-              Unmatched Fields
-              <span class="text-sm opacity-50 ml-2">(no matching counterpart found)</span>
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {#if categorized.unmatchedSkanNoOverlap.length > 0}
-                <div class="card border border-dashed border-info/30 bg-info/5">
-                  <div class="card-body p-3">
-                    <h4 class="text-sm font-semibold text-info">
-                      <Icon icon="solar:map-arrow-right-bold" width="14" height="14" class="inline mr-1" />
-                      Only in AgSKAN ({categorized.unmatchedSkanNoOverlap.length})
-                    </h4>
-                    <div class="text-xs mt-2 space-y-1 max-h-[200px] overflow-auto">
-                      {#each categorized.unmatchedSkanNoOverlap as f}
-                        <label class="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer">
-                          <FieldOutlineThumbnail boundary={f.boundary} width={32} height={22} fillColor="#0080ff" outlineColor="#bfffbf" />
-                          <input type="checkbox" class="checkbox checkbox-xs" checked={true} />
-                          <span class="font-mono truncate flex-1">{f.name}</span>
-                          <span class="opacity-40 shrink-0">{(f._turfAreaHa || f.area || 0).toFixed(1)} ha</span>
-                        </label>
-                      {/each}
-                    </div>
-                    <button class="btn btn-xs btn-outline btn-info mt-2 w-full" disabled>
-                      <Icon icon="solar:map-arrow-right-bold" width="12" height="12" />
-                      Export to Agworld
-                    </button>
-                  </div>
-                </div>
-              {/if}
-              {#if categorized.unmatchedAwNoOverlap.length > 0}
-                <div class="card border border-dashed border-warning/30 bg-warning/5">
-                  <div class="card-body p-3">
-                    <h4 class="text-sm font-semibold text-warning">
-                      <Icon icon="solar:map-arrow-left-bold" width="14" height="14" class="inline mr-1" />
-                      Only in Agworld ({categorized.unmatchedAwNoOverlap.length})
-                    </h4>
-                    <div class="text-xs mt-2 space-y-1 max-h-[200px] overflow-auto">
-                      {#each categorized.unmatchedAwNoOverlap as f}
-                        {@const awB = agworldBoundaries.find(b => b.field_id === f.id)}
-                        <label class="flex items-center gap-2 p-1 rounded hover:bg-base-200 cursor-pointer">
-                          <FieldOutlineThumbnail boundary={awB?.boundary} width={32} height={22} fillColor="#ff8040" outlineColor="#ffb080" />
-                          <input type="checkbox" class="checkbox checkbox-xs" checked={true} />
-                          <span class="font-mono truncate flex-1">{f.attributes?.name || f.id}</span>
-                          <span class="opacity-40 shrink-0">{(awB?._turfAreaHa || awB?.area_scalar || 0).toFixed(1)} ha</span>
-                        </label>
-                      {/each}
-                    </div>
-                    <button class="btn btn-xs btn-outline btn-warning mt-2 w-full" disabled>
-                      <Icon icon="solar:map-arrow-left-bold" width="12" height="12" />
-                      Import to AgSKAN
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        <!-- SECTION 3: Field Inspector -->
+        <!-- SECTION 4: Review — resume banner shown inline when the fullscreen overlay has been dismissed -->
         {#if reviewSkan.length > 0 || reviewAw.length > 0}
-          <div class="mb-6">
-            <div class="flex items-center gap-3 mb-3">
-              <h3 class="text-lg font-semibold">
-                <Icon icon="solar:danger-triangle-bold" width="20" height="20" class="inline mr-1 text-warning" />
-                Needs Review
-                <span class="text-sm opacity-50 ml-2">({reviewSkan.length + reviewAw.length} fields)</span>
-              </h3>
-              <span class="text-xs opacity-40 ml-auto">Click a field to inspect</span>
-            </div>
-
-            {#if !inspectorSubject}
-              <!-- Default: two-column list -->
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <h4 class="text-xs font-semibold mb-2 text-info">AgSKAN ({reviewSkan.length})</h4>
-                  <div class="space-y-1 max-h-[400px] overflow-auto">
-                    {#each reviewSkan as skan (skan.field_id)}
-                      {@const awId = linkedFields.get(skan.field_id)}
-                      {@const aw = agworldFields.find(f => f.id === awId)}
-                      <button class="w-full text-left p-2 rounded hover:bg-base-200 flex items-start gap-2"
-                        on:click={() => { inspectorSubject = { id: skan.field_id, source: "agskan" }; mapFocus = { id: skan.field_id, source: "agskan" }; mapCandidates = [] }}>
-                        <FieldOutlineThumbnail boundary={skan.boundary} width={36} height={24} fillColor="#0080ff" outlineColor="#bfffbf" />
-                        <div class="flex-1 min-w-0">
-                          <div class="flex justify-between"><span class="text-xs font-mono truncate">{skan.name}</span><span class="text-xs opacity-50">{(skan._turfAreaHa || skan.area || 0).toFixed(1)} ha</span></div>
-                          <div class="text-xs opacity-40">↔ {aw?.attributes?.name || '?'}</div>
-                        </div>
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-                <div>
-                  <h4 class="text-xs font-semibold mb-2 text-warning">Agworld ({reviewAw.length})</h4>
-                  <div class="space-y-1 max-h-[400px] overflow-auto">
-                    {#each reviewAw as aw (aw.id)}
-                      {@const linkedEntry = Array.from(linkedFields.entries()).find(([, v]) => v === aw.id)}
-                      {@const linkedSkan = linkedEntry ? agskanFields.find(f => f.field_id === linkedEntry[0]) : null}
-                      {@const awB = agworldBoundaries.find(b => b.field_id === aw.id)}
-                      <button class="w-full text-left p-2 rounded hover:bg-base-200 flex items-start gap-2"
-                        on:click={() => { inspectorSubject = { id: aw.id, source: "agworld" }; mapFocus = { id: aw.id, source: "agworld" }; mapCandidates = [] }}>
-                        <FieldOutlineThumbnail boundary={awB?.boundary} width={36} height={24} fillColor="#ff8040" outlineColor="#ffb080" />
-                        <div class="flex-1 min-w-0">
-                          <div class="flex justify-between"><span class="text-xs font-mono truncate">{aw.attributes?.name}</span><span class="text-xs opacity-50">{(awB?._turfAreaHa || awB?.area_scalar || 0).toFixed(1)} ha</span></div>
-                          <div class="text-xs opacity-40">↔ {linkedSkan?.name || '?'}</div>
-                        </div>
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              </div>
-            {:else}
-              <!-- Inspector Mode -->
-              {@const subjectField = inspectorSubject.source === "agskan"
-                ? agskanFields.find(f => f.field_id === inspectorSubject.id)
-                : agworldFields.find(f => f.id === inspectorSubject.id)}
-              {@const subjectBoundary = inspectorSubject.source === "agskan"
-                ? subjectField?.boundary
-                : agworldBoundaries.find(b => b.field_id === inspectorSubject.id)?.boundary}
-              {@const subjectName = inspectorSubject.source === "agskan" ? subjectField?.name : subjectField?.attributes?.name}
-              {@const subjectArea = inspectorSubject.source === "agskan"
-                ? (subjectField?._turfAreaHa || subjectField?.area || 0)
-                : (agworldBoundaries.find(b => b.field_id === inspectorSubject.id)?._turfAreaHa || 0)}
-
-              {@const linkedId = inspectorSubject.source === "agskan"
-                ? linkedFields.get(inspectorSubject.id)
-                : (Array.from(linkedFields.entries()).find(([, v]) => v === inspectorSubject.id)?.[0] || null)}
-              {@const linkedCandidate = linkedId ? mapCandidates.find(c => c.id === linkedId) : null}
-              {@const extraCandidates = mapCandidates.filter(c => c.id !== linkedId)}
-              {@const replaceCount = (linkedCandidate ? 1 : 0) + extraCandidates.length}
-
-              <div class="relative">
-                <!-- Floating inspector panel -->
-                <div class="absolute top-3 left-3 w-[340px] max-h-[calc(100%-24px)] overflow-auto z-10">
-                  <!-- Subject -->
-                  <div class="card bg-base-200/95 backdrop-blur shadow-lg mb-2">
-                    <div class="card-body p-3">
-                      <div class="text-xs font-semibold opacity-50 mb-1">Inspecting</div>
-                      <FieldOutlineThumbnail boundary={subjectBoundary} width={310} height={140} fillColor={inspectorSubject.source === "agskan" ? "#00ff88" : "#ffcc00"} outlineColor="#fff" />
-                      <div class="flex items-center gap-2 mt-2">
-                        <span class="badge badge-sm" class:badge-primary={inspectorSubject.source === "agskan"} class:badge-warning={inspectorSubject.source === "agworld"}>
-                          {inspectorSubject.source === "agskan" ? "AgSKAN" : "Agworld"}
-                        </span>
-                        <span class="text-sm font-semibold">{subjectName}</span>
-                        <span class="text-xs opacity-50 ml-auto">{subjectArea.toFixed(1)} ha</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Counterparts -->
-                  <div class="card bg-base-200/95 backdrop-blur shadow-lg mb-2">
-                    <div class="card-body p-3">
-                      <div class="text-xs font-semibold opacity-50 mb-2">
-                        {inspectorSubject.source === "agskan" ? "Agworld" : "AgSKAN"} counterpart{mapCandidates.length !== 1 ? 's' : ''}
-                      </div>
-
-                      {#each mapCandidates as cand, ci (cand.id + '-' + ci)}
-                        {@const candBoundary = cand.source === "agskan"
-                          ? (agskanFields.find(f => f.field_id === cand.id)?.boundary)
-                          : (agworldBoundaries.find(b => b.field_id === cand.id)?.boundary)}
-                        {@const isSelected = selectedOverlayIds.includes(cand.id)}
-                        {@const selClass = isSelected ? ' bg-success/20 ring-1 ring-success' : ''}
-                        <button class="w-full text-left p-2 rounded mb-1 hover:bg-base-300 flex items-start gap-3{selClass}"
-                          on:click={() => {
-                            selectedOverlayIds = isSelected
-                              ? selectedOverlayIds.filter(id => id !== cand.id)
-                              : [...selectedOverlayIds, cand.id]
-                            highlightedCandidate = cand.id
-                          }}>
-                          <FieldOutlineThumbnail boundary={candBoundary} width={48} height={34} fillColor={cand.source === "agskan" ? "#0080ff" : "#ff8040"} outlineColor={cand.source === "agskan" ? "#bfffbf" : "#ffb080"} />
-                          <div class="flex-1 min-w-0">
-                            <div class="flex justify-between"><span class="text-xs font-mono font-semibold truncate">{cand.name}</span><span class="text-xs opacity-50 ml-1">{cand.areaHa} ha</span></div>
-                            <span class="badge badge-xs mt-0.5" class:badge-success={cand.overlapPct >= 70} class:badge-warning={cand.overlapPct >= 30} class:badge-error={cand.overlapPct < 30}>{cand.overlapPct}% overlap</span>
-                          </div>
-                        </button>
-                      {/each}
-                      {#if mapCandidates.length === 0}
-                        <div class="text-xs opacity-40 italic">No overlapping fields found on {inspectorSubject.source === "agskan" ? "Agworld" : "AgSKAN"}.</div>
-                      {/if}
-                    </div>
-                  </div>
-
-                  <!-- Actions -->
-                  <div class="card bg-base-200/95 backdrop-blur shadow-lg">
-                    <div class="card-body p-3">
-                      <div class="text-xs font-semibold opacity-50 mb-2">
-                        {selectedOverlayIds.length > 0 ? `${selectedOverlayIds.length} selected` : 'Select counterpart(s) above'}
-                      </div>
-                      <div class="text-xs opacity-50 mb-2">Whose boundary to keep?</div>
-                      <label class="flex items-center gap-2 p-1.5 rounded hover:bg-base-300 cursor-pointer">
-                        <input type="radio" class="radio radio-xs radio-primary" bind:group={canonicalChoice} value={inspectorSubject.source} />
-                        <span class="text-xs">Keep {inspectorSubject.source === "agskan" ? "AgSKAN" : "Agworld"} boundary ({subjectArea.toFixed(1)} ha)</span>
-                      </label>
-                      <label class="flex items-center gap-2 p-1.5 rounded hover:bg-base-300 cursor-pointer">
-                        <input type="radio" class="radio radio-xs radio-warning" bind:group={canonicalChoice} value={inspectorSubject.source === "agskan" ? "agworld" : "agskan"} />
-                        <span class="text-xs">Use {inspectorSubject.source === "agskan" ? "Agworld" : "AgSKAN"} boundary instead</span>
-                      </label>
-
-                      {#if canonicalChoice && selectedOverlayIds.length > 0}
-                        <button class="btn btn-sm btn-success mt-2 w-full"
-                          on:click={() => {
-                            if (inspectorSubject.source === "agskan") {
-                              const skan = agskanFields.find(f => f.field_id === inspectorSubject.id)
-                              if (skan) skan._canonical = canonicalChoice
-                              resolvedFields.add(inspectorSubject.id)
-                              for (const candId of selectedOverlayIds) resolvedFields.add(candId)
-                            } else {
-                              const linkedEntry = Array.from(linkedFields.entries()).find(([, v]) => v === inspectorSubject.id)
-                              if (linkedEntry) {
-                                const skan = agskanFields.find(f => f.field_id === linkedEntry[0])
-                                if (skan) skan._canonical = canonicalChoice
-                                resolvedFields.add(linkedEntry[0])
-                                for (const candId of selectedOverlayIds) resolvedFields.add(candId)
-                              }
-                            }
-                            resolvedFields = resolvedFields
-                            inspectorSubject = null; mapFocus = null; mapCandidates = []; canonicalChoice = null; highlightedCandidate = null; selectedOverlayIds = []
-                          }}>
-                          <Icon icon="solar:check-circle-bold" width="14" height="14" />
-                          Confirm ({selectedOverlayIds.length + 1} fields resolved)
-                        </button>
-                      {/if}
-                      <button class="btn btn-sm btn-ghost mt-1 w-full" on:click={() => { inspectorSubject = null; mapFocus = null; mapCandidates = []; highlightedCandidate = null; canonicalChoice = null; selectedOverlayIds = [] }}>
-                        <Icon icon="solar:close-circle-bold" width="14" height="14" /> Back to list
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-              <!-- Map (full width) -->
-                <ConsolidationMap
-                    {agskanFields}
-                    {agworldBoundaries}
-                    {linkedFields}
-                    focusField={mapFocus}
-                    highlightFieldId={highlightedCandidate}
-                    selectedFieldIds={selectedOverlayIds}
-                    height={520}
-                    inspectorMode={true}
-                    on:toggleCandidate={(e) => {
-                      const id = e.detail.id
-                      selectedOverlayIds = selectedOverlayIds.includes(id)
-                        ? selectedOverlayIds.filter(i => i !== id)
-                        : [...selectedOverlayIds, id]
-                      highlightedCandidate = id
-                    }}
-                    on:focusChange={(e) => {
-                      mapCandidates = e.detail.candidates || []
-                      selectedCandidates = new Set(mapCandidates.filter(c => c.selected).map(c => c.id))
-                    }}
-                  />
-              </div>
-            {/if}
-          </div>
+          {#if reviewOverlayDismissed}
+            <button class="btn btn-warning btn-sm mb-6" on:click={() => reviewOverlayDismissed = false}>
+              <Icon icon="solar:danger-triangle-bold" width="16" height="16" />
+              Resume review ({reviewSkan.length + reviewAw.length} remaining)
+            </button>
+          {/if}
         {/if}
 
-        {#if categorized.confirmed.length === 0 && categorized.review.length === 0 && categorized.unmatchedSkanNoOverlap.length === 0 && categorized.unmatchedAwNoOverlap.length === 0}
+        {#if showReviewOverlay}
+          <!-- Inspector state compute (shared by sidebar + bottom bar) -->
+          {@const domField = proposalDominant?.source === "agskan"
+            ? agskanFields.find(f => f.field_id === proposalDominant.id)
+            : agworldFields.find(f => f.id === proposalDominant?.id)}
+          {@const domBoundary = proposalDominant?.source === "agskan"
+            ? domField?.boundary
+            : agworldBoundaries.find(b => b.field_id === proposalDominant?.id)?.boundary}
+          {@const domName = proposalDominant?.source === "agskan" ? domField?.name : domField?.attributes?.name}
+          {@const domArea = proposalDominant?.source === "agskan"
+            ? (domField?._turfAreaHa || domField?.area || 0)
+            : (agworldBoundaries.find(b => b.field_id === proposalDominant?.id)?._turfAreaHa || 0)}
+          {@const skanId = proposalDominant?.source === "agskan" ? proposalDominant.id : proposalCandidates[0]?.id}
+          {@const awId = proposalDominant?.source === "agworld" ? proposalDominant.id : proposalCandidates[0]?.id}
+          {@const skanField = agskanFields.find(f => f.field_id === skanId)}
+          {@const awB = agworldBoundaries.find(b => b.field_id === awId)}
+          {@const awField = agworldFields.find(f => f.id === awId)}
+          {@const skanName = skanField?.name || ''}
+          {@const awName = awField?.attributes?.name || ''}
+          {@const skanArea = skanField?._turfAreaHa || 0}
+          {@const awArea = awB?._turfAreaHa || 0}
+          {@const agskanCount = proposalDominant?.source === "agskan" ? 1 : proposalCandidates.length}
+          {@const awCount = proposalDominant?.source === "agworld" ? 1 : proposalCandidates.length}
+          {@const skanWins = dominantSideChoice === "agskan"}
+          {@const isSplitAction = proposalDominant ? dominantSideChoice !== proposalDominant.source : false}
+          {@const bottomBarArea = proposalType === "match" ? (boundaryChoice === "agskan" ? skanArea : awArea) : domArea}
+          {@const bottomBarBoundary = proposalType === "match" ? (boundaryChoice === "agskan" ? skanField?.boundary : awB?.boundary) : domBoundary}
+          {@const bottomBarNameDup = proposalType && proposalType !== "split" ? findDuplicateField(finalFieldName) : null}
+
+          <ConsolidationShell onBack={() => reviewOverlayDismissed = true} countLabel="{reviewSkan.length + reviewAw.length} remaining" fullscreen={false} height="clamp(380px,60vh,600px)">
+            <svelte:fragment slot="sidebar">
+              <div class="flex-1 overflow-y-auto p-2">
+                {#if !proposalDominant}
+                  <div class="p-3 text-center text-neutral-500 text-xs">Loading...</div>
+                {:else if proposalType === "match"}
+                  <!-- 1-to-1 MATCH: choose which boundary wins -->
+                  <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 px-0.5">Choose boundary</div>
+                  <div class="flex flex-col gap-1.5">
+                    <button class="p-1.5 sm:p-2 rounded-lg border-2 flex flex-col sm:flex-row items-center gap-1 sm:gap-2 transition-all {boundaryChoice === 'agskan' ? 'border-cyan-500 bg-cyan-900/20' : 'border-neutral-700 hover:border-neutral-500'}"
+                      on:click={() => { boundaryChoice = "agskan"; nameChoice = "agskan"; finalFieldName = skanName; mapFocus = { id: skanId, source: "agskan" } }}>
+                      <FieldOutlineThumbnail boundary={skanField?.boundary} width={40} height={28} fillColor={boundaryChoice === "agskan" ? "#06b6d4" : "#3a1a0a"} outlineColor={boundaryChoice === "agskan" ? "#fff" : "#f97316"} />
+                      <div class="flex-1 min-w-0 text-center sm:text-left">
+                        <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-400">AgSKAN</div>
+                        <div class="text-[10px] sm:text-[11px] font-mono truncate text-neutral-200">{skanName}</div>
+                        <div class="text-[9px] sm:text-[10px] text-neutral-500">{skanArea.toFixed(1)} ha</div>
+                      </div>
+                      {#if boundaryChoice === "agskan"}<Icon icon="solar:crown-bold" width="14" height="14" class="text-cyan-400 shrink-0" />{/if}
+                    </button>
+                    <button class="p-1.5 sm:p-2 rounded-lg border-2 flex flex-col sm:flex-row items-center gap-1 sm:gap-2 transition-all {boundaryChoice === 'agworld' ? 'border-cyan-500 bg-cyan-900/20' : 'border-neutral-700 hover:border-neutral-500'}"
+                      on:click={() => { boundaryChoice = "agworld"; nameChoice = "agworld"; finalFieldName = awName; mapFocus = { id: awId, source: "agworld" } }}>
+                      <FieldOutlineThumbnail boundary={awB?.boundary} width={40} height={28} fillColor={boundaryChoice === "agworld" ? "#06b6d4" : "#3a1a0a"} outlineColor={boundaryChoice === "agworld" ? "#fff" : "#f97316"} />
+                      <div class="flex-1 min-w-0 text-center sm:text-left">
+                        <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-400">Agworld</div>
+                        <div class="text-[10px] sm:text-[11px] font-mono truncate text-neutral-200">{awName}</div>
+                        <div class="text-[9px] sm:text-[10px] text-neutral-500">{awArea.toFixed(1)} ha</div>
+                      </div>
+                      {#if boundaryChoice === "agworld"}<Icon icon="solar:crown-bold" width="14" height="14" class="text-cyan-400 shrink-0" />{/if}
+                    </button>
+                  </div>
+                {:else if proposalType === "split"}
+                  <!-- SPLIT / MERGE: choose which side wins, then toggle involved fields -->
+                  <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 px-0.5">Which side wins?</div>
+                  <div class="flex flex-col gap-1.5 mb-3">
+                    <button class="p-1.5 sm:p-2 rounded-lg border-2 flex items-center justify-between transition-all {skanWins ? 'border-cyan-500 bg-cyan-900/20' : 'border-neutral-700 hover:border-neutral-500'}"
+                      on:click={() => {
+                        dominantSideChoice = "agskan"
+                        dominantFieldIds = proposalDominant.source === "agskan" ? [proposalDominant.id] : proposalCandidates.filter(c => c.source === "agskan").map(c => c.id)
+                        mapFocus = proposalDominant.source === "agskan" ? proposalDominant : { id: proposalCandidates.find(c => c.source === "agskan")?.id || proposalCandidates[0].id, source: "agskan" }
+                        selectedOverlayIds = [...(proposalDominant.source === "agskan" ? [] : [proposalDominant.id]), ...proposalCandidates.map(c => c.id)]
+                      }}>
+                      <span class="text-[10px] sm:text-xs font-semibold text-neutral-200">AgSKAN</span>
+                      <span class="text-[9px] sm:text-[10px] text-neutral-400">{agskanCount} kept</span>
+                    </button>
+                    <button class="p-1.5 sm:p-2 rounded-lg border-2 flex items-center justify-between transition-all {!skanWins ? 'border-cyan-500 bg-cyan-900/20' : 'border-neutral-700 hover:border-neutral-500'}"
+                      on:click={() => {
+                        dominantSideChoice = "agworld"
+                        dominantFieldIds = proposalDominant.source === "agworld" ? [proposalDominant.id] : proposalCandidates.filter(c => c.source === "agworld").map(c => c.id)
+                        mapFocus = proposalDominant.source === "agworld" ? proposalDominant : { id: proposalCandidates.find(c => c.source === "agworld")?.id || proposalCandidates[0].id, source: "agworld" }
+                        selectedOverlayIds = [...(proposalDominant.source === "agworld" ? [] : [proposalDominant.id]), ...proposalCandidates.map(c => c.id)]
+                      }}>
+                      <span class="text-[10px] sm:text-xs font-semibold text-neutral-200">Agworld</span>
+                      <span class="text-[9px] sm:text-[10px] text-neutral-400">{awCount} kept</span>
+                    </button>
+                  </div>
+                  <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 px-0.5">
+                    {isSplitAction ? 'Resulting fields' : 'Fields to absorb'}
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    {#each proposalCandidates as cand, ci (cand.id + '-' + ci)}
+                      {@const candBoundary = cand.source === "agskan" ? (agskanFields.find(f => f.field_id === cand.id)?.boundary) : (agworldBoundaries.find(b => b.field_id === cand.id)?.boundary)}
+                      {@const isSelected = selectedOverlayIds.includes(cand.id)}
+                      <button class="w-full text-left p-1.5 rounded flex flex-col sm:flex-row items-center gap-1 sm:gap-2 {isSelected ? 'bg-cyan-900/40 ring-1 ring-cyan-500' : 'hover:bg-neutral-800 opacity-50'}"
+                        on:click={() => toggleCandidateSelection(cand.id)}>
+                        <FieldOutlineThumbnail boundary={candBoundary} width={32} height={22} fillColor={isSplitAction ? "#06b6d4" : "#3a1a0a"} outlineColor={isSplitAction ? "#fff" : "#f97316"} />
+                        <div class="flex-1 min-w-0 text-center sm:text-left">
+                          <div class="text-[10px] sm:text-[11px] font-mono truncate text-neutral-200">{cand.name}</div>
+                          <div class="text-[9px] sm:text-[10px] text-neutral-500">{cand.areaHa.toFixed(1)} ha</div>
+                        </div>
+                        {#if isSelected}<Icon icon="solar:check-circle-bold" width="14" height="14" class="text-cyan-400 shrink-0" />{/if}
+                      </button>
+                    {/each}
+                  </div>
+                {:else}
+                  <!-- MERGE (N→1) -->
+                  <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 px-0.5">Kept field</div>
+                  <div class="p-1.5 sm:p-2 rounded-lg border-2 border-cyan-500 bg-cyan-900/20 flex flex-col sm:flex-row items-center gap-1 sm:gap-2 mb-3">
+                    <FieldOutlineThumbnail boundary={domBoundary} width={40} height={28} fillColor="#06b6d4" outlineColor="#fff" />
+                    <div class="flex-1 min-w-0 text-center sm:text-left">
+                      <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-400">{proposalDominant.source === "agskan" ? "AgSKAN" : "Agworld"}</div>
+                      <div class="text-[10px] sm:text-[11px] font-mono truncate text-neutral-200">{domName}</div>
+                      <div class="text-[9px] sm:text-[10px] text-neutral-500">{domArea.toFixed(1)} ha</div>
+                    </div>
+                  </div>
+                  <div class="text-[9px] sm:text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 px-0.5">Fields to absorb</div>
+                  <div class="flex flex-col gap-1">
+                    {#each proposalCandidates as cand, ci (cand.id + '-' + ci)}
+                      {@const candBoundary = cand.source === "agskan" ? (agskanFields.find(f => f.field_id === cand.id)?.boundary) : (agworldBoundaries.find(b => b.field_id === cand.id)?.boundary)}
+                      {@const isSelected = selectedOverlayIds.includes(cand.id)}
+                      <button class="w-full text-left p-1.5 rounded flex flex-col sm:flex-row items-center gap-1 sm:gap-2 {isSelected ? 'bg-cyan-900/40 ring-1 ring-cyan-500' : 'hover:bg-neutral-800 opacity-50'}"
+                        on:click={() => toggleCandidateSelection(cand.id)}>
+                        <FieldOutlineThumbnail boundary={candBoundary} width={32} height={22} fillColor="#3a1a0a" outlineColor="#f97316" />
+                        <div class="flex-1 min-w-0 text-center sm:text-left">
+                          <div class="text-[10px] sm:text-[11px] font-mono truncate text-neutral-200">{cand.name}</div>
+                          <div class="text-[9px] sm:text-[10px] text-neutral-500">{cand.areaHa.toFixed(1)} ha</div>
+                        </div>
+                        {#if isSelected}<Icon icon="solar:check-circle-bold" width="14" height="14" class="text-cyan-400 shrink-0" />{/if}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </svelte:fragment>
+
+            <svelte:fragment slot="map">
+              <ConsolidationMap
+                {agskanFields}
+                {agworldBoundaries}
+                focusField={mapFocus}
+                highlightFieldId={highlightedCandidate}
+                selectedFieldIds={selectedOverlayIds}
+                dominantFieldIds={dominantFieldIds}
+                fadedFocus={isSplitAction}
+                height="100%"
+                inspectorMode={true}
+              />
+            </svelte:fragment>
+
+            <svelte:fragment slot="bottombar">
+              {#if proposalType === "split" && isSplitAction}
+                <div class="max-w-2xl mx-auto px-4 py-2 max-h-[140px] overflow-y-auto space-y-1.5">
+                    {#if selectedOverlayIds.length > 0}
+                      {#each proposalCandidates as cand, ci (cand.id + '-' + ci)}
+                        {#if selectedOverlayIds.includes(cand.id)}
+                          {@const isDup = findDuplicateField(splitFieldNames[ci])}
+                          {@const candBoundary = cand.source === "agskan" ? (agskanFields.find(f => f.field_id === cand.id)?.boundary) : (agworldBoundaries.find(b => b.field_id === cand.id)?.boundary)}
+                          <div>
+                            <div class="flex items-center gap-1.5 min-w-0">
+                              <FieldOutlineThumbnail boundary={candBoundary} width={28} height={20} fillColor="#06b6d4" outlineColor="#fff" />
+                              <input type="text" class="input input-xs input-bordered flex-1 min-w-0 font-mono text-neutral-100 bg-neutral-800 {isDup ? 'border-red-500' : 'border-neutral-600'}" bind:value={splitFieldNames[ci]} placeholder={cand.name} />
+                            </div>
+                            {#if isDup}<div class="text-[10px] text-red-400 mt-0.5">Name already used elsewhere</div>{/if}
+                          </div>
+                        {/if}
+                      {/each}
+                    {:else}
+                      <div class="text-xs text-neutral-500 text-center py-1">Select fields in sidebar</div>
+                    {/if}
+                  </div>
+                  <div class="max-w-2xl mx-auto px-4 pb-3 sm:pb-4">
+                    <button class="btn btn-sm btn-success w-full whitespace-nowrap" disabled={selectedOverlayIds.length === 0} on:click={confirmProposal}>
+                      <Icon icon="solar:check-circle-bold" width="14" height="14" class="shrink-0" />
+                      <span class="hidden sm:inline">Confirm split &amp; next</span>
+                      <span class="sm:hidden">Confirm split</span>
+                    </button>
+                  </div>
+                {:else if proposalType}
+                  <div class="max-w-2xl mx-auto px-4 py-3 sm:py-4">
+                    <div class="flex items-center gap-2 mb-1 min-w-0">
+                      <FieldOutlineThumbnail boundary={bottomBarBoundary} width={36} height={26} fillColor="#06b6d4" outlineColor="#fff" />
+                      <input type="text" class="input input-sm input-bordered flex-1 min-w-0 font-mono text-neutral-100 bg-neutral-800 {bottomBarNameDup ? 'border-red-500' : 'border-neutral-600'}" bind:value={finalFieldName} placeholder="Field name" />
+                      <span class="text-xs text-neutral-400 font-mono shrink-0 whitespace-nowrap">{bottomBarArea.toFixed(1)} ha</span>
+                    </div>
+                    {#if bottomBarNameDup}
+                      <div class="text-[10px] text-red-400 mb-1.5">Name already used by another field</div>
+                    {/if}
+                    <button class="btn btn-sm btn-success w-full whitespace-nowrap" disabled={proposalType !== "match" && selectedOverlayIds.length === 0} on:click={confirmProposal}>
+                      <Icon icon="solar:check-circle-bold" width="14" height="14" class="shrink-0" />
+                      <span class="hidden sm:inline">Confirm &amp; next</span>
+                      <span class="sm:hidden">Confirm</span>
+                    </button>
+                  </div>
+                {/if}
+            </svelte:fragment>
+          </ConsolidationShell>
+        {/if}
+
+        <!-- Consolidated output (collapsible) -->
+        {#if consolidatedFields.length > 0}
+          <details class="mb-6">
+            <summary class="text-lg font-semibold cursor-pointer mb-3">
+              <Icon icon="solar:document-add-bold" width="20" height="20" class="inline mr-1 text-primary" />
+              Consolidated Package
+              <span class="text-sm opacity-50 ml-2">({consolidatedFields.length} fields)</span>
+            </summary>
+            <div class="overflow-auto max-h-[400px]">
+              <table class="table table-xs">
+                <thead>
+                  <tr><th>Name</th><th>Area</th><th>Category</th><th>Name src</th><th>Geom src</th><th>AgSKAN</th><th>Agworld</th></tr>
+                </thead>
+                <tbody>
+                  {#each consolidatedFields as cf (cf.id)}
+                    <tr>
+                      <td class="font-mono">{cf.name}</td>
+                      <td>{cf.area_ha.toFixed(1)} ha</td>
+                      <td><span class="badge badge-xs badge-outline">{cf.category}</span></td>
+                      <td>{cf.name_source}</td>
+                      <td>{cf.geometry_source}</td>
+                      <td class="text-xs">
+                        {#if cf.agskan.keep.length}keep: {cf.agskan.keep.join(', ')}{/if}
+                        {#if cf.agskan.create}<span class="text-success">create</span>{/if}
+                        {#if cf.agskan.delete.length}<span class="text-error">del: {cf.agskan.delete.join(', ')}</span>{/if}
+                      </td>
+                      <td class="text-xs">
+                        {#if cf.agworld.keep.length}keep: {cf.agworld.keep.join(', ')}{/if}
+                        {#if cf.agworld.create}<span class="text-success">create</span>{/if}
+                        {#if cf.agworld.delete.length}<span class="text-error">del: {cf.agworld.delete.join(', ')}</span>{/if}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <button class="btn btn-sm btn-outline mb-6" on:click={() => showConsolidatedPreview = true}>
+            <Icon icon="solar:map-point-bold" width="14" height="14" class="mr-1" /> View Fullscreen Map
+          </button>
+        {/if}
+
+        <!-- Empty state -->
+        {#if identicalPairs.length === 0 && basicallyIdenticalPairs.length === 0 && autoImportedSkan.length === 0 && autoImportedAw.length === 0 && reviewSkan.length === 0 && reviewAw.length === 0 && consolidatedFields.length === 0}
           <div class="card bg-base-200 mb-6">
             <div class="card-body p-6 text-center">
               <Icon icon="solar:map-point-bold" width="40" height="40" class="opacity-20 mx-auto mb-3" />
               <p class="opacity-50">No fields to display.</p>
-              <p class="text-xs opacity-30 mt-1">{agskanFields.length} AgSKAN · {agworldFields.length} Agworld · {linkedFields.size} linked</p>
+              <p class="text-xs opacity-30 mt-1">{agskanFields.length} AgSKAN · {agworldFields.length} Agworld</p>
             </div>
           </div>
         {/if}
       {/if}
     </div>
+  {/if}
+
+  <!-- Fullscreen consolidated preview overlay -->
+  {#if showConsolidatedPreview}
+    {@const sortedFields = [...consolidatedFields].sort((a, b) => a.name.localeCompare(b.name))}
+    {@const previewField = sortedFields.find(f => f.id === selectedPreviewId)}
+    {@const duplicateIds = new Set(sortedFields.filter(f => findDuplicateField(f.name, f.id)).map(f => f.id))}
+    {@const filteredFields = previewSearchQuery.trim() ? sortedFields.filter(f => f.name.toLowerCase().includes(previewSearchQuery.trim().toLowerCase())) : sortedFields}
+    {@const reviewFields = filteredFields.filter(f => duplicateIds.has(f.id))}
+    {@const restFields = filteredFields.filter(f => !duplicateIds.has(f.id))}
+    <ConsolidationShell onBack={() => showConsolidatedPreview = false} countLabel="{sortedFields.length} fields">
+      <svelte:fragment slot="sidebar">
+        <!-- Search bar, stickied to top -->
+        <div class="p-1.5 border-b border-neutral-700 sticky top-0 bg-neutral-900 z-10">
+          <div class="relative">
+            <Icon icon="solar:magnifer-linear" width="12" height="12" class="absolute left-1.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <input type="text" placeholder="Search"
+              class="input input-xs w-full pl-5 bg-neutral-800 border-neutral-600 text-neutral-200 text-[10px] sm:text-[11px]"
+              bind:value={previewSearchQuery} />
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-1.5 flex flex-col gap-0.5">
+          {#if reviewFields.length > 0}
+            <div class="text-[9px] sm:text-[10px] font-semibold text-red-400 uppercase tracking-wide px-1 pt-0.5 pb-0.5 flex items-center gap-1">
+              <Icon icon="solar:danger-triangle-bold" width="10" height="10" /> Needs review
+            </div>
+            {#each reviewFields as f (f.id)}
+              {@const isSelected = selectedPreviewId === f.id}
+              <button
+                class="text-left p-1.5 rounded flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-1.5 w-full {isSelected ? 'bg-cyan-900/30 ring-1 ring-cyan-700/50' : 'hover:bg-neutral-800'}"
+                on:click={() => {
+                  selectedPreviewId = f.id
+                  editingPreviewName = f.name
+                  editingPreviewArea = Math.round(f.area_ha * 10) / 10
+                }}>
+                <div class="relative shrink-0">
+                  <FieldOutlineThumbnail boundary={f.boundary} width={32} height={22} fillColor={isSelected ? '#06b6d4' : '#64748b'} outlineColor={isSelected ? '#67e8f9' : '#94a3b8'} />
+                  <Icon icon="solar:danger-triangle-bold" width="11" height="11" class="absolute -top-1 -right-1 text-red-400 bg-neutral-900 rounded-full" />
+                </div>
+                <div class="flex-1 min-w-0 text-center sm:text-left">
+                  <div class="text-[10px] sm:text-[11px] leading-tight font-mono truncate {isSelected ? 'text-cyan-300' : 'text-red-300'}">{f.name}</div>
+                  <div class="text-[9px] sm:text-[10px] text-neutral-500">{f.area_ha.toFixed(1)} ha</div>
+                </div>
+              </button>
+            {/each}
+            <div class="border-t border-neutral-700 my-1"></div>
+          {/if}
+          {#each restFields as f (f.id)}
+            {@const isSelected = selectedPreviewId === f.id}
+            <button
+              class="text-left p-1.5 rounded flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-1.5 w-full {isSelected ? 'bg-cyan-900/30 ring-1 ring-cyan-700/50' : 'hover:bg-neutral-800'}"
+              on:click={() => {
+                selectedPreviewId = f.id
+                editingPreviewName = f.name
+                editingPreviewArea = Math.round(f.area_ha * 10) / 10
+              }}>
+              <FieldOutlineThumbnail boundary={f.boundary} width={32} height={22} fillColor={isSelected ? '#06b6d4' : '#64748b'} outlineColor={isSelected ? '#67e8f9' : '#94a3b8'} />
+              <div class="flex-1 min-w-0 text-center sm:text-left">
+                <div class="text-[10px] sm:text-[11px] leading-tight font-mono truncate {isSelected ? 'text-cyan-300' : 'text-neutral-300'}">{f.name}</div>
+                <div class="text-[9px] sm:text-[10px] text-neutral-500">{f.area_ha.toFixed(1)} ha</div>
+              </div>
+            </button>
+          {/each}
+          {#if filteredFields.length === 0}
+            <div class="text-[10px] text-neutral-500 text-center py-3">No fields match</div>
+          {/if}
+        </div>
+      </svelte:fragment>
+
+      <svelte:fragment slot="map">
+        <ConsolidationMap
+          agskanFields={sortedFields.map(f => ({ field_id: f.id, name: f.name, boundary: f.boundary, _turfAreaHa: f.area_ha }))}
+          agworldBoundaries={[]}
+          focusField={null}
+          highlightFieldId={null}
+          selectedFieldIds={[]}
+          dominantFieldIds={[]}
+          selectedConsolidatedId={selectedPreviewId}
+          height="100%"
+          interactive={true}
+          on:selectField={(e) => {
+            const id = e.detail.id
+            selectedPreviewId = id
+            const field = sortedFields.find(f => f.id === id)
+            if (field) { editingPreviewName = field.name; editingPreviewArea = field.area_ha }
+          }}
+        />
+      </svelte:fragment>
+
+      <svelte:fragment slot="bottombar">
+        {#if previewField}
+          {@const duplicateField = editingPreviewName ? findDuplicateField(editingPreviewName, selectedPreviewId) : null}
+          <div class="max-w-2xl mx-auto px-4 py-3 sm:py-4">
+              <div class="flex items-center gap-3">
+                <!-- Thumbnail -->
+                <FieldOutlineThumbnail boundary={previewField.boundary} width={48} height={48} fillColor="#0080ff" outlineColor="#bfffbf" />
+
+                <div class="flex-1 min-w-0">
+                  <label class="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold block mb-1">Field name</label>
+                  <input type="text"
+                    bind:this={previewNameInputEl}
+                    class="input input-sm sm:input-md input-bordered w-full font-mono text-neutral-100 bg-neutral-800 {duplicateField ? 'border-red-500 focus:border-red-500' : 'border-neutral-600'}"
+                    placeholder="Field name"
+                    bind:value={editingPreviewName}
+                    on:keydown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitPreviewName()
+                        previewAreaInputEl?.focus()
+                        previewAreaInputEl?.select()
+                      }
+                    }}
+                    on:change={commitPreviewName} />
+                </div>
+
+                <div class="shrink-0">
+                  <label class="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold block mb-1 text-right">Area (ha)</label>
+                  <input type="number" step="0.1" min="0"
+                    bind:this={previewAreaInputEl}
+                    class="input input-sm sm:input-md input-bordered w-[80px] font-mono text-neutral-100 bg-neutral-800 border-neutral-600 text-right"
+                    bind:value={editingPreviewArea}
+                    on:input={() => { editingPreviewArea = Math.round(editingPreviewArea * 10) / 10 }}
+                    on:keydown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitPreviewArea()
+                        advanceToNextPreviewField()
+                      }
+                    }}
+                    on:change={commitPreviewArea} />
+                </div>
+
+                <!-- Delete button -->
+                <div class="shrink-0 flex flex-col justify-end">
+                  <button class="btn btn-sm btn-ghost text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                    on:click={deletePreviewField}
+                    title="Delete this field from the consolidated package">
+                    <Icon icon="solar:trash-bin-trash-bold" width="16" height="16" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between mt-2 min-h-[16px]">
+                {#if duplicateField}
+                  <button class="text-[11px] text-red-400 flex items-center gap-1 hover:text-red-300"
+                    on:click={() => {
+                      selectedPreviewId = duplicateField.id
+                      editingPreviewName = duplicateField.name
+                      editingPreviewArea = Math.round(duplicateField.area_ha * 10) / 10
+                    }}>
+                    <Icon icon="solar:danger-triangle-bold" width="12" height="12" />
+                    Name already used by another field — view it
+                  </button>
+                {:else}
+                  <span class="text-[11px] text-neutral-500">
+                    Using {previewField.name_source === 'agskan' ? 'AgSKAN' : 'Agworld'} name · {previewField.geometry_source === 'agskan' ? 'AgSKAN' : 'Agworld'} boundary
+                  </span>
+                {/if}
+                {#if savedFlash}
+                  <span class="text-[11px] text-green-400 flex items-center gap-1" transition:fade={{ duration: 200 }}>
+                    <Icon icon="solar:check-circle-bold" width="12" height="12" /> Saved
+                  </span>
+                {/if}
+              </div>
+            </div>
+        {/if}
+      </svelte:fragment>
+    </ConsolidationShell>
   {/if}
 </div>

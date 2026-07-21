@@ -24,6 +24,7 @@
   } from "lucide-svelte"
   import FieldTrailOverlay from "$lib/components/map/trails/FieldTrailOverlay.svelte"
   import SprayRecordThumbnail from "$lib/components/map/trails/SprayRecordThumbnail.svelte"
+  import MapReplay from "../map-replay/MapReplay.svelte"
   import { clearThumbnailCache } from "$lib/utils/thumbnailRenderer"
   import { RefreshCw, RotateCcw } from "lucide-svelte"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -348,7 +349,7 @@
   })()
 
   // View mode: "list" (chronological) or "fields" (grouped by field)
-  let viewMode = "fields"
+  let viewMode = "fields" // "fields" | "list" | "replay"
 
   // Format helpers
   function formatDate(ts) {
@@ -518,6 +519,9 @@
       <button class="toggle-btn" class:active={viewMode === "list"} on:click={() => (viewMode = "list")}>
         <Clock size={14} /> Chronological
       </button>
+      <button class="toggle-btn" class:active={viewMode === "replay"} on:click={() => (viewMode = "replay")}>
+        <RotateCcw size={14} /> Replay
+      </button>
     </div>
 
     <!-- Filters Bar -->
@@ -573,6 +577,11 @@
       </div>
     {/if}
 
+    {#if viewMode === "replay"}
+      <div class="map-replay-wrapper">
+        <MapReplay {records} {fields} on:close={() => viewMode = "fields"} />
+      </div>
+    {:else}
     <!-- Records List -->
     {#if filteredRecords.length === 0}
       <div class="empty-state">
@@ -856,6 +865,7 @@
       </div>
     {/if}
   {/if}
+  {/if}
 </div>
 
 {#if fullscreenSnapshot && fullscreenRecord}
@@ -887,6 +897,11 @@
     padding: 24px;
     max-width: 1000px;
     margin: 0 auto;
+  }
+  .map-replay-wrapper {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
   }
 
   /* Header */
