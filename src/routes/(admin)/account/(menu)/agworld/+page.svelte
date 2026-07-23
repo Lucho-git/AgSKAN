@@ -8,9 +8,11 @@
   import { supabase } from "$lib/supabaseClient"
   import ConsolidationMap from "$lib/components/map/ConsolidationMap.svelte"
   import ConsolidationShell from "$lib/components/map/ConsolidationShell.svelte"
+  import FieldTrailOverlay from "$lib/components/map/trails/FieldTrailOverlay.svelte"
   import FieldOutlineThumbnail from "$lib/components/map/FieldOutlineThumbnail.svelte"
   import {
     agworldAccountStore,
+    agworldApiV2,
     agworldApiV3,
     AGWORLD_INSTANCES,
     type AgworldAccount,
@@ -111,25 +113,37 @@
   }
 
   // --- Select account ---
-  function selectAccount(id: string) {
+  async function selectAccount(id: string) {
+    recordsLoading = true
     selectedAccountId = id
     view = "account"
-    apiResult = null
-    apiError = null
-    apiStatus = null
-    requestLogs = []
-    expandedLogId = null
-    // Auto-fill grower ID from account
+    accountTab = "records"
+    apiResult = null; apiError = null; apiStatus = null
+    requestLogs = []; expandedLogId = null
+    expandedFarms = new Set(); expandedFields = new Set()
+    selectedYear = 2026; selectedFieldId = null; recordSearchQuery = ""
     const acct = accounts.find((a) => a.id === id)
     queryGrowerId = acct?.growerId || ""
-    linkSearchQuery = ""
-    linkSearchResults = []
+    linkSearchQuery = ""; linkSearchResults = []
+    try {
+      await Promise.all([
+        loadAgworldFieldCounts(id),
+        loadAgworldFieldList(id),
+        loadAgworldRecords(id),
+        loadTrailProgress(),
+      ])
+    } catch (e: any) {
+      console.error("selectAccount load failed:", e.message)
+      recordsError = e.message
+      recordsLoading = false
+    }
   }
 
   // --- Link Agworld account to a specific AgSKAN customer's map ---
   let linkSearchQuery = ""
   let linkSearchResults: Array<{ id: string; email: string; full_name: string; master_map_id: string | null }> = []
   let linkSearching = false
+  let accountTab: "explorer" | "records" = "explorer"
 
   async function searchAgskanProfiles() {
     const q = linkSearchQuery.trim()
@@ -358,6 +372,712 @@
     agworld: { keep: string[]; create: boolean; delete: string[] }
   }
   let consolidatedFields: ConsolidatedField[] = []
+  let savingConsolidated = false
+  let saveResults: { created: number; updated: number; deleted: number; errors: string[] } | null = null
+
+  // Save consolidation metadata to the Agworld account (localStorage), NOT the actual AgSKAN fields.
+  // This preserves the consolidation plan for review without modifying the customer's real map data.
+  function saveConsolidationMetadata() {
+    if (!selectedAccount) return
+    const key = `agskan_agworld_consolidation_${selectedAccount.id}`
+    localStorage.setItem(key, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      accountName: selectedAccount.name,
+      linkedMapId: selectedAccount.linkedMapId,
+      linkedProfileLabel: selectedAccount.linkedProfileLabel,
+      fields: consolidatedFields,
+      agworldBoundaries: agworldBoundaries,
+      agworldFields: agworldFields,
+    }))
+    toast.success(`Consolidation package saved (${consolidatedFields.length} fields)`)
+  }
+
+  function loadConsolidationMetadata(): boolean {
+    if (!selectedAccount) return false
+    const key = `agskan_agworld_consolidation_${selectedAccount.id}`
+    const raw = localStorage.getItem(key)
+    if (!raw) return false
+    try {
+      const data = JSON.parse(raw)
+      if (data.fields && Array.isArray(data.fields) && data.fields.length > 0) {
+        consolidatedFields = data.fields
+        if (data.agworldBoundaries) agworldBoundaries = data.agworldBoundaries
+        if (data.agworldFields) agworldFields = data.agworldFields
+        return true
+      }
+    } catch { }
+    return false
+  }
+
+  function hasSavedConsolidation(): boolean {
+    if (!selectedAccount) return false
+    const key = `agskan_agworld_consolidation_${selectedAccount.id}`
+    return !!localStorage.getItem(key)
+  }
+
+  // --- Agworld Records ---
+  let agworldRecordView: "list" | "match" = "list"
+  let agworldRecords: any[] = []
+  let agworldFieldList: any[] = []
+  let selectedYear: number | null = 2026
+  let showMap = false
+  let overlayField: any = null
+  let overlayRecords: any[] = []
+  let selectedFieldId: string | null = null
+  let recordsLoading = false
+  let recordsError: string | null = null
+  let agworldFieldCount = 0
+
+  // Records tab UI state
+  let recordSearchQuery = ""
+  let expandedFarms = new Set<string>()
+  let expandedFields = new Set<string>()
+
+  // Grouped by farm → field for records display
+  $: filteredFieldList = selectedYear
+    ? agworldFieldList.filter(f => f.production_year === selectedYear)
+    : agworldFieldList
+
+  $: farmGroups = (() => {
+    const groups: Record<string, { name: string; fields: any[]; totalHa: number }> = {}
+    for (const f of filteredFieldList) {
+      const key = f.farm_name || 'No Farm'
+      if (!groups[key]) groups[key] = { name: key, fields: [], totalHa: 0 }
+      groups[key].fields.push(f)
+      groups[key].totalHa += f.area || 0
+    }
+    return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
+  })()
+
+  function toggleFarmExpand(name: string) {
+    if (expandedFarms.has(name)) expandedFarms.delete(name)
+    else expandedFarms.add(name)
+    expandedFarms = new Set(expandedFarms)
+  }
+
+  function toggleFieldExpand(id: string) {
+    if (expandedFields.has(id)) expandedFields.delete(id)
+    else expandedFields.add(id)
+    expandedFields = new Set(expandedFields)
+    // Auto-expand farm when field is expanded
+    const field = agworldFieldList.find(f => f.id === id)
+    if (field && !expandedFarms.has(field.farm_name || 'No Farm')) {
+      toggleFarmExpand(field.farm_name || 'No Farm')
+    }
+  }
+
+  async function loadAgworldFieldList(accountId?: string) {
+    const acctId = accountId || selectedAccount?.id
+    if (!acctId) return
+    try {
+      const { data } = await supabase
+        .from("agworld_fields")
+        .select("id, name, agworld_field_name, area, boundary, farm_id, farm_name, crop_type, production_year, properties")
+        .eq("account_id", acctId)
+        .order("name")
+      agworldFieldList = data || []
+    } catch (e: any) {
+      console.error("loadAgworldFieldList failed:", e.message)
+      agworldFieldList = []
+    }
+  }
+
+  function openFieldOverlay(field: any) {
+    if (!field?.boundary) return
+    overlayField = field
+    overlayRecords = agworldRecords.filter(r => r.agworld_field_id === field.id)
+    showMap = true
+  }
+
+  async function loadAgworldRecords(accountId?: string) {
+    const acctId = accountId || selectedAccount?.id
+    if (!acctId) return
+    recordsLoading = true
+    recordsError = null
+    try {
+      const { data, error } = await supabase
+        .from("agworld_records")
+        .select("*")
+        .eq("account_id", acctId)
+        .order("start_time", { ascending: false })
+        .limit(200)
+      if (error) { recordsError = error.message; return }
+      agworldRecords = data || []
+    } catch (e: any) {
+      recordsError = e.message
+    } finally {
+      recordsLoading = false
+    }
+  }
+
+  async function importAllAgworldFields() {
+    if (!selectedAccount || !selectedAccount.linkedMapId) {
+      toast.error("Link this account to an AgSKAN customer first")
+      return
+    }
+    if (!selectedAccount.growerId) {
+      toast.error("Set a Grower ID on this account first")
+      return
+    }
+    savingConsolidated = true
+    try {
+      // Step 1: Fetch all pages of boundaries, fields, farms, and crops
+      const PAGE = 100
+      let allBoundaryRefs: any[] = []
+      let allFields: any[] = []
+      let allCrops: any[] = []
+      let page = 1
+      let pageErrors: string[] = []
+
+      // Fetch all boundary pages
+      while (true) {
+        const fbResult = await agworldApiV3.listFieldBoundaries(selectedAccount, selectedAccount.growerId, { page: { number: page, size: PAGE } })
+        const refs = fbResult.data?.data || []
+        allBoundaryRefs.push(...refs)
+        if (!fbResult.success) pageErrors.push(`Boundaries p${page}: ${fbResult.status} ${fbResult.error || ''}`)
+        if (refs.length < PAGE) break
+        page++
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      // Fetch all field pages
+      page = 1
+      while (true) {
+        const fdResult = await agworldApiV3.listFields(selectedAccount, selectedAccount.growerId, { page: { number: page, size: PAGE } })
+        const refs = fdResult.data?.data || []
+        allFields.push(...refs)
+        if (!fdResult.success) pageErrors.push(`Fields p${page}: ${fdResult.status} ${fdResult.error || ''}`)
+        if (refs.length < PAGE) break
+        page++
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      console.log(`PAGINATION: ${allBoundaryRefs.length} boundaries, ${allFields.length} fields, ${allCrops.length} crops${pageErrors.length ? ' — ERRORS: ' + pageErrors.join('; ') : ''}`)
+
+      // Farms & crops — paginate crops too
+      const fwResult = await agworldApiV3.listFarms(selectedAccount, selectedAccount.growerId, { page: { size: 50 } })
+
+      allCrops = []
+      page = 1
+      while (true) {
+        const fcResult = await agworldApiV3.listFieldCrops(selectedAccount, selectedAccount.growerId, { page: { number: page, size: PAGE } })
+        const refs = fcResult.data?.data || []
+        allCrops.push(...refs)
+        if (!fcResult.success) pageErrors.push(`Crops p${page}: ${fcResult.status} ${fcResult.error || ''}`)
+        if (refs.length < PAGE) break
+        page++
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      const boundaryRefs = allBoundaryRefs
+      if (boundaryRefs.length === 0) {
+        toast.warning(`No boundaries found`)
+        return
+      }
+
+      const awFields = allFields
+
+      // Build lookups
+      const fieldNameMap = new Map<string, string>()
+      const fieldFarmMap = new Map<string, string>()
+      for (const f of awFields) {
+        fieldNameMap.set(f.id, f.attributes?.name || f.id)
+        const farmId = f.relationships?.farm?.data?.id
+        if (farmId) fieldFarmMap.set(f.id, farmId)
+      }
+
+      const farms = fwResult.data?.data || []
+      const farmNameMap = new Map<string, string>()
+      for (const f of farms) farmNameMap.set(f.id, f.attributes?.name || f.id)
+
+      const crops = allCrops
+      const fieldCropMap = new Map<string, string>()
+      for (const c of crops) {
+        const fid = c.relationships?.field?.data?.id
+        if (!fid) continue
+        const cropName = c.attributes?.crop_type?.name || ''
+        if (!cropName) continue
+        const existing = fieldCropMap.get(fid)
+        const updated = c.attributes?.updated_at || ''
+        if (!existing || updated > ((c as any)._sortKey || '')) {
+          (c as any)._sortKey = updated
+          fieldCropMap.set(fid, cropName)
+        }
+      }
+
+      // Fetch crop variety names
+      const varietyIds = [...new Set(crops.map(c => c.relationships?.crop_variety?.data?.id).filter(Boolean))] as string[]
+      const varietyNameMap = new Map<string, string>()
+      for (let i = 0; i < varietyIds.length; i += 2) {
+        const batch = varietyIds.slice(i, i + 2)
+        const results = await Promise.all(batch.map(vid =>
+          agworldApiV2.getCropVariety(selectedAccount, vid).catch(() => null)
+        ))
+        for (let j = 0; j < results.length; j++) {
+          const r = results[j]
+          if (r?.success && r.data?.data) {
+            varietyNameMap.set(batch[j], r.data.data.attributes?.name || '')
+          }
+        }
+        if (i + 2 < varietyIds.length) await new Promise(r => setTimeout(r, 200))
+      }
+
+      // Update crop map: "Wheat" → "Wheat - Ninja"
+      for (const c of crops) {
+        const fid = c.relationships?.field?.data?.id
+        const vid = c.relationships?.crop_variety?.data?.id
+        if (!fid || !vid) continue
+        const varName = varietyNameMap.get(vid)
+        if (varName && fieldCropMap.has(fid)) {
+          const baseName = fieldCropMap.get(fid)!.replace(/ - .*$/, '')
+          fieldCropMap.set(fid, `${baseName} - ${varName}`)
+        }
+      }
+
+      // Filter to 2026 only
+      const refs2026 = boundaryRefs.filter(b => b.attributes?.production_year === 2026)
+      if (refs2026.length === 0) {
+        toast.warning("No 2026 boundaries found — trying all years")
+        refs2026.push(...boundaryRefs)
+      }
+
+      toast.info(`Fetching geometry for ${refs2026.length} boundaries (${awFields.length} fields, 2026)...`)
+
+      // Step 2: Fetch geometry — keep one boundary per field (2026 only)
+      const sorted = [...refs2026].sort((a, b) => {
+        const yDiff = (b.attributes?.production_year || 0) - (a.attributes?.production_year || 0)
+        if (yDiff !== 0) return yDiff
+        return (b.attributes?.updated_at || '').localeCompare(a.attributes?.updated_at || '')
+      })
+      const seen = new Set<string>()
+      const toFetch = sorted.filter(b => {
+        const fid = b.relationships?.field?.data?.id
+        const year = b.attributes?.production_year || 0
+        const key = `${fid}_${year}`
+        if (!fid || seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      toast.info(`Fetching geometry for ${toFetch.length} fields (${boundaryRefs.length} boundaries total)...`)
+
+      // Rate limit: 200/min → 4 concurrent per 1200ms ≈ 200/min
+      let imported = 0
+      let skipped = 0
+      let failed = 0
+      let batchDelay = 1200
+      const errorSamples: any[] = []
+      const errorCounts: Record<string, number> = {}
+      for (let i = 0; i < toFetch.length; i += 4) {
+        const batch = toFetch.slice(i, i + 4)
+        const results = await Promise.all(batch.map(b =>
+          agworldApiV3.getFieldBoundary(selectedAccount, selectedAccount.growerId, b.id)
+        ))
+
+        let batchHad429 = false
+        for (let j = 0; j < results.length; j++) {
+          const res = results[j]
+          if (res.status === 429) { batchHad429 = true }
+          if (!res.success) {
+            failed++
+            const key = `${res.status || '??'}: ${res.error || 'unknown'}`
+            errorCounts[key] = (errorCounts[key] || 0) + 1
+            if (errorSamples.length < 3) {
+              errorSamples.push({ boundaryId: batch[j].id, status: res.status, error: res.error, fieldId: batch[j].relationships?.field?.data?.id })
+            }
+            continue
+          }
+          const d = res.data?.data
+          if (!d) { failed++; continue }
+
+          const attrs = d.attributes || {}
+          const geom = attrs.boundary
+          if (!geom) { skipped++; continue }
+
+          const fieldId = d.relationships?.field?.data?.id || batch[j].relationships?.field?.data?.id
+          const name = fieldNameMap.get(fieldId) || attrs.name || `Field ${batch[j].id?.substring(0, 8)}`
+          const farmId = fieldFarmMap.get(fieldId) || ''
+          const farmName = farmNameMap.get(farmId) || ''
+          const crop = fieldCropMap.get(fieldId) || ''
+
+          let areaHa = attrs.area?.scalar || 0
+          if (!areaHa && geom) {
+            try {
+              const turf = await import("@turf/turf")
+              areaHa = Math.round(turf.area({ type: "Feature", geometry: geom, properties: {} }) / 10000 * 100) / 100
+            } catch { }
+          }
+
+          const cleanGeom = { ...geom }
+          delete cleanGeom.crs
+
+          const prodYear = batch[j].attributes?.production_year || attrs.production_year || null
+
+          // Store raw agworld data for full detail view
+          const rawProperties = {
+            agworld_boundary_id: batch[j].id,
+            production_year: prodYear,
+            from_date: batch[j].attributes?.from_date || attrs.from_date,
+            to_date: batch[j].attributes?.to_date || attrs.to_date,
+            updated_at: attrs.updated_at,
+            area_raw: attrs.area,
+            crop_type: crop || null,
+            farm_name: farmName || null,
+          }
+
+          const { error } = await supabase.from("agworld_fields").upsert({
+            account_id: selectedAccount.id,
+            agworld_field_name: name,
+            agworld_field_ref: fieldId,
+            name,
+            area: areaHa,
+            boundary: cleanGeom,
+            map_id: selectedAccount.linkedMapId,
+            farm_id: farmId || null,
+            farm_name: farmName || null,
+            crop_type: crop || null,
+            production_year: prodYear,
+            properties: rawProperties,
+            geometry_source: "agworld",
+            category: "imported",
+          }, { onConflict: "account_id,agworld_field_ref,production_year", ignoreDuplicates: false })
+          if (!error) imported++
+        }
+
+        if (i + 4 < toFetch.length) {
+          await new Promise(r => setTimeout(r, batchHad429 ? batchDelay * 2 : batchDelay))
+        }
+      }
+
+      if (failed > 0) {
+        console.log(`GEOMETRY FETCH ERRORS: ${failed} failed, ${skipped} no geometry`, { samples: errorSamples, counts: errorCounts })
+      }
+      toast.success(`Imported ${imported} fields${failed ? ` (${failed} failed, ${skipped} no geometry — see console)` : ''}`)
+      await loadAgworldFieldCounts()
+      await loadAgworldFieldList()
+    } catch (e: any) {
+      toast.error(`Import failed: ${e.message}`)
+    } finally {
+      savingConsolidated = false
+    }
+  }
+
+  async function deduplicateOverlappingFields() {
+    if (!selectedAccount) return
+    const { data: fields } = await supabase
+      .from("agworld_fields")
+      .select("id, name, area, boundary, farm_id, farm_name")
+      .eq("account_id", selectedAccount.id)
+      .not("boundary", "is", null)
+    if (!fields || fields.length < 2) return
+
+    const turf = await import("@turf/turf")
+    const byFarm = new Map<string, typeof fields>()
+    for (const f of fields) {
+      const key = f.farm_id || "_nofarm"
+      if (!byFarm.has(key)) byFarm.set(key, [])
+      byFarm.get(key)!.push(f)
+    }
+
+    let removed = 0
+    for (const [, farmFields] of byFarm) {
+      if (farmFields.length < 2) continue
+      const toDelete = new Set<string>()
+
+      for (let i = 0; i < farmFields.length; i++) {
+        if (toDelete.has(farmFields[i].id)) continue
+        const a = farmFields[i]
+        let aGeom = a.boundary
+        if (aGeom?.type === "Feature") aGeom = aGeom.geometry
+        if (!aGeom) continue
+
+        for (let j = i + 1; j < farmFields.length; j++) {
+          if (toDelete.has(farmFields[j].id)) continue
+          const b = farmFields[j]
+          let bGeom = b.boundary
+          if (bGeom?.type === "Feature") bGeom = bGeom.geometry
+          if (!bGeom) continue
+
+          try {
+            const inter = turf.intersect(turf.featureCollection([
+              { type: "Feature", geometry: aGeom, properties: {} },
+              { type: "Feature", geometry: bGeom, properties: {} },
+            ]))
+            if (!inter) continue
+
+            const interArea = turf.area(inter)
+            const smallerArea = Math.min(a.area || 1, b.area || 1) * 10000 // ha → m²
+            const overlapPct = (interArea / smallerArea) * 100
+
+            if (overlapPct > 80) {
+              // Keep the one with larger area, delete the smaller
+              const loser = (a.area || 0) >= (b.area || 0) ? b : a
+              toDelete.add(loser.id)
+            }
+          } catch { }
+        }
+      }
+
+      for (const id of toDelete) {
+        await supabase.from("agworld_fields").delete().eq("id", id)
+        removed++
+      }
+    }
+
+    if (removed > 0) console.log(`DEDUP: removed ${removed} overlapping fields`)
+  }
+
+  async function matchSprayToAgworld() {
+    if (!selectedAccount || !selectedAccount.linkedMapId) {
+      toast.error("Link this account to an AgSKAN customer first")
+      return
+    }
+
+    recordsLoading = true
+    recordsError = null
+    console.log("[Match] Starting spray→agworld match, map:", selectedAccount.linkedMapId)
+    try {
+      const { data: awFields, error: awErr } = await supabase
+        .from("agworld_fields")
+        .select("id, name, agworld_field_name, boundary")
+        .eq("account_id", selectedAccount.id)
+
+      if (awErr) { recordsError = awErr.message; console.error("[Match] Error loading agworld fields:", awErr.message); return }
+      if (!awFields || awFields.length === 0) {
+        console.warn("[Match] No agworld fields imported")
+        toast.warning("No agworld fields imported yet — click 'Import Agworld Fields' first")
+        return
+      }
+      console.log(`[Match] Loaded ${awFields.length} agworld fields`)
+
+      const { data: sprayRecs, error: srErr } = await supabase
+        .from("spray_records")
+        .select("*")
+        .eq("master_map_id", selectedAccount.linkedMapId)
+        .order("start_time", { ascending: false })
+        .limit(500)
+
+      if (srErr) { recordsError = srErr.message; console.error("[Match] Error loading spray records:", srErr.message); return }
+      if (!sprayRecs || sprayRecs.length === 0) {
+        console.warn(`[Match] No spray records found for map ${selectedAccount.linkedMapId}. Generate them first via /account/records → Backfill.`)
+        toast.warning("No spray records found for this map")
+        return
+      }
+      console.log(`[Match] Loaded ${sprayRecs.length} spray records`)
+
+      const turf = await import("@turf/turf")
+      const awPolys = awFields.map(f => {
+        let geom = f.boundary
+        if (geom?.type === "Feature") geom = geom.geometry
+        return { ...f, geom }
+      }).filter(f => f.geom?.type === "Polygon" || f.geom?.type === "MultiPolygon")
+
+      let matched = 0, noGeom = 0, noMatch = 0
+      await supabase.from("agworld_records").delete().eq("account_id", selectedAccount.id)
+
+      for (const sr of sprayRecs) {
+        if (!sr.field_path) { noGeom++; continue }
+        let trailGeom = sr.field_path
+        if (trailGeom.type === "Feature") trailGeom = trailGeom.geometry
+        let pt: any = null
+        try {
+          const feat = { type: "Feature", geometry: trailGeom, properties: {} }
+          delete (feat.geometry as any).crs
+          pt = turf.centroid(feat)
+        } catch { noGeom++; continue }
+        if (!pt?.geometry) { noGeom++; continue }
+
+        let best: typeof awPolys[0] | null = null
+        for (const aw of awPolys) {
+          try {
+            const awFeat = { type: "Feature", geometry: aw.geom, properties: {} }
+            delete (awFeat.geometry as any).crs
+            if (turf.booleanPointInPolygon(pt.geometry.coordinates, awFeat)) { best = aw; break }
+          } catch { }
+        }
+        if (!best) { noMatch++; continue }
+
+        const { error: upErr } = await supabase.from("agworld_records").upsert({
+          account_id: selectedAccount.id,
+          agworld_field_id: best.id,
+          agworld_field_name: best.name || best.agworld_field_name,
+          agworld_boundary: best.boundary,
+          master_map_id: selectedAccount.linkedMapId,
+          trail_id: sr.trail_id, operation_id: sr.operation_id,
+          vehicle_id: sr.vehicle_id, operator_name: sr.operator_name,
+          field_path: sr.field_path, area_hectares: sr.area_hectares,
+          distance_km: sr.distance_km, start_time: sr.start_time,
+          end_time: sr.end_time, duration_seconds: sr.duration_seconds,
+          activity_type: sr.activity_type, chem_mix: sr.chem_mix,
+          weather_data: sr.weather_data, swath_width: sr.swath_width,
+          field_id: sr.field_id, operator_id: sr.operator_id,
+          trail_width: sr.trail_width, trail_color: sr.trail_color,
+          vehicle_type: sr.vehicle_type, vehicle_marker: sr.vehicle_marker,
+          gen_pct_of_field: sr.gen_pct_of_field,
+          gen_pct_of_trail: sr.gen_pct_of_trail,
+          gen_method: "spatial_centroid", status: "matched",
+        }, { onConflict: "trail_id,agworld_field_id", ignoreDuplicates: false })
+        if (!upErr) { matched++ }
+        else if (matched < 3) {
+          console.log("MATCH UPSERT ERROR:", { error: upErr.message, code: (upErr as any).code, trailId: sr.trail_id, fieldId: best.id })
+        }
+      }
+
+      console.log(`MATCH DONE: ${matched} matched, ${noMatch} no field, ${noGeom} no geometry`)
+      if (matched > 0 && matched < 3) {
+        const sample = agworldRecords.slice(0, 1)
+        console.log("SAMPLE MATCHED RECORD:", sample[0] ? { id: sample[0].id, field_path_type: sample[0].field_path?.type, has_boundary: !!sample[0].agworld_boundary } : 'none')
+      }
+      toast.success(`Matched ${matched} of ${sprayRecs.length} spray records (${noMatch} no field, ${noGeom} no geometry)`)
+      await loadAgworldRecords()
+    } catch (e: any) {
+      recordsError = e.message
+    } finally {
+      recordsLoading = false
+    }
+  }
+
+  let genTrailLimit = 100
+  let genProgress = ""
+  let trailProgress = { total: 0, processed: 0 }
+
+  async function loadTrailProgress() {
+    if (!selectedAccount?.linkedMapId) { trailProgress = { total: 0, processed: 0 }; return }
+    try {
+      const { data } = await supabase.rpc("get_agworld_trail_progress", {
+        p_master_map_id: selectedAccount.linkedMapId,
+        p_account_id: selectedAccount.id
+      })
+      trailProgress = data || { total: 0, processed: 0 }
+    } catch { trailProgress = { total: 0, processed: 0 } }
+  }
+
+  async function generateAgworldRecords() {
+    if (!selectedAccount || !selectedAccount.linkedMapId) {
+      toast.error("Link this account to an AgSKAN customer first")
+      return
+    }
+    recordsLoading = true
+    recordsError = null
+    genProgress = "Starting..."
+    console.log(`[GenAg] Processing up to ${genTrailLimit} trails, map: ${selectedAccount.linkedMapId}`)
+    try {
+      const { data: result, error } = await supabase.rpc("backfill_agworld_trails", {
+        p_master_map_id: selectedAccount.linkedMapId,
+        p_account_id: selectedAccount.id,
+        p_limit: genTrailLimit
+      })
+      if (error) { recordsError = error.message; console.error("[GenAg] RPC error:", error.message); return }
+      console.log(`[GenAg] Done: ${result.trails_processed} trails → ${result.records_generated} records`)
+      genProgress = `${result.records_generated} records from ${result.trails_processed} trails`
+      toast.success(`Generated ${result.records_generated} records from ${result.trails_processed} trails`)
+      await Promise.all([loadAgworldFieldCounts(), loadAgworldFieldList(), loadAgworldRecords(), loadTrailProgress()])
+    } catch (e: any) {
+      recordsError = e.message
+      console.error("[GenAg] Failed:", e.message)
+    } finally {
+      recordsLoading = false
+      genProgress = ""
+    }
+  }
+
+  async function loadAgworldFieldCounts(accountId?: string) {
+    const acctId = accountId || selectedAccount?.id
+    if (!acctId) return
+    try {
+      const { count } = await supabase
+        .from("agworld_fields")
+        .select("*", { count: "exact", head: true })
+        .eq("account_id", acctId)
+      agworldFieldCount = count || 0
+    } catch (e: any) {
+      console.error("loadAgworldFieldCounts failed:", e.message)
+      agworldFieldCount = 0
+    }
+  }
+
+  async function clearAgworldData() {
+    if (!selectedAccount) return
+    if (!confirm("Delete ALL agworld fields and records for this account? This cannot be undone.")) return
+    recordsLoading = true
+    try {
+      await supabase.from("agworld_records").delete().eq("account_id", selectedAccount.id)
+      await supabase.from("agworld_fields").delete().eq("account_id", selectedAccount.id)
+      agworldRecords = []
+      agworldFieldCount = 0
+      toast.success("Cleared all agworld data")
+    } catch (e: any) {
+      toast.error(`Clear failed: ${e.message}`)
+    } finally {
+      recordsLoading = false
+    }
+  }
+
+  // Undo: restore original AgSKAN field data from the in-memory agskanFields array.
+  // This reverses any accidental save that modified the actual fields table.
+  async function undoConsolidationSave() {
+    if (!selectedAccount) return
+    if (!confirm("This will restore all original AgSKAN field names, areas, and boundaries from the data loaded at the start of this comparison. Continue?")) return
+
+    savingConsolidated = true
+    const errors: string[] = []
+    let restored = 0
+
+    try {
+      let mapId: string | null = selectedAccount.linkedMapId || null
+      if (!mapId) {
+        const { data: session } = await supabase.auth.getSession()
+        const userId = session?.session?.user?.id
+        if (!userId) throw new Error("Not logged in")
+        const { data: profile } = await supabase.from("profiles").select("master_map_id").eq("id", userId).single()
+        mapId = profile?.master_map_id || null
+      }
+      if (!mapId) throw new Error("No AgSKAN map to restore to")
+
+      // Restore each original field's name, area, and boundary
+      for (const f of agskanFields) {
+        if (!f.field_id || !f.boundary) continue
+        const { error } = await supabase.from("fields").update({
+          name: f.name,
+          area: f.area,
+          boundary: f.boundary,
+        }).eq("field_id", f.field_id).eq("map_id", mapId)
+
+        if (error) errors.push(`Restore "${f.name}": ${error.message}`)
+        else restored++
+      }
+
+      // Also delete any fields that were created by the save (they won't be in agskanFields)
+      // — identify them by having null farm_id on this map
+      const { data: createdFields } = await supabase.from("fields")
+        .select("field_id, name")
+        .is("farm_id", null)
+        .eq("map_id", mapId)
+
+      if (createdFields && createdFields.length > 0) {
+        const originalIds = new Set(agskanFields.map(f => f.field_id))
+        const toDelete = createdFields.filter(f => !originalIds.has(f.field_id))
+        for (const f of toDelete) {
+          const { error } = await supabase.from("fields").delete().eq("field_id", f.field_id).eq("map_id", mapId)
+          if (error) errors.push(`Delete created "${f.name}": ${error.message}`)
+          else restored++
+        }
+      }
+
+      if (errors.length === 0) {
+        toast.success(`Restored ${restored} fields to original state`)
+      } else {
+        toast.warning(`Restored with ${errors.length} errors`)
+      }
+      saveResults = { created: 0, updated: restored, deleted: 0, errors }
+    } catch (e: any) {
+      toast.error(`Undo failed: ${e.message}`)
+      errors.push(e.message)
+      saveResults = { created: 0, updated: 0, deleted: 0, errors }
+    } finally {
+      savingConsolidated = false
+    }
+  }
 
   // --- Categorization results ---
   let identicalPairs: any[] = []          // IoU=1.0 + name exact → locked
@@ -965,10 +1685,25 @@
   }
 
   function toggleCandidateSelection(id: string) {
-    selectedOverlayIds = selectedOverlayIds.includes(id)
+    const wasSelected = selectedOverlayIds.includes(id)
+    selectedOverlayIds = wasSelected
       ? selectedOverlayIds.filter(i => i !== id)
       : [...selectedOverlayIds, id]
     highlightedCandidate = id
+
+    // In split mode (N fields kept, 1 deleted), the winning-side candidates ARE the
+    // dominant fields — they must move in/out of dominantFieldIds to reflect
+    // selection state on the map.  In merge mode (N fields absorbed into 1),
+    // candidates are always non-dominant and only opacity changes — never touch
+    // dominantFieldIds.
+    const splitMode = proposalDominant ? dominantSideChoice !== proposalDominant.source : false
+    if (splitMode) {
+      if (!wasSelected) {
+        dominantFieldIds = [...dominantFieldIds, id]
+      } else {
+        dominantFieldIds = dominantFieldIds.filter(did => did !== id)
+      }
+    }
   }
 
   function confirmProposal() {
@@ -1004,6 +1739,7 @@
       if (awId) resolvedAwIds.add(awId)
     } else if (proposalType === "merge" || (proposalType === "split" && dominantSideChoice === proposalDominant.source)) {
       // Merge: the 1-field side wins (dominantSideChoice matches proposalDominant.source)
+      // If 0 candidates selected, just keep the dominant field as-is
       const domField = dom.source === "agskan"
         ? agskanFields.find(f => f.field_id === dom.id)
         : agworldFields.find(f => f.id === dom.id)
@@ -1033,6 +1769,13 @@
       resolvedAwIds.add(dom.id)
       for (const id of absorbedSkanIds) resolvedSkanIds.add(id)
       for (const id of absorbedAwIds) resolvedAwIds.add(id)
+      // If 0 candidates selected, still mark the dominant field's opposite side as resolved
+      if (selectedCands.length === 0) {
+        for (const c of proposalCandidates) {
+          if (c.source === "agskan") resolvedSkanIds.add(c.id)
+          else resolvedAwIds.add(c.id)
+        }
+      }
     } else if (proposalType === "split" && dominantSideChoice !== proposalDominant.source) {
       // Split: the N-field side wins (dominantSideChoice differs from proposalDominant.source)
       // Split: 1→N
@@ -1117,71 +1860,68 @@
   $: if (view !== "compare") { autoOpened = false }
 </script>
 
-<div class="agworld-container">
+<div class="agworld-container agw-page">
   <!-- Header -->
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold">Agworld Integration</h1>
-    <p class="mt-1 text-sm opacity-60">
-      Dev mode — Manage Agworld API accounts and test v2 + v3 API queries
-    </p>
+  <div class="page-header">
+    <div class="header-left">
+      <Icon icon="solar:cloud-check-bold-duotone" width="24" height="24" class="text-blue-400" />
+      <div>
+        <h1>Agworld Integration</h1>
+        <p class="header-subtitle">Manage Agworld API accounts, import field boundaries, and match spray records</p>
+      </div>
+    </div>
+    {#if accounts.length > 0}
+      <div class="header-right">
+        <span class="agw-badge agw-badge-info">{accounts.length} account{accounts.length !== 1 ? 's' : ''}</span>
+      </div>
+    {/if}
   </div>
 
   <!-- List View: Show all saved accounts -->
   {#if view === "list"}
-    <div class="space-y-4">
       {#if accounts.length === 0}
-        <div class="rounded-box bg-base-200 p-8 text-center">
-          <Icon icon="solar:cloud-check-bold-duotone" width="48" height="48" class="mx-auto opacity-30" />
-          <p class="mt-3 font-semibold opacity-60">No Agworld accounts configured</p>
-          <p class="text-sm opacity-40">Add an account using an API key to get started.</p>
-          <button
-            class="btn btn-primary mt-4"
-            on:click={() => (view = "add")}
-          >
-            <Icon icon="solar:add-circle-bold" width="20" height="20" />
-            Add Account
-          </button>
-        </div>
-      {:else}
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Saved Accounts ({accounts.length})</h2>
-          <button
-            class="btn btn-primary btn-sm"
-            on:click={() => (view = "add")}
-          >
+        <div class="agw-empty bg-base-200">
+          <Icon icon="solar:cloud-check-bold-duotone" width="48" height="48" class="agw-empty-icon" />
+          <p class="agw-empty-title">No Agworld accounts configured</p>
+          <p class="agw-empty-subtitle">Add an account using an API key to get started.</p>
+          <button class="agw-btn agw-btn-primary" on:click={() => (view = "add")}>
             <Icon icon="solar:add-circle-bold" width="18" height="18" />
             Add Account
           </button>
         </div>
+      {:else}
+        <div class="page-header" style="margin-top:0">
+          <div class="header-left">
+            <h1>Saved Accounts</h1>
+            <p class="header-subtitle">{accounts.length} account{accounts.length !== 1 ? 's' : ''}</p>
+          </div>
+          <div class="header-right">
+            <button class="agw-btn agw-btn-accent" on:click={() => (view = "add")}>
+              <Icon icon="solar:add-circle-bold" width="16" height="16" />
+              Add Account
+            </button>
+          </div>
+        </div>
 
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="acct-grid">
           {#each accounts as account (account.id)}
-            <div class="card bg-base-200 transition-shadow hover:shadow-md cursor-pointer"
+            <div class="acct-card agw-card bg-base-200"
                  on:click={() => selectAccount(account.id)}
                  on:keydown={(e) => e.key === 'Enter' && selectAccount(account.id)}
-                 role="button"
-                 tabindex="0"
-            >
-              <div class="card-body p-4">
+                 role="button" tabindex="0">
+              <div class="agw-card-body">
                 <div class="flex items-start justify-between">
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <h3 class="card-title text-base truncate">{account.name}</h3>
-                      <span class="badge badge-xs badge-outline">{AGWORLD_INSTANCES[account.instance]?.label ?? account.instance}</span>
+                      <span class="acct-card-name">{account.name}</span>
+                      <span class="agw-badge agw-badge-sm agw-badge-outline">{AGWORLD_INSTANCES[account.instance]?.label ?? account.instance}</span>
                     </div>
-                    <p class="mt-1 text-xs opacity-50 font-mono truncate" title={account.apiKey}>
-                      {account.apiKey.substring(0, 24)}...
-                    </p>
-                    <p class="mt-2 text-xs opacity-40">
-                      Added {new Date(account.createdAt).toLocaleDateString()}
-                    </p>
+                    <p class="acct-card-key" title={account.apiKey}>{account.apiKey.substring(0, 24)}...</p>
+                    <p class="acct-card-meta">Added {new Date(account.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <button
-                    class="btn btn-ghost btn-xs text-error ml-2 shrink-0"
-                    on:click|stopPropagation={() => handleRemove(account.id)}
-                    title="Remove account"
-                  >
-                    <Icon icon="solar:trash-bin-trash-bold" width="16" height="16" />
+                  <button class="agw-btn agw-btn-danger agw-btn-xs ml-2 shrink-0"
+                    on:click|stopPropagation={() => handleRemove(account.id)} title="Remove">
+                    <Icon icon="solar:trash-bin-trash-bold" width="14" height="14" />
                   </button>
                 </div>
               </div>
@@ -1189,90 +1929,51 @@
           {/each}
         </div>
       {/if}
-    </div>
 
   <!-- Add Account Form -->
   {:else if view === "add"}
-    <div class="max-w-lg">
-      <button class="btn btn-ghost btn-sm mb-4" on:click={backToList}>
-        <Icon icon="solar:arrow-left-bold" width="18" height="18" />
+    <div class="agw-page" style="max-width:500px">
+      <button class="agw-btn agw-btn-ghost agw-btn-sm mb-4" on:click={backToList}>
+        <Icon icon="solar:arrow-left-bold" width="16" height="16" />
         Back to accounts
       </button>
 
-      <div class="card bg-base-200">
-        <div class="card-body">
-          <h2 class="card-title">
-            <Icon icon="solar:user-plus-bold-duotone" width="24" height="24" />
+      <div class="agw-card bg-base-200">
+        <div class="agw-card-body">
+          <h2 class="agw-card-title mb-4">
+            <Icon icon="solar:user-plus-bold-duotone" width="22" height="22" />
             Add Agworld Account
           </h2>
-          <p class="text-sm opacity-60">
-            Enter a name, API key, and select the Agworld instance. The API key must use the <code class="badge badge-sm">v1_...</code> format.
-          </p>
+          <p class="text-xs opacity-50 mb-4">Enter a name, API key, and select the Agworld instance. The API key must use the <code class="agw-badge agw-badge-sm">v1_...</code> format.</p>
 
-          <div class="form-control mt-4">
-            <label class="label" for="account-name">
-              <span class="label-text">Account Name</span>
-            </label>
-            <input
-              id="account-name"
-              type="text"
-              class="input input-bordered"
-              placeholder="e.g. Beau's Agworld"
-              bind:value={newName}
-            />
+          <div class="mb-3">
+            <label class="text-xs font-medium opacity-60 mb-1 block" for="account-name">Account Name</label>
+            <input id="account-name" type="text" class="agw-input" placeholder="e.g. Beau's Agworld" bind:value={newName} />
           </div>
 
-          <div class="form-control mt-3">
-            <label class="label" for="agworld-instance">
-              <span class="label-text">Instance</span>
-            </label>
-            <select id="agworld-instance" class="select select-bordered" bind:value={newInstance}>
+          <div class="mb-3">
+            <label class="text-xs font-medium opacity-60 mb-1 block" for="agworld-instance">Instance</label>
+            <select id="agworld-instance" class="agw-select" bind:value={newInstance}>
               {#each Object.entries(AGWORLD_INSTANCES) as [key, cfg]}
                 <option value={key}>{cfg.label} — {cfg.base}</option>
               {/each}
             </select>
-            <label class="label" for="agworld-instance">
-              <span class="label-text-alt opacity-50">
-                v3 base: {AGWORLD_INSTANCES[newInstance]?.base}/api/v3
-              </span>
-            </label>
+            <p class="text-xs opacity-30 mt-1">v3 base: {AGWORLD_INSTANCES[newInstance]?.base}/api/v3</p>
           </div>
 
-          <div class="form-control mt-3">
-            <label class="label" for="grower-id-field">
-              <span class="label-text">Default Grower ID (optional)</span>
-              <span class="label-text-alt opacity-50">Auto-fills queries</span>
-            </label>
-            <input
-              id="grower-id-field"
-              type="text"
-              class="input input-bordered font-mono"
-              placeholder="e.g. 70719"
-              bind:value={newGrowerId}
-            />
+          <div class="mb-3">
+            <label class="text-xs font-medium opacity-60 mb-1 block" for="grower-id-field">Grower ID (optional)</label>
+            <input id="grower-id-field" type="text" class="agw-input" style="font-family:monospace" placeholder="e.g. 70719" bind:value={newGrowerId} />
           </div>
 
-          <div class="form-control mt-3">
-            <label class="label" for="api-key">
-              <span class="label-text">API Key</span>
-              <span class="label-text-alt opacity-50">v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span>
-            </label>
-            <input
-              id="api-key"
-              type="password"
-              class="input input-bordered font-mono"
-              placeholder="v1_..."
-              bind:value={newApiKey}
-            />
+          <div class="mb-3">
+            <label class="text-xs font-medium opacity-60 mb-1 block" for="api-key">API Key <span class="opacity-40 font-normal">v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span></label>
+            <input id="api-key" type="password" class="agw-input" style="font-family:monospace" placeholder="v1_..." bind:value={newApiKey} />
           </div>
 
-          <div class="card-actions mt-4 justify-end">
-            <button class="btn btn-ghost" on:click={backToList}>Cancel</button>
-            <button
-              class="btn btn-primary"
-              on:click={handleAddAccount}
-              disabled={adding || !newName.trim() || !newApiKey.trim()}
-            >
+          <div class="flex justify-end gap-2 mt-4">
+            <button class="agw-btn agw-btn-ghost" on:click={backToList}>Cancel</button>
+            <button class="agw-btn agw-btn-primary" on:click={handleAddAccount} disabled={adding || !newName.trim() || !newApiKey.trim()}>
               {adding ? "Adding..." : "Add Account"}
             </button>
           </div>
@@ -1282,99 +1983,103 @@
 
   <!-- Account Detail / API Explorer -->
   {:else if view === "account" && selectedAccount}
-    <div>
-      <button class="btn btn-ghost btn-sm mb-4" on:click={backToList}>
+    <div class="agw-page">
+      <button class="agw-btn agw-btn-ghost agw-btn-sm mb-4" on:click={backToList}>
         <Icon icon="solar:arrow-left-bold" width="18" height="18" />
         Back to accounts
       </button>
 
       <!-- Account info bar -->
-      <div class="card bg-base-200 mb-6">
-        <div class="card-body p-4">
+      <div class="agw-card bg-base-200 mb-5">
+        <div class="agw-card-body">
           <div class="flex flex-wrap items-center gap-4">
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold">{selectedAccount.name}</h2>
-                <span class="badge badge-sm">{instanceLabel}</span>
+                <h2 style="font-size:18px;font-weight:600;margin:0">{selectedAccount.name}</h2>
+                <span class="agw-badge agw-badge-sm">{instanceLabel}</span>
               </div>
               <p class="text-xs opacity-50 font-mono mt-1" title={selectedAccount.apiKey}>
                 Key: {selectedAccount.apiKey.substring(0, 24)}...
               </p>
               {#if selectedAccount.growerId}
-                <p class="text-xs opacity-50 font-mono mt-1">
-                  Grower: {selectedAccount.growerId}
-                </p>
+                <p class="text-xs opacity-50 font-mono mt-1">Grower: {selectedAccount.growerId}</p>
               {/if}
             </div>
             <div class="ml-auto flex gap-2">
-              <button class="btn btn-primary btn-xs" on:click={startCompare}>
-                <Icon icon="solar:graph-new-bold" width="14" height="14" />
-                Compare
+              <button class="agw-btn agw-btn-primary agw-btn-sm" on:click={startCompare}>
+                <Icon icon="solar:graph-new-bold" width="14" height="14" />Compare
               </button>
-              <button
-                class="btn btn-ghost btn-xs text-error"
-                on:click={() => {
-                  handleRemove(selectedAccount.id)
-                  backToList()
-                }}
-              >
-                <Icon icon="solar:trash-bin-trash-bold" width="14" height="14" />
-                Remove
+              {#if hasSavedConsolidation()}
+                <button class="agw-btn agw-btn-ghost agw-btn-sm" on:click={() => {
+                  if (loadConsolidationMetadata()) { view = "compare"; toast.success(`Loaded ${consolidatedFields.length} consolidated fields`) }
+                  else { toast.error("Failed to load saved consolidation") }
+                }}>
+                  <Icon icon="solar:folder-open-bold" width="14" height="14" />Load Saved
+                </button>
+              {/if}
+              <button class="agw-btn agw-btn-danger agw-btn-sm" on:click={() => { handleRemove(selectedAccount.id); backToList() }}>
+                <Icon icon="solar:trash-bin-trash-bold" width="14" height="14" />Remove
               </button>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Tab navigation -->
+      <div class="agw-tabs">
+        <button class="agw-tab" class:active={accountTab === "explorer"} on:click={() => accountTab = "explorer"}>
+          <Icon icon="solar:code-bold" width="14" height="14" />API Explorer
+        </button>
+        <button class="agw-tab" class:active={accountTab === "records"} on:click={() => { accountTab = "records"; loadAgworldFieldList(); loadAgworldRecords(); loadTrailProgress() }}>
+          <Icon icon="solar:document-text-bold" width="14" height="14" />Records
+        </button>
+      </div>
+
+      {#if accountTab === "explorer"}
       <!-- Linked AgSKAN customer -->
-      <div class="card bg-base-200 mb-6">
-        <div class="card-body p-4">
-          <h3 class="card-title text-base">
-            <Icon icon="solar:link-bold-duotone" width="20" height="20" />
+      <div class="agw-card bg-base-200 mb-5">
+        <div class="agw-card-body">
+          <h3 class="agw-card-title mb-2">
+            <Icon icon="solar:link-bold-duotone" width="18" height="18" />
             Linked AgSKAN Customer
           </h3>
-          <p class="text-xs opacity-50 -mt-1 mb-1">
-            Compare data always uses this specific customer's map, regardless of which account you're logged in as.
-          </p>
+          <p class="text-xs opacity-50 mb-3">Compare data always uses this specific customer's map.</p>
 
           {#if selectedAccount.linkedMapId}
-            <div class="flex items-center gap-2 bg-success/10 border border-success/20 rounded-lg p-3">
-              <Icon icon="solar:check-circle-bold" width="18" height="18" class="text-success" />
+            <div class="flex items-center gap-2" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.15);border-radius:10px;padding:12px 14px">
+              <Icon icon="solar:check-circle-bold" width="18" height="18" style="color:#4ade80" />
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-semibold truncate">{selectedAccount.linkedProfileLabel || "Linked"}</div>
                 <div class="text-xs opacity-50 font-mono truncate">map_id: {selectedAccount.linkedMapId}</div>
               </div>
-              <button class="btn btn-ghost btn-xs" on:click={unlinkAccount}>Unlink</button>
+              <button class="agw-btn agw-btn-ghost agw-btn-xs" on:click={unlinkAccount}>Unlink</button>
             </div>
           {:else}
-            <div class="alert alert-warning py-2 mb-2">
+            <div class="agw-alert agw-alert-error mb-2">
               <Icon icon="solar:danger-triangle-bold" width="16" height="16" />
               <span class="text-xs">Not linked — compare will fall back to your own logged-in map.</span>
             </div>
             <div class="flex gap-2">
-              <input type="text"
-                class="input input-bordered input-sm flex-1"
-                placeholder="Search by name or email..."
-                bind:value={linkSearchQuery}
-                on:keydown={(e) => { if (e.key === 'Enter') searchAgskanProfiles() }} />
-              <button class="btn btn-sm" on:click={searchAgskanProfiles} disabled={linkSearching}>
-                {#if linkSearching}<span class="loading loading-spinner loading-xs"></span>{:else}<Icon icon="solar:magnifer-linear" width="16" height="16" />{/if}
+              <input type="text" class="agw-input" style="flex:1;padding:8px 12px;font-size:13px" placeholder="Search by name or email..."
+                bind:value={linkSearchQuery} on:keydown={(e) => { if (e.key === 'Enter') searchAgskanProfiles() }} />
+              <button class="agw-btn agw-btn-primary agw-btn-sm" on:click={searchAgskanProfiles} disabled={linkSearching}>
+                {#if linkSearching}<span class="agw-spinner"></span>{:else}<Icon icon="solar:magnifer-linear" width="14" height="14" />{/if}
                 Search
               </button>
             </div>
             {#if linkSearchResults.length > 0}
-              <div class="mt-2 space-y-1 max-h-[240px] overflow-y-auto">
+              <div class="mt-2 space-y-1" style="max-height:240px;overflow-y:auto">
                 {#each linkSearchResults as p (p.id)}
-                  <button class="w-full text-left p-2 rounded border border-base-300 hover:bg-base-300/50 flex items-center justify-between gap-2"
+                  <button class="w-full text-left p-2 rounded-lg border border-base-300 hover:bg-base-300/50 flex items-center justify-between gap-2"
                     on:click={() => linkAccountToProfile(p)}>
                     <div class="min-w-0">
                       <div class="text-sm truncate">{p.full_name || "(no name)"}</div>
                       <div class="text-xs opacity-50 truncate">{p.email}</div>
                     </div>
                     {#if p.master_map_id}
-                      <span class="badge badge-xs badge-success shrink-0">has map</span>
+                      <span class="agw-badge agw-badge-sm agw-badge-success shrink-0">has map</span>
                     {:else}
-                      <span class="badge badge-xs badge-ghost shrink-0">no map</span>
+                      <span class="agw-badge agw-badge-sm agw-badge-outline shrink-0">no map</span>
                     {/if}
                   </button>
                 {/each}
@@ -1387,59 +2092,30 @@
       </div>
 
       <!-- API Explorer -->
-      <div class="grid gap-6 lg:grid-cols-3">
+      <div class="grid gap-5 lg:grid-cols-3">
         <!-- Left: Quick Query Panel -->
         <div class="lg:col-span-1 space-y-4">
-          <!-- Quick Queries -->
-          <div class="card bg-base-200">
-            <div class="card-body p-4">
-              <h3 class="card-title text-base">
-                <Icon icon="solar:play-circle-bold-duotone" width="20" height="20" />
+            <div class="agw-card bg-base-200">
+            <div class="agw-card-body">
+              <h3 class="agw-card-title mb-3">
+                <Icon icon="solar:play-circle-bold-duotone" width="18" height="18" />
                 Quick Queries
               </h3>
 
-              <div class="form-control mt-3">
-                <label class="label py-1" for="grower-id">
-                  <span class="label-text text-xs">Grower ID</span>
-                </label>
-                <input
-                  id="grower-id"
-                  type="text"
-                  class="input input-bordered input-sm font-mono text-xs"
-                  placeholder="CPY-AU-..."
-                  bind:value={queryGrowerId}
-                />
-              </div>
+              <label class="text-sm font-medium opacity-70 mb-2 block">Grower ID</label>
+              <input type="text" class="agw-input" style="font-family:monospace;font-size:14px;padding:8px 12px" placeholder="CPY-AU-..." bind:value={queryGrowerId} />
 
-              <button
-                class="btn btn-primary btn-sm mt-3 w-full"
-                on:click={() => runQuery(queryEndpoint)}
-                disabled={apiLoading}
-              >
-                {#if apiLoading}
-                  <span class="loading loading-spinner loading-xs"></span>
-                  Querying...
-                {:else}
-                  <Icon icon="solar:play-bold" width="16" height="16" />
-                  Run Query
-                {/if}
-              </button>
-
-              <div class="mt-3 space-y-1">
+              <div class="query-grid">
                 {#each QUICK_QUERIES as q}
-                  <button
-                    class="btn btn-ghost btn-sm w-full justify-start text-left"
-                    class:btn-active={queryEndpoint === q.endpoint}
-                    on:click={() => (queryEndpoint = q.endpoint)}
-                  >
-                    <Icon
-                      icon={queryEndpoint === q.endpoint ? "solar:play-circle-bold" : "solar:play-circle-linear"}
-                      width="16" height="16"
-                    />
-                    {q.label}
-                    {#if q.needsGrower}
-                      <span class="ml-auto text-xs opacity-40">needs grower</span>
+                  <button class="query-btn" class:active={queryEndpoint === q.endpoint}
+                    style={queryEndpoint === q.endpoint ? 'border-color:rgba(59,130,246,0.5);color:#60a5fa;font-weight:600' : ''}
+                    on:click={() => { queryEndpoint = q.endpoint; runQuery(q.endpoint) }}
+                    disabled={apiLoading}>
+                    {#if apiLoading && queryEndpoint === q.endpoint}
+                      <span class="agw-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;margin-right:4px"></span>
                     {/if}
+                    {q.label}
+                    {#if q.needsGrower}<span class="opacity-50 text-[10px] ml-1">grower</span>{/if}
                   </button>
                 {/each}
               </div>
@@ -1447,15 +2123,15 @@
           </div>
 
           <!-- API Docs Quick Reference -->
-          <div class="card bg-base-200">
-            <div class="card-body p-4">
-              <h3 class="card-title text-base">
-                <Icon icon="solar:bookmark-bold-duotone" width="20" height="20" />
+          <div class="agw-card bg-base-200 mt-3">
+            <div class="agw-card-body">
+              <h3 class="agw-card-title mb-2">
+                <Icon icon="solar:bookmark-bold-duotone" width="18" height="18" />
                 API Reference
               </h3>
-              <div class="text-xs opacity-50 space-y-2 mt-2">
-                <p><strong>Base:</strong> <code class="badge badge-sm">{AGWORLD_INSTANCES[selectedAccount.instance]?.base}/api/v3</code></p>
-                <p><strong>Auth:</strong> <code class="badge badge-sm">API-Key v1_...</code></p>
+              <div class="text-xs opacity-50 space-y-2">
+                <p><strong>Base:</strong> <span class="agw-badge agw-badge-sm" style="font-family:monospace">{AGWORLD_INSTANCES[selectedAccount.instance]?.base}/api/v3</span></p>
+                <p><strong>Auth:</strong> <span class="agw-badge agw-badge-sm" style="font-family:monospace">API-Key v1_...</span></p>
                 <p><strong>Spec:</strong> JSON:API</p>
                 <hr class="opacity-20" />
                 <p><strong>Rate Limits:</strong></p>
@@ -1472,29 +2148,23 @@
         <!-- Right: Results + Request Logs -->
         <div class="lg:col-span-2 space-y-4">
           <!-- Response -->
-          <div class="card bg-base-200">
-            <div class="card-body p-4">
+          <div class="agw-card bg-base-200">
+            <div class="agw-card-body">
               <div class="flex items-center justify-between">
-                <h3 class="card-title text-base">
-                  <Icon icon="solar:document-text-bold-duotone" width="20" height="20" />
-                  Response
+                <h3 class="agw-card-title">
+                  <Icon icon="solar:document-text-bold-duotone" width="18" height="18" />Response
                 </h3>
                 <div class="flex items-center gap-2">
                   {#if apiStatus !== null}
-                    <span class="badge badge-sm {getStatusBadgeClass(apiStatus)}">
+                    <span class="agw-badge agw-badge-sm" class:agw-badge-success={apiStatus >= 200 && apiStatus < 300} class:agw-badge-error={apiStatus >= 400}>
                       HTTP {apiStatus}
                     </span>
                   {/if}
                   {#if apiResult}
-                    <button
-                      class="btn btn-ghost btn-xs"
-                      on:click={() => {
-                        navigator.clipboard.writeText(formatJson(apiResult))
-                        toast.success("Copied to clipboard")
-                      }}
-                    >
-                      <Icon icon="solar:copy-bold" width="14" height="14" />
-                      Copy
+                    <button class="agw-btn agw-btn-ghost agw-btn-xs" on:click={() => {
+                      navigator.clipboard.writeText(formatJson(apiResult)); toast.success("Copied to clipboard")
+                    }}>
+                      <Icon icon="solar:copy-bold" width="12" height="12" />Copy
                     </button>
                   {/if}
                 </div>
@@ -1502,20 +2172,18 @@
 
               <div class="mt-3">
                 {#if apiLoading}
-                  <div class="flex items-center justify-center py-12">
-                    <span class="loading loading-spinner loading-lg"></span>
-                  </div>
+                  <div class="agw-loading"><span class="agw-spinner" style="width:32px;height:32px;border-width:3px"></span></div>
                 {:else if apiError}
-                  <div class="alert alert-error">
+                  <div class="agw-alert agw-alert-error">
                     <Icon icon="solar:danger-circle-bold" width="20" height="20" />
-                    <span class="text-sm">{apiError}</span>
+                    <span>{apiError}</span>
                   </div>
                 {:else if apiResult}
-                  <pre class="bg-base-300 rounded-box p-4 text-xs overflow-auto max-h-[500px]"><code>{formatJson(apiResult)}</code></pre>
+                  <pre class="bg-base-300 rounded-lg p-4 text-xs overflow-auto" style="max-height:500px"><code>{formatJson(apiResult)}</code></pre>
                 {:else}
-                  <div class="flex flex-col items-center justify-center py-12 opacity-30">
-                    <Icon icon="solar:cloud-arrow-up-bold-duotone" width="48" height="48" />
-                    <p class="mt-3 text-sm">Run a query to see the API response</p>
+                  <div class="agw-empty" style="background:transparent;padding:32px 0">
+                    <Icon icon="solar:cloud-arrow-up-bold-duotone" width="40" height="40" class="agw-empty-icon" />
+                    <p class="agw-empty-subtitle">Run a query to see the API response</p>
                   </div>
                 {/if}
               </div>
@@ -1524,46 +2192,34 @@
 
           <!-- Request Logs -->
           {#if requestLogs.length > 0}
-            <div class="card bg-base-200">
-              <div class="card-body p-4">
-                <div class="flex items-center justify-between">
-                  <h3 class="card-title text-base">
-                    <Icon icon="solar:list-check-bold-duotone" width="20" height="20" />
-                    Request Logs ({requestLogs.length})
+            <div class="agw-card bg-base-200">
+              <div class="agw-card-body">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="agw-card-title">
+                    <Icon icon="solar:list-check-bold-duotone" width="18" height="18" />Request Logs ({requestLogs.length})
                   </h3>
-                  <button class="btn btn-ghost btn-xs text-error" on:click={clearLogs}>
-                    <Icon icon="solar:eraser-bold" width="14" height="14" />
-                    Clear
+                  <button class="agw-btn agw-btn-danger agw-btn-xs" on:click={clearLogs}>
+                    <Icon icon="solar:eraser-bold" width="12" height="12" />Clear
                   </button>
                 </div>
 
-                <div class="mt-3 space-y-2">
+                <div class="space-y-2">
                   {#each requestLogs as log (log.id)}
-                    <div class="rounded-box bg-base-300 overflow-hidden">
-                      <!-- Log summary row -->
-                      <button
-                        class="w-full flex items-center gap-3 p-3 text-left hover:bg-base-100 transition-colors"
-                        on:click={() => toggleLog(log.id)}
-                      >
-                        <span class="badge badge-xs {getStatusBadgeClass(log.status)} shrink-0">
+                    <div class="log-entry">
+                      <button class="log-summary" on:click={() => toggleLog(log.id)}>
+                        <span class="agw-badge agw-badge-sm" class:agw-badge-success={log.status && log.status < 300} class:agw-badge-error={log.status && log.status >= 400}>
                           {log.status ?? 'ERR'}
                         </span>
-                        <span class="badge badge-xs badge-outline shrink-0">{log.apiVersion}</span>
+                        <span class="agw-badge agw-badge-sm agw-badge-outline">{log.apiVersion}</span>
                         <code class="text-xs flex-1 truncate">{log.method} {log.url}</code>
-                        <span class="text-xs opacity-50 shrink-0">{log.durationMs}ms</span>
-                        <Icon
-                          icon={expandedLogId === log.id ? "solar:alt-arrow-up-bold" : "solar:alt-arrow-down-bold"}
-                          width="14" height="14"
-                          class="shrink-0"
-                        />
+                        <span class="text-xs opacity-50">{log.durationMs}ms</span>
+                        <Icon icon={expandedLogId === log.id ? "solar:alt-arrow-up-bold" : "solar:alt-arrow-down-bold"} width="14" height="14" />
                       </button>
 
-                      <!-- Expanded detail -->
                       {#if expandedLogId === log.id}
-                        <div class="border-t border-base-100 p-3 text-xs space-y-3">
-                          <!-- Request -->
+                        <div class="log-detail text-xs space-y-3">
                           <div>
-                            <div class="font-semibold mb-1 text-info">▶ REQUEST</div>
+                            <div class="font-semibold mb-1" style="color:#60a5fa">▶ REQUEST</div>
                             <div class="bg-base-100 rounded p-2 space-y-1">
                               <div><span class="opacity-50">Time:</span> {log.timestamp}</div>
                               <div><span class="opacity-50">API:</span> {log.apiVersion} · {log.instance}</div>
@@ -1573,7 +2229,7 @@
                                 <div class="ml-2">
                                   <code class="opacity-50">{key}:</code>
                                   {#if key.toLowerCase() === 'authorization'}
-                                    <code class="text-warning">{val.substring(0, 24)}...</code>
+                                    <code style="color:#fbbf24">{val.substring(0, 24)}...</code>
                                   {:else}
                                     <code>{val}</code>
                                   {/if}
@@ -1582,7 +2238,6 @@
                             </div>
                           </div>
 
-                          <!-- Response -->
                           <div>
                             <div class="font-semibold mb-1" class:text-success={log.status && log.status < 300} class:text-error={log.status && log.status >= 400}>
                               ◀ RESPONSE ({log.status} {log.statusText ?? ''}) — {log.durationMs}ms
@@ -1610,9 +2265,8 @@
                             </div>
                           </div>
 
-                          <button class="btn btn-ghost btn-xs" on:click={() => copyLog(log)}>
-                            <Icon icon="solar:copy-bold" width="12" height="12" />
-                            Copy full log
+                          <button class="agw-btn agw-btn-ghost agw-btn-xs" on:click={() => copyLog(log)}>
+                            <Icon icon="solar:copy-bold" width="12" height="12" />Copy full log
                           </button>
                         </div>
                       {/if}
@@ -1624,12 +2278,218 @@
           {/if}
         </div>
       </div>
+    {:else}
+      <!-- Records tab — styled to match /account/records -->
+      <div class="agworld-records">
+        <!-- Header -->
+        <div class="page-header">
+          <div class="header-left">
+            <Icon icon="solar:document-text-bold-duotone" width="24" height="24" class="text-blue-400" />
+            <div>
+              <h1>Agworld Records</h1>
+              <p class="header-subtitle">
+                {agworldRecords.length} record{agworldRecords.length !== 1 ? 's' : ''}
+                · {agworldRecords.reduce((s, r) => s + (r.area_hectares || 0), 0).toFixed(1)} ha total
+                · {agworldRecords.reduce((s, r) => s + (r.distance_km || 0), 0).toFixed(1)} km traveled
+              </p>
+            </div>
+          </div>
+          <div class="header-right">
+            <button class="action-btn action-btn-accent" on:click={importAllAgworldFields} disabled={savingConsolidated}>
+              {#if savingConsolidated}
+                <span class="loading loading-spinner loading-xs"></span>
+              {:else}
+                <Icon icon="solar:cloud-download-bold" width="14" height="14" />
+              {/if}
+              <span>Import Fields</span>
+            </button>
+            <button class="action-btn action-btn-primary" on:click={matchSprayToAgworld} disabled={recordsLoading}>
+              {#if recordsLoading}
+                <span class="loading loading-spinner loading-xs"></span>
+              {:else}
+                <Icon icon="solar:scan-bold" width="14" height="14" />
+              {/if}
+              <span>Match Records</span>
+            </button>
+            <button class="action-btn action-btn-accent" on:click={generateAgworldRecords} disabled={recordsLoading} title="Generate records from the next batch of unprocessed trails">
+              {#if recordsLoading}
+                <span class="loading loading-spinner loading-xs"></span>
+              {:else}
+                <Icon icon="solar:lightning-bold" width="14" height="14" />
+              {/if}
+              <span>Generate Records</span>
+            </button>
+            {#if trailProgress.total > 0}
+              <span class="count-badge" title="{trailProgress.processed} of {trailProgress.total} trails processed">
+                <Icon icon="solar:check-read-bold" width="14" height="14" class="text-green-400" />
+                <span>{trailProgress.processed}/{trailProgress.total} trails</span>
+              </span>
+            {/if}
+            <button class="action-btn action-btn-danger" on:click={clearAgworldData} disabled={recordsLoading || savingConsolidated} title="Delete all agworld fields & records">
+              <Icon icon="solar:eraser-bold" width="14" height="14" />
+            </button>
+            <div class="count-badge">
+              <Icon icon="solar:map-point-bold" width="14" height="14" class="text-green-400" />
+              <span>{agworldFieldCount} field{agworldFieldCount !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="filters-bar">
+          <div class="search-box bg-base-100 border border-base-300">
+            <Icon icon="solar:magnifer-bold" width="16" height="16" class="text-contrast-content/40" />
+            <input type="text" placeholder="Search fields, operators, vehicles..." bind:value={recordSearchQuery} />
+          </div>
+
+          {#if true}
+            {@const years = [...new Set(agworldFieldList.map(f => f.production_year))].filter(Boolean).sort((a,b) => b-a)}
+            {#if years.length > 0}
+              <div class="year-chips">
+                {#each years as y}
+                  <button class="year-chip bg-base-100 border border-base-300" class:active={selectedYear === y}
+                    on:click={() => selectedYear = selectedYear === y ? null : y}>{y}</button>
+                {/each}
+                {#if selectedYear}
+                  <button class="year-chip year-chip-clear" on:click={() => selectedYear = null}>✕ Clear</button>
+                {/if}
+              </div>
+            {/if}
+          {/if}
+        </div>
+
+        <!-- Field Trail Overlay -->
+        {#if showMap && overlayField}
+          <FieldTrailOverlay
+            fieldBoundary={overlayField.boundary}
+            records={overlayRecords}
+            fieldName={overlayField.name || overlayField.agworld_field_name}
+            fieldAreaHa={overlayField.area || 0}
+            on:close={() => { showMap = false; overlayField = null }}
+          />
+        {/if}
+
+        <!-- Loading / Error -->
+        {#if recordsLoading}
+          <div class="loading-state">
+            <span class="loading loading-spinner loading-lg"></span>
+            <p>{genProgress || "Loading records..."}</p>
+          </div>
+        {:else if recordsError}
+          <div class="error-state">
+            <Icon icon="solar:danger-circle-bold" width="48" height="48" class="opacity-20" />
+            <p class="font-medium">Error loading records</p>
+            <p class="text-xs opacity-50">{recordsError}</p>
+          </div>
+        {:else}
+          <!-- Field list — always visible when loaded, even with no records -->
+          {#if farmGroups.length > 0}
+            <div class="fields-grouped">
+              {#if agworldRecords.length === 0}
+                <div class="empty-state" style="padding:24px;margin-bottom:12px">
+                  <Icon icon="solar:document-text-bold" width="32" height="32" class="opacity-20" />
+                  <p class="agw-empty-subtitle">No spray records matched yet. Click "Match Spray Records" to find which spray jobs overlap these fields.</p>
+                </div>
+              {/if}
+              {#each farmGroups as farmGroup (farmGroup.name)}
+                <div class="field-group bg-base-200 border border-base-300">
+                  <div class="field-group-header" on:click={() => toggleFarmExpand(farmGroup.name)}>
+                    <Icon icon="solar:buildings-bold-duotone" width="18" height="18" class="text-info shrink-0" />
+                    <div class="field-group-info">
+                      <span class="field-group-name">{farmGroup.name}</span>
+                      <span class="field-group-count">{farmGroup.fields.length} field{farmGroup.fields.length !== 1 ? 's' : ''} · {farmGroup.totalHa.toFixed(1)} ha</span>
+                    </div>
+                    <span class="expand-icon">
+                      {#if expandedFarms.has(farmGroup.name)}
+                        <Icon icon="solar:alt-arrow-down-bold" width="16" height="16" />
+                      {:else}
+                        <Icon icon="solar:alt-arrow-right-bold" width="16" height="16" />
+                      {/if}
+                    </span>
+                  </div>
+
+                  {#if expandedFarms.has(farmGroup.name)}
+                    <div class="field-group-fields">
+                      {#each farmGroup.fields as field (field.id)}
+                        <div class="field-card bg-base-100 border border-base-300" class:selected={selectedFieldId === field.id}>
+                          <div class="field-card-header" on:click={() => toggleFieldExpand(field.id)}>
+                            <div class="field-thumb-wrap" on:click|stopPropagation={() => openFieldOverlay(field)} role="button" tabindex="0" title="View on map">
+                              <FieldOutlineThumbnail boundary={field.boundary} width={72} height={54} fillColor="#16a34a" outlineColor="#86efac" />
+                            </div>
+                            <div class="field-card-info">
+                              <div class="field-card-name">
+                                <Icon icon="solar:map-point-bold" width="14" height="14" class="text-green-400" />
+                                <span>{field.name || field.agworld_field_name}</span>
+                              </div>
+                              <div class="field-card-meta">
+                                {field.area ? field.area.toFixed(1) + ' ha' : '-'}
+                                {#if field.crop_type}<span class="crop-badge">{field.crop_type}</span>{/if}
+                                {#if field.production_year}<span class="year-tag">{field.production_year}</span>{/if}
+                              </div>
+                            </div>
+                            <div class="field-card-actions">
+                              <span class="record-count-badge">{agworldRecords.filter(r => r.agworld_field_id === field.id).length} record{agworldRecords.filter(r => r.agworld_field_id === field.id).length !== 1 ? 's' : ''}</span>
+                              {#if field.boundary}
+                                <button class="map-btn" on:click|stopPropagation={() => openFieldOverlay(field)} title="View on map">
+                                  <Icon icon="solar:map-point-bold" width="12" height="12" /> Map
+                                </button>
+                              {/if}
+                              <span class="expand-icon">
+                                {#if expandedFields.has(field.id)}
+                                  <Icon icon="solar:alt-arrow-down-bold" width="16" height="16" />
+                                {:else}
+                                  <Icon icon="solar:alt-arrow-right-bold" width="16" height="16" />
+                                {/if}
+                              </span>
+                            </div>
+                          </div>
+
+                          {#if expandedFields.has(field.id) && agworldRecords.filter(r => r.agworld_field_id === field.id).length > 0}
+                            <div class="field-records">
+                              {#each agworldRecords.filter(r => r.agworld_field_id === field.id) as rec (rec.id)}
+                                <div class="record-row">
+                                  <span class="record-date">{rec.start_time ? new Date(rec.start_time).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                  <span class="record-meta">
+                                    <Icon icon="solar:user-bold" width="11" height="11" class="opacity-30" />
+                                    {rec.operator_name || '-'}
+                                  </span>
+                                  <span class="record-meta">
+                                    <Icon icon="solar:tractor-bold" width="11" height="11" class="opacity-30" />
+                                    {rec.vehicle_type || rec.vehicle_marker?.type || '-'}
+                                  </span>
+                                  <span class="record-stat">{rec.area_hectares ? rec.area_hectares.toFixed(1) + ' ha' : '-'}</span>
+                                  <span class="record-stat">{rec.distance_km ? rec.distance_km.toFixed(1) + ' km' : '-'}</span>
+                                  <span class="record-method">{rec.gen_method || ''}</span>
+                                </div>
+                              {/each}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <!-- No fields AND no records -->
+            <div class="empty-state">
+              <Icon icon="solar:document-text-bold" width="48" height="48" class="opacity-20" />
+              <p>No Agworld records yet</p>
+              <p class="empty-subtitle">
+                Click "Import Agworld Fields" to pull field boundaries from Agworld, then "Match Spray Records" to find which AgSKAN spray jobs fall within each Agworld field.
+              </p>
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {/if}
     </div>
 
   <!-- Compare View -->
   {:else if view === "compare"}
     <div>
-      <button class="btn btn-ghost btn-sm mb-4" on:click={() => (view = "account")}>
+      <button class="agw-btn agw-btn-ghost agw-btn-sm mb-4" on:click={() => (view = "account")}>
         <Icon icon="solar:arrow-left-bold" width="18" height="18" />
         Back to account
       </button>
@@ -1649,7 +2509,7 @@
           <span class="loading loading-spinner loading-lg"></span>
         </div>
       {:else if compareError}
-        <div class="alert alert-error">
+        <div class="agw-alert agw-alert-error">
           <Icon icon="solar:danger-circle-bold" width="20" height="20" />
           <span>{compareError}</span>
         </div>
@@ -1657,13 +2517,13 @@
         {@const totalReview = reviewSkan.length + reviewAw.length}
 
         <!-- Summary cards -->
-        <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-3">
-          <div class="card bg-base-200"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold">{agskanFields.length}</div><div class="text-[11px] opacity-50">AgSKAN</div></div></div>
-          <div class="card bg-base-200"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold">{agworldFields.length}</div><div class="text-[11px] opacity-50">Agworld</div></div></div>
-          <div class="card bg-success/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-success">{identicalPairs.length + basicallyIdenticalPairs.length}</div><div class="text-[11px] opacity-50">Matched</div></div></div>
-          <div class="card bg-info/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-info">{autoImportedSkan.length + autoImportedAw.length}</div><div class="text-[11px] opacity-50">Imported</div></div></div>
-          <div class="card bg-warning/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-warning">{totalReview}</div><div class="text-[11px] opacity-50">Review</div></div></div>
-          <div class="card bg-primary/10"><div class="card-body p-1.5 text-center"><div class="text-lg font-bold text-primary">{consolidatedFields.length}</div><div class="text-[11px] opacity-50">Consolidated</div></div></div>
+        <div class="compare-stats">
+          <div class="stat-card agw-card bg-base-200"><div class="stat-card-value">{agskanFields.length}</div><div class="stat-card-label">AgSKAN</div></div>
+          <div class="stat-card agw-card bg-base-200"><div class="stat-card-value">{agworldFields.length}</div><div class="stat-card-label">Agworld</div></div>
+          <div class="stat-card bg-base-200" style="background:rgba(34,197,94,0.1)"><div class="stat-card-value" style="color:#4ade80">{identicalPairs.length + basicallyIdenticalPairs.length}</div><div class="stat-card-label">Matched</div></div>
+          <div class="stat-card bg-base-200" style="background:rgba(59,130,246,0.1)"><div class="stat-card-value" style="color:#60a5fa">{autoImportedSkan.length + autoImportedAw.length}</div><div class="stat-card-label">Imported</div></div>
+          <div class="stat-card bg-base-200" style="background:rgba(245,158,11,0.1)"><div class="stat-card-value" style="color:#fbbf24">{totalReview}</div><div class="stat-card-label">Review</div></div>
+          <div class="stat-card bg-base-200" style="background:rgba(168,85,247,0.1)"><div class="stat-card-value" style="color:#c084fc">{consolidatedFields.length}</div><div class="stat-card-label">Consolidated</div></div>
         </div>
 
         <!-- API Logs (collapsed by default) -->
@@ -1716,7 +2576,7 @@
         <!-- SECTION 4: Review — resume banner shown inline when the fullscreen overlay has been dismissed -->
         {#if reviewSkan.length > 0 || reviewAw.length > 0}
           {#if reviewOverlayDismissed}
-            <button class="btn btn-warning btn-sm mb-6" on:click={() => reviewOverlayDismissed = false}>
+            <button class="agw-btn agw-btn-accent agw-btn-sm mb-5" on:click={() => reviewOverlayDismissed = false}>
               <Icon icon="solar:danger-triangle-bold" width="16" height="16" />
               Resume review ({reviewSkan.length + reviewAw.length} remaining)
             </button>
@@ -1908,7 +2768,7 @@
                     {#if bottomBarNameDup}
                       <div class="text-[10px] text-red-400 mb-1.5">Name already used by another field</div>
                     {/if}
-                    <button class="btn btn-sm btn-success w-full whitespace-nowrap" disabled={proposalType !== "match" && selectedOverlayIds.length === 0} on:click={confirmProposal}>
+                    <button class="btn btn-sm btn-success w-full whitespace-nowrap" disabled={proposalType === "split" && isSplitAction && selectedOverlayIds.length === 0} on:click={confirmProposal}>
                       <Icon icon="solar:check-circle-bold" width="14" height="14" class="shrink-0" />
                       <span class="hidden sm:inline">Confirm &amp; next</span>
                       <span class="sm:hidden">Confirm</span>
@@ -1937,7 +2797,7 @@
                     <tr>
                       <td class="font-mono">{cf.name}</td>
                       <td>{cf.area_ha.toFixed(1)} ha</td>
-                      <td><span class="badge badge-xs badge-outline">{cf.category}</span></td>
+                      <td><span class="agw-badge agw-badge-sm agw-badge-outline">{cf.category}</span></td>
                       <td>{cf.name_source}</td>
                       <td>{cf.geometry_source}</td>
                       <td class="text-xs">
@@ -1956,9 +2816,35 @@
               </table>
             </div>
           </details>
-          <button class="btn btn-sm btn-outline mb-6" on:click={() => showConsolidatedPreview = true}>
-            <Icon icon="solar:map-point-bold" width="14" height="14" class="mr-1" /> View Fullscreen Map
-          </button>
+          <div class="flex gap-2 mb-6 flex-wrap">
+            <button class="agw-btn agw-btn-ghost agw-btn-sm" on:click={() => showConsolidatedPreview = true}>
+              <Icon icon="solar:map-point-bold" width="14" height="14" class="mr-1" /> View Fullscreen Map
+            </button>
+            <button class="agw-btn agw-btn-primary agw-btn-sm" on:click={saveConsolidationMetadata} disabled={savingConsolidated}>
+              <Icon icon="solar:diskette-bold" width="14" height="14" class="mr-1" /> Save Consolidation
+            </button>
+            <button class="agw-btn agw-btn-danger agw-btn-sm" on:click={undoConsolidationSave} disabled={savingConsolidated}>
+              {#if savingConsolidated}
+                <span class="loading loading-spinner loading-xs"></span> Restoring...
+              {:else}
+                <Icon icon="solar:undo-left-round-bold" width="14" height="14" class="mr-1" /> Undo Save
+              {/if}
+            </button>
+          </div>
+          {#if saveResults}
+            <div class="alert {saveResults.errors.length > 0 ? 'alert-warning' : 'alert-success'} mb-6 text-sm">
+              <Icon icon={saveResults.errors.length > 0 ? 'solar:danger-triangle-bold' : 'solar:check-circle-bold'} width="20" height="20" />
+              <div>
+                <p>{saveResults.updated} fields restored to original state.</p>
+                {#if saveResults.errors.length > 0}
+                  <p class="text-xs opacity-70 mt-1">{saveResults.errors.length} errors:</p>
+                  <ul class="text-xs opacity-70 list-disc list-inside">
+                    {#each saveResults.errors as err, i (i)}<li class="truncate">{err}</li>{/each}
+                  </ul>
+                {/if}
+              </div>
+            </div>
+          {/if}
         {/if}
 
         <!-- Empty state -->
@@ -2143,3 +3029,649 @@
     </ConsolidationShell>
   {/if}
 </div>
+
+<style>
+  /* ── Records tab styling (matches /account/records) ── */
+  .agworld-records {
+    padding: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-left h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .header-subtitle {
+    font-size: 14px;
+    color: oklch(var(--contrast-content) / 0.55);
+    margin: 3px 0 0 0;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .action-btn-accent {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: rgba(37, 99, 235, 0.18);
+    color: #2563eb;
+  }
+  .action-btn-accent:hover:not(:disabled) { background: rgba(37, 99, 235, 0.18); }
+  .action-btn-primary {
+    background: rgba(22, 163, 74, 0.12);
+    border-color: rgba(22, 163, 74, 0.18);
+    color: #16a34a;
+  }
+  .action-btn-primary:hover:not(:disabled) { background: rgba(22, 163, 74, 0.2); }
+  .action-btn-danger {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.12);
+    color: #dc2626;
+  }
+  .action-btn-danger:hover:not(:disabled) { background: rgba(220, 38, 38, 0.15); }
+  .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .count-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: 8px;
+    font-size: 12px;
+    color: oklch(var(--contrast-content) / 0.7);
+  }
+
+  /* Filters */
+  .filters-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: oklch(var(--contrast-content));
+    font-size: 15px;
+    width: 100%;
+  }
+  .search-box input::placeholder { color: oklch(var(--contrast-content) / 0.4); }
+
+  .year-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .year-chip {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: oklch(var(--contrast-content) / 0.6);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .year-chip.active {
+    background: oklch(var(--base-100));
+    color: oklch(var(--contrast-content));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    font-weight: 600;
+  }
+  .year-chip-clear { color: #f87171; }
+  .year-chip:hover:not(.active) { color: oklch(var(--contrast-content) / 0.85); }
+
+  /* Loading / Error / Empty */
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0;
+    color: oklch(var(--contrast-content) / 0.5);
+  }
+  .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 0;
+    color: oklch(var(--contrast-content) / 0.6);
+    text-align: center;
+  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 64px 0;
+    text-align: center;
+    color: oklch(var(--contrast-content) / 0.5);
+  }
+  .empty-subtitle {
+    font-size: 13px;
+    opacity: 0.7;
+    max-width: 400px;
+    margin: 0;
+  }
+
+  /* Grouped by farm */
+  .fields-grouped {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .field-group {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .field-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .field-group-header:hover { background: oklch(var(--base-300) / 0.3); }
+  .field-group-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .field-group-name {
+    font-size: 16px;
+    font-weight: 700;
+    display: block;
+    color: oklch(var(--contrast-content));
+  }
+  .field-group-count {
+    font-size: 13px;
+    color: oklch(var(--contrast-content) / 0.55);
+  }
+  .expand-icon {
+    color: oklch(var(--contrast-content) / 0.4);
+    flex-shrink: 0;
+  }
+
+  .field-group-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 12px 12px;
+  }
+
+  /* Field cards */
+  .field-card {
+    border-radius: 10px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .field-card.selected { border-color: rgba(59, 130, 246, 0.4); }
+  .field-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .field-card-header:hover { background: oklch(var(--base-200) / 0.5); }
+  .field-thumb-wrap {
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: opacity 0.15s;
+  }
+  .field-thumb-wrap:hover { opacity: 0.8; }
+  .field-card-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .field-card-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: oklch(var(--contrast-content));
+  }
+  .field-card-meta {
+    font-size: 13px;
+    color: oklch(var(--contrast-content) / 0.6);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 3px;
+  }
+  .crop-badge {
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .year-tag {
+    color: oklch(var(--contrast-content) / 0.4);
+    font-size: 10px;
+  }
+  .field-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .record-count-badge {
+    font-size: 12px;
+    color: oklch(var(--contrast-content) / 0.5);
+    background: oklch(var(--base-300) / 0.4);
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .map-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .map-btn:hover { background: rgba(59, 130, 246, 0.15); }
+
+  /* Records inside field */
+  .field-records {
+    border-top: 1px solid oklch(var(--base-300));
+    padding: 6px 14px 10px;
+  }
+  .record-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 7px 0;
+    border-bottom: 1px solid oklch(var(--base-300) / 0.4);
+    font-size: 13px;
+  }
+  .record-row:last-child { border-bottom: none; }
+  .record-date {
+    color: oklch(var(--contrast-content) / 0.7);
+    min-width: 90px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .record-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: oklch(var(--contrast-content) / 0.65);
+    min-width: 90px;
+    font-size: 13px;
+  }
+  .record-stat {
+    font-family: monospace;
+    font-size: 13px;
+    color: oklch(var(--contrast-content) / 0.7);
+    min-width: 75px;
+    font-weight: 500;
+  }
+  .record-method {
+    margin-left: auto;
+    font-size: 10px;
+    color: oklch(var(--contrast-content) / 0.3);
+    font-style: italic;
+  }
+
+  /* ── Shared: Page wrapper ── */
+  .agw-page {
+    padding: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  /* ── Shared: Card ── */
+  .agw-card {
+    border: 1px solid oklch(var(--base-300));
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .agw-card-body { padding: 16px; }
+  .agw-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: oklch(var(--contrast-content));
+  }
+
+  /* ── Shared: Buttons ── */
+  .agw-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    background: none;
+  }
+  .agw-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .agw-btn-primary {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: rgba(37, 99, 235, 0.18);
+    color: #2563eb;
+  }
+  .agw-btn-primary:hover:not(:disabled) { background: rgba(37, 99, 235, 0.18); }
+  .agw-btn-accent {
+    background: rgba(22, 163, 74, 0.1);
+    border-color: rgba(22, 163, 74, 0.18);
+    color: #16a34a;
+  }
+  .agw-btn-accent:hover:not(:disabled) { background: rgba(22, 163, 74, 0.18); }
+  .agw-btn-danger {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.12);
+    color: #dc2626;
+  }
+  .agw-btn-danger:hover:not(:disabled) { background: rgba(220, 38, 38, 0.15); }
+  .agw-btn-ghost {
+    color: oklch(var(--contrast-content) / 0.5);
+    border: 1px solid oklch(var(--base-300));
+  }
+  .agw-btn-ghost:hover { color: oklch(var(--contrast-content) / 0.8); background: oklch(var(--base-300) / 0.3); }
+  .agw-btn-xs { padding: 3px 10px; font-size: 11px; border-radius: 6px; }
+  .agw-btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* ── Shared: Badges ── */
+  .agw-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    background: oklch(var(--base-300) / 0.5);
+    color: oklch(var(--contrast-content) / 0.7);
+  }
+  .agw-badge-sm { padding: 2px 8px; font-size: 11px; }
+  .agw-badge-success { background: rgba(22, 163, 74, 0.15); color: #16a34a; }
+  .agw-badge-info { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+  .agw-badge-warn { background: rgba(217, 119, 6, 0.12); color: #b45309; }
+  .agw-badge-error { background: rgba(220, 38, 38, 0.12); color: #dc2626; }
+  .agw-badge-outline {
+    background: transparent;
+    border: 1px solid oklch(var(--base-300) / 0.6);
+    color: oklch(var(--contrast-content) / 0.6);
+  }
+
+  /* ── Shared: Form controls ── */
+  .agw-input, .agw-select {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid oklch(var(--base-300));
+    background: oklch(var(--base-100));
+    color: oklch(var(--contrast-content));
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  .agw-input:focus, .agw-select:focus { border-color: rgba(59, 130, 246, 0.5); }
+  .agw-input::placeholder { color: oklch(var(--contrast-content) / 0.35); }
+  .agw-select option { background: oklch(var(--base-100)); color: oklch(var(--contrast-content)); }
+
+  /* ── Shared: Alert ── */
+  .agw-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .agw-alert-error { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); color: #f87171; }
+
+  /* ── Shared: Tab navigation ── */
+  .agw-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-bottom: 2px solid oklch(var(--base-300));
+  }
+  .agw-tab {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    color: oklch(var(--contrast-content) / 0.4);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .agw-tab.active {
+    color: oklch(var(--contrast-content));
+    border-bottom-color: oklch(var(--contrast-content));
+  }
+  .agw-tab:hover:not(.active) { color: oklch(var(--contrast-content) / 0.65); }
+
+  /* ── Shared: Loading / Empty / Error ── */
+  .agw-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0;
+    color: oklch(var(--contrast-content) / 0.4);
+  }
+  .agw-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 48px 24px;
+    text-align: center;
+    color: oklch(var(--contrast-content) / 0.45);
+    border-radius: 12px;
+  }
+  .agw-empty-icon {
+    opacity: 0.25;
+    margin-bottom: 4px;
+  }
+  .agw-empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: oklch(var(--contrast-content) / 0.5);
+  }
+  .agw-empty-subtitle {
+    font-size: 13px;
+    max-width: 360px;
+  }
+
+  /* ── Account list cards ── */
+  .acct-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .acct-card {
+    padding: 16px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .acct-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: oklch(var(--contrast-content) / 0.15); }
+  .acct-card-name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: oklch(var(--contrast-content));
+  }
+  .acct-card-key {
+    font-size: 12px;
+    font-family: monospace;
+    color: oklch(var(--contrast-content) / 0.5);
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .acct-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: oklch(var(--contrast-content) / 0.55);
+  }
+
+  /* ── Login view spinner ── */
+  .agw-spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid oklch(var(--base-300));
+    border-top-color: #60a5fa;
+    border-radius: 50%;
+    animation: agw-spin 0.6s linear infinite;
+  }
+  @keyframes agw-spin { to { transform: rotate(360deg); } }
+
+  /* ── API Explorer: query buttons ── */
+  .query-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .query-btn {
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid oklch(var(--base-300));
+    background: oklch(var(--base-100));
+    color: oklch(var(--contrast-content) / 0.65);
+    font-weight: 500;
+  }
+  .query-btn:hover { color: oklch(var(--contrast-content) / 0.95); border-color: rgba(59, 130, 246, 0.4); background: oklch(var(--base-200) / 0.5); }
+  .query-btn.loading { opacity: 0.4; pointer-events: none; }
+
+  /* ── API Explorer: log entries ── */
+  .log-entry {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid oklch(var(--base-300));
+  }
+  .log-summary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: none;
+    border: none;
+    color: oklch(var(--contrast-content));
+    font-size: 12px;
+  }
+  .log-summary:hover { background: oklch(var(--base-100) / 0.5); }
+  .log-detail {
+    border-top: 1px solid oklch(var(--base-100));
+    padding: 12px 14px;
+  }
+
+  /* ── Compare: summary stat cards ── */
+  .compare-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    text-align: center;
+    padding: 14px 8px;
+    border-radius: 10px;
+    border: 1px solid oklch(var(--base-300));
+  }
+  .stat-card-value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .stat-card-label {
+    font-size: 11px;
+    color: oklch(var(--contrast-content) / 0.5);
+    margin-top: 2px;
+  }
+
+  /* ── Compare: resolved items grid ── */
+  .resolved-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .resolved-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+</style>

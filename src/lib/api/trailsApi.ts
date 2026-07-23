@@ -873,7 +873,7 @@ export const trailsApi = {
     /**
      * Create a new trail
      */
-    async openNewTrail(vehicleId: string, operationId: string, vehicleInfo: any) {
+    async openNewTrail(vehicleId: string, operationId: string, vehicleInfo: any, operatorInfo?: { id: string; name: string } | null) {
         try {
             console.log(`Creating new trail for vehicle ${vehicleId} in operation ${operationId}`);
 
@@ -895,6 +895,9 @@ export const trailsApi = {
                 start_time: new Date().toISOString(),
                 trail_color: vehicleInfo.vehicle_marker?.bodyColor || "#000000", // Default to black
                 trail_width: vehicleInfo.vehicle_marker?.swath || 11, // Default width
+                vehicle_marker: vehicleInfo.vehicle_marker || null,
+                operator_name: operatorInfo?.name || null,
+                operator_id: operatorInfo?.id || null,
             };
 
             const { data, error } = await supabase

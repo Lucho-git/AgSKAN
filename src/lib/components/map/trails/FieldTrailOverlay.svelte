@@ -829,6 +829,9 @@
   function formatVehicleType(type: string): string {
     return type ? type.replace(/([A-Z])/g, " $1").trim() : "Unknown"
   }
+  function getVehicleType(record: any): string {
+    return record.vehicle_type || record.vehicle_marker?.type || ''
+  }
 
   // Get the centroid of a polygon for label placement
   function getFieldCentroid(boundary: any): [number, number] | null {
@@ -946,7 +949,7 @@
                 intervalIdx,
                 recordId: record.id,
                 operator: record.operator_name || "Unknown",
-                vehicle: formatVehicleType(record.vehicle_type),
+                vehicle: formatVehicleType(getVehicleType(record)),
                 date: formatDate(record.start_time),
                 startTime: formatTime(interval.entry_time),
                 endTime: formatTime(interval.exit_time),
@@ -1047,7 +1050,7 @@
               recordIdx,
               recordId: record.id,
               operator: record.operator_name || "Unknown",
-              vehicle: formatVehicleType(record.vehicle_type),
+              vehicle: formatVehicleType(getVehicleType(record)),
               date: formatDate(record.start_time),
               area: formatHa(record.area_hectares),
               distance: formatKm(record.distance_km),
@@ -1188,7 +1191,7 @@
       color: getTrailColor(record, idx),
       date: formatDate(record.start_time),
       operator: record.operator_name || "Unknown",
-      vehicle: formatVehicleType(record.vehicle_type),
+      vehicle: formatVehicleType(getVehicleType(record)),
       area: formatHa(record.area_hectares),
       distance: formatKm(record.distance_km),
       startTime: null,
@@ -1222,7 +1225,7 @@
       color: getTrailColor(record, recordIdx),
       date: formatDate(record.start_time),
       operator: record.operator_name || "Unknown",
-      vehicle: formatVehicleType(record.vehicle_type),
+      vehicle: formatVehicleType(getVehicleType(record)),
       area: formatHa(interval?.area_hectares || record.area_hectares),
       distance: formatKm(interval?.distance_km || record.distance_km),
       startTime: interval?.entry_time ? formatTime(interval.entry_time) : null,

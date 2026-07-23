@@ -29,14 +29,18 @@
   // Preview (consolidated): blue/white matching MapFields defaults
   const REVIEW_SCHEME = {
     dominant: { fill: "#06b6d4", line: "#ffffff", opacity: 0.7, lineOpacity: 1 },
-    nonDom: { fill: "#3a1a0a", line: "#f97316", opacity: 0.08, lineOpacity: 0.3, selOpacity: 0.5, selLineOpacity: 1 },
+    // Candidate (non-dominant) selected → bright orange fill, very visible.
+    // Candidate unselected → barely-there dark fill, dim outline.
+    nonDomSel: { fill: "#f97316", line: "#f97316", opacity: 0.45, lineOpacity: 1 },
+    nonDomDim: { fill: "#1a0800", line: "#5a3a20", opacity: 0.05, lineOpacity: 0.2 },
     bg: { fill: "#1a1a1a", line: "#222222", opacity: 0.03 },
     labelColor: "#ffffff", labelHalo: "#000000",
     skanFill: "#06b6d4", skanOutline: "#ffffff", awFill: "#f97316", awOutline: "#ffffff",
   }
   const PREVIEW_SCHEME = {
-    dominant: { fill: "#0080ff", line: "#ffffff", opacity: 0.3, lineOpacity: 1 },
-    nonDom: { fill: "#94a3b8", line: "#cbd5e1", opacity: 0.12, lineOpacity: 0.5, selOpacity: 0.25, selLineOpacity: 1 },
+    dominant: { fill: "#0080ff", line: "#bfffbf", opacity: 0.1, lineOpacity: 0.95 },
+    nonDomSel: { fill: "#94a3b8", line: "#cbd5e1", opacity: 0.25, lineOpacity: 1 },
+    nonDomDim: { fill: "#94a3b8", line: "#cbd5e1", opacity: 0.12, lineOpacity: 0.5 },
     bg: { fill: "#1a1a1a", line: "#222222", opacity: 0.03 },
     labelColor: "#ffffff", labelHalo: "#000000",
     skanFill: "#0080ff", skanOutline: "#bfffbf", awFill: "#0080ff", awOutline: "#bfffbf",
@@ -183,9 +187,12 @@
     if (!map) return
     const focused = focusField
 
-    // When focused, show the focused field + all selected fields + overlap candidates
+    // When focused, show the focused field + all selected fields + overlap candidates.
+    // If overlapCandidates is empty (computeOverlaps hasn't resolved yet), don't
+    // filter — show everything so the initial render isn't blank.
     const relevantSkanIds = new Set<string>()
     const relevantAwIds = new Set<string>()
+    let hasRelevanceFilter = false
     if (focused) {
       if (focused.source === "agskan") relevantSkanIds.add(focused.id)
       else relevantAwIds.add(focused.id)
@@ -201,6 +208,8 @@
         const fid = aw.field_id || aw.id
         if (selectedFieldIds.includes(fid) || dominantFieldIds.includes(fid)) relevantAwIds.add(fid)
       }
+      // Only apply the relevance filter if we actually have overlap data
+      hasRelevanceFilter = overlapCandidates.length > 0
     }
 
     // Dim the satellite background using a background layer (inserted at bottom, before any field layers)
@@ -214,13 +223,13 @@
     }
 
     // Background fields (not involved in selection) — rendered first (bottom layer)
-    const bgSkanFeatures = agskanFields.filter(f => f.boundary?.type && focused && !relevantSkanIds.has(f.field_id)).map(f => ({
+    const bgSkanFeatures = agskanFields.filter(f => f.boundary?.type && hasRelevanceFilter && !relevantSkanIds.has(f.field_id)).map(f => ({
       type: "Feature", geometry: f.boundary, properties: {
         id: f.field_id, name: f.name, source: "agskan",
         opacity: scheme.bg.opacity, fillColor: scheme.bg.fill, lineColor: scheme.bg.line, lineWidth: 1,
       }
     }))
-    const bgAwFeatures = agworldBoundaries.filter(b => b.boundary?.type && focused && !relevantAwIds.has(b.field_id || b.id)).map(b => ({
+    const bgAwFeatures = agworldBoundaries.filter(b => b.boundary?.type && hasRelevanceFilter && !relevantAwIds.has(b.field_id || b.id)).map(b => ({
       type: "Feature", geometry: b.boundary, properties: {
         id: b.field_id || b.id, name: b.name, source: "agworld",
         opacity: scheme.bg.opacity, fillColor: scheme.bg.fill, lineColor: scheme.bg.line, lineWidth: 1,
@@ -230,37 +239,38 @@
     // When fadedFocus is true (split mode), the focused field is being deleted —
     // don't render it as dominant; it'll appear in the non-dominant layer instead.
     const focusIsDominant = focused && !fadedFocus
+    // In interactive/preview mode with no explicit selection, treat ALL fields as dominant.
+    const showAllAsDominant = interactive && !focused && dominantFieldIds.length === 0
 
-    // Foreground non-dominant fields — single color for all (no AgSKAN/Agworld distinction)
-    const fgSkanNonDom = agskanFields.filter(f => f.boundary?.type && (!focused || relevantSkanIds.has(f.field_id)) && !(focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) && !dominantFieldIds.includes(f.field_id)).map(f => {
-      const isSelected = selectedFieldIds.includes(f.field_id)
-      const isHighlighted = highlightFieldId === f.field_id
+    // Foreground non-dominant fields — split into selected (bright orange) and dimmed (near-invisible)
+    const fgSkanNonDom = agskanFields.filter(f => f.boundary?.type && !showAllAsDominant && (!hasRelevanceFilter || relevantSkanIds.has(f.field_id)) && !(focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) && !dominantFieldIds.includes(f.field_id)).map(f => {
+      const isSel = selectedFieldIds.includes(f.field_id)
+      const s = isSel ? scheme.nonDomSel : scheme.nonDomDim
       return { type: "Feature", geometry: f.boundary, properties: {
         id: f.field_id, name: f.name, source: "agskan",
-        opacity: isSelected ? scheme.nonDom.selOpacity : isHighlighted ? scheme.nonDom.selOpacity * 0.8 : scheme.nonDom.opacity,
-        lineOpacity: isSelected ? scheme.nonDom.selLineOpacity : isHighlighted ? scheme.nonDom.selLineOpacity * 0.9 : scheme.nonDom.lineOpacity,
-        fillColor: scheme.nonDom.fill,
-        lineColor: scheme.nonDom.line,
-        lineWidth: isSelected ? 3 : 2,
+        opacity: s.opacity, lineOpacity: s.lineOpacity,
+        fillColor: s.fill, lineColor: s.line, lineWidth: isSel ? 3 : 1,
       }}
     })
-    const fgAwNonDom = agworldBoundaries.filter(b => b.boundary?.type && (!focused || relevantAwIds.has(b.field_id || b.id)) && !(focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) && !dominantFieldIds.includes(b.field_id || b.id)).map(b => {
+    const fgAwNonDom = agworldBoundaries.filter(b => b.boundary?.type && !showAllAsDominant && (!hasRelevanceFilter || relevantAwIds.has(b.field_id || b.id)) && !(focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) && !dominantFieldIds.includes(b.field_id || b.id)).map(b => {
       const fid = b.field_id || b.id
-      const isSelected = selectedFieldIds.includes(fid)
-      const isHighlighted = highlightFieldId === fid
+      const isSel = selectedFieldIds.includes(fid)
+      const s = isSel ? scheme.nonDomSel : scheme.nonDomDim
       return { type: "Feature", geometry: b.boundary, properties: {
         id: fid, name: b.name, source: "agworld",
-        opacity: isSelected ? scheme.nonDom.selOpacity : isHighlighted ? scheme.nonDom.selOpacity * 0.8 : scheme.nonDom.opacity,
-        lineOpacity: isSelected ? scheme.nonDom.selLineOpacity : isHighlighted ? scheme.nonDom.selLineOpacity * 0.9 : scheme.nonDom.lineOpacity,
-        fillColor: scheme.nonDom.fill,
-        lineColor: scheme.nonDom.line,
-        lineWidth: isSelected ? 3 : 2,
+        opacity: s.opacity, lineOpacity: s.lineOpacity,
+        fillColor: s.fill, lineColor: s.line, lineWidth: isSel ? 3 : 1,
       }}
     })
+
+    const fgSelected = [...fgSkanNonDom.filter(f => selectedFieldIds.includes(f.properties.id)),
+      ...fgAwNonDom.filter(b => selectedFieldIds.includes(b.properties.id))]
+    const fgDimmed = [...fgSkanNonDom.filter(f => !selectedFieldIds.includes(f.properties.id)),
+      ...fgAwNonDom.filter(b => !selectedFieldIds.includes(b.properties.id))]
 
     // Dominant field(s) — rendered last (top layer).
     const domSkanFeatures = agskanFields.filter(f => f.boundary?.type &&
-      ((focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) || dominantFieldIds.includes(f.field_id))
+      (showAllAsDominant || (focusIsDominant && focused?.source === "agskan" && focused.id === f.field_id) || dominantFieldIds.includes(f.field_id))
     ).map(f => ({
       type: "Feature", geometry: f.boundary, properties: {
         id: f.field_id, name: f.name, source: "agskan",
@@ -269,7 +279,7 @@
       }
     }))
     const domAwFeatures = agworldBoundaries.filter(b => b.boundary?.type &&
-      ((focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) || dominantFieldIds.includes(b.field_id || b.id))
+      (showAllAsDominant || (focusIsDominant && focused?.source === "agworld" && focused.id === (b.field_id || b.id)) || dominantFieldIds.includes(b.field_id || b.id))
     ).map(b => ({
       type: "Feature", geometry: b.boundary, properties: {
         id: b.field_id || b.id, name: b.name, source: "agworld",
@@ -296,12 +306,15 @@
     ensureLayer("bg-aw", "bg-aw-outline", "line",
       { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "opacity"] }, {}, bgAwFeatures)
 
-    // Foreground non-dominant layers (middle) — merged into single source so AgSKAN/Agworld look identical
-    const allNonDom = [...fgSkanNonDom, ...fgAwNonDom]
-    ensureLayer("fg-all", "fg-all-fill", "fill",
-      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, allNonDom)
-    ensureLayer("fg-all", "fg-all-outline", "line",
-      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, allNonDom)
+    // Foreground non-dominant: selected (bright orange) on top, dimmed underneath
+    ensureLayer("fg-sel", "fg-sel-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, fgSelected)
+    ensureLayer("fg-sel", "fg-sel-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, fgSelected)
+    ensureLayer("fg-dim", "fg-dim-fill", "fill",
+      { "fill-color": ["get", "fillColor"], "fill-opacity": ["get", "opacity"] }, {}, fgDimmed)
+    ensureLayer("fg-dim", "fg-dim-outline", "line",
+      { "line-color": ["get", "lineColor"], "line-width": ["get", "lineWidth"], "line-opacity": ["get", "lineOpacity"] }, {}, fgDimmed)
 
     // Dominant field layers (top) — border uses lineOpacity (full) not fill opacity
     ensureLayer("dom-skan", "dom-skan-fill", "fill",
@@ -321,9 +334,9 @@
     if (!interactive) {
       // Review mode: simpler labels
       const labelTextSize = ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 9, 13, 14, 15, 22]
-      ensureLayer("fg-all-labels", "fg-all-labels", "symbol",
+      ensureLayer("fg-sel-labels", "fg-sel-labels", "symbol",
         { "text-color": "#fff", "text-halo-color": "#000", "text-halo-width": 1.5 },
-        { "text-field": ["get", "name"], "text-anchor": "center", "text-size": labelTextSize }, allNonDom)
+        { "text-field": ["get", "name"], "text-anchor": "center", "text-size": labelTextSize }, fgSelected)
       ensureLayer("dom-labels", "dom-labels", "symbol",
         { "text-color": "#fff", "text-halo-color": "#000", "text-halo-width": 2 },
         { "text-field": ["get", "name"], "text-anchor": "center", "text-size": labelTextSize }, [...domSkanFeatures, ...domAwFeatures])
@@ -427,7 +440,7 @@
     }
     // Click handlers for interactive consolidated preview
     if (interactive) {
-      ["dom-skan-fill", "fg-all-fill", "agskan-fill"].forEach(l => {
+      ["dom-skan-fill", "fg-sel-fill", "agskan-fill"].forEach(l => {
         map!.on("click", l, (e) => {
           const id = e.features?.[0]?.properties?.id
           if (id) dispatch("selectField", { id })

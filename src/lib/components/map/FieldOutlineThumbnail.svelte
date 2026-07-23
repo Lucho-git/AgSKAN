@@ -69,8 +69,8 @@
 <style>
   .field-outline-thumb {
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid oklch(var(--base-300) / 0.3);
+    background: oklch(var(--base-200) / 0.5);
     flex-shrink: 0;
   }
   .field-outline-empty {

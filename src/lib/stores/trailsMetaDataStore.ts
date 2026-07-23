@@ -18,6 +18,9 @@ export interface TrailData {
     operation_year?: number
     // Add vehicle info if needed
     vehicle_name?: string
+    // Operator and vehicle snapshot
+    operator_name?: string | null
+    vehicle_marker?: Record<string, any> | null
 }
 
 export const trailsMetaDataStore = writable<TrailData[]>([])

@@ -61,7 +61,7 @@
       const { data: trails, error } = await supabase
         .from("trails")
         .select(
-          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, operator_name, vehicle_marker",
         )
         .eq("operation_id", operationId)
         .not("end_time", "is", null)
@@ -103,7 +103,7 @@
       const { data: openTrails, error: trailsError } = await supabase
         .from("trails")
         .select(
-          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, operator_name, vehicle_marker",
         )
         .eq("operation_id", operationId)
         .is("end_time", null)

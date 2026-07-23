@@ -1,19 +1,9 @@
--- Add GiST spatial index on fields.boundary for spray record generation
-CREATE INDEX IF NOT EXISTS idx_fields_boundary_gist
-  ON public.fields USING gist (boundary);
-
--- Diagnostic columns for spray record generation analysis
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_dominant_field_id uuid;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_pct_of_dominant numeric;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_area_ratio numeric;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_max_dist_to_dominant_m numeric;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_edge_noise boolean;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_method text;
-ALTER TABLE spray_records ADD COLUMN IF NOT EXISTS gen_gap_merges int;
-
--- Optimized generate_spray_records: uses bbox pre-filter + spatial index
--- instead of CROSS JOIN + ST_Contains which does 1.3M+ unchecked checks
-CREATE OR REPLACE FUNCTION public.generate_spray_records(trail_id_param uuid)
+-- Generate agworld records directly from trails + agworld field boundaries
+-- Same algorithm as generate_spray_records() but using agworld_fields
+CREATE OR REPLACE FUNCTION public.generate_agworld_records(
+  trail_id_param uuid,
+  account_id_param text
+)
 RETURNS jsonb
 LANGUAGE plpgsql
 AS $$
@@ -23,16 +13,14 @@ DECLARE
     v_trail_width numeric; v_vehicle_marker jsonb; v_operator_name text; v_operator_id uuid;
     v_record_count int := 0;
     v_trail_bbox geometry;
-    v_records jsonb := '[]'::jsonb;
     v_vehicle_type text;
     v_swath_width numeric;
     v_trail_color text;
-    -- Island quality thresholds
-    v_min_island_points int := 4;          -- ignore < 4 pts (border flicker)
-    v_min_island_distance_m numeric := 20; -- ignore < 20m path (edge clip)
-    v_merge_gap_seconds int := 120;  -- merge same-field visits separated by < 2 min
+    v_min_island_points int := 4;
+    v_min_island_distance_m numeric := 20;
+    v_merge_gap_seconds int := 120;
 BEGIN
-    -- Read from trails as master source (operator/vehicle snapshotted at trail creation)
+    -- Read from trails as master source
     SELECT id, vehicle_id, operation_id, trail_width, trail_color,
            vehicle_marker, operator_name, operator_id,
            start_time, end_time
@@ -52,7 +40,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'Operation has no master_map_id');
     END IF;
 
-    -- Fallback for legacy trails without vehicle_marker / operator columns
+    -- Fallback for legacy trails
     IF v_vehicle_marker IS NULL THEN
         SELECT vehicle_marker INTO v_vehicle_marker FROM vehicle_state WHERE vehicle_id = v_vehicle_id;
     END IF;
@@ -75,96 +63,104 @@ BEGIN
     v_vehicle_type := v_vehicle_marker->>'type';
     v_swath_width := (v_vehicle_marker->>'swath')::numeric;
 
-    -- Compute trail bounding box ONCE for pre-filtering fields
+    -- Compute trail bounding box for pre-filtering agworld fields
     SELECT ST_Envelope(ST_Collect(coordinate::geometry)) INTO v_trail_bbox
     FROM trail_stream WHERE trail_id = trail_id_param;
 
     -- Temp table with points and row numbers
-    CREATE TEMP TABLE point_field_map (
-        ts timestamptz, coord geometry, field_id uuid, rn int
+    CREATE TEMP TABLE aw_point_map (
+        ts timestamptz, coord geometry, agworld_field_id text, rn int
     ) ON COMMIT DROP;
 
-    INSERT INTO point_field_map (ts, coord, field_id, rn)
+    INSERT INTO aw_point_map (ts, coord, agworld_field_id, rn)
     SELECT timestamp, coordinate::geometry, NULL,
            ROW_NUMBER() OVER (ORDER BY timestamp)
     FROM trail_stream WHERE trail_id = trail_id_param;
 
-    -- ── OPTIMIZED: bbox pre-filter + spatial index ──
-    -- Only check fields whose boundary intersects the trail's bounding box,
-    -- then do ST_Contains on that drastically reduced set.
-    UPDATE point_field_map pfm
-    SET field_id = sub.field_id
+    -- bbox pre-filter + spatial index against agworld_fields
+    UPDATE aw_point_map apm
+    SET agworld_field_id = sub.agworld_field_id
     FROM (
-        SELECT pfm2.rn, f.field_id
-        FROM point_field_map pfm2
-        JOIN fields f ON f.map_id = v_master_map_id
-            AND f.boundary && v_trail_bbox              -- bbox pre-filter (indexed)
-            AND ST_Intersects(f.boundary, v_trail_bbox) -- precise intersect (indexed)
-            AND ST_Contains(f.boundary::geometry, pfm2.coord)
+        SELECT apm2.rn, af.id AS agworld_field_id
+        FROM aw_point_map apm2
+        JOIN agworld_fields af ON af.map_id = v_master_map_id
+            AND af.account_id = account_id_param
+            AND af.boundary IS NOT NULL
+            AND af.boundary && v_trail_bbox
+            AND ST_Intersects(af.boundary::geometry, v_trail_bbox)
+            AND ST_Contains(af.boundary::geometry, apm2.coord)
     ) sub
-    WHERE pfm.rn = sub.rn;
+    WHERE apm.rn = sub.rn;
 
-    -- Build spray records with island detection + gap merging
+    -- Island detection + gap merging (same logic as spray_records)
     WITH island_marks AS (
-        SELECT *, LAG(field_id) OVER (ORDER BY rn) AS prev_field_id
-        FROM point_field_map
+        SELECT *, LAG(agworld_field_id) OVER (ORDER BY rn) AS prev_field_id
+        FROM aw_point_map
     ),
     raw_islands AS (
-        SELECT ts, coord, rn, field_id,
-            SUM(CASE WHEN field_id IS DISTINCT FROM prev_field_id THEN 1 ELSE 0 END)
+        SELECT ts, coord, rn, agworld_field_id,
+            SUM(CASE WHEN agworld_field_id IS DISTINCT FROM prev_field_id THEN 1 ELSE 0 END)
                 OVER (ORDER BY rn ROWS UNBOUNDED PRECEDING) AS raw_island
-        FROM island_marks WHERE field_id IS NOT NULL
+        FROM island_marks WHERE agworld_field_id IS NOT NULL
     ),
     island_bounds AS (
-        SELECT field_id, raw_island,
+        SELECT agworld_field_id, raw_island,
             MIN(ts) AS entry_ts, MAX(ts) AS exit_ts
-        FROM raw_islands GROUP BY field_id, raw_island
+        FROM raw_islands GROUP BY agworld_field_id, raw_island
     ),
     island_gaps AS (
         SELECT *,
             EXTRACT(EPOCH FROM (
-                LEAD(entry_ts) OVER (PARTITION BY field_id ORDER BY entry_ts) - exit_ts
+                LEAD(entry_ts) OVER (PARTITION BY agworld_field_id ORDER BY entry_ts) - exit_ts
             )) AS gap_seconds
         FROM island_bounds
     ),
     merge_map AS (
-        SELECT field_id, raw_island,
+        SELECT agworld_field_id, raw_island,
             SUM(CASE WHEN gap_seconds IS NULL OR gap_seconds > v_merge_gap_seconds THEN 1 ELSE 0 END)
-                OVER (PARTITION BY field_id ORDER BY entry_ts ROWS UNBOUNDED PRECEDING) AS merge_grp
+                OVER (PARTITION BY agworld_field_id ORDER BY entry_ts ROWS UNBOUNDED PRECEDING) AS merge_grp
         FROM island_gaps
     ),
     merged_islands AS (
-        SELECT ri.ts, ri.coord, ri.rn, ri.field_id, mm.merge_grp
+        SELECT ri.ts, ri.coord, ri.rn, ri.agworld_field_id, mm.merge_grp
         FROM raw_islands ri
-        JOIN merge_map mm ON mm.field_id = ri.field_id AND mm.raw_island = ri.raw_island
+        JOIN merge_map mm ON mm.agworld_field_id = ri.agworld_field_id AND mm.raw_island = ri.raw_island
     ),
     field_intervals AS (
-        SELECT field_id, merge_grp,
+        SELECT agworld_field_id, merge_grp,
             MIN(ts) AS entry_time, MAX(ts) AS exit_time,
             EXTRACT(EPOCH FROM (MAX(ts) - MIN(ts)))::int AS duration_seconds,
             ST_Length(ST_MakeLine(coord::geometry ORDER BY rn)::geography) / 1000 AS distance_km,
             COUNT(*) AS point_count,
             ST_MakeLine(coord::geometry ORDER BY rn) AS path_geom
         FROM merged_islands
-        GROUP BY field_id, merge_grp
+        GROUP BY agworld_field_id, merge_grp
         HAVING COUNT(*) >= v_min_island_points
            AND ST_Length(ST_MakeLine(coord::geometry ORDER BY rn)::geography) >= v_min_island_distance_m
-           AND (ST_Length(ST_MakeLine(coord::geometry ORDER BY rn)::geography) * v_trail_width / 10000) >= v_min_island_area_ha
     )
-    INSERT INTO spray_records (
-        trail_id, field_id, master_map_id, operation_id, vehicle_id,
+    INSERT INTO agworld_records (
+        account_id, agworld_field_id, agworld_field_name, agworld_boundary,
+        master_map_id, trail_id, operation_id, vehicle_id,
+        operator_id, operator_name, operator_confirmed,
         start_time, end_time, duration_seconds,
         field_path, area_hectares, distance_km, point_count,
-        vehicle_type, swath_width, operator_id, operator_name, operator_confirmed,
+        vehicle_type, swath_width,
         trail_width, trail_color, vehicle_marker,
+        gen_method, status,
         created_at, updated_at
     )
     SELECT
-        trail_id_param,
-        fi.field_id,
+        account_id_param,
+        fi.agworld_field_id,
+        af.name,
+        af.boundary,
         v_master_map_id,
+        trail_id_param,
         v_operation_id,
         v_vehicle_id,
+        v_operator_id,
+        v_operator_name,
+        false,
         fi.entry_time,
         fi.exit_time,
         fi.duration_seconds,
@@ -174,41 +170,23 @@ BEGIN
         fi.point_count,
         v_vehicle_type,
         v_swath_width,
-        v_operator_id,
-        v_operator_name,
-        false,
         v_trail_width,
         v_trail_color,
         v_vehicle_marker,
+        'agworld_direct',
+        'generated',
         now(),
         now()
-    FROM field_intervals fi;
+    FROM field_intervals fi
+    JOIN agworld_fields af ON af.id = fi.agworld_field_id;
 
     GET DIAGNOSTICS v_record_count = ROW_COUNT;
 
-    -- Build records JSON for return
-    SELECT jsonb_agg(jsonb_build_object(
-        'field_id', field_id,
-        'field_name', (SELECT name FROM fields WHERE field_id = sr.field_id),
-        'start_time', start_time,
-        'end_time', end_time,
-        'duration_seconds', duration_seconds,
-        'area_hectares', area_hectares,
-        'distance_km', distance_km,
-        'point_count', point_count,
-        'vehicle_type', vehicle_type,
-        'operator_name', operator_name,
-        'operator_id', operator_id
-    )) INTO v_records
-    FROM spray_records sr
-    WHERE sr.trail_id = trail_id_param;
-
-    DROP TABLE point_field_map;
+    DROP TABLE aw_point_map;
 
     RETURN jsonb_build_object(
         'success', true,
-        'records_generated', v_record_count,
-        'records', COALESCE(v_records, '[]'::jsonb)
+        'records_generated', v_record_count
     );
 END;
 $$;

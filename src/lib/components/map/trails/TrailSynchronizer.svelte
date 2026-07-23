@@ -285,10 +285,12 @@
 
     try {
       const vehicleId = $userVehicleStore.vehicle_id
+      const operator = $operatorStore?.operator
       const result = await trailsApi.openNewTrail(
         vehicleId,
         selectedOperation.id,
         $userVehicleStore,
+        operator ? { id: operator.id, name: operator.name } : null,
       )
 
       if (result.error) {
@@ -1193,7 +1195,7 @@
       const { data: activeTrails, error: trailsErr } = await supabase
         .from("trails")
         .select(
-          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width",
+          "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, operator_name, vehicle_marker",
         )
         .eq("operation_id", opId)
         .is("end_time", null)

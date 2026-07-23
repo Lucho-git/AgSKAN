@@ -149,6 +149,8 @@ export const mapApi = {
                         trail_hectares,
                         trail_hectares_overlap,
                         trail_percentage_overlap,
+                        operator_name,
+                        vehicle_marker,
                         operations!inner(
                             id,
                             name,

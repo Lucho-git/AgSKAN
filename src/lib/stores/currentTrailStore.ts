@@ -16,6 +16,9 @@ export interface Trail {
     vehicle_id: string
     operation_id: string
     path: Coordinate[]
+    operator_name?: string | null
+    operator_id?: string | null
+    vehicle_marker?: Record<string, any> | null
 }
 
 export interface UnsavedTrail {
