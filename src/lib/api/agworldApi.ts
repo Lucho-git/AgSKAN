@@ -897,4 +897,54 @@ export const agworldApiV3 = {
         if (options?.fields) p['fields[activity-problems]'] = options.fields;
         return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/activity-problems`, p);
     },
+
+    // --- Convenience: field-scoped fetchers ---
+
+    /** Fetch actuals filtered by a specific field boundary */
+    async listActualsByField(account: AgworldAccount, growerId: string, fieldBoundaryId: string, options?: {
+        page?: { number?: number; size?: number };
+        sort?: string;
+        fields?: string;
+        include?: string;
+    }) {
+        const p = buildListParams({
+            ...options,
+            filter: { field_boundary_id: fieldBoundaryId, ...options?.filter },
+        });
+        if (options?.fields) p['fields[actuals]'] = options.fields;
+        if (options?.include) p['include'] = options.include;
+        return agworldFetch<AgworldCollectionResponse<AgworldActual>>(account, `/api/v3/growers/${growerId}/actuals`, p);
+    },
+
+    /** Fetch work-orders filtered by a specific field boundary */
+    async listWorkOrdersByField(account: AgworldAccount, growerId: string, fieldBoundaryId: string, options?: {
+        page?: { number?: number; size?: number };
+        sort?: string;
+        fields?: string;
+        include?: string;
+    }) {
+        const p = buildListParams({
+            ...options,
+            filter: { field_boundary_id: fieldBoundaryId, ...options?.filter },
+        });
+        if (options?.fields) p['fields[work-order]'] = options.fields;
+        if (options?.include) p['include'] = options.include;
+        return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/work-orders`, p);
+    },
+
+    /** Fetch plans filtered by a specific field boundary */
+    async listPlansByField(account: AgworldAccount, growerId: string, fieldBoundaryId: string, options?: {
+        page?: { number?: number; size?: number };
+        sort?: string;
+        fields?: string;
+        include?: string;
+    }) {
+        const p = buildListParams({
+            ...options,
+            filter: { field_boundary_id: fieldBoundaryId, ...options?.filter },
+        });
+        if (options?.fields) p['fields[plan]'] = options.fields;
+        if (options?.include) p['include'] = options.include;
+        return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/plans`, p);
+    },
 };

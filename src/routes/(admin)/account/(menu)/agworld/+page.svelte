@@ -121,6 +121,7 @@
     apiResult = null; apiError = null; apiStatus = null
     requestLogs = []; expandedLogId = null
     expandedFarms = new Set(); expandedFields = new Set()
+    expandedActivityFields = new Set(); fieldActivityData = new Map()
     selectedYear = 2026; selectedFieldId = null; recordSearchQuery = ""
     const acct = accounts.find((a) => a.id === id)
     queryGrowerId = acct?.growerId || ""
@@ -433,6 +434,11 @@
   let expandedFarms = new Set<string>()
   let expandedFields = new Set<string>()
 
+  // Agworld Activity Data (fetched per-field from Agworld API)
+  let fieldActivityLoading = new Set<string>()
+  let fieldActivityData = new Map<string, { actuals: any[]; workOrders: any[]; plans: any[]; error?: string }>()
+  let expandedActivityFields = new Set<string>()
+
   // Grouped by farm → field for records display
   $: filteredFieldList = selectedYear
     ? agworldFieldList.filter(f => f.production_year === selectedYear)
@@ -466,13 +472,106 @@
     }
   }
 
+  function toggleActivityExpand(fieldId: string) {
+    if (expandedActivityFields.has(fieldId)) {
+      expandedActivityFields.delete(fieldId)
+    } else {
+      expandedActivityFields.add(fieldId)
+    }
+    expandedActivityFields = new Set(expandedActivityFields)
+  }
+
+  async function fetchFieldActivity(field: any) {
+    if (!selectedAccount || !selectedAccount.growerId) {
+      toast.error("Set a Grower ID on this account first")
+      return
+    }
+    // Use the field boundary ID (properties.agworld_boundary_id), not the field ID (agworld_field_ref).
+    // The Agworld API filters actuals/plans/work-orders by field_boundary_id, which is the boundary resource.
+    const boundaryId = field.properties?.agworld_boundary_id || field.agworld_field_ref
+    if (!boundaryId) {
+      toast.error("No Agworld boundary reference for this field")
+      return
+    }
+
+    // Already loading or loaded successfully
+    if (fieldActivityLoading.has(field.id)) return
+    const existing = fieldActivityData.get(field.id)
+    if (existing && !existing.error) {
+      toggleActivityExpand(field.id)
+      return
+    }
+
+    fieldActivityLoading.add(field.id)
+    fieldActivityLoading = new Set(fieldActivityLoading)
+
+    console.log(`[AgActivity] Fetching for field "${field.name}" (boundaryId: ${boundaryId}, fieldId: ${field.agworld_field_ref}, grower: ${selectedAccount.growerId})`)
+    try {
+      const startTime = performance.now()
+      const [actualsRes, workOrdersRes, plansRes] = await Promise.all([
+        agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-completed_at' }),
+        agworldApiV3.listWorkOrdersByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }),
+        agworldApiV3.listPlansByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }),
+      ])
+      const elapsed = Math.round(performance.now() - startTime)
+      console.log(`[AgActivity] "${field.name}" — actuals: ${actualsRes.data?.data?.length || 0} (status ${actualsRes.status}), workOrders: ${workOrdersRes.data?.data?.length || 0} (status ${workOrdersRes.status}), plans: ${plansRes.data?.data?.length || 0} (status ${plansRes.status}) — ${elapsed}ms`)
+
+      const errors: string[] = []
+      if (!actualsRes.success) { errors.push(`Actuals: ${actualsRes.error}`); console.warn(`[AgActivity] Actuals failed:`, actualsRes.error) }
+      if (!workOrdersRes.success) { errors.push(`Work Orders: ${workOrdersRes.error}`); console.warn(`[AgActivity] Work Orders failed:`, workOrdersRes.error) }
+      if (!plansRes.success) { errors.push(`Plans: ${plansRes.error}`); console.warn(`[AgActivity] Plans failed:`, plansRes.error) }
+
+      fieldActivityData.set(field.id, {
+        actuals: actualsRes.data?.data || [],
+        workOrders: workOrdersRes.data?.data || [],
+        plans: plansRes.data?.data || [],
+        error: errors.length > 0 ? errors.join('; ') : undefined,
+      })
+      fieldActivityData = new Map(fieldActivityData)
+
+      if (errors.length > 0) {
+        toast.warning(`Partial data: ${errors.join('; ')}`)
+      } else {
+        const total = (actualsRes.data?.data?.length || 0) + (workOrdersRes.data?.data?.length || 0) + (plansRes.data?.data?.length || 0)
+        toast.success(`Loaded ${total} activity items`)
+      }
+      toggleActivityExpand(field.id)
+    } catch (e: any) {
+      fieldActivityData.set(field.id, { actuals: [], workOrders: [], plans: [], error: e.message })
+      fieldActivityData = new Map(fieldActivityData)
+      console.error(`[AgActivity] "${field.name}" fetch exception:`, e.message || e)
+      toast.error(`Failed: ${e.message}`)
+    } finally {
+      fieldActivityLoading.delete(field.id)
+      fieldActivityLoading = new Set(fieldActivityLoading)
+    }
+  }
+
+  async function fetchAllActivity() {
+    const fields = agworldFieldList.filter(f => f.agworld_field_ref && !fieldActivityData.has(f.id))
+    if (fields.length === 0) {
+      toast.info("All visible fields already have activity data — click Activity on individual fields to refresh")
+      return
+    }
+    toast.info(`Fetching activity for ${fields.length} field${fields.length !== 1 ? 's' : ''}...`)
+    // Fetch in parallel with a small stagger to respect rate limits (4 concurrent, 200/min)
+    const BATCH = 3
+    for (let i = 0; i < fields.length; i += BATCH) {
+      const batch = fields.slice(i, i + BATCH)
+      await Promise.all(batch.map(f => fetchFieldActivity(f)))
+      if (i + BATCH < fields.length) {
+        await new Promise(r => setTimeout(r, 1500)) // ~200 req/min pacing
+      }
+    }
+  }
+
   async function loadAgworldFieldList(accountId?: string) {
     const acctId = accountId || selectedAccount?.id
     if (!acctId) return
     try {
       const { data } = await supabase
         .from("agworld_fields")
-        .select("id, name, agworld_field_name, area, boundary, farm_id, farm_name, crop_type, production_year, properties")
+        .select("id, name, agworld_field_name, agworld_field_ref, area, boundary, farm_id, farm_name, crop_type, production_year, properties")
         .eq("account_id", acctId)
         .order("name")
       agworldFieldList = data || []
@@ -939,17 +1038,17 @@
 
   let genTrailLimit = 100
   let genProgress = ""
-  let trailProgress = { total: 0, processed: 0 }
+  let trailProgress = { total: 0, processed: 0, oldest_processed: null as string | null }
 
   async function loadTrailProgress() {
-    if (!selectedAccount?.linkedMapId) { trailProgress = { total: 0, processed: 0 }; return }
+    if (!selectedAccount?.linkedMapId) { trailProgress = { total: 0, processed: 0, oldest_processed: null }; return }
     try {
       const { data } = await supabase.rpc("get_agworld_trail_progress", {
         p_master_map_id: selectedAccount.linkedMapId,
         p_account_id: selectedAccount.id
       })
-      trailProgress = data || { total: 0, processed: 0 }
-    } catch { trailProgress = { total: 0, processed: 0 } }
+      trailProgress = data || { total: 0, processed: 0, oldest_processed: null }
+    } catch { trailProgress = { total: 0, processed: 0, oldest_processed: null } }
   }
 
   async function generateAgworldRecords() {
@@ -959,18 +1058,41 @@
     }
     recordsLoading = true
     recordsError = null
-    genProgress = "Starting..."
+    genProgress = "Fetching trails..."
     console.log(`[GenAg] Processing up to ${genTrailLimit} trails, map: ${selectedAccount.linkedMapId}`)
+    let total = 0, generated = 0, skipped = 0
+    const BATCH = 10
     try {
-      const { data: result, error } = await supabase.rpc("backfill_agworld_trails", {
-        p_master_map_id: selectedAccount.linkedMapId,
-        p_account_id: selectedAccount.id,
-        p_limit: genTrailLimit
-      })
-      if (error) { recordsError = error.message; console.error("[GenAg] RPC error:", error.message); return }
-      console.log(`[GenAg] Done: ${result.trails_processed} trails → ${result.records_generated} records`)
-      genProgress = `${result.records_generated} records from ${result.trails_processed} trails`
-      toast.success(`Generated ${result.records_generated} records from ${result.trails_processed} trails`)
+      // Process in batches of 10 — fast enough, small enough to survive timeouts
+      for (let offset = 0; offset < genTrailLimit; offset += BATCH) {
+        genProgress = `Batch ${Math.floor(offset/BATCH)+1}...`
+        try {
+          const { data: result, error } = await supabase.rpc("backfill_agworld_trails", {
+            p_master_map_id: selectedAccount.linkedMapId,
+            p_account_id: selectedAccount.id,
+            p_limit: BATCH
+          })
+          if (error) {
+            console.warn(`[GenAg] Batch failed: ${error.message}`)
+            skipped += BATCH
+            await new Promise(r => setTimeout(r, 200))
+            continue
+          }
+          total += result.trails_processed || 0
+          generated += result.records_generated || 0
+          skipped += (result.skipped || 0)
+          // Stop if no more trails to process
+          if (!result.trails_processed) break
+        } catch (e: any) {
+          console.warn(`[GenAg] Batch failed: ${e.message}`)
+          skipped += BATCH
+          await new Promise(r => setTimeout(r, 200))
+        }
+      }
+
+      console.log(`[GenAg] Done: ${total} trails → ${generated} records${skipped ? ` (${skipped} skipped)` : ''}`)
+      genProgress = `${generated} records from ${total} trails`
+      toast.success(`Generated ${generated} records from ${total} trails${skipped ? ` · ${skipped} skipped` : ''}`)
       await Promise.all([loadAgworldFieldCounts(), loadAgworldFieldList(), loadAgworldRecords(), loadTrailProgress()])
     } catch (e: any) {
       recordsError = e.message
@@ -2320,9 +2442,12 @@
               <span>Generate Records</span>
             </button>
             {#if trailProgress.total > 0}
-              <span class="count-badge" title="{trailProgress.processed} of {trailProgress.total} trails processed">
+              <span class="count-badge" title="Backfilled back to {trailProgress.oldest_processed ? new Date(trailProgress.oldest_processed).toLocaleDateString('en-AU') : 'N/A'}">
                 <Icon icon="solar:check-read-bold" width="14" height="14" class="text-green-400" />
                 <span>{trailProgress.processed}/{trailProgress.total} trails</span>
+                {#if trailProgress.oldest_processed}
+                  <span class="text-xs opacity-50">· since {new Date(trailProgress.oldest_processed).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</span>
+                {/if}
               </span>
             {/if}
             <button class="action-btn action-btn-danger" on:click={clearAgworldData} disabled={recordsLoading || savingConsolidated} title="Delete all agworld fields & records">
@@ -2367,6 +2492,32 @@
             fieldAreaHa={overlayField.area || 0}
             on:close={() => { showMap = false; overlayField = null }}
           />
+        {/if}
+
+        <!-- Agworld Activity banner -->
+        {#if farmGroups.length > 0}
+          {@const fieldsWithRef = agworldFieldList.filter(f => f.agworld_field_ref).length}
+          {@const fieldsWithData = agworldFieldList.filter(f => fieldActivityData.has(f.id)).length}
+          <div class="activity-banner">
+            <div class="activity-banner-info">
+              <Icon icon="solar:cloud-download-bold-duotone" width="18" height="18" class="text-purple-400" />
+              <span>
+                <strong>Agworld Activity Data</strong>
+                <span class="opacity-60"> — Click <span class="activity-btn-inline">Activity</span> on any field card to pull actuals, work orders &amp; plans</span>
+              </span>
+            </div>
+            {#if fieldsWithRef > fieldsWithData}
+              <button class="action-btn action-btn-accent" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.2);color:#a78bfa" on:click={fetchAllActivity}>
+                <Icon icon="solar:cloud-download-bold" width="14" height="14" />
+                <span>Fetch All ({fieldsWithRef - fieldsWithData} remaining)</span>
+              </button>
+            {:else if fieldsWithData > 0}
+              <span class="activity-banner-done">
+                <Icon icon="solar:check-circle-bold" width="14" height="14" class="text-green-400" />
+                {fieldsWithData} field{fieldsWithData !== 1 ? 's' : ''} loaded
+              </span>
+            {/if}
+          </div>
         {/if}
 
         <!-- Loading / Error -->
@@ -2429,6 +2580,29 @@
                             </div>
                             <div class="field-card-actions">
                               <span class="record-count-badge">{agworldRecords.filter(r => r.agworld_field_id === field.id).length} record{agworldRecords.filter(r => r.agworld_field_id === field.id).length !== 1 ? 's' : ''}</span>
+                              {#if field.agworld_field_ref}
+                                {@const ad = fieldActivityData.get(field.id)}
+                                {@const adTotal = ad ? (ad.actuals?.length || 0) + (ad.workOrders?.length || 0) + (ad.plans?.length || 0) : 0}
+                                <button
+                                  class="activity-btn"
+                                  class:loading={fieldActivityLoading.has(field.id)}
+                                  class:has-data={adTotal > 0}
+                                  on:click|stopPropagation={() => fetchFieldActivity(field)}
+                                  title={adTotal > 0 ? `${adTotal} activity items loaded — click to toggle` : "Fetch Agworld activity data"}
+                                >
+                                  {#if fieldActivityLoading.has(field.id)}
+                                    <span class="loading loading-spinner loading-xs"></span>
+                                  {:else if adTotal > 0}
+                                    <Icon icon="solar:check-circle-bold" width="12" height="12" class="text-green-400" />
+                                  {:else}
+                                    <Icon icon="solar:cloud-download-bold" width="12" height="12" />
+                                  {/if}
+                                  Activity
+                                  {#if adTotal > 0}
+                                    <span class="activity-btn-badge">{adTotal}</span>
+                                  {/if}
+                                </button>
+                              {/if}
                               {#if field.boundary}
                                 <button class="map-btn" on:click|stopPropagation={() => openFieldOverlay(field)} title="View on map">
                                   <Icon icon="solar:map-point-bold" width="12" height="12" /> Map
@@ -2462,6 +2636,84 @@
                                   <span class="record-method">{rec.gen_method || ''}</span>
                                 </div>
                               {/each}
+                            </div>
+                          {/if}
+
+                          <!-- Agworld Activity Data -->
+                          {#if expandedActivityFields.has(field.id)}
+                            {@const activity = fieldActivityData.get(field.id)}
+                            <div class="field-activity">
+                              {#if activity?.error}
+                                <div class="activity-error">
+                                  <Icon icon="solar:danger-triangle-bold" width="14" height="14" />
+                                  {activity.error}
+                                </div>
+                              {:else if activity}
+                                {@const totalItems = (activity.actuals?.length || 0) + (activity.workOrders?.length || 0) + (activity.plans?.length || 0)}
+                                {#if totalItems === 0}
+                                  <div class="activity-empty">No actuals, work orders, or plans found for this field.</div>
+                                {:else}
+                                  <!-- Actuals -->
+                                  {#if activity.actuals?.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:check-circle-bold" width="14" height="14" class="text-success" />
+                                        <span>Actuals</span>
+                                        <span class="activity-count">{activity.actuals.length}</span>
+                                      </div>
+                                      {#each activity.actuals as a (a.id)}
+                                        {@const attrs = a.attributes || {}}
+                                        <div class="activity-row">
+                                          <span class="activity-date">{attrs.completed_at ? new Date(attrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : attrs.started_at ? new Date(attrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-type-badge actual">Actual</span>
+                                          <span class="activity-status" class:completed={attrs.status === 'completed'}>{attrs.status || '-'}</span>
+                                          <span class="activity-name">{attrs.name || attrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+
+                                  <!-- Work Orders -->
+                                  {#if activity.workOrders?.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:clipboard-list-bold" width="14" height="14" class="text-warning" />
+                                        <span>Work Orders</span>
+                                        <span class="activity-count">{activity.workOrders.length}</span>
+                                      </div>
+                                      {#each activity.workOrders as wo (wo.id)}
+                                        {@const attrs = wo.attributes || {}}
+                                        <div class="activity-row">
+                                          <span class="activity-date">{attrs.due_date ? new Date(attrs.due_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-type-badge work-order">W/O</span>
+                                          <span class="activity-status" class:completed={attrs.status === 'closed'}>{attrs.status || '-'}</span>
+                                          <span class="activity-name">{attrs.name || attrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+
+                                  <!-- Plans -->
+                                  {#if activity.plans?.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:documents-bold" width="14" height="14" class="text-info" />
+                                        <span>Plans</span>
+                                        <span class="activity-count">{activity.plans.length}</span>
+                                      </div>
+                                      {#each activity.plans as p (p.id)}
+                                        {@const attrs = p.attributes || {}}
+                                        <div class="activity-row">
+                                          <span class="activity-date">{attrs.planned_date ? new Date(attrs.planned_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-type-badge plan">Plan</span>
+                                          <span class="activity-status" class:completed={attrs.status === 'completed'}>{attrs.status || '-'}</span>
+                                          <span class="activity-name">{attrs.name || attrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+                                {/if}
+                              {/if}
                             </div>
                           {/if}
                         </div>
@@ -3366,6 +3618,165 @@
     font-size: 10px;
     color: oklch(var(--contrast-content) / 0.3);
     font-style: italic;
+  }
+
+  /* Activity button */
+  .activity-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .activity-btn:hover { background: rgba(139, 92, 246, 0.15); }
+  .activity-btn.loading { opacity: 0.7; pointer-events: none; }
+  .activity-btn.has-data { border-color: rgba(34, 197, 94, 0.25); }
+  .activity-btn-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    padding: 1px 5px;
+    border-radius: 4px;
+    min-width: 16px;
+    text-align: center;
+  }
+  .activity-btn.has-data .activity-btn-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+  }
+
+  /* Agworld Activity section */
+  .field-activity {
+    border-top: 1px solid oklch(var(--base-300));
+    padding: 8px 14px 10px;
+    background: oklch(var(--base-200) / 0.3);
+  }
+  .activity-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #f87171;
+    font-size: 12px;
+    padding: 4px 0;
+  }
+  .activity-empty {
+    color: oklch(var(--contrast-content) / 0.4);
+    font-size: 12px;
+    font-style: italic;
+    padding: 4px 0;
+  }
+  .activity-group {
+    margin-bottom: 8px;
+  }
+  .activity-group:last-child { margin-bottom: 0; }
+  .activity-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: oklch(var(--contrast-content) / 0.5);
+    margin-bottom: 4px;
+  }
+  .activity-count {
+    font-size: 10px;
+    background: oklch(var(--base-300) / 0.4);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    color: oklch(var(--contrast-content) / 0.6);
+  }
+  .activity-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid oklch(var(--base-300) / 0.25);
+    font-size: 12px;
+  }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-date {
+    color: oklch(var(--contrast-content) / 0.7);
+    min-width: 80px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .activity-type-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    min-width: 48px;
+    text-align: center;
+  }
+  .activity-type-badge.actual { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
+  .activity-type-badge.work-order { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+  .activity-type-badge.plan { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+  .activity-status {
+    font-size: 10px;
+    color: oklch(var(--contrast-content) / 0.5);
+    min-width: 70px;
+    text-transform: capitalize;
+  }
+  .activity-status.completed { color: #22c55e; }
+  .activity-name {
+    flex: 1;
+    color: oklch(var(--contrast-content) / 0.8);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Activity banner */
+  .activity-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid rgba(139, 92, 246, 0.12);
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .activity-banner-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: oklch(var(--contrast-content) / 0.8);
+  }
+  .activity-btn-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+  }
+  .activity-banner-done {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: oklch(var(--contrast-content) / 0.6);
+    white-space: nowrap;
   }
 
   /* ── Shared: Page wrapper ── */
