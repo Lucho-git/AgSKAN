@@ -76,8 +76,23 @@
   $: selectedAccount = accounts.find((a) => a.id === selectedAccountId) ?? null
   $: instanceLabel = selectedAccount ? (AGWORLD_INSTANCES[selectedAccount.instance]?.label ?? 'US') : ''
 
-  onMount(() => {
-    accounts = agworldAccountStore.getAll()
+  onMount(async () => {
+    accounts = await agworldAccountStore.getAll()
+    // One-time migration: move localStorage accounts to Supabase
+    try {
+      const oldRaw = localStorage.getItem('agskan_agworld_accounts')
+      if (oldRaw) {
+        const oldAccounts = JSON.parse(oldRaw)
+        if (Array.isArray(oldAccounts) && oldAccounts.length > 0) {
+          for (const a of oldAccounts) {
+            await agworldAccountStore.add(a.name, a.apiKey, a.instance || 'au', a.growerId || '')
+          }
+          localStorage.removeItem('agskan_agworld_accounts')
+          accounts = await agworldAccountStore.getAll()
+          console.log(`[Agworld] Migrated ${oldAccounts.length} accounts from localStorage to Supabase`)
+        }
+      }
+    } catch {}
   })
 
   // --- Add account ---
@@ -88,8 +103,14 @@
     }
     adding = true
     try {
-      agworldAccountStore.add(newName.trim(), newApiKey.trim(), newInstance, newGrowerId.trim())
-      accounts = agworldAccountStore.getAll()
+      console.log('[Agworld] Adding account:', { name: newName.trim(), instance: newInstance, growerId: newGrowerId.trim() })
+      const result = await agworldAccountStore.add(newName.trim(), newApiKey.trim(), newInstance, newGrowerId.trim())
+      console.log('[Agworld] Add result:', result)
+      if (!result) {
+        toast.error("Failed to save account — check console for details")
+        return
+      }
+      accounts = await agworldAccountStore.getAll()
       newName = ""
       newApiKey = ""
       newInstance = "au"
@@ -102,10 +123,10 @@
   }
 
   // --- Remove account ---
-  function handleRemove(id: string) {
+  async function handleRemove(id: string) {
     if (!confirm("Remove this account?")) return
-    agworldAccountStore.remove(id)
-    accounts = agworldAccountStore.getAll()
+    await agworldAccountStore.remove(id)
+    accounts = await agworldAccountStore.getAll()
     if (selectedAccountId === id) {
       selectedAccountId = null
       view = "list"
@@ -163,26 +184,26 @@
     }
   }
 
-  function linkAccountToProfile(profile: { email: string; full_name: string; master_map_id: string | null }) {
+  async function linkAccountToProfile(profile: { email: string; full_name: string; master_map_id: string | null }) {
     if (!selectedAccount) return
     if (!profile.master_map_id) {
       toast.error("This profile has no AgSKAN map assigned")
       return
     }
-    agworldAccountStore.update(selectedAccount.id, {
+    await agworldAccountStore.update(selectedAccount.id, {
       linkedMapId: profile.master_map_id,
       linkedProfileLabel: profile.full_name || profile.email,
     })
-    accounts = agworldAccountStore.getAll()
+    accounts = await agworldAccountStore.getAll()
     linkSearchResults = []
     linkSearchQuery = ""
     toast.success(`Linked to ${profile.full_name || profile.email}`)
   }
 
-  function unlinkAccount() {
+  async function unlinkAccount() {
     if (!selectedAccount) return
-    agworldAccountStore.update(selectedAccount.id, { linkedMapId: "", linkedProfileLabel: "" })
-    accounts = agworldAccountStore.getAll()
+    await agworldAccountStore.update(selectedAccount.id, { linkedMapId: "", linkedProfileLabel: "" })
+    accounts = await agworldAccountStore.getAll()
   }
 
   async function runQuery(endpoint: string) {

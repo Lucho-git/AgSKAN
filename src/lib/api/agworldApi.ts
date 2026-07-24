@@ -1,6 +1,8 @@
 // src/lib/api/agworldApi.ts
 // Client for the Agworld v3 API (JSON:API spec)
 
+import { supabase } from '$lib/supabaseClient'
+
 export const AGWORLD_INSTANCES: Record<string, { base: string; label: string }> = {
     au: { base: 'https://au.agworld.com', label: 'Australia' },
     us: { base: 'https://us.agworld.com', label: 'US' },
@@ -164,67 +166,75 @@ export interface AgworldSingleResponse<T> {
     };
 }
 
-// --- Local storage helpers for dev accounts ---
+// --- Supabase-backed account store (syncs across devices) ---
 
-const STORAGE_KEY = 'agskan_agworld_accounts';
-
-function loadAccounts(): AgworldAccount[] {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        // Migrate old accounts without instance field
-        return (Array.isArray(parsed) ? parsed : []).map((a: any) => ({
-            ...a,
-            instance: a.instance || 'au',
-            growerId: a.growerId || '',
-        }));
-    } catch {
-        return [];
-    }
-}
-
-function saveAccounts(accounts: AgworldAccount[]): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+function mapRow(row: any): AgworldAccount {
+  return {
+    id: row.id,
+    name: row.name,
+    apiKey: row.api_key,
+    instance: row.instance || 'au',
+    growerId: row.grower_id || '',
+    linkedMapId: row.linked_map_id || undefined,
+    linkedProfileLabel: row.linked_profile_label || undefined,
+    createdAt: row.created_at,
+  }
 }
 
 export const agworldAccountStore = {
-    getAll(): AgworldAccount[] {
-        return loadAccounts();
-    },
+  async getAll(): Promise<AgworldAccount[]> {
+    const { data: { user } } = await supabase.auth.getUser()
+    console.log('[Agworld Store] Auth state:', user ? `logged in as ${user.id}` : 'NOT LOGGED IN')
+    const { data, error } = await supabase.from('agworld_accounts').select('*').order('created_at')
+    if (error) console.error('[Agworld Store] GetAll error:', error.message, error.code)
+    console.log('[Agworld Store] GetAll result:', data?.length || 0, 'accounts')
+    return (data || []).map(mapRow)
+  },
 
-    getById(id: string): AgworldAccount | undefined {
-        return loadAccounts().find((a) => a.id === id);
-    },
+  async getById(id: string): Promise<AgworldAccount | undefined> {
+    const { data } = await supabase.from('agworld_accounts').select('*').eq('id', id).single()
+    return data ? mapRow(data) : undefined
+  },
 
-    add(name: string, apiKey: string, instance: string, growerId: string): AgworldAccount {
-        const accounts = loadAccounts();
-        const account: AgworldAccount = {
-            id: crypto.randomUUID(),
-            name,
-            apiKey,
-            instance: instance || 'au',
-            growerId: growerId || '',
-            createdAt: new Date().toISOString(),
-        };
-        accounts.push(account);
-        saveAccounts(accounts);
-        return account;
-    },
+  async add(name: string, apiKey: string, instance: string, growerId: string): Promise<AgworldAccount | null> {
+    try {
+      const { data, error } = await supabase.from('agworld_accounts').insert({
+        name,
+        api_key: apiKey,
+        instance: instance || 'au',
+        grower_id: growerId || '',
+      }).select().single()
+      if (error) {
+        console.error('[Agworld Store] Insert error:', error.message, error.code, error.details)
+        return null
+      }
+      console.log('[Agworld Store] Inserted account:', data?.id)
+      return data ? mapRow(data) : null
+    } catch (e: any) {
+      console.error('[Agworld Store] Insert exception:', e.message || e)
+      return null
+    }
+  },
 
-    remove(id: string): void {
-        const accounts = loadAccounts().filter((a) => a.id !== id);
-        saveAccounts(accounts);
-    },
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.from('agworld_accounts').delete().eq('id', id)
+    if (error) console.error('[Agworld Store] Delete error:', error.message)
+  },
 
-    update(id: string, patch: Partial<Pick<AgworldAccount, 'name' | 'apiKey' | 'instance' | 'growerId' | 'linkedMapId' | 'linkedProfileLabel'>>): AgworldAccount | null {
-        const accounts = loadAccounts();
-        const idx = accounts.findIndex((a) => a.id === id);
-        if (idx === -1) return null;
-        accounts[idx] = { ...accounts[idx], ...patch };
-        saveAccounts(accounts);
-        return accounts[idx];
-    },
+  async update(id: string, patch: Partial<Pick<AgworldAccount, 'name' | 'apiKey' | 'instance' | 'growerId' | 'linkedMapId' | 'linkedProfileLabel'>>): Promise<AgworldAccount | null> {
+    const dbPatch: Record<string, any> = {}
+    if (patch.name !== undefined) dbPatch.name = patch.name
+    if (patch.apiKey !== undefined) dbPatch.api_key = patch.apiKey
+    if (patch.instance !== undefined) dbPatch.instance = patch.instance
+    if (patch.growerId !== undefined) dbPatch.grower_id = patch.growerId
+    if (patch.linkedMapId !== undefined) dbPatch.linked_map_id = patch.linkedMapId
+    if (patch.linkedProfileLabel !== undefined) dbPatch.linked_profile_label = patch.linkedProfileLabel
+    dbPatch.updated_at = new Date().toISOString()
+
+    const { data, error } = await supabase.from('agworld_accounts').update(dbPatch).eq('id', id).select().single()
+    if (error) console.error('[Agworld Store] Update error:', error.message)
+    return data ? mapRow(data) : null
+  },
 };
 
 // --- Core fetch with logging ---
