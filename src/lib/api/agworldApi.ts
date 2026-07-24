@@ -275,28 +275,14 @@ async function agworldFetch<T>(
 ): Promise<AgworldFetchResult<T>> {
     const instanceConfig = AGWORLD_INSTANCES[account.instance] || AGWORLD_INSTANCES.au;
 
-    // In dev mode, route through Vite proxy to bypass CORS.
-    const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
-    let url: URL;
-    let displayUrl: string;
-
-    if (isDev) {
-        const proxyPath = `/agworld-v3-proxy/${account.instance}${path}`;
-        url = new URL(proxyPath, window.location.origin);
-        displayUrl = `${instanceConfig.base}${path}`;
-        if (params) {
-            Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== '') url.searchParams.set(k, v);
-            });
-        }
-    } else {
-        url = new URL(`${instanceConfig.base}${path}`);
-        displayUrl = url.toString();
-        if (params) {
-            Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== '') url.searchParams.set(k, v);
-            });
-        }
+    // Route through proxy to bypass CORS (Vite in dev, Vercel rewrites in prod)
+    const proxyPath = `/agworld-v3-proxy/${account.instance}${path}`;
+    const url = new URL(proxyPath, window.location.origin);
+    const displayUrl = `${instanceConfig.base}${path}`;
+    if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== '') url.searchParams.set(k, v);
+        });
     }
 
     const requestHeaders: Record<string, string> = {

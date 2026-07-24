@@ -538,6 +538,7 @@
 
   async function openActivityModal(activityId: string, resource: any) {
     if (!selectedAccount || !selectedAccount.growerId) return
+    console.log(`[Modal] Account check — name: ${selectedAccount.name}, hasKey: ${!!selectedAccount.apiKey}, instance: ${selectedAccount.instance}, growerId: ${selectedAccount.growerId}`)
     const type = resource.type === 'actuals' ? 'Actual' : resource.type === 'work-orders' ? 'Work Order' : 'Plan'
     activityModal = { id: activityId, type, resource }
     activityModalData = { operations: [], products: [], operatorUsers: [], assets: [], weatherRecords: [], areaHa: null, loading: true }
@@ -637,14 +638,7 @@
         : target.type === 'recommendations' ? `/api/v3/growers/${selectedAccount.growerId}/recommendations/${target.id}`
         : `/api/v3/${target.type}/${target.id}`
 
-      const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV
-      let url: string
-      if (isDev) {
-        url = `/agworld-v3-proxy/${selectedAccount.instance}${path}`
-      } else {
-        const base = (AGWORLD_INSTANCES[selectedAccount.instance] || AGWORLD_INSTANCES.au).base
-        url = `${base}${path}`
-      }
+      const url = `/agworld-v3-proxy/${selectedAccount.instance}${path}`
 
       const resp = await fetch(url, {
         headers: { 'Authorization': `API-Key ${selectedAccount.apiKey}`, 'Accept': 'application/vnd.api+json' }

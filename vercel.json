@@ -1,5 +1,8 @@
 {
     "rewrites": [
+      { "source": "/agworld-v3-proxy/au/(.*)", "destination": "https://au.agworld.com/$1" },
+      { "source": "/agworld-v3-proxy/us/(.*)", "destination": "https://us.agworld.com/$1" },
+      { "source": "/agworld-v3-proxy/nz/(.*)", "destination": "https://nz.agworld.co/$1" },
       { "source": "/p/:code", "destination": "https://hmxxqacnzxqpcheoeidn.supabase.co/functions/v1/redirect?code=:code" },
       { "source": "/(.*)", "destination": "/index.html" }
     ],
