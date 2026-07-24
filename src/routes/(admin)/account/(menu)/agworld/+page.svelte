@@ -132,6 +132,7 @@
         loadAgworldFieldList(id),
         loadAgworldRecords(id),
         loadTrailProgress(),
+        loadAgworldActivitiesFromDb(id),
       ])
     } catch (e: any) {
       console.error("selectAccount load failed:", e.message)
@@ -438,6 +439,7 @@
   let fieldActivityLoading = new Set<string>()
   let fieldActivityData = new Map<string, { actuals: any[]; workOrders: any[]; plans: any[]; error?: string }>()
   let expandedActivityFields = new Set<string>()
+  let syncProgress = ""
 
   // Grouped by farm → field for records display
   $: filteredFieldList = selectedYear
@@ -456,20 +458,48 @@
   })()
 
   function toggleFarmExpand(name: string) {
-    if (expandedFarms.has(name)) expandedFarms.delete(name)
-    else expandedFarms.add(name)
+    const expanding = !expandedFarms.has(name)
+    if (expanding) {
+      expandedFarms.add(name)
+      // Auto-expand all fields (records + activities) within this farm
+      const farmFields = agworldFieldList.filter(f => (f.farm_name || 'No Farm') === name)
+      for (const f of farmFields) {
+        expandedFields.add(f.id)
+        if (fieldActivityData.has(f.id)) expandedActivityFields.add(f.id)
+      }
+    } else {
+      expandedFarms.delete(name)
+      // Collapse all fields (records + activities) within this farm
+      const farmFields = agworldFieldList.filter(f => (f.farm_name || 'No Farm') === name)
+      for (const f of farmFields) {
+        expandedFields.delete(f.id)
+        expandedActivityFields.delete(f.id)
+      }
+    }
     expandedFarms = new Set(expandedFarms)
+    expandedFields = new Set(expandedFields)
+    expandedActivityFields = new Set(expandedActivityFields)
   }
 
   function toggleFieldExpand(id: string) {
-    if (expandedFields.has(id)) expandedFields.delete(id)
-    else expandedFields.add(id)
-    expandedFields = new Set(expandedFields)
-    // Auto-expand farm when field is expanded
-    const field = agworldFieldList.find(f => f.id === id)
-    if (field && !expandedFarms.has(field.farm_name || 'No Farm')) {
-      toggleFarmExpand(field.farm_name || 'No Farm')
+    const expanding = !expandedFields.has(id)
+    if (expanding) {
+      expandedFields.add(id)
+      // Auto-expand farm and activities too
+      const field = agworldFieldList.find(f => f.id === id)
+      if (field && !expandedFarms.has(field.farm_name || 'No Farm')) {
+        toggleFarmExpand(field.farm_name || 'No Farm')
+      }
+      if (fieldActivityData.has(id)) {
+        expandedActivityFields.add(id)
+        expandedActivityFields = new Set(expandedActivityFields)
+      }
+    } else {
+      expandedFields.delete(id)
+      expandedActivityFields.delete(id)
+      expandedActivityFields = new Set(expandedActivityFields)
     }
+    expandedFields = new Set(expandedFields)
   }
 
   function toggleActivityExpand(fieldId: string) {
@@ -479,6 +509,151 @@
       expandedActivityFields.add(fieldId)
     }
     expandedActivityFields = new Set(expandedActivityFields)
+  }
+
+  // Enrich an actual resource with its parent plan/recommendation from the included array
+  function enrichWithParent(resource: any, included: any[]): any {
+    const parentRef = resource.relationships?.parent?.data
+    if (!parentRef || !included.length) return resource
+    const parent = included.find((inc: any) => inc.type === parentRef.type && inc.id === parentRef.id)
+    if (parent) {
+      return {
+        ...resource,
+        _parent: parent,  // store the full parent resource for matching
+      }
+    }
+    return resource
+  }
+
+  // Merge plans + actuals into a unified timeline, linking plans that became actuals
+  function getMergedTimeline(activity: { actuals: any[]; workOrders: any[]; plans: any[] }) {
+    // Primary match: actual._parent.id === plan.id (from include=parent)
+    // Fallback: name matching for data synced before parent relationship was included
+    const getName = (r: any) => ((r.attributes?.name || r.attributes?.operation_type_name || '') as string).trim().toLowerCase()
+
+    const actuals = [...(activity.actuals || [])]
+    const plans = [...(activity.plans || [])]
+    const workOrders = activity.workOrders || []
+
+    const convertedPairs: { plan: any; actual: any }[] = []
+    const unmatchedActuals: any[] = []
+    const matchedPlanIds = new Set<string>()
+    const matchedActualIds = new Set<string>()
+
+    // Pass 1: match by parent relationship (include=parent)
+    for (const plan of plans) {
+      const matchingActual = actuals.find(a =>
+        a._parent?.id === plan.id && !matchedActualIds.has(a.id)
+      )
+      if (matchingActual) {
+        convertedPairs.push({ plan, actual: matchingActual })
+        matchedPlanIds.add(plan.id)
+        matchedActualIds.add(matchingActual.id)
+      }
+    }
+
+    // Pass 2: match remaining by name
+    for (const plan of plans) {
+      if (matchedPlanIds.has(plan.id)) continue
+      const planName = getName(plan)
+      if (!planName) continue
+      const matchingActual = actuals.find(a =>
+        getName(a) === planName && !matchedActualIds.has(a.id)
+      )
+      if (matchingActual) {
+        convertedPairs.push({ plan, actual: matchingActual })
+        matchedPlanIds.add(plan.id)
+        matchedActualIds.add(matchingActual.id)
+      }
+    }
+
+    for (const a of actuals) {
+      if (!matchedActualIds.has(a.id)) unmatchedActuals.push(a)
+    }
+
+    const pendingPlans = plans.filter(p => !matchedPlanIds.has(p.id))
+
+    // Sort by date (actual completed_at or plan planned_date)
+    const sortDate = (r: any) => r.attributes?.completed_at || r.attributes?.planned_date || r.attributes?.started_at || ''
+
+    return {
+      convertedPairs: convertedPairs.sort((a, b) => sortDate(b.actual).localeCompare(sortDate(a.actual))),
+      unmatchedActuals: unmatchedActuals.sort((a, b) => sortDate(b).localeCompare(sortDate(a))),
+      pendingPlans: pendingPlans.sort((a, b) => sortDate(b).localeCompare(sortDate(a))),
+      workOrders: workOrders.sort((a, b) => (b.attributes?.due_date || '').localeCompare(a.attributes?.due_date || '')),
+    }
+  }
+
+  // Load cached activities from DB (called on account select)
+  async function loadAgworldActivitiesFromDb(accountId?: string) {
+    const acctId = accountId || selectedAccount?.id
+    if (!acctId) return
+    try {
+      const { data } = await supabase
+        .from("agworld_activities")
+        .select("*")
+        .eq("account_id", acctId)
+        .order("completed_at", { ascending: false })
+
+      // Group by field_boundary_id → then map to our field IDs
+      const byBoundary = new Map<string, any[]>()
+      for (const row of (data || [])) {
+        const key = row.field_boundary_id || row.field_id
+        if (!byBoundary.has(key)) byBoundary.set(key, [])
+        byBoundary.get(key)!.push(row)
+      }
+
+      const newMap = new Map<string, { actuals: any[]; workOrders: any[]; plans: any[]; error?: string }>()
+      for (const field of agworldFieldList) {
+        const boundaryId = field.properties?.agworld_boundary_id || field.agworld_field_ref
+        const activities = byBoundary.get(boundaryId) || []
+        if (activities.length > 0) {
+          newMap.set(field.id, {
+            actuals: activities.filter(a => a.agworld_type === 'actual').map(a => a.data),
+            workOrders: activities.filter(a => a.agworld_type === 'work_order').map(a => a.data),
+            plans: activities.filter(a => a.agworld_type === 'plan').map(a => a.data),
+          })
+        }
+      }
+      fieldActivityData = newMap
+      // Auto-expand activity sections for all fields that have cached data
+      expandedActivityFields = new Set(newMap.keys())
+      console.log(`[AgActivity] Loaded ${data?.length || 0} cached activities from DB across ${newMap.size} fields`)
+    } catch (e: any) {
+      console.error("loadAgworldActivitiesFromDb failed:", e.message)
+    }
+  }
+
+  // Upsert fetched activity items into the DB
+  async function saveActivitiesToDb(field: any, items: { type: string; resource: any }[]) {
+    if (!selectedAccount || items.length === 0) return
+    const boundaryId = field.properties?.agworld_boundary_id || field.agworld_field_ref
+    const rows = items.map(item => {
+      const attrs = item.resource.attributes || {}
+      return {
+        account_id: selectedAccount!.id,
+        agworld_id: item.resource.id,
+        agworld_type: item.type,
+        field_boundary_id: boundaryId,
+        field_id: field.agworld_field_ref,
+        data: item.resource,
+        status: attrs.status || null,
+        name: attrs.name || attrs.operation_type_name || null,
+        started_at: attrs.started_at || null,
+        completed_at: attrs.completed_at || null,
+        due_date: attrs.due_date || null,
+        planned_date: attrs.planned_date || null,
+        updated_at_agworld: attrs.updated_at || null,
+      }
+    })
+    const { error } = await supabase.from("agworld_activities")
+      .upsert(rows, { onConflict: "account_id,agworld_id,agworld_type", ignoreDuplicates: false })
+    if (error) console.warn("[AgActivity] DB upsert error:", error.message)
+
+    // Update last sync timestamp on the field
+    await supabase.from("agworld_fields")
+      .update({ last_activity_sync_at: new Date().toISOString() })
+      .eq("id", field.id)
   }
 
   async function fetchFieldActivity(field: any) {
@@ -494,8 +669,9 @@
       return
     }
 
-    // Already loading or loaded successfully
+    // Already loading
     if (fieldActivityLoading.has(field.id)) return
+    // Already synced — just toggle visibility, no need to re-fetch
     const existing = fieldActivityData.get(field.id)
     if (existing && !existing.error) {
       toggleActivityExpand(field.id)
@@ -508,23 +684,62 @@
     console.log(`[AgActivity] Fetching for field "${field.name}" (boundaryId: ${boundaryId}, fieldId: ${field.agworld_field_ref}, grower: ${selectedAccount.growerId})`)
     try {
       const startTime = performance.now()
-      const [actualsRes, workOrdersRes, plansRes] = await Promise.all([
-        agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-completed_at' }),
-        agworldApiV3.listWorkOrdersByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }),
-        agworldApiV3.listPlansByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }),
-      ])
+
+      // Fetch each endpoint individually so one failure doesn't block others
+      let actualsRes: any = { success: false, error: 'not called', status: 0, data: null }
+      let workOrdersRes: any = { success: false, error: 'not called', status: 0, data: null }
+      let plansRes: any = { success: false, error: 'not called', status: 0, data: null }
+
+      try {
+        actualsRes = await agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-completed_at' })
+      } catch (e: any) { actualsRes = { success: false, error: e.message || 'exception', status: 0, data: null } }
+
+      try {
+        workOrdersRes = await agworldApiV3.listWorkOrdersByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' })
+      } catch (e: any) { workOrdersRes = { success: false, error: e.message || 'exception', status: 0, data: null } }
+
+      try {
+        plansRes = await agworldApiV3.listPlansByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' })
+      } catch (e: any) { plansRes = { success: false, error: e.message || 'exception', status: 0, data: null } }
+
       const elapsed = Math.round(performance.now() - startTime)
-      console.log(`[AgActivity] "${field.name}" — actuals: ${actualsRes.data?.data?.length || 0} (status ${actualsRes.status}), workOrders: ${workOrdersRes.data?.data?.length || 0} (status ${workOrdersRes.status}), plans: ${plansRes.data?.data?.length || 0} (status ${plansRes.status}) — ${elapsed}ms`)
+
+      // Detailed logging
+      console.log(`[AgActivity] "${field.name}" results:`)
+      console.log(`  actuals:    success=${actualsRes.success} status=${actualsRes.status} count=${actualsRes.data?.data?.length ?? 0} error=${actualsRes.error || 'none'}`)
+      console.log(`  workOrders: success=${workOrdersRes.success} status=${workOrdersRes.status} count=${workOrdersRes.data?.data?.length ?? 0} error=${workOrdersRes.error || 'none'}`)
+      console.log(`  plans:      success=${plansRes.success} status=${plansRes.status} count=${plansRes.data?.data?.length ?? 0} error=${plansRes.error || 'none'}`)
+      console.log(`  duration: ${elapsed}ms`)
+
+      // Log response bodies if any call failed
+      if (!actualsRes.success) console.warn(`[AgActivity] Actuals FAILED — response:`, actualsRes)
+      if (!workOrdersRes.success) console.warn(`[AgActivity] WorkOrders FAILED — response:`, workOrdersRes)
+      if (!plansRes.success) console.warn(`[AgActivity] Plans FAILED — response:`, plansRes)
+
+      const actuals = actualsRes.data?.data || []
+      const workOrders = workOrdersRes.data?.data || []
+      const plans = plansRes.data?.data || []
+      const includedParents = actualsRes.data?.included || []
 
       const errors: string[] = []
-      if (!actualsRes.success) { errors.push(`Actuals: ${actualsRes.error}`); console.warn(`[AgActivity] Actuals failed:`, actualsRes.error) }
-      if (!workOrdersRes.success) { errors.push(`Work Orders: ${workOrdersRes.error}`); console.warn(`[AgActivity] Work Orders failed:`, workOrdersRes.error) }
-      if (!plansRes.success) { errors.push(`Plans: ${plansRes.error}`); console.warn(`[AgActivity] Plans failed:`, plansRes.error) }
+      if (!actualsRes.success) errors.push(`Actuals: ${actualsRes.error}`)
+      if (!workOrdersRes.success) errors.push(`Work Orders: ${workOrdersRes.error}`)
+      if (!plansRes.success) errors.push(`Plans: ${plansRes.error}`)
+
+      // Only save if at least one call succeeded
+      if (actualsRes.success || workOrdersRes.success || plansRes.success) {
+        const allItems = [
+          ...actuals.map((r: any) => ({ type: 'actual', resource: enrichWithParent(r, includedParents) })),
+          ...workOrders.map((r: any) => ({ type: 'work_order', resource: r })),
+          ...plans.map((r: any) => ({ type: 'plan', resource: r })),
+        ]
+        await saveActivitiesToDb(field, allItems)
+      }
 
       fieldActivityData.set(field.id, {
-        actuals: actualsRes.data?.data || [],
-        workOrders: workOrdersRes.data?.data || [],
-        plans: plansRes.data?.data || [],
+        actuals,
+        workOrders,
+        plans,
         error: errors.length > 0 ? errors.join('; ') : undefined,
       })
       fieldActivityData = new Map(fieldActivityData)
@@ -532,13 +747,12 @@
       if (errors.length > 0) {
         toast.warning(`Partial data: ${errors.join('; ')}`)
       } else {
-        const total = (actualsRes.data?.data?.length || 0) + (workOrdersRes.data?.data?.length || 0) + (plansRes.data?.data?.length || 0)
-        toast.success(`Loaded ${total} activity items`)
+        const total = actuals.length + workOrders.length + plans.length
+        toast.success(`Synced ${total} activity items`)
       }
       toggleActivityExpand(field.id)
     } catch (e: any) {
-      fieldActivityData.set(field.id, { actuals: [], workOrders: [], plans: [], error: e.message })
-      fieldActivityData = new Map(fieldActivityData)
+      // Keep existing DB data on failure
       console.error(`[AgActivity] "${field.name}" fetch exception:`, e.message || e)
       toast.error(`Failed: ${e.message}`)
     } finally {
@@ -547,21 +761,77 @@
     }
   }
 
-  async function fetchAllActivity() {
-    const fields = agworldFieldList.filter(f => f.agworld_field_ref && !fieldActivityData.has(f.id))
+  async function syncAllActivity() {
+    const fields = agworldFieldList.filter(f => f.properties?.agworld_boundary_id || f.agworld_field_ref)
     if (fields.length === 0) {
-      toast.info("All visible fields already have activity data — click Activity on individual fields to refresh")
+      toast.info("No fields to sync")
       return
     }
-    toast.info(`Fetching activity for ${fields.length} field${fields.length !== 1 ? 's' : ''}...`)
-    // Fetch in parallel with a small stagger to respect rate limits (4 concurrent, 200/min)
+    syncProgress = `Syncing ${fields.length} fields...`
+    let synced = 0; let failed = 0; let totalItems = 0
     const BATCH = 3
     for (let i = 0; i < fields.length; i += BATCH) {
       const batch = fields.slice(i, i + BATCH)
-      await Promise.all(batch.map(f => fetchFieldActivity(f)))
-      if (i + BATCH < fields.length) {
-        await new Promise(r => setTimeout(r, 1500)) // ~200 req/min pacing
+      syncProgress = `Syncing ${synced}/${fields.length} fields...`
+      
+      const results = await Promise.allSettled(batch.map(async (f) => {
+        if (!selectedAccount || !selectedAccount.growerId) return
+        const boundaryId = f.properties?.agworld_boundary_id || f.agworld_field_ref
+        if (!boundaryId) return
+        
+        try {
+          // Fetch individually so one failure doesn't block others
+          let actualsRes: any = { success: false, error: 'not called', status: 0, data: null }
+          try {
+            actualsRes = await agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-completed_at' })
+          } catch (e: any) { actualsRes = { success: false, error: e.message, status: 0, data: null } }
+
+          let workOrdersRes: any = { success: false, data: null }
+          try { workOrdersRes = await agworldApiV3.listWorkOrdersByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }) } catch (e: any) { workOrdersRes = { success: false, error: e.message, data: null } }
+
+          let plansRes: any = { success: false, data: null }
+          try { plansRes = await agworldApiV3.listPlansByField(selectedAccount, selectedAccount.growerId, boundaryId, { page: { size: 50 }, sort: '-updated_at' }) } catch (e: any) { plansRes = { success: false, error: e.message, data: null } }
+
+          const actuals = actualsRes.data?.data || []
+          const workOrders = workOrdersRes.data?.data || []
+          const plans = plansRes.data?.data || []
+          const includedParents = actualsRes.data?.included || []
+          const allItems = [
+            ...actuals.map((r: any) => ({ type: 'actual', resource: enrichWithParent(r, includedParents) })),
+            ...workOrders.map((r: any) => ({ type: 'work_order', resource: r })),
+            ...plans.map((r: any) => ({ type: 'plan', resource: r })),
+          ]
+
+          if (actualsRes.success || workOrdersRes.success || plansRes.success) {
+            await saveActivitiesToDb(f, allItems)
+          }
+
+          fieldActivityData.set(f.id, { actuals, workOrders, plans })
+          fieldActivityData = new Map(fieldActivityData)
+          
+          return allItems.length
+        } catch { return null }
+      }))
+      
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value !== null && r.value !== undefined) {
+          synced++
+          totalItems += r.value
+        } else { failed++ }
       }
+      
+      if (i + BATCH < fields.length) {
+        await new Promise(r => setTimeout(r, 1500))
+      }
+    }
+    
+    syncProgress = ""
+    // Auto-expand all synced fields so data is immediately visible
+    expandedActivityFields = new Set(fieldActivityData.keys())
+    if (failed > 0) {
+      toast.warning(`Synced ${totalItems} items across ${synced} fields · ${failed} failed`)
+    } else {
+      toast.success(`Synced ${totalItems} activity items across ${synced} fields`)
     }
   }
 
@@ -571,7 +841,7 @@
     try {
       const { data } = await supabase
         .from("agworld_fields")
-        .select("id, name, agworld_field_name, agworld_field_ref, area, boundary, farm_id, farm_name, crop_type, production_year, properties")
+        .select("id, name, agworld_field_name, agworld_field_ref, area, boundary, farm_id, farm_name, crop_type, production_year, properties, last_activity_sync_at")
         .eq("account_id", acctId)
         .order("name")
       agworldFieldList = data || []
@@ -1120,13 +1390,15 @@
 
   async function clearAgworldData() {
     if (!selectedAccount) return
-    if (!confirm("Delete ALL agworld fields and records for this account? This cannot be undone.")) return
+    if (!confirm("Delete ALL agworld fields, records and activities for this account? This cannot be undone.")) return
     recordsLoading = true
     try {
       await supabase.from("agworld_records").delete().eq("account_id", selectedAccount.id)
+      await supabase.from("agworld_activities").delete().eq("account_id", selectedAccount.id)
       await supabase.from("agworld_fields").delete().eq("account_id", selectedAccount.id)
       agworldRecords = []
       agworldFieldCount = 0
+      fieldActivityData = new Map()
       toast.success("Cleared all agworld data")
     } catch (e: any) {
       toast.error(`Clear failed: ${e.message}`)
@@ -2494,28 +2766,35 @@
           />
         {/if}
 
-        <!-- Agworld Activity banner -->
+        <!-- Agworld Activity Sync banner -->
         {#if farmGroups.length > 0}
-          {@const fieldsWithRef = agworldFieldList.filter(f => f.agworld_field_ref).length}
-          {@const fieldsWithData = agworldFieldList.filter(f => fieldActivityData.has(f.id)).length}
+          {@const syncableFields = agworldFieldList.filter(f => f.properties?.agworld_boundary_id || f.agworld_field_ref).length}
+          {@const syncedFields = agworldFieldList.filter(f => f.last_activity_sync_at).length}
+          {@const cachedFields = fieldActivityData.size}
           <div class="activity-banner">
             <div class="activity-banner-info">
               <Icon icon="solar:cloud-download-bold-duotone" width="18" height="18" class="text-purple-400" />
-              <span>
-                <strong>Agworld Activity Data</strong>
-                <span class="opacity-60"> — Click <span class="activity-btn-inline">Activity</span> on any field card to pull actuals, work orders &amp; plans</span>
-              </span>
+              {#if syncProgress}
+                <span class="text-sm">{syncProgress}</span>
+              {:else if syncedFields > 0}
+                <span>
+                  <strong>Agworld Activity Data</strong>
+                  <span class="opacity-60"> — {syncedFields} field{syncedFields !== 1 ? 's' : ''} synced · last: {new Date(Math.max(...agworldFieldList.filter(f => f.last_activity_sync_at).map(f => new Date(f.last_activity_sync_at).getTime()))).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                </span>
+              {:else}
+                <span>
+                  <strong>Agworld Activity Data</strong>
+                  <span class="opacity-60"> — Click <span class="activity-btn-inline">Activity</span> on a field or <span class="activity-btn-inline">Sync All</span> to pull actuals, work orders &amp; plans</span>
+                </span>
+              {/if}
             </div>
-            {#if fieldsWithRef > fieldsWithData}
-              <button class="action-btn action-btn-accent" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.2);color:#a78bfa" on:click={fetchAllActivity}>
-                <Icon icon="solar:cloud-download-bold" width="14" height="14" />
-                <span>Fetch All ({fieldsWithRef - fieldsWithData} remaining)</span>
+            {#if syncProgress}
+              <span class="loading loading-spinner loading-xs"></span>
+            {:else}
+              <button class="action-btn action-btn-accent" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.2);color:#a78bfa" on:click={syncAllActivity}>
+                <Icon icon="solar:refresh-bold" width="14" height="14" />
+                <span>Sync All</span>
               </button>
-            {:else if fieldsWithData > 0}
-              <span class="activity-banner-done">
-                <Icon icon="solar:check-circle-bold" width="14" height="14" class="text-green-400" />
-                {fieldsWithData} field{fieldsWithData !== 1 ? 's' : ''} loaded
-              </span>
             {/if}
           </div>
         {/if}
@@ -2583,17 +2862,19 @@
                               {#if field.agworld_field_ref}
                                 {@const ad = fieldActivityData.get(field.id)}
                                 {@const adTotal = ad ? (ad.actuals?.length || 0) + (ad.workOrders?.length || 0) + (ad.plans?.length || 0) : 0}
+                                {@const isSynced = !!field.last_activity_sync_at}
                                 <button
                                   class="activity-btn"
                                   class:loading={fieldActivityLoading.has(field.id)}
                                   class:has-data={adTotal > 0}
+                                  class:synced={isSynced}
                                   on:click|stopPropagation={() => fetchFieldActivity(field)}
-                                  title={adTotal > 0 ? `${adTotal} activity items loaded — click to toggle` : "Fetch Agworld activity data"}
+                                  title={isSynced ? `Synced ${new Date(field.last_activity_sync_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${adTotal} items — click to refresh` : "Fetch Agworld activity data"}
                                 >
                                   {#if fieldActivityLoading.has(field.id)}
                                     <span class="loading loading-spinner loading-xs"></span>
-                                  {:else if adTotal > 0}
-                                    <Icon icon="solar:check-circle-bold" width="12" height="12" class="text-green-400" />
+                                  {:else if isSynced}
+                                    <Icon icon="solar:refresh-bold" width="12" height="12" class="text-green-400" />
                                   {:else}
                                     <Icon icon="solar:cloud-download-bold" width="12" height="12" />
                                   {/if}
@@ -2649,19 +2930,44 @@
                                   {activity.error}
                                 </div>
                               {:else if activity}
-                                {@const totalItems = (activity.actuals?.length || 0) + (activity.workOrders?.length || 0) + (activity.plans?.length || 0)}
+                                {@const tl = getMergedTimeline(activity)}
+                                {@const totalItems = tl.convertedPairs.length + tl.unmatchedActuals.length + tl.pendingPlans.length + tl.workOrders.length}
                                 {#if totalItems === 0}
                                   <div class="activity-empty">No actuals, work orders, or plans found for this field.</div>
                                 {:else}
-                                  <!-- Actuals -->
-                                  {#if activity.actuals?.length > 0}
+                                  <!-- Converted: Plan → Actual -->
+                                  {#if tl.convertedPairs.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:transfer-vertical-bold" width="14" height="14" class="text-success" />
+                                        <span>Completed</span>
+                                        <span class="activity-count">{tl.convertedPairs.length}</span>
+                                      </div>
+                                      {#each tl.convertedPairs as pair (pair.actual.id)}
+                                        {@const aAttrs = pair.actual.attributes || {}}
+                                        <div class="activity-row converted">
+                                          <span class="activity-date">{aAttrs.completed_at ? new Date(aAttrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : aAttrs.started_at ? new Date(aAttrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-lifecycle">
+                                            <span class="lifecycle-badge plan">Plan</span>
+                                            <Icon icon="solar:arrow-right-bold" width="10" height="10" class="opacity-30" />
+                                            <span class="lifecycle-badge actual">Actual</span>
+                                          </span>
+                                          <span class="activity-status completed">{aAttrs.status || 'completed'}</span>
+                                          <span class="activity-name">{aAttrs.name || aAttrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+
+                                  <!-- Standalone Actuals -->
+                                  {#if tl.unmatchedActuals.length > 0}
                                     <div class="activity-group">
                                       <div class="activity-group-header">
                                         <Icon icon="solar:check-circle-bold" width="14" height="14" class="text-success" />
                                         <span>Actuals</span>
-                                        <span class="activity-count">{activity.actuals.length}</span>
+                                        <span class="activity-count">{tl.unmatchedActuals.length}</span>
                                       </div>
-                                      {#each activity.actuals as a (a.id)}
+                                      {#each tl.unmatchedActuals as a (a.id)}
                                         {@const attrs = a.attributes || {}}
                                         <div class="activity-row">
                                           <span class="activity-date">{attrs.completed_at ? new Date(attrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : attrs.started_at ? new Date(attrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
@@ -2674,14 +2980,14 @@
                                   {/if}
 
                                   <!-- Work Orders -->
-                                  {#if activity.workOrders?.length > 0}
+                                  {#if tl.workOrders.length > 0}
                                     <div class="activity-group">
                                       <div class="activity-group-header">
                                         <Icon icon="solar:clipboard-list-bold" width="14" height="14" class="text-warning" />
                                         <span>Work Orders</span>
-                                        <span class="activity-count">{activity.workOrders.length}</span>
+                                        <span class="activity-count">{tl.workOrders.length}</span>
                                       </div>
-                                      {#each activity.workOrders as wo (wo.id)}
+                                      {#each tl.workOrders as wo (wo.id)}
                                         {@const attrs = wo.attributes || {}}
                                         <div class="activity-row">
                                           <span class="activity-date">{attrs.due_date ? new Date(attrs.due_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
@@ -2693,15 +2999,15 @@
                                     </div>
                                   {/if}
 
-                                  <!-- Plans -->
-                                  {#if activity.plans?.length > 0}
+                                  <!-- Pending Plans (not yet converted) -->
+                                  {#if tl.pendingPlans.length > 0}
                                     <div class="activity-group">
                                       <div class="activity-group-header">
                                         <Icon icon="solar:documents-bold" width="14" height="14" class="text-info" />
                                         <span>Plans</span>
-                                        <span class="activity-count">{activity.plans.length}</span>
+                                        <span class="activity-count">{tl.pendingPlans.length}</span>
                                       </div>
-                                      {#each activity.plans as p (p.id)}
+                                      {#each tl.pendingPlans as p (p.id)}
                                         {@const attrs = p.attributes || {}}
                                         <div class="activity-row">
                                           <span class="activity-date">{attrs.planned_date ? new Date(attrs.planned_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
@@ -3637,7 +3943,8 @@
   }
   .activity-btn:hover { background: rgba(139, 92, 246, 0.15); }
   .activity-btn.loading { opacity: 0.7; pointer-events: none; }
-  .activity-btn.has-data { border-color: rgba(34, 197, 94, 0.25); }
+  .activity-btn.has-data { border-color: rgba(34, 197, 94, 0.3); }
+  .activity-btn.synced { border-color: rgba(34, 197, 94, 0.2); }
   .activity-btn-badge {
     font-size: 10px;
     font-weight: 700;
@@ -3648,7 +3955,8 @@
     min-width: 16px;
     text-align: center;
   }
-  .activity-btn.has-data .activity-btn-badge {
+  .activity-btn.has-data .activity-btn-badge,
+  .activity-btn.synced .activity-btn-badge {
     background: rgba(34, 197, 94, 0.15);
     color: #4ade80;
   }
@@ -3739,6 +4047,26 @@
     white-space: nowrap;
   }
 
+  /* Lifecycle: Plan → Actual */
+  .activity-row.converted { background: rgba(34, 197, 94, 0.04); }
+  .activity-lifecycle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 80px;
+    font-size: 10px;
+  }
+  .lifecycle-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .lifecycle-badge.plan { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+  .lifecycle-badge.actual { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
+
   /* Activity banner */
   .activity-banner {
     display: flex;
@@ -3769,14 +4097,6 @@
     color: #a78bfa;
     background: rgba(139, 92, 246, 0.1);
     border: 1px solid rgba(139, 92, 246, 0.15);
-  }
-  .activity-banner-done {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: oklch(var(--contrast-content) / 0.6);
-    white-space: nowrap;
   }
 
   /* ── Shared: Page wrapper ── */
