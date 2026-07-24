@@ -898,12 +898,35 @@ export const agworldApiV3 = {
         return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/activity-problems`, p);
     },
 
+    async listActivityOperatorUsers(account: AgworldAccount, growerId: string, options?: {
+        page?: { number?: number; size?: number };
+        filter?: Record<string, string>;
+        fields?: string;
+    }) {
+        const p = buildListParams(options);
+        if (options?.filter) Object.entries(options.filter).forEach(([k, v]) => { p[`filter[${k}]`] = v; });
+        if (options?.fields) p['fields[activity-operator-users]'] = options.fields;
+        return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/activity-operator-users`, p);
+    },
+
+    async listActivityFields(account: AgworldAccount, growerId: string, options?: {
+        page?: { number?: number; size?: number };
+        filter?: Record<string, string>;
+        fields?: string;
+    }) {
+        const p = buildListParams(options);
+        if (options?.filter) Object.entries(options.filter).forEach(([k, v]) => { p[`filter[${k}]`] = v; });
+        if (options?.fields) p['fields[activity-fields]'] = options.fields;
+        return agworldFetch<AgworldCollectionResponse<AgworldResource>>(account, `/api/v3/growers/${growerId}/activity-fields`, p);
+    },
+
     // --- Convenience: field-scoped fetchers ---
 
     /** Fetch actuals filtered by a specific field boundary */
     async listActualsByField(account: AgworldAccount, growerId: string, fieldBoundaryId: string, options?: {
         page?: { number?: number; size?: number };
         sort?: string;
+        filter?: Record<string, string>;
         fields?: string;
         include?: string;
     }) {

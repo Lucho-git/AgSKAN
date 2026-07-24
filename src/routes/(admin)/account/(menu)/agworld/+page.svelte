@@ -441,6 +441,10 @@
   let expandedActivityFields = new Set<string>()
   let syncProgress = ""
 
+  // Activity modal
+  let activityModal: { id: string; type: string; resource: any } | null = null
+  let activityModalData: { operations: any[]; products: any[]; operatorUsers: any[]; assets: any[]; weatherRecords: any[]; areaHa: number | null; loading: boolean; error?: string } | null = null
+
   // Grouped by farm → field for records display
   $: filteredFieldList = selectedYear
     ? agworldFieldList.filter(f => f.production_year === selectedYear)
@@ -511,76 +515,211 @@
     expandedActivityFields = new Set(expandedActivityFields)
   }
 
-  // Enrich an actual resource with its parent plan/recommendation from the included array
-  function enrichWithParent(resource: any, included: any[]): any {
-    const parentRef = resource.relationships?.parent?.data
-    if (!parentRef || !included.length) return resource
-    const parent = included.find((inc: any) => inc.type === parentRef.type && inc.id === parentRef.id)
-    if (parent) {
-      return {
-        ...resource,
-        _parent: parent,  // store the full parent resource for matching
+  async function openActivityModal(activityId: string, resource: any) {
+    if (!selectedAccount || !selectedAccount.growerId) return
+    const type = resource.type === 'actuals' ? 'Actual' : resource.type === 'work-orders' ? 'Work Order' : 'Plan'
+    activityModal = { id: activityId, type, resource }
+    activityModalData = { operations: [], products: [], operatorUsers: [], assets: [], weatherRecords: [], areaHa: null, loading: true }
+
+    console.log(`[Modal] Opening for ${type} "${resource.attributes?.name}" (${activityId})`)
+    try {
+      const [opsRes, prodsRes, usersRes, assetsRes, weatherRes, fieldsRes] = await Promise.all([
+        agworldApiV3.listActivityOperations(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId }, page: { size: 10 } }),
+        agworldApiV3.listActivityProductApplications(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId }, page: { size: 20 } }),
+        agworldApiV3.listActivityOperatorUsers(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId } }),
+        agworldApiV3.listActivityAssets(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId } }),
+        agworldApiV3.listActivityWeatherRecords(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId } }),
+        agworldApiV3.listActivityFields(selectedAccount, selectedAccount.growerId, { filter: { activity_id: activityId } }),
+      ])
+
+      console.log(`[Modal] Results — ops:${opsRes.success ? opsRes.data?.data?.length ?? 0 : 'FAIL'} prods:${prodsRes.success ? prodsRes.data?.data?.length ?? 0 : 'FAIL'} users:${usersRes.success ? usersRes.data?.data?.length ?? 0 : 'FAIL'} assets:${assetsRes.success ? assetsRes.data?.data?.length ?? 0 : 'FAIL'} weather:${weatherRes.success ? weatherRes.data?.data?.length ?? 0 : 'FAIL'} fields:${fieldsRes.success ? fieldsRes.data?.data?.length ?? 0 : 'FAIL'}`)
+
+      const errors: string[] = []
+      if (!opsRes.success) errors.push(`ops:${opsRes.status} ${opsRes.error}`)
+      if (!prodsRes.success) errors.push(`prods:${prodsRes.status} ${prodsRes.error}`)
+      if (!usersRes.success) errors.push(`users:${usersRes.status} ${usersRes.error}`)
+      if (!assetsRes.success) errors.push(`assets:${assetsRes.status} ${assetsRes.error}`)
+      if (!weatherRes.success) errors.push(`weather:${weatherRes.status} ${weatherRes.error}`)
+      if (!fieldsRes.success) errors.push(`fields:${fieldsRes.status} ${fieldsRes.error}`)
+
+      const ops = (opsRes.data?.data || []) as any[]
+      const products = (prodsRes.data?.data || []) as any[]
+      const users = (usersRes.data?.data || []) as any[]
+      const assets = (assetsRes.data?.data || []) as any[]
+      const weather = (weatherRes.data?.data || []) as any[]
+      const fields = (fieldsRes.data?.data || []) as any[]
+
+      // Dump raw responses for debugging
+      console.log(`[Modal] RAW products (${products.length}):`, JSON.parse(JSON.stringify(products)))
+      console.log(`[Modal] RAW operations (${ops.length}):`, JSON.parse(JSON.stringify(ops)))
+      if (users.length) console.log(`[Modal] RAW users:`, JSON.parse(JSON.stringify(users)))
+      if (assets.length) console.log(`[Modal] RAW assets:`, JSON.parse(JSON.stringify(assets)))
+      if (weather.length) console.log(`[Modal] RAW weather:`, JSON.parse(JSON.stringify(weather)))
+      if (fields.length) console.log(`[Modal] RAW fields (${fields.length}):`, JSON.parse(JSON.stringify(fields)))
+
+      let areaHa: number | null = null
+      if (fields.length > 0) {
+        areaHa = fields.reduce((sum: number, f: any) => sum + ((f.attributes?.area?.scalar || f.attributes?.area || 0) as number), 0)
       }
+
+      activityModalData = {
+        operations: ops,
+        products,
+        operatorUsers: users,
+        assets,
+        weatherRecords: weather,
+        areaHa,
+        loading: false,
+        error: errors.length > 0 ? errors.join('; ') : undefined,
+      }
+    } catch (e: any) {
+      console.error(`[Modal] Exception:`, e.message || e)
+      activityModalData = { operations: [], products: [], operatorUsers: [], assets: [], weatherRecords: [], areaHa: null, loading: false, error: e.message }
     }
-    return resource
   }
 
-  // Merge plans + actuals into a unified timeline, linking plans that became actuals
-  function getMergedTimeline(activity: { actuals: any[]; workOrders: any[]; plans: any[] }) {
-    // Primary match: actual._parent.id === plan.id (from include=parent)
-    // Fallback: name matching for data synced before parent relationship was included
+  function closeActivityModal() {
+    activityModal = null
+    activityModalData = null
+    closeSurf()
+  }
+
+  // Relationship navigation — per-card breadcrumb surfing
+  let surfCardId: string | null = null
+  let surfStack: { label: string; data: any; loading: boolean; error?: string }[] = []
+
+  function startSurf(cardId: string, resource: any) {
+    surfCardId = cardId
+    const name = resource.attributes?.name || resource.id?.substring(0,12)
+    const type = (resource.type || '').replace(/^activity-/,'')
+    surfStack = [{ label: `${type}:${name}`, data: resource, loading: false }]
+  }
+
+  async function fetchRelationship(resource: any, relName: string) {
+    if (!selectedAccount?.growerId) return
+    const rel = resource.relationships?.[relName]
+    if (!rel?.data) return
+    const target = Array.isArray(rel.data) ? rel.data[0] : rel.data
+    if (!target?.id) return
+
+    const label = `${relName}: ${target.type?.replace(/^activity-/,'')}:${target.id.substring(0,12)}`
+    surfStack = [...surfStack, { label, data: null, loading: true }]
+
+    try {
+      const path = target.type === 'growers' ? `/api/v3/growers/${target.id}`
+        : target.type === 'products' ? `/api/v3/products/${target.id}`
+        : target.type === 'operations' ? `/api/v3/operations/${target.id}`
+        : target.type === 'users' ? `/api/v3/users/${target.id}`
+        : target.type === 'actuals' ? `/api/v3/growers/${selectedAccount.growerId}/actuals/${target.id}`
+        : target.type === 'plans' ? `/api/v3/growers/${selectedAccount.growerId}/plans/${target.id}`
+        : target.type === 'work-orders' ? `/api/v3/growers/${selectedAccount.growerId}/work-orders/${target.id}`
+        : target.type === 'recommendations' ? `/api/v3/growers/${selectedAccount.growerId}/recommendations/${target.id}`
+        : `/api/v3/${target.type}/${target.id}`
+
+      const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV
+      let url: string
+      if (isDev) {
+        url = `/agworld-v3-proxy/${selectedAccount.instance}${path}`
+      } else {
+        const base = (AGWORLD_INSTANCES[selectedAccount.instance] || AGWORLD_INSTANCES.au).base
+        url = `${base}${path}`
+      }
+
+      const resp = await fetch(url, {
+        headers: { 'Authorization': `API-Key ${selectedAccount.apiKey}`, 'Accept': 'application/vnd.api+json' }
+      })
+      const json = await resp.json()
+      const prev = surfStack.slice(0, -1)
+      surfStack = [...prev, { label, data: json.data || json, loading: false, error: resp.ok ? undefined : `HTTP ${resp.status}` }]
+    } catch (e: any) {
+      const prev = surfStack.slice(0, -1)
+      surfStack = [...prev, { label, data: null, loading: false, error: e.message }]
+    }
+  }
+
+  function closeSurf() {
+    surfCardId = null
+    surfStack = []
+  }
+
+  function surfBackTo(index: number) {
+    surfStack = surfStack.slice(0, index + 1)
+  }
+
+  // Merge plans + actuals into a unified timeline.
+  // Agworld links plans→actuals via parent_id (filter[parent_id]=PLN-ID on the actuals endpoint),
+  // but actuals don't expose parent_id in their attributes. Name matching is the reliable
+  // client-side approach and produces identical results for all observed data.
+  function getMergedTimeline(activity: { actuals: any[]; workOrders: any[]; plans: any[]; _convertedActualIds?: Set<string> }) {
     const getName = (r: any) => ((r.attributes?.name || r.attributes?.operation_type_name || '') as string).trim().toLowerCase()
 
     const actuals = [...(activity.actuals || [])]
     const plans = [...(activity.plans || [])]
     const workOrders = activity.workOrders || []
+    const convertedIds = activity._convertedActualIds || new Set<string>()
 
     const convertedPairs: { plan: any; actual: any }[] = []
+    const discardedConvertedPairs: { plan: any; actual: any }[] = []
     const unmatchedActuals: any[] = []
     const matchedPlanIds = new Set<string>()
-    const matchedActualIds = new Set<string>()
 
-    // Pass 1: match by parent relationship (include=parent)
-    for (const plan of plans) {
-      const matchingActual = actuals.find(a =>
-        a._parent?.id === plan.id && !matchedActualIds.has(a.id)
-      )
-      if (matchingActual) {
-        convertedPairs.push({ plan, actual: matchingActual })
-        matchedPlanIds.add(plan.id)
-        matchedActualIds.add(matchingActual.id)
+    if (convertedIds.size > 0) {
+      // Parent_id confirmed: actuals in this set were created from plans.
+      // Match ALL plans including discarded — if parent_id links a discarded plan
+      // to an actual, the work happened despite the plan being marked discarded.
+      for (const plan of plans) {
+        const planName = getName(plan)
+        if (!planName) continue
+        const matchingActual = actuals.find(a =>
+          convertedIds.has(a.id) && getName(a) === planName
+        )
+        if (matchingActual) {
+          if (plan.attributes?.status === 'closed_discarded') {
+            discardedConvertedPairs.push({ plan, actual: matchingActual })
+          } else {
+            convertedPairs.push({ plan, actual: matchingActual })
+          }
+          matchedPlanIds.add(plan.id)
+        }
+      }
+    } else {
+      // No parent_id data (loaded from DB cache) — fall back to name matching
+      const matchedActualIds = new Set<string>()
+      for (const plan of plans) {
+        const status = plan.attributes?.status
+        if (status === 'closed_discarded') continue  // can't confirm link without parent_id
+        const planName = getName(plan)
+        if (!planName) continue
+        const matchingActual = actuals.find(a =>
+          getName(a) === planName && !matchedActualIds.has(a.id)
+        )
+        if (matchingActual) {
+          convertedPairs.push({ plan, actual: matchingActual })
+          matchedPlanIds.add(plan.id)
+          matchedActualIds.add(matchingActual.id)
+        }
       }
     }
 
-    // Pass 2: match remaining by name
-    for (const plan of plans) {
-      if (matchedPlanIds.has(plan.id)) continue
-      const planName = getName(plan)
-      if (!planName) continue
-      const matchingActual = actuals.find(a =>
-        getName(a) === planName && !matchedActualIds.has(a.id)
-      )
-      if (matchingActual) {
-        convertedPairs.push({ plan, actual: matchingActual })
-        matchedPlanIds.add(plan.id)
-        matchedActualIds.add(matchingActual.id)
-      }
-    }
-
+    const matchedActualIds = new Set(convertedPairs.map(p => p.actual.id))
     for (const a of actuals) {
       if (!matchedActualIds.has(a.id)) unmatchedActuals.push(a)
     }
 
-    const pendingPlans = plans.filter(p => !matchedPlanIds.has(p.id))
+    const allPending = plans.filter(p => !matchedPlanIds.has(p.id))
+    const discardedPlans = allPending.filter(p => p.attributes?.status === 'closed_discarded')
+    const pendingPlans = allPending.filter(p => p.attributes?.status !== 'closed_discarded')
 
-    // Sort by date (actual completed_at or plan planned_date)
-    const sortDate = (r: any) => r.attributes?.completed_at || r.attributes?.planned_date || r.attributes?.started_at || ''
+    // Sort by date — oldest first
+    const sortDate = (r: any) => r.attributes?.completed_at || r.attributes?.due_at || r.attributes?.started_at || ''
 
     return {
-      convertedPairs: convertedPairs.sort((a, b) => sortDate(b.actual).localeCompare(sortDate(a.actual))),
-      unmatchedActuals: unmatchedActuals.sort((a, b) => sortDate(b).localeCompare(sortDate(a))),
-      pendingPlans: pendingPlans.sort((a, b) => sortDate(b).localeCompare(sortDate(a))),
-      workOrders: workOrders.sort((a, b) => (b.attributes?.due_date || '').localeCompare(a.attributes?.due_date || '')),
+      convertedPairs: convertedPairs.sort((a, b) => sortDate(a.actual).localeCompare(sortDate(b.actual))),
+      discardedConvertedPairs: discardedConvertedPairs.sort((a, b) => sortDate(a.actual).localeCompare(sortDate(b.actual))),
+      unmatchedActuals: unmatchedActuals.sort((a, b) => sortDate(a).localeCompare(sortDate(b))),
+      pendingPlans: pendingPlans.sort((a, b) => sortDate(a).localeCompare(sortDate(b))),
+      discardedPlans: discardedPlans.sort((a, b) => sortDate(a).localeCompare(sortDate(b))),
+      workOrders: workOrders.sort((a, b) => (a.attributes?.due_date || '').localeCompare(b.attributes?.due_date || '')),
     }
   }
 
@@ -642,7 +781,7 @@
         started_at: attrs.started_at || null,
         completed_at: attrs.completed_at || null,
         due_date: attrs.due_date || null,
-        planned_date: attrs.planned_date || null,
+        planned_date: attrs.due_at || null,
         updated_at_agworld: attrs.updated_at || null,
       }
     })
@@ -719,17 +858,41 @@
       const actuals = actualsRes.data?.data || []
       const workOrders = workOrdersRes.data?.data || []
       const plans = plansRes.data?.data || []
-      const includedParents = actualsRes.data?.included || []
+
+      // After fetching plans, resolve plan→actual links via parent_id for converted plans
+      let convertedActuals: any[] = []
+      const convertedPlanIds = plans.filter((p: any) => {
+        const s = p.attributes?.status
+        return s === 'closed_fully' || s === 'closed_partially'
+      }).map((p: any) => p.id)
+
+      if (convertedPlanIds.length > 0) {
+        try {
+          const parentFilter = convertedPlanIds.join(',')
+          const parentRes = await agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, {
+            page: { size: 50 },
+            filter: { parent_id: parentFilter },
+          })
+          convertedActuals = parentRes.data?.data || []
+          console.log(`[AgActivity] "${field.name}" parent_id query — ${convertedActuals.length} converted actuals from ${convertedPlanIds.length} plans`)
+          if (!parentRes.success) console.warn(`[AgActivity] parent_id query FAILED:`, parentRes.error)
+        } catch (e: any) {
+          console.warn(`[AgActivity] parent_id query exception:`, e.message)
+        }
+      }
+
+      // Identify which actuals are converted (matched by parent_id) vs standalone
+      const convertedActualIds = new Set(convertedActuals.map((a: any) => a.id))
+      const standaloneActuals = actuals.filter((a: any) => !convertedActualIds.has(a.id))
 
       const errors: string[] = []
       if (!actualsRes.success) errors.push(`Actuals: ${actualsRes.error}`)
       if (!workOrdersRes.success) errors.push(`Work Orders: ${workOrdersRes.error}`)
       if (!plansRes.success) errors.push(`Plans: ${plansRes.error}`)
 
-      // Only save if at least one call succeeded
       if (actualsRes.success || workOrdersRes.success || plansRes.success) {
         const allItems = [
-          ...actuals.map((r: any) => ({ type: 'actual', resource: enrichWithParent(r, includedParents) })),
+          ...actuals.map((r: any) => ({ type: 'actual', resource: r })),
           ...workOrders.map((r: any) => ({ type: 'work_order', resource: r })),
           ...plans.map((r: any) => ({ type: 'plan', resource: r })),
         ]
@@ -740,6 +903,7 @@
         actuals,
         workOrders,
         plans,
+        _convertedActualIds: convertedActualIds,
         error: errors.length > 0 ? errors.join('; ') : undefined,
       })
       fieldActivityData = new Map(fieldActivityData)
@@ -795,9 +959,27 @@
           const actuals = actualsRes.data?.data || []
           const workOrders = workOrdersRes.data?.data || []
           const plans = plansRes.data?.data || []
-          const includedParents = actualsRes.data?.included || []
+
+          // Resolve plan→actual via parent_id
+          let convertedActualIds = new Set<string>()
+          const convertedPlanIds = plans.filter((p: any) => {
+            const s = p.attributes?.status
+            return s === 'closed_fully' || s === 'closed_partially'
+          }).map((p: any) => p.id)
+
+          if (convertedPlanIds.length > 0) {
+            try {
+              const parentRes = await agworldApiV3.listActualsByField(selectedAccount, selectedAccount.growerId, boundaryId, {
+                page: { size: 50 },
+                filter: { parent_id: convertedPlanIds.join(',') },
+              })
+              const convertedActuals = parentRes.data?.data || []
+              convertedActualIds = new Set(convertedActuals.map((a: any) => a.id))
+            } catch { /* non-critical */ }
+          }
+
           const allItems = [
-            ...actuals.map((r: any) => ({ type: 'actual', resource: enrichWithParent(r, includedParents) })),
+            ...actuals.map((r: any) => ({ type: 'actual', resource: r })),
             ...workOrders.map((r: any) => ({ type: 'work_order', resource: r })),
             ...plans.map((r: any) => ({ type: 'plan', resource: r })),
           ]
@@ -806,7 +988,7 @@
             await saveActivitiesToDb(f, allItems)
           }
 
-          fieldActivityData.set(f.id, { actuals, workOrders, plans })
+          fieldActivityData.set(f.id, { actuals, workOrders, plans, _convertedActualIds: convertedActualIds })
           fieldActivityData = new Map(fieldActivityData)
           
           return allItems.length
@@ -2945,7 +3127,7 @@
                                       </div>
                                       {#each tl.convertedPairs as pair (pair.actual.id)}
                                         {@const aAttrs = pair.actual.attributes || {}}
-                                        <div class="activity-row converted">
+                                        <div class="activity-row converted" on:click|stopPropagation={() => openActivityModal(pair.actual.id, pair.actual)}>
                                           <span class="activity-date">{aAttrs.completed_at ? new Date(aAttrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : aAttrs.started_at ? new Date(aAttrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
                                           <span class="activity-lifecycle">
                                             <span class="lifecycle-badge plan">Plan</span>
@@ -2953,6 +3135,30 @@
                                             <span class="lifecycle-badge actual">Actual</span>
                                           </span>
                                           <span class="activity-status completed">{aAttrs.status || 'completed'}</span>
+                                          <span class="activity-name">{aAttrs.name || aAttrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+
+                                  <!-- Discarded but completed (parent_id confirms link despite discarded status) -->
+                                  {#if tl.discardedConvertedPairs.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:danger-triangle-bold" width="14" height="14" class="text-warning" />
+                                        <span>Discarded (work done)</span>
+                                        <span class="activity-count">{tl.discardedConvertedPairs.length}</span>
+                                      </div>
+                                      {#each tl.discardedConvertedPairs as pair (pair.actual.id)}
+                                        {@const aAttrs = pair.actual.attributes || {}}
+                                        <div class="activity-row discarded-converted" on:click|stopPropagation={() => openActivityModal(pair.actual.id, pair.actual)}>
+                                          <span class="activity-date">{aAttrs.completed_at ? new Date(aAttrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : aAttrs.started_at ? new Date(aAttrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-lifecycle">
+                                            <span class="lifecycle-badge discarded-plan">Discarded</span>
+                                            <Icon icon="solar:arrow-right-bold" width="10" height="10" class="opacity-30" />
+                                            <span class="lifecycle-badge actual">Actual</span>
+                                          </span>
+                                          <span class="activity-status" style="color:#f59e0b">work done</span>
                                           <span class="activity-name">{aAttrs.name || aAttrs.operation_type_name || '-'}</span>
                                         </div>
                                       {/each}
@@ -2969,7 +3175,7 @@
                                       </div>
                                       {#each tl.unmatchedActuals as a (a.id)}
                                         {@const attrs = a.attributes || {}}
-                                        <div class="activity-row">
+                                        <div class="activity-row" on:click|stopPropagation={() => openActivityModal(a.id, a)}>
                                           <span class="activity-date">{attrs.completed_at ? new Date(attrs.completed_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : attrs.started_at ? new Date(attrs.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
                                           <span class="activity-type-badge actual">Actual</span>
                                           <span class="activity-status" class:completed={attrs.status === 'completed'}>{attrs.status || '-'}</span>
@@ -2989,7 +3195,7 @@
                                       </div>
                                       {#each tl.workOrders as wo (wo.id)}
                                         {@const attrs = wo.attributes || {}}
-                                        <div class="activity-row">
+                                        <div class="activity-row" on:click|stopPropagation={() => openActivityModal(wo.id, wo)}>
                                           <span class="activity-date">{attrs.due_date ? new Date(attrs.due_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
                                           <span class="activity-type-badge work-order">W/O</span>
                                           <span class="activity-status" class:completed={attrs.status === 'closed'}>{attrs.status || '-'}</span>
@@ -3009,11 +3215,35 @@
                                       </div>
                                       {#each tl.pendingPlans as p (p.id)}
                                         {@const attrs = p.attributes || {}}
-                                        <div class="activity-row">
-                                          <span class="activity-date">{attrs.planned_date ? new Date(attrs.planned_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                        {@const isOverdue = attrs.due_at && new Date(attrs.due_at) < new Date() && (attrs.status === 'todo' || attrs.status === 'in_progress')}
+                                        <div class="activity-row" on:click|stopPropagation={() => openActivityModal(p.id, p)}>
+                                          <span class="activity-date">{attrs.due_at ? new Date(attrs.due_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
                                           <span class="activity-type-badge plan">Plan</span>
+                                          {#if isOverdue}
+                                            <span class="overdue-badge">Overdue</span>
+                                          {/if}
                                           <span class="activity-status" class:completed={attrs.status === 'completed'}>{attrs.status || '-'}</span>
                                           <span class="activity-name">{attrs.name || attrs.operation_type_name || '-'}</span>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+
+                                  <!-- Discarded Plans -->
+                                  {#if tl.discardedPlans.length > 0}
+                                    <div class="activity-group">
+                                      <div class="activity-group-header">
+                                        <Icon icon="solar:trash-bin-trash-bold" width="14" height="14" class="opacity-30" />
+                                        <span>Discarded</span>
+                                        <span class="activity-count">{tl.discardedPlans.length}</span>
+                                      </div>
+                                      {#each tl.discardedPlans as p (p.id)}
+                                        {@const attrs = p.attributes || {}}
+                                        <div class="activity-row discarded">
+                                          <span class="activity-date">{attrs.due_at ? new Date(attrs.due_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'}</span>
+                                          <span class="activity-type-badge discarded-plan">Discarded</span>
+                                          <span class="activity-status discarded-status">{attrs.status || '-'}</span>
+                                          <span class="activity-name discarded-name">{attrs.name || attrs.operation_type_name || '-'}</span>
                                         </div>
                                       {/each}
                                     </div>
@@ -3043,6 +3273,254 @@
       </div>
     {/if}
     </div>
+
+    <!-- Activity Detail Modal -->
+    {#if activityModal && activityModalData}
+      {@const m = activityModal}
+      {@const d = activityModalData}
+      {@const attrs = m.resource.attributes || {}}
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="modal-backdrop" on:click={closeActivityModal}>
+        <div class="modal-content" style="background:#1f2937;color:#e5e7eb" on:click|stopPropagation>
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title">{attrs.name || attrs.operation_type_name || m.type}</h2>
+              <span class="modal-subtitle">
+                {m.type}
+                {#if attrs.status}<span class="px-2 py-0.5 rounded text-xs font-semibold" style={attrs.status === 'completed' || attrs.status === 'closed' ? 'background:rgba(34,197,94,0.1);color:#22c55e' : attrs.status === 'todo' || attrs.status === 'in_progress' ? 'background:rgba(245,158,11,0.1);color:#f59e0b' : 'background:rgba(239,68,68,0.1);color:#ef4444'}>{attrs.status}</span>{/if}
+              </span>
+            </div>
+            <button class="modal-close" on:click={closeActivityModal}>
+              <Icon icon="solar:close-circle-bold" width="24" height="24" />
+            </button>
+          </div>
+
+          {#if d.loading}
+            <div class="modal-body flex items-center justify-center py-12">
+              <span class="loading loading-spinner loading-lg"></span>
+            </div>
+          {:else if d.error}
+            <div class="modal-body text-error">{d.error}</div>
+          {:else}
+            <div class="modal-body">
+              <!-- Dates -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:calendar-bold" width="14" height="14" /> Dates</h3>
+                <div class="modal-grid">
+                  {#if attrs.started_at}<div><span class="modal-label">Started</span><span class="modal-value">{new Date(attrs.started_at).toLocaleString('en-AU')}</span></div>{/if}
+                  {#if attrs.completed_at}<div><span class="modal-label">Completed</span><span class="modal-value">{new Date(attrs.completed_at).toLocaleString('en-AU')}</span></div>{/if}
+                  {#if attrs.due_at}<div><span class="modal-label">Due</span><span class="modal-value">{new Date(attrs.due_at).toLocaleString('en-AU')}</span></div>{/if}
+                  {#if attrs.created_at}<div><span class="modal-label">Created</span><span class="modal-value">{new Date(attrs.created_at).toLocaleString('en-AU')}</span></div>{/if}
+                  {#if attrs.updated_at}<div><span class="modal-label">Updated</span><span class="modal-value">{new Date(attrs.updated_at).toLocaleString('en-AU')}</span></div>{/if}
+                  {#if !attrs.started_at && !attrs.completed_at && !attrs.due_at && !attrs.created_at}<span class="opacity-60 text-sm">No dates recorded</span>{/if}
+                </div>
+              </div>
+
+              <!-- Area -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:map-point-bold" width="14" height="14" /> Area</h3>
+                {#if d.areaHa}
+                  <span class="modal-value">{d.areaHa.toFixed(1)} ha</span>
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- Operations -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:settings-bold" width="14" height="14" /> Operations</h3>
+                {#if d.operations.length > 0}
+                  {#each d.operations as op}
+                    {@const oAttrs = op.attributes || {}}
+                    <div class="modal-row">
+                      <span class="modal-value">{oAttrs.name || 'Unknown operation'}</span>
+                      {#if oAttrs.application_rate}<span class="opacity-50 text-sm">· {oAttrs.application_rate} {oAttrs.application_rate_unit || ''}</span>{/if}
+                      {#if oAttrs.mix_method}<span class="opacity-60 text-xs ml-2">({oAttrs.mix_method})</span>{/if}
+                    </div>
+                  {/each}
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- Products -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:dropper-bold" width="14" height="14" /> Products Applied</h3>
+                {#if d.products.length > 0}
+                  {#each d.products as prod}
+                    {@const pAttrs = prod.attributes || {}}
+                    {@const productExtras = Object.entries(pAttrs).filter(([k]) => k !== 'name' && k !== 'created_at' && k !== 'updated_at' && k !== 'sort_order').filter(([,v]) => v !== null && v !== undefined && v !== '')}
+                    <div class="modal-row">
+                      <span class="modal-value font-semibold">{pAttrs.name || 'Unknown product'}</span>
+                    </div>
+                    {#if productExtras.length > 0}
+                      <div class="modal-attr-grid">
+                        {#each productExtras as [key, val]}
+                          <div><span class="modal-label">{key.replace(/_/g, ' ')}</span><span class="modal-value text-xs">{val}</span></div>
+                        {/each}
+                      </div>
+                    {/if}
+                  {/each}
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- Operator -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:user-bold" width="14" height="14" /> Operator</h3>
+                {#if d.operatorUsers.length > 0}
+                  {#each d.operatorUsers as u}
+                    {@const uAttrs = u.attributes || {}}
+                    <span class="modal-value">{uAttrs.name || uAttrs.email || 'Unknown operator'}</span>
+                    {@const userExtras = Object.entries(uAttrs).filter(([k]) => k !== 'name' && k !== 'email' && k !== 'created_at' && k !== 'updated_at').filter(([,v]) => v !== null && v !== undefined && v !== '')}
+                    {#if userExtras.length > 0}
+                      <div class="modal-attr-grid">
+                        {#each userExtras as [key, val]}
+                          <div><span class="modal-label">{key.replace(/_/g, ' ')}</span><span class="modal-value text-xs">{val}</span></div>
+                        {/each}
+                      </div>
+                    {/if}
+                  {/each}
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- Equipment -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:tractor-bold" width="14" height="14" /> Equipment</h3>
+                {#if d.assets.length > 0}
+                  {#each d.assets as asset}
+                    {@const aAttrs = asset.attributes || {}}
+                    <span class="modal-value">{aAttrs.name || aAttrs.asset_name || 'Unknown equipment'}</span>
+                    {@const assetExtras = Object.entries(aAttrs).filter(([k]) => k !== 'name' && k !== 'created_at' && k !== 'updated_at').filter(([,v]) => v !== null && v !== undefined && v !== '')}
+                    {#if assetExtras.length > 0}
+                      <div class="modal-attr-grid">
+                        {#each assetExtras as [key, val]}
+                          <div><span class="modal-label">{key.replace(/_/g, ' ')}</span><span class="modal-value text-xs">{val}</span></div>
+                        {/each}
+                      </div>
+                    {/if}
+                  {/each}
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- Weather -->
+              <div class="modal-section">
+                <h3 class="modal-section-title"><Icon icon="solar:cloud-bold" width="14" height="14" /> Weather</h3>
+                {#if d.weatherRecords.length > 0}
+                  {#each d.weatherRecords as w}
+                    {@const wAttrs = w.attributes || {}}
+                    {@const weatherExtras = Object.entries(wAttrs).filter(([k]) => k !== 'created_at' && k !== 'updated_at').filter(([,v]) => v !== null && v !== undefined && v !== '')}
+                    {#if weatherExtras.length > 0}
+                      <div class="modal-attr-grid">
+                        {#each weatherExtras as [key, val]}
+                          <div><span class="modal-label">{key.replace(/_/g, ' ')}</span><span class="modal-value text-xs">{val}</span></div>
+                        {/each}
+                      </div>
+                    {/if}
+                  {/each}
+                {:else}
+                  <span class="opacity-60 text-sm">Not recorded</span>
+                {/if}
+              </div>
+
+              <!-- API Explorer - raw data view -->
+              {#if [...d.products, ...d.operations, ...d.operatorUsers, ...d.assets, ...d.weatherRecords].length > 0}
+                {@const allSubs = [...d.products.map(r => ({label:'Product',r})), ...d.operations.map(r => ({label:'Operation',r})), ...d.operatorUsers.map(r => ({label:'Operator',r})), ...d.assets.map(r => ({label:'Asset',r})), ...d.weatherRecords.map(r => ({label:'Weather',r}))]}
+                <div class="modal-section">
+                  <details>
+                    <summary class="modal-section-title" style="cursor:pointer">
+                      <Icon icon="solar:code-bold" width="14" height="14" /> Raw API Data ({allSubs.length} resources)
+                    </summary>
+                    <div class="mt-2 space-y-2">
+                      {#each allSubs as sub (sub.r.id)}
+                        {@const attrs = sub.r.attributes || {}}
+                        {@const rels = sub.r.relationships || {}}
+                        {@const relEntries = Object.entries(rels).filter(([k,v]) => v?.data && (Array.isArray(v.data) ? v.data.length > 0 : true))}
+
+                        {#if surfCardId === sub.r.id}
+                          <!-- Surf mode: breadcrumb navigation within this card -->
+                          {@const current = surfStack[surfStack.length - 1]}
+                          <div class="surf-card" style="border-color:rgba(139,92,246,0.3)">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                              <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">
+                                {#each surfStack as step, i}
+                                  {#if i > 0}<span style="color:inherit;opacity:0.2">/</span>{/if}
+                                  <button
+                                    style="font-size:10px;padding:1px 5px;border-radius:3px;border:none;background:transparent;color:inherit;opacity:{i === surfStack.length - 1 ? 0.9 : 0.4};cursor:pointer"
+                                    on:click|stopPropagation={() => surfBackTo(i)}
+                                    disabled={step.loading}>
+                                    {step.loading ? '...' : step.label}
+                                  </button>
+                                {/each}
+                              </div>
+                              <button style="font-size:10px;color:inherit;opacity:0.4;background:none;border:none;cursor:pointer" on:click|stopPropagation={closeSurf}>x</button>
+                            </div>
+                            {#if current.loading}
+                              <span class="loading loading-spinner loading-xs"></span> Loading...
+                            {:else if current.error}
+                              <span style="color:#f87171;font-size:11px">{current.error}</span>
+                            {:else if current.data}
+                              {#if current.data.attributes}
+                                <div class="modal-attr-grid" style="margin:4px 0">
+                                  {#each Object.entries(current.data.attributes).filter(([k]) => k !== 'created_at' && k !== 'updated_at' && k !== 'sort_order') as [key, val]}
+                                    {#if val !== null && val !== undefined && val !== ''}
+                                      <div><span class="modal-label">{key.replace(/_/g, ' ')}</span><span class="modal-value text-xs">{typeof val === 'object' ? JSON.stringify(val) : val}</span></div>
+                                    {/if}
+                                  {/each}
+                                </div>
+                                {@const curRels = current.data.relationships || {}}
+                                {@const curRelEntries = Object.entries(curRels).filter(([k,v]) => v?.data && (Array.isArray(v.data) ? v.data.length > 0 : true))}
+                                {#if curRelEntries.length > 0}
+                                  <div class="surf-rels">
+                                    {#each curRelEntries as [relName, relVal]}
+                                      <button class="surf-rel-btn" on:click|stopPropagation={() => fetchRelationship(current.data, relName)}>{relName}</button>
+                                    {/each}
+                                  </div>
+                                {/if}
+                              {/if}
+                              <details>
+                                <summary class="text-xs opacity-50 cursor-pointer">Raw JSON</summary>
+                                <pre class="surf-json">{JSON.stringify(current.data, null, 2)}</pre>
+                              </details>
+                            {/if}
+                          </div>
+                        {:else}
+                          <!-- Normal card view -->
+                          <div class="surf-card">
+                            <div class="surf-header">
+                              <span class="text-xs font-semibold opacity-60">{sub.label}</span>
+                              <span class="text-sm font-semibold">{attrs.name || sub.r.id?.substring(0,12)}</span>
+                              <span class="text-xs opacity-50 font-mono">{sub.r.type}:{sub.r.id?.substring(0,16)}</span>
+                            </div>
+                            {#if relEntries.length > 0}
+                              <div class="surf-rels">
+                                {#each relEntries as [relName, relVal]}
+                                  <button class="surf-rel-btn" on:click|stopPropagation={() => { startSurf(sub.r.id, sub.r); fetchRelationship(sub.r, relName) }}>{relName}</button>
+                                {/each}
+                              </div>
+                            {/if}
+                            <details>
+                              <summary class="text-xs opacity-50 cursor-pointer hover:opacity-80">Full JSON</summary>
+                              <pre class="surf-json">{JSON.stringify(sub.r, (key, val) => key === 'links' ? undefined : val, 2)}</pre>
+                            </details>
+                          </div>
+                        {/if}
+                      {/each}
+                    </div>
+                  </details>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
   <!-- Compare View -->
   {:else if view === "compare"}
@@ -3087,7 +3565,7 @@
         <!-- API Logs (collapsed by default) -->
         {#if compareLogs.length > 0}
           <details class="mb-3">
-            <summary class="text-xs opacity-40 cursor-pointer hover:opacity-80">
+            <summary class="text-xs opacity-60 cursor-pointer hover:opacity-80">
               {compareLogs.length} API calls · {agworldBoundaries.filter(b => b.boundary).length} boundaries loaded
             </summary>
           </details>
@@ -4032,6 +4510,180 @@
   .activity-type-badge.actual { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
   .activity-type-badge.work-order { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
   .activity-type-badge.plan { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+  .activity-type-badge.discarded-plan { background: rgba(255,255,255,0.05); color: oklch(var(--contrast-content) / 0.3); }
+
+  .overdue-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+  }
+
+  .activity-row.discarded { opacity: 0.5; }
+  .activity-row.discarded:hover { opacity: 0.8; }
+  .discarded-status { color: oklch(var(--contrast-content) / 0.3) !important; }
+  .discarded-name { text-decoration: line-through; color: oklch(var(--contrast-content) / 0.4); }
+
+  .activity-row { cursor: pointer; }
+  .activity-row:hover { background: oklch(var(--base-200) / 0.3); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.5);
+    padding: 20px;
+  }
+  .modal-content {
+    width: 100%;
+    max-width: 560px;
+    max-height: 85vh;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .modal-subtitle {
+    font-size: 12px;
+    color: inherit;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.3;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 8px;
+    transition: opacity 0.15s;
+  }
+  .modal-close:hover { opacity: 0.7; }
+  .modal-body {
+    padding: 16px 24px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .modal-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .modal-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: inherit;
+    opacity: 0.5;
+    margin-bottom: 2px;
+  }
+  .modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+  }
+  .modal-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: inherit;
+    opacity: 0.45;
+    display: block;
+  }
+  .modal-value {
+    font-size: 13px;
+  }
+  .modal-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .modal-attr-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    margin: 2px 0 4px 12px;
+    padding: 4px 8px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  /* API Explorer */
+  .surf-card {
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .surf-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .surf-rels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .surf-rel-btn {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .surf-rel-btn:hover {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: #a78bfa;
+  }
+  .surf-json {
+    font-size: 10px;
+    padding: 6px;
+    margin-top: 4px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
   .activity-status {
     font-size: 10px;
     color: oklch(var(--contrast-content) / 0.5);
@@ -4066,6 +4718,10 @@
   }
   .lifecycle-badge.plan { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
   .lifecycle-badge.actual { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
+  .lifecycle-badge.discarded-plan { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+  .activity-row.converted { background: rgba(34, 197, 94, 0.04); }
+  .activity-row.discarded-converted { background: rgba(245, 158, 11, 0.04); }
 
   /* Activity banner */
   .activity-banner {
