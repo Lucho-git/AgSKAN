@@ -122,8 +122,39 @@
     }
   }
 
+  // ── Style-ready guard ────────────────────────────────────────────────
+  // map.addSource/addLayer throw "Style is not done loading" if called before
+  // the style is ready (e.g. on rejoin while the map is still initialising).
+  // That used to crash the reactive render and freeze the map at the first
+  // screen, so we defer instead.
+  function isMapStyleReady() {
+    return !!(
+      map &&
+      typeof map.loaded === "function" &&
+      map.loaded() &&
+      typeof map.isStyleLoaded === "function" &&
+      map.isStyleLoaded()
+    )
+  }
+
+  let renderPending = false
+  function handleRenderRetry() {
+    renderPending = false
+    if (isDestroyed || !map) return
+    renderAll()
+  }
+  function scheduleRender() {
+    if (!map || isDestroyed || renderPending) return
+    renderPending = true
+    map.once("idle", handleRenderRetry)
+  }
+
   function addOrUpdateOverlay(overlay) {
     if (!map || isDestroyed) return
+    if (!isMapStyleReady()) {
+      scheduleRender()
+      return
+    }
     const sourceId = sourceIdFor(overlay)
     const data = enrichFeatures(overlay)
 
@@ -283,6 +314,10 @@
 
   function renderAll() {
     if (!map || isDestroyed) return
+    if (!isMapStyleReady()) {
+      scheduleRender()
+      return
+    }
     for (const overlay of overlays) {
       addOrUpdateOverlay(overlay)
     }
@@ -380,6 +415,8 @@
 
     map.off("click", handleMapClick)
     map.off("style.load", handleStyleReload)
+    map.off("idle", handleRenderRetry)
+    renderPending = false
 
     for (const overlay of overlays) {
       const sourceId = sourceIdFor(overlay)
@@ -423,7 +460,7 @@
 
     const tryRender = () => {
       if (isDestroyed) return
-      if (map.loaded() && map.isStyleLoaded()) {
+      if (isMapStyleReady()) {
         if (!clickHandlerAdded) {
           clickHandlerAdded = true
           map.on("click", handleMapClick)
@@ -431,7 +468,7 @@
         renderAll()
         updateFeatureStates()
       } else {
-        map.once("idle", tryRender)
+        scheduleRender()
       }
     }
     tryRender()
