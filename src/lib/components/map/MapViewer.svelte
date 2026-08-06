@@ -39,6 +39,7 @@
   import VehicleStateSynchronizer from "./vehicles/VehicleStateSynchronizer.svelte"
   import MapFields from "./MapFields.svelte"
   import EmOverlays from "$lib/components/map/overlays/EmOverlays.svelte"
+  import KmzOverlays from "$lib/components/map/overlays/KmzOverlays.svelte"
   import TrailSynchronizer from "$lib/components/map/trails/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/map/trails/TrailView.svelte"
   import OverlayTrailManager from "$lib/components/map/trails/OverlayTrailManager.svelte"
@@ -2098,6 +2099,7 @@
       visible={!!fieldCandidateCollection}
     />
     <EmOverlays {map} />
+    <KmzOverlays {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <DrawingHectares {map} />

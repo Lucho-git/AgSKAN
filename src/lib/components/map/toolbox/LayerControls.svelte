@@ -22,6 +22,7 @@
   import { confirmedMarkersStore } from "$lib/stores/markerStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { markerApi } from "$lib/api/markerApi"
+  import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { toast } from "svelte-sonner"
   import MarkerVisibilityModal from "./MarkerVisibilityModal.svelte"
 
@@ -82,6 +83,12 @@
       icon: Home,
       color: "#34d399",
       indent: true,
+    },
+    {
+      id: "kmzOverlays",
+      name: "Road Overlays",
+      icon: RoadIcon,
+      color: "#fbbf24",
     },
     {
       id: "vehicles",

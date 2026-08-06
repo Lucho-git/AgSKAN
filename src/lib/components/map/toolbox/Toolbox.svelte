@@ -57,7 +57,9 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
+  import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
+  import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
 
   // Import toolbox control components
   import SatelliteControls from "./SatelliteControls.svelte"
@@ -68,6 +70,7 @@
   import CollectionControls from "./CollectionControls.svelte"
   import FieldControls from "./FieldControls.svelte"
   import ProfileControls from "./ProfileControls.svelte"
+  import KmzOverlayControls from "./KmzOverlayControls.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
 
   export let isOpen = false
@@ -102,6 +105,9 @@
 
   // Field count for badge
   $: fieldCount = ($mapFieldsStore || []).length
+
+  // KMZ overlay count for badge
+  $: overlays = $kmzOverlaysStore.overlays || []
 
   // Trail counts per operation (from metadata store)
   $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
@@ -214,6 +220,10 @@
 
   function showProfilePanel() {
     activePanel = "profile"
+  }
+
+  function showOverlaysPanel() {
+    activePanel = "overlays"
   }
 
   function toggleDevMode() {
@@ -413,7 +423,9 @@
                             ? "Fields"
                             : activePanel === "profile"
                               ? "Profile"
-                              : ""}
+                              : activePanel === "overlays"
+                                ? "Road Overlays"
+                                : ""}
           <button class="header-arrow-center" on:click={showMainPanel}>
             <span class="ac-arrow">←</span>
             <h3>{title}</h3>
@@ -501,6 +513,8 @@
           on:addField={handleAddField}
           on:editField={handleEditField}
         />
+      {:else if activePanel === "overlays"}
+        <KmzOverlayControls />
       {:else if activePanel === "profile"}
         <ProfileControls />
       {:else}
@@ -573,44 +587,62 @@
             {/if}
           </button>
 
+          {#if $userSettingsStore.roadOverlaysEnabled}
+            <button class="tool-button" on:click={showOverlaysPanel}>
+              <RoadIcon size={26} />
+              <span>Road Overlays</span>
+              {#if overlays.length > 0}
+                <span class="tool-badge overlay-badge">{overlays.length}</span>
+              {/if}
+            </button>
+          {/if}
+
           <div class="tool-grid-separator"></div>
 
-          <button
-            class="tool-button"
-            class:tool-active={$drawingModeEnabled}
-            on:click={handleMeasurement}
-          >
-            <Ruler size={26} />
-            <span>Measure</span>
-          </button>
+          {#if $userSettingsStore.measureMenuEnabled}
+            <button
+              class="tool-button"
+              class:tool-active={$drawingModeEnabled}
+              on:click={handleMeasurement}
+            >
+              <Ruler size={26} />
+              <span>Measure</span>
+            </button>
+          {/if}
 
-          <button class="tool-button" on:click={showSatellitePanel}>
-            <Satellite size={26} />
-            <span>Satellite</span>
-          </button>
+          {#if $userSettingsStore.satelliteMenuEnabled}
+            <button class="tool-button" on:click={showSatellitePanel}>
+              <Satellite size={26} />
+              <span>Satellite</span>
+            </button>
+          {/if}
 
           <button class="tool-button" on:click={showLayersPanel}>
             <Layers size={26} />
             <span>Layers</span>
           </button>
 
-          <button
-            class="tool-button flash-tool"
-            class:tool-active={isFlashing}
-            on:click={showFlashPanel}
-          >
-            <Zap size={26} class={isFlashing ? "flashing-icon" : ""} />
-            <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
-          </button>
+          {#if $userSettingsStore.flashMenuEnabled}
+            <button
+              class="tool-button flash-tool"
+              class:tool-active={isFlashing}
+              on:click={showFlashPanel}
+            >
+              <Zap size={26} class={isFlashing ? "flashing-icon" : ""} />
+              <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
+            </button>
+          {/if}
 
-          <button
-            class="tool-button collection-tool"
-            class:tool-active={$collectionModeStore.enabled}
-            on:click={showCollectionPanel}
-          >
-            <Magnet size={26} />
-            <span>Rock Picking</span>
-          </button>
+          {#if $userSettingsStore.rockPickingMenuEnabled}
+            <button
+              class="tool-button collection-tool"
+              class:tool-active={$collectionModeStore.enabled}
+              on:click={showCollectionPanel}
+            >
+              <Magnet size={26} />
+              <span>Rock Picking</span>
+            </button>
+          {/if}
 
           {#if $userSettingsStore.devToolsEnabled}
             <button
@@ -1032,6 +1064,12 @@
     background: rgba(74, 222, 128, 0.2);
     color: #4ade80;
     border: 1px solid rgba(74, 222, 128, 0.3);
+  }
+
+  .overlay-badge {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
   }
 
   .profile-avatar-circle {

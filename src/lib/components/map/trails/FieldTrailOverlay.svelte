@@ -28,6 +28,11 @@
     Download,
   } from "lucide-svelte"
   import { jsPDF } from "jspdf"
+  import {
+    suggestMatches,
+    suggestActivityAssignments,
+    type MatchSuggestion,
+  } from "$lib/utils/agworldMatching"
 
   const dispatch = createEventDispatcher()
 
@@ -36,11 +41,24 @@
   export let fieldName = ""
   export let lockedMode = false
   export let fieldAreaHa = 0 // actual field boundary area (not spray coverage)
+  export let inputProducts: any[] = [] // real inputs (e.g. Agworld) when available
+  export let fieldCrop = "" // crop type for the report summary
+  export let agworldActivities: {
+    actuals?: any[]
+    plans?: any[]
+    workOrders?: any[]
+    _convertedActualIds?: Set<string>
+  } | null = null // cached Agworld activities for this field (for match suggestions)
 
   let map: mapboxgl.Map | null = null
   let container: HTMLElement
   let popup: mapboxgl.Popup | null = null
   let selectedTrail = null as any
+  // Multi-select: record keys currently highlighted on the map + legend
+  let selectedTrailIds = new Set<string>()
+  function recordKey(r: any): string {
+    return r?.id ?? r?.trail_id ?? r?.start_time
+  }
 
   // Mobile bottom-sheet drag state
   let panelHeight = 0 // 0 = auto-fit to content
@@ -90,12 +108,14 @@
   // Report state
   let showReport = false
   let reportData = null as any
+  let reportLoading = false
   let includeWeather = true
   let includeOperators = true
   let includeProducts = true
 
-  function generateReport() {
+  async function generateReport() {
     if (!map || sortedRecords.length === 0) return
+    reportLoading = true
 
     // Capture map snapshot
     const snapshot = map.getCanvas().toDataURL("image/png")
@@ -117,77 +137,23 @@
       ...new Set(sortedRecords.map((r) => r.operator_name || "Unknown")),
     ].join(", ")
 
-    // Stub weather data — generate hourly readings only during field visit intervals
-    const conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Clear"]
-    const windDirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    const weather: any[] = []
-    const seenHours = new Set<string>() // dedupe overlapping intervals on the same hour
+    // Real weather — Open-Meteo lookup for the field's working hours
+    const weatherLookup = await fetchWorkingWeather(sortedRecords, fieldBoundary)
+    const weather = weatherLookup.rows
+    const weatherSource = weatherLookup.source
 
-    for (const record of sortedRecords) {
-      const recStart = new Date(record.start_time)
-      const recEnd = new Date(record.end_time || record.start_time)
-      // Snap to the top of each hour within this interval
-      const hourStart = new Date(recStart)
-      hourStart.setMinutes(0, 0, 0)
-      for (let t = hourStart; t <= recEnd; t = new Date(t.getTime() + 3600000)) {
-        const key = t.toISOString()
-        if (seenHours.has(key)) continue
-        seenHours.add(key)
-
-        const hour = t.getHours()
-        const baseTemp = 15 + 10 * Math.sin(((hour - 6) * Math.PI) / 12)
-        const temp = Math.round(baseTemp + (Math.random() - 0.5) * 3)
-        const humidity = Math.round(
-          60 -
-            20 * Math.sin(((hour - 6) * Math.PI) / 12) +
-            (Math.random() - 0.5) * 10,
-        )
-        const windSpeed = Math.round(8 + Math.random() * 12)
-        const gust = windSpeed + Math.round(3 + Math.random() * 5)
-        const deltaT =
-          Math.round((temp - (humidity / 100) * (temp + 8)) * 10) / 10
-        weather.push({
-          time: t.toLocaleString([], {
-            day: "numeric",
-            month: "short",
-            hour: "numeric",
-            minute: "2-digit",
-          }),
-          conditions: conditions[Math.floor(Math.random() * conditions.length)],
-          temp,
-          windSpeed,
-          windDir: windDirs[Math.floor(Math.random() * windDirs.length)],
-          gust,
-          humidity: Math.max(20, Math.min(95, humidity)),
-          deltaT: deltaT.toFixed(1),
-        })
-      }
+    // Inputs applied — real data (e.g. Agworld) only; no stubs when unavailable
+    let products: any[] = []
+    let productsSource = ""
+    if (inputProducts?.length) {
+      products = inputProducts.map((p: any) => ({
+        name: p.name || "Unknown",
+        activeIngredient: p.activeIngredient || "—",
+        rate: p.rate || "—",
+        usage: p.usage || "—",
+      }))
+      productsSource = "Agworld"
     }
-
-    // Stub products — default spray rates × treated area
-    const products = [
-      {
-        name: "Glyphosate 450",
-        activeIngredient: "Glyphosate",
-        rate: "2 L/ha",
-        usage: `${(totalArea * 2).toFixed(0)} L`,
-        cost: `$${(totalArea * 2 * 8.5).toFixed(2)}`,
-      },
-      {
-        name: "LI700 Surfactant",
-        activeIngredient: "Surfactant",
-        rate: "0.2 L/ha",
-        usage: `${(totalArea * 0.2).toFixed(1)} L`,
-        cost: `$${(totalArea * 0.2 * 15).toFixed(2)}`,
-      },
-      {
-        name: "Ammonium Sulphate",
-        activeIngredient: "Nitrogen\nSulphur",
-        rate: "1 kg/ha",
-        usage: `${(totalArea * 1).toFixed(0)} kg`,
-        cost: `$${(totalArea * 1 * 1.2).toFixed(2)}`,
-      },
-    ]
 
     // Operations — pull actual operation names from records
     const opNames = [
@@ -271,7 +237,7 @@
       totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`
 
     reportData = {
-      crop: "Wheat",
+      crop: fieldCrop || "Unknown",
       started: new Date(startTime).toLocaleString([], {
         year: "numeric",
         month: "short",
@@ -293,10 +259,153 @@
       operatingHours,
       snapshot,
       weather,
+      weatherSource,
+      weatherError: weatherLookup.error || "",
       products,
+      productsSource,
       operations,
     }
+    reportLoading = false
     showReport = true
+  }
+
+  // ── Real weather lookup (Open-Meteo) for the field's working hours ──
+  async function fetchWorkingWeather(records: any[], boundary: any) {
+    // 1) Working hour range across all records
+    let minT = Infinity
+    let maxT = -Infinity
+    for (const r of records) {
+      const s = new Date(r.start_time).getTime()
+      const e = new Date(r.end_time || r.start_time).getTime()
+      if (!isNaN(s) && s < minT) minT = s
+      if (!isNaN(e) && e > maxT) maxT = e
+    }
+    if (!isFinite(minT) || !isFinite(maxT))
+      return { rows: [], source: "", error: "no time data in records" }
+
+    // 2) Field centroid from the boundary
+    let lat: number | null = null
+    let lng: number | null = null
+    try {
+      const turf = await import("@turf/turf")
+      const c = turf.centroid(turf.feature(boundary))
+      lng = c.geometry.coordinates[0]
+      lat = c.geometry.coordinates[1]
+    } catch {
+      return { rows: [], source: "", error: "could not compute field centre" }
+    }
+    if (lat == null || lng == null)
+      return { rows: [], source: "", error: "no field boundary" }
+
+    // 3) Local date range
+    const pad = (n: number) => String(n).padStart(2, "0")
+    const dstr = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const startDate = dstr(new Date(minT))
+    const endDate = dstr(new Date(maxT))
+
+    // 4) Working hours (local, top-of-hour, deduped)
+    const hours = new Map<string, number>() // "YYYY-MM-DDTHH:00" -> ms
+    for (const r of records) {
+      const recStart = new Date(r.start_time)
+      const recEnd = new Date(r.end_time || r.start_time)
+      const h = new Date(recStart)
+      h.setMinutes(0, 0, 0)
+      for (let t = h.getTime(); t <= recEnd.getTime(); t += 3600000) {
+        const d = new Date(t)
+        const key = `${dstr(d)}T${pad(d.getHours())}:00`
+        if (!hours.has(key)) hours.set(key, t)
+      }
+    }
+
+    // 5) Fetch hourly weather (ERA5 archive; fall back to past GFS for recent data)
+    const fields =
+      "temperature_2m,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+    const params = `latitude=${lat}&longitude=${lng}&start_date=${startDate}&end_date=${endDate}&timezone=auto&hourly=${fields}`
+    let source = "Open-Meteo · ERA5"
+    let data: any = null
+    try {
+      const r = await fetch(
+        `https://archive-api.open-meteo.com/v1/archive?${params}`,
+      )
+      if (r.ok) data = await r.json()
+    } catch {
+      data = null
+    }
+    if (!data?.hourly?.time?.length) {
+      // ERA5 lags ~5 days — recent work falls back to past GFS forecast
+      source = "Open-Meteo · GFS"
+      try {
+        const r = await fetch(
+          `https://historical-forecast-api.open-meteo.com/v1/forecast?${params}`,
+        )
+        if (r.ok) data = await r.json()
+      } catch {
+        data = null
+      }
+    }
+    const hh = data?.hourly || {}
+    const times: string[] = hh.time || []
+    if (times.length === 0)
+      return { rows: [], source, error: "no weather data returned" }
+    const byTime = new Map<string, number>()
+    times.forEach((t, i) => byTime.set(String(t).slice(0, 16), i))
+
+    // 6) Build a row for each working hour
+    const rows: any[] = []
+    for (const [key, ms] of hours) {
+      const idx = byTime.get(key)
+      if (idx == null) continue
+      const temp = hh.temperature_2m?.[idx]
+      const humidity = hh.relative_humidity_2m?.[idx]
+      const dew = hh.dew_point_2m?.[idx]
+      const dt =
+        temp != null && dew != null ? Math.round((temp - dew) * 10) / 10 : null
+      rows.push({
+        time: new Date(ms).toLocaleString([], {
+          day: "numeric",
+          month: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        conditions: wmoDescShort(hh.weather_code?.[idx]),
+        temp: temp != null ? Math.round(temp) : null,
+        windSpeed:
+          hh.wind_speed_10m?.[idx] != null
+            ? Math.round(hh.wind_speed_10m[idx])
+            : null,
+        windDir: compassFromDeg(hh.wind_direction_10m?.[idx]),
+        gust:
+          hh.wind_gusts_10m?.[idx] != null
+            ? Math.round(hh.wind_gusts_10m[idx])
+            : null,
+        humidity: humidity != null ? Math.round(humidity) : null,
+        deltaT: dt != null ? dt.toFixed(1) : null,
+        rain: hh.precipitation?.[idx] ?? 0,
+        _ms: ms,
+      })
+    }
+    rows.sort((a, b) => a._ms - b._ms)
+    for (const row of rows) delete row._ms
+    return { rows, source, error: "" }
+  }
+
+  function wmoDescShort(code: number): string {
+    const map: Record<number, string> = {
+      0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
+      45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
+      61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Freezing rain",
+      71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
+      80: "Light showers", 81: "Showers", 82: "Violent showers", 85: "Snow showers", 86: "Heavy snow showers",
+      95: "Thunderstorm", 96: "Thunderstorm w/ hail", 99: "Severe thunderstorm",
+    }
+    return map[code] || "Unknown"
+  }
+
+  function compassFromDeg(deg: number): string {
+    if (deg == null || isNaN(deg)) return ""
+    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    return dirs[Math.round(((deg % 360) / 45)) % 8] || ""
   }
 
   function downloadReportPDF() {
@@ -365,10 +474,18 @@
       doc.setFontSize(11)
       doc.setFont("helvetica", "bold")
       doc.text("Inputs Applied", margin, y)
+      if (reportData.productsSource) {
+        doc.setFontSize(8)
+        doc.setTextColor(130)
+        doc.text(`Source: ${reportData.productsSource}`, pageW - margin, y, {
+          align: "right",
+        })
+        doc.setTextColor(0)
+      }
       y += 14
       doc.setFontSize(9)
-      const pCols = ["Product", "Active Ingredient", "Rate", "Usage", "Cost"]
-      const pColW = [0.22, 0.22, 0.14, 0.18, 0.18]
+      const pCols = ["Product", "Active Ingredient", "Rate", "Usage"]
+      const pColW = [0.26, 0.28, 0.2, 0.24]
       let cx = margin
       pCols.forEach((h) => {
         doc.setFont("helvetica", "bold")
@@ -383,7 +500,7 @@
           y = margin
         }
         cx = margin
-        const vals = [p.name, p.activeIngredient, p.rate, p.usage, p.cost]
+        const vals = [p.name, p.activeIngredient, p.rate, p.usage]
         vals.forEach((v, i) => {
           doc.text(String(v).split("\n").join(" / "), cx, y)
           cx += pColW[i] * (pageW - margin * 2)
@@ -442,6 +559,14 @@
       }
       doc.setFont("helvetica", "bold")
       doc.text("Weather Records", margin, y)
+      if (reportData.weatherSource) {
+        doc.setFontSize(8)
+        doc.setTextColor(130)
+        doc.text(`Source: ${reportData.weatherSource}`, pageW - margin, y, {
+          align: "right",
+        })
+        doc.setTextColor(0)
+      }
       y += 14
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
@@ -472,11 +597,11 @@
         const vals = [
           w.time,
           w.conditions,
-          `${w.temp}°C`,
-          `${w.windSpeed} km/h ${w.windDir}`,
-          `${w.gust} km/h`,
-          `${w.humidity}%`,
-          w.deltaT,
+          `${w.temp ?? "-"}°C`,
+          `${w.windSpeed ?? "-"} km/h ${w.windDir ?? ""}`,
+          `${w.gust ?? "-"} km/h`,
+          `${w.humidity ?? "-"}%`,
+          w.deltaT ?? "-",
         ]
         vals.forEach((v, i) => {
           doc.text(String(v), cx, y)
@@ -484,6 +609,34 @@
         })
         y += 11
       }
+      y += 10
+    } else if (includeWeather) {
+      if (y > pageH - 40) {
+        doc.addPage()
+        y = margin
+      }
+      doc.setFont("helvetica", "bold")
+      doc.text("Weather Records", margin, y)
+      if (reportData.weatherSource) {
+        doc.setFontSize(8)
+        doc.setTextColor(130)
+        doc.text(`Source: ${reportData.weatherSource}`, pageW - margin, y, {
+          align: "right",
+        })
+        doc.setTextColor(0)
+      }
+      y += 14
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      doc.setTextColor(130)
+      doc.text(
+        reportData.weatherError
+          ? `Weather lookup failed: ${reportData.weatherError}`
+          : "No weather data available for the working hours.",
+        margin,
+        y,
+      )
+      doc.setTextColor(0)
       y += 10
     }
 
@@ -703,6 +856,212 @@
         new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
     )
 
+  // Agworld match suggestions (predictive only — nothing is linked)
+  $: matchSuggestions = agworldActivities
+    ? suggestMatches(sortedRecords, agworldActivities, fieldAreaHa)
+    : []
+
+  // Activity-centric assignments: for every plan → actual / actual / plan /
+  // work order, which trail cluster would the algorithm assign it to?
+  $: assignments = agworldActivities
+    ? suggestActivityAssignments(sortedRecords, agworldActivities, fieldAreaHa)
+    : []
+  $: assignmentMatched = assignments.filter(
+    (a) => a.confidence !== "none",
+  ).length
+  $: assignmentTotal = assignments.reduce(
+    (s, a) => s + (a.confidence !== "none" ? a.score : 0),
+    0,
+  )
+  let showAssignments = true
+
+  // Legend badges: record id → matched Agworld activity name (so the badge
+  // identifies which plan/actual each trail record was matched to)
+  $: matchedRecordMap = (() => {
+    const m = new Map<string, { name: string; type: string }>()
+    for (const s of matchSuggestions) {
+      if (s.confidence === "none" || !s.activity) continue
+      const name =
+        s.activity.attributes?.name ||
+        s.activity.attributes?.operation_type_name ||
+        "Unnamed"
+      const type = activityTypeLabel(s.type)
+      for (const r of s.cluster.records) {
+        m.set(r.id ?? r.trail_id ?? r.start_time, { name, type })
+      }
+    }
+    return m
+  })()
+
+  function matchedInfoFor(record: any): { name: string; type: string } {
+    return (
+      matchedRecordMap.get(
+        record.id ?? record.trail_id ?? record.start_time,
+      ) || { name: "", type: "" }
+    )
+  }
+
+  // Timeline match strip helpers
+  function timeToPct(t: number): number {
+    if (sliderMax <= sliderMin) return 0
+    return Math.max(
+      0,
+      Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100),
+    )
+  }
+
+  function matchActivityName(s: MatchSuggestion): string {
+    return (
+      s.activity?.attributes?.name ||
+      s.activity?.attributes?.operation_type_name ||
+      "Unnamed"
+    )
+  }
+
+  // Distinct color per attempted match on the timeline strip
+  const MATCH_COLORS = [
+    "#4ade80",
+    "#60a5fa",
+    "#fbbf24",
+    "#f472b6",
+    "#a78bfa",
+    "#34d399",
+    "#fb923c",
+    "#f87171",
+    "#22d3ee",
+    "#facc15",
+  ]
+  function matchColor(i: number): string {
+    return MATCH_COLORS[i % MATCH_COLORS.length]
+  }
+
+  // Hovered match on the timeline strip (for the detail tooltip).
+  // A short delay on leave keeps the tooltip open while the mouse travels
+  // into it (so the breakdown rows are clickable).
+  let hoveredMatch: number | null = null
+  // Pinned match: set when a band/badge is clicked, keeps the card open and
+  // shows a persistent "selected" state until the user clicks away elsewhere.
+  let pinnedMatch: number | null = null
+  let hoverTimer: any = null
+  function setHover(i: number | null) {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer)
+      hoverTimer = null
+    }
+    if (i !== null) {
+      hoveredMatch = i
+      return
+    }
+    hoverTimer = setTimeout(() => {
+      hoveredMatch = null
+    }, 180)
+  }
+
+  // Which match card is currently displayed (pinned wins over hover)
+  $: activeMatch = pinnedMatch !== null ? pinnedMatch : hoveredMatch
+
+  // Expandable per-component breakdown rows (in the timeline tooltip)
+  let expandedBd = new Set<string>()
+  function toggleBd(key: string) {
+    if (expandedBd.has(key)) expandedBd.delete(key)
+    else expandedBd.add(key)
+    expandedBd = new Set(expandedBd)
+  }
+
+  function formatClusterWindow(c: { start: number; end: number }): string {
+    const fmt = (t: number, withYear: boolean) =>
+      new Date(t).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "short",
+        ...(withYear ? { year: "numeric" } : {}),
+      })
+    const sameYear =
+      new Date(c.start).getFullYear() === new Date(c.end).getFullYear()
+    if (fmt(c.start, false) === fmt(c.end, false))
+      return fmt(c.start, true)
+    return `${fmt(c.start, false)} – ${fmt(c.end, sameYear ? false : true)}`
+  }
+
+  function confidenceLabel(c: MatchSuggestion["confidence"]): string {
+    return c === "high"
+      ? "Likely match"
+      : c === "medium"
+        ? "Possible match"
+        : c === "low"
+          ? "Weak match"
+          : "No match"
+  }
+
+  function activityTypeLabel(t: MatchSuggestion["type"]): string {
+    return t === "actual"
+      ? "Actual"
+      : t === "plan"
+        ? "Plan"
+        : t === "work_order"
+          ? "Work Order"
+          : ""
+  }
+
+  function clusterSwathLabel(c: { swathWidths: number[] }): string {
+    if (!c.swathWidths.length) return ""
+    const avg = Math.round(
+      c.swathWidths.reduce((a, b) => a + b, 0) / c.swathWidths.length,
+    )
+    return `~${avg}m swath`
+  }
+
+  function bdPct(score: number): number {
+    return Math.round(score * 100)
+  }
+
+  function bdRow(
+    label: string,
+    comp: {
+      score: number
+      weight: number
+      details?: Record<string, string>
+    } | undefined,
+  ): {
+    label: string
+    pct: number
+    weight: number
+    contrib: number
+    details: Record<string, string>
+  } | null {
+    if (!comp) return null
+    return {
+      label,
+      pct: bdPct(comp.score),
+      weight: comp.weight,
+      contrib: Math.round(comp.score * comp.weight * 1000) / 1000,
+      details: comp.details || {},
+    }
+  }
+
+  function bdRows(breakdown: any): {
+    label: string
+    pct: number
+    weight: number
+    contrib: number
+    details: Record<string, string>
+  }[] {
+    return [
+      bdRow("timing", breakdown?.timing),
+      bdRow("vehicle", breakdown?.vehicle),
+      bdRow("coverage", breakdown?.coverage),
+    ].filter(
+      (
+        r,
+      ): r is {
+        label: string
+        pct: number
+        weight: number
+        contrib: number
+        details: Record<string, string>
+      } => !!r,
+    )
+  }
+
   // Available operations from records, with counts, sorted by recency
   $: availableOperations = (() => {
     const seen = new Map()
@@ -854,8 +1213,8 @@
     }, 150)
   }
 
-  // Highlight selected trail(s) with white outlines
-  function highlightSelectedTrail() {
+  // Highlight selected trail(s) with white outlines (multi-select aware)
+  function highlightSelectedTrails() {
     if (!map) return
     // Reset all trail outline layers
     const trailOutlines = map
@@ -870,37 +1229,27 @@
         /* ignore */
       }
     }
-    if (!selectedTrail) return
+    if (selectedTrailIds.size === 0) return
 
-    // Build list of base IDs to highlight
-    const baseIds: string[] = []
-    if (
-      selectedTrail.intervalIdx !== undefined &&
-      selectedTrail.intervalIdx !== null
-    ) {
-      // Single interval
-      baseIds.push(
-        `trail-${selectedTrail.recordIdx}-${selectedTrail.intervalIdx}`,
-      )
-    } else {
-      // All intervals for this record
-      const record = sortedRecords[selectedTrail.recordIdx]
+    for (const [recordIdx, record] of sortedRecords.entries()) {
+      if (!selectedTrailIds.has(recordKey(record))) continue
+      // Build list of base IDs to highlight (all intervals for this record)
+      const baseIds: string[] = []
       if (record?.interval_paths?.length) {
         for (let i = 0; i < record.interval_paths.length; i++) {
-          baseIds.push(`trail-${selectedTrail.recordIdx}-${i}`)
+          baseIds.push(`trail-${recordIdx}-${i}`)
         }
       } else {
-        baseIds.push(`trail-${selectedTrail.recordIdx}`)
+        baseIds.push(`trail-${recordIdx}`)
       }
-    }
-
-    for (const baseId of baseIds) {
-      const outlineId = `${baseId}-outline`
-      if (map.getLayer(outlineId)) {
-        try {
-          map.setPaintProperty(outlineId, "line-opacity", 1.0)
-        } catch (err) {
-          /* ignore */
+      for (const baseId of baseIds) {
+        const outlineId = `${baseId}-outline`
+        if (map.getLayer(outlineId)) {
+          try {
+            map.setPaintProperty(outlineId, "line-opacity", 1.0)
+          } catch (err) {
+            /* ignore */
+          }
         }
       }
     }
@@ -1087,10 +1436,7 @@
     setupHover()
     // Ensure field label is always on top of all trail layers
     if (map!.getLayer("field-label")) map!.moveLayer("field-label")
-    if (selectedTrail) {
-      highlightSelectedTrail()
-      bringTrailToTop(selectedTrail)
-    }
+    if (selectedTrailIds.size > 0) applySelection()
   }
 
   // Track registered handlers so we can remove them before re-adding
@@ -1175,15 +1521,17 @@
     highlightTrailId = null
     highlightPath = null
     updateHighlightTrail()
+    const key = recordKey(record)
     if (
-      selectedTrail?.recordId === record.id &&
+      selectedTrailIds.size === 1 &&
+      selectedTrailIds.has(key) &&
       selectedTrail?.intervalIdx === null
     ) {
-      selectedTrail = null
-      restoreLayerOrder()
-      highlightSelectedTrail()
+      clearSelection()
       return
     }
+    pinnedMatch = null
+    selectedTrailIds = new Set([key])
     selectedTrail = {
       recordIdx: idx,
       recordId: record.id,
@@ -1198,8 +1546,7 @@
       endTime: null,
       intervalCount: record.intervals?.length || 1,
     }
-    bringTrailToTop(selectedTrail)
-    highlightSelectedTrail()
+    applySelection()
   }
 
   // Select a specific interval/visit from the detail panel
@@ -1208,16 +1555,18 @@
     highlightTrailId = null
     highlightPath = null
     updateHighlightTrail()
+    const key = recordKey(record)
     if (
-      selectedTrail?.recordId === record.id &&
+      selectedTrailIds.size === 1 &&
+      selectedTrailIds.has(key) &&
       selectedTrail?.intervalIdx === intervalIdx
     ) {
-      selectedTrail = null
-      restoreLayerOrder()
-      highlightSelectedTrail()
+      clearSelection()
       return
     }
+    pinnedMatch = null
     const interval = record.intervals?.[intervalIdx]
+    selectedTrailIds = new Set([key])
     selectedTrail = {
       recordIdx,
       recordId: record.id,
@@ -1232,8 +1581,7 @@
       endTime: interval?.exit_time ? formatTime(interval.exit_time) : null,
       intervalCount: record.intervals?.length || 1,
     }
-    bringTrailToTop(selectedTrail)
-    highlightSelectedTrail()
+    applySelection()
   }
 
   // Format time between two spray records (e.g. "2 hours", "3 days", "2 months")
@@ -1268,19 +1616,14 @@
       highlightTrailId = null
       highlightPath = null
       updateHighlightTrail()
+      pinnedMatch = null
       selectedTrail = props
-      bringTrailToTop(props)
-      highlightSelectedTrail()
+      const rec = sortedRecords[props.recordIdx]
+      selectedTrailIds = new Set([rec ? recordKey(rec) : props.recordId])
+      applySelection()
     } else {
       // Clicked on deadspace — deselect
-      if (selectedTrail) {
-        highlightTrailId = null
-        highlightPath = null
-        updateHighlightTrail()
-        selectedTrail = null
-        restoreLayerOrder()
-        highlightSelectedTrail()
-      }
+      if (selectedTrailIds.size > 0 || selectedTrail) clearSelection()
     }
   }
 
@@ -1304,32 +1647,91 @@
     // Kept for reference; all click logic is now in onMapClick
   }
 
-  // Move selected trail's layers to the top of the render order
-  function bringTrailToTop(props: any) {
+  // Move selected trails' layers to the top of the render order (multi-select aware)
+  function bringSelectedToTop() {
     if (!map) return
-    const baseIds: string[] = []
-    if (props.intervalIdx !== undefined && props.intervalIdx !== null) {
-      baseIds.push(`trail-${props.recordIdx}-${props.intervalIdx}`)
-    } else {
-      // All intervals
-      const record = sortedRecords[props.recordIdx]
-      if (record?.interval_paths?.length) {
+    for (const [recordIdx, record] of sortedRecords.entries()) {
+      if (!selectedTrailIds.has(recordKey(record))) continue
+      const baseIds: string[] = []
+      if (record.interval_paths?.length) {
         for (let i = 0; i < record.interval_paths.length; i++) {
-          baseIds.push(`trail-${props.recordIdx}-${i}`)
+          baseIds.push(`trail-${recordIdx}-${i}`)
         }
       } else {
-        baseIds.push(`trail-${props.recordIdx}`)
+        baseIds.push(`trail-${recordIdx}`)
+      }
+      for (const baseId of baseIds) {
+        if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
+        if (map.getLayer(baseId)) map.moveLayer(baseId)
+        if (map.getLayer(`${baseId}-markers-entry`))
+          map.moveLayer(`${baseId}-markers-entry`)
+        if (map.getLayer(`${baseId}-markers-exit`))
+          map.moveLayer(`${baseId}-markers-exit`)
       }
     }
-    for (const baseId of baseIds) {
-      if (map.getLayer(`${baseId}-outline`)) map.moveLayer(`${baseId}-outline`)
-      if (map.getLayer(baseId)) map.moveLayer(baseId)
-      if (map.getLayer(`${baseId}-markers-entry`))
-        map.moveLayer(`${baseId}-markers-entry`)
-      if (map.getLayer(`${baseId}-markers-exit`))
-        map.moveLayer(`${baseId}-markers-exit`)
-    }
     if (map.getLayer("field-label")) map.moveLayer("field-label")
+  }
+
+  // Apply the current selection (bring selected to top + highlight outlines)
+  function applySelection() {
+    if (selectedTrailIds.size === 0) {
+      restoreLayerOrder()
+      highlightSelectedTrails()
+      return
+    }
+    bringSelectedToTop()
+    highlightSelectedTrails()
+  }
+
+  // Clear all trail selection
+  function clearSelection() {
+    highlightTrailId = null
+    highlightPath = null
+    updateHighlightTrail()
+    selectedTrailIds = new Set()
+    selectedTrail = null
+    pinnedMatch = null
+    applySelection()
+  }
+
+  // Select ALL trails in a matched Agworld cluster (from the timeline strip)
+  function selectMatchCluster(i: number) {
+    const s = matchSuggestions[i]
+    if (!s || s.confidence === "none" || !s.activity) return
+    const keys = s.cluster.records.map(recordKey).filter(Boolean)
+    if (keys.length === 0) return
+    highlightTrailId = null
+    highlightPath = null
+    updateHighlightTrail()
+    // Toggle: clicking the same cluster again deselects
+    if (
+      selectedTrailIds.size === keys.length &&
+      keys.every((k) => selectedTrailIds.has(k))
+    ) {
+      clearSelection()
+      return
+    }
+    selectedTrailIds = new Set(keys)
+    const first = s.cluster.records[0]
+    const idx = sortedRecords.findIndex(
+      (r) => recordKey(r) === recordKey(first),
+    )
+    selectedTrail = idx >= 0 ? {
+      recordIdx: idx,
+      recordId: first.id,
+      intervalIdx: null,
+      color: getTrailColor(first, idx),
+      date: formatDate(first.start_time),
+      operator: first.operator_name || "Unknown",
+      vehicle: formatVehicleType(getVehicleType(first)),
+      area: formatHa(first.area_hectares),
+      distance: formatKm(first.distance_km),
+      startTime: null,
+      endTime: null,
+      intervalCount: first.intervals?.length || 1,
+    } : null
+    pinnedMatch = i
+    applySelection()
   }
 
   // Restore original layer order (by start_time) when deselected
@@ -1660,34 +2062,222 @@
       {/if}
 
       <div class="slider-container">
-        <div class="slider-track">
-          <div
-            class="slider-range"
-            style="left: {sliderStartPct}%; right: {100 - sliderEndPct}%"
-          ></div>
-          <!-- Tick marks for each record's start time -->
-          {#if !lockedMode}
-            {#each sliderTicks as tickPct}
-              <div class="slider-tick" style="left: {tickPct}%"></div>
-            {/each}
-          {/if}
+        <div class="slider-box">
+          <div class="slider-track">
+            <div
+              class="slider-range"
+              style="left: {sliderStartPct}%; right: {100 - sliderEndPct}%"
+            ></div>
+            <!-- Tick marks for each record's start time -->
+            {#if !lockedMode}
+              {#each sliderTicks as tickPct}
+                <div class="slider-tick" style="left: {tickPct}%"></div>
+              {/each}
+            {/if}
+          </div>
+          <input
+            type="range"
+            class="slider-handle slider-start"
+            min={sliderMin}
+            max={sliderMax}
+            value={sliderStart}
+            on:input={onSliderStartChange}
+          />
+          <input
+            type="range"
+            class="slider-handle slider-end"
+            min={sliderMin}
+            max={sliderMax}
+            value={sliderEnd}
+            on:input={onSliderEndChange}
+          />
         </div>
-        <input
-          type="range"
-          class="slider-handle slider-start"
-          min={sliderMin}
-          max={sliderMax}
-          value={sliderStart}
-          on:input={onSliderStartChange}
-        />
-        <input
-          type="range"
-          class="slider-handle slider-end"
-          min={sliderMin}
-          max={sliderMax}
-          value={sliderEnd}
-          on:input={onSliderEndChange}
-        />
+
+        <!-- Match overview strip — directly beneath the slider, same width/axis -->
+        {#if agworldActivities && matchSuggestions.length > 0}
+          <div class="match-strip">
+            <div class="match-strip-track">
+              {#each matchSuggestions as s, i}
+                {#if s.confidence !== "none" && s.activity}
+                  {@const left = timeToPct(s.cluster.start)}
+                  {@const width = Math.max(
+                    timeToPct(s.cluster.end) - left,
+                    1.5,
+                  )}
+                  <div
+                    class="match-band"
+                    class:selected={pinnedMatch === i}
+                    role="button"
+                    tabindex="-1"
+                    style="left: {left}%; width: {width}%; background: {matchColor(
+                      i,
+                    )}"
+                    on:mouseenter={() => setHover(i)}
+                    on:mouseleave={() => setHover(null)}
+                    on:click|stopPropagation={() => selectMatchCluster(i)}
+                    on:keydown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        selectMatchCluster(i)
+                      }
+                    }}
+                  ></div>
+                {/if}
+              {/each}
+            </div>
+            <div class="match-strip-legend">
+              <span class="match-strip-title">Matches</span>
+              {#each matchSuggestions as s, i}
+                {#if s.confidence !== "none" && s.activity}
+                  <span
+                    class="match-strip-badge"
+                    class:selected={pinnedMatch === i}
+                    role="button"
+                    tabindex="0"
+                    style="border-color: {matchColor(i)}66"
+                    on:click|stopPropagation={() => selectMatchCluster(i)}
+                    on:keydown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        selectMatchCluster(i)
+                      }
+                    }}
+                  >
+                    <span
+                      class="ms-dot"
+                      style="background: {matchColor(i)}"
+                    ></span>
+                    <span class="ms-name">{matchActivityName(s)}</span>
+                    <span class="ms-conf"
+                      >{confidenceLabel(s.confidence)}</span
+                    >
+                  </span>
+                {/if}
+              {/each}
+            </div>
+
+            <!-- Match detail card (hover shows it; click pins it open) -->
+            {#if activeMatch !== null && matchSuggestions[activeMatch]}
+              {@const h = matchSuggestions[activeMatch]}
+              {@const bd = h.breakdown}
+              <div
+                class="match-tooltip"
+                role="tooltip"
+                on:mouseenter={() => setHover(activeMatch)}
+                on:mouseleave={() => setHover(null)}
+              >
+                <button
+                  class="match-tooltip-close"
+                  aria-label="Close match card"
+                  on:click|stopPropagation={() => {
+                    pinnedMatch = null
+                    hoveredMatch = null
+                    if (hoverTimer) {
+                      clearTimeout(hoverTimer)
+                      hoverTimer = null
+                    }
+                  }}
+                  on:keydown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      pinnedMatch = null
+                    }
+                  }}
+                  >✕</button
+                >
+                <div class="match-item-top">
+                  <span class="match-window"
+                    >{formatClusterWindow(h.cluster)}</span
+                  >
+                  <span class="match-conf match-conf-{h.confidence}"
+                    >{confidenceLabel(h.confidence)}</span
+                  >
+                </div>
+                <div class="match-meta">
+                  <span
+                    >{h.cluster.records.length} record{h.cluster.records
+                      .length !== 1
+                      ? "s"
+                      : ""}</span
+                  >
+                  <span>· {h.cluster.areaHa.toFixed(2)} ha</span>
+                  {#if clusterSwathLabel(h.cluster)}
+                    <span>· {clusterSwathLabel(h.cluster)}</span>
+                  {/if}
+                  {#if h.cluster.vehicles.length}
+                    <span
+                      >· {[...new Set(h.cluster.vehicles)].join(", ")}</span
+                    >
+                  {/if}
+                </div>
+                <div class="match-activity">
+                  <span class="match-type">{activityTypeLabel(h.type)}</span>
+                  <span class="match-name">{matchActivityName(h)}</span>
+                </div>
+                <div class="match-signals">
+                  {#if h.signals.timing}
+                    <span class="signal signal-on">timing</span>
+                  {/if}
+                  {#if h.signals.vehicle}
+                    <span class="signal signal-on">vehicle</span>
+                  {/if}
+                  {#if h.signals.coverage}
+                    <span class="signal signal-on">coverage</span>
+                  {/if}
+                  {#if !h.signals.timing &&
+                    !h.signals.vehicle &&
+                    !h.signals.coverage}
+                    <span class="signal signal-off">weak signals</span>
+                  {/if}
+                </div>
+                {#if bd}
+                  <div class="match-breakdown">
+                    {#each bdRows(bd) as b}
+                      {@const bdKey = `${h.cluster.start}_${b.label}`}
+                      {@const isBdOpen = expandedBd.has(bdKey)}
+                      <button
+                        class="bd-row"
+                        class:bd-open={isBdOpen}
+                        on:click={() => toggleBd(bdKey)}
+                      >
+                        <span class="bd-chev">{isBdOpen ? "▾" : "▸"}</span>
+                        <span class="bd-name">{b.label}</span>
+                        <div class="bd-bar">
+                          <div
+                            class="bd-fill"
+                            class:bd-fill-low={b.pct < 40}
+                            class:bd-fill-mid={b.pct >= 40 && b.pct < 75}
+                            style="width: {b.pct}%"
+                          ></div>
+                        </div>
+                        <span class="bd-val"
+                          >{b.pct}% ×{Math.round(b.weight * 100)} =
+                          {b.contrib}</span
+                        >
+                      </button>
+                      {#if isBdOpen && Object.keys(b.details).length}
+                        <div class="bd-details">
+                          {#each Object.entries(b.details) as [k, v]}
+                            <div class="bd-detail-row">
+                              <span class="bd-detail-k">{k}</span>
+                              <span class="bd-detail-v">{v}</span>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+                    {/each}
+                    <div class="bd-total">
+                      <span>total</span>
+                      <span
+                        >{Math.round(h.score * 100)}% ({h.score.toFixed(3)})</span
+                      >
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
 
       <div class="slider-labels">
@@ -1699,6 +2289,84 @@
 
   <!-- Map + sidebar in flex row (desktop: side by side; mobile: stacked) -->
   <div class="main-area">
+    <!-- Left panel: Agworld Assignments (what the matcher would assign) -->
+    {#if agworldActivities && assignments.length > 0}
+      <div class="assignments-panel">
+        <div class="assignments-panel-header">
+          <span class="assignments-title">Agworld Assignments</span>
+          <span
+            class="assignments-count"
+            class:all-matched={assignmentMatched === assignments.length}
+            >{assignmentMatched}/{assignments.length} matched ·
+            total {assignmentTotal.toFixed(2)}</span
+          >
+          <button
+            class="assignments-collapse"
+            title="Toggle assignments"
+            on:click={() => (showAssignments = !showAssignments)}
+            >{showAssignments ? "▾" : "▸"}</button
+          >
+        </div>
+        {#if showAssignments}
+          <div class="assignments-panel-body">
+            {#each assignments as a}
+              <button
+                class="assignment-row"
+                class:row-selected={pinnedMatch === a.clusterIdx}
+                class:row-none={a.confidence === "none"}
+                disabled={a.clusterIdx === null}
+                on:click={() => {
+                  if (a.clusterIdx !== null) selectMatchCluster(a.clusterIdx)
+                }}
+              >
+                <div class="assignment-main">
+                  <span class="assignment-type"
+                    >{activityTypeLabel(a.type)}</span
+                  >
+                  <span class="assignment-name"
+                    title="{a.label}{a.plan && a.actual ? ' (plan → actual)' : ''}"
+                    >{a.label}</span
+                  >
+                  {#if a.plan && a.actual}
+                    <span class="assignment-pair">plan→actual</span>
+                  {/if}
+                </div>
+                <div class="assignment-target">
+                  {#if a.cluster}
+                    <span class="assignment-window"
+                      >{formatClusterWindow(a.cluster)}</span
+                    >
+                    <span class="assignment-area"
+                      >· {a.cluster.areaHa.toFixed(1)} ha</span
+                    >
+                  {:else}
+                    <span class="assignment-none">no nearby trail</span>
+                  {/if}
+                </div>
+                {#if a.cluster}
+                  <div class="assignment-score-row">
+                    <div class="assignment-bar">
+                      <div
+                        class="assignment-fill"
+                        class:fill-low={a.score < 0.4}
+                        class:fill-mid={a.score >= 0.4 && a.score < 0.6}
+                        style="width: {Math.round(a.score * 100)}%"
+                      ></div>
+                    </div>
+                    <span
+                      class="assignment-score assignment-conf-{a.confidence}"
+                      >{Math.round(a.score * 100)}% · {confidenceLabel(
+                        a.confidence,
+                      )}</span
+                    >
+                  </div>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
     <div class="map-container" bind:this={container}></div>
 
     <div
@@ -1721,8 +2389,16 @@
         >
       </div>
       <div class="info-panel-legend">
+        {#if selectedTrailIds.size > 1}
+          <div class="multi-select-banner">
+            <span>{selectedTrailIds.size} trails selected</span>
+            <button class="multi-clear-btn" on:click={clearSelection}
+              >Clear</button
+            >
+          </div>
+        {/if}
         {#each sortedRecords as record, i}
-          {@const isSelected = selectedTrail?.recordId === record.id}
+          {@const isSelected = selectedTrailIds.has(recordKey(record))}
           {@const prevRecord = i > 0 ? sortedRecords[i - 1] : null}
           {@const timeSincePrev = prevRecord
             ? formatTimeBetween(
@@ -1745,6 +2421,14 @@
             <span class="legend-operator"
               >{record.operator_name || "Unknown"}</span
             >
+            {#if matchedInfoFor(record).name}
+              {@const matchInfo = matchedInfoFor(record)}
+              <span
+                class="legend-match-badge"
+                title="Matched: {matchInfo.type} — {matchInfo.name}"
+                >{matchInfo.name}</span
+              >
+            {/if}
             {#if record.intervals?.length > 1}
               <span class="legend-intervals"
                 >{record.intervals.length} visits</span
@@ -1872,9 +2556,17 @@
       </div>
       <!-- Generate Report button -->
       {#if !lockedMode && sortedRecords.length > 0}
-        <button class="generate-report-btn" on:click={() => generateReport()}>
-          <FileText size={14} />
-          Generate Report
+        <button
+          class="generate-report-btn"
+          on:click={() => generateReport()}
+          disabled={reportLoading}
+        >
+          {#if reportLoading}
+            <Loader2 size={14} class="animate-spin" />
+          {:else}
+            <FileText size={14} />
+          {/if}
+          {reportLoading ? "Loading weather…" : "Generate Report"}
         </button>
       {/if}
     </div>
@@ -1979,9 +2671,16 @@
           {/if}
 
           <!-- Products / Inputs -->
-          {#if includeProducts}
+          {#if includeProducts && reportData.products?.length}
             <div class="report-section">
-              <h3>Inputs Applied</h3>
+              <h3>
+                <span class="report-section-title">
+                  Inputs Applied
+                  {#if reportData.productsSource}
+                    <span class="weather-source-badge">{reportData.productsSource}</span>
+                  {/if}
+                </span>
+              </h3>
               <table class="report-table">
                 <thead>
                   <tr>
@@ -1989,7 +2688,6 @@
                     <th>Active Ingredient</th>
                     <th>Rate</th>
                     <th>Usage</th>
-                    <th>Cost</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1999,7 +2697,6 @@
                       <td>{p.activeIngredient}</td>
                       <td>{p.rate}</td>
                       <td>{p.usage}</td>
-                      <td>{p.cost}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -2043,33 +2740,47 @@
           <!-- Weather records -->
           {#if includeWeather}
             <div class="report-section">
-              <h3>Weather Records</h3>
-              <table class="report-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Conditions</th>
-                    <th>Temp</th>
-                    <th>Wind</th>
-                    <th>Gust</th>
-                    <th>Humidity</th>
-                    <th>Delta T</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each reportData.weather as w}
+              <h3>
+                <span class="report-section-title">
+                  Weather Records
+                  {#if reportData.weatherSource}
+                    <span class="weather-source-badge">{reportData.weatherSource}</span>
+                  {/if}
+                </span>
+              </h3>
+              {#if reportData.weatherError}
+                <p class="weather-error">Weather lookup failed: {reportData.weatherError}</p>
+              {/if}
+              {#if reportData.weather?.length === 0}
+                <p class="weather-error">No weather data available for the working hours.</p>
+              {:else}
+                <table class="report-table">
+                  <thead>
                     <tr>
-                      <td>{w.time}</td>
-                      <td>{w.conditions}</td>
-                      <td>{w.temp}°C</td>
-                      <td>{w.windSpeed} km/h {w.windDir}</td>
-                      <td>{w.gust} km/h</td>
-                      <td>{w.humidity}%</td>
-                      <td>{w.deltaT}</td>
+                      <th>Time</th>
+                      <th>Conditions</th>
+                      <th>Temp</th>
+                      <th>Wind</th>
+                      <th>Gust</th>
+                      <th>Humidity</th>
+                      <th>Delta T</th>
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {#each reportData.weather as w}
+                      <tr>
+                        <td>{w.time}</td>
+                        <td>{w.conditions}</td>
+                        <td>{w.temp ?? "-"}°C</td>
+                        <td>{w.windSpeed ?? "-"} km/h {w.windDir ?? ""}</td>
+                        <td>{w.gust ?? "-"} km/h</td>
+                        <td>{w.humidity ?? "-"}%</td>
+                        <td>{w.deltaT ?? "-"}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              {/if}
             </div>
           {/if}
 
@@ -2212,11 +2923,17 @@
     background: #1a1a1a;
   }
 
-  /* Dual-handle slider */
+  /* Dual-handle slider + match strip (stacked, same width) */
   .slider-container {
-    position: relative;
     flex: 1;
     min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .slider-box {
+    position: relative;
     height: 24px;
     display: flex;
     align-items: center;
@@ -2297,6 +3014,229 @@
   .slider-label-end {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
+  }
+
+  /* Match overview strip — directly under the slider, same width/axis */
+  .match-strip {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 0;
+  }
+  .match-strip-track {
+    position: relative;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    overflow: visible;
+  }
+  .match-band {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    border-radius: 3px;
+    min-width: 2px;
+    opacity: 0.85;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+  }
+  .match-band.selected {
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75);
+    z-index: 1;
+  }
+  .match-strip-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .match-strip-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 2px;
+  }
+  .match-strip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.3);
+    max-width: 100%;
+    cursor: pointer;
+  }
+  .match-strip-badge.selected {
+    border-color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+  }
+  .match-strip-badge .ms-name {
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .ms-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ms-conf {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  /* Hover detail tooltip for a timeline match — styled like the match card */
+  .match-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 6px 8px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: auto;
+  }
+  .match-tooltip-close {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    z-index: 1;
+  }
+  .match-tooltip-close:hover {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .match-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.12);
+    padding-top: 4px;
+    margin-top: 2px;
+  }
+  .bd-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9px;
+    background: none;
+    border: none;
+    padding: 2px 0;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+  }
+  .bd-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .bd-row.bd-open {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .bd-chev {
+    width: 10px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .bd-name {
+    width: 44px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: capitalize;
+  }
+  .bd-bar {
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .bd-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #4ade80;
+  }
+  .bd-fill-mid {
+    background: #fbbf24;
+  }
+  .bd-fill-low {
+    background: #f87171;
+  }
+  .bd-val {
+    width: 92px;
+    flex-shrink: 0;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.5);
+    font-variant-numeric: tabular-nums;
+  }
+  .bd-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 3px 6px 4px 15px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    margin-left: 5px;
+    margin-bottom: 2px;
+  }
+  .bd-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 9px;
+  }
+  .bd-detail-k {
+    color: rgba(255, 255, 255, 0.45);
+    flex-shrink: 0;
+  }
+  .bd-detail-v {
+    color: rgba(255, 255, 255, 0.8);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+  .bd-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+    padding-top: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .map-container {
@@ -2404,6 +3344,232 @@
 
   .legend-operator {
     color: rgba(255, 255, 255, 0.4);
+  }
+
+  .legend-match-badge {
+    font-size: 9px;
+    font-weight: 600;
+    color: #c4b5fd;
+    background: rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 4px;
+    padding: 0 4px;
+    flex-shrink: 0;
+    line-height: 14px;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .multi-select-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    margin: 0 4px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
+    flex-shrink: 0;
+  }
+  .multi-clear-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .multi-clear-btn:hover {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* Agworld Assignments — left panel */
+  .assignments-panel {
+    width: 280px;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .assignments-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .assignments-title {
+    font-size: 12px;
+    font-weight: 600;
+    flex: 1;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .assignments-count {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .assignments-count.all-matched {
+    color: #4ade80;
+  }
+  .assignments-collapse {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .assignments-collapse:hover {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .assignments-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .assignment-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
+    padding: 5px 7px;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+  }
+  .assignment-row:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .assignment-row.row-selected {
+    border-color: rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+  }
+  .assignment-row.row-none {
+    opacity: 0.65;
+  }
+  .assignment-row:disabled {
+    cursor: default;
+  }
+  .assignment-main {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .assignment-type {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #c4b5fd;
+    background: rgba(139, 92, 246, 0.15);
+    padding: 1px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .assignment-name {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .assignment-pair {
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.15);
+    padding: 1px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .assignment-target {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.55);
+    flex-wrap: wrap;
+  }
+  .assignment-window {
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .assignment-none {
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .assignment-score-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .assignment-bar {
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .assignment-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #4ade80;
+  }
+  .assignment-fill.fill-mid {
+    background: #fbbf24;
+  }
+  .assignment-fill.fill-low {
+    background: #f87171;
+  }
+  .assignment-score {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .assignment-conf-high {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+  }
+  .assignment-conf-medium {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+  .assignment-conf-low {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+  }
+  .assignment-conf-none {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
   }
 
   .legend-intervals {
@@ -2579,6 +3745,9 @@
 
   /* Mobile: bottom sheet, drag to compress/expand */
   @media (max-width: 768px) {
+    .assignments-panel {
+      display: none;
+    }
     .main-area {
       flex-direction: column;
     }
@@ -2617,6 +3786,90 @@
     }
   }
 
+  .match-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .match-window {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .match-conf {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .match-conf-high {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+  }
+  .match-conf-medium {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+  .match-conf-low {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+  }
+  .match-conf-none {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+  }
+  .match-meta {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .match-activity {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+  }
+  .match-type {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #c4b5fd;
+    background: rgba(139, 92, 246, 0.15);
+    padding: 1px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .match-name {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+  }
+  .match-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .signal {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.45);
+  }
+  .signal-on {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+  }
+  .signal-off {
+    font-style: italic;
+  }
+
   /* Generate Report button */
   .generate-report-btn {
     display: flex;
@@ -2640,6 +3893,10 @@
     background: rgba(59, 130, 246, 0.2);
     border-color: rgba(59, 130, 246, 0.5);
     color: #93c5fd;
+  }
+  .generate-report-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 
   /* Report panel */
@@ -2755,6 +4012,29 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  .report-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .weather-source-badge {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .weather-error {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+    margin: 0 0 10px 0;
   }
   .report-section-total {
     font-size: 12px;

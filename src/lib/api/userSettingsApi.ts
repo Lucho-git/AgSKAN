@@ -655,6 +655,120 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle the Road Overlays (KMZ) menu in the map toolbox
+     */
+    async updateRoadOverlaysEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save road overlays setting");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    road_overlays_enabled: enabled,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving road overlays setting:", error);
+                return {
+                    success: false,
+                    message: "Failed to save road overlays setting",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                roadOverlaysEnabled: enabled,
+            }));
+
+            return {
+                success: true,
+                message: "Road overlays setting updated"
+            };
+        } catch (error) {
+            console.error("Error in updateRoadOverlaysEnabled:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving road overlays setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Toggle a toolbox menu's visibility (Satellite / Measure / Flash / Rock Picking)
+     */
+    async updateMenuVisibility(
+        field: "satelliteMenuEnabled" | "measureMenuEnabled" | "flashMenuEnabled" | "rockPickingMenuEnabled",
+        enabled: boolean,
+    ) {
+        const columnMap: Record<string, string> = {
+            satelliteMenuEnabled: "satellite_menu_enabled",
+            measureMenuEnabled: "measure_menu_enabled",
+            flashMenuEnabled: "flash_menu_enabled",
+            rockPickingMenuEnabled: "rock_picking_menu_enabled",
+        }
+        const column = columnMap[field]
+        if (!column) {
+            return { success: false, message: "Unknown menu setting", errorFields: [] }
+        }
+
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save menu setting");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, [column]: enabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving menu setting:", error);
+                return {
+                    success: false,
+                    message: "Failed to save menu setting",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, [field]: enabled }));
+
+            return {
+                success: true,
+                message: "Menu setting updated"
+            };
+        } catch (error) {
+            console.error("Error in updateMenuVisibility:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving menu setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
      * Enable/disable full 1Hz native GPS updates
      */
     async updateEnableFull1Hz(enableFull1Hz: boolean) {

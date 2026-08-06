@@ -201,6 +201,11 @@
             user_settings.show_gps_rejected_popups ?? false,
           layerVisibility: user_settings.layer_visibility ?? {},
           sprayConfirmEnabled: user_settings.spray_confirm_enabled ?? true,
+          roadOverlaysEnabled: user_settings.road_overlays_enabled ?? false,
+          satelliteMenuEnabled: user_settings.satellite_menu_enabled ?? true,
+          measureMenuEnabled: user_settings.measure_menu_enabled ?? true,
+          flashMenuEnabled: user_settings.flash_menu_enabled ?? true,
+          rockPickingMenuEnabled: user_settings.rock_picking_menu_enabled ?? true,
         })
 
         layerVisibilityStore.applySavedState(
@@ -229,6 +234,11 @@
           showGpsAcceptedPopups: false,
           showGpsRejectedPopups: false,
           layerVisibility: {},
+          roadOverlaysEnabled: false,
+          satelliteMenuEnabled: true,
+          measureMenuEnabled: true,
+          flashMenuEnabled: true,
+          rockPickingMenuEnabled: true,
         })
 
         layerVisibilityStore.reset()

@@ -15,6 +15,7 @@ const defaultState = {
   historicalTrails: true,
   activeTrails: true,
   trailArrows: false,
+  kmzOverlays: true,       // KMZ/KML road overlays
 }
 
 function createLayerVisibilityStore() {

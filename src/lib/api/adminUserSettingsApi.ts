@@ -23,6 +23,11 @@ export interface UserSettingsRow {
   layer_visibility: Record<string, boolean>
   auto_confirm_markers: boolean
   spray_confirm_enabled: boolean
+  road_overlays_enabled: boolean
+  satellite_menu_enabled: boolean
+  measure_menu_enabled: boolean
+  flash_menu_enabled: boolean
+  rock_picking_menu_enabled: boolean
 }
 
 /** Map API field names to user_settings column names */
@@ -42,6 +47,11 @@ const FIELD_MAP: Record<string, string> = {
   layerVisibility: "layer_visibility",
   autoConfirmMarkers: "auto_confirm_markers",
   sprayConfirmEnabled: "spray_confirm_enabled",
+  roadOverlaysEnabled: "road_overlays_enabled",
+  satelliteMenuEnabled: "satellite_menu_enabled",
+  measureMenuEnabled: "measure_menu_enabled",
+  flashMenuEnabled: "flash_menu_enabled",
+  rockPickingMenuEnabled: "rock_picking_menu_enabled",
 }
 
 /** Reverse map: snake_case column → camelCase field */

@@ -1,7 +1,8 @@
 <!-- src/lib/components/map/toolbox/ProfileControls.svelte -->
 <script lang="ts">
   import { toast } from "svelte-sonner"
-  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock } from "lucide-svelte"
+  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet } from "lucide-svelte"
+  import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -80,6 +81,53 @@
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
   $: gpsIntervalSeconds = $userSettingsStore.gpsIntervalSeconds ?? 2
   $: gpsIntervalStr = String(gpsIntervalSeconds)
+  $: roadOverlaysEnabled = $userSettingsStore.roadOverlaysEnabled ?? false
+  $: satelliteMenuEnabled = $userSettingsStore.satelliteMenuEnabled ?? true
+  $: measureMenuEnabled = $userSettingsStore.measureMenuEnabled ?? true
+  $: flashMenuEnabled = $userSettingsStore.flashMenuEnabled ?? true
+  $: rockPickingMenuEnabled = $userSettingsStore.rockPickingMenuEnabled ?? true
+
+  type MenuField =
+    | "satelliteMenuEnabled"
+    | "measureMenuEnabled"
+    | "flashMenuEnabled"
+    | "rockPickingMenuEnabled"
+
+  async function toggleMenu(field: MenuField, label: string, value: boolean) {
+    saving = field
+    try {
+      const result = await userSettingsApi.updateMenuVisibility(field, value)
+      if (result?.success) {
+        toast.success(`${label} menu ${value ? "shown" : "hidden"}`)
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, [field]: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, [field]: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
+  async function toggleRoadOverlays(value: boolean) {
+    saving = "roadOverlaysEnabled"
+    try {
+      const result = await userSettingsApi.updateRoadOverlaysEnabled(value)
+      if (result?.success) {
+        toast.success("Road overlays menu " + (value ? "shown" : "hidden"))
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, roadOverlaysEnabled: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, roadOverlaysEnabled: !value }))
+    } finally {
+      saving = null
+    }
+  }
 
   async function updateGpsInterval(value: number) {
     saving = "gpsIntervalSeconds"
@@ -220,6 +268,82 @@
         <option value="5">5s</option>
         <option value="10">10s</option>
       </select>
+    </label>
+  </div>
+
+  <!-- Toolbox menu toggles -->
+  <div class="profile-section">
+    <h5 class="section-title">Toolbox Menus</h5>
+    <p class="section-desc">Choose which tools appear in the map toolbox</p>
+
+    <!-- Road Overlays menu -->
+    <label class="setting-row">
+      <div class="setting-icon road-icon">
+        <RoadIcon size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Road overlays menu</span>
+        <span class="setting-desc">Show the Road Overlays tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={roadOverlaysEnabled}
+        disabled={saving === "roadOverlaysEnabled"}
+        on:change={() => toggleRoadOverlays(!roadOverlaysEnabled)} />
+    </label>
+
+    <!-- Satellite menu -->
+    <label class="setting-row">
+      <div class="setting-icon satellite-icon">
+        <Satellite size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Satellite menu</span>
+        <span class="setting-desc">Show the Satellite tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={satelliteMenuEnabled}
+        disabled={saving === "satelliteMenuEnabled"}
+        on:change={() => toggleMenu("satelliteMenuEnabled", "Satellite", !satelliteMenuEnabled)} />
+    </label>
+
+    <!-- Measure menu -->
+    <label class="setting-row">
+      <div class="setting-icon measure-icon">
+        <Ruler size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Measure menu</span>
+        <span class="setting-desc">Show the Measure tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={measureMenuEnabled}
+        disabled={saving === "measureMenuEnabled"}
+        on:change={() => toggleMenu("measureMenuEnabled", "Measure", !measureMenuEnabled)} />
+    </label>
+
+    <!-- Flash Signal menu -->
+    <label class="setting-row">
+      <div class="setting-icon flash-icon">
+        <Zap size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Flash signal menu</span>
+        <span class="setting-desc">Show the Flash Signal tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={flashMenuEnabled}
+        disabled={saving === "flashMenuEnabled"}
+        on:change={() => toggleMenu("flashMenuEnabled", "Flash signal", !flashMenuEnabled)} />
+    </label>
+
+    <!-- Rock Picking menu -->
+    <label class="setting-row">
+      <div class="setting-icon rock-icon">
+        <Magnet size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Rock picking menu</span>
+        <span class="setting-desc">Show the Rock Picking tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={rockPickingMenuEnabled}
+        disabled={saving === "rockPickingMenuEnabled"}
+        on:change={() => toggleMenu("rockPickingMenuEnabled", "Rock picking", !rockPickingMenuEnabled)} />
     </label>
   </div>
 </div>
@@ -385,6 +509,13 @@
     color: rgba(255, 255, 255, 0.35);
   }
 
+  .section-desc {
+    margin: -2px 0 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.4;
+  }
+
   .setting-row {
     display: flex;
     align-items: center;
@@ -427,6 +558,31 @@
   .zoom-icon {
     background: rgba(96, 165, 250, 0.15);
     color: #60a5fa;
+  }
+
+  .road-icon {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+
+  .satellite-icon {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+  }
+
+  .measure-icon {
+    background: rgba(244, 114, 182, 0.15);
+    color: #f472b6;
+  }
+
+  .flash-icon {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+  }
+
+  .rock-icon {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
   }
 
   .setting-label {

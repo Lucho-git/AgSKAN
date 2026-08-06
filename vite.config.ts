@@ -43,6 +43,10 @@ export default defineConfig({
             '/agworld-v3-proxy/au': { target: 'https://au.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/au/, '') },
             '/agworld-v3-proxy/us': { target: 'https://us.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/us/, '') },
             '/agworld-v3-proxy/nz': { target: 'https://nz.agworld.co', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/nz/, '') },
+            '/silo-proxy': { target: 'https://www.longpaddock.qld.gov.au', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/silo-proxy/, '') },
+            '/dpird-proxy': { target: 'https://api.agric.wa.gov.au', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/dpird-proxy/, '/v2/weather') },
+            '/bom-proxy': { target: 'https://www.bom.gov.au', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/bom-proxy/, '') },
+            '/rapidapi-proxy': { target: 'https://meteostat.p.rapidapi.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/rapidapi-proxy/, '') },
         },
     },
     optimizeDeps: {

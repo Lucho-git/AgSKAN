@@ -24,6 +24,11 @@ const defaultSettings = {
     showGpsRejectedPopups: false, // Show "GPS Rejected" popups
     layerVisibility: {} as Record<string, boolean>,
     sprayConfirmEnabled: true, // Show spray record confirmation popup on trail close (default on)
+    roadOverlaysEnabled: false, // Show Road Overlays (KMZ) menu in map toolbox (default off)
+    satelliteMenuEnabled: true, // Show Satellite menu in map toolbox (default on)
+    measureMenuEnabled: true, // Show Measure menu in map toolbox (default on)
+    flashMenuEnabled: true, // Show Flash Signal menu in map toolbox (default on)
+    rockPickingMenuEnabled: true, // Show Rock Picking menu in map toolbox (default on)
 };
 
 export const userSettingsStore = writable(defaultSettings);
