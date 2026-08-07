@@ -40,6 +40,7 @@
   import MapFields from "./MapFields.svelte"
   import EmOverlays from "$lib/components/map/overlays/EmOverlays.svelte"
   import KmzOverlays from "$lib/components/map/overlays/KmzOverlays.svelte"
+  import KmzRoadEditor from "$lib/components/map/overlays/KmzRoadEditor.svelte"
   import TrailSynchronizer from "$lib/components/map/trails/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/map/trails/TrailView.svelte"
   import OverlayTrailManager from "$lib/components/map/trails/OverlayTrailManager.svelte"
@@ -2100,6 +2101,7 @@
     />
     <EmOverlays {map} />
     <KmzOverlays {map} />
+    <KmzRoadEditor {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <DrawingHectares {map} />

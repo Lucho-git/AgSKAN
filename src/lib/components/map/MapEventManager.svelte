@@ -6,6 +6,7 @@
     collectionRouteStore,
   } from "$lib/stores/markerStore"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
+  import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
 
   export let map
   export let mapLoaded = false
@@ -430,6 +431,9 @@
   function handleMapClick(event) {
     if (isControlInteractionTarget(event.originalEvent?.target)) return
 
+    // Road editor is active — let it handle road clicks (avoid "empty space")
+    if ($kmzOverlaysStore.editingOverlayId) return
+
     if (longPressJustCompleted || isDragging) {
       console.log("🚫 Click ignored - long press or drag detected")
       longPressJustCompleted = false
@@ -485,6 +489,12 @@
       return
     }
 
+    // Road editor is active — let it handle taps (avoid "empty space")
+    if ($kmzOverlaysStore.editingOverlayId) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     if (longPressJustCompleted || isDragging || mapLevelHasMoved) {
       console.log(
         "🚫 Touch end ignored - long press, drag, or movement detected",
@@ -535,6 +545,7 @@
     // ── Guard: suppress long-press during any drawing mode ──
     if ($drawingModeEnabled) return
     if ($collectionRouteStore.phase === "drawing") return
+    if ($kmzOverlaysStore.editingOverlayId) return
 
     const target = event.originalEvent.target
     if (isControlInteractionTarget(target)) return

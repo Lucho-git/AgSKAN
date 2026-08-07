@@ -514,7 +514,7 @@
           on:editField={handleEditField}
         />
       {:else if activePanel === "overlays"}
-        <KmzOverlayControls />
+        <KmzOverlayControls on:close={closeToolbox} />
       {:else if activePanel === "profile"}
         <ProfileControls />
       {:else}

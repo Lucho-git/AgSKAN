@@ -1,6 +1,6 @@
 <!-- src/lib/components/map/toolbox/KmzOverlayControls.svelte -->
 <script>
-  import { onMount } from "svelte"
+  import { onMount, onDestroy, createEventDispatcher } from "svelte"
   import {
     CloudUpload,
     Eye,
@@ -14,6 +14,7 @@
     X,
     RotateCcw,
     Check,
+    Pencil,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { kmzOverlayApi, fileToGeoJSON } from "$lib/api/kmzOverlayApi"
@@ -21,6 +22,8 @@
   import RoadIcon from "$lib/components/general/RoadIcon.svelte"
 
   const ACCEPTED = [".kmz", ".kml", ".geojson", ".json"]
+
+  const dispatch = createEventDispatcher()
 
   // Curated palette — no full colour picker
   const COLOR_PRESETS = [
@@ -257,6 +260,15 @@
     kmzOverlaysStore.clearSelection()
   }
 
+  // Enter the road editor (split at a vertex). Closes the toolbox so the map
+  // is clickable while the road editor overlay is active.
+  function startRoadEdit(overlay, index) {
+    kmzOverlaysStore.setSelection(overlay.id, index)
+    kmzOverlaysStore.requestFocus() // highlight + zoom to the road
+    kmzOverlaysStore.startRoadEdit(overlay.id, index)
+    dispatch("close")
+  }
+
   // ── Editing ──────────────────────────────────────────────────────────
   // Resolve the edit target explicitly: a selected road (within the expanded
   // overlay) gets the edit, otherwise the cluster defaults are edited.
@@ -347,6 +359,12 @@
 
   onMount(() => {
     loadOverlays()
+  })
+
+  // Leaving the roads menu (closing the toolbox or switching panels) unmounts
+  // this panel — clear the road selection so the highlight/vertices disappear.
+  onDestroy(() => {
+    kmzOverlaysStore.clearSelection()
   })
 </script>
 
@@ -585,6 +603,13 @@
                         <span class="road-name">{roadName(overlay, index)}</span>
                         <span class="road-size">{width}px</span>
                         <span class="road-dash">{dashed ? "dashed" : "solid"}</span>
+                        <button
+                          class="road-edit-btn"
+                          title="Edit / split road"
+                          on:click|stopPropagation={() => startRoadEdit(overlay, index)}
+                        >
+                          <Pencil size={13} />
+                        </button>
                       </div>
                     {/each}
                   </div>
@@ -998,6 +1023,25 @@
     font-size: 10px;
     color: rgba(255, 255, 255, 0.35);
     flex-shrink: 0;
+  }
+
+  .road-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .road-edit-btn:hover {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
   }
 
   .icon-btn {

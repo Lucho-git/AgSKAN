@@ -184,6 +184,185 @@ async function getMasterMapId(): Promise<string> {
   return profileData.master_map_id
 }
 
+// ── Geometry helpers (road splitting) ──────────────────────────────────
+
+/**
+ * Split a LineString at vertex index `k` (inclusive) into two LineStrings.
+ * `k` must be an interior vertex (1 .. length-2). Returns null if invalid.
+ */
+export function splitLineStringAtVertex(
+  line: number[][],
+  k: number,
+): { type: string; coordinates: number[][] }[] | null {
+  if (!Array.isArray(line) || line.length < 3) return null
+  if (k < 1 || k > line.length - 2) return null
+  return [
+    { type: "LineString", coordinates: line.slice(0, k + 1) },
+    { type: "LineString", coordinates: line.slice(k) },
+  ]
+}
+
+/**
+ * Split a LineString or MultiLineString geometry at a specific part/vertex.
+ * Returns two geometries (LineString or MultiLineString), or null if the
+ * split point is invalid.
+ */
+export function splitGeometryAtVertex(
+  geometry: any,
+  partIndex: number,
+  vertexIndex: number,
+): { type: string; coordinates: any }[] | null {
+  if (!geometry) return null
+
+  if (geometry.type === "LineString") {
+    return splitLineStringAtVertex(geometry.coordinates, vertexIndex)
+  }
+
+  if (geometry.type === "MultiLineString") {
+    const parts = geometry.coordinates
+    if (!Array.isArray(parts) || parts.length === 0) return null
+
+    if (parts.length === 1) {
+      return splitLineStringAtVertex(parts[0], vertexIndex)
+    }
+
+    const part = parts[partIndex]
+    if (!part) return null
+    const halves = splitLineStringAtVertex(part, vertexIndex)
+    if (!halves) return null
+
+    const before = parts.slice(0, partIndex)
+    const after = parts.slice(partIndex + 1)
+    return [
+      { type: "MultiLineString", coordinates: [...before, halves[0].coordinates] },
+      { type: "MultiLineString", coordinates: [halves[1].coordinates, ...after] },
+    ]
+  }
+
+  return null
+}
+
+// ── Point-based splitting (click anywhere on the road) ────────────────────
+
+/** Project `p` onto segment [a, b] (planar, lng/lat space). Returns the
+ *  clamped parameter t, the projected point, and squared distance. */
+function projectToSegment(
+  p: number[],
+  a: number[],
+  b: number[],
+): { t: number; point: number[]; dist2: number } {
+  const abx = b[0] - a[0]
+  const aby = b[1] - a[1]
+  const len2 = abx * abx + aby * aby
+  let t = len2 === 0 ? 0 : ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / len2
+  t = Math.max(0, Math.min(1, t))
+  const point = [a[0] + t * abx, a[1] + t * aby]
+  const dx = p[0] - point[0]
+  const dy = p[1] - point[1]
+  return { t, point, dist2: dx * dx + dy * dy }
+}
+
+/** Remove consecutive duplicate coordinates. */
+function dedupeCoords(coords: number[][]): number[][] {
+  const out: number[][] = []
+  for (const c of coords) {
+    const last = out[out.length - 1]
+    if (
+      !last ||
+      Math.abs(last[0] - c[0]) > 1e-12 ||
+      Math.abs(last[1] - c[1]) > 1e-12
+    ) {
+      out.push(c)
+    }
+  }
+  return out
+}
+
+/**
+ * Split a LineString at the point on it nearest to `point` (projecting the
+ * point onto the line and inserting a vertex there). Returns two LineStrings,
+ * or null if the point can't be split (e.g. it projects onto an endpoint).
+ */
+export function splitLineStringAtPoint(
+  line: number[][],
+  point: number[],
+): { type: string; coordinates: number[][] }[] | null {
+  if (!Array.isArray(line) || line.length < 2 || !Array.isArray(point)) {
+    return null
+  }
+  let best: { i: number; point: number[]; dist2: number } | null = null
+  for (let i = 0; i < line.length - 1; i++) {
+    const proj = projectToSegment(point, line[i], line[i + 1])
+    if (!best || proj.dist2 < best.dist2) best = { i, ...proj }
+  }
+  if (!best) return null
+
+  const inserted = [
+    ...line.slice(0, best.i + 1),
+    best.point,
+    ...line.slice(best.i + 1),
+  ]
+  const coords = dedupeCoords(inserted)
+  const idx = coords.findIndex(
+    (c) =>
+      Math.abs(c[0] - best.point[0]) < 1e-12 &&
+      Math.abs(c[1] - best.point[1]) < 1e-12,
+  )
+  if (idx < 1 || idx > coords.length - 2) return null
+
+  return [
+    { type: "LineString", coordinates: coords.slice(0, idx + 1) },
+    { type: "LineString", coordinates: coords.slice(idx) },
+  ]
+}
+
+/**
+ * Split a LineString or MultiLineString geometry at the point nearest to
+ * `point`. Multi-line geometries split only the closest part, keeping the
+ * rest intact.
+ */
+export function splitGeometryAtPoint(
+  geometry: any,
+  point: number[],
+): { type: string; coordinates: any }[] | null {
+  if (!geometry || !Array.isArray(point)) return null
+
+  if (geometry.type === "LineString") {
+    return splitLineStringAtPoint(geometry.coordinates, point)
+  }
+
+  if (geometry.type === "MultiLineString") {
+    const parts = geometry.coordinates
+    if (!Array.isArray(parts) || parts.length === 0) return null
+
+    let best: { partIndex: number; dist2: number } | null = null
+    parts.forEach((part: number[][], partIndex: number) => {
+      for (let i = 0; i < part.length - 1; i++) {
+        const proj = projectToSegment(point, part[i], part[i + 1])
+        if (!best || proj.dist2 < best.dist2) {
+          best = { partIndex, dist2: proj.dist2 }
+        }
+      }
+    })
+    if (!best) return null
+
+    if (parts.length === 1) {
+      return splitLineStringAtPoint(parts[0], point)
+    }
+    const halves = splitLineStringAtPoint(parts[best.partIndex], point)
+    if (!halves) return null
+
+    const before = parts.slice(0, best.partIndex)
+    const after = parts.slice(best.partIndex + 1)
+    return [
+      { type: "MultiLineString", coordinates: [...before, halves[0].coordinates] },
+      { type: "MultiLineString", coordinates: [halves[1].coordinates, ...after] },
+    ]
+  }
+
+  return null
+}
+
 export const kmzOverlayApi = {
   /**
    * Upload a KMZ/KML file, convert it to GeoJSON, and store it as an overlay

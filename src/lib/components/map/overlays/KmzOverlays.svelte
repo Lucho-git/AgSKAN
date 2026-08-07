@@ -287,6 +287,10 @@
 
   function updateFeatureStates() {
     if (!map || isDestroyed) return
+    console.log("[kmz-overlays] updateFeatureStates", {
+      selectedOverlayId,
+      selectedRoadIndex,
+    })
 
     for (const overlay of overlays) {
       const sourceId = sourceIdFor(overlay)
@@ -335,8 +339,15 @@
     }
   }
 
-  // React to selection changes
-  $: if (map && !isDestroyed) {
+  // React to selection changes — updateFeatureStates is a function so Svelte
+  // can't see its internals; reference the selection vars here so the selected
+  // road actually turns white when a road is picked (the amber highlight
+  // relies on that contrast).
+  $: if (
+    map &&
+    !isDestroyed &&
+    (selectedOverlayId !== undefined || selectedRoadIndex !== undefined)
+  ) {
     updateFeatureStates()
   }
 

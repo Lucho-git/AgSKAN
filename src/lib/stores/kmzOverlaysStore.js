@@ -19,6 +19,8 @@ const defaultState = {
   selectedOverlayId: null,
   selectedRoadIndex: null,
   focusRequest: 0,
+  editingOverlayId: null,
+  editingRoadIndex: null,
 }
 
 function createKmzOverlaysStore() {
@@ -32,6 +34,8 @@ function createKmzOverlaysStore() {
         overlays: overlays || [],
         selectedOverlayId: null,
         selectedRoadIndex: null,
+        editingOverlayId: null,
+        editingRoadIndex: null,
       })),
     setLoading: (loading) => update((s) => ({ ...s, loading })),
     addOverlay: (overlay) =>
@@ -51,6 +55,10 @@ function createKmzOverlaysStore() {
           s.selectedOverlayId === id ? null : s.selectedOverlayId,
         selectedRoadIndex:
           s.selectedOverlayId === id ? null : s.selectedRoadIndex,
+        editingOverlayId:
+          s.editingOverlayId === id ? null : s.editingOverlayId,
+        editingRoadIndex:
+          s.editingOverlayId === id ? null : s.editingRoadIndex,
       })),
     toggleVisibility: (id) =>
       update((s) => {
@@ -69,6 +77,20 @@ function createKmzOverlaysStore() {
     /** Bump the focus counter so the renderer zooms to the selected road. */
     requestFocus: () =>
       update((s) => ({ ...s, focusRequest: s.focusRequest + 1 })),
+    /** Enter road-editing mode for a specific road. */
+    startRoadEdit: (overlayId, roadIndex) =>
+      update((s) => ({
+        ...s,
+        editingOverlayId: overlayId,
+        editingRoadIndex: roadIndex,
+      })),
+    /** Exit road-editing mode. */
+    stopRoadEdit: () =>
+      update((s) => ({
+        ...s,
+        editingOverlayId: null,
+        editingRoadIndex: null,
+      })),
     clearSelection: () =>
       update((s) => ({
         ...s,
