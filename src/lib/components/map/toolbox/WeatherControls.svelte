@@ -1,10 +1,4 @@
 <!-- src/lib/components/map/toolbox/WeatherControls.svelte -->
-<script context="module">
-  // Cache the last successful weather panel payload so reopening the menu
-  // renders instantly (no "Loading weather…" / no UI jumping around).
-  let panelCache = null
-</script>
-
 <script>
   // @ts-nocheck — plain-JS component; typed helpers live in $lib/utils/weather.ts
   import { onMount } from "svelte"
@@ -14,24 +8,17 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import {
-    fetchForecast,
-    fetchOpenMeteoCurrent,
-    forecastDays,
+    fetchWeatherPanel,
+    getWeatherPanel,
+    loadFieldsFarmsCached,
+    loadNearbyStations,
+    resolveWeatherSource,
+    tryStationReading,
     wmoDesc,
     forecastIcon,
     WX_DROPLET,
     windDir,
     deltaT,
-    loadFieldsAndFarms,
-    resolveWeatherSource,
-    fetchBomFwoReading,
-    loadNearbyStations,
-    stationToCurrent,
-    formatReadingTime,
-    formatAgeH,
-    STALE_STATION_HOURS,
-    tryStationReading,
-    weatherHeroKey,
   } from "$lib/utils/weather"
 
   let fields = []
@@ -46,9 +33,7 @@
 
   // Hydrate from the cached panel payload (when it matches the current
   // source) so reopening the weather menu renders instantly.
-  const panelKey = weatherHeroKey($userSettingsStore.weatherSource ?? null)
-  const cachedPanel =
-    panelCache && panelCache.key === panelKey ? panelCache : null
+  const cachedPanel = getWeatherPanel($userSettingsStore.weatherSource ?? null)
 
   let loading = !cachedPanel
   let notice = cachedPanel?.notice ?? ""
@@ -80,99 +65,30 @@
     loading = true
     errorMsg = ""
     notice = ""
-    const resolved = await resolveWeatherSource(
-      $userSettingsStore.weatherSource,
-      fields,
-      farms,
+    const mapId = $profileStore?.master_map_id
+    const res = await fetchWeatherPanel(
+      mapId,
+      $userSettingsStore.weatherSource ?? null,
     )
-    if (!resolved) {
+    if (res) {
+      current = res.current
+      forecastDaysList = res.forecastDaysList
+      activeLabel = res.activeLabel
+      notice = res.notice
+      errorMsg = res.error || ""
+      if (res.bounced && res.bouncedStation) {
+        toast.error(
+          `${res.bouncedStation} has no live reading — switched to Farm centre.`,
+        )
+      }
+    } else {
+      current = null
+      forecastDaysList = []
+      activeLabel = "Farm centre"
+      notice = ""
       toast.error("No field boundaries to get weather for")
-      loading = false
-      return
     }
-    activeLabel = resolved.label
-    const src = $userSettingsStore.weatherSource
-    try {
-      const errs = []
-      const fc = await fetchForecast(resolved.coords).catch((e) => {
-        errs.push(e?.message || String(e))
-        return null
-      })
-      let cur = null
-      if (src?.mode === "station" && src.station) {
-        // Station mode: current conditions from the BoM station; rain chance
-        // from Open-Meteo at the station's coordinates.
-        try {
-          const { reading, ageH } = await fetchBomFwoReading(src.station)
-          const om = await fetchOpenMeteoCurrent(resolved.coords).catch(() => null)
-          cur = {
-            current: stationToCurrent(src.station, reading, ageH),
-            daily: om?.daily || {},
-          }
-          if (ageH != null && ageH > STALE_STATION_HOURS) {
-            // The station has a reading but isn't reporting live — show that
-            // last reading and when it was taken.
-            activeLabel = `${src.station.name} · last reading`
-            notice = `${src.station.name} isn't reporting live — showing its last reading from ${formatReadingTime(reading.local_date_time_full)} (${formatAgeH(ageH)}).`
-          }
-        } catch (e) {
-          // No reading on record — don't present this station as usable.
-          // Bounce the saved source back to the farm centre and reload.
-          toast.error(
-            `${src.station.name} has no live reading — switched to Farm centre.`,
-          )
-          await userSettingsApi.updateWeatherSource({
-            mode: "farm",
-            farmId: "",
-            lat: null,
-            lng: null,
-          })
-          await fetchWeather()
-          return
-        }
-      } else {
-        cur = await fetchOpenMeteoCurrent(resolved.coords).catch((e) => {
-          errs.push(e?.message || String(e))
-          return null
-        })
-      }
-      current = cur
-      const fcDays = fc ? forecastDays(fc) : []
-      // ECMWF (models=ecmwf_ifs025) starts its daily series at TOMORROW —
-      // prepend a Today card built from the current-conditions call (the
-      // default model includes today in its daily block).
-      if (cur) {
-        const d0 = cur.daily || {}
-        const todayCard = {
-          date: d0.time?.[0] || new Date().toISOString().slice(0, 10),
-          max: d0.temperature_2m_max?.[0],
-          min: d0.temperature_2m_min?.[0],
-          code: d0.weather_code?.[0] ?? cur.current?.weather_code,
-          rain: d0.precipitation_sum?.[0] ?? cur.current?.precipitation ?? 0,
-          prob: d0.precipitation_probability_max?.[0],
-          wind: null,
-          gust: null,
-          windDir: null,
-          sunrise: null,
-          sunset: null,
-        }
-        if (!fcDays.length || fcDays[0].date !== todayCard.date) {
-          fcDays.unshift(todayCard)
-        }
-      }
-      forecastDaysList = fcDays
-      if (errs.length) errorMsg = errs.join(" · ")
-      // Cache the successful payload so reopening the menu is instant.
-      panelCache = {
-        key: weatherHeroKey($userSettingsStore.weatherSource ?? null),
-        current,
-        forecastDaysList,
-        activeLabel,
-        notice,
-      }
-    } finally {
-      loading = false
-    }
+    loading = false
   }
 
   // Save a new weather source, then reload for it
@@ -296,7 +212,7 @@
     const mapId = $profileStore?.master_map_id
     if (mapId) {
       try {
-        const r = await loadFieldsAndFarms(mapId)
+        const r = await loadFieldsFarmsCached(mapId)
         fields = r.fields
         farms = r.farms
       } catch (e) {

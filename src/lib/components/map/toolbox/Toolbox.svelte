@@ -74,7 +74,7 @@
   import WeatherControls from "./WeatherControls.svelte"
   import WeatherToolButton from "./WeatherToolButton.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
-  import { fetchWeatherHero, weatherHeroKey } from "$lib/utils/weather"
+  import { fetchWeatherHero, fetchWeatherPanel, weatherHeroKey } from "$lib/utils/weather"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -123,6 +123,7 @@
       if (prefetchedWeatherKey !== key) {
         prefetchedWeatherKey = key
         fetchWeatherHero(mapId, $userSettingsStore.weatherSource ?? null)
+        fetchWeatherPanel(mapId, $userSettingsStore.weatherSource ?? null)
       }
     }
   }

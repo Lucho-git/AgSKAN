@@ -516,7 +516,7 @@ export function getWeatherHero(): WeatherHeroData | null {
   return heroCache?.data ?? null
 }
 
-async function loadFieldsFarmsCached(mapId: string) {
+export async function loadFieldsFarmsCached(mapId: string) {
   if (fieldsFarmsCache?.mapId === mapId) return fieldsFarmsCache
   const r = await loadFieldsAndFarms(mapId)
   fieldsFarmsCache = { mapId, fields: r.fields, farms: r.farms }
@@ -589,6 +589,134 @@ export async function fetchWeatherHero(
       locLabel: label,
     }
     heroCache = { key: weatherHeroKey(cacheSource), data }
+    return data
+  } catch {
+    return null
+  }
+}
+
+// ── Shared toolbox weather panel (prefetched at map load) ──────────────────
+export interface WeatherPanelData {
+  current: any
+  forecastDaysList: any[]
+  activeLabel: string
+  notice: string
+  error: string | null
+  bounced: boolean
+  bouncedStation: string | null
+}
+
+let panelCache: { key: string; data: WeatherPanelData | null } | null = null
+
+/** The cached panel payload, but only when it matches the given source. */
+export function getWeatherPanel(
+  source: WeatherSource | null | undefined,
+): WeatherPanelData | null {
+  const key = weatherHeroKey(source)
+  return panelCache && panelCache.key === key ? panelCache.data : null
+}
+
+/**
+ * Build the full weather panel payload (hero current + 7-day forecast) and
+ * cache it module-wide. Prefetch at map load so the weather menu opens with
+ * data already in place; failures keep the previous cache.
+ */
+export async function fetchWeatherPanel(
+  mapId: string,
+  source: WeatherSource | null | undefined,
+): Promise<WeatherPanelData | null> {
+  try {
+    const { fields, farms } = await loadFieldsFarmsCached(mapId)
+    const resolved = await resolveWeatherSource(source ?? null, fields, farms)
+    if (!resolved) {
+      panelCache = { key: weatherHeroKey(source), data: null }
+      return null
+    }
+    let activeLabel = resolved.label
+    let notice = ""
+    let error: string | null = null
+
+    let fc = null
+    try {
+      fc = await fetchForecast(resolved.coords)
+    } catch (e) {
+      error = e?.message || String(e)
+    }
+
+    let cur = null
+    if (source?.mode === "station" && source.station) {
+      // Station mode: current conditions from the BoM station; rain chance
+      // from Open-Meteo at the station's coordinates.
+      try {
+        const { reading, ageH } = await fetchBomFwoReading(source.station)
+        const om = await fetchOpenMeteoCurrent(resolved.coords).catch(() => null)
+        cur = {
+          current: stationToCurrent(source.station, reading, ageH),
+          daily: om?.daily || {},
+        }
+        if (ageH != null && ageH > STALE_STATION_HOURS) {
+          // Has a reading but isn't reporting live — show the last reading
+          // and when it was taken.
+          activeLabel = `${source.station.name} · last reading`
+          notice = `${source.station.name} isn't reporting live — showing its last reading from ${formatReadingTime(reading.local_date_time_full)} (${formatAgeH(ageH)}).`
+        }
+      } catch {
+        // No reading on record — bounce the saved source back to the farm
+        // centre so this station is never presented as usable.
+        const farmSource = { mode: "farm", farmId: "", lat: null, lng: null }
+        await userSettingsApi.updateWeatherSource(farmSource)
+        const result = await fetchWeatherPanel(mapId, farmSource)
+        if (!result) {
+          panelCache = { key: weatherHeroKey(source), data: null }
+          return null
+        }
+        return {
+          ...result,
+          bounced: true,
+          bouncedStation: source.station.name,
+        }
+      }
+    } else {
+      try {
+        cur = await fetchOpenMeteoCurrent(resolved.coords)
+      } catch (e) {
+        error = (error ? error + " · " : "") + (e?.message || String(e))
+      }
+    }
+
+    let fcDays = fc ? forecastDays(fc) : []
+    // ECMWF (models=ecmwf_ifs025) starts its daily series at TOMORROW —
+    // prepend a Today card built from the current-conditions call.
+    if (cur) {
+      const d0 = cur.daily || {}
+      const todayCard = {
+        date: d0.time?.[0] || new Date().toISOString().slice(0, 10),
+        max: d0.temperature_2m_max?.[0],
+        min: d0.temperature_2m_min?.[0],
+        code: d0.weather_code?.[0] ?? cur.current?.weather_code,
+        rain: d0.precipitation_sum?.[0] ?? cur.current?.precipitation ?? 0,
+        prob: d0.precipitation_probability_max?.[0],
+        wind: null,
+        gust: null,
+        windDir: null,
+        sunrise: null,
+        sunset: null,
+      }
+      if (!fcDays.length || fcDays[0].date !== todayCard.date) {
+        fcDays.unshift(todayCard)
+      }
+    }
+
+    const data: WeatherPanelData = {
+      current: cur,
+      forecastDaysList: fcDays,
+      activeLabel,
+      notice,
+      error,
+      bounced: false,
+      bouncedStation: null,
+    }
+    panelCache = { key: weatherHeroKey(source), data }
     return data
   } catch {
     return null
