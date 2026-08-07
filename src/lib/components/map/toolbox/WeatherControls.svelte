@@ -1,4 +1,10 @@
 <!-- src/lib/components/map/toolbox/WeatherControls.svelte -->
+<script context="module">
+  // Cache the last successful weather panel payload so reopening the menu
+  // renders instantly (no "Loading weather…" / no UI jumping around).
+  let panelCache = null
+</script>
+
 <script>
   // @ts-nocheck — plain-JS component; typed helpers live in $lib/utils/weather.ts
   import { onMount } from "svelte"
@@ -25,6 +31,7 @@
     formatAgeH,
     STALE_STATION_HOURS,
     tryStationReading,
+    weatherHeroKey,
   } from "$lib/utils/weather"
 
   let fields = []
@@ -32,15 +39,22 @@
   let fieldsLoading = true
 
   let locating = false
-  let loading = false
   let errorMsg = ""
-  let notice = ""
-  let current = null
-  let forecastDaysList = []
-  let activeLabel = "Farm centre"
   let stationList = []
   let stationsLoading = false
   let stationOpen = false
+
+  // Hydrate from the cached panel payload (when it matches the current
+  // source) so reopening the weather menu renders instantly.
+  const panelKey = weatherHeroKey($userSettingsStore.weatherSource ?? null)
+  const cachedPanel =
+    panelCache && panelCache.key === panelKey ? panelCache : null
+
+  let loading = !cachedPanel
+  let notice = cachedPanel?.notice ?? ""
+  let current = cachedPanel?.current ?? null
+  let forecastDaysList = cachedPanel?.forecastDaysList ?? []
+  let activeLabel = cachedPanel?.activeLabel ?? "Farm centre"
 
   $: weatherSource = $userSettingsStore.weatherSource || null
   $: sourceMode = weatherSource?.mode || "farm"
@@ -148,6 +162,14 @@
       }
       forecastDaysList = fcDays
       if (errs.length) errorMsg = errs.join(" · ")
+      // Cache the successful payload so reopening the menu is instant.
+      panelCache = {
+        key: weatherHeroKey($userSettingsStore.weatherSource ?? null),
+        current,
+        forecastDaysList,
+        activeLabel,
+        notice,
+      }
     } finally {
       loading = false
     }
