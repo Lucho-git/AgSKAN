@@ -418,6 +418,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    padding: 12px;
     color: rgba(255, 255, 255, 0.85);
   }
 
