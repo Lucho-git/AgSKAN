@@ -174,9 +174,14 @@
     }
     cutPointMarkers = []
     cutLinePoints = []
-    if (map) {
+    // The map may already be mid-teardown (undefined/removed) when cleanup
+    // runs on unmount — guard and swallow any errors so destroy never throws.
+    if (!map || typeof map.getLayer !== "function") return
+    try {
       if (map.getLayer(CUT_LAYER_ID)) map.removeLayer(CUT_LAYER_ID)
       if (map.getSource(CUT_SOURCE_ID)) map.removeSource(CUT_SOURCE_ID)
+    } catch (err) {
+      // ignore — map is being removed
     }
   }
 
@@ -283,11 +288,14 @@
   }
 
   function removeHighlight() {
-    if (map) {
+    if (!map || typeof map.getLayer !== "function") return
+    try {
       if (map.getLayer(HIGHLIGHT_LAYER_ID)) map.removeLayer(HIGHLIGHT_LAYER_ID)
       if (map.getSource(HIGHLIGHT_SOURCE_ID)) {
         map.removeSource(HIGHLIGHT_SOURCE_ID)
       }
+    } catch (err) {
+      // ignore — map may be mid-teardown
     }
   }
 
@@ -347,8 +355,12 @@
 
   function detachMapClick() {
     if (!map || !mapClickAttached) return
-    map.off("click", handleEditMapClick)
-    map.off("mousemove", handleEditMapMove)
+    try {
+      map.off("click", handleEditMapClick)
+      map.off("mousemove", handleEditMapMove)
+    } catch (err) {
+      // ignore — map may be mid-teardown
+    }
     mapClickAttached = false
   }
 
@@ -517,7 +529,11 @@
   onDestroy(() => {
     isDestroyed = true
     detachMapClick()
-    if (map) map.off("style.load", handleStyleReload)
+    try {
+      if (map) map.off("style.load", handleStyleReload)
+    } catch (err) {
+      // ignore — map may be mid-teardown
+    }
     clearMarkers()
     removeCutLine()
     removeHighlight()
