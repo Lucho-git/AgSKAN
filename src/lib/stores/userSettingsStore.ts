@@ -29,6 +29,8 @@ const defaultSettings = {
     measureMenuEnabled: true, // Show Measure menu in map toolbox (default on)
     flashMenuEnabled: true, // Show Flash Signal menu in map toolbox (default on)
     rockPickingMenuEnabled: true, // Show Rock Picking menu in map toolbox (default on)
+    weatherMenuEnabled: false, // Show Weather menu in map toolbox (default off)
+    weatherSource: null as { mode: "farm" | "my"; farmId: string; lat: number | null; lng: number | null } | null, // saved weather location
 };
 
 export const userSettingsStore = writable(defaultSettings);

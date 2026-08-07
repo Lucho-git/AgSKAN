@@ -1,7 +1,7 @@
 <!-- src/lib/components/map/toolbox/ProfileControls.svelte -->
 <script lang="ts">
   import { toast } from "svelte-sonner"
-  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet } from "lucide-svelte"
+  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet, CloudSun } from "lucide-svelte"
   import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -86,12 +86,14 @@
   $: measureMenuEnabled = $userSettingsStore.measureMenuEnabled ?? true
   $: flashMenuEnabled = $userSettingsStore.flashMenuEnabled ?? true
   $: rockPickingMenuEnabled = $userSettingsStore.rockPickingMenuEnabled ?? true
+  $: weatherMenuEnabled = $userSettingsStore.weatherMenuEnabled ?? false
 
   type MenuField =
     | "satelliteMenuEnabled"
     | "measureMenuEnabled"
     | "flashMenuEnabled"
     | "rockPickingMenuEnabled"
+    | "weatherMenuEnabled"
 
   async function toggleMenu(field: MenuField, label: string, value: boolean) {
     saving = field
@@ -345,6 +347,20 @@
         disabled={saving === "rockPickingMenuEnabled"}
         on:change={() => toggleMenu("rockPickingMenuEnabled", "Rock picking", !rockPickingMenuEnabled)} />
     </label>
+
+    <!-- Weather menu -->
+    <label class="setting-row">
+      <div class="setting-icon weather-icon">
+        <CloudSun size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Weather menu</span>
+        <span class="setting-desc">Show the Weather tool in the toolbox</span>
+      </div>
+      <input type="checkbox" class="toggle toggle-sm" checked={weatherMenuEnabled}
+        disabled={saving === "weatherMenuEnabled"}
+        on:change={() => toggleMenu("weatherMenuEnabled", "Weather", !weatherMenuEnabled)} />
+    </label>
   </div>
 </div>
 
@@ -583,6 +599,11 @@
   .rock-icon {
     background: rgba(52, 211, 153, 0.15);
     color: #34d399;
+  }
+
+  .weather-icon {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
   }
 
   .setting-label {

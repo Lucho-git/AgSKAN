@@ -28,6 +28,8 @@ export interface UserSettingsRow {
   measure_menu_enabled: boolean
   flash_menu_enabled: boolean
   rock_picking_menu_enabled: boolean
+  weather_menu_enabled: boolean
+  weather_source: { mode: string; farmId: string; lat: number | null; lng: number | null } | null
 }
 
 /** Map API field names to user_settings column names */
@@ -52,6 +54,8 @@ const FIELD_MAP: Record<string, string> = {
   measureMenuEnabled: "measure_menu_enabled",
   flashMenuEnabled: "flash_menu_enabled",
   rockPickingMenuEnabled: "rock_picking_menu_enabled",
+  weatherMenuEnabled: "weather_menu_enabled",
+  weatherSource: "weather_source",
 }
 
 /** Reverse map: snake_case column → camelCase field */

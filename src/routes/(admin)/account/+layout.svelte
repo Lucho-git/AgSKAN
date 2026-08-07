@@ -206,6 +206,8 @@
           measureMenuEnabled: user_settings.measure_menu_enabled ?? true,
           flashMenuEnabled: user_settings.flash_menu_enabled ?? true,
           rockPickingMenuEnabled: user_settings.rock_picking_menu_enabled ?? true,
+          weatherMenuEnabled: user_settings.weather_menu_enabled ?? false,
+          weatherSource: user_settings.weather_source ?? null,
         })
 
         layerVisibilityStore.applySavedState(
@@ -239,6 +241,8 @@
           measureMenuEnabled: true,
           flashMenuEnabled: true,
           rockPickingMenuEnabled: true,
+          weatherMenuEnabled: false,
+          weatherSource: null,
         })
 
         layerVisibilityStore.reset()

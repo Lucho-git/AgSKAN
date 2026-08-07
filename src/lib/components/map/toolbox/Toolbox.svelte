@@ -71,7 +71,10 @@
   import FieldControls from "./FieldControls.svelte"
   import ProfileControls from "./ProfileControls.svelte"
   import KmzOverlayControls from "./KmzOverlayControls.svelte"
+  import WeatherControls from "./WeatherControls.svelte"
+  import WeatherToolButton from "./WeatherToolButton.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
+  import { fetchWeatherHero, weatherHeroKey } from "$lib/utils/weather"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -108,6 +111,21 @@
 
   // KMZ overlay count for badge
   $: overlays = $kmzOverlaysStore.overlays || []
+
+  // Prefetch the weather hero as soon as the map + settings are ready so the
+  // toolbox hero renders instantly (no first-load spinner). Re-prefetches when
+  // the saved weather source changes so the cache stays fresh.
+  let prefetchedWeatherKey = null
+  $: {
+    const mapId = $profileStore?.master_map_id
+    if (mapId && $userSettingsStore.weatherMenuEnabled) {
+      const key = weatherHeroKey($userSettingsStore.weatherSource ?? null)
+      if (prefetchedWeatherKey !== key) {
+        prefetchedWeatherKey = key
+        fetchWeatherHero(mapId, $userSettingsStore.weatherSource ?? null)
+      }
+    }
+  }
 
   // Trail counts per operation (from metadata store)
   $: trailCountsByOperation = $trailsMetaDataStore.reduce((counts, trail) => {
@@ -224,6 +242,10 @@
 
   function showOverlaysPanel() {
     activePanel = "overlays"
+  }
+
+  function showWeatherPanel() {
+    activePanel = "weather"
   }
 
   function toggleDevMode() {
@@ -425,7 +447,9 @@
                               ? "Profile"
                               : activePanel === "overlays"
                                 ? "Road Overlays"
-                                : ""}
+                                : activePanel === "weather"
+                                  ? "Weather"
+                                  : ""}
           <button class="header-arrow-center" on:click={showMainPanel}>
             <span class="ac-arrow">←</span>
             <h3>{title}</h3>
@@ -515,10 +539,16 @@
         />
       {:else if activePanel === "overlays"}
         <KmzOverlayControls on:close={closeToolbox} />
+      {:else if activePanel === "weather"}
+        <WeatherControls />
       {:else if activePanel === "profile"}
         <ProfileControls />
       {:else}
         <div class="tool-grid">
+          {#if $userSettingsStore.weatherMenuEnabled}
+            <WeatherToolButton on:open={showWeatherPanel} />
+          {/if}
+
           <button class="tool-button" on:click={showProfilePanel}>
             <div class="profile-avatar-circle">
               {#if operatorInitials}

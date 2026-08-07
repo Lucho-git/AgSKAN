@@ -711,7 +711,7 @@ export const userSettingsApi = {
      * Toggle a toolbox menu's visibility (Satellite / Measure / Flash / Rock Picking)
      */
     async updateMenuVisibility(
-        field: "satelliteMenuEnabled" | "measureMenuEnabled" | "flashMenuEnabled" | "rockPickingMenuEnabled",
+        field: "satelliteMenuEnabled" | "measureMenuEnabled" | "flashMenuEnabled" | "rockPickingMenuEnabled" | "weatherMenuEnabled",
         enabled: boolean,
     ) {
         const columnMap: Record<string, string> = {
@@ -719,6 +719,7 @@ export const userSettingsApi = {
             measureMenuEnabled: "measure_menu_enabled",
             flashMenuEnabled: "flash_menu_enabled",
             rockPickingMenuEnabled: "rock_picking_menu_enabled",
+            weatherMenuEnabled: "weather_menu_enabled",
         }
         const column = columnMap[field]
         if (!column) {
@@ -763,6 +764,62 @@ export const userSettingsApi = {
             return {
                 success: false,
                 message: "An error occurred while saving menu setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Save the user's weather source (whole farm / a specific farm / my
+     * location) so the toolbox weather hero and panel both use the same spot.
+     */
+    async updateWeatherSource(source: {
+        mode: "farm" | "my"
+        farmId: string
+        lat: number | null
+        lng: number | null
+    }) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save weather source");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, weather_source: source },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving weather source:", error);
+                return {
+                    success: false,
+                    message: "Failed to save weather source",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                weatherSource: source,
+            }));
+
+            return {
+                success: true,
+                message: "Weather source updated"
+            };
+        } catch (error) {
+            console.error("Error in updateWeatherSource:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving weather source",
                 errorFields: []
             };
         }
