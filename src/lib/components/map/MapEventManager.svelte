@@ -1,11 +1,14 @@
 <!-- src/lib/components/map/MapEventManager.svelte -->
 <script>
   import { onMount, onDestroy, setContext } from "svelte"
+  import { get } from "svelte/store"
   import {
     confirmedMarkersStore,
     collectionRouteStore,
+    selectedMarkerStore,
   } from "$lib/stores/markerStore"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
+  import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
 
   export let map
@@ -55,6 +58,7 @@
   // Simple interaction flags
   let isProcessingInteraction = false
   let eventHandlingInitialized = false
+  let markerSelectionUnsubscribe = null
 
   function isControlInteractionTarget(target) {
     if (!target?.closest) return false
@@ -388,9 +392,33 @@
     initializeEventHandling()
   }
 
+  // Keep the unified selection in sync when a marker is deselected from
+  // outside the unified system (e.g. closing the silo panel after placing
+  // a moved silo). Without this, MapEventManager still thinks that marker
+  // is selected, and the next tap on it toggles it off instead of
+  // selecting it. (Svelte context can't reach MarkerManager — they're
+  // siblings — so we watch the actual marker selection store instead.)
+  function syncExternalMarkerDeselection() {
+    const selected = get(selectedMarkerStore)
+    if (!selected && globalSelectionState.selectedType === "marker") {
+      console.log("🧹 Syncing cleared marker selection (external deselection)")
+      globalSelectionState = {
+        selectedType: null,
+        selectedId: null,
+        selectedComponent: null,
+      }
+      globalSelectionState = globalSelectionState // Trigger reactivity
+    }
+  }
+
   function initializeEventHandling() {
     console.log("🎯 MapEventManager: Initializing unified event handling")
     setupMapEventListeners()
+    if (!markerSelectionUnsubscribe) {
+      markerSelectionUnsubscribe = selectedMarkerStore.subscribe(
+        syncExternalMarkerDeselection,
+      )
+    }
   }
 
   function setupMapEventListeners() {
@@ -429,6 +457,11 @@
 
   // Single click handler for everything
   function handleMapClick(event) {
+    if ($mapInteractionsSuppressed) {
+      // Suppressed (e.g. silo move mode) — don't select/place anything.
+      return
+    }
+
     if (isControlInteractionTarget(event.originalEvent?.target)) return
 
     // Road editor is active — let it handle road clicks (avoid "empty space")
@@ -451,6 +484,11 @@
 
   // Touch handlers
   function handleMapTouchStart(event) {
+    if ($mapInteractionsSuppressed) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     if (isControlInteractionTarget(event.originalEvent?.target)) {
       resetMapLevelTouchTracking()
       return
@@ -484,6 +522,11 @@
   }
 
   function handleMapTouchEnd(event) {
+    if ($mapInteractionsSuppressed) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     if (isControlInteractionTarget(event.originalEvent?.target)) {
       resetMapLevelTouchTracking()
       return
@@ -544,6 +587,8 @@
   function handleMouseDown(event) {
     // ── Guard: suppress long-press during any drawing mode ──
     if ($drawingModeEnabled) return
+    // ── Guard: suppress while silo move mode is active ──
+    if ($mapInteractionsSuppressed) return
     if ($collectionRouteStore.phase === "drawing") return
     if ($kmzOverlaysStore.editingOverlayId) return
 
@@ -681,6 +726,11 @@
     // Remove document-level listeners
     document.removeEventListener("touchstart", handleDocumentTouchStart)
     document.removeEventListener("touchend", handleDocumentTouchEnd)
+
+    if (markerSelectionUnsubscribe) {
+      markerSelectionUnsubscribe()
+      markerSelectionUnsubscribe = null
+    }
 
     // Clear any pending timers
     clearTimeout(longPressTimer)

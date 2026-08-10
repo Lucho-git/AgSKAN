@@ -71,6 +71,30 @@
     : null
   $: selectedMarkerIsNew = $selectedMarkerStore && !currentMarker
 
+  // ── Silo fill slider ──
+  let siloFill = 0
+  $: isSiloMarker = (currentMarker?.iconClass || "") === "custom-svg-silo2"
+  $: if (currentMarker && isSiloMarker) {
+    const f = currentMarker.siloFill ?? 0
+    if (siloFill !== f) siloFill = f
+  }
+
+  // Dragging updates the map gauge live (no store write per tick).
+  function handleSiloFillInput() {
+    if (isSiloMarker && currentMarker) {
+      updateSiloBarLive(currentMarker.id, siloFill)
+    }
+  }
+
+  // On release, commit to the store so the sync/realtime pipeline persists
+  // it (other users see the change too).
+  function commitSiloFill() {
+    if (!isSiloMarker || !currentMarker) return
+    confirmedMarkersStore.update((markers) =>
+      markers.map((m) => (m.id === currentMarker.id ? { ...m, siloFill } : m)),
+    )
+  }
+
   // Revert pending icon change when component is destroyed (deselected, clicked away, etc.)
   onDestroy(() => {
     if (pendingIconChange) {

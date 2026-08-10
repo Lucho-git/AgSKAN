@@ -176,6 +176,8 @@
         notes: newData.notes,
         noteLabelVisible:
           newData.marker_data?.properties?.note_label_visible !== false,
+        siloFill: newData.marker_data?.properties?.silo_fill ?? 0,
+        grainType: newData.marker_data?.properties?.grain_type ?? "Wheat",
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -218,6 +220,8 @@
         coordinates: [...processedMarker.coordinates],
         notes: processedMarker.notes,
         noteLabelVisible: processedMarker.noteLabelVisible,
+        siloFill: processedMarker.siloFill,
+        grainType: processedMarker.grainType,
         created_at: processedMarker.created_at,
       })
 
@@ -286,7 +290,9 @@
         lastKnown.coordinates[0] !== marker.coordinates[0] ||
         lastKnown.coordinates[1] !== marker.coordinates[1] ||
         lastKnown.notes !== marker.notes ||
-        lastKnown.noteLabelVisible !== marker.noteLabelVisible
+        lastKnown.noteLabelVisible !== marker.noteLabelVisible ||
+        lastKnown.siloFill !== marker.siloFill ||
+        lastKnown.grainType !== marker.grainType
       ) {
         pendingChanges.add(id)
         persistPendingMarkerChange(marker)
@@ -317,6 +323,8 @@
         created_at: marker.created_at,
         notes: marker.notes,
         noteLabelVisible: marker.noteLabelVisible,
+        siloFill: marker.siloFill,
+        grainType: marker.grainType,
       })
     })
     pendingChanges.clear()
@@ -502,6 +510,8 @@
             notes: marker.notes,
             noteLabelVisible:
               marker.marker_data?.properties?.note_label_visible !== false,
+            siloFill: marker.marker_data?.properties?.silo_fill ?? 0,
+            grainType: marker.marker_data?.properties?.grain_type ?? "Wheat",
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
@@ -606,6 +616,8 @@
               id: marker.id,
               drawings_visibility: visibility,
               note_label_visible: marker.noteLabelVisible !== false,
+              silo_fill: marker.siloFill ?? 0,
+              grain_type: marker.grainType || "Wheat",
             },
           },
           notes: marker.notes || null,

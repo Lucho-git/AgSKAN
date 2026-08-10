@@ -58,6 +58,7 @@
   import FtwPmtilesOverlay from "$lib/components/map/overlays/FtwPmtilesOverlay.svelte"
   import CreateFieldOverlay from "$lib/components/map/overlays/CreateFieldOverlay.svelte"
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
+  import EdgeIndicator from "$lib/components/map/overlays/EdgeIndicator.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
   import {
@@ -2103,6 +2104,8 @@
     <KmzOverlays {map} />
     <KmzRoadEditor {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
+
+    <EdgeIndicator {map} />
 
     <DrawingHectares {map} />
     <CollectionRoutePlanner {map} />

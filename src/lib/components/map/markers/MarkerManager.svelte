@@ -22,6 +22,7 @@
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
+  import SiloMarkerPanel from "./SiloMarkerPanel.svelte"
   import {
     getIconImageName as getIconImageNameUtil,
     findMarkerByIconClass,
@@ -47,6 +48,38 @@
     container.appendChild(label)
   }
 
+  // "Circle click" confirmation animation: a thin ring contracts inward, a
+  // dot snaps in the middle, then a ring pulses outward. `color` is an rgba
+  // prefix WITHOUT its closing paren (e.g. "rgba(34, 197, 94"), so per-part
+  // opacities can be appended.
+  function showGatherAnimation(lngLat, color, label = "") {
+    if (!map) return
+    const el = document.createElement("div")
+    el.className = "marker-ripple-container"
+
+    const ring = document.createElement("div")
+    ring.className = "marker-confirm-gather"
+    ring.style.borderColor = `${color}, 0.5)`
+    ring.style.boxShadow = `0 0 12px ${color}, 0.2)`
+    const dot = document.createElement("div")
+    dot.className = "marker-confirm-gather-dot"
+    dot.style.background = `${color}, 0.95)`
+    dot.style.boxShadow = `0 0 14px ${color}, 0.9), 0 0 35px ${color}, 0.5)`
+    const pulse = document.createElement("div")
+    pulse.className = "marker-confirm-gather-pulse"
+    pulse.style.borderColor = `${color}, 0.6)`
+    el.appendChild(ring)
+    el.appendChild(dot)
+    el.appendChild(pulse)
+
+    if (label) appendFloatingLabel(el, label)
+
+    const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
+      .setLngLat(lngLat)
+      .addTo(map)
+    pulse.addEventListener("animationend", () => ripple.remove())
+  }
+
   function showPlacementRipple(
     lngLat,
     color = "rgba(247, 219, 92",
@@ -60,28 +93,9 @@
     const isConfirm = color.includes("34, 197, 94")
 
     if (isConfirm) {
-      // Soft gather — thin ring contracts inward, sharp dot snap + outward pulse
-      const ring = document.createElement("div")
-      ring.className = "marker-confirm-gather"
-      ring.style.borderColor = `${color}, 0.5)`
-      ring.style.boxShadow = `0 0 12px ${color}, 0.2)`
-      const dot = document.createElement("div")
-      dot.className = "marker-confirm-gather-dot"
-      dot.style.background = `${color}, 0.95)`
-      dot.style.boxShadow = `0 0 14px ${color}, 0.9), 0 0 35px ${color}, 0.5)`
-      const pulse = document.createElement("div")
-      pulse.className = "marker-confirm-gather-pulse"
-      pulse.style.borderColor = `${color}, 0.6)`
-      el.appendChild(ring)
-      el.appendChild(dot)
-      el.appendChild(pulse)
-
-      if (markerName) appendFloatingLabel(el, `${markerName} Placed`)
-
-      const ripple = new mapboxgl.Marker({ element: el, anchor: "center" })
-        .setLngLat(lngLat)
-        .addTo(map)
-      pulse.addEventListener("animationend", () => ripple.remove())
+      // Soft gather — thin ring contracts inward, sharp dot snap + outward
+      // pulse. This is the "circle click" confirmation animation.
+      showGatherAnimation(lngLat, color, markerName ? `${markerName} Placed` : "")
     } else {
       // Gold placement: two expanding rings
       const ring1 = document.createElement("div")
@@ -157,6 +171,17 @@
       .setLngLat(lngLat)
       .addTo(map)
     ring.addEventListener("animationend", () => m.remove())
+  }
+
+  function showMoveRipple(lngLat, markerName = "") {
+    if (!map) return
+    // Same "circle click" soft-gather as the placement confirmation, in
+    // amber to match the silo move theme.
+    showGatherAnimation(
+      lngLat,
+      "rgba(245, 158, 11",
+      markerName ? `${markerName} Moved` : "",
+    )
   }
 
   const mapContext = getContext("map")
@@ -432,6 +457,63 @@
     console.log("Fallback icon loading completed")
   }
 
+  // Round a fill % to the nearest 10% gauge level.
+  function siloBarLevel(fill) {
+    return Math.max(0, Math.min(100, Math.round((fill ?? 0) / 10) * 10))
+  }
+
+  // Generate the silo fullness gauge images (rounded track + fill).
+  function createSiloBarImage(levelPct) {
+    const w = 84
+    const h = 16
+    const canvas = document.createElement("canvas")
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext("2d")
+    const r = h / 2
+    const round = (x, y, ww, hh, rr) => {
+      ctx.beginPath()
+      ctx.moveTo(x + rr, y)
+      ctx.arcTo(x + ww, y, x + ww, y + hh, rr)
+      ctx.arcTo(x + ww, y + hh, x, y + hh, rr)
+      ctx.arcTo(x, y + hh, x, y, rr)
+      ctx.arcTo(x, y, x + ww, y, rr)
+      ctx.closePath()
+    }
+    // track
+    round(0, 0, w, h, r)
+    ctx.fillStyle = "rgba(2, 6, 23, 0.8)"
+    ctx.fill()
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.22)"
+    ctx.lineWidth = 1
+    ctx.stroke()
+    // fill (left → right by level)
+    const level = Math.max(0, Math.min(100, levelPct))
+    const pad = 2.5
+    const fw = (w - pad * 2) * (level / 100)
+    const fh = h - pad * 2
+    if (fw > 0.5) {
+      round(pad, pad, fw, fh, fh / 2)
+      const grad = ctx.createLinearGradient(0, 0, w, 0)
+      grad.addColorStop(0, "#fde68a")
+      grad.addColorStop(1, "#f59e0b")
+      ctx.fillStyle = grad
+      ctx.fill()
+    }
+    return { width: w, height: h, data: ctx.getImageData(0, 0, w, h).data }
+  }
+
+  // Register gauge images for 0..100 in 10% steps.
+  function registerSiloBarImages() {
+    if (!map) return
+    for (let level = 0; level <= 100; level += 10) {
+      const key = `silo-bar-${level}`
+      if (!map.hasImage(key)) {
+        map.addImage(key, createSiloBarImage(level))
+      }
+    }
+  }
+
   // Use the unified getIconImageName function
   function getIconImageName(iconClass) {
     return getIconImageNameUtil(iconClass)
@@ -442,6 +524,7 @@
 
     console.log("🏁 Initializing marker layers...")
     await loadHighDpiIcons()
+    registerSiloBarImages()
 
     if (!map.getSource("markers")) {
       map.addSource("markers", {
@@ -586,6 +669,69 @@
       }
     }
 
+    // Silo fill gauge (prototype) — a small bar under every silo marker.
+    if (!map.getLayer("markers-silo-bar")) {
+      const siloBarLayer = {
+        id: "markers-silo-bar",
+        type: "symbol",
+        source: "markers",
+        filter: ["==", ["get", "iconClass"], "custom-svg-silo2"],
+        layout: {
+          "icon-image": ["get", "barImage"],
+          "icon-size": 0.35,
+          "icon-anchor": "top",
+          "icon-offset": ["get", "barOffset"],
+          "icon-allow-overlap": true,
+          "text-allow-overlap": true,
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(siloBarLayer)
+      } else {
+        map.addLayer(siloBarLayer)
+      }
+    }
+
+    // Silo grain-type labels — shown on the map like the note labels so the
+    // grain in each silo is visible without having to click it.
+    if (!map.getLayer("markers-silo-labels")) {
+      const siloLabelsLayer = {
+        id: "markers-silo-labels",
+        type: "symbol",
+        source: "markers",
+        minzoom: 11,
+        filter: [
+          "all",
+          ["==", ["get", "iconClass"], "custom-svg-silo2"],
+          ["==", ["get", "confirmed"], true],
+        ],
+        layout: {
+          "text-field": ["get", "grainLabel"],
+          "text-size": 11,
+          "text-anchor": "bottom",
+          "text-offset": ["get", "grainOffset"],
+          "text-max-width": 10,
+          "text-allow-overlap": false,
+          "text-optional": true,
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+          "text-letter-spacing": 0.02,
+        },
+        paint: {
+          "text-color": "#fbbf24",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+          "text-halo-blur": 0,
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(siloLabelsLayer)
+      } else {
+        map.addLayer(siloLabelsLayer)
+      }
+    }
+
     markersInitialized = true
     console.log("✅ Marker layers ready")
 
@@ -632,6 +778,25 @@
         noteLabelVisible: shouldShowNoteLabel(marker),
         // Store full notes for reference (not displayed directly)
         hasNotes: !!marker.notes,
+        // Silo fill gauge — level derived from the marker's stored fill.
+        barImage:
+          marker.iconClass === "custom-svg-silo2"
+            ? `silo-bar-${siloBarLevel(marker.siloFill)}`
+            : null,
+        barOffset:
+          marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
+        // Silo grain type label shown on the map (like the note labels).
+        grainLabel:
+          marker.iconClass === "custom-svg-silo2"
+            ? marker.grainType || "Wheat"
+            : null,
+        // Push the grain label higher when the silo also has a note label.
+        grainOffset:
+          marker.iconClass === "custom-svg-silo2"
+            ? marker.notes
+              ? [0, -3.2]
+              : [0, -1.6]
+            : null,
       },
     }))
 
@@ -661,6 +826,50 @@
       data.features.push(feature)
     }
 
+    source.setData(data)
+  }
+
+  // Live-move a silo's map feature while dragging (no store write per tick).
+  export function moveSiloLive(markerId, coordinates) {
+    if (!map || !map.getSource("markers")) return
+    const source = map.getSource("markers")
+    const data = source._data
+    data.features = data.features.map((f) =>
+      f.properties.id === markerId
+        ? { ...f, geometry: { ...f.geometry, coordinates } }
+        : f,
+    )
+    source.setData(data)
+  }
+
+  // Commit a moved silo's coordinates to the store + selection so the
+  // sync/realtime pipeline persists it for everyone.
+  export function commitSiloMove(markerId, coordinates) {
+    confirmedMarkersStore.update((markers) =>
+      markers.map((m) => (m.id === markerId ? { ...m, coordinates } : m)),
+    )
+    selectedMarkerStore.update((m) =>
+      m?.id === markerId ? { ...m, coordinates } : m,
+    )
+  }
+
+  // Live-update a silo's gauge while the slider is being dragged (no store
+  // write yet — the store/sync happens on release).
+  export function updateSiloBarLive(markerId, fill) {
+    if (!map || !map.getSource("markers")) return
+    const source = map.getSource("markers")
+    const data = source._data
+    data.features = data.features.map((f) =>
+      f.properties.id === markerId
+        ? {
+            ...f,
+            properties: {
+              ...f.properties,
+              barImage: `silo-bar-${siloBarLevel(fill)}`,
+            },
+          }
+        : f,
+    )
     source.setData(data)
   }
 
@@ -1260,21 +1469,55 @@
 
     cleanup()
   })
+
+  // Selected confirmed marker + silo detection for the custom silo panel.
+  $: selectedMarker = $selectedMarkerStore
+    ? ($confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id) ||
+        null)
+    : null
+  $: selectedIsSilo =
+    (selectedMarker?.iconClass || "") === "custom-svg-silo2"
+
+  // Deselect the current marker (closes the silo panel / marker menu).
+  export function deselectMarker() {
+    if ($selectedMarkerStore) {
+      updateMarkerSelection($selectedMarkerStore.id, false)
+      selectedMarkerStore.set(null)
+    }
+    controlStore.update((controls) => ({
+      ...controls,
+      showMarkerMenu: false,
+    }))
+  }
 </script>
 
 {#if $controlStore.showMarkerMenu && $selectedMarkerStore}
-  <MarkerEditPanel
-    {map}
-    {getCurrentIconClass}
-    {removeMarker}
-    {centerCameraOnMarker}
-    {confirmedMarkersStore}
-    {selectedMarkerStore}
-    {getIconImageName}
-    {updateMarkerNoteLabel}
-    {showPlacementRipple}
-    {showEditRipple}
-  />
+  {#if selectedIsSilo}
+    <SiloMarkerPanel
+      {map}
+      marker={selectedMarker}
+      {confirmedMarkersStore}
+      {updateSiloBarLive}
+      {moveSiloLive}
+      {commitSiloMove}
+      {showMoveRipple}
+      {removeMarker}
+      {deselectMarker}
+    />
+  {:else}
+    <MarkerEditPanel
+      {map}
+      {getCurrentIconClass}
+      {removeMarker}
+      {centerCameraOnMarker}
+      {confirmedMarkersStore}
+      {selectedMarkerStore}
+      {getIconImageName}
+      {updateMarkerNoteLabel}
+      {showPlacementRipple}
+      {showEditRipple}
+    />
+  {/if}
 {/if}
 
 <style>
