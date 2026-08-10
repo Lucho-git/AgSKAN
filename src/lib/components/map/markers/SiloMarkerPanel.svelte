@@ -1,6 +1,6 @@
 <!-- src/lib/components/map/markers/SiloMarkerPanel.svelte -->
 <!-- Map-anchored silo editor: appears above the selected silo marker, with
-     the silo symbol, grain type, and a big fill slider. -->
+     the silo symbol, a free-text "what's stored" field, and a fill slider. -->
 <script>
   import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
@@ -18,21 +18,11 @@
   export let removeMarker = () => {}
   export let deselectMarker = () => {}
 
-  const GRAIN_TYPES = [
-    "Wheat",
-    "Barley",
-    "Canola",
-    "Oats",
-    "Lupins",
-    "Chickpeas",
-    "Other",
-  ]
-
   let left = -9999
   let top = -9999
   let visible = false
   let fill = 0
-  let grain = "Wheat"
+  let contents = ""
   let lastMarkerId = null
 
   // ── Move mode: drag the silo to a new location ──
@@ -58,7 +48,7 @@
     if (id !== lastMarkerId) {
       lastMarkerId = id
       fill = marker?.siloFill ?? 0
-      grain = marker?.grainType || "Wheat"
+      contents = marker?.grainType || ""
       confirmDelete = false
     }
   }
@@ -104,13 +94,15 @@
     if (marker) updateSiloBarLive(marker.id, fill)
   }
 
-  // On release / grain change, commit to the store so the sync/realtime
+  // On release / contents change, commit to the store so the sync/realtime
   // pipeline persists it (other users see the change too).
   function commit() {
     if (!marker) return
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
-        m.id === marker.id ? { ...m, siloFill: fill, grainType: grain } : m,
+        m.id === marker.id
+          ? { ...m, siloFill: fill, grainType: contents.trim() }
+          : m,
       ),
     )
   }
@@ -331,12 +323,19 @@
       </button>
     {:else}
       <label class="silo-pop-field">
-        <span class="silo-pop-label">Grain type</span>
-        <select bind:value={grain} on:change={commit}>
-          {#each GRAIN_TYPES as g (g)}
-            <option value={g}>{g}</option>
-          {/each}
-        </select>
+        <span class="silo-pop-label">Storing</span>
+        <input
+          type="text"
+          bind:value={contents}
+          placeholder="e.g. Wheat, canola, fuel…"
+          maxlength="40"
+          on:change={commit}
+          on:keydown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur()
+            }
+          }}
+        />
       </label>
 
       <div class="silo-pop-field">
@@ -481,7 +480,7 @@
     letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.55);
   }
-  .silo-pop-field select {
+  .silo-pop-field input[type="text"] {
     width: 100%;
     padding: 9px 10px;
     border-radius: 9px;
@@ -490,10 +489,14 @@
     color: #fff;
     font-size: 13px;
     font-weight: 600;
+    outline: none;
   }
-  .silo-pop-field select option {
-    background: #0f172a;
-    color: #fff;
+  .silo-pop-field input[type="text"]::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 500;
+  }
+  .silo-pop-field input[type="text"]:focus {
+    border-color: rgba(245, 158, 11, 0.7);
   }
   .silo-pop-slider {
     display: flex;

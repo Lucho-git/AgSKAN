@@ -177,7 +177,7 @@
         noteLabelVisible:
           newData.marker_data?.properties?.note_label_visible !== false,
         siloFill: newData.marker_data?.properties?.silo_fill ?? 0,
-        grainType: newData.marker_data?.properties?.grain_type ?? "Wheat",
+        grainType: newData.marker_data?.properties?.grain_type ?? "",
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -511,7 +511,7 @@
             noteLabelVisible:
               marker.marker_data?.properties?.note_label_visible !== false,
             siloFill: marker.marker_data?.properties?.silo_fill ?? 0,
-            grainType: marker.marker_data?.properties?.grain_type ?? "Wheat",
+            grainType: marker.marker_data?.properties?.grain_type ?? "",
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
@@ -617,7 +617,7 @@
               drawings_visibility: visibility,
               note_label_visible: marker.noteLabelVisible !== false,
               silo_fill: marker.siloFill ?? 0,
-              grain_type: marker.grainType || "Wheat",
+              grain_type: marker.grainType || "",
             },
           },
           notes: marker.notes || null,

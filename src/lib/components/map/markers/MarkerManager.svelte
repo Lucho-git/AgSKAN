@@ -229,6 +229,16 @@
         : trimmed.substring(0, maxLength) + "..."
     return "• " + displayText // ← current active option
   }
+
+  // Truncate the silo contents label for display on the map (20 chars max).
+  function truncateContents(text, maxLength = 20) {
+    if (!text) return null
+    const trimmed = text.trim()
+    if (!trimmed) return null
+    return trimmed.length <= maxLength
+      ? trimmed
+      : trimmed.substring(0, maxLength) + "..."
+  }
   // Try to get global selection context
   function checkGlobalSelectionContext() {
     try {
@@ -693,8 +703,8 @@
       }
     }
 
-    // Silo grain-type labels — shown on the map like the note labels so the
-    // grain in each silo is visible without having to click it.
+    // Silo "what's stored" labels — shown on the map like the note labels so
+    // the contents of each silo are visible without having to click it.
     if (!map.getLayer("markers-silo-labels")) {
       const siloLabelsLayer = {
         id: "markers-silo-labels",
@@ -785,10 +795,11 @@
             : null,
         barOffset:
           marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
-        // Silo grain type label shown on the map (like the note labels).
+        // Silo contents label shown on the map (like the note labels),
+        // truncated to 20 chars so long contents don't sprawl.
         grainLabel:
           marker.iconClass === "custom-svg-silo2"
-            ? marker.grainType || "Wheat"
+            ? truncateContents(marker.grainType)
             : null,
         // Push the grain label higher when the silo also has a note label.
         grainOffset:
