@@ -1055,6 +1055,39 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle "show bins always" — offscreen tracking circles for every silo bin.
+     * ON = each bin shows a map-edge circle (with its fill bar + colour); OFF = no tracking.
+     */
+    async updateShowBinsAlways(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save show bins always setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, show_bins_always: enabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving show bins always setting:", error);
+                return { success: false, message: "Failed to save show bins always setting", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, showBinsAlways: enabled }));
+
+            return { success: true, message: "Show bins always setting updated" };
+        } catch (error) {
+            console.error("Error in updateShowBinsAlways:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Toggle spray record confirmation popup on trail close
      */
     async updateSprayConfirmEnabled(sprayConfirmEnabled: boolean) {

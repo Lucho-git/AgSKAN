@@ -181,6 +181,7 @@
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           overlayMarkerMenuEnabled: user_settings.overlay_marker_menu_enabled ?? false,
+          showBinsAlways: user_settings.show_bins_always ?? false,
           satelliteDropdownEnabled:
             user_settings.satellite_dropdown_enabled ?? false,
           enabledImageryProviders:
@@ -221,6 +222,7 @@
           zoomToPlacedMarkers: true,
           autoConfirmMarkers: false,
           overlayMarkerMenuEnabled: false,
+          showBinsAlways: false,
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",

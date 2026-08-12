@@ -4,9 +4,16 @@
 <script>
   import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
-  import { X, Trash2, Move, Hand, Check } from "lucide-svelte"
+  import { X, Trash2, Move, Hand, Check, Plus, Minus } from "lucide-svelte"
+  import {
+    SILO_GRAIN_COLORS,
+    SILO_GRAIN_DEFAULT,
+    siloGrainColor,
+  } from "./siloPalette"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   export let map
   export let marker
@@ -23,7 +30,33 @@
   let visible = false
   let fill = 0
   let contents = ""
+  let capacityTonnes = 0 // bin size in tonnes (0 = not set)
+  let capacityInput = "" // text for the bin-size number field
+  let tonnesDelta = "" // text for the add/take number field
+  let grainColor = SILO_GRAIN_DEFAULT // tint for the on-map fill gauge
+  let tab = "fill" // 'fill' | 'settings'
+  // Transient "enter a value first" hint when Add/Take is clicked empty.
+  let deltaHint = false
+  let deltaHintTimer = null
   let lastMarkerId = null
+
+  $: grainColorDef = siloGrainColor(grainColor)
+  // Per-user "show bins always" — offscreen tracking circles for every bin.
+  $: showBinsAlways = $userSettingsStore?.showBinsAlways ?? false
+
+  // Toggle the per-user show-bins-always setting (persisted to the DB).
+  async function toggleShowBinsAlways() {
+    const next = !showBinsAlways
+    userSettingsStore.update((s) => ({ ...s, showBinsAlways: next }))
+    try {
+      const result = await userSettingsApi.updateShowBinsAlways(next)
+      if (!result?.success) {
+        userSettingsStore.update((s) => ({ ...s, showBinsAlways: !next }))
+      }
+    } catch {
+      userSettingsStore.update((s) => ({ ...s, showBinsAlways: !next }))
+    }
+  }
   // True while the panel opens upward; flips to downward near the top of the
   // screen so the whole panel stays on screen in every state.
   let openUp = true
@@ -51,6 +84,7 @@
   let lastDragFrame = 0
 
   $: markerName = marker?.notes?.trim() || "Silo"
+  $: currentTonnes = capacityTonnes > 0 ? (capacityTonnes * fill) / 100 : 0
 
   // Sync local state when the marker changes (NOT while dragging — that's
   // what made the old slider stick at its stored value).
@@ -60,6 +94,12 @@
       lastMarkerId = id
       fill = marker?.siloFill ?? 0
       contents = marker?.grainType || ""
+      capacityTonnes = marker?.capacityTonnes ?? 0
+      capacityInput = capacityTonnes ? String(capacityTonnes) : ""
+      tonnesDelta = ""
+      grainColor = marker?.grainColor || SILO_GRAIN_DEFAULT
+      tab = "fill"
+      deltaHint = false
       confirmDelete = false
     }
   }
@@ -134,7 +174,7 @@
 
   // Dragging updates the map gauge live (no store write per tick).
   function handleFillInput() {
-    if (marker) updateSiloBarLive(marker.id, fill)
+    if (marker) updateSiloBarLive(marker.id, fill, grainColor)
   }
 
   // On release / contents change, commit to the store so the sync/realtime
@@ -144,10 +184,62 @@
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
         m.id === marker.id
-          ? { ...m, siloFill: fill, grainType: contents.trim() }
+          ? {
+              ...m,
+              siloFill: fill,
+              grainType: contents.trim(),
+              capacityTonnes,
+              grainColor,
+            }
           : m,
       ),
     )
+  }
+
+  // Set the bin size. Changing it preserves the stored tonnes — the fill
+  // percentage recalculates so the bin change doesn't magically add/remove
+  // grain.
+  function commitCapacity() {
+    if (!marker) return
+    const parsed = Math.max(0, Math.round(Number(capacityInput) || 0))
+    const prevCap = capacityTonnes
+    const prevTonnes = prevCap > 0 ? (prevCap * fill) / 100 : 0
+    capacityTonnes = parsed
+    capacityInput = parsed ? String(parsed) : ""
+    if (parsed > 0 && prevCap > 0) {
+      fill = Math.min(100, Math.max(0, Math.round((prevTonnes / parsed) * 100)))
+      updateSiloBarLive(marker.id, fill, grainColor)
+    }
+    commit()
+  }
+
+  // Pick a grain colour for the on-map fill gauge.
+  function setGrainColor(key) {
+    grainColor = key
+    if (marker) updateSiloBarLive(marker.id, fill, key)
+    commit()
+  }
+
+  // Add (dir = 1) or take (dir = -1) the entered tonnes. Clamps to 0..capacity.
+  function applyTonnesDelta(dir) {
+    if (!marker || capacityTonnes <= 0) return
+    const delta = Math.round(Number(tonnesDelta) || 0)
+    if (delta <= 0) {
+      // Nothing entered — prompt the user instead of silently doing nothing.
+      deltaHint = true
+      clearTimeout(deltaHintTimer)
+      deltaHintTimer = setTimeout(() => (deltaHint = false), 1800)
+      return
+    }
+    const current = (capacityTonnes * fill) / 100
+    const next = Math.max(0, Math.min(capacityTonnes, current + dir * delta))
+    // Keep fill as a precise float — rounding to an integer % quantizes the
+    // tonnes (e.g. +1t on a 300t bin is 0.33%, which rounded down to nothing;
+    // +2t rounded up to 1% = 3t). The readout rounds only for display.
+    fill = (next / capacityTonnes) * 100
+    updateSiloBarLive(marker.id, fill, grainColor)
+    commit()
+    tonnesDelta = ""
   }
 
   // ── Move mode ──
@@ -385,10 +477,20 @@
     bind:this={siloPopEl}
   >
     <div class="silo-pop-head">
-      <div class="silo-pop-icon">
+      <div
+        class="silo-pop-icon"
+        style="background: {grainColorDef.dark}26;"
+      >
         <IconSVG icon="silo2" size="26px" />
       </div>
       <span class="silo-pop-title" title={markerName}>{markerName}</span>
+      <span
+        class="silo-pop-color-name"
+        style="color: {grainColorDef.dark}; border-color: {grainColorDef.dark}66; background: {grainColorDef.dark}1a;"
+        title={`Bin colour: ${grainColorDef.label}`}
+      >
+        {grainColorDef.label}
+      </span>
       <button
         class="silo-pop-close"
         on:click={handleClose}
@@ -410,79 +512,198 @@
         <span>Place</span>
       </button>
     {:else}
-      <label class="silo-pop-field">
-        <span class="silo-pop-label">Storing</span>
-        <input
-          type="text"
-          bind:value={contents}
-          placeholder="e.g. Wheat, canola, fuel…"
-          maxlength="40"
-          on:change={commit}
-          on:keydown={(e) => {
-            if (e.key === "Enter") {
-              e.target.blur()
-            }
-          }}
-        />
-      </label>
-
-      <div class="silo-pop-field">
-        <span class="silo-pop-label">Fill level</span>
-        <div class="silo-pop-slider">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            bind:value={fill}
-            on:input={handleFillInput}
-            on:change={commit}
-            aria-label="Silo fill level"
-            style="background: linear-gradient(to right, #f59e0b 0%, #f59e0b {fill}%, rgba(255,255,255,0.14) {fill}%);"
-          />
-          <span class="silo-pop-pct">{Math.round(fill)}%</span>
-        </div>
+      <div class="silo-pop-tabs">
+        <button
+          class="silo-pop-tab"
+          class:active={tab === "fill"}
+          on:click={() => (tab = "fill")}
+        >
+          Fill
+        </button>
+        <button
+          class="silo-pop-tab"
+          class:active={tab === "settings"}
+          on:click={() => (tab = "settings")}
+        >
+          Settings
+        </button>
       </div>
 
-      {#if confirmDelete}
-        <div class="silo-pop-confirm">
-          <span class="silo-pop-confirm-text">Delete this silo?</span>
-          <div class="silo-pop-confirm-actions">
-            <button
-              class="silo-pop-confirm-yes"
-              on:click={() => {
-                confirmDelete = false
-                removeMarker()
+      {#if tab === "fill"}
+        <div class="silo-pop-field">
+          <span class="silo-pop-label">Fill level</span>
+          <div class="silo-pop-slider">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              bind:value={fill}
+              on:input={handleFillInput}
+              on:change={commit}
+              aria-label="Silo fill level"
+              style="background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
+            />
+            <span class="silo-pop-pct">{Math.round(fill)}%</span>
+          </div>
+          {#if capacityTonnes > 0}
+            <span class="silo-pop-tonnes">
+              {Math.round(currentTonnes)} / {capacityTonnes} t
+            </span>
+          {/if}
+        </div>
+
+        <div class="silo-pop-field">
+          <span class="silo-pop-label">Add / take (t)</span>
+          <div class="silo-pop-delta">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              bind:value={tonnesDelta}
+              placeholder="t"
+              disabled={capacityTonnes <= 0}
+              on:keydown={(e) => {
+                if (e.key === "Enter") {
+                  applyTonnesDelta(1)
+                }
               }}
+            />
+            <button
+              class="silo-pop-delta-btn add"
+              disabled={capacityTonnes <= 0}
+              title="Enter tonnes to add"
+              on:click={() => applyTonnesDelta(1)}
+              aria-label="Add tonnes"
             >
-              Delete
+              <Plus size={14} />
+              <span>Add</span>
             </button>
             <button
-              class="silo-pop-confirm-no"
-              on:click={() => (confirmDelete = false)}
+              class="silo-pop-delta-btn take"
+              disabled={capacityTonnes <= 0}
+              title="Enter tonnes to take"
+              on:click={() => applyTonnesDelta(-1)}
+              aria-label="Take tonnes"
             >
-              Cancel
+              <Minus size={14} />
+              <span>Take</span>
             </button>
           </div>
+          {#if capacityTonnes <= 0}
+            <span class="silo-pop-note">Set a bin size to use tonnes</span>
+          {:else if deltaHint}
+            <span class="silo-pop-delta-hint">Enter a value first</span>
+          {/if}
         </div>
+
+        <button
+          class="silo-pop-move"
+          on:click={toggleMove}
+          aria-label="Move silo"
+        >
+          <Move size={15} />
+          <span>Move</span>
+        </button>
       {:else}
-        <div class="silo-pop-actions">
-          <button
-            class="silo-pop-move"
-            on:click={toggleMove}
-            aria-label="Move silo"
-          >
-            <Move size={15} />
-            <span>Move</span>
-          </button>
+        <label class="silo-pop-field">
+          <span class="silo-pop-label">Storing</span>
+          <input
+            type="text"
+            bind:value={contents}
+            placeholder="e.g. Wheat, canola, fuel…"
+            maxlength="40"
+            on:change={commit}
+            on:keydown={(e) => {
+              if (e.key === "Enter") {
+                e.target.blur()
+              }
+            }}
+          />
+        </label>
+
+        <label class="silo-pop-field">
+          <span class="silo-pop-label">Bin size (t)</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            bind:value={capacityInput}
+            placeholder="e.g. 200"
+            on:change={commitCapacity}
+            on:keydown={(e) => {
+              if (e.key === "Enter") {
+                e.target.blur()
+              }
+            }}
+          />
+        </label>
+
+        <div class="silo-pop-field">
+          <span class="silo-pop-label">Color</span>
+          <div class="silo-pop-swatches">
+            {#each SILO_GRAIN_COLORS as c}
+              <button
+                class="silo-pop-swatch"
+                class:active={grainColor === c.key}
+                style="background: {c.dark};"
+                title={c.label}
+                aria-label={c.label}
+                on:click={() => setGrainColor(c.key)}
+              ></button>
+            {/each}
+          </div>
+        </div>
+
+        <label class="silo-pop-field silo-pop-toggle-row">
+          <span class="silo-pop-toggle-text">
+            <span class="silo-pop-label">Show bins always</span>
+            <span class="silo-pop-note">
+              Track off-screen bins at the map edge
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            class="silo-pop-toggle-input"
+            checked={showBinsAlways}
+            on:change={toggleShowBinsAlways}
+          />
+          <span class="silo-pop-toggle-track"
+            ><span class="silo-pop-toggle-thumb"></span
+          ></span>
+        </label>
+
+        {#if confirmDelete}
+          <div class="silo-pop-confirm">
+            <span class="silo-pop-confirm-text">Delete this silo?</span>
+            <div class="silo-pop-confirm-actions">
+              <button
+                class="silo-pop-confirm-yes"
+                on:click={() => {
+                  confirmDelete = false
+                  removeMarker()
+                }}
+              >
+                Delete
+              </button>
+              <button
+                class="silo-pop-confirm-no"
+                on:click={() => (confirmDelete = false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        {:else}
           <button
             class="silo-pop-delete"
             on:click={() => (confirmDelete = true)}
             aria-label="Delete silo"
           >
             <Trash2 size={15} />
+            <span>Delete silo</span>
           </button>
-        </div>
+        {/if}
       {/if}
     {/if}
 
@@ -545,6 +766,16 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .silo-pop-color-name {
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
   .silo-pop-close {
     display: flex;
     align-items: center;
@@ -573,7 +804,8 @@
     letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.55);
   }
-  .silo-pop-field input[type="text"] {
+  .silo-pop-field input[type="text"],
+  .silo-pop-field input[type="number"] {
     width: 100%;
     padding: 9px 10px;
     border-radius: 9px;
@@ -584,12 +816,22 @@
     font-weight: 600;
     outline: none;
   }
-  .silo-pop-field input[type="text"]::placeholder {
+  .silo-pop-field input[type="text"]::placeholder,
+  .silo-pop-field input[type="number"]::placeholder {
     color: rgba(255, 255, 255, 0.35);
     font-weight: 500;
   }
-  .silo-pop-field input[type="text"]:focus {
+  .silo-pop-field input[type="text"]:focus,
+  .silo-pop-field input[type="number"]:focus {
     border-color: rgba(245, 158, 11, 0.7);
+  }
+  .silo-pop-field input[type="number"]::-webkit-inner-spin-button,
+  .silo-pop-field input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .silo-pop-field input[type="number"] {
+    -moz-appearance: textfield;
   }
   .silo-pop-slider {
     display: flex;
@@ -632,6 +874,66 @@
     color: #fbbf24;
     min-width: 44px;
     text-align: right;
+  }
+  .silo-pop-tonnes {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .silo-pop-delta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .silo-pop-delta input[type="number"] {
+    flex: 1;
+    min-width: 0;
+  }
+  .silo-pop-delta-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .silo-pop-delta-btn.add {
+    border-color: rgba(34, 197, 94, 0.45);
+    background: rgba(34, 197, 94, 0.14);
+    color: #86efac;
+  }
+  .silo-pop-delta-btn.add:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.28);
+  }
+  .silo-pop-delta-btn.take {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+  }
+  .silo-pop-delta-btn.take:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.28);
+  }
+  .silo-pop-delta-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .silo-pop-note {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+  }
+  .silo-pop-delta-hint {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #fbbf24;
   }
   .silo-pop-move-body {
     flex: 1;
@@ -745,13 +1047,36 @@
   .silo-pop-confirm-no:hover {
     background: rgba(255, 255, 255, 0.14);
   }
-  .silo-pop-actions {
+  .silo-pop-tabs {
     display: flex;
-    align-items: stretch;
-    gap: 8px;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .silo-pop-tab {
+    flex: 1;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .silo-pop-tab:hover {
+    color: #fbbf24;
+  }
+  .silo-pop-tab.active {
+    background: rgba(245, 158, 11, 0.25);
+    color: #fbbf24;
   }
   .silo-pop-move {
-    flex: 1;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -774,16 +1099,82 @@
     border-color: #fbbf24;
     color: #0f172a;
   }
+  .silo-pop-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .silo-pop-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .silo-pop-swatch:hover {
+    transform: scale(1.12);
+  }
+  .silo-pop-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.6);
+  }
+  .silo-pop-toggle-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .silo-pop-toggle-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .silo-pop-toggle-input {
+    display: none;
+  }
+  .silo-pop-toggle-track {
+    flex-shrink: 0;
+    position: relative;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    transition: background 0.2s ease;
+  }
+  .silo-pop-toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.75);
+    transition: transform 0.2s ease;
+  }
+  .silo-pop-toggle-input:checked + .silo-pop-toggle-track {
+    background: #fbbf24;
+  }
+  .silo-pop-toggle-input:checked + .silo-pop-toggle-track
+    .silo-pop-toggle-thumb {
+    transform: translateX(16px);
+    background: #fff7ed;
+  }
   .silo-pop-delete {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    flex-shrink: 0;
+    gap: 6px;
+    padding: 10px;
     border-radius: 9px;
     border: 1px solid rgba(239, 68, 68, 0.35);
     background: rgba(239, 68, 68, 0.12);
     color: #fca5a5;
+    font-size: 13px;
+    font-weight: 800;
     cursor: pointer;
     transition: all 0.15s ease;
   }

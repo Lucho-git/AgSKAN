@@ -46,16 +46,20 @@
         next.push({ item, x: -9999, y: -9999, show: false })
         continue
       }
+      // Bins render a fill bar beneath the badge — leave extra room on the
+      // vertical edges so the bar stays on-screen too.
+      const barPad = item.barLevel !== undefined ? 12 : 0
+      const m = margin + barPad
       // Clamp the point to the viewport edge along the ray from the centre.
       let dx = p.x - cx
       let dy = p.y - cy
       if (dx === 0 && dy === 0) dx = 0.0001
       const ts = []
       if (dx !== 0) {
-        ts.push(dx < 0 ? (margin - cx) / dx : (w - margin - cx) / dx)
+        ts.push(dx < 0 ? (m - cx) / dx : (w - m - cx) / dx)
       }
       if (dy !== 0) {
-        ts.push(dy < 0 ? (margin - cy) / dy : (h - margin - cy) / dy)
+        ts.push(dy < 0 ? (m - cy) / dy : (h - m - cy) / dy)
       }
       const t = Math.min(...ts.filter((v) => v > 0))
       next.push({
@@ -130,8 +134,18 @@
           <svelte:component this={item.icon} size={18} />
         {:else if item.iconSvg}
           {@html item.iconSvg}
+        {:else if item.barLevel !== undefined}
+          <span class="edge-badge-dot"></span>
         {/if}
       </span>
+      {#if item.barLevel !== undefined}
+        <span class="edge-badge-bar">
+          <span
+            class="edge-badge-bar-fill"
+            style="width:{Math.max(0, Math.min(100, item.barLevel))}%; background:{item.barColor || '#f59e0b'};"
+          ></span>
+        </span>
+      {/if}
     </div>
   {/if}
 {/each}
@@ -169,6 +183,32 @@
     align-items: center;
     justify-content: center;
     color: var(--ec);
+  }
+  /* Bin tracking: a little colour dot when no icon is supplied. */
+  .edge-badge-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--ec);
+    box-shadow: 0 0 8px var(--ec);
+  }
+  /* Bin tracking: mini fill bar beneath the badge showing how full the bin is. */
+  .edge-badge-bar {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+  .edge-badge-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
   }
   @keyframes edge-ping {
     0% {

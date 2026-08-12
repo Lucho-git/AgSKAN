@@ -22,6 +22,7 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
+  import { SILO_GRAIN_DEFAULT } from "./markers/siloPalette"
   import {
     persistPendingMarkerChange,
     persistPendingMarkerDeletion,
@@ -178,6 +179,10 @@
           newData.marker_data?.properties?.note_label_visible !== false,
         siloFill: newData.marker_data?.properties?.silo_fill ?? 0,
         grainType: newData.marker_data?.properties?.grain_type ?? "",
+        grainColor:
+          newData.marker_data?.properties?.grain_color ?? SILO_GRAIN_DEFAULT,
+        capacityTonnes:
+          newData.marker_data?.properties?.capacity_tonnes ?? 0,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -222,6 +227,8 @@
         noteLabelVisible: processedMarker.noteLabelVisible,
         siloFill: processedMarker.siloFill,
         grainType: processedMarker.grainType,
+        grainColor: processedMarker.grainColor,
+        capacityTonnes: processedMarker.capacityTonnes,
         created_at: processedMarker.created_at,
       })
 
@@ -292,7 +299,9 @@
         lastKnown.notes !== marker.notes ||
         lastKnown.noteLabelVisible !== marker.noteLabelVisible ||
         lastKnown.siloFill !== marker.siloFill ||
-        lastKnown.grainType !== marker.grainType
+        lastKnown.grainType !== marker.grainType ||
+        lastKnown.grainColor !== marker.grainColor ||
+        lastKnown.capacityTonnes !== marker.capacityTonnes
       ) {
         pendingChanges.add(id)
         persistPendingMarkerChange(marker)
@@ -325,6 +334,8 @@
         noteLabelVisible: marker.noteLabelVisible,
         siloFill: marker.siloFill,
         grainType: marker.grainType,
+        grainColor: marker.grainColor,
+        capacityTonnes: marker.capacityTonnes,
       })
     })
     pendingChanges.clear()
@@ -512,6 +523,11 @@
               marker.marker_data?.properties?.note_label_visible !== false,
             siloFill: marker.marker_data?.properties?.silo_fill ?? 0,
             grainType: marker.marker_data?.properties?.grain_type ?? "",
+            grainColor:
+              marker.marker_data?.properties?.grain_color ??
+              SILO_GRAIN_DEFAULT,
+            capacityTonnes:
+              marker.marker_data?.properties?.capacity_tonnes ?? 0,
             photos: marker.marker_data?.properties?.photos || [],
             created_at:
               marker.last_confirmed ||
@@ -619,6 +635,8 @@
               note_label_visible: marker.noteLabelVisible !== false,
               silo_fill: marker.siloFill ?? 0,
               grain_type: marker.grainType || "",
+              grain_color: marker.grainColor || SILO_GRAIN_DEFAULT,
+              capacity_tonnes: marker.capacityTonnes ?? 0,
               photos: marker.photos || [],
             },
           },

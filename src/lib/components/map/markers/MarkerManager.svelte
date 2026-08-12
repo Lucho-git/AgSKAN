@@ -19,11 +19,18 @@
   import { userVehicleStore } from "$lib/stores/vehicleStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
+  import { get } from "svelte/store"
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
+  import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
   import SiloMarkerPanel from "./SiloMarkerPanel.svelte"
   import MarkerOverlayPanel from "./MarkerOverlayPanel.svelte"
+  import {
+    SILO_GRAIN_COLORS,
+    SILO_GRAIN_DEFAULT,
+    siloGrainColor,
+  } from "./siloPalette"
   import {
     getIconImageName as getIconImageNameUtil,
     findMarkerByIconClass,
@@ -473,10 +480,12 @@
     return Math.max(0, Math.min(100, Math.round((fill ?? 0) / 10) * 10))
   }
 
-  // Generate the silo fullness gauge images (rounded track + fill).
-  function createSiloBarImage(levelPct) {
+  // Generate the silo fullness gauge images (rounded track + fill) tinted by
+  // the silo's grain colour.
+  function createSiloBarImage(levelPct, colorKey = SILO_GRAIN_DEFAULT) {
     const w = 84
     const h = 16
+    const color = siloGrainColor(colorKey)
     const canvas = document.createElement("canvas")
     canvas.width = w
     canvas.height = h
@@ -506,21 +515,88 @@
     if (fw > 0.5) {
       round(pad, pad, fw, fh, fh / 2)
       const grad = ctx.createLinearGradient(0, 0, w, 0)
-      grad.addColorStop(0, "#fde68a")
-      grad.addColorStop(1, "#f59e0b")
+      grad.addColorStop(0, color.light)
+      grad.addColorStop(1, color.dark)
       ctx.fillStyle = grad
       ctx.fill()
     }
     return { width: w, height: h, data: ctx.getImageData(0, 0, w, h).data }
   }
 
-  // Register gauge images for 0..100 in 10% steps.
+  // Compact silo glyph shown inside the offscreen bin-tracking badge
+  // (tinted by currentColor = the bin's grain colour).
+  const SILO_TRACK_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2c-4 0-7 2-7 5v10a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4V7c0-3-3-5-7-5zM7 7c0-1.7 2.2-3 5-3s5 1.3 5 3v2H7V7z"/></svg>`
+
+  // When "Show bins always" is on, register every silo in the attention
+  // store so the EdgeIndicator pins an offscreen circle at the map edge with
+  // the bin's fill bar + colour. When off, all bin badges are removed.
+  // NOTE: dependencies must be passed as explicit arguments — Svelte 4 only
+  // tracks variables referenced directly in the reactive statement, so a
+  // bare `$: syncBinTracking()` would run once at init and never again.
+  $: syncBinTracking(
+    $userSettingsStore?.showBinsAlways ?? false,
+    $confirmedMarkersStore,
+    markersInitialized,
+    map,
+  )
+
+  function syncBinTracking(enabled, markers, ready, mapReady) {
+    if (!ready || !mapReady) {
+      console.log(
+        `[bin-tracking] skipped (markersInitialized=${ready}, map=${!!mapReady})`,
+      )
+      return
+    }
+    const silos = (markers || []).filter(
+      (m) => (m.iconClass || "") === "custom-svg-silo2",
+    )
+    const wanted = new Set(
+      enabled ? silos.map((s) => `silo-track-${s.id}`) : [],
+    )
+    console.log(
+      `[bin-tracking] enabled=${enabled}, silos=${silos.length}, wanted=${wanted.size}`,
+    )
+
+    // Remove bin badges that are no longer wanted (setting off, or marker
+    // deleted / no longer a silo).
+    const current = get(mapAttentionStore)
+    for (const item of current) {
+      if (
+        item.id &&
+        item.id.startsWith("silo-track-") &&
+        !wanted.has(item.id)
+      ) {
+        mapAttentionStore.remove(item.id)
+      }
+    }
+    if (!enabled) return
+
+    for (const s of silos) {
+      const colorDef = siloGrainColor(s.grainColor)
+      mapAttentionStore.add({
+        id: `silo-track-${s.id}`,
+        coordinates: s.coordinates,
+        color: colorDef.dark,
+        label: s.notes?.trim() || "Silo",
+        barLevel: s.siloFill ?? 0,
+        barColor: colorDef.dark,
+        iconSvg: SILO_TRACK_ICON_SVG,
+      })
+      console.log(
+        `[bin-tracking] registered ${s.id} (${colorDef.label}, fill=${s.siloFill})`,
+      )
+    }
+  }
+
+  // Register gauge images for every palette colour × 0..100 in 10% steps.
   function registerSiloBarImages() {
     if (!map) return
-    for (let level = 0; level <= 100; level += 10) {
-      const key = `silo-bar-${level}`
-      if (!map.hasImage(key)) {
-        map.addImage(key, createSiloBarImage(level))
+    for (const color of SILO_GRAIN_COLORS) {
+      for (let level = 0; level <= 100; level += 10) {
+        const key = `silo-bar-${color.key}-${level}`
+        if (!map.hasImage(key)) {
+          map.addImage(key, createSiloBarImage(level, color.key))
+        }
       }
     }
   }
@@ -789,10 +865,12 @@
         noteLabelVisible: shouldShowNoteLabel(marker),
         // Store full notes for reference (not displayed directly)
         hasNotes: !!marker.notes,
-        // Silo fill gauge — level derived from the marker's stored fill.
+        // Silo fill gauge — level + grain colour derived from the marker.
         barImage:
           marker.iconClass === "custom-svg-silo2"
-            ? `silo-bar-${siloBarLevel(marker.siloFill)}`
+            ? `silo-bar-${marker.grainColor || SILO_GRAIN_DEFAULT}-${siloBarLevel(
+                marker.siloFill,
+              )}`
             : null,
         barOffset:
           marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
@@ -866,8 +944,12 @@
   }
 
   // Live-update a silo's gauge while the slider is being dragged (no store
-  // write yet — the store/sync happens on release).
-  export function updateSiloBarLive(markerId, fill) {
+  // write yet — the store/sync happens on release). Tinted by grain colour.
+  export function updateSiloBarLive(
+    markerId,
+    fill,
+    colorKey = SILO_GRAIN_DEFAULT,
+  ) {
     if (!map || !map.getSource("markers")) return
     const source = map.getSource("markers")
     const data = source._data
@@ -877,7 +959,7 @@
             ...f,
             properties: {
               ...f.properties,
-              barImage: `silo-bar-${siloBarLevel(fill)}`,
+              barImage: `silo-bar-${colorKey}-${siloBarLevel(fill)}`,
             },
           }
         : f,
