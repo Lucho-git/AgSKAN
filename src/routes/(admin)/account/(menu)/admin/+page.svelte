@@ -27,6 +27,7 @@
   const SETTING_DEFAULTS: Record<string, any> = {
     devToolsEnabled: false,
     autoConfirmMarkers: false,
+    overlayMarkerMenuEnabled: false,
     zoomToLocationMarkers: false,
     zoomToPlacedMarkers: true,
     enableFull1Hz: false,
@@ -202,6 +203,7 @@
 
   // Marker-related settings
   const MARKER_BOOL_FIELDS = [
+    { col: "overlayMarkerMenuEnabled", label: "Marker menu style (on-map panel)" },
     { col: "zoomToLocationMarkers",   label: "Zoom to location markers" },
     { col: "zoomToPlacedMarkers",     label: "Zoom to placed markers" },
     { col: "autoConfirmMarkers",      label: "Auto-confirm markers" },

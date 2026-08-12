@@ -75,8 +75,13 @@
   // Recompute whenever the attention list or the map changes.
   $: if (map) refresh(attentionItems)
 
-  // Clicking a badge pans the map over to the target (zoom unchanged).
+  // Clicking a badge pans the map over to the target (zoom unchanged), or
+  // runs the item's custom onClick (e.g. "return to marker") if provided.
   function focus(item) {
+    if (typeof item?.onClick === "function") {
+      item.onClick()
+      return
+    }
     if (!map || !item?.coordinates) return
     try {
       map.panTo(item.coordinates, { duration: 900 })

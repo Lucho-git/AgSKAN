@@ -17,6 +17,7 @@
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
+  $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? false
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
 
   $: isConnected = $connectedMapStore?.id
@@ -54,7 +55,6 @@
       else { toast.success(v ? "Auto-confirm enabled" : "Auto-confirm disabled") }
     } catch { userSettingsStore.update(s => ({ ...s, autoConfirmMarkers: !v })); toast.error("Failed") }
   }
-
 
   async function setDefaultImagerySource(e: Event) {
     const v = (e.target as HTMLSelectElement).value
@@ -140,6 +140,29 @@
         </div>
         <input type="checkbox" class="toggle toggle-primary flex-shrink-0 mt-0.5" checked={autoConfirmMarkers} on:change={toggleAutoConfirmMarkers} />
       </label>
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-start gap-3 min-w-0">
+          <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+            <Icon icon="solar:widget-bold-duotone" width="18" height="18" class="text-base-content" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-contrast-content">Marker menu style</p>
+            <p class="text-xs text-contrast-content/60">How marker menus open when a marker is selected (silos keep their panel)</p>
+          </div>
+        </div>
+        <div class="flex flex-shrink-0 rounded-lg bg-base-200 p-0.5">
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors {overlayMarkerMenuEnabled ? 'bg-primary/20 text-primary' : 'text-contrast-content/50 hover:text-contrast-content'}"
+            on:click={() => setOverlayMarkerMenu(true)}
+          >On Map Panel</button>
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors {!overlayMarkerMenuEnabled ? 'bg-primary/20 text-primary' : 'text-contrast-content/50 hover:text-contrast-content'}"
+            on:click={() => setOverlayMarkerMenu(false)}
+          >Bottom Panel</button>
+        </div>
+      </div>
     </div>
   </div>
 

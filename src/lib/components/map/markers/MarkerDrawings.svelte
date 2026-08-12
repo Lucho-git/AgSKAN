@@ -5,6 +5,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { markerDrawingsStore } from "$lib/stores/markerDrawingsStore"
   import * as mapboxgl from "mapbox-gl"
 
   export let map: mapboxgl.Map
@@ -14,6 +15,7 @@
 
   let isDestroyed = false
   let drawings = []
+  let selectedDrawingId = null
   let unsubscribe = null
 
   interface MarkerDrawing {
@@ -74,6 +76,22 @@
       if (map.getLayer("marker-drawings-line-dashed")) {
         map.setLayoutProperty(
           "marker-drawings-line-dashed",
+          "visibility",
+          shouldShowDrawings ? "visible" : "none",
+        )
+      }
+
+      // Toggle the selected-drawing highlight layers too
+      if (map.getLayer("marker-drawings-highlight-fill")) {
+        map.setLayoutProperty(
+          "marker-drawings-highlight-fill",
+          "visibility",
+          shouldShowDrawings ? "visible" : "none",
+        )
+      }
+      if (map.getLayer("marker-drawings-highlight-line")) {
+        map.setLayoutProperty(
+          "marker-drawings-highlight-line",
           "visibility",
           shouldShowDrawings ? "visible" : "none",
         )
@@ -176,6 +194,48 @@
         },
       })
 
+      // Selected-drawing highlight layers (drawn above the normal drawings).
+      // Hidden until a drawing is selected — the filter is set later.
+      mapContext.addLayerOrdered({
+        id: "marker-drawings-highlight-fill",
+        type: "fill",
+        source: "marker-drawings",
+        // Only fill polygons — lines would otherwise get a coloured area.
+        filter: [
+          "all",
+          ["==", ["get", "drawing_type"], "polygon"],
+          ["==", ["get", "id"], ""],
+        ],
+        paint: {
+          "fill-color": ["get", "fillColor"],
+          "fill-opacity": 0.6,
+          "fill-outline-color": "#ffffff",
+        },
+      })
+      mapContext.addLayerOrdered({
+        id: "marker-drawings-highlight-line",
+        type: "line",
+        source: "marker-drawings",
+        filter: ["==", ["get", "id"], ""],
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            10,
+            ["+", ["get", "strokeWidth"], 6],
+            24,
+            ["+", ["get", "strokeWidth"], 18],
+          ],
+          "line-opacity": 1.0,
+        },
+      })
+
       console.log("✅ Added marker drawing layers")
     } catch (error) {
       console.error("Error adding drawing layers:", error)
@@ -206,6 +266,33 @@
       }
     } catch (error) {
       console.error("Error updating map drawings:", error)
+    }
+  }
+
+  // Highlight (or clear) the selected drawing on the map.
+  function updateDrawingHighlight() {
+    if (!canUseMap()) return
+    const filter = selectedDrawingId
+      ? ["==", ["get", "id"], selectedDrawingId]
+      : ["==", ["get", "id"], ""]
+    // The fill highlight only applies to polygons; lines just get the white
+    // outline (no coloured internal area).
+    const fillFilter = [
+      "all",
+      ["==", ["get", "drawing_type"], "polygon"],
+      filter,
+    ]
+    try {
+      if (map.getLayer("marker-drawings-highlight-fill")) {
+        map.setFilter("marker-drawings-highlight-fill", fillFilter)
+      }
+      if (map.getLayer("marker-drawings-highlight-line")) {
+        map.setFilter("marker-drawings-highlight-line", filter)
+      }
+    } catch (error) {
+      if (!isDestroyed) {
+        console.error("Error updating drawing highlight:", error)
+      }
     }
   }
 
@@ -256,6 +343,10 @@
           return { ...d, geometry: parsedGeometry }
         })
         .filter((d) => d !== null)
+
+      // Mirror the map-wide list into the shared store so panels (e.g. the
+      // marker menu) read drawings locally instead of per-marker API calls.
+      markerDrawingsStore.setDrawings(drawings)
 
       const visibleDrawings = getVisibleDrawings(drawings)
       const drawingsGeojson = createDrawingsGeoJSON(visibleDrawings)
@@ -366,6 +457,9 @@
         })
         .filter((d) => d !== null)
 
+      // Keep the shared store in sync with the refreshed list.
+      markerDrawingsStore.setDrawings(drawings)
+
       updateMapDrawings()
     } catch (error) {
       console.error("Error refreshing marker drawings:", error)
@@ -393,6 +487,12 @@
     const handleDrawingCreated = () => refreshDrawings()
     window.addEventListener("marker-drawing-created", handleDrawingCreated)
 
+    const handleDrawingSelected = (event) => {
+      selectedDrawingId = event.detail?.drawingId || null
+      updateDrawingHighlight()
+    }
+    window.addEventListener("marker-drawing-selected", handleDrawingSelected)
+
     if (map.loaded()) {
       loadDrawings()
     } else {
@@ -404,6 +504,10 @@
         map.off("load", loadDrawings)
       }
       window.removeEventListener("marker-drawing-created", handleDrawingCreated)
+      window.removeEventListener(
+        "marker-drawing-selected",
+        handleDrawingSelected,
+      )
     }
   })
 

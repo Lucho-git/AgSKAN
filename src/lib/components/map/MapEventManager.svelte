@@ -10,6 +10,7 @@
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
+  import { pendingDrawingSelection } from "$lib/stores/markerDrawingSelectionStore"
 
   export let map
   export let mapLoaded = false
@@ -203,7 +204,8 @@
 
   // Handle map layer interactions
   async function handleMapInteraction(interaction) {
-    const { type, id, features, isDrawing } = interaction
+    const { type, id, features, isDrawing, drawingId, drawingGeometry } =
+      interaction
 
     const isCurrentlySelected =
       globalSelectionState.selectedType === type &&
@@ -252,6 +254,30 @@
               await markerManagerRef.handleMarkerSelection({
                 features: syntheticFeatures,
               })
+
+              // Remember this drawing so the marker menu highlights it (and
+              // scrolls to it) once its drawings are loaded, then pan/zoom
+              // over to it like selecting a drawing from the list.
+              const bounds = drawingGeometry
+                ? drawingBounds(drawingGeometry)
+                : null
+              pendingDrawingSelection.set({
+                markerId: id,
+                drawingId,
+                bounds,
+              })
+              if (map && bounds) {
+                map.fitBounds(
+                  [
+                    [bounds.west, bounds.south],
+                    [bounds.east, bounds.north],
+                  ],
+                  {
+                    padding: { top: 400, bottom: 100, left: 120, right: 120 },
+                    duration: 800,
+                  },
+                )
+              }
             }
           } else {
             await markerManagerRef.handleMarkerSelection({ features })
@@ -275,6 +301,51 @@
     }
 
     return null
+  }
+
+  // ── Drawing geometry helpers ──
+  function collectCoords(geometry) {
+    const out = []
+    const push = (c) => {
+      if (Array.isArray(c) && c.length >= 2 && typeof c[0] === "number") {
+        out.push(c)
+      }
+    }
+    if (!geometry) return out
+    switch (geometry.type) {
+      case "Polygon":
+        geometry.coordinates.forEach((ring) => ring.forEach(push))
+        break
+      case "MultiPolygon":
+        geometry.coordinates.forEach((poly) =>
+          poly.forEach((ring) => ring.forEach(push)),
+        )
+        break
+      case "LineString":
+        geometry.coordinates.forEach(push)
+        break
+      case "MultiLineString":
+        geometry.coordinates.forEach((line) => line.forEach(push))
+        break
+    }
+    return out
+  }
+
+  function drawingBounds(geometry) {
+    const coords = collectCoords(geometry)
+    if (!coords.length) return null
+    let west = Infinity
+    let south = Infinity
+    let east = -Infinity
+    let north = -Infinity
+    coords.forEach(([lng, lat]) => {
+      if (lng < west) west = lng
+      if (lng > east) east = lng
+      if (lat < south) south = lat
+      if (lat > north) north = lat
+    })
+    if (!isFinite(west)) return null
+    return { west, south, east, north }
   }
 
   // Check for map layers at point with proper priority order
@@ -341,13 +412,16 @@
           const markerId = drawingFeatures[0]?.properties?.marker_id
           if (markerId) {
             console.log("🎨 Found drawing for marker:", markerId)
-            // Return as a marker interaction to select the parent marker
+            // Return as a marker interaction to select the parent marker AND
+            // carry the drawing so it can be highlighted + zoomed to.
             return {
               type: "marker",
               id: markerId,
               features: [],
               priority: 100,
               isDrawing: true,
+              drawingId: drawingFeatures[0]?.properties?.id,
+              drawingGeometry: drawingFeatures[0]?.geometry,
             }
           }
         }

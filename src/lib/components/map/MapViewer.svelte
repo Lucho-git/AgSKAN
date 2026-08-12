@@ -220,6 +220,8 @@
     "marker-drawings-fill": { order: 150, category: "marker-drawings" },
     "marker-drawings-line-solid": { order: 151, category: "marker-drawings" },
     "marker-drawings-line-dashed": { order: 152, category: "marker-drawings" },
+    "marker-drawings-highlight-fill": { order: 153, category: "marker-drawings" },
+    "marker-drawings-highlight-line": { order: 154, category: "marker-drawings" },
 
     // Trail layers (middle) - 200-299
     "trail-layers-start": { order: 200, category: "trails" },

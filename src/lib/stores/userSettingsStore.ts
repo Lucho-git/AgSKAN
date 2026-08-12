@@ -6,6 +6,7 @@ const defaultSettings = {
     zoomToLocationMarkers: false, // Auto-zoom on quick-drop markers (default off)
     zoomToPlacedMarkers: true, // Auto-zoom to manually placed markers
     autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
+    overlayMarkerMenuEnabled: false, // Use the new on-map overlay marker menu for all (non-silo) markers
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys
     defaultImagerySource: 'mapbox', // Default imagery source when loading map

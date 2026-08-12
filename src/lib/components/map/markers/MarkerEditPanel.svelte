@@ -98,11 +98,14 @@
   // Revert pending icon change when component is destroyed (deselected, clicked away, etc.)
   onDestroy(() => {
     if (pendingIconChange) {
-      console.log("🔄 MarkerEditPanel: Destroying with pending icon change — reverting", {
-        originalIconClass,
-        pendingMarkerId,
-        selectedIconForEdit,
-      })
+      console.log(
+        "🔄 MarkerEditPanel: Destroying with pending icon change — reverting",
+        {
+          originalIconClass,
+          pendingMarkerId,
+          selectedIconForEdit,
+        },
+      )
       revertIconChange()
     }
   })
@@ -559,7 +562,9 @@
     if (!result.success) {
       noteLabelVisible = previousVisible
       confirmedMarkersStore.update((markers) => {
-        const existingIndex = markers.findIndex((m) => m.id === currentMarker.id)
+        const existingIndex = markers.findIndex(
+          (m) => m.id === currentMarker.id,
+        )
         if (existingIndex >= 0) {
           markers[existingIndex] = {
             ...markers[existingIndex],
@@ -569,7 +574,11 @@
         }
         return markers
       })
-      updateMarkerNoteLabel(currentMarker.id, currentMarker.notes, previousVisible)
+      updateMarkerNoteLabel(
+        currentMarker.id,
+        currentMarker.notes,
+        previousVisible,
+      )
       alert(`Failed to save note label visibility: ${result.message}`)
     }
   }
@@ -580,7 +589,9 @@
 
     const source = map.getSource("markers")
     const data = source._data
-    const feature = data.features.find((f) => f.properties.id === pendingMarkerId)
+    const feature = data.features.find(
+      (f) => f.properties.id === pendingMarkerId,
+    )
 
     if (feature) {
       feature.properties.icon = getIconImageName(originalIconClass)
@@ -759,7 +770,10 @@
               <div class="note-section-header">
                 <span class="section-title">Notes</span>
                 {#if currentMarker?.notes}
-                  <label class="note-label-toggle" title="Show note above this marker">
+                  <label
+                    class="note-label-toggle"
+                    title="Show note above this marker"
+                  >
                     <span class="note-label-toggle-text">Show Label</span>
                     <input
                       type="checkbox"
@@ -1123,7 +1137,9 @@
     height: 16px;
     background: rgba(255, 255, 255, 0.72);
     border-radius: 50%;
-    transition: transform 0.2s ease, background 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      background 0.2s ease;
   }
 
   .note-label-toggle input:checked + .switch-track {

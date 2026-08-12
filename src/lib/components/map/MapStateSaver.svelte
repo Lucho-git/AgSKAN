@@ -512,6 +512,7 @@
               marker.marker_data?.properties?.note_label_visible !== false,
             siloFill: marker.marker_data?.properties?.silo_fill ?? 0,
             grainType: marker.marker_data?.properties?.grain_type ?? "",
+            photos: marker.marker_data?.properties?.photos || [],
             created_at:
               marker.last_confirmed ||
               marker.created_at ||
@@ -618,6 +619,7 @@
               note_label_visible: marker.noteLabelVisible !== false,
               silo_fill: marker.siloFill ?? 0,
               grain_type: marker.grainType || "",
+              photos: marker.photos || [],
             },
           },
           notes: marker.notes || null,

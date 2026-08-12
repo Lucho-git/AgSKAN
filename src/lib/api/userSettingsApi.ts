@@ -708,6 +708,60 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle the on-map overlay marker menu for all (non-silo) markers.
+     * ON = all markers use the new MarkerOverlayPanel; OFF = classic MarkerEditPanel.
+     */
+    async updateOverlayMarkerMenuEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save overlay marker menu setting");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    overlay_marker_menu_enabled: enabled,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving overlay marker menu setting:", error);
+                return {
+                    success: false,
+                    message: "Failed to save overlay marker menu setting",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                overlayMarkerMenuEnabled: enabled,
+            }));
+
+            return {
+                success: true,
+                message: "Overlay marker menu setting updated"
+            };
+        } catch (error) {
+            console.error("Error in updateOverlayMarkerMenuEnabled:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving overlay marker menu setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
      * Toggle a toolbox menu's visibility (Satellite / Measure / Flash / Rock Picking)
      */
     async updateMenuVisibility(

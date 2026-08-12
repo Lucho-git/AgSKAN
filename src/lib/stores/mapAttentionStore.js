@@ -14,7 +14,7 @@ function createMapAttentionStore() {
     subscribe,
     set,
     update,
-    /** Add or upsert (by id) an attention item: { id, coordinates, icon?, color?, label? } */
+    /** Add or upsert (by id) an attention item: { id, coordinates, icon?, color?, label?, onClick? } */
     add(item) {
       if (!item?.id) return
       update((items) => {

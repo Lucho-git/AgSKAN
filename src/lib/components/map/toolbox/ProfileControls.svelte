@@ -54,7 +54,7 @@
     }
   }
 
-  async function toggleZoomLocation(value: boolean) {
+  async function setZoomToLocation(value: boolean) {
     saving = "zoomToLocationMarkers"
     try {
       const s = $userSettingsStore
@@ -63,7 +63,7 @@
         s.zoomToPlacedMarkers ?? true,
       )
       if (result?.success) {
-        toast.success("Zoom to markers " + (value ? "enabled" : "disabled"))
+        toast.success("Camera find on quick drop: " + (value ? "zoom" : "none"))
       } else {
         toast.error(result?.message || "Failed to update setting")
         userSettingsStore.update((s) => ({ ...s, zoomToLocationMarkers: !value }))
@@ -76,9 +76,51 @@
     }
   }
 
+  async function setZoomToPlaced(value: boolean) {
+    saving = "zoomToPlacedMarkers"
+    try {
+      const s = $userSettingsStore
+      const result = await userSettingsApi.updateZoomSettings(
+        s.zoomToLocationMarkers ?? false,
+        value,
+      )
+      if (result?.success) {
+        toast.success("Camera find on touch hold: " + (value ? "zoom" : "none"))
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, zoomToPlacedMarkers: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, zoomToPlacedMarkers: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
+  async function toggleOverlayMarkerMenu(value: boolean) {
+    saving = "overlayMarkerMenuEnabled"
+    try {
+      const result = await userSettingsApi.updateOverlayMarkerMenuEnabled(value)
+      if (result?.success) {
+        toast.success(value ? "Marker menu: on-map panel" : "Marker menu: bottom panel")
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, overlayMarkerMenuEnabled: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, overlayMarkerMenuEnabled: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
   $: sprayConfirmEnabled = $userSettingsStore.sprayConfirmEnabled ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
+  $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? false
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
+  $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
   $: gpsIntervalSeconds = $userSettingsStore.gpsIntervalSeconds ?? 2
   $: gpsIntervalStr = String(gpsIntervalSeconds)
   $: roadOverlaysEnabled = $userSettingsStore.roadOverlaysEnabled ?? false
@@ -219,38 +261,39 @@
         <span class="setting-name">Record confirm popup</span>
         <span class="setting-desc">Show confirmation when closing a trail</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={sprayConfirmEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={sprayConfirmEnabled}
         disabled={saving === "sprayConfirmEnabled"}
         on:change={() => toggleSprayConfirm(!sprayConfirmEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
-    <!-- Auto-confirm Markers -->
-    <label class="setting-row">
-      <div class="setting-icon marker-icon">
-        <MapPin size={16} />
+    <!-- Marker menu style -->
+    <div class="setting-row setting-row-col">
+      <div class="setting-row-top">
+        <div class="setting-icon marker-icon">
+          <Magnet size={16} />
+        </div>
+        <div class="setting-label">
+          <span class="setting-name">Marker menu style</span>
+          <span class="setting-desc">How marker menus open when a marker is selected</span>
+        </div>
       </div>
-      <div class="setting-label">
-        <span class="setting-name">Auto-confirm markers</span>
-        <span class="setting-desc">Skip edit panel when placing markers</span>
+      <div class="style-seg">
+        <button
+          type="button"
+          class:active={overlayMarkerMenuEnabled}
+          disabled={saving === "overlayMarkerMenuEnabled"}
+          on:click={() => toggleOverlayMarkerMenu(true)}
+        >On Map Panel</button>
+        <button
+          type="button"
+          class:active={!overlayMarkerMenuEnabled}
+          disabled={saving === "overlayMarkerMenuEnabled"}
+          on:click={() => toggleOverlayMarkerMenu(false)}
+        >Bottom Panel</button>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={autoConfirmMarkers}
-        disabled={saving === "autoConfirmMarkers"}
-        on:change={() => toggleAutoConfirm(!autoConfirmMarkers)} />
-    </label>
+    </div>
 
-    <!-- Zoom to Location Markers -->
-    <label class="setting-row">
-      <div class="setting-icon zoom-icon">
-        <Crosshair size={16} />
-      </div>
-      <div class="setting-label">
-        <span class="setting-name">Zoom to quick-drop markers</span>
-        <span class="setting-desc">Auto-zoom map when dropping location markers</span>
-      </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={zoomToLocationMarkers}
-        disabled={saving === "zoomToLocationMarkers"}
-        on:change={() => toggleZoomLocation(!zoomToLocationMarkers)} />
-    </label>
 
     <!-- GPS interval -->
     <label class="setting-row">
@@ -273,6 +316,92 @@
     </label>
   </div>
 
+  <!-- Map Marker Settings -->
+  <div class="profile-section">
+    <h5 class="section-title">Map Marker Settings</h5>
+
+    <!-- Camera find on quick drop -->
+    <div class="setting-row setting-row-col">
+      <div class="setting-row-top">
+        <div class="setting-icon zoom-icon">
+          <Crosshair size={16} />
+        </div>
+        <div class="setting-label">
+          <span class="setting-name">Camera find on quick drop</span>
+          <span class="setting-desc">Auto-zoom map when quick-dropping a marker</span>
+        </div>
+      </div>
+      <div class="style-seg">
+        <button
+          type="button"
+          class:active={zoomToLocationMarkers}
+          disabled={saving === "zoomToLocationMarkers"}
+          on:click={() => setZoomToLocation(true)}
+        >Zoom</button>
+        <button
+          type="button"
+          class:active={!zoomToLocationMarkers}
+          disabled={saving === "zoomToLocationMarkers"}
+          on:click={() => setZoomToLocation(false)}
+        >None</button>
+      </div>
+    </div>
+
+    <!-- Camera find on touch hold -->
+    <div class="setting-row setting-row-col">
+      <div class="setting-row-top">
+        <div class="setting-icon marker-icon">
+          <MapPin size={16} />
+        </div>
+        <div class="setting-label">
+          <span class="setting-name">Camera find on touch hold</span>
+          <span class="setting-desc">Auto-zoom map when holding to place a marker</span>
+        </div>
+      </div>
+      <div class="style-seg">
+        <button
+          type="button"
+          class:active={zoomToPlacedMarkers}
+          disabled={saving === "zoomToPlacedMarkers"}
+          on:click={() => setZoomToPlaced(true)}
+        >Zoom</button>
+        <button
+          type="button"
+          class:active={!zoomToPlacedMarkers}
+          disabled={saving === "zoomToPlacedMarkers"}
+          on:click={() => setZoomToPlaced(false)}
+        >None</button>
+      </div>
+    </div>
+
+    <!-- Marker icon selection -->
+    <div class="setting-row setting-row-col">
+      <div class="setting-row-top">
+        <div class="setting-icon marker-icon">
+          <Magnet size={16} />
+        </div>
+        <div class="setting-label">
+          <span class="setting-name">Marker icon selection</span>
+          <span class="setting-desc">Skip the edit panel and use the default icon when placing</span>
+        </div>
+      </div>
+      <div class="style-seg">
+        <button
+          type="button"
+          class:active={!autoConfirmMarkers}
+          disabled={saving === "autoConfirmMarkers"}
+          on:click={() => toggleAutoConfirm(false)}
+        >Selection menu</button>
+        <button
+          type="button"
+          class:active={autoConfirmMarkers}
+          disabled={saving === "autoConfirmMarkers"}
+          on:click={() => toggleAutoConfirm(true)}
+        >Use default</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toolbox menu toggles -->
   <div class="profile-section">
     <h5 class="section-title">Toolbox Menus</h5>
@@ -287,9 +416,10 @@
         <span class="setting-name">Road overlays menu</span>
         <span class="setting-desc">Show the Road Overlays tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={roadOverlaysEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={roadOverlaysEnabled}
         disabled={saving === "roadOverlaysEnabled"}
         on:change={() => toggleRoadOverlays(!roadOverlaysEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
     <!-- Satellite menu -->
@@ -301,9 +431,10 @@
         <span class="setting-name">Satellite menu</span>
         <span class="setting-desc">Show the Satellite tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={satelliteMenuEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={satelliteMenuEnabled}
         disabled={saving === "satelliteMenuEnabled"}
         on:change={() => toggleMenu("satelliteMenuEnabled", "Satellite", !satelliteMenuEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
     <!-- Measure menu -->
@@ -315,9 +446,10 @@
         <span class="setting-name">Measure menu</span>
         <span class="setting-desc">Show the Measure tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={measureMenuEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={measureMenuEnabled}
         disabled={saving === "measureMenuEnabled"}
         on:change={() => toggleMenu("measureMenuEnabled", "Measure", !measureMenuEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
     <!-- Flash Signal menu -->
@@ -329,9 +461,10 @@
         <span class="setting-name">Flash signal menu</span>
         <span class="setting-desc">Show the Flash Signal tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={flashMenuEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={flashMenuEnabled}
         disabled={saving === "flashMenuEnabled"}
         on:change={() => toggleMenu("flashMenuEnabled", "Flash signal", !flashMenuEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
     <!-- Rock Picking menu -->
@@ -343,9 +476,10 @@
         <span class="setting-name">Rock picking menu</span>
         <span class="setting-desc">Show the Rock Picking tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={rockPickingMenuEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={rockPickingMenuEnabled}
         disabled={saving === "rockPickingMenuEnabled"}
         on:change={() => toggleMenu("rockPickingMenuEnabled", "Rock picking", !rockPickingMenuEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
 
     <!-- Weather menu -->
@@ -357,9 +491,10 @@
         <span class="setting-name">Weather menu</span>
         <span class="setting-desc">Show the Weather tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="toggle toggle-sm" checked={weatherMenuEnabled}
+      <input type="checkbox" class="setting-toggle-input" checked={weatherMenuEnabled}
         disabled={saving === "weatherMenuEnabled"}
         on:change={() => toggleMenu("weatherMenuEnabled", "Weather", !weatherMenuEnabled)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
     </label>
   </div>
 </div>
@@ -513,7 +648,7 @@
   .profile-section {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 5px;
   }
 
   .section-title {
@@ -535,8 +670,8 @@
   .setting-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 8px 10px;
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease;
@@ -547,8 +682,8 @@
   }
 
   .setting-icon {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -615,15 +750,93 @@
   }
 
   .setting-name {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
+    line-height: 1.3;
   }
 
   .setting-desc {
-    font-size: 11px;
+    font-size: 10.5px;
     color: rgba(255, 255, 255, 0.4);
     line-height: 1.3;
+  }
+
+  /* Blue toggle switch (matches the marker menu's switches) */
+  .setting-toggle-input {
+    display: none;
+  }
+  .setting-toggle-track {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+  }
+  .setting-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.15s ease;
+  }
+  .setting-row input:checked + .setting-toggle-track {
+    background: rgba(96, 165, 250, 0.8);
+  }
+  .setting-row input:checked + .setting-toggle-track .setting-toggle-thumb {
+    left: 16px;
+  }
+  .setting-row input:disabled + .setting-toggle-track {
+    opacity: 0.5;
+  }
+
+  /* Marker menu style — segmented picker row */
+  .setting-row-col {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .setting-row-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .style-seg {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+  }
+  .style-seg button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .style-seg button:hover {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .style-seg button.active {
+    background: rgba(96, 165, 250, 0.28);
+    color: #93c5fd;
+  }
+  .style-seg button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* GPS select */

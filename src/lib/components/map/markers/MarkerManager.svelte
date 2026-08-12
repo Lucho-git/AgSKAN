@@ -23,6 +23,7 @@
   import * as mapboxgl from "mapbox-gl"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
   import SiloMarkerPanel from "./SiloMarkerPanel.svelte"
+  import MarkerOverlayPanel from "./MarkerOverlayPanel.svelte"
   import {
     getIconImageName as getIconImageNameUtil,
     findMarkerByIconClass,
@@ -1488,6 +1489,14 @@
     : null
   $: selectedIsSilo =
     (selectedMarker?.iconClass || "") === "custom-svg-silo2"
+  // The new on-map overlay marker menu (MarkerOverlayPanel) applies to all
+  // non-silo markers when the user setting is enabled; otherwise markers use
+  // the classic MarkerEditPanel. Silos always use SiloMarkerPanel.
+  $: useOverlayMarkerMenu =
+    $userSettingsStore?.overlayMarkerMenuEnabled ?? false
+  // Newly placed (unconfirmed) markers always open the classic bottom edit
+  // panel so the icon selection menu works, regardless of the menu style.
+  $: isNewMarker = $selectedMarkerStore && !selectedMarker
 
   // Deselect the current marker (closes the silo panel / marker menu).
   export function deselectMarker() {
@@ -1514,6 +1523,36 @@
       {showMoveRipple}
       {removeMarker}
       {deselectMarker}
+    />
+  {:else if isNewMarker}
+    <MarkerEditPanel
+      {map}
+      {getCurrentIconClass}
+      {removeMarker}
+      {centerCameraOnMarker}
+      {confirmedMarkersStore}
+      {selectedMarkerStore}
+      {getIconImageName}
+      {updateMarkerNoteLabel}
+      {showPlacementRipple}
+      {showEditRipple}
+    />
+  {:else if useOverlayMarkerMenu}
+    <MarkerOverlayPanel
+      {map}
+      marker={selectedMarker}
+      {confirmedMarkersStore}
+      {selectedMarkerStore}
+      {getCurrentIconClass}
+      {getIconImageName}
+      {updateMarkerNoteLabel}
+      {removeMarker}
+      {deselectMarker}
+      {moveSiloLive}
+      {commitSiloMove}
+      {showMoveRipple}
+      {showEditRipple}
+      {showPlacementRipple}
     />
   {:else}
     <MarkerEditPanel

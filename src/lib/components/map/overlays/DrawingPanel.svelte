@@ -1,6 +1,6 @@
 <!-- src/lib/components/map/overlays/DrawingPanel.svelte -->
 <script>
-  import { onMount } from "svelte"
+  import { onMount, onDestroy, tick } from "svelte"
   import { Square, Trash2, Spline, Edit2 } from "lucide-svelte"
   import area from "@turf/area"
   import length from "@turf/length"
@@ -10,18 +10,52 @@
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { findMarkerByIconClass } from "$lib/data/markerDefinitions"
   import * as mapboxgl from "mapbox-gl"
+  import { pendingDrawingSelection } from "$lib/stores/markerDrawingSelectionStore"
+  import {
+    markerDrawingsStore,
+    getDrawingsForMarker,
+  } from "$lib/stores/markerDrawingsStore"
   import DrawingStyleEditor from "./DrawingStyleEditor.svelte"
+  import Portal from "./Portal.svelte"
 
   export let map
   export let currentMarker
   export let getCurrentIconClass
   export let onStartDrawing = () => {}
+  // The draw-type buttons (Draw Area / Draw Line) live in the menu's Add
+  // section now, so the new menu hides them; the older edit panel still uses
+  // them.
+  export let showDrawButtons = true
+  // Fired when the style editor opens/closes so the host menu can step aside
+  // and let the original full-width bottom editor take over.
+  export let onEditStart = () => {}
+  export let onEditEnd = () => {}
+  // When true (the new marker menu), the section renders nothing while the
+  // marker's drawings load and nothing at all when it has no drawings. The
+  // menu's entrance animation covers the brief load, so no placeholder needed.
+  export let hideWhenEmpty = false
 
-  let savedDrawings = []
+  // All drawings for the master map are fetched once at map load and kept
+  // fresh via realtime (MarkerDrawings → markerDrawingsStore). We just derive
+  // this marker's subset here — no per-marker API call. Newest first, like the
+  // previous per-marker query.
+  $: savedDrawings = getDrawingsForMarker(
+    $markerDrawingsStore,
+    currentMarker?.id,
+  )
+    .slice()
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  // Keep the selected drawing in view whenever the store refreshes.
+  $: if (selectedDrawingId && savedDrawings.length) {
+    scrollToSelectedDrawing()
+  }
+
   let selectedDrawingId = null
   let drawingVisibility = "always"
   let showStyleEditor = false
   let editingDrawing = null
+  let lastMarkerId = null
 
   $: isDrawingActive = $markerDrawingStore.isActive
 
@@ -32,12 +66,24 @@
     )
   }
 
-  $: if (currentMarker?.id) {
-    loadDrawingsForMarker()
+  // Reset the map highlight when switching markers.
+  $: if (currentMarker?.id && currentMarker.id !== lastMarkerId) {
+    lastMarkerId = currentMarker.id
+    selectedDrawingId = null
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-selected", {
+        detail: { drawingId: null },
+      }),
+    )
   }
 
   export function refreshDrawings() {
-    loadDrawingsForMarker()
+    // Ask the global drawings layer to re-fetch (updates the store too).
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-created", {
+        detail: { markerId: currentMarker?.id },
+      }),
+    )
   }
 
   export function triggerDrawing(mode) {
@@ -48,64 +94,67 @@
     return savedDrawings.length
   }
 
-  onMount(() => {
-    const handleDrawingCreated = (event) => {
-      if (event.detail?.markerId === currentMarker?.id) {
-        loadDrawingsForMarker()
-      }
-    }
+  // Clear the current selection (used when the menu header pans back to the
+  // marker) and tell the map + menu to drop the highlight.
+  export function deselectDrawing() {
+    if (!selectedDrawingId) return
+    selectedDrawingId = null
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-selected", {
+        detail: { drawingId: null, bounds: null },
+      }),
+    )
+  }
 
-    window.addEventListener("marker-drawing-created", handleDrawingCreated)
+  // Keep the selected drawing scrolled into view inside the drawings list.
+  let drawingsListRef = null
+  async function scrollToSelectedDrawing() {
+    await tick()
+    const el = drawingsListRef?.querySelector?.(".drawing-item.selected")
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+  }
+
+  // Apply a drawing selection that came from clicking a drawing on the map
+  // (the menu may not have been mounted yet, so we consume it once alive).
+  function applyPendingDrawingSelection(pending) {
+    if (!pending || pending.markerId !== currentMarker?.id) return
+    const drawing = savedDrawings.find((d) => d.id === pending.drawingId)
+    if (drawing) {
+      selectedDrawingId = drawing.id
+      window.dispatchEvent(
+        new CustomEvent("marker-drawing-selected", {
+          detail: {
+            drawingId: drawing.id,
+            bounds: pending.bounds || getDrawingBounds(drawing.geometry),
+          },
+        }),
+      )
+      scrollToSelectedDrawing()
+    }
+    pendingDrawingSelection.set(null)
+  }
+
+  onMount(() => {
+    // A drawing clicked on the map may arrive before this panel is mounted;
+    // consume it once we're alive (drawings come from the global store).
+    const unsubscribePending = pendingDrawingSelection.subscribe((pending) => {
+      if (!pending || pending.markerId !== currentMarker?.id) return
+      applyPendingDrawingSelection(pending)
+    })
 
     return () => {
-      window.removeEventListener("marker-drawing-created", handleDrawingCreated)
+      unsubscribePending()
     }
   })
 
-  async function loadDrawingsForMarker() {
-    if (!currentMarker?.id) return
-
-    const { data, error } = await supabase
-      .from("marker_drawings")
-      .select("*, geometry:geometry_geojson")
-      .eq("marker_id", currentMarker.id)
-      .or("deleted.is.null,deleted.eq.false")
-      .order("created_at", { ascending: false })
-
-    if (!error && data) {
-      // 👇 Parse geometry_geojson if it's a string
-      savedDrawings = data
-        .map((d) => {
-          let parsedGeometry = d.geometry
-
-          // If geometry is a string, parse it
-          if (typeof d.geometry === "string") {
-            try {
-              parsedGeometry = JSON.parse(d.geometry)
-            } catch (e) {
-              console.error("Failed to parse geometry for drawing:", d.id, e)
-              return null
-            }
-          }
-
-          return {
-            ...d,
-            geometry: parsedGeometry,
-          }
-        })
-        .filter((d) => d !== null)
-
-      console.log(
-        `📐 Loaded ${savedDrawings.length} drawings for marker ${currentMarker.id}`,
-      )
-      console.log(
-        "📐 Sample saved drawing geometry:",
-        savedDrawings[0]?.geometry,
-      )
-    } else if (error) {
-      console.error("Error loading drawings:", error)
-    }
-  }
+  // Clear the map highlight when this panel unmounts.
+  onDestroy(() => {
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-selected", {
+        detail: { drawingId: null },
+      }),
+    )
+  })
 
   function startDrawing(mode) {
     const iconClass = getCurrentIconClass(currentMarker.id)
@@ -127,12 +176,67 @@
     const wasSelected = selectedDrawingId === drawingId
     selectedDrawingId = wasSelected ? null : drawingId
 
-    // Zoom to drawing when selected
-    if (!wasSelected) {
-      const drawing = savedDrawings.find((d) => d.id === drawingId)
-      if (drawing) {
-        zoomToDrawing(drawing)
+    const drawing = savedDrawings.find((d) => d.id === drawingId)
+
+    // Highlight the selected drawing on the map AND tell the on-map menu
+    // where the drawing is so it can move over to it.
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-selected", {
+        detail: {
+          drawingId: selectedDrawingId,
+          bounds: drawing ? getDrawingBounds(drawing.geometry) : null,
+        },
+      }),
+    )
+
+    // Pan over to the drawing when selected + keep it in view in the list
+    if (!wasSelected && drawing) {
+      zoomToDrawing(drawing)
+      scrollToSelectedDrawing()
+    }
+  }
+
+  // Extract every [lng, lat] vertex from any drawing geometry so the WHOLE
+  // drawing (all rings, polygons and lines) is measured when fitting it.
+  function collectAllCoords(geometry) {
+    const out = []
+    const push = (c) => {
+      if (Array.isArray(c) && c.length >= 2 && typeof c[0] === "number") {
+        out.push(c)
       }
+    }
+    if (!geometry) return out
+    switch (geometry.type) {
+      case "Polygon":
+        geometry.coordinates.forEach((ring) => ring.forEach(push))
+        break
+      case "MultiPolygon":
+        geometry.coordinates.forEach((poly) =>
+          poly.forEach((ring) => ring.forEach(push)),
+        )
+        break
+      case "LineString":
+        geometry.coordinates.forEach(push)
+        break
+      case "MultiLineString":
+        geometry.coordinates.forEach((line) => line.forEach(push))
+        break
+    }
+    return out
+  }
+
+  // Bounding box (west/south/east/north) of a drawing, used to move the
+  // on-map menu over to the drawing after we pan to it.
+  function getDrawingBounds(geometry) {
+    if (!geometry) return null
+    const bounds = new mapboxgl.LngLatBounds()
+    collectAllCoords(geometry).forEach((coord) => bounds.extend(coord))
+    if (bounds.isEmpty()) return null
+    return {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
     }
   }
 
@@ -141,19 +245,13 @@
 
     try {
       const bounds = new mapboxgl.LngLatBounds()
+      collectAllCoords(drawing.geometry).forEach((coord) => bounds.extend(coord))
 
-      if (drawing.geometry.type === "Polygon") {
-        drawing.geometry.coordinates[0].forEach((coord) => {
-          bounds.extend(coord)
-        })
-      } else if (drawing.geometry.type === "LineString") {
-        drawing.geometry.coordinates.forEach((coord) => {
-          bounds.extend(coord)
-        })
-      }
-
+      // Pan over to the drawing and fit it comfortably in view. Generous top
+      // padding leaves room for the on-map menu, which moves over to sit just
+      // above the drawing.
       map.fitBounds(bounds, {
-        padding: { top: 100, bottom: 400, left: 50, right: 50 },
+        padding: { top: 400, bottom: 100, left: 120, right: 120 },
         duration: 800,
       })
 
@@ -169,7 +267,8 @@
     if (drawing) {
       editingDrawing = drawing
       showStyleEditor = true
-      zoomToDrawing(drawing)
+      onEditStart()
+      // The style editor zooms to the drawing itself (bottom-bar padding).
     }
   }
 
@@ -193,10 +292,7 @@
     if (!error) {
       console.log("✅ Drawing style updated:", editingDrawing.id)
 
-      // Refresh drawings
-      await loadDrawingsForMarker()
-
-      // Trigger map refresh
+      // Refresh the global drawings layer (updates the store + map together).
       window.dispatchEvent(
         new CustomEvent("marker-drawing-created", {
           detail: {
@@ -211,11 +307,13 @@
 
     showStyleEditor = false
     editingDrawing = null
+    onEditEnd()
   }
 
   function handleStyleEditorCancel() {
     showStyleEditor = false
     editingDrawing = null
+    onEditEnd()
   }
 
   async function deleteDrawing(drawingId, event) {
@@ -231,9 +329,21 @@
       .eq("id", drawingId)
 
     if (!error) {
-      savedDrawings = savedDrawings.filter((d) => d.id !== drawingId)
+      // Drop it from the shared store immediately, and nudge the global layer
+      // to re-fetch so the map + everything else stays consistent.
+      markerDrawingsStore.removeById(drawingId)
+      window.dispatchEvent(
+        new CustomEvent("marker-drawing-created", {
+          detail: { markerId: currentMarker?.id },
+        }),
+      )
       if (selectedDrawingId === drawingId) {
         selectedDrawingId = null
+        window.dispatchEvent(
+          new CustomEvent("marker-drawing-selected", {
+            detail: { drawingId: null },
+          }),
+        )
       }
       console.log("🗑️ Drawing deleted:", drawingId)
     }
@@ -324,16 +434,21 @@
 </script>
 
 {#if showStyleEditor && editingDrawing}
-  <DrawingStyleEditor
-    {map}
-    drawing={editingDrawing}
-    onSave={handleStyleEditorSave}
-    onCancel={handleStyleEditorCancel}
-  />
-{:else}
+  <Portal target={typeof document !== "undefined" ? document.body : null}>
+    <DrawingStyleEditor
+      {map}
+      drawing={editingDrawing}
+      onSave={handleStyleEditorSave}
+      onCancel={handleStyleEditorCancel}
+    />
+  </Portal>
+{:else if !hideWhenEmpty || savedDrawings.length > 0}
   <div class="drawing-section">
     <div class="drawing-header">
-      <span class="section-title">Drawings</span>
+      <span class="section-title">
+        <Spline size={12} />
+        <span>Drawings</span>
+      </span>
       <label class="visibility-switch" title="Always show drawings on map">
         <span class="visibility-label">Always Show</span>
         <input
@@ -348,25 +463,27 @@
       </label>
     </div>
 
-    <div class="drawing-type-section">
-      <button
-        class="drawing-type-btn area"
-        on:click={() => startDrawing("area")}
-      >
-        <Square size={18} />
-        <span>Draw Area</span>
-      </button>
-      <button
-        class="drawing-type-btn line"
-        on:click={() => startDrawing("line")}
-      >
-        <Spline size={18} />
-        <span>Draw Line</span>
-      </button>
-    </div>
+    {#if showDrawButtons}
+      <div class="drawing-type-section">
+        <button
+          class="drawing-type-btn area"
+          on:click={() => startDrawing("area")}
+        >
+          <Square size={18} />
+          <span>Draw Area</span>
+        </button>
+        <button
+          class="drawing-type-btn line"
+          on:click={() => startDrawing("line")}
+        >
+          <Spline size={18} />
+          <span>Draw Line</span>
+        </button>
+      </div>
+    {/if}
 
     {#if savedDrawings.length > 0}
-      <div class="drawings-list-container">
+      <div class="drawings-list-container" bind:this={drawingsListRef}>
         <div class="drawings-list">
           {#each savedDrawings as drawing}
             <button
@@ -477,15 +594,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.55);
   }
 
   .visibility-switch {
@@ -497,9 +619,9 @@
   }
 
   .visibility-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .visibility-switch input {
@@ -593,7 +715,6 @@
     overflow-y: auto;
     margin-top: 6px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
   }
 
   .drawings-list {
@@ -753,10 +874,6 @@
     .drawing-section {
       max-height: 35.5vh;
       min-height: 35.5vh;
-    }
-
-    .section-title {
-      font-size: 14px;
     }
 
     .drawing-type-btn {

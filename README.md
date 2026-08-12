@@ -96,3 +96,76 @@ npx cap open android
 - `src/lib/api` contains client-side API wrappers for Supabase and Edge Functions.
 - `supabase/functions` contains deployable Supabase Edge Functions.
 - `scripts` contains operational maintenance scripts for trail, billing, and data cleanup work.
+
+## Supabase Project & MCP Access (for AI agents)
+
+**Project ref:** `hmxxqacnzxqpcheoeidn` (AgSKAN, region `ap-southeast-2`).
+
+AI agents that need direct database/storage/function access should connect to the
+Supabase MCP server. The MCP server runs on Supabase's infrastructure, so it works
+even when the machine's IP isn't allow-listed for direct Postgres connections.
+
+### Register the MCP server
+
+Add it with the Copilot CLI (or edit `~/.copilot/mcp-config.json` directly):
+
+```sh
+copilot mcp add --transport http supabase "https://mcp.supabase.com/mcp?project_ref=hmxxqacnzxqpcheoeidn&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
+```
+
+Equivalent `~/.copilot/mcp-config.json` entry:
+
+```json
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=hmxxqacnzxqpcheoeidn&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
+    }
+  }
+}
+```
+
+> The `features=` parameter is required — it enables the `database`, `debugging`,
+> `development`, `functions`, `branching`, `account`, and `docs` tool groups.
+> Without it, write tools such as `apply_migration`/`execute_sql` are unavailable.
+
+### Authenticate
+
+```sh
+copilot -i /mcp
+```
+
+Select the `supabase` server and complete the browser OAuth flow (sign in with a
+Supabase account that has access to the project).
+
+**After authorizing, reload the VS Code window** (`Developer: Reload Window`) so
+the Copilot Chat extension re-establishes its MCP connection with the fresh token —
+authorizing via the CLI alone does not refresh an already-running agent session.
+
+### Verify
+
+A quick sanity check once connected:
+
+- `get_project` / `list_projects` should return AgSKAN.
+- `execute_sql` with `SELECT 1;` should succeed.
+
+### Fallback (if MCP is unavailable)
+
+The Supabase CLI is authenticated on this machine:
+
+```sh
+npx supabase projects list
+```
+
+Direct `db` commands (e.g. `supabase db query --linked`) require the machine's IP
+to be in the project's database allow-list and will fail otherwise — prefer the MCP
+server for schema changes and data queries.
+
+If the MCP **write** tools are disabled (read-only), `scripts/supabase-sql-runner.ps1`
+can run SQL via the Supabase Management API instead (uses the CLI access token from
+the Windows Credential Manager, never printed):
+
+```sh
+powershell -File scripts/supabase-sql-runner.ps1 -SqlFile path/to/query.sql
+```
