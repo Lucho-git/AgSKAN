@@ -1,7 +1,7 @@
 <!-- src/lib/components/map/toolbox/ProfileControls.svelte -->
 <script lang="ts">
   import { toast } from "svelte-sonner"
-  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet, CloudSun } from "lucide-svelte"
+  import { User, Droplets, MapPin, Crosshair, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet, CloudSun, Car, Warehouse } from "lucide-svelte"
   import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -116,8 +116,46 @@
     }
   }
 
+  async function toggleShowBinsAlways(value: boolean) {
+    saving = "showBinsAlways"
+    try {
+      const result = await userSettingsApi.updateShowBinsAlways(value)
+      if (result?.success) {
+        toast.success(value ? "Bin edge tracking: on" : "Bin edge tracking: off")
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, showBinsAlways: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, showBinsAlways: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
+  async function toggleShowVehiclesAlways(value: boolean) {
+    saving = "showVehiclesAlways"
+    try {
+      const result = await userSettingsApi.updateShowVehiclesAlways(value)
+      if (result?.success) {
+        toast.success(value ? "Vehicle edge tracking: on" : "Vehicle edge tracking: off")
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
   $: sprayConfirmEnabled = $userSettingsStore.sprayConfirmEnabled ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
+  $: showBinsAlways = $userSettingsStore.showBinsAlways ?? false
+  $: showVehiclesAlways = $userSettingsStore.showVehiclesAlways ?? true
   $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? false
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
@@ -400,6 +438,36 @@
         >Use default</button>
       </div>
     </div>
+
+    <!-- Show bins always (offscreen tracking) -->
+    <label class="setting-row">
+      <div class="setting-icon marker-icon">
+        <Warehouse size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Show bins always</span>
+        <span class="setting-desc">Track all silo bins at the map edge</span>
+      </div>
+      <input type="checkbox" class="setting-toggle-input" checked={showBinsAlways}
+        disabled={saving === "showBinsAlways"}
+        on:change={() => toggleShowBinsAlways(!showBinsAlways)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+    </label>
+
+    <!-- Show vehicles always (offscreen tracking) -->
+    <label class="setting-row">
+      <div class="setting-icon marker-icon">
+        <Car size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Show vehicles always</span>
+        <span class="setting-desc">Track recently-active vehicles at the map edge</span>
+      </div>
+      <input type="checkbox" class="setting-toggle-input" checked={showVehiclesAlways}
+        disabled={saving === "showVehiclesAlways"}
+        on:change={() => toggleShowVehiclesAlways(!showVehiclesAlways)} />
+      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+    </label>
   </div>
 
   <!-- Toolbox menu toggles -->

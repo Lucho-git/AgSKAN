@@ -1088,6 +1088,40 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle "show vehicles always" — offscreen tracking dots for vehicles
+     * that have moved within the last 3 minutes. ON = each active vehicle
+     * shows a map-edge dot (with its icon + heading); OFF = no tracking.
+     */
+    async updateShowVehiclesAlways(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save show vehicles always setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, show_vehicles_always: enabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving show vehicles always setting:", error);
+                return { success: false, message: "Failed to save show vehicles always setting", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, showVehiclesAlways: enabled }));
+
+            return { success: true, message: "Show vehicles always setting updated" };
+        } catch (error) {
+            console.error("Error in updateShowVehiclesAlways:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Toggle spray record confirmation popup on trail close
      */
     async updateSprayConfirmEnabled(sprayConfirmEnabled: boolean) {

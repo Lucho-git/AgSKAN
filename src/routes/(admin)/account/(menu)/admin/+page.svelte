@@ -29,6 +29,7 @@
     autoConfirmMarkers: false,
     overlayMarkerMenuEnabled: false,
     showBinsAlways: false,
+    showVehiclesAlways: true,
     zoomToLocationMarkers: false,
     zoomToPlacedMarkers: true,
     enableFull1Hz: false,
@@ -206,6 +207,7 @@
   const MARKER_BOOL_FIELDS = [
     { col: "overlayMarkerMenuEnabled", label: "Marker menu style (on-map panel)" },
     { col: "showBinsAlways",          label: "Show bins always (offscreen tracking)" },
+    { col: "showVehiclesAlways",      label: "Show vehicles always (offscreen tracking)" },
     { col: "zoomToLocationMarkers",   label: "Zoom to location markers" },
     { col: "zoomToPlacedMarkers",     label: "Zoom to placed markers" },
     { col: "autoConfirmMarkers",      label: "Auto-confirm markers" },

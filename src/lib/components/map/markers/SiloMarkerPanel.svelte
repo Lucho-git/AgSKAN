@@ -548,7 +548,7 @@
           </div>
           {#if capacityTonnes > 0}
             <span class="silo-pop-tonnes">
-              {Math.round(currentTonnes)} / {capacityTonnes} t
+              {currentTonnes.toFixed(1)} / {capacityTonnes} t
             </span>
           {/if}
         </div>

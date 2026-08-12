@@ -16,8 +16,11 @@ export const SILO_GRAIN_COLORS: SiloGrainColor[] = [
   { key: "amber", label: "Amber", light: "#fde68a", dark: "#f59e0b" },
   { key: "green", label: "Green", light: "#86efac", dark: "#22c55e" },
   { key: "blue", label: "Blue", light: "#93c5fd", dark: "#3b82f6" },
+  { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308" },
   { key: "red", label: "Red", light: "#fca5a5", dark: "#ef4444" },
   { key: "purple", label: "Purple", light: "#d8b4fe", dark: "#a855f7" },
+  { key: "cyan", label: "Cyan", light: "#67e8f9", dark: "#06b6d4" },
+  { key: "slate", label: "Slate", light: "#e2e8f0", dark: "#94a3b8" },
 ]
 
 export const SILO_GRAIN_DEFAULT = "amber"

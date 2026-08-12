@@ -41,6 +41,40 @@
     return incomingTime > 0 && existingTime > 0 && incomingTime < existingTime
   }
 
+  // ── Connected-profile helpers ────────────────────────────────────────────
+  // `connected_profiles` (profiles whose master_map_id is this map) is the
+  // source of truth for who is actually ON the map right now. The
+  // vehicle_state table keeps a row per user forever and is never cleaned up
+  // when someone disconnects, so every live/real-time/poll path MUST filter
+  // against this list — otherwise dead accounts show up as "Unknown
+  // Operator" (name lives on profiles, not vehicle_state).
+  function getConnectedProfileMap() {
+    const map = new Map()
+    for (const p of $mapActivityStore.connected_profiles || []) {
+      map.set(p.id, p)
+    }
+    return map
+  }
+
+  function isConnectedUser(profileMap, vehicleId) {
+    return vehicleId && profileMap.has(vehicleId)
+  }
+
+  // Merge profile data (name + operation) onto a raw vehicle_state row.
+  function enrichWithProfile(row, profileMap) {
+    const profile = profileMap.get(row.vehicle_id)
+    if (!profile) return row
+    return {
+      ...row,
+      full_name: profile.full_name || row.full_name || "Unknown User",
+      selected_operation_id:
+        row.selected_operation_id ?? profile.selected_operation_id ?? null,
+      current_operation: row.current_operation ?? profile.current_operation ?? null,
+      operation_name: row.operation_name || profile.operation_name || "No operation",
+      operation_id: row.operation_id || profile.operation_id || null,
+    }
+  }
+
   async function fetchUserVehicleData(userId) {
     const { data, error } = await supabase
       .from("vehicle_state")
@@ -64,23 +98,13 @@
     )
 
     const vehicles = $mapActivityStore.vehicle_states || []
+    const profileMap = getConnectedProfileMap()
 
-    const vehiclesWithProfiles = await Promise.all(
-      vehicles.map(async (vehicle) => {
-        const profile = $mapActivityStore.connected_profiles.find(
-          (p) => p.id === vehicle.vehicle_id,
-        )
-
-        return {
-          ...vehicle,
-          full_name: profile?.full_name || "Unknown User",
-          selected_operation_id: profile?.selected_operation_id || null,
-          current_operation: profile?.current_operation || null,
-          operation_name: profile?.operation_name || "No operation",
-          operation_id: profile?.operation_id || null,
-        }
-      }),
-    )
+    const vehiclesWithProfiles = vehicles
+      // Only include vehicles whose owner is still connected to THIS map —
+      // prevents historical/dead vehicle_state rows from resurrecting.
+      .filter((vehicle) => isConnectedUser(profileMap, vehicle.vehicle_id))
+      .map((vehicle) => enrichWithProfile(vehicle, profileMap))
 
     return vehiclesWithProfiles.filter(
       (vehicle) => vehicle.vehicle_id !== userId,
@@ -153,7 +177,20 @@
       return change
     })
 
-    return changes.filter((change) => change.update_types.length > 0)
+    // Vehicles that exist on the client but are no longer in the server set
+    // (owner disconnected / removed from map) → emit removal changes so the
+    // list and markers don't keep stale/dead entries.
+    const serverIds = new Set(serverData.map((v) => v.vehicle_id))
+    const removed = (clientData || [])
+      .filter((v) => !serverIds.has(v.vehicle_id))
+      .map((v) => ({
+        vehicle_id: v.vehicle_id,
+        update_types: ["vehicle_removed"],
+      }))
+
+    return [...changes, ...removed].filter(
+      (change) => change.update_types.length > 0,
+    )
   }
 
   /**
@@ -183,12 +220,25 @@
 
       if (!data || data.length === 0) return
 
+      // Only keep rows whose owner is still connected to THIS map. Without
+      // this, the poll resurrects every historical vehicle_state row ever
+      // written for the map (dead accounts) with no name.
+      const profileMap = getConnectedProfileMap()
+      const connectedData = data.filter((row) =>
+        isConnectedUser(profileMap, row.vehicle_id),
+      )
+
       let hasUpdate = false
       serverOtherVehiclesData.update((vehicles) => {
-        for (const row of data) {
-          const idx = vehicles.findIndex((v) => v.vehicle_id === row.vehicle_id)
+        // Prune vehicles whose owner is no longer connected to this map.
+        const pruned = vehicles.filter((v) =>
+          isConnectedUser(profileMap, v.vehicle_id),
+        )
+        for (const rawRow of connectedData) {
+          const row = enrichWithProfile(rawRow, profileMap)
+          const idx = pruned.findIndex((v) => v.vehicle_id === row.vehicle_id)
           if (idx !== -1) {
-            const existing = vehicles[idx]
+            const existing = pruned[idx]
             // Only update if polled data is newer
             const existingTs =
               typeof existing.last_update === "string"
@@ -200,26 +250,15 @@
                 : row.last_update || 0
 
             if (newTs > existingTs) {
-              vehicles[idx] = {
-                ...existing,
-                ...row,
-                // Fallback to existing profile data for fields not in vehicle_state table
-                full_name: row.full_name ?? existing.full_name,
-                selected_operation_id:
-                  row.selected_operation_id ?? existing.selected_operation_id,
-                current_operation:
-                  row.current_operation ?? existing.current_operation,
-                operation_name: row.operation_name ?? existing.operation_name,
-                operation_id: row.operation_id ?? existing.operation_id,
-              }
+              pruned[idx] = { ...existing, ...row }
               hasUpdate = true
             }
           } else {
-            vehicles.push(row)
+            pruned.push(row)
             hasUpdate = true
           }
         }
-        return vehicles
+        return pruned
       })
 
       if (hasUpdate) {
@@ -465,13 +504,21 @@
     channel = supabase
       .channel(`vehicle_updates_${masterMapId}`)
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
-        if (payload.payload.vehicle_id !== userId) {
+        const profileMap = getConnectedProfileMap()
+        if (
+          payload.payload.vehicle_id !== userId &&
+          isConnectedUser(profileMap, payload.payload.vehicle_id)
+        ) {
           serverOtherVehiclesData.update((vehicles) => {
-            const existingVehicleIndex = vehicles.findIndex(
+            // Prune any vehicle whose owner is no longer connected.
+            const pruned = vehicles.filter((v) =>
+              isConnectedUser(profileMap, v.vehicle_id),
+            )
+            const existingVehicleIndex = pruned.findIndex(
               (vehicle) => vehicle.vehicle_id === payload.payload.vehicle_id,
             )
             if (existingVehicleIndex !== -1) {
-              const existingVehicle = vehicles[existingVehicleIndex]
+              const existingVehicle = pruned[existingVehicleIndex]
 
               if (isOlderVehicleUpdate(payload.payload, existingVehicle)) {
                 console.warn(
@@ -481,27 +528,13 @@
                     existing: existingVehicle.last_update,
                   },
                 )
-                return vehicles
+                return pruned
               }
 
               // Only update flash state if it's included in the payload
               const updatedVehicle = {
                 ...existingVehicle,
-                ...payload.payload,
-                // Fallback to existing profile data for fields not in broadcast
-                full_name:
-                  payload.payload.full_name ?? existingVehicle.full_name,
-                selected_operation_id:
-                  payload.payload.selected_operation_id ??
-                  existingVehicle.selected_operation_id,
-                current_operation:
-                  payload.payload.current_operation ??
-                  existingVehicle.current_operation,
-                operation_name:
-                  payload.payload.operation_name ??
-                  existingVehicle.operation_name,
-                operation_id:
-                  payload.payload.operation_id ?? existingVehicle.operation_id,
+                ...enrichWithProfile(payload.payload, profileMap),
               }
 
               // If flash data is in payload, update it; otherwise keep existing
@@ -514,12 +547,12 @@
                   payload.payload.flash_reason || null
               }
 
-              vehicles[existingVehicleIndex] = updatedVehicle
+              pruned[existingVehicleIndex] = updatedVehicle
             } else {
               console.log("pushing new vehicle", payload.payload)
-              vehicles.push(payload.payload)
+              pruned.push(enrichWithProfile(payload.payload, profileMap))
             }
-            return vehicles
+            return pruned
           })
 
           const changes = compareData(
@@ -555,34 +588,34 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         (payload) => {
-          if (payload.new.vehicle_id !== userId) {
+          const profileMap = getConnectedProfileMap()
+          if (
+            payload.new.vehicle_id !== userId &&
+            isConnectedUser(profileMap, payload.new.vehicle_id)
+          ) {
             serverOtherVehiclesData.update((vehicles) => {
-              const existingVehicleIndex = vehicles.findIndex(
+              // Prune any vehicle whose owner is no longer connected.
+              const pruned = vehicles.filter((v) =>
+                isConnectedUser(profileMap, v.vehicle_id),
+              )
+              const existingVehicleIndex = pruned.findIndex(
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
-                if (isOlderVehicleUpdate(payload.new, vehicles[existingVehicleIndex])) {
+                if (isOlderVehicleUpdate(payload.new, pruned[existingVehicleIndex])) {
                   console.warn(
                     `⏳ Ignoring older CDC vehicle_state from ${payload.new.vehicle_id?.slice(0, 8)}`,
                     {
                       incoming: payload.new.last_update,
-                      existing: vehicles[existingVehicleIndex].last_update,
+                      existing: pruned[existingVehicleIndex].last_update,
                     },
                   )
-                  return vehicles
+                  return pruned
                 }
 
-                vehicles[existingVehicleIndex] = {
-                  ...vehicles[existingVehicleIndex],
-                  ...payload.new,
-                  // Preserve profile data
-                  full_name: vehicles[existingVehicleIndex].full_name,
-                  selected_operation_id:
-                    vehicles[existingVehicleIndex].selected_operation_id,
-                  current_operation:
-                    vehicles[existingVehicleIndex].current_operation,
-                  operation_name: vehicles[existingVehicleIndex].operation_name,
-                  operation_id: vehicles[existingVehicleIndex].operation_id,
+                pruned[existingVehicleIndex] = {
+                  ...pruned[existingVehicleIndex],
+                  ...enrichWithProfile(payload.new, profileMap),
                   // Explicitly include flash data from postgres update
                   is_flashing: payload.new.is_flashing || false,
                   flash_started_at: payload.new.flash_started_at || null,
@@ -590,9 +623,9 @@
                 }
               } else {
                 console.log("pushing new vehicle", payload.new)
-                vehicles.push(payload.new)
+                pruned.push(enrichWithProfile(payload.new, profileMap))
               }
-              return vehicles
+              return pruned
             })
 
             const changes = compareData(

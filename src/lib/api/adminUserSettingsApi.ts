@@ -24,6 +24,7 @@ export interface UserSettingsRow {
   auto_confirm_markers: boolean
   overlay_marker_menu_enabled: boolean
   show_bins_always: boolean
+  show_vehicles_always: boolean
   spray_confirm_enabled: boolean
   road_overlays_enabled: boolean
   satellite_menu_enabled: boolean
@@ -52,6 +53,7 @@ const FIELD_MAP: Record<string, string> = {
   autoConfirmMarkers: "auto_confirm_markers",
   overlayMarkerMenuEnabled: "overlay_marker_menu_enabled",
   showBinsAlways: "show_bins_always",
+  showVehiclesAlways: "show_vehicles_always",
   sprayConfirmEnabled: "spray_confirm_enabled",
   roadOverlaysEnabled: "road_overlays_enabled",
   satelliteMenuEnabled: "satellite_menu_enabled",

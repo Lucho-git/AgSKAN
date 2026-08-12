@@ -15,8 +15,11 @@
     X,
     Navigation,
     Navigation2,
+    Eye,
   } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   export let map
   export let currentSpeed = 0
@@ -33,6 +36,22 @@
   let sortedVehicleIds = []
   let lastSortAt = 0
   let lastPrioritySignature = ""
+
+  // Per-user "show vehicles always" — offscreen tracking dots at the map edge.
+  $: showVehiclesAlways = $userSettingsStore?.showVehiclesAlways ?? true
+
+  async function toggleShowVehiclesAlways() {
+    const next = !showVehiclesAlways
+    userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: next }))
+    try {
+      const result = await userSettingsApi.updateShowVehiclesAlways(next)
+      if (!result?.success) {
+        userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: !next }))
+      }
+    } catch {
+      userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: !next }))
+    }
+  }
 
   function getSafeArray(value) {
     return Array.isArray(value) ? value : []
@@ -511,7 +530,7 @@
     style="bottom: calc(1rem + 130px); width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-white/20 p-4">
+    <div class="flex items-center justify-between gap-2 border-b border-white/20 p-4">
       <div class="flex items-center gap-2">
         <Users size={18} class="flex-shrink-0 text-white" />
         <h3 class="text-base font-semibold text-white">Vehicles</h3>
@@ -521,6 +540,19 @@
           {sortedVehicles.length}
         </span>
       </div>
+      <button
+        class="flex items-center gap-1.5 rounded-full border border-white/20 px-2.5 py-1 text-[11px] font-semibold transition-colors {showVehiclesAlways
+          ? 'border-emerald-400/60 bg-emerald-500/20 text-white'
+          : 'text-white/40'}"
+        on:click={toggleShowVehiclesAlways}
+        aria-label="Toggle edge tracking for vehicles"
+        title={showVehiclesAlways
+          ? "Edge tracking on — hide vehicles off-screen"
+          : "Edge tracking off — show vehicles off-screen"}
+      >
+        <Eye size={13} class={showVehiclesAlways ? "text-emerald-300" : "text-white/50"} />
+        <span>{showVehiclesAlways ? "Tracking" : "Off"}</span>
+      </button>
       <button
         class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
         on:click={closeUnifiedMenu}

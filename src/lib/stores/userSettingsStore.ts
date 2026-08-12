@@ -8,6 +8,7 @@ const defaultSettings = {
     autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
     overlayMarkerMenuEnabled: false, // Use the new on-map overlay marker menu for all (non-silo) markers
     showBinsAlways: false, // Show offscreen tracking circles for all silo bins (default off)
+    showVehiclesAlways: true, // Show offscreen tracking dots for recently-active vehicles (default on)
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys
     defaultImagerySource: 'mapbox', // Default imagery source when loading map

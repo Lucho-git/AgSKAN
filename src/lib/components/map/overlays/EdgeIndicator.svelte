@@ -129,8 +129,15 @@
       on:click={() => focus(item)}
     >
       <span class="edge-badge-ring"></span>
-      <span class="edge-badge-ico">
-        {#if item.icon}
+      <span
+        class="edge-badge-ico"
+        style={item.heading !== undefined
+          ? `transform: rotate(${item.heading}deg);`
+          : ''}
+      >
+        {#if item.component}
+          <svelte:component this={item.component} {...(item.componentProps || {})} />
+        {:else if item.icon}
           <svelte:component this={item.icon} size={18} />
         {:else if item.iconSvg}
           {@html item.iconSvg}

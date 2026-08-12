@@ -25,6 +25,8 @@
   import VehicleCompassButton from "./VehicleCompassButton.svelte"
   import NativeGeolocationAdapter from "../controls/NativeGeolocationAdapter.js"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
+  import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
+  import SVGComponents from "$lib/vehicles/index.js"
   import { toast } from "svelte-sonner"
   import "$lib/../styles/global.css"
   import { Capacitor } from "@capacitor/core"
@@ -67,6 +69,7 @@
   let userInitialsMarker = null
   let lastRecordedTime = 0
   let lastBroadcastTime = 0
+  /** @type {Array<{ marker: any, component: any, vehicleId: any, initialsMarker: any }>} */
   let otherVehicleMarkers = []
   let currentSpeed = 0
 
@@ -278,6 +281,7 @@
   let lastClientCoordinates = null
   let lastClientHeading = null
   let full1HzIntervalId = null
+  let vehicleTrackIntervalId = null // periodic re-sync of offscreen vehicle dots
   let removeForegroundGpsListener = null // unsubscribe for raw GPS foreground listener
 
   // Track running animation frames per marker so we can cancel on new update
@@ -1783,6 +1787,18 @@
       document.addEventListener("visibilitychange", handleVisibilityChange)
     }
 
+    // Periodically re-sync the offscreen vehicle dots so stale vehicles
+    // (no update in 3 min) are removed even when nothing else changes.
+    vehicleTrackIntervalId = setInterval(() => {
+      syncVehicleTracking(
+        $userSettingsStore?.showVehiclesAlways ?? true,
+        $userVehicleStore,
+        $otherVehiclesStore,
+        $layerVisibilityStore?.vehicles ?? true,
+        map,
+      )
+    }, 30000)
+
     // (removed diagnostic toast for Full 1Hz toggles)
 
     // Dev-only: simulate a JWT auth failure to test the logout + re-login flow.
@@ -1837,6 +1853,10 @@
     if (full1HzIntervalId) {
       clearInterval(full1HzIntervalId)
       full1HzIntervalId = null
+    }
+    if (vehicleTrackIntervalId) {
+      clearInterval(vehicleTrackIntervalId)
+      vehicleTrackIntervalId = null
     }
     if (debugOverlayTickId) {
       clearInterval(debugOverlayTickId)
@@ -1896,6 +1916,29 @@
         flash_reason,
         last_update,
       } = change
+
+      // Vehicle no longer in the server set (owner disconnected / removed
+      // from map) — remove its store entry + on-map marker so dead accounts
+      // don't linger in the list.
+      if (update_types.includes("vehicle_removed")) {
+        otherVehiclesStore.update((vehicles) =>
+          vehicles.filter((/** @type {any} */ v) => v.vehicle_id !== vehicle_id),
+        )
+        const idx = otherVehicleMarkers.findIndex(
+          (item) => item.vehicleId === vehicle_id,
+        )
+        if (idx !== -1) {
+          const { marker, component, initialsMarker } = otherVehicleMarkers[idx]
+          marker.remove()
+          component.$destroy()
+          if (initialsMarker) initialsMarker.remove()
+          otherVehicleMarkers.splice(idx, 1)
+        }
+        console.log(
+          `🚫 Vehicle removed from sync: ${vehicle_id} (${full_name || "unknown"})`,
+        )
+        return
+      }
 
       const [longitude, latitude] = coordinates
         .slice(1, -1)
@@ -3064,6 +3107,109 @@
   // Re-trigger when stores change
   $: if ($otherVehiclesStore || $userVehicleStore) {
     vehicleList = buildVehicleList()
+  }
+
+  // ── Offscreen vehicle tracking ("Show vehicles always") ──
+  // When the per-user setting is on, every vehicle that has moved within the
+  // last 3 minutes is registered in the attention store so the EdgeIndicator
+  // pins a dot at the map edge showing that exact vehicle icon, rotated to
+  // its heading. Stale/off vehicles are removed.
+  // NOTE: deps passed as explicit args — Svelte 4 only tracks variables
+  // referenced directly in the reactive statement.
+  const VEHICLE_TRACK_ACTIVE_MS = 3 * 60 * 1000 // 3 minutes
+  const VEHICLE_COLOR_HEX = {
+    Yellow: "#eab308",
+    Orange: "#f97316",
+    Red: "#ef4444",
+    Green: "#22c55e",
+    Blue: "#3b82f6",
+    Purple: "#a855f7",
+    HotPink: "#ec4899",
+  }
+
+  $: syncVehicleTracking(
+    $userSettingsStore?.showVehiclesAlways ?? true,
+    $userVehicleStore,
+    $otherVehiclesStore,
+    $layerVisibilityStore?.vehicles ?? true,
+    map,
+  )
+
+  function syncVehicleTracking(enabled, userVehicle, otherVehicles, vehiclesVisible, mapReady) {
+    if (!mapReady) return
+    const now = Date.now()
+    const wanted = new Set()
+
+    // A vehicle is "active" if it has had a movement update within 3 min.
+    const isActive = (lastUpdate) => {
+      if (!lastUpdate) return false
+      const ts =
+        typeof lastUpdate === "string"
+          ? new Date(lastUpdate).getTime()
+          : lastUpdate
+      return Number.isFinite(ts) && now - ts < VEHICLE_TRACK_ACTIVE_MS
+    }
+
+    // Register a vehicle's edge dot (upsert by id).
+    const register = (id, coords, vehicleMarker, heading, label) => {
+      const parsed = parseCoordinates(coords)
+      if (!parsed) return
+      wanted.add(id)
+      const type = vehicleMarker?.type || "SimpleTractor"
+      const bodyColor = vehicleMarker?.bodyColor || "Yellow"
+      const swath = vehicleMarker?.swath ?? 12
+      const size = vehicleMarker?.size ?? 45
+      mapAttentionStore.add({
+        id,
+        coordinates: [parsed.longitude, parsed.latitude],
+        color: VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
+        label,
+        heading: heading ?? 0,
+        component: SVGComponents[type] || SVGComponents.SimpleTractor,
+        componentProps: {
+          bodyColor,
+          size: `${Math.max(16, Math.min(30, Math.round(size * 0.55)))}px`,
+          swath,
+        },
+      })
+    }
+
+    if (enabled && vehiclesVisible) {
+      // The user's own vehicle.
+      if (isActive(userVehicle?.last_update)) {
+        register(
+          `vehicle-track-${userVehicle.vehicle_id || "me"}`,
+          userVehicle.coordinates,
+          userVehicle.vehicle_marker,
+          userVehicle.heading,
+          "You",
+        )
+      }
+      // All other vehicles with recent movement.
+      for (const v of otherVehicles || []) {
+        if (!isActive(v.last_update)) continue
+        register(
+          `vehicle-track-${v.vehicle_id}`,
+          v.coordinates,
+          v.vehicle_marker,
+          v.heading,
+          v.full_name || getVehicleDisplayName(v),
+        )
+      }
+    }
+
+    // Remove edge dots that are no longer wanted (setting off, stale, or
+    // the vehicle is no longer tracked).
+    const current = get(mapAttentionStore)
+    for (const item of current) {
+      if (
+        item.id &&
+        item.id.startsWith("vehicle-track-") &&
+        !wanted.has(item.id)
+      ) {
+        mapAttentionStore.remove(item.id)
+      }
+    }
   }
 
   function handleZoomToVehicle(event) {

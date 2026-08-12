@@ -182,6 +182,7 @@
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           overlayMarkerMenuEnabled: user_settings.overlay_marker_menu_enabled ?? false,
           showBinsAlways: user_settings.show_bins_always ?? false,
+          showVehiclesAlways: user_settings.show_vehicles_always ?? true,
           satelliteDropdownEnabled:
             user_settings.satellite_dropdown_enabled ?? false,
           enabledImageryProviders:
@@ -223,6 +224,7 @@
           autoConfirmMarkers: false,
           overlayMarkerMenuEnabled: false,
           showBinsAlways: false,
+          showVehiclesAlways: true,
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],
           defaultImagerySource: "mapbox",
