@@ -315,6 +315,13 @@
       feature.properties.iconClass = originalIconClass
       source.setData(data)
     }
+    // The preview also wrote the icon to the selection store — restore it
+    // so the panel shows the confirmed icon, not the last previewed one.
+    selectedMarkerStore.update((m) =>
+      m?.id === pendingMarkerId
+        ? { ...m, iconClass: originalIconClass }
+        : m,
+    )
     previewIconClass = null
   }
 
