@@ -10,7 +10,7 @@
   export let onCancel = () => {}
 
   // Style state - use exact values from drawing
-  let fillOpacity = drawing.style?.fillOpacity ?? 0.3
+  let fillOpacity = drawing.style?.fillOpacity ?? 0.5
   let strokeWidth = drawing.style?.strokeWidth ?? 3
   let strokeStyle = drawing.style?.strokeStyle ?? "solid"
   let fillColor = drawing.style?.fillColor ?? "#0ea5e9"

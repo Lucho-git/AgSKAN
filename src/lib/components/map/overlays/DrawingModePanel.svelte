@@ -5,6 +5,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { Square, Pen, X, Check } from "lucide-svelte"
   import DrawingStyleEditor from "./DrawingStyleEditor.svelte"
+  import { pendingDrawingSelection } from "$lib/stores/markerDrawingSelectionStore"
 
   export let map
   export let onComplete = () => {}
@@ -60,7 +61,7 @@
       style: {
         fillColor: finalState.color,
         strokeColor: finalState.color,
-        fillOpacity: 0.3,
+        fillOpacity: 0.5,
         strokeWidth: 3,
         strokeStyle: "solid",
       },
@@ -108,6 +109,13 @@
           },
         }),
       )
+
+      // Auto-select the fresh drawing so the marker menu highlights it
+      // (DrawingPanel consumes this once its list includes the drawing).
+      pendingDrawingSelection.set({
+        markerId: pendingDrawing.marker_id,
+        drawingId: data,
+      })
     }
 
     // Reset state

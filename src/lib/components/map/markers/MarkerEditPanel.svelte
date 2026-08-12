@@ -682,7 +682,7 @@
           <div class="notes-edit-section">
             <textarea
               bind:value={markerNotes}
-              placeholder="Add notes about this marker..."
+              placeholder="Add notes..."
               class="notes-input"
               rows="3"
               maxlength="500"
@@ -748,7 +748,7 @@
               </div>
               <textarea
                 bind:value={infoNotesValue}
-                placeholder="Add notes about this marker..."
+                placeholder="Add notes..."
                 class="notes-card-input"
                 rows="3"
                 maxlength="500"
@@ -780,9 +780,9 @@
                 {#if currentMarker?.notes}
                   <label
                     class="note-label-toggle"
-                    title="Show note above this marker"
+                    title="Show map label above this marker"
                   >
-                    <span class="note-label-toggle-text">Show Label</span>
+                    <span class="note-label-toggle-text">Map Label</span>
                     <input
                       type="checkbox"
                       checked={noteLabelVisible}

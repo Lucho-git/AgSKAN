@@ -51,7 +51,7 @@
           filter: ["==", "$type", "Polygon"],
           paint: {
             "fill-color": "#0ea5e9",
-            "fill-opacity": 0.3,
+            "fill-opacity": 0.5,
           },
         })
       }

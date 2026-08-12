@@ -7,7 +7,7 @@
      "Rude") marker to trial the UI. The panel has a FIXED height so it
      never jumps between views. -->
 <script>
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, tick } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import {
     X,
@@ -22,6 +22,7 @@
     Spline,
     Plus,
     MapPin,
+    Pencil,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
@@ -74,6 +75,9 @@
   let top = -9999
   let visible = false
   let offscreen = false
+  // True while the menu opens upward; flips to downward near the top of the
+  // screen so the whole menu box stays on screen in every state.
+  let openUp = true
   // When a drawing is selected, the panel anchors just above the drawing's
   // on-screen box instead of the marker. null = anchored to the marker.
   let drawingAnchor = null
@@ -96,11 +100,22 @@
 
   // Half-size (px) of the hit square around the icon that starts a move.
   const ICON_DRAG_HALF = 26
+  // Smooth lerp follow: the marker eases toward the cursor's position each
+  // frame so it glides (snap-to-cursor without the jarring teleport).
+  const LERP_FACTOR = 0.35
+  let dragTargetX = null
+  let dragTargetY = null
+  let dragRafId = null
+  let lastDragFrame = 0
 
   // ── Notes ──
   let notesText = ""
   let noteLabelVisible = true
   let originalNotes = ""
+  let noteEditing = false // true while the note textarea is open
+  let noteSavedFlash = false // brief "✓ Saved" chip after confirming a note
+  let noteSavedTimer = null
+  let noteInputEl = null
 
   // ── Icon editing ──
   let selectedIconForEdit = null
@@ -117,18 +132,21 @@
   let photoUploading = false
   let viewingPhoto = null // photo currently shown in the full-screen viewer
   // Index of the photo being viewed (drives the PhotoSwipe lightbox).
-  $: viewerIndex = Math.max(0, photos.findIndex((p) => p.id === viewingPhoto?.id))
+  $: viewerIndex = Math.max(
+    0,
+    photos.findIndex((p) => p.id === viewingPhoto?.id),
+  )
   // Small "copied" feedback on the coordinates button.
   let copiedCoords = false
   let copiedCoordsTimer = null
   // Armed delete (second tap confirms) — auto-disarms.
   let confirmDeleteTimer = null
+  let addMenuOpen = false // footer "+ Add" dropdown
 
   $: markerName = marker
     ? findMarkerByIconClass(marker.iconClass)?.name || "Marker"
     : "Marker"
-  $: displayIconClass =
-    previewIconClass || getCurrentIconClass(marker?.id)
+  $: displayIconClass = previewIconClass || getCurrentIconClass(marker?.id)
 
   const allMarkerIcons = getAllMarkers()
   $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
@@ -141,7 +159,11 @@
       notesText = marker?.notes || ""
       originalNotes = marker?.notes || ""
       noteLabelVisible = marker?.noteLabelVisible !== false
+      noteEditing = false
+      noteSavedFlash = false
+      openUp = true
       confirmDelete = false
+      addMenuOpen = false
       view = "main"
       panelOpen = true
       loadPhotos()
@@ -183,18 +205,47 @@
         if (!coords) return
         const p = map.project(coords)
         px = p.x
-        py = p.y - 44 // sit above the marker icon
+        py = p.y
       }
 
-      left = Math.min(
-        Math.max(rect.left + px, rect.left + 8),
-        rect.left + rect.width - 8,
-      )
-      top = Math.max(rect.top + py, 8)
+      // Menu box dimensions (match the .marker-pop CSS).
+      const menuW = 250
+      const menuH = Math.min(360, rect.height - 70)
+
+      // Keep the on/off-screen tests on the raw marker point.
       visible =
         px > -40 && px < rect.width + 40 && py > 60 && py < rect.height + 40
       offscreen =
         px < -4 || px > rect.width + 4 || py < -4 || py > rect.height + 4
+
+      // While moving: no flip, no clamp — the menu tracks the marker freely
+      // (even off-screen) so you can see exactly where it sits relative to the
+      // viewport edges and pick the spot to lock in. Keep whichever
+      // orientation it opened with so the marker sits just OUTSIDE the menu's
+      // near edge: below an up menu, above a down menu.
+      if (moving) {
+        left = rect.left + px
+        top = rect.top + (openUp ? py - 44 : py + 44)
+      } else {
+        // Vertically: open upward (menu sits above the marker) by default, but
+        // flip to open downward when there isn't enough room above, so the
+        // whole menu box stays on screen.
+        openUp = py - 44 - menuH >= 8
+        let anchorY = openUp ? py - 44 : py + 44
+        if (openUp) {
+          anchorY = Math.max(anchorY, menuH + 8)
+          anchorY = Math.min(anchorY, rect.height - 8)
+        } else {
+          anchorY = Math.max(anchorY, 8)
+          anchorY = Math.min(anchorY, rect.height - menuH - 8)
+        }
+        // Horizontally: keep the menu centered on the marker, but shift it so
+        // the 250px box never leaves the screen edges.
+        px = Math.min(Math.max(px, menuW / 2 + 8), rect.width - menuW / 2 - 8)
+
+        left = rect.left + px
+        top = rect.top + anchorY
+      }
       if (!anchoredToDrawing && moving && originalCoords) {
         const op = map.project(originalCoords)
         originX = rect.left + op.x
@@ -282,7 +333,11 @@
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
         m.id === marker.id
-          ? { ...m, iconClass: newIconClass, updated_at: new Date().toISOString() }
+          ? {
+              ...m,
+              iconClass: newIconClass,
+              updated_at: new Date().toISOString(),
+            }
           : m,
       ),
     )
@@ -318,14 +373,32 @@
     // The preview also wrote the icon to the selection store — restore it
     // so the panel shows the confirmed icon, not the last previewed one.
     selectedMarkerStore.update((m) =>
-      m?.id === pendingMarkerId
-        ? { ...m, iconClass: originalIconClass }
-        : m,
+      m?.id === pendingMarkerId ? { ...m, iconClass: originalIconClass } : m,
     )
     previewIconClass = null
   }
 
   // ── Notes ──
+  // Open the note editor and put the cursor straight into the textarea.
+  function startNoteEdit() {
+    noteEditing = true
+    tick().then(() => noteInputEl?.focus())
+  }
+
+  // Enter (without Shift) confirms the note — blurring triggers the save.
+  function onNotesKeydown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      noteInputEl?.blur()
+    }
+  }
+
+  // Confirm path for both Enter and clicking/tapping away (blur).
+  async function finishNoteEdit() {
+    noteEditing = false
+    await saveNotes()
+  }
+
   async function saveNotes() {
     if (!marker) return
     const trimmed = notesText.trim()
@@ -348,6 +421,10 @@
       )
       updateMarkerNoteLabel(marker.id, trimmed, noteLabelVisible)
       originalNotes = trimmed
+      // Flash the "✓ Saved" chip so the user knows it was reflected.
+      noteSavedFlash = true
+      clearTimeout(noteSavedTimer)
+      noteSavedTimer = setTimeout(() => (noteSavedFlash = false), 1600)
     } catch (error) {
       console.error("Error saving notes:", error)
     }
@@ -360,7 +437,11 @@
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
         m.id === marker.id
-          ? { ...m, noteLabelVisible: visible, updated_at: new Date().toISOString() }
+          ? {
+              ...m,
+              noteLabelVisible: visible,
+              updated_at: new Date().toISOString(),
+            }
           : m,
       ),
     )
@@ -432,9 +513,7 @@
   // confirmed-marker store so MapStateSaver preserves them on sync.
   function updateConfirmedMarkerPhotos(meta) {
     confirmedMarkersStore.update((markers) =>
-      markers.map((m) =>
-        m.id === marker?.id ? { ...m, photos: meta } : m,
-      ),
+      markers.map((m) => (m.id === marker?.id ? { ...m, photos: meta } : m)),
     )
   }
 
@@ -523,6 +602,23 @@
     panelOpen = false
   }
 
+  // Close the footer "+ Add" dropdown when tapping anywhere outside it.
+  function closeAddMenuOnOutside(e) {
+    if (
+      addMenuOpen &&
+      !e.target?.closest?.(".mp-action-btn.open") &&
+      !e.target?.closest?.(".mp-add-menu")
+    ) {
+      addMenuOpen = false
+    }
+  }
+
+  // Run an action picked from the footer "+ Add" menu, then close it.
+  function runAddAction(action) {
+    addMenuOpen = false
+    action()
+  }
+
   function handleDrawingFlowComplete(event) {
     if (
       shouldReopenAfterDrawing &&
@@ -544,6 +640,12 @@
     moving = !moving
     dragging = false
     liveCoords = null
+    dragTargetX = null
+    dragTargetY = null
+    if (dragRafId != null) {
+      cancelAnimationFrame(dragRafId)
+      dragRafId = null
+    }
     confirmDelete = false
     originalCoords = moving && marker ? [...marker.coordinates] : null
     const container = map.getContainer()
@@ -570,6 +672,8 @@
     }
   }
 
+  // Press on the marker icon (within its hit square) → drag the marker. The
+  // capture phase stops mapbox from starting a pan for that press.
   function onCanvasDragStart(e) {
     if (!marker || !isWithinIconArea(e)) return
     e.preventDefault()
@@ -639,10 +743,7 @@
       const rect = map.getContainer().getBoundingClientRect()
       const p = map.project(marker.coordinates)
       const off =
-        p.x < -4 ||
-        p.x > rect.width + 4 ||
-        p.y < -4 ||
-        p.y > rect.height + 4
+        p.x < -4 || p.x > rect.width + 4 || p.y < -4 || p.y > rect.height + 4
       if (off) {
         mapAttentionStore.add({
           id: `marker-focus-${marker.id}`,
@@ -669,10 +770,43 @@
     const clientX = e.touches?.[0]?.clientX ?? e.clientX
     const clientY = e.touches?.[0]?.clientY ?? e.clientY
     if (clientX == null || clientY == null) return
-    const ll = map.unproject([clientX - rect.left, clientY - rect.top])
-    liveCoords = [ll.lng, ll.lat]
-    moveSiloLive(marker.id, liveCoords)
-    position()
+    // Target = the cursor's position (screen px); the rAF loop eases the
+    // marker toward it so it glides instead of teleporting.
+    dragTargetX = clientX - rect.left
+    dragTargetY = clientY - rect.top
+    startDragLoop()
+  }
+
+  // Frame-rate-independent exponential ease toward the drag target.
+  function startDragLoop() {
+    if (dragRafId != null) return
+    lastDragFrame = performance.now()
+    const tick = (now) => {
+      dragRafId = null
+      if (
+        !dragging ||
+        !map ||
+        !marker ||
+        dragTargetX == null ||
+        dragTargetY == null
+      ) {
+        return
+      }
+      const dt = Math.min(50, now - lastDragFrame)
+      lastDragFrame = now
+      const alpha = 1 - Math.pow(1 - LERP_FACTOR, dt / 16.7)
+      const from = liveCoords || marker.coordinates
+      const cur = map.project(from)
+      const nx = cur.x + (dragTargetX - cur.x) * alpha
+      const ny = cur.y + (dragTargetY - cur.y) * alpha
+      const settled = Math.hypot(dragTargetX - nx, dragTargetY - ny) < 0.5
+      const ll = map.unproject(settled ? [dragTargetX, dragTargetY] : [nx, ny])
+      liveCoords = [ll.lng, ll.lat]
+      moveSiloLive(marker.id, liveCoords)
+      position()
+      if (!settled) dragRafId = requestAnimationFrame(tick)
+    }
+    dragRafId = requestAnimationFrame(tick)
   }
 
   function onDragEnd() {
@@ -760,6 +894,8 @@
       handleDrawingFlowComplete,
     )
     window.addEventListener("marker-drawing-selected", handleDrawingSelected)
+    // Close the footer "+ Add" dropdown when tapping anywhere else.
+    window.addEventListener("pointerdown", closeAddMenuOnOutside)
     if (!map) return
     map.on("move", position)
     map.on("zoom", position)
@@ -770,11 +906,16 @@
 
   onDestroy(() => {
     clearAttention()
+    if (dragRafId != null) {
+      cancelAnimationFrame(dragRafId)
+      dragRafId = null
+    }
     window.removeEventListener(
       "marker-drawing-flow-complete",
       handleDrawingFlowComplete,
     )
     window.removeEventListener("marker-drawing-selected", handleDrawingSelected)
+    window.removeEventListener("pointerdown", closeAddMenuOnOutside)
     if (pendingIconChange) {
       revertIconChange()
     }
@@ -801,280 +942,296 @@
 
 {#if panelOpen && marker}
   {#key marker.id}
-  <div
-    class="marker-pop"
-    class:moving={moving}
-    class:hidden={!visible || hideForEditor}
-    on:mousedown={onPanelDragStart}
-    on:touchstart={onPanelDragStart}
-    style="left:{left}px; top:{top}px;"
-    bind:this={markerPopEl}
-  >
-    <div class="marker-pop-head" on:click={handleHeaderClick}>
-      <div class="marker-pop-icon">
-        {#if displayIconClass === "default"}
-          <IconSVG icon="mapbox-marker" size="24px" />
-        {:else if displayIconClass?.startsWith("custom-svg")}
-          <IconSVG
-            icon={displayIconClass?.replace("custom-svg-", "")}
-            size="24px"
-          />
-        {:else if displayIconClass?.startsWith("ionic-")}
-          <ion-icon
-            name={displayIconClass?.replace("ionic-", "")}
-            style="font-size: 24px;"
-          ></ion-icon>
-        {:else}
-          <i class={`${displayIconClass} text-lg`}></i>
-        {/if}
-      </div>
-      <div class="marker-pop-titles">
-        <span class="marker-pop-title" title={markerName}>{markerName}</span>
-        {#if createdShort}
-          <span class="marker-pop-sub">Created {createdShort}</span>
-        {/if}
-      </div>
-      <button
-        class="marker-pop-close"
-        on:click={handleClose}
-        aria-label="Close marker panel"
-      >
-        <X size={16} />
-      </button>
-    </div>
-
-    {#if moving}
-      <div class="marker-pop-move-body">
-        <div class="marker-pop-hint">
-          <Hand size={16} />
-          <span>Click and drag to move</span>
-        </div>
-      </div>
-      <button class="marker-pop-place" on:click={placeMarker}>
-        <Check size={16} />
-        <span>Place</span>
-      </button>
-    {:else if view === "icon"}
-      <div class="mp-subhead">
-        <button class="mp-back" on:click={goMain}>
-          <ChevronLeft size={16} />
-          <span>Back</span>
-        </button>
-        <span class="mp-subhead-title">Icon</span>
-        {#if pendingIconChange}
-          <button class="mp-save-btn" on:click={confirmIcon}>
-            <Check size={14} />
-            <span>Save</span>
-          </button>
-        {:else}
-          <span class="mp-subhead-spacer"></span>
-        {/if}
-      </div>
-      <div class="marker-pop-body">
-        <div class="mp-icon-grid">
-          {#each selectableMarkers as icon}
-            <button
-              class="mp-icon-option"
-              class:selected={getIsIconSelected(icon)}
-              on:click={() => previewIcon(icon)}
-              title={icon.name}
-            >
-              {#if icon.id === "default"}
-                <IconSVG icon="mapbox-marker" size="22px" />
-              {:else if icon.class.startsWith("custom-svg")}
-                <IconSVG icon={icon.id} size="22px" />
-              {:else if icon.class.startsWith("ionic-")}
-                <ion-icon name={icon.id} style="font-size: 22px;"></ion-icon>
-              {:else}
-                <i class={`${icon.class} text-lg`}></i>
-              {/if}
-            </button>
-          {/each}
-        </div>
-      </div>
-    {:else}
-      <div class="marker-pop-body">
-        <div class="mp-main">
-          <div class="mp-section">
-            <div class="mp-section-head">
-              <span class="mp-section-title">
-                <FileText size={12} />
-                <span>Notes</span>
-              </span>
-              <label class="mp-label-toggle" title="Show note above marker">
-                <span class="mp-label-toggle-text">Show label</span>
-                <input
-                  type="checkbox"
-                  checked={noteLabelVisible}
-                  on:change={(e) => toggleNoteLabel(e.currentTarget.checked)}
-                />
-                <span class="mp-switch-track">
-                  <span class="mp-switch-thumb"></span>
-                </span>
-              </label>
-            </div>
-            <textarea
-              class="mp-notes-input"
-              rows="2"
-              maxlength="500"
-              placeholder="Add notes about this marker..."
-              bind:value={notesText}
-              on:change={saveNotes}
-            ></textarea>
-          </div>
-
-          <div class="mp-draw-wrap">
-            <DrawingPanel
-              bind:this={drawingPanelRef}
-              {map}
-              currentMarker={marker}
-              {getCurrentIconClass}
-              onStartDrawing={handleDrawingStart}
-              showDrawButtons={false}
-              hideWhenEmpty
-              onEditStart={() => (hideForEditor = true)}
-              onEditEnd={() => (hideForEditor = false)}
+    <div
+      class="marker-pop"
+      class:moving
+      class:hidden={!visible || hideForEditor}
+      class:down={!openUp}
+      on:mousedown={onPanelDragStart}
+      on:touchstart={onPanelDragStart}
+      style="left:{left}px; top:{top}px;"
+      bind:this={markerPopEl}
+    >
+      <div class="marker-pop-head" on:click={handleHeaderClick}>
+        <div class="marker-pop-icon">
+          {#if displayIconClass === "default"}
+            <IconSVG icon="mapbox-marker" size="24px" />
+          {:else if displayIconClass?.startsWith("custom-svg")}
+            <IconSVG
+              icon={displayIconClass?.replace("custom-svg-", "")}
+              size="24px"
             />
-          </div>
+          {:else if displayIconClass?.startsWith("ionic-")}
+            <ion-icon
+              name={displayIconClass?.replace("ionic-", "")}
+              style="font-size: 24px;"
+            ></ion-icon>
+          {:else}
+            <i class={`${displayIconClass} text-lg`}></i>
+          {/if}
+        </div>
+        <div class="marker-pop-titles">
+          <span class="marker-pop-title" title={markerName}>{markerName}</span>
+          {#if createdShort}
+            <span class="marker-pop-sub">Created {createdShort}</span>
+          {/if}
+        </div>
+        <button
+          class="marker-pop-close"
+          on:click={handleClose}
+          aria-label="Close marker panel"
+        >
+          <X size={16} />
+        </button>
+      </div>
 
-          {#if photos.length > 0}
+      {#if moving}
+        <div class="marker-pop-move-body">
+          <div class="marker-pop-hint">
+            <Hand size={16} />
+            <span>Click and drag to move</span>
+          </div>
+        </div>
+        <button class="marker-pop-place" on:click={placeMarker}>
+          <Check size={16} />
+          <span>Place</span>
+        </button>
+      {:else if view === "icon"}
+        <div class="mp-subhead">
+          <button class="mp-back" on:click={goMain}>
+            <ChevronLeft size={16} />
+            <span>Back</span>
+          </button>
+          <span class="mp-subhead-title">Icon</span>
+          {#if pendingIconChange}
+            <button class="mp-save-btn" on:click={confirmIcon}>
+              <Check size={14} />
+              <span>Save</span>
+            </button>
+          {:else}
+            <span class="mp-subhead-spacer"></span>
+          {/if}
+        </div>
+        <div class="marker-pop-body">
+          <div class="mp-icon-grid">
+            {#each selectableMarkers as icon}
+              <button
+                class="mp-icon-option"
+                class:selected={getIsIconSelected(icon)}
+                on:click={() => previewIcon(icon)}
+                title={icon.name}
+              >
+                {#if icon.id === "default"}
+                  <IconSVG icon="mapbox-marker" size="22px" />
+                {:else if icon.class.startsWith("custom-svg")}
+                  <IconSVG icon={icon.id} size="22px" />
+                {:else if icon.class.startsWith("ionic-")}
+                  <ion-icon name={icon.id} style="font-size: 22px;"></ion-icon>
+                {:else}
+                  <i class={`${icon.class} text-lg`}></i>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="marker-pop-body">
+          <div class="mp-main">
             <div class="mp-section">
               <div class="mp-section-head">
                 <span class="mp-section-title">
-                  <Camera size={12} />
-                  <span>Photos ({photos.length})</span>
+                  <FileText size={12} />
+                  <span>Notes</span>
                 </span>
-                {#if photosLoading}
-                  <span class="mp-photos-loading">…</span>
-                {/if}
-              </div>
-              <div class="mp-photo-grid">
-                {#each photos as p}
-                  <div
-                    class="mp-photo-thumb"
-                    style="background-image:url({p.url});"
-                    title="View photo"
-                    on:click={() => openPhoto(p)}
-                  >
-                    <button
-                      class="mp-photo-delete"
-                      on:click|stopPropagation={() => deletePhoto(p)}
-                      title="Delete photo"
-                      aria-label="Delete photo"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          <div class="mp-section">
-            <div class="mp-section-head">
-              <span class="mp-section-title">
-                <Plus size={12} />
-                <span>Add</span>
-              </span>
-            </div>
-            <div class="mp-add-grid">
-              <button
-                class="mp-add-tile"
-                on:click={takePhoto}
-                title="Add photo"
-                disabled={photoUploading}
-              >
-                {#if photoUploading}
-                  <span class="mp-photo-saving">
-                    <span class="mp-photo-spin"></span>
-                    <span>Saving…</span>
+                <label class="mp-label-toggle" title="Show map label above marker">
+                  <span class="mp-label-toggle-text">Map Label</span>
+                  <input
+                    type="checkbox"
+                    checked={noteLabelVisible}
+                    on:change={(e) => toggleNoteLabel(e.currentTarget.checked)}
+                  />
+                  <span class="mp-switch-track">
+                    <span class="mp-switch-thumb"></span>
                   </span>
+                </label>
+              </div>
+              {#if noteEditing}
+                <textarea
+                  bind:this={noteInputEl}
+                  class="mp-notes-input"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Add notes..."
+                  bind:value={notesText}
+                  on:keydown={onNotesKeydown}
+                  on:blur={finishNoteEdit}
+                ></textarea>
+              {:else}
+                <button
+                  class="mp-note-card"
+                  class:empty={!notesText}
+                  on:click={startNoteEdit}
+                  title="Tap to edit note"
+                >
+                  <span class="mp-note-card-pencil" aria-hidden="true">
+                    <Pencil size={11} />
+                  </span>
+                  <span class="mp-note-card-text">
+                    {notesText || "Tap to add a note…"}
+                  </span>
+                  <span
+                    class="mp-note-saved"
+                    class:show={noteSavedFlash}
+                    aria-hidden="true"
+                  >
+                    <Check size={11} />
+                    <span>Saved</span>
+                  </span>
+                </button>
+              {/if}
+            </div>
+
+            {#if photos.length > 0}
+              <div class="mp-section">
+                <div class="mp-section-head">
+                  <span class="mp-section-title">
+                    <Camera size={12} />
+                    <span>Photos ({photos.length})</span>
+                  </span>
+                  {#if photosLoading}
+                    <span class="mp-photos-loading">…</span>
+                  {/if}
+                </div>
+                <div class="mp-photo-grid">
+                  {#each photos as p}
+                    <div
+                      class="mp-photo-thumb"
+                      style="background-image:url({p.url});"
+                      title="View photo"
+                      on:click={() => openPhoto(p)}
+                    >
+                      <button
+                        class="mp-photo-delete"
+                        on:click|stopPropagation={() => deletePhoto(p)}
+                        title="Delete photo"
+                        aria-label="Delete photo"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <div class="mp-draw-wrap">
+              <DrawingPanel
+                bind:this={drawingPanelRef}
+                {map}
+                currentMarker={marker}
+                {getCurrentIconClass}
+                onStartDrawing={handleDrawingStart}
+                showDrawButtons={false}
+                hideWhenEmpty
+                onEditStart={() => (hideForEditor = true)}
+                onEditEnd={() => (hideForEditor = false)}
+              />
+            </div>
+
+            <div class="mp-delete-row">
+              <button
+                class="mp-delete-btn"
+                class:armed={confirmDelete}
+                on:click={confirmDelete ? doDelete : armDelete}
+                title={confirmDelete ? "Tap again to confirm" : "Delete marker"}
+              >
+                {#if confirmDelete}
+                  <Check size={14} />
+                  <span>Confirm delete?</span>
                 {:else}
-                  <Camera size={16} />
-                  <span>Photo</span>
+                  <Trash2 size={14} />
+                  <span>Delete marker</span>
                 {/if}
-              </button>
-              <button
-                class="mp-add-tile"
-                on:click={() => startDrawing("area")}
-              >
-                <Square size={16} />
-                <span>Draw area</span>
-              </button>
-              <button
-                class="mp-add-tile"
-                on:click={() => startDrawing("line")}
-              >
-                <Spline size={16} />
-                <span>Draw line</span>
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="mp-footer-row">
-        <button
-          class="mp-action-btn"
-          on:click={() => (view = "icon")}
-          title="Change icon"
-        >
-          <span class="mp-action-glyph">
-            {#if displayIconClass === "default"}
-              <IconSVG icon="mapbox-marker" size="16px" />
-            {:else if displayIconClass?.startsWith("custom-svg")}
-              <IconSVG
-                icon={displayIconClass?.replace("custom-svg-", "")}
-                size="16px"
-              />
-            {:else if displayIconClass?.startsWith("ionic-")}
-              <ion-icon
-                name={displayIconClass?.replace("ionic-", "")}
-                style="font-size: 16px;"
-              ></ion-icon>
-            {:else}
-              <i
-                class={`${displayIconClass}`}
-                style="font-size: 16px; line-height: 1;"
-              ></i>
-            {/if}
-          </span>
-          <span>Icon</span>
-        </button>
-        <button class="mp-action-btn accent" on:click={toggleMove}>
-          <span class="mp-action-glyph">
-            <Move size={16} />
-          </span>
-          <span>Move</span>
-        </button>
-        <div class="mp-foot-stack">
+        <div class="mp-footer-row">
           <button
-            class="mp-foot-mini"
-            class:copied={copiedCoords}
-            on:click={copyCoordinates}
-            title="Copy coordinates"
-            aria-label="Copy coordinates"
+            class="mp-action-btn"
+            on:click={() => (view = "icon")}
+            title="Change icon"
           >
-            {#if copiedCoords}
-              <Check size={14} />
-            {:else}
-              <MapPin size={14} />
-            {/if}
+            <span class="mp-action-glyph">
+              {#if displayIconClass === "default"}
+                <IconSVG icon="mapbox-marker" size="16px" />
+              {:else if displayIconClass?.startsWith("custom-svg")}
+                <IconSVG
+                  icon={displayIconClass?.replace("custom-svg-", "")}
+                  size="16px"
+                />
+              {:else if displayIconClass?.startsWith("ionic-")}
+                <ion-icon
+                  name={displayIconClass?.replace("ionic-", "")}
+                  style="font-size: 16px;"
+                ></ion-icon>
+              {:else}
+                <i
+                  class={`${displayIconClass}`}
+                  style="font-size: 16px; line-height: 1;"
+                ></i>
+              {/if}
+            </span>
+            <span>↻ Icon</span>
+          </button>
+          <button class="mp-action-btn accent" on:click={toggleMove}>
+            <span class="mp-action-glyph">
+              <Move size={16} />
+            </span>
+            <span>Move</span>
           </button>
           <button
-            class="mp-foot-mini danger"
-            class:armed={confirmDelete}
-            on:click={confirmDelete ? doDelete : armDelete}
-            title={confirmDelete ? "Tap again to confirm" : "Delete marker"}
-            aria-label="Delete marker"
+            class="mp-action-btn"
+            class:open={addMenuOpen}
+            on:click={() => (addMenuOpen = !addMenuOpen)}
+            title="Add photo or drawing"
+            aria-label="Add photo or drawing"
           >
-            <Trash2 size={14} />
+            <span class="mp-action-glyph">
+              <Plus size={16} />
+            </span>
+            <span>Add</span>
           </button>
+          {#if addMenuOpen}
+            <div class="mp-add-menu" role="menu" aria-label="Add options">
+              <button
+                class="mp-add-menu-item"
+                on:click={() => runAddAction(takePhoto)}
+                disabled={photoUploading}
+              >
+                <Camera size={15} />
+                <span>Photo</span>
+              </button>
+              <button
+                class="mp-add-menu-item"
+                on:click={() => runAddAction(() => startDrawing("area"))}
+              >
+                <Square size={15} />
+                <span>Draw area</span>
+              </button>
+              <button
+                class="mp-add-menu-item"
+                on:click={() => runAddAction(() => startDrawing("line"))}
+              >
+                <Spline size={15} />
+                <span>Draw line</span>
+              </button>
+            </div>
+          {/if}
         </div>
-      </div>
-
-    {/if}
-  </div>
+      {/if}
+    </div>
   {/key}
 {/if}
 
@@ -1089,7 +1246,7 @@
 
 {#if viewingPhoto}
   <PhotoLightbox
-    photos={photos}
+    {photos}
     index={viewerIndex}
     on:close={() => {
       viewingPhoto = null
@@ -1100,8 +1257,9 @@
 <style>
   /* FIXED panel height → consistent size across every view. */
   .marker-pop {
+    --pop-y: -100%;
     position: fixed;
-    transform: translate(-50%, -100%);
+    transform: translate(-50%, var(--pop-y));
     width: 250px;
     height: 360px;
     max-height: calc(100vh - 70px);
@@ -1117,6 +1275,10 @@
     flex-direction: column;
     gap: 8px;
     color: rgba(255, 255, 255, 0.92);
+  }
+  /* Near the top of the screen the menu flips to open downward. */
+  .marker-pop.down {
+    --pop-y: 0%;
   }
   .marker-pop.hidden {
     opacity: 0;
@@ -1134,11 +1296,11 @@
   @keyframes mp-pop-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -100%) scale(0.94);
+      transform: translate(-50%, var(--pop-y)) scale(0.94);
     }
     to {
       opacity: 1;
-      transform: translate(-50%, -100%) scale(1);
+      transform: translate(-50%, var(--pop-y)) scale(1);
     }
   }
   .marker-pop.moving:active {
@@ -1243,11 +1405,16 @@
     width: 1px;
   }
 
-  /* Body fills the remaining fixed panel height, scrolls when needed. */
+  /* Body fills the remaining fixed panel height, scrolls when needed.
+     Bottom padding keeps the last item's border from being clipped by the
+     scroll viewport edge when the content overflows. overflow-x is clipped
+     so nothing in the menu ever needs horizontal scrolling. */
   .marker-pop-body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 8px;
   }
   .mp-section {
     display: flex;
@@ -1285,6 +1452,98 @@
   }
   .mp-notes-input:focus {
     border-color: rgba(96, 165, 250, 0.7);
+  }
+
+  /* Official note card — the collapsed, read-only display of the note.
+     Left accent border + pencil affordance read like a memo/record. */
+  .mp-note-card {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    padding: 9px 11px 10px 12px;
+    border-radius: 9px;
+    border: 1px solid rgba(96, 165, 250, 0.26);
+    border-left: 3px solid rgba(96, 165, 250, 0.65);
+    background: linear-gradient(
+      180deg,
+      rgba(96, 165, 250, 0.09),
+      rgba(96, 165, 250, 0.04)
+    );
+    color: rgba(255, 255, 255, 0.88);
+    text-align: left;
+    cursor: text;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease;
+  }
+  .mp-note-card:hover {
+    border-color: rgba(96, 165, 250, 0.45);
+    background: linear-gradient(
+      180deg,
+      rgba(96, 165, 250, 0.14),
+      rgba(96, 165, 250, 0.07)
+    );
+  }
+  .mp-note-card-pencil {
+    position: absolute;
+    top: 50%;
+    right: 9px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(147, 197, 253, 0.7);
+    pointer-events: none;
+  }
+  .mp-note-card-text {
+    min-width: 0;
+    padding-right: 14px; /* keep text clear of the pencil */
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .mp-note-card.empty .mp-note-card-text {
+    color: rgba(255, 255, 255, 0.35);
+    font-style: italic;
+  }
+
+  /* Brief "✓ Saved" chip that pops over the card after confirming.
+     Kept inside the card's right edge so it never causes horizontal
+     overflow in the scroll body. */
+  .mp-note-saved {
+    position: absolute;
+    top: -7px;
+    right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.95);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    opacity: 0;
+    transform: translateY(3px);
+    pointer-events: none;
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease;
+    z-index: 2;
+  }
+  .mp-note-saved.show {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .mp-label-toggle {
@@ -1354,44 +1613,77 @@
     gap: 6px;
     height: 52px;
     flex-shrink: 0;
+    position: relative;
   }
-  .mp-foot-stack {
-    flex: 1;
+  .mp-action-btn.open {
+    background: rgba(96, 165, 250, 0.32);
+    border-color: rgba(147, 197, 253, 0.75);
+  }
+  .mp-add-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    min-width: 132px;
+    padding: 5px;
+    gap: 2px;
+    border-radius: 10px;
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    background: rgba(10, 16, 30, 0.98);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    z-index: 10;
   }
-  .mp-foot-mini {
+  .mp-add-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .mp-add-menu-item:hover {
+    background: rgba(96, 165, 250, 0.18);
+  }
+  .mp-add-menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* Delete marker — subtle danger row at the bottom of the main view */
+  .mp-delete-row {
+    display: flex;
+  }
+  .mp-delete-btn {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 7px;
-    border: 1px solid rgba(96, 165, 250, 0.35);
-    background: rgba(96, 165, 250, 0.1);
-    color: #bfdbfe;
+    gap: 7px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+    color: rgba(252, 165, 165, 0.85);
+    font-size: 11px;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.15s ease;
   }
-  .mp-foot-mini:hover {
-    background: rgba(96, 165, 250, 0.22);
+  .mp-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.16);
   }
-  .mp-foot-mini.copied {
-    border-color: rgba(34, 197, 94, 0.6);
-    background: rgba(34, 197, 94, 0.18);
-    color: #86efac;
-  }
-  .mp-foot-mini.danger {
-    border-color: rgba(239, 68, 68, 0.4);
-    background: rgba(239, 68, 68, 0.1);
-    color: #fca5a5;
-  }
-  .mp-foot-mini.danger:hover {
-    background: rgba(239, 68, 68, 0.2);
-  }
-  .mp-foot-mini.danger.armed {
-    background: rgba(239, 68, 68, 0.85);
+  .mp-delete-btn.armed {
+    background: rgba(239, 68, 68, 0.9);
     color: #fff;
+    border-color: rgba(239, 68, 68, 0.9);
   }
   .mp-action-btn {
     flex: 1;
@@ -1624,12 +1916,15 @@
     background: rgba(255, 255, 255, 0.08);
     pointer-events: none;
     z-index: 1001;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
   .marker-origin.moved {
     background: rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.75);
-    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 0, 0, 0.35),
       0 0 0 5px rgba(0, 0, 0, 0.18);
   }
 </style>

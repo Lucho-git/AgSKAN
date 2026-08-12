@@ -114,32 +114,40 @@
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }
 
-  // Apply a drawing selection that came from clicking a drawing on the map
-  // (the menu may not have been mounted yet, so we consume it once alive).
-  function applyPendingDrawingSelection(pending) {
+  // Latest pending selection (map click or just-created drawing). Applied once
+  // the drawing is present in the list — the realtime refetch may lag behind
+  // the event, so we retry whenever the list updates.
+  let pendingSelection = null
+
+  function tryApplyPendingSelection() {
+    const pending = pendingSelection
     if (!pending || pending.markerId !== currentMarker?.id) return
     const drawing = savedDrawings.find((d) => d.id === pending.drawingId)
-    if (drawing) {
-      selectedDrawingId = drawing.id
-      window.dispatchEvent(
-        new CustomEvent("marker-drawing-selected", {
-          detail: {
-            drawingId: drawing.id,
-            bounds: pending.bounds || getDrawingBounds(drawing.geometry),
-          },
-        }),
-      )
-      scrollToSelectedDrawing()
-    }
+    if (!drawing) return // not loaded yet — retry on the next store update
+    selectedDrawingId = drawing.id
+    window.dispatchEvent(
+      new CustomEvent("marker-drawing-selected", {
+        detail: {
+          drawingId: drawing.id,
+          bounds: pending.bounds || getDrawingBounds(drawing.geometry),
+        },
+      }),
+    )
+    scrollToSelectedDrawing()
+    pendingSelection = null
     pendingDrawingSelection.set(null)
   }
+
+  // Retry once the list settles (covers just-created drawings whose refetch
+  // hasn't landed yet).
+  $: if (savedDrawings.length) tryApplyPendingSelection()
 
   onMount(() => {
     // A drawing clicked on the map may arrive before this panel is mounted;
     // consume it once we're alive (drawings come from the global store).
     const unsubscribePending = pendingDrawingSelection.subscribe((pending) => {
-      if (!pending || pending.markerId !== currentMarker?.id) return
-      applyPendingDrawingSelection(pending)
+      pendingSelection = pending
+      tryApplyPendingSelection()
     })
 
     return () => {

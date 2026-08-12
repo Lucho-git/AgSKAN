@@ -24,6 +24,10 @@
   let fill = 0
   let contents = ""
   let lastMarkerId = null
+  // True while the panel opens upward; flips to downward near the top of the
+  // screen so the whole panel stays on screen in every state.
+  let openUp = true
+  let siloPopEl = null
 
   // ── Move mode: drag the silo to a new location ──
   let moving = false
@@ -38,6 +42,13 @@
 
   // Half-size (px) of the hit square around the icon that starts a move.
   const ICON_DRAG_HALF = 26
+  // Smooth lerp follow: the silo eases toward the cursor's position each
+  // frame so it glides (snap-to-cursor without the jarring teleport).
+  const LERP_FACTOR = 0.35
+  let dragTargetX = null
+  let dragTargetY = null
+  let dragRafId = null
+  let lastDragFrame = 0
 
   $: markerName = marker?.notes?.trim() || "Silo"
 
@@ -61,16 +72,48 @@
       const container = map.getContainer()
       const rect = container.getBoundingClientRect()
       const p = map.project(coords)
-      // Centre the panel horizontally, sit its bottom just above the icon.
-      left = Math.min(
-        Math.max(rect.left + p.x, rect.left + 8),
-        rect.left + rect.width - 8,
-      )
-      top = Math.max(rect.top + p.y - 44, 8)
+
+      // Menu box dimensions (matches .silo-pop; measured once rendered).
+      const menuW = 256
+      const menuH = siloPopEl?.offsetHeight || 264
+
+      // Keep the on/off-screen tests on the raw marker point.
       visible =
         p.x > -40 && p.x < rect.width + 40 && p.y > 60 && p.y < rect.height + 40
       offscreen =
         p.x < -4 || p.x > rect.width + 4 || p.y < -4 || p.y > rect.height + 4
+
+      // While moving: no flip, no clamp — the panel tracks the silo freely
+      // (even off-screen) so you can see exactly where it sits relative to the
+      // viewport edges and pick the spot to lock in. Keep whichever
+      // orientation it opened with so the silo sits just OUTSIDE the panel's
+      // near edge: below an up panel, above a down panel.
+      if (moving) {
+        left = rect.left + p.x
+        top = rect.top + (openUp ? p.y - 44 : p.y + 44)
+      } else {
+        // Vertically: open upward (panel sits above the silo) by default, but
+        // flip to open downward when there isn't enough room above, so the
+        // whole panel stays on screen.
+        openUp = p.y - 44 - menuH >= 8
+        let anchorY = openUp ? p.y - 44 : p.y + 44
+        if (openUp) {
+          anchorY = Math.max(anchorY, menuH + 8)
+          anchorY = Math.min(anchorY, rect.height - 8)
+        } else {
+          anchorY = Math.max(anchorY, 8)
+          anchorY = Math.min(anchorY, rect.height - menuH - 8)
+        }
+        // Horizontally: keep the panel centered on the silo, but shift it so
+        // the panel never leaves the screen edges.
+        let px = Math.min(
+          Math.max(p.x, menuW / 2 + 8),
+          rect.width - menuW / 2 - 8,
+        )
+
+        left = rect.left + px
+        top = rect.top + anchorY
+      }
       // Project the original position for the grey "moved from" ring.
       if (moving && originalCoords) {
         const op = map.project(originalCoords)
@@ -113,6 +156,12 @@
     moving = !moving
     dragging = false
     liveCoords = null
+    dragTargetX = null
+    dragTargetY = null
+    if (dragRafId != null) {
+      cancelAnimationFrame(dragRafId)
+      dragRafId = null
+    }
     confirmDelete = false
     originalCoords = moving && marker ? [...marker.coordinates] : null
     const container = map.getContainer()
@@ -203,10 +252,43 @@
     const clientX = e.touches?.[0]?.clientX ?? e.clientX
     const clientY = e.touches?.[0]?.clientY ?? e.clientY
     if (clientX == null || clientY == null) return
-    const ll = map.unproject([clientX - rect.left, clientY - rect.top])
-    liveCoords = [ll.lng, ll.lat]
-    moveSiloLive(marker.id, liveCoords)
-    position()
+    // Target = the cursor's position (screen px); the rAF loop eases the silo
+    // toward it so it glides instead of teleporting.
+    dragTargetX = clientX - rect.left
+    dragTargetY = clientY - rect.top
+    startDragLoop()
+  }
+
+  // Frame-rate-independent exponential ease toward the drag target.
+  function startDragLoop() {
+    if (dragRafId != null) return
+    lastDragFrame = performance.now()
+    const tick = (now) => {
+      dragRafId = null
+      if (
+        !dragging ||
+        !map ||
+        !marker ||
+        dragTargetX == null ||
+        dragTargetY == null
+      ) {
+        return
+      }
+      const dt = Math.min(50, now - lastDragFrame)
+      lastDragFrame = now
+      const alpha = 1 - Math.pow(1 - LERP_FACTOR, dt / 16.7)
+      const from = liveCoords || marker.coordinates
+      const cur = map.project(from)
+      const nx = cur.x + (dragTargetX - cur.x) * alpha
+      const ny = cur.y + (dragTargetY - cur.y) * alpha
+      const settled = Math.hypot(dragTargetX - nx, dragTargetY - ny) < 0.5
+      const ll = map.unproject(settled ? [dragTargetX, dragTargetY] : [nx, ny])
+      liveCoords = [ll.lng, ll.lat]
+      moveSiloLive(marker.id, liveCoords)
+      position()
+      if (!settled) dragRafId = requestAnimationFrame(tick)
+    }
+    dragRafId = requestAnimationFrame(tick)
   }
 
   function onDragEnd() {
@@ -265,6 +347,10 @@
   })
 
   onDestroy(() => {
+    if (dragRafId != null) {
+      cancelAnimationFrame(dragRafId)
+      dragRafId = null
+    }
     clearAttention()
     if (!map) return
     map.off("move", position)
@@ -292,9 +378,11 @@
   <div
     class="silo-pop"
     class:moving={moving}
+    class:down={!openUp}
     on:mousedown={onPanelDragStart}
     on:touchstart={onPanelDragStart}
     style="left:{left}px; top:{top}px;"
+    bind:this={siloPopEl}
   >
     <div class="silo-pop-head">
       <div class="silo-pop-icon">
@@ -412,8 +500,9 @@
 
 <style>
   .silo-pop {
+    --pop-y: -100%;
     position: fixed;
-    transform: translate(-50%, -100%);
+    transform: translate(-50%, var(--pop-y));
     width: 256px;
     min-height: 232px;
     z-index: 1001;
@@ -427,6 +516,10 @@
     flex-direction: column;
     gap: 10px;
     color: rgba(255, 255, 255, 0.92);
+  }
+  /* Near the top of the screen the panel flips to open downward. */
+  .silo-pop.down {
+    --pop-y: 0%;
   }
   .silo-pop-head {
     display: flex;
