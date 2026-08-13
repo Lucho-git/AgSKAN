@@ -10,6 +10,7 @@
 -->
 <script>
   import { onMount, onDestroy } from "svelte"
+  import { Shuffle } from "lucide-svelte"
   // mapbox-gl ships no types; the rest of the app imports it untyped too.
   // @ts-ignore
   import * as mapboxgl from "mapbox-gl"
@@ -231,6 +232,53 @@
   /** @type {any} */
   let setupPoll = null
 
+  let randomizedFlash = false
+  /** @type {any} */
+  let randomizeFlashTimer = null
+
+  // Re-shuffle every grid icon's colour (keeping the current style) and
+  // rebuild the tinted images so the grid uses the new colours.
+  async function randomizeColors() {
+    if (!mapReady || !map || !map.getSource("survey-markers")) return
+    // 1) New random rainbow colour for every icon (never default).
+    for (const item of renderableIcons) {
+      const colorDef =
+        MARKER_COLORS[
+          1 + Math.floor(Math.random() * (MARKER_COLORS.length - 1))
+        ]
+      item.colorKey = colorDef?.key || MARKER_COLOR_DEFAULT
+    }
+    // 2) Drop all cached tinted images (they were tinted with the old
+    //    colours). Clear the source data first so no layer references them
+    //    — mapbox-gl's removeImage rejects images still in use.
+    map.getSource("survey-markers").setData({
+      type: "FeatureCollection",
+      features: [],
+    })
+    for (const styleKey of styleImages.keys()) {
+      const images = styleImages.get(styleKey)
+      if (!images) continue
+      for (const name of images.values()) {
+        if (name && name !== "survey-default" && map.hasImage(name)) {
+          try {
+            map.removeImage(name)
+          } catch (e) {
+            /* already removed */
+          }
+        }
+      }
+    }
+    styleImages.clear()
+    // 3) Rebuild the current style with the new colours.
+    await applyStyle(activeStyle)
+    // 4) Brief visual feedback on the button.
+    randomizedFlash = true
+    if (randomizeFlashTimer) clearTimeout(randomizeFlashTimer)
+    randomizeFlashTimer = setTimeout(() => {
+      randomizedFlash = false
+    }, 1500)
+  }
+
   // Register the source + layer, build the grid, and show the first style.
   async function runMapSetup() {
     if (setupStarted) return
@@ -318,6 +366,10 @@
     if (setupPoll) {
       clearInterval(setupPoll)
       setupPoll = null
+    }
+    if (randomizeFlashTimer) {
+      clearTimeout(randomizeFlashTimer)
+      randomizeFlashTimer = null
     }
     if (map) {
       try {
@@ -416,6 +468,15 @@
           </button>
         {/each}
       </div>
+      <button
+        class="survey-randomize"
+        on:click={randomizeColors}
+        disabled={!mapReady}
+        title="Shuffle the marker colours"
+      >
+        <Shuffle size={14} />
+        <span>{randomizedFlash ? "Randomized!" : "Randomize colours"}</span>
+      </button>
     </div>
 
     <div class="survey-map" bind:this={mapContainer}>
@@ -438,10 +499,11 @@
   <div class="survey-card survey-phasing">
     <h2>Markers we're phasing out</h2>
     <p class="survey-card-desc">
-      As part of the redesign we're moving away from the marker styles below.
-      They'll still be available on your farm for a while, but soon new ones
-      won't be able to be selected. If one of these markers has been used a
-      lot, we'll do our best to find a replacement for it.
+      We're phasing these out because of their <strong>thin line style</strong>
+      — not because the concepts aren't useful. Every concept here will get a
+      replacement in a bold, full-fill style that matches our new coloured
+      markers. They'll still be available on your farm for a while, but soon
+      new ones won't be able to be selected.
     </p>
     <div class="survey-atlas-grid">
       {#each atlasMarkers as m}
@@ -617,6 +679,30 @@
     background: #2563eb;
     border-color: #2563eb;
     color: #fff;
+  }
+
+  .survey-randomize {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px dashed #94a3b8;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .survey-randomize:hover:not(:disabled) {
+    border-color: #16a34a;
+    color: #15803d;
+    background: #f0fdf4;
+  }
+  .survey-randomize:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .survey-map {
