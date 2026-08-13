@@ -443,14 +443,14 @@
     <p>
       We're redesigning the on-farm markers — and adding
       <strong>colour</strong>, which our markers have never had before. We'd
-      love your opinion on the new look. Below is a live map of a real farm
-      with every marker icon on display. Use the buttons to switch between the
-      6 styles, and zoom or pan around to see how each style looks up close
-      and from a distance.
+      love your opinion on the new look. Below is a live map of a real farm with
+      every marker icon on display. Use the buttons to switch between the 6
+      styles, and zoom or pan around to see how each style looks up close and
+      from a distance.
     </p>
     <p class="survey-sub">
-      Then tell us your <strong>top 3 styles</strong>, suggest any icons
-      you'd love to see, and leave any comments for the harvest.
+      Then tell us your <strong>top 3 styles</strong>, suggest any icons you'd
+      love to see, and leave any comments for the harvest.
     </p>
   </div>
 
@@ -500,10 +500,10 @@
     <h2>Markers we're phasing out</h2>
     <p class="survey-card-desc">
       We're phasing these out because of their <strong>thin line style</strong>
-      — not because the concepts aren't useful. Every concept here will get a
-      replacement in a bold, full-fill style that matches our new coloured
-      markers. They'll still be available on your farm for a while, but soon
-      new ones won't be able to be selected.
+      — not because the concepts aren't useful. A lot of concepts here will get a
+      replacement in a bold, full-fill style that matches our new coloured markers.
+      They'll still be available on your farm for a while, but soon new ones won't
+      be able to be selected.
     </p>
     <div class="survey-atlas-grid">
       {#each atlasMarkers as m}
@@ -555,8 +555,8 @@
     <div class="survey-card">
       <h2>New icon suggestions</h2>
       <p class="survey-card-desc">
-        Any markers or icons you'd love to see added? (e.g. a windmill, a
-        dam, a specific crop…)
+        Any markers or icons you'd love to see added? (e.g. a windmill, a dam, a
+        specific crop…)
       </p>
       <textarea
         class="survey-textarea"
