@@ -23,6 +23,7 @@
   import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
   import { SILO_GRAIN_DEFAULT } from "./markers/siloPalette"
+  import { MARKER_COLOR_DEFAULT, TINT_MODE_DEFAULT } from "./markers/markerPalette"
   import {
     persistPendingMarkerChange,
     persistPendingMarkerDeletion,
@@ -181,6 +182,11 @@
         grainType: newData.marker_data?.properties?.grain_type ?? "",
         grainColor:
           newData.marker_data?.properties?.grain_color ?? SILO_GRAIN_DEFAULT,
+        markerColor:
+          newData.marker_data?.properties?.marker_color ??
+          MARKER_COLOR_DEFAULT,
+        tintMode:
+          newData.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
         capacityTonnes:
           newData.marker_data?.properties?.capacity_tonnes ?? 0,
         created_at: newData.last_confirmed || newData.created_at,
@@ -228,6 +234,8 @@
         siloFill: processedMarker.siloFill,
         grainType: processedMarker.grainType,
         grainColor: processedMarker.grainColor,
+        markerColor: processedMarker.markerColor,
+        tintMode: processedMarker.tintMode,
         capacityTonnes: processedMarker.capacityTonnes,
         created_at: processedMarker.created_at,
       })
@@ -301,6 +309,8 @@
         lastKnown.siloFill !== marker.siloFill ||
         lastKnown.grainType !== marker.grainType ||
         lastKnown.grainColor !== marker.grainColor ||
+        lastKnown.markerColor !== marker.markerColor ||
+        lastKnown.tintMode !== marker.tintMode ||
         lastKnown.capacityTonnes !== marker.capacityTonnes
       ) {
         pendingChanges.add(id)
@@ -335,6 +345,8 @@
         siloFill: marker.siloFill,
         grainType: marker.grainType,
         grainColor: marker.grainColor,
+        markerColor: marker.markerColor,
+        tintMode: marker.tintMode,
         capacityTonnes: marker.capacityTonnes,
       })
     })
@@ -526,6 +538,11 @@
             grainColor:
               marker.marker_data?.properties?.grain_color ??
               SILO_GRAIN_DEFAULT,
+            markerColor:
+              marker.marker_data?.properties?.marker_color ??
+              MARKER_COLOR_DEFAULT,
+            tintMode:
+              marker.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
             capacityTonnes:
               marker.marker_data?.properties?.capacity_tonnes ?? 0,
             photos: marker.marker_data?.properties?.photos || [],
@@ -636,6 +653,8 @@
               silo_fill: marker.siloFill ?? 0,
               grain_type: marker.grainType || "",
               grain_color: marker.grainColor || SILO_GRAIN_DEFAULT,
+              marker_color: marker.markerColor || MARKER_COLOR_DEFAULT,
+              tint_mode: marker.tintMode || TINT_MODE_DEFAULT,
               capacity_tonnes: marker.capacityTonnes ?? 0,
               photos: marker.photos || [],
             },

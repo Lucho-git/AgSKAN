@@ -43,6 +43,12 @@
   } from "$lib/data/markerDefinitions"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
+  import {
+    MARKER_COLORS,
+    MARKER_COLOR_DEFAULT,
+    TINT_MODES,
+    TINT_MODE_DEFAULT,
+  } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import PhotoLightbox from "$lib/components/map/markers/PhotoLightbox.svelte"
 
@@ -124,6 +130,38 @@
   let pendingMarkerId = null
   let previewIconClass = null
 
+  // ── Marker colour (option A: runtime-tinted icons) ──
+  let markerColorKey = MARKER_COLOR_DEFAULT
+  let markerTintMode = TINT_MODE_DEFAULT
+
+  function setMarkerColor(/** @type {string} */ key) {
+    if (!marker) return
+    markerColorKey = key
+    // Commit to the store so MapStateSaver persists it (marker_color) and
+    // refreshMapMarkers swaps the icon to the tinted variant.
+    confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
+      markers.map((/** @type {any} */ m) =>
+        m.id === marker.id
+          ? { ...m, markerColor: key, updated_at: new Date().toISOString() }
+          : m,
+      ),
+    )
+  }
+
+  function setTintMode(/** @type {string} */ key) {
+    if (!marker) return
+    markerTintMode = key
+    // Commit to the store so MapStateSaver persists it (tint_mode) and
+    // refreshMapMarkers re-renders the icon with the new mode.
+    confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
+      markers.map((/** @type {any} */ m) =>
+        m.id === marker.id
+          ? { ...m, tintMode: key, updated_at: new Date().toISOString() }
+          : m,
+      ),
+    )
+  }
+
   let confirmDelete = false
 
   // ── Photos ──
@@ -159,6 +197,8 @@
       notesText = marker?.notes || ""
       originalNotes = marker?.notes || ""
       noteLabelVisible = marker?.noteLabelVisible !== false
+      markerColorKey = marker?.markerColor || MARKER_COLOR_DEFAULT
+      markerTintMode = marker?.tintMode || TINT_MODE_DEFAULT
       noteEditing = false
       noteSavedFlash = false
       openUp = true
@@ -1138,6 +1178,44 @@
               />
             </div>
 
+            <div class="mp-section">
+              <div class="mp-section-head">
+                <span class="mp-section-title">
+                  <MapPin size={12} />
+                  <span>Color</span>
+                </span>
+              </div>
+              <div class="mp-color-swatches">
+                {#each MARKER_COLORS as c}
+                  <button
+                    class="mp-color-swatch"
+                    class:active={markerColorKey === c.key}
+                    style="background: {c.light}; border-color: {c.key ===
+                    MARKER_COLOR_DEFAULT
+                      ? '#9ca3af'
+                      : c.dark};"
+                    title={c.label}
+                    aria-label={`Marker colour ${c.label}`}
+                    on:click={() => setMarkerColor(c.key)}
+                  ></button>
+                {/each}
+              </div>
+              {#if markerColorKey !== MARKER_COLOR_DEFAULT}
+                <div class="mp-tint-modes">
+                  {#each TINT_MODES as m}
+                    <button
+                      class="mp-tint-mode"
+                      class:active={markerTintMode === m.key}
+                      on:click={() => setTintMode(m.key)}
+                      title={m.label}
+                    >
+                      {m.label}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
             <div class="mp-delete-row">
               <button
                 class="mp-delete-btn"
@@ -1660,6 +1738,51 @@
   /* Delete marker — subtle danger row at the bottom of the main view */
   .mp-delete-row {
     display: flex;
+  }
+  .mp-color-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .mp-color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mp-color-swatch:hover {
+    transform: scale(1.12);
+  }
+  .mp-color-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+  }
+  .mp-tint-modes {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .mp-tint-mode {
+    flex: 1;
+    padding: 5px 4px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mp-tint-mode:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .mp-tint-mode.active {
+    border-color: rgba(96, 165, 250, 0.7);
+    background: rgba(96, 165, 250, 0.18);
+    color: #fff;
   }
   .mp-delete-btn {
     flex: 1;

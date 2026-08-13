@@ -19,6 +19,13 @@
   } from "$lib/data/markerDefinitions"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
+  import {
+    MARKER_COLORS,
+    MARKER_COLOR_DEFAULT,
+    TINT_MODES,
+    TINT_MODE_DEFAULT,
+  } from "./markerPalette"
+  import TintedIconPreview from "./TintedIconPreview.svelte"
 
   export let map
   export let getCurrentIconClass
@@ -42,6 +49,26 @@
   // Track if we should re-open after drawing
   let shouldReopenAfterDrawing = false
   let previousMarkerId = null
+
+  // ── Colour + style selection for new markers (test mode) ──
+  // Lets the user preview every icon in a chosen colour + tint mode against
+  // the live farm map (panel turns translucent when "Test" is enabled). The
+  // chosen colour/style is persisted on the new marker on confirm.
+  let pickerColorKey = MARKER_COLOR_DEFAULT
+  let pickerTintMode = TINT_MODE_DEFAULT
+  let testMode = false
+
+  function setPickerColor(/** @type {string} */ key) {
+    pickerColorKey = key
+  }
+
+  function setPickerTintMode(/** @type {string} */ key) {
+    pickerTintMode = key
+  }
+
+  function toggleTestMode() {
+    testMode = !testMode
+  }
 
   // Unified notes state
   let markerNotes = ""
@@ -414,6 +441,8 @@
       iconClass,
       notes: markerNotes.trim() || undefined,
       noteLabelVisible: true,
+      markerColor: pickerColorKey,
+      tintMode: pickerTintMode,
       created_at: new Date().toISOString(),
     }
 
@@ -651,7 +680,11 @@
 
 <!-- Marker Panel -->
 {#if !shouldReopenAfterDrawing}
-  <div class="marker-panel" class:expanded={isExpanded}>
+  <div
+    class="marker-panel"
+    class:expanded={isExpanded}
+    class:test-mode={testMode}
+  >
     <!-- Edit Section -->
     {#if isExpanded && showEditMenu}
       <div class="icon-section">
@@ -690,6 +723,61 @@
           </div>
         {/if}
 
+        {#if selectedMarkerIsNew}
+          <div class="picker-toolbar">
+            <div class="picker-row">
+              <span class="picker-label">Colour</span>
+              <div class="picker-swatches">
+                {#each MARKER_COLORS as c}
+                  <button
+                    class="picker-swatch"
+                    class:active={pickerColorKey === c.key}
+                    style="background: {c.light}; border-color: {c.key ===
+                    MARKER_COLOR_DEFAULT
+                      ? '#9ca3af'
+                      : c.dark};"
+                    title={c.label}
+                    aria-label={`Marker colour ${c.label}`}
+                    on:click={() => setPickerColor(c.key)}
+                  ></button>
+                {/each}
+              </div>
+            </div>
+            <div class="picker-row">
+              <span class="picker-label">Style</span>
+              <div class="picker-modes">
+                {#each TINT_MODES as m}
+                  <button
+                    class="picker-mode"
+                    class:active={pickerTintMode === m.key}
+                    on:click={() => setPickerTintMode(m.key)}
+                    title={m.label}
+                  >
+                    {m.label}
+                  </button>
+                {/each}
+              </div>
+              <button
+                class="test-toggle"
+                class:active={testMode}
+                on:click={toggleTestMode}
+                title="Turn the panel translucent to preview every icon against the map"
+              >
+                <RefreshCw size={13} />
+                <span>Test</span>
+              </button>
+            </div>
+            {#if testMode}
+              <div class="picker-test-hint">
+                Previewing every icon as {pickerColorKey === MARKER_COLOR_DEFAULT
+                  ? "the default colour"
+                  : pickerColorKey}{" "}
+                / {pickerTintMode} against the map — the panel is translucent.
+              </div>
+            {/if}
+          </div>
+        {/if}
+
         <div class="icon-grid-container">
           <div class="icon-grid">
             {#each selectableMarkers as icon}
@@ -698,7 +786,14 @@
                 class:selected={getIsIconSelected(icon)}
                 on:click={() => handleIconPreview(icon)}
               >
-                {#if icon.id === "default"}
+                {#if testMode}
+                  <TintedIconPreview
+                    icon={icon}
+                    colorKey={pickerColorKey}
+                    mode={pickerTintMode}
+                    size={56}
+                  />
+                {:else if icon.id === "default"}
                   <IconSVG icon="mapbox-marker" size="28px" />
                 {:else if icon.class.startsWith("custom-svg")}
                   <IconSVG icon={icon.id} size="28px" />
@@ -984,6 +1079,134 @@
   .info-section {
     padding: 16px 20px 0;
     overflow-y: auto;
+  }
+
+  /* ── Test mode: translucent panel so every icon can be previewed against
+     the live map behind it ── */
+  .marker-panel.test-mode {
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(3px);
+  }
+  .marker-panel.test-mode .icon-section {
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.42),
+      rgba(0, 0, 0, 0.3)
+    );
+  }
+  .marker-panel.test-mode .icon-option {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .marker-panel.test-mode .icon-option:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .marker-panel.test-mode .icon-option.selected {
+    background: rgba(96, 165, 250, 0.28);
+    border-color: #60a5fa;
+  }
+  .marker-panel.test-mode .control-bar {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+
+  /* ── Colour + style picker toolbar (new-marker test mode) ── */
+  .picker-toolbar {
+    flex-shrink: 0;
+    padding: 8px 20px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .picker-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    width: 44px;
+  }
+  .picker-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+  }
+  .picker-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .picker-swatch:hover {
+    transform: scale(1.12);
+  }
+  .picker-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+  }
+  .picker-modes {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+  }
+  .picker-mode {
+    flex: 1;
+    padding: 5px 4px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .picker-mode:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .picker-mode.active {
+    border-color: rgba(96, 165, 250, 0.7);
+    background: rgba(96, 165, 250, 0.18);
+    color: #fff;
+  }
+  .test-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .test-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .test-toggle.active {
+    border-color: rgba(52, 211, 153, 0.8);
+    background: rgba(52, 211, 153, 0.18);
+    color: #6ee7b7;
+  }
+  .picker-test-hint {
+    font-size: 11px;
+    color: #6ee7b7;
+    padding-bottom: 2px;
   }
 
   /* Marker Settings Section (unified panel: title → notes → drawings → location) */

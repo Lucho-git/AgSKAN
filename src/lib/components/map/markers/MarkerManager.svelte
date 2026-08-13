@@ -17,6 +17,7 @@
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { userVehicleStore } from "$lib/stores/vehicleStore"
+  import { markerTestStore } from "$lib/stores/markerTestStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { get } from "svelte/store"
@@ -31,6 +32,18 @@
     SILO_GRAIN_DEFAULT,
     siloGrainColor,
   } from "./siloPalette"
+  import {
+    MARKER_COLORS,
+    MARKER_COLOR_DEFAULT,
+    markerColor,
+    TINT_MODE_DEFAULT,
+    tintMode,
+  } from "./markerPalette"
+  import {
+    loadPngToCanvas,
+    tintMarkerCanvas,
+    hexToRgb,
+  } from "./markerTint"
   import {
     getIconImageName as getIconImageNameUtil,
     findMarkerByIconClass,
@@ -263,6 +276,7 @@
   let locationMarkerUnsubscribe
   let extraLocationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
+  let testMarkersUnsubscribe
   let remoteRippleUnsubscribe
   let remoteEditUnsubscribe
   let remoteDeleteUnsubscribe
@@ -440,6 +454,55 @@
     } catch (error) {
       console.error("❌ Error loading high-DPI icons:", error)
       await loadFallbackIcons()
+    }
+  }
+
+  // ── Runtime marker tinting (modern option A) ──
+  // Builds tinted icon variants on the fly from the original PNGs. The
+  // baked-in light-grey circle and the glyph inside can be recoloured
+  // independently, giving five tint modes (see markerPalette TINT_MODES).
+  // The pixel-tinting logic itself lives in the shared `./markerTint`
+  // module (loadPngToCanvas / tintMarkerCanvas / hexToRgb) so the new-marker
+  // preview grid uses the exact same code as the live map.
+  let tintedIconCache = new Set()
+
+  // Lazily register a tinted variant for one icon × colour × mode.
+  /**
+   * @param {string} iconKey
+   * @param {string} colorKey
+   * @param {string} mode
+   */
+  async function ensureTintedMarkerIcon(iconKey, colorKey, mode) {
+    if (!map || !iconPaths) return
+    const tintedKey = `${iconKey}-${colorKey}-${mode}`
+    if (map.hasImage(tintedKey) || tintedIconCache.has(tintedKey)) return
+    tintedIconCache.add(tintedKey)
+    const colorDef = markerColor(colorKey)
+    if (!colorDef || colorDef.key === MARKER_COLOR_DEFAULT) return
+    try {
+      const path = iconPaths[iconKey]
+      if (!path) return
+      const canvas = await loadPngToCanvas(`/${path}`)
+      tintMarkerCanvas(canvas, colorDef, mode)
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      if (!map.hasImage(tintedKey)) {
+        map.addImage(tintedKey, {
+          width: canvas.width,
+          height: canvas.height,
+          data: imageData.data,
+        })
+      }
+      console.log(`🎨 Tinted icon registered: ${tintedKey}`)
+      // The icon wasn't available when the marker first rendered — re-render
+      // now that it exists so the marker shows with its tint.
+      refreshMapMarkers()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`⚠️ Could not tint ${iconKey} (${colorKey}):`, msg)
+    } finally {
+      tintedIconCache.delete(tintedKey)
     }
   }
 
@@ -648,7 +711,10 @@
       }
     }
 
-    // Blue selection circle - exclude new/unconfirmed markers
+    // Blue selection circle - exclude new/unconfirmed markers.
+    // Option B: the ring colour is data-driven from each marker's
+    // `selectionColor` (falls back to the classic blue when unset), and a
+    // soft outer glow ring adds a more interesting highlight.
     if (!map.getLayer("markers-selection-circle")) {
       const selectionLayerConfig = {
         id: "markers-selection-circle",
@@ -662,9 +728,13 @@
         paint: {
           "circle-radius": 18,
           "circle-color": "transparent",
-          "circle-stroke-color": "#60a5fa",
+          "circle-stroke-color": [
+            "coalesce",
+            ["get", "selectionColor"],
+            "#60a5fa",
+          ],
           "circle-stroke-width": 3,
-          "circle-stroke-opacity": 0.8,
+          "circle-stroke-opacity": 0.85,
         },
       }
 
@@ -672,6 +742,38 @@
         mapContext.addLayerOrdered(selectionLayerConfig)
       } else {
         map.addLayer(selectionLayerConfig)
+      }
+    }
+
+    // Soft outer glow ring (data-driven colour) behind the crisp ring so the
+    // selection stands out more than a flat outline.
+    if (!map.getLayer("markers-selection-glow")) {
+      const selectionGlowConfig = {
+        id: "markers-selection-glow",
+        type: "circle",
+        source: "markers",
+        filter: [
+          "all",
+          ["==", ["get", "selected"], true],
+          ["==", ["get", "confirmed"], true],
+        ],
+        paint: {
+          "circle-radius": 26,
+          "circle-color": "transparent",
+          "circle-stroke-color": [
+            "coalesce",
+            ["get", "selectionColor"],
+            "#60a5fa",
+          ],
+          "circle-stroke-width": 6,
+          "circle-stroke-opacity": 0.22,
+        },
+      }
+
+      if (mapContext?.addLayerOrdered) {
+        mapContext.addLayerOrdered(selectionGlowConfig)
+      } else {
+        map.addLayer(selectionGlowConfig)
       }
     }
 
@@ -846,49 +948,70 @@
       (marker) => ($markerVisibilityStore[marker.id] || "always") !== "hidden",
     )
 
-    const features = visibleMarkers.map((marker) => ({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: marker.coordinates,
-      },
-      properties: {
-        id: marker.id,
-        icon: getIconImageName(marker.iconClass),
-        iconClass: marker.iconClass || "default",
-        selected: $selectedMarkerStore?.id === marker.id,
-        confirmed: true,
-        // Add truncated note label for display
-        noteLabel: shouldShowNoteLabel(marker)
-          ? truncateNote(marker.notes)
-          : "",
-        noteLabelVisible: shouldShowNoteLabel(marker),
-        // Store full notes for reference (not displayed directly)
-        hasNotes: !!marker.notes,
-        // Silo fill gauge — level + grain colour derived from the marker.
-        barImage:
-          marker.iconClass === "custom-svg-silo2"
-            ? `silo-bar-${marker.grainColor || SILO_GRAIN_DEFAULT}-${siloBarLevel(
-                marker.siloFill,
-              )}`
-            : null,
-        barOffset:
-          marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
-        // Silo contents label shown on the map (like the note labels),
-        // truncated to 20 chars so long contents don't sprawl.
-        grainLabel:
-          marker.iconClass === "custom-svg-silo2"
-            ? truncateContents(marker.grainType)
-            : null,
-        // Push the grain label higher when the silo also has a note label.
-        grainOffset:
-          marker.iconClass === "custom-svg-silo2"
-            ? marker.notes
-              ? [0, -3.2]
-              : [0, -1.6]
-            : null,
-      },
-    }))
+    // Merge in any "Marker Test" grid markers (toolbox feature) so they
+    // render exactly like real markers through the same tint pipeline.
+    const testMarkers = $markerTestStore || []
+    const allVisible = [...visibleMarkers, ...testMarkers]
+
+    const features = allVisible.map((marker) => {
+      const colorKey = marker.markerColor || MARKER_COLOR_DEFAULT
+      const colorDef = markerColor(colorKey)
+      const mode = marker.tintMode || TINT_MODE_DEFAULT
+      const baseIcon = getIconImageName(marker.iconClass)
+      // Option A: when a marker has a colour, use the tinted variant
+      // (registered lazily on first use). Default keeps the original PNG.
+      const useTint =
+        colorKey !== MARKER_COLOR_DEFAULT && baseIcon !== "default"
+      const icon = useTint ? `${baseIcon}-${colorKey}-${mode}` : baseIcon
+      if (useTint) ensureTintedMarkerIcon(baseIcon, colorKey, mode)
+
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: marker.coordinates,
+        },
+        properties: {
+          id: marker.id,
+          icon,
+          iconClass: marker.iconClass || "default",
+          selected: $selectedMarkerStore?.id === marker.id,
+          confirmed: true,
+          testMarker: !!marker.testMarker,
+          // Option B: selection ring colour derived from the marker colour.
+          selectionColor: colorDef?.dark || "#60a5fa",
+          // Add truncated note label for display
+          noteLabel: shouldShowNoteLabel(marker)
+            ? truncateNote(marker.notes)
+            : "",
+          noteLabelVisible: shouldShowNoteLabel(marker),
+          // Store full notes for reference (not displayed directly)
+          hasNotes: !!marker.notes,
+          // Silo fill gauge — level + grain colour derived from the marker.
+          barImage:
+            marker.iconClass === "custom-svg-silo2"
+              ? `silo-bar-${marker.grainColor || SILO_GRAIN_DEFAULT}-${siloBarLevel(
+                  marker.siloFill,
+                )}`
+              : null,
+          barOffset:
+            marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
+          // Silo contents label shown on the map (like the note labels),
+          // truncated to 20 chars so long contents don't sprawl.
+          grainLabel:
+            marker.iconClass === "custom-svg-silo2"
+              ? truncateContents(marker.grainType)
+              : null,
+          // Push the grain label higher when the silo also has a note label.
+          grainOffset:
+            marker.iconClass === "custom-svg-silo2"
+              ? marker.notes
+                ? [0, -3.2]
+                : [0, -1.6]
+              : null,
+        },
+      }
+    })
 
     map.getSource("markers").setData({
       type: "FeatureCollection",
@@ -1182,6 +1305,12 @@
     const feature = event.features[0]
     const markerId = feature.properties.id
     const coordinates = feature.geometry.coordinates
+
+    // "Marker Test" grid markers are for viewing only — don't select them.
+    if (feature.properties.testMarker) {
+      console.log("🎯 MarkerManager: Ignoring test marker click:", markerId)
+      return
+    }
 
     console.log("🎯 MarkerManager: Selecting marker:", markerId)
 
@@ -1508,6 +1637,11 @@
       if (markersInitialized && map) refreshMapMarkers()
     })
 
+    // Re-render when the "Marker Test" grid is placed or cleared.
+    testMarkersUnsubscribe = markerTestStore.subscribe(() => {
+      if (markersInitialized && map) refreshMapMarkers()
+    })
+
     remoteRippleUnsubscribe = remoteMarkerRippleStore.subscribe((event) => {
       if (event && event.coordinates) {
         showPlacementRipple(event.coordinates, "rgba(34, 197, 94")
@@ -1540,6 +1674,7 @@
     if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
     if (extraLocationMarkerUnsubscribe) extraLocationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
+    if (testMarkersUnsubscribe) testMarkersUnsubscribe()
     if (remoteRippleUnsubscribe) remoteRippleUnsubscribe()
     if (remoteEditUnsubscribe) remoteEditUnsubscribe()
     if (remoteDeleteUnsubscribe) remoteDeleteUnsubscribe()

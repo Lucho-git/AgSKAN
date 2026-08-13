@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>New-Marker Picker Test — Colour + Style + Test Mode</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background:
+      linear-gradient(135deg, #3b6b34 0%, #557d3a 25%, #6b8f3f 50%, #4e7a3a 75%, #2f5f2e 100%),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 6px);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  /* Fake "farm map" background layers so the translucent test mode is visible */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255,235,150,0.35), transparent 40%),
+      radial-gradient(circle at 80% 20%, rgba(120,190,90,0.4), transparent 45%),
+      radial-gradient(circle at 60% 75%, rgba(70,110,60,0.5), transparent 40%);
+    pointer-events: none;
+  }
+
+  /* ── Marker panel (mirrors MarkerEditPanel) ── */
+  .marker-panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.9);
+    backdrop-filter: blur(16px);
+    color: white;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    transition: all .3s ease;
+    z-index: 1000;
+  }
+  .marker-panel.test-mode { background: rgba(0,0,0,0.45); backdrop-filter: blur(3px); }
+  .marker-panel.test-mode .icon-section { background: linear-gradient(to bottom, rgba(0,0,0,0.42), rgba(0,0,0,0.3)); }
+
+  .icon-section {
+    display: flex; flex-direction: column;
+    max-height: 55vh; min-height: 55vh;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.8));
+  }
+  .icon-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px 8px;
+  }
+  .section-title { font-size: 15px; font-weight: 600; }
+  .icon-actions { display: flex; gap: 8px; }
+  .header-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.08); color: #e2e8f0;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .header-btn.confirm { border-color: rgba(34,197,94,.5); color: #86efac; }
+
+  /* ── Picker toolbar ── */
+  .picker-toolbar {
+    padding: 8px 20px 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .picker-row { display: flex; align-items: center; gap: 10px; }
+  .picker-label {
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.55);
+    text-transform: uppercase; letter-spacing: .04em;
+    width: 44px; flex-shrink: 0;
+  }
+  .picker-swatches { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  .picker-swatch {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: all .15s ease;
+  }
+  .picker-swatch:hover { transform: scale(1.12); }
+  .picker-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(96,165,250,.6); }
+  .picker-modes { display: flex; gap: 5px; flex: 1; }
+  .picker-mode {
+    flex: 1; padding: 5px 4px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05); color: #cbd5e1;
+    font-size: 11px; line-height: 1; cursor: pointer; white-space: nowrap;
+  }
+  .picker-mode:hover { background: rgba(255,255,255,0.1); }
+  .picker-mode.active { border-color: rgba(96,165,250,.7); background: rgba(96,165,250,.18); color: #fff; }
+  .test-toggle {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05); color: #cbd5e1;
+    font-size: 11px; font-weight: 600; cursor: pointer; flex-shrink: 0;
+  }
+  .test-toggle.active { border-color: rgba(52,211,153,.8); background: rgba(52,211,153,.18); color: #6ee7b7; }
+  .picker-test-hint { font-size: 11px; color: #6ee7b7; }
+
+  /* ── Icon grid ── */
+  .icon-grid-container { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 0; }
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 10px; padding-bottom: 16px;
+  }
+  .icon-option {
+    display: flex; align-items: center; justify-content: center;
+    height: 72px;
+    background: rgba(255,255,255,0.05);
+    border: 2px solid transparent; border-radius: 12px;
+    color: rgba(255,255,255,0.8); cursor: pointer;
+    transition: all .15s ease; padding: 0;
+  }
+  .icon-option:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.1); transform: scale(1.02); }
+  .icon-option.selected { background: rgba(96,165,250,0.2); border-color: #60a5fa; transform: scale(1.05); }
+  .marker-panel.test-mode .icon-option { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+  .marker-panel.test-mode .icon-option.selected { background: rgba(96,165,250,0.28); border-color: #60a5fa; }
+
+  .control-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 24px;
+    background: rgba(0,0,0,0.95);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(20px);
+  }
+  .marker-panel.test-mode .control-bar { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+  .control-name { font-size: 14px; font-weight: 600; }
+  .control-check { background: #22c55e; border: none; color: white; border-radius: 10px; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
+  .control-trash { background: rgba(239,68,68,.2); border: 1px solid rgba(239,68,68,.4); color: #fca5a5; border-radius: 10px; width: 44px; height: 44px; font-size: 18px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="marker-panel" id="panel">
+    <div class="icon-section">
+      <div class="icon-section-header">
+        <span class="section-title">Choose Icon for New Marker</span>
+        <div class="icon-actions">
+          <button class="header-btn" id="notesBtn">📝 Notes</button>
+          <button class="header-btn confirm">✓ Confirm</button>
+        </div>
+      </div>
+
+      <div class="picker-toolbar" id="toolbar">
+        <div class="picker-row">
+          <span class="picker-label">Colour</span>
+          <div class="picker-swatches" id="swatches"></div>
+        </div>
+        <div class="picker-row">
+          <span class="picker-label">Style</span>
+          <div class="picker-modes" id="modes"></div>
+          <button class="test-toggle" id="testBtn">◎ Test</button>
+        </div>
+        <div class="picker-test-hint" id="hint" style="display:none"></div>
+      </div>
+
+      <div class="icon-grid-container">
+        <div class="icon-grid" id="grid"></div>
+      </div>
+    </div>
+
+    <div class="control-bar">
+      <span class="control-name">rock</span>
+      <div style="display:flex;gap:8px">
+        <button class="control-check">✓</button>
+        <button class="control-trash">🗑</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ── Mirror of markerPalette.js colours ──
+  const MARKER_COLORS = [
+    { key: "default", label: "Default", light: "#d3d3d3", dark: "#9ca3af", deep: "#6b7280" },
+    { key: "blue", label: "Blue", light: "#bfdbfe", dark: "#3b82f6", deep: "#1d4ed8" },
+    { key: "green", label: "Green", light: "#bbf7d0", dark: "#22c55e", deep: "#15803d" },
+    { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308", deep: "#a16207" },
+    { key: "amber", label: "Amber", light: "#fde68a", dark: "#f59e0b", deep: "#b45309" },
+    { key: "red", label: "Red", light: "#fecaca", dark: "#ef4444", deep: "#b91c1c" },
+    { key: "purple", label: "Purple", light: "#e9d5ff", dark: "#a855f7", deep: "#7e22ce" },
+    { key: "cyan", label: "Cyan", light: "#a5f3fc", dark: "#06b6d4", deep: "#0e7490" },
+    { key: "pink", label: "Pink", light: "#fbcfe8", dark: "#ec4899", deep: "#be185d" },
+    { key: "lime", label: "Lime", light: "#d9f99d", dark: "#84cc16", deep: "#4d7c0f" },
+  ]
+  const MARKER_COLOR_DEFAULT = "default"
+  const TINT_MODES = [
+    { key: "original", label: "Original" },
+    { key: "circle-fill", label: "Circle fill" },
+    { key: "icon-fill", label: "Icon fill" },
+    { key: "icon-only", label: "Icon only" },
+    { key: "icon-dark-glass", label: "Icon dark glass" },
+    { key: "icon-light-glass", label: "Icon light glass" },
+  ]
+  const TINT_MODE_DEFAULT = "original"
+
+  const ICONS = [
+    "rock", "tree13", "wheat2", "watertank2", "kangaroo", "electric_tower",
+    "gate", "machine_pump", "silo2", "tractor", "sheep", "cattle",
+    "mapbox-marker",
+  ]
+
+  let colorKey = MARKER_COLOR_DEFAULT
+  let mode = TINT_MODE_DEFAULT
+  let testMode = false
+  const panel = document.getElementById("panel")
+  const hint = document.getElementById("hint")
+
+  // ── Mirror of markerTint.js ──
+  function hexToRgb(hex) {
+    const h = hex.replace("#", "")
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]
+  }
+  function tintMarkerCanvas(canvas, colorDef, tintMode) {
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    const { width, height } = canvas
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const data = imageData.data
+    const [lr,lg,lb] = hexToRgb(colorDef.light)
+    const [dr,dg,db] = hexToRgb(colorDef.deep)
+    const [br,bg,bb] = hexToRgb(colorDef.dark)
+    const GLYPH = [248,250,252]
+    const CIRCLE_WHITE = [241,245,249]
+    const GLASS = [240,244,248]
+    const GLASS_ALPHA = 0.38
+    const GLASS_DARK = [15,23,42]
+    const GLASS_DARK_ALPHA = 0.55
+    const lerp = (a,b,x) => a + (b-a)*x
+    for (let i = 0; i < data.length; i += 4) {
+      const r=data[i], g=data[i+1], b=data[i+2], a=data[i+3]
+      if (a === 0) continue
+      const lum = 0.299*r + 0.587*g + 0.114*b
+      const dev = Math.max(Math.abs(r-g), Math.abs(g-b), Math.abs(r-b))
+      const greyT = Math.max(0, Math.min(1, (40-dev)/30))
+      const lumT = Math.max(0, Math.min(1, (lum-60)/100))
+      const t = greyT * lumT
+      if (tintMode === "circle-fill") {
+        data[i]=lerp(GLYPH[0],dr,t); data[i+1]=lerp(GLYPH[1],dg,t); data[i+2]=lerp(GLYPH[2],db,t)
+      } else if (tintMode === "icon-fill") {
+        data[i]=lerp(dr,CIRCLE_WHITE[0],t); data[i+1]=lerp(dg,CIRCLE_WHITE[1],t); data[i+2]=lerp(db,CIRCLE_WHITE[2],t)
+      } else if (tintMode === "icon-only") {
+        data[i]=dr; data[i+1]=dg; data[i+2]=db; data[i+3]=Math.round(a*(1-t))
+      } else if (tintMode === "icon-dark-glass") {
+        data[i]=lerp(br,GLASS_DARK[0],t); data[i+1]=lerp(bg,GLASS_DARK[1],t); data[i+2]=lerp(bb,GLASS_DARK[2],t); data[i+3]=Math.round(a*(1-t+t*GLASS_DARK_ALPHA))
+      } else if (tintMode === "icon-light-glass") {
+        data[i]=lerp(dr,GLASS[0],t); data[i+1]=lerp(dg,GLASS[1],t); data[i+2]=lerp(db,GLASS[2],t); data[i+3]=Math.round(a*(1-t+t*GLASS_ALPHA))
+      } else {
+        data[i]=lerp(r,lr,t); data[i+1]=lerp(g,lg,t); data[i+2]=lerp(b,lb,t)
+      }
+    }
+    ctx.putImageData(imageData, 0, 0)
+    if (tintMode === "circle-fill" || tintMode === "icon-only" || tintMode === "icon-dark-glass" || tintMode === "icon-light-glass") return
+    const isIconFill = tintMode === "icon-fill"
+    const [rr,rg,rb] = hexToRgb(isIconFill ? "#cbd5e1" : colorDef.dark)
+    ctx.beginPath()
+    ctx.arc(width/2, height/2, width/2 - 6, 0, 2*Math.PI)
+    ctx.lineWidth = Math.max(3, Math.round(width*0.05))
+    ctx.strokeStyle = `rgba(${rr},${rg},${rb},${isIconFill ? 0.7 : 0.9})`
+    ctx.stroke()
+  }
+
+  // ── Build swatches + modes ──
+  const swatchRow = document.getElementById("swatches")
+  for (const c of MARKER_COLORS) {
+    const b = document.createElement("button")
+    b.className = "picker-swatch"
+    b.style.background = c.light
+    b.style.borderColor = c.key === MARKER_COLOR_DEFAULT ? "#9ca3af" : c.dark
+    b.title = c.label
+    b.onclick = () => { colorKey = c.key; refreshControls(); render() }
+    swatchRow.appendChild(b)
+  }
+  const modeRow = document.getElementById("modes")
+  for (const m of TINT_MODES) {
+    const b = document.createElement("button")
+    b.className = "picker-mode"
+    b.textContent = m.label
+    b.onclick = () => { mode = m.key; refreshControls(); render() }
+    modeRow.appendChild(b)
+  }
+  const testBtn = document.getElementById("testBtn")
+  testBtn.onclick = () => { testMode = !testMode; refreshControls(); render() }
+
+  function refreshControls() {
+    swatchRow.querySelectorAll(".picker-swatch").forEach((b, i) => {
+      b.classList.toggle("active", MARKER_COLORS[i].key === colorKey)
+    })
+    modeRow.querySelectorAll(".picker-mode").forEach((b, i) => {
+      b.classList.toggle("active", TINT_MODES[i].key === mode)
+    })
+    testBtn.classList.toggle("active", testMode)
+    panel.classList.toggle("test-mode", testMode)
+    const colorLabel = colorKey === MARKER_COLOR_DEFAULT ? "default colour" : colorKey
+    hint.style.display = testMode ? "block" : "none"
+    hint.textContent = `Previewing every icon as ${colorLabel} / ${mode} against the map — the panel is translucent.`
+  }
+
+  // ── Render icons ──
+  const canvasCache = new Map()
+  async function loadIcon(name) {
+    const path = name === "mapbox-marker" ? "icons/mapbox-marker-3x.png" : `icons/${name}-3x.png`
+    if (canvasCache.has(path)) return canvasCache.get(path)
+    const img = new Image()
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = "/static/" + path })
+    const c = document.createElement("canvas")
+    c.width = img.naturalWidth; c.height = img.naturalHeight
+    const ctx = c.getContext("2d")
+    if (ctx) ctx.drawImage(img, 0, 0)
+    canvasCache.set(path, c)
+    return c
+  }
+
+  async function render() {
+    const grid = document.getElementById("grid")
+    grid.innerHTML = ""
+    const colorDef = MARKER_COLORS.find(c => c.key === colorKey) || MARKER_COLORS[0]
+    for (const name of ICONS) {
+      const btn = document.createElement("button")
+      btn.className = "icon-option"
+      btn.onclick = () => { grid.querySelectorAll(".icon-option").forEach(b => b.classList.remove("selected")); btn.classList.add("selected") }
+      const canvas = document.createElement("canvas")
+      canvas.width = 56; canvas.height = 56
+      btn.appendChild(canvas)
+      grid.appendChild(btn)
+
+      try {
+        const base = await loadIcon(name)
+        if (testMode && colorKey !== MARKER_COLOR_DEFAULT && name !== "mapbox-marker") {
+          const copy = document.createElement("canvas")
+          copy.width = base.width; copy.height = base.height
+          const cctx = copy.getContext("2d")
+          if (cctx) cctx.drawImage(base, 0, 0)
+          tintMarkerCanvas(copy, colorDef, mode)
+          canvas.getContext("2d").drawImage(copy, 0, 0, 56, 56)
+        } else {
+          canvas.getContext("2d").drawImage(base, 0, 0, 56, 56)
+        }
+      } catch (e) {
+        const ctx = canvas.getContext("2d")
+        ctx.fillStyle = "#475569"; ctx.font = "9px sans-serif"; ctx.textAlign = "center"
+        ctx.fillText("?", 28, 30)
+      }
+    }
+  }
+
+  refreshControls()
+  render()
+</script>
+</body>
+</html>
