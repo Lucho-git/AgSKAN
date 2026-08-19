@@ -2,14 +2,16 @@
 <!-- Map-anchored silo editor: appears above the selected silo marker, with
      the silo symbol, a free-text "what's stored" field, and a fill slider. -->
 <script>
-  import { onMount, onDestroy } from "svelte"
+  import { onMount, onDestroy, tick } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { X, Trash2, Move, Hand, Check, Plus, Minus } from "lucide-svelte"
   import {
-    SILO_GRAIN_COLORS,
-    SILO_GRAIN_DEFAULT,
-    siloGrainColor,
-  } from "./siloPalette"
+    PICKABLE_MARKER_COLORS,
+    MARKER_COLOR_DEFAULT,
+    markerColor,
+    SILO_COLOR_DEFAULT,
+    siloColorKey,
+  } from "./markerPalette"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -30,17 +32,18 @@
   let visible = false
   let fill = 0
   let contents = ""
-  let capacityTonnes = 0 // bin size in tonnes (0 = not set)
+  let capacityTonnes = 200 // bin size in tonnes (default 200T for new silos)
   let capacityInput = "" // text for the bin-size number field
+  let contentsInput = null // the "Storing" text field (auto-focused on open)
   let tonnesDelta = "" // text for the add/take number field
-  let grainColor = SILO_GRAIN_DEFAULT // tint for the on-map fill gauge
+  let grainColor = SILO_COLOR_DEFAULT // tint for the on-map fill gauge
   let tab = "fill" // 'fill' | 'settings'
   // Transient "enter a value first" hint when Add/Take is clicked empty.
   let deltaHint = false
   let deltaHintTimer = null
   let lastMarkerId = null
 
-  $: grainColorDef = siloGrainColor(grainColor)
+  $: grainColorDef = markerColor(siloColorKey(grainColor))
   // Per-user "show bins always" — offscreen tracking circles for every bin.
   $: showBinsAlways = $userSettingsStore?.showBinsAlways ?? false
 
@@ -61,6 +64,16 @@
   // screen so the whole panel stays on screen in every state.
   let openUp = true
   let siloPopEl = null
+  // Smooth repositioning: applied on size changes (tab switch) and flips so
+  // the panel slides into place instead of snapping. Disabled during normal
+  // map tracking so the panel follows the silo instantly.
+  let smoothReposition = false
+  let smoothRepositionTimer = null
+  let resizeObserver = null
+  let lastMenuHeight = 0
+  // How far the panel is allowed to slide against a screen edge (hugging it
+  // with a small gap) before it flips to the other side.
+  const SLIDE_BUFFER = 56
 
   // ── Move mode: drag the silo to a new location ──
   let moving = false
@@ -94,11 +107,14 @@
       lastMarkerId = id
       fill = marker?.siloFill ?? 0
       contents = marker?.grainType || ""
-      capacityTonnes = marker?.capacityTonnes ?? 0
+      capacityTonnes = marker?.capacityTonnes ?? 200
       capacityInput = capacityTonnes ? String(capacityTonnes) : ""
       tonnesDelta = ""
-      grainColor = marker?.grainColor || SILO_GRAIN_DEFAULT
-      tab = "fill"
+      grainColor = siloColorKey(marker?.grainColor)
+      // Open straight onto the "Storing" field (one tap to type, fewer
+      // clicks) — focus it once the Settings tab has rendered.
+      tab = "settings"
+      tick().then(() => contentsInput?.focus())
       deltaHint = false
       confirmDelete = false
     }
@@ -133,16 +149,42 @@
         top = rect.top + (openUp ? p.y - 44 : p.y + 44)
       } else {
         // Vertically: open upward (panel sits above the silo) by default, but
-        // flip to open downward when there isn't enough room above, so the
-        // whole panel stays on screen.
-        openUp = p.y - 44 - menuH >= 8
-        let anchorY = openUp ? p.y - 44 : p.y + 44
+        // when the panel grazes the top edge it SLIDES down to hug it (8px
+        // gap) rather than snapping. Only flip to open downward once the
+        // slide would be too big AND the other side fits better (hysteresis
+        // keeps it stable — no flip-flop as the height changes).
+        const topMargin = 8
+        const bottomMargin = 8
+        const fitsVertically = menuH <= rect.height - topMargin - bottomMargin
+        const idealUpAnchor = p.y - 44 // open up → panel bottom sits here
+        const idealDownAnchor = p.y + 44 // open down → panel top sits here
+        // How far we'd have to push the panel toward its silo to keep it on
+        // screen in each orientation (0 when it fits at the ideal spot).
+        const upSlide = Math.max(0, menuH + topMargin - idealUpAnchor)
+        const downSlide = Math.max(
+          0,
+          idealDownAnchor - (rect.height - bottomMargin - menuH),
+        )
+        if (fitsVertically) {
+          if (openUp && upSlide > SLIDE_BUFFER && upSlide > downSlide) {
+            openUp = false
+          } else if (
+            !openUp &&
+            downSlide > SLIDE_BUFFER &&
+            downSlide > upSlide
+          ) {
+            openUp = true
+          }
+        }
+        // Taller than the viewport → keep the current orientation; the anchor
+        // clamps below + max-height/internal scroll keep it usable.
+        let anchorY = openUp ? idealUpAnchor : idealDownAnchor
         if (openUp) {
-          anchorY = Math.max(anchorY, menuH + 8)
-          anchorY = Math.min(anchorY, rect.height - 8)
+          anchorY = Math.max(anchorY, menuH + topMargin)
+          anchorY = Math.min(anchorY, rect.height - bottomMargin)
         } else {
-          anchorY = Math.max(anchorY, 8)
-          anchorY = Math.min(anchorY, rect.height - menuH - 8)
+          anchorY = Math.max(anchorY, topMargin)
+          anchorY = Math.min(anchorY, rect.height - menuH - bottomMargin)
         }
         // Horizontally: keep the panel centered on the silo, but shift it so
         // the panel never leaves the screen edges.
@@ -428,8 +470,37 @@
     }
   })()
 
+  // Reposition with a short slide transition (used on size changes and
+  // flips); plain position() stays instant so the panel follows the map.
+  function positionSmooth() {
+    if (moving) {
+      position()
+      return
+    }
+    smoothReposition = true
+    position()
+    clearTimeout(smoothRepositionTimer)
+    smoothRepositionTimer = setTimeout(() => (smoothReposition = false), 350)
+  }
+
   onMount(() => {
     position()
+    lastMenuHeight = siloPopEl?.offsetHeight || 0
+    // Re-position whenever the panel's size changes (e.g. the Settings tab
+    // makes it taller) so the flip/slide decision is recomputed at the exact
+    // moment it grows — not on the next random tap or map move.
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        const h = siloPopEl?.offsetHeight || 0
+        if (h && Math.abs(h - lastMenuHeight) > 2) {
+          lastMenuHeight = h
+          positionSmooth()
+        } else if (h) {
+          lastMenuHeight = h
+        }
+      })
+      if (siloPopEl) resizeObserver.observe(siloPopEl)
+    }
     if (!map) return
     map.on("move", position)
     map.on("zoom", position)
@@ -439,6 +510,8 @@
   })
 
   onDestroy(() => {
+    resizeObserver?.disconnect()
+    clearTimeout(smoothRepositionTimer)
     if (dragRafId != null) {
       cancelAnimationFrame(dragRafId)
       dragRafId = null
@@ -470,7 +543,9 @@
   <div
     class="silo-pop"
     class:moving={moving}
+    class:dragging={dragging}
     class:down={!openUp}
+    class:smooth={smoothReposition}
     on:mousedown={onPanelDragStart}
     on:touchstart={onPanelDragStart}
     style="left:{left}px; top:{top}px;"
@@ -483,7 +558,13 @@
       >
         <IconSVG icon="silo2" size="26px" />
       </div>
-      <span class="silo-pop-title" title={markerName}>{markerName}</span>
+      <span
+        class="silo-pop-title"
+        style="color: {grainColorDef.dark};"
+        title={markerName}
+      >
+        {markerName}
+      </span>
       <span
         class="silo-pop-color-name"
         style="color: {grainColorDef.dark}; border-color: {grainColorDef.dark}66; background: {grainColorDef.dark}1a;"
@@ -542,7 +623,7 @@
               on:input={handleFillInput}
               on:change={commit}
               aria-label="Silo fill level"
-              style="background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
+              style="--silo-thumb: {grainColorDef.dark}; background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
             />
             <span class="silo-pop-pct">{Math.round(fill)}%</span>
           </div>
@@ -610,6 +691,7 @@
           <span class="silo-pop-label">Storing</span>
           <input
             type="text"
+            bind:this={contentsInput}
             bind:value={contents}
             placeholder="e.g. Wheat, canola, fuel…"
             maxlength="40"
@@ -642,11 +724,13 @@
         <div class="silo-pop-field">
           <span class="silo-pop-label">Color</span>
           <div class="silo-pop-swatches">
-            {#each SILO_GRAIN_COLORS as c}
+            {#each PICKABLE_MARKER_COLORS.filter(
+              (c) => c.key !== MARKER_COLOR_DEFAULT,
+            ) as c}
               <button
                 class="silo-pop-swatch"
                 class:active={grainColor === c.key}
-                style="background: {c.dark};"
+                style="background: {markerColor(c.key).dark};"
                 title={c.label}
                 aria-label={c.label}
                 on:click={() => setGrainColor(c.key)}
@@ -726,6 +810,8 @@
     transform: translate(-50%, var(--pop-y));
     width: 256px;
     min-height: 232px;
+    max-height: calc(100vh - 70px);
+    overflow-y: auto;
     z-index: 1001;
     background: rgba(8, 12, 24, 0.97);
     backdrop-filter: blur(14px);
@@ -741,6 +827,14 @@
   /* Near the top of the screen the panel flips to open downward. */
   .silo-pop.down {
     --pop-y: 0%;
+  }
+  /* Smooth slide/flip when repositioning after the panel grows (tab switch)
+     or flips orientation — disabled during normal map tracking. */
+  .silo-pop.smooth {
+    transition:
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .silo-pop-head {
     display: flex;
@@ -854,7 +948,7 @@
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: #fbbf24;
+    background: var(--silo-thumb, #fbbf24);
     border: 3px solid #fff7ed;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     cursor: grab;
@@ -863,7 +957,7 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: #fbbf24;
+    background: var(--silo-thumb, #fbbf24);
     border: 3px solid #fff7ed;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     cursor: grab;
@@ -959,6 +1053,10 @@
     border-color: rgba(245, 158, 11, 0.9);
     cursor: grab;
     user-select: none;
+  }
+  /* Dim the menu while actively dragging so you can see what's behind it. */
+  .silo-pop.dragging {
+    opacity: 0.55;
   }
   .silo-pop.moving:active {
     cursor: grabbing;

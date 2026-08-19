@@ -23,6 +23,7 @@
     Plus,
     MapPin,
     Pencil,
+    Sparkles,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
@@ -35,6 +36,7 @@
   import { Share } from "@capacitor/share"
   import { markerPhotoApi } from "$lib/api/markerPhotoApi"
   import { markerApi } from "$lib/api/markerApi"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
   import { profileStore } from "$lib/stores/profileStore"
   import {
@@ -43,17 +45,24 @@
   } from "$lib/data/markerDefinitions"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import {
-    MARKER_COLORS,
+    PICKABLE_MARKER_COLORS,
     MARKER_COLOR_DEFAULT,
-    TINT_MODES,
-    TINT_MODE_DEFAULT,
+    markerColor,
+    styleSwatchBg,
+    swatchText,
+    markerDefaultColorKey,
+    randomColorForId,
+    RANDOM_COLOR_KEY,
   } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import PhotoLightbox from "$lib/components/map/markers/PhotoLightbox.svelte"
 
   export let map
+  /** @type {any} */
   export let marker
+  /** @type {import("svelte/store").Writable<any[]>} */
   export let confirmedMarkersStore
   export let selectedMarkerStore
   export let getCurrentIconClass = () => "default"
@@ -89,6 +98,17 @@
   let drawingAnchor = null
   // The rendered panel element (used to measure its height for camera jumps).
   let markerPopEl = null
+  // Smooth repositioning (flip/slide after a view or size change) — off
+  // during normal map tracking so the menu follows the marker instantly.
+  let smoothReposition = false
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let smoothRepositionTimer = null
+  /** @type {ResizeObserver | null} */
+  let resizeObserver = null
+  /** @type {number} */
+  let lastMenuHeight = 0
+  // How far the menu may slide against a screen edge before flipping.
+  const SLIDE_BUFFER = 56
   // Stepped aside while the full-width bottom style editor is open.
   let hideForEditor = false
   // True while an edge badge points at the off-screen host marker (because
@@ -132,11 +152,33 @@
 
   // ── Marker colour (option A: runtime-tinted icons) ──
   let markerColorKey = MARKER_COLOR_DEFAULT
-  let markerTintMode = TINT_MODE_DEFAULT
+
+  // ── Colour box picker (square trigger → popover grid, like the profile) ──
+  let colorBoxOpen = false
+  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+  function toggleColorBox() {
+    colorBoxOpen = !colorBoxOpen
+  }
+  function pickMenuColor(/** @type {string} */ key) {
+    colorBoxOpen = false
+    setMarkerColor(key)
+  }
+  // The colour the box trigger shows: the marker's explicit colour, or the
+  // effective header colour when set to Default. Reactive (reads the state
+  // directly) so the box updates the instant a colour is picked.
+  $: menuTriggerColorKey =
+    markerColorKey === MARKER_COLOR_DEFAULT ? headerColorKey : markerColorKey
 
   function setMarkerColor(/** @type {string} */ key) {
     if (!marker) return
     markerColorKey = key
+    // Re-arm the Save/confirm button so a colour change can be confirmed too
+    // (the icon preview arms it as well; both are committed together on
+    // Save). The colour itself still commits live so the map re-tints.
+    if (!pendingIconChange) {
+      pendingIconChange = true
+      pendingMarkerId = marker.id
+    }
     // Commit to the store so MapStateSaver persists it (marker_color) and
     // refreshMapMarkers swaps the icon to the tinted variant.
     confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
@@ -148,18 +190,29 @@
     )
   }
 
-  function setTintMode(/** @type {string} */ key) {
-    if (!marker) return
-    markerTintMode = key
-    // Commit to the store so MapStateSaver persists it (tint_mode) and
-    // refreshMapMarkers re-renders the icon with the new mode.
-    confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
-      markers.map((/** @type {any} */ m) =>
-        m.id === marker.id
-          ? { ...m, tintMode: key, updated_at: new Date().toISOString() }
-          : m,
-      ),
+  // Set the picked colour as the DEFAULT for this marker type (the per-type
+  // override in the "Marker default colours" profile settings, custom mode).
+  async function applyDefaultColour() {
+    if (!marker || markerColorKey === MARKER_COLOR_DEFAULT) return
+    const iconClass = marker.iconClass || ""
+    const mode = $userSettingsStore?.markerDefaultColorMode || "custom"
+    const single = $userSettingsStore?.markerDefaultColor || "blue"
+    const perType = {
+      ...($userSettingsStore?.markerTypeDefaultColors || {}),
+    }
+    perType[iconClass] = markerColorKey
+    const result = await userSettingsApi.updateMarkerDefaultColors(
+      mode,
+      single,
+      perType,
     )
+    const typeName =
+      findMarkerByIconClass(iconClass)?.name || "this marker type"
+    if (result?.success) {
+      toast.success(`Default colour set for ${typeName}`)
+    } else {
+      toast.error(result?.message || "Failed to set default colour")
+    }
   }
 
   let confirmDelete = false
@@ -186,6 +239,28 @@
     : "Marker"
   $: displayIconClass = previewIconClass || getCurrentIconClass(marker?.id)
 
+  // The colour shown in the header badge + colour-menu tag: the marker's
+  // explicit colour, or if it's set to Default, the colour the "Marker
+  // default colours" profile settings actually resolve to (per-type override
+  // → built-in preset → single; "random" → stable per-marker colour).
+  $: headerColorKey = (() => {
+    const explicit = markerColorKey
+    if (
+      explicit &&
+      explicit !== MARKER_COLOR_DEFAULT &&
+      explicit !== RANDOM_COLOR_KEY
+    ) {
+      return explicit
+    }
+    let key = markerDefaultColorKey(
+      marker?.iconClass,
+      $userSettingsStore || {},
+    )
+    if (key === RANDOM_COLOR_KEY) key = randomColorForId(marker?.id)
+    return key
+  })()
+  $: headerColorDef = markerColor(headerColorKey)
+
   const allMarkerIcons = getAllMarkers()
   $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
 
@@ -198,7 +273,6 @@
       originalNotes = marker?.notes || ""
       noteLabelVisible = marker?.noteLabelVisible !== false
       markerColorKey = marker?.markerColor || MARKER_COLOR_DEFAULT
-      markerTintMode = marker?.tintMode || TINT_MODE_DEFAULT
       noteEditing = false
       noteSavedFlash = false
       openUp = true
@@ -206,6 +280,7 @@
       addMenuOpen = false
       view = "main"
       panelOpen = true
+      colorBoxOpen = false
       loadPhotos()
       resetIconEdit()
     }
@@ -248,9 +323,11 @@
         py = p.y
       }
 
-      // Menu box dimensions (match the .marker-pop CSS).
+      // Menu box dimensions (match the .marker-pop CSS; measured so the flip
+      // uses the real rendered height).
       const menuW = 250
-      const menuH = Math.min(360, rect.height - 70)
+      const menuH =
+        markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
 
       // Keep the on/off-screen tests on the raw marker point.
       visible =
@@ -267,17 +344,42 @@
         left = rect.left + px
         top = rect.top + (openUp ? py - 44 : py + 44)
       } else {
-        // Vertically: open upward (menu sits above the marker) by default, but
-        // flip to open downward when there isn't enough room above, so the
-        // whole menu box stays on screen.
-        openUp = py - 44 - menuH >= 8
-        let anchorY = openUp ? py - 44 : py + 44
+        // Vertically: open upward by default, but when the menu grazes the
+        // top edge it SLIDES down to hug it (8px gap) instead of snapping.
+        // Only flip once the slide would be too big AND the other side fits
+        // better (hysteresis keeps it stable across view/height changes).
+        const topMargin = 8
+        const bottomMargin = 8
+        const fitsVertically = menuH <= rect.height - topMargin - bottomMargin
+        const idealUpAnchor = py - 44 // open up → menu bottom sits here
+        const idealDownAnchor = py + 44 // open down → menu top sits here
+        // How far we'd have to push the menu toward its marker to keep it on
+        // screen in each orientation (0 when it fits at the ideal spot).
+        const upSlide = Math.max(0, menuH + topMargin - idealUpAnchor)
+        const downSlide = Math.max(
+          0,
+          idealDownAnchor - (rect.height - bottomMargin - menuH),
+        )
+        if (fitsVertically) {
+          if (openUp && upSlide > SLIDE_BUFFER && upSlide > downSlide) {
+            openUp = false
+          } else if (
+            !openUp &&
+            downSlide > SLIDE_BUFFER &&
+            downSlide > upSlide
+          ) {
+            openUp = true
+          }
+        }
+        // Taller than the viewport → keep the current orientation; the anchor
+        // clamps below + max-height/internal scroll keep it usable.
+        let anchorY = openUp ? idealUpAnchor : idealDownAnchor
         if (openUp) {
-          anchorY = Math.max(anchorY, menuH + 8)
-          anchorY = Math.min(anchorY, rect.height - 8)
+          anchorY = Math.max(anchorY, menuH + topMargin)
+          anchorY = Math.min(anchorY, rect.height - bottomMargin)
         } else {
-          anchorY = Math.max(anchorY, 8)
-          anchorY = Math.min(anchorY, rect.height - menuH - 8)
+          anchorY = Math.max(anchorY, topMargin)
+          anchorY = Math.min(anchorY, rect.height - menuH - bottomMargin)
         }
         // Horizontally: keep the menu centered on the marker, but shift it so
         // the 250px box never leaves the screen edges.
@@ -306,6 +408,7 @@
 
   // ── Drill-in navigation ──
   function goMain() {
+    colorBoxOpen = false
     // Leaving the icon picker without saving discards the preview.
     if (pendingIconChange) {
       revertIconChange()
@@ -364,30 +467,64 @@
     selectedMarkerStore.update((m) =>
       m?.id === marker.id ? { ...m, iconClass: newIconClass } : m,
     )
+    // Commit to the confirmed store too so MarkerManager re-renders the
+    // marker with its colour/style applied on the map BEFORE Save is pressed
+    // (the selection overlay reads confirmedMarkersStore). EXCEPT the silo:
+    // committing iconClass=custom-svg-silo2 here would flip selectedIsSilo
+    // and switch the menu to the silo panel mid-preview. The conversion only
+    // happens on Save (confirmIcon commits it, then the silo panel opens).
+    if (newIconClass !== "custom-svg-silo2") {
+      confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
+        markers.map((/** @type {any} */ m) =>
+          m.id === marker.id
+            ? {
+                ...m,
+                iconClass: newIconClass,
+                updated_at: new Date().toISOString(),
+              }
+            : m,
+        ),
+      )
+    }
   }
 
   function confirmIcon() {
-    if (!marker || !pendingIconChange || !selectedIconForEdit) return
+    if (!marker || !pendingIconChange) return
 
+    // Colour-only changes (no icon preview) also come through here — commit
+    // the pending colour, and only touch iconClass when one was previewed.
     const newIconClass = previewIconClass
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
         m.id === marker.id
           ? {
               ...m,
-              iconClass: newIconClass,
+              ...(newIconClass ? { iconClass: newIconClass } : {}),
+              markerColor: markerColorKey,
               updated_at: new Date().toISOString(),
             }
           : m,
       ),
     )
 
-    const oldDef = findMarkerByIconClass(marker.iconClass)
-    const newDef = findMarkerByIconClass(newIconClass)
-    const labelText = `${oldDef?.name || "Marker"} → ${newDef?.name || "Marker"}`
-    if (marker.coordinates) showEditRipple(marker.coordinates, labelText)
+    if (newIconClass) {
+      const oldDef = findMarkerByIconClass(marker.iconClass)
+      const newDef = findMarkerByIconClass(newIconClass)
+      const labelText = `${oldDef?.name || "Marker"} → ${newDef?.name || "Marker"}`
+      if (marker.coordinates) showEditRipple(marker.coordinates, labelText)
+    } else if (marker.coordinates) {
+      // Colour-only confirm — same edit-pulse confirmation visual/effect as
+      // an icon change, labelled with the colour that was picked.
+      const colourLabel = markerColor(markerColorKey)?.label || "Default"
+      showEditRipple(marker.coordinates, `Colour → ${colourLabel}`)
+    }
 
     resetIconEdit()
+    // Save confirms the change. Converting a marker INTO a silo keeps it
+    // selected so the silo edit panel opens; everything else closes the menu.
+    if (newIconClass !== "custom-svg-silo2") {
+      deselectMarker()
+    }
   }
 
   function resetIconEdit() {
@@ -414,6 +551,19 @@
     // so the panel shows the confirmed icon, not the last previewed one.
     selectedMarkerStore.update((m) =>
       m?.id === pendingMarkerId ? { ...m, iconClass: originalIconClass } : m,
+    )
+    // Undo the live-preview commit so the map + store match the original
+    // icon (only committed permanently when Save is pressed).
+    confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
+      markers.map((/** @type {any} */ m) =>
+        m.id === pendingMarkerId
+          ? {
+              ...m,
+              iconClass: originalIconClass,
+              updated_at: new Date().toISOString(),
+            }
+          : m,
+      ),
     )
     previewIconClass = null
   }
@@ -866,6 +1016,7 @@
 
   // ── Close (X): cancels a move + reverts icon preview, then closes ──
   function handleClose() {
+    colorBoxOpen = false
     if (pendingIconChange) {
       revertIconChange()
       resetIconEdit()
@@ -927,8 +1078,36 @@
     returnToMarker()
   }
 
+  // Reposition with a short slide transition (used on flips); plain
+  // position() stays instant so the menu follows the map.
+  function positionSmooth() {
+    if (moving) {
+      position()
+      return
+    }
+    smoothReposition = true
+    position()
+    clearTimeout(smoothRepositionTimer)
+    smoothRepositionTimer = setTimeout(() => (smoothReposition = false), 350)
+  }
+
   onMount(() => {
     position()
+    lastMenuHeight = markerPopEl?.offsetHeight || 0
+    // Re-position whenever the panel's size changes so the flip/slide
+    // decision is recomputed at the exact moment it grows.
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        const h = markerPopEl?.offsetHeight || 0
+        if (h && Math.abs(h - lastMenuHeight) > 2) {
+          lastMenuHeight = h
+          positionSmooth()
+        } else if (h) {
+          lastMenuHeight = h
+        }
+      })
+      if (markerPopEl) resizeObserver.observe(markerPopEl)
+    }
     window.addEventListener(
       "marker-drawing-flow-complete",
       handleDrawingFlowComplete,
@@ -945,6 +1124,8 @@
   })
 
   onDestroy(() => {
+    resizeObserver?.disconnect()
+    clearTimeout(smoothRepositionTimer)
     clearAttention()
     if (dragRafId != null) {
       cancelAnimationFrame(dragRafId)
@@ -985,8 +1166,10 @@
     <div
       class="marker-pop"
       class:moving
+      class:dragging
       class:hidden={!visible || hideForEditor}
       class:down={!openUp}
+      class:smooth={smoothReposition}
       on:mousedown={onPanelDragStart}
       on:touchstart={onPanelDragStart}
       style="left:{left}px; top:{top}px;"
@@ -1011,7 +1194,16 @@
           {/if}
         </div>
         <div class="marker-pop-titles">
-          <span class="marker-pop-title" title={markerName}>{markerName}</span>
+          <div class="marker-pop-title-row">
+            <span class="marker-pop-title" title={markerName}>{markerName}</span>
+            <span
+              class="marker-pop-color-name"
+              style="color: {swatchText(headerColorDef)}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
+              title={`Marker colour: ${headerColorDef.label}`}
+            >
+              {headerColorDef.label}
+            </span>
+          </div>
           {#if createdShort}
             <span class="marker-pop-sub">Created {createdShort}</span>
           {/if}
@@ -1053,6 +1245,71 @@
           {/if}
         </div>
         <div class="marker-pop-body">
+          <div class="mp-section mp-icon-color-section">
+            {#if
+              markerColorKey !== MARKER_COLOR_DEFAULT &&
+              marker?.iconClass
+            }
+              <button
+                type="button"
+                class="mp-apply-default"
+                title="Set this colour as the default for {markerName}"
+                on:click={applyDefaultColour}
+              >
+                <Sparkles size={11} />
+                <span>Apply as default</span>
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="mp-color-bar"
+              class:open={colorBoxOpen}
+              class:color-active={markerColorKey !== MARKER_COLOR_DEFAULT}
+              title="Change colour"
+              aria-label="Change colour"
+              on:click={toggleColorBox}
+            >
+              <span class="mp-color-bar-title">Color</span>
+              <span
+                class="mp-color-trigger"
+                class:mp-color-trigger-default={markerColorKey === MARKER_COLOR_DEFAULT}
+                style="background: {markerColorKey === MARKER_COLOR_DEFAULT
+                  ? "transparent"
+                  : styleSwatchBg(markerColor(menuTriggerColorKey, markerStyle), markerStyle)};"
+              >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span>
+            </button>
+              {#if colorBoxOpen}
+                <button
+                  type="button"
+                  class="mp-color-pop-overlay"
+                  aria-label="Close colour picker"
+                  on:click={() => (colorBoxOpen = false)}
+                ></button>
+                <div class="mp-color-pop">
+                  <button
+                    type="button"
+                    class="mp-color-cell mp-color-cell-special"
+                    class:active={markerColorKey === MARKER_COLOR_DEFAULT}
+                    title="Default — follows the marker default colour"
+                    aria-label="Marker colour: Default"
+                    on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
+                  >D</button>
+                  {#each PICKABLE_MARKER_COLORS.filter(
+                    (c) => c.key !== MARKER_COLOR_DEFAULT,
+                  ) as c}
+                    <button
+                      type="button"
+                      class="mp-color-cell"
+                      class:active={markerColorKey === c.key}
+                      style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
+                      title={c.label}
+                      aria-label={`Marker colour ${c.label}`}
+                      on:click={() => pickMenuColor(c.key)}
+                    ></button>
+                  {/each}
+                </div>
+              {/if}
+          </div>
           <div class="mp-icon-grid">
             {#each selectableMarkers as icon}
               <button
@@ -1073,6 +1330,20 @@
               </button>
             {/each}
           </div>
+
+          <!-- Always-open note field (mirrors the placement panel). Saves on
+               blur; Enter (without Shift) also confirms. -->
+          <input
+            type="text"
+            class="mp-notes-input mp-notes-input-icon"
+            bind:this={noteInputEl}
+            bind:value={notesText}
+            placeholder="Add a note..."
+            maxlength="500"
+            aria-label="Add a note"
+            on:keydown={onNotesKeydown}
+            on:blur={finishNoteEdit}
+          />
         </div>
       {:else}
         <div class="marker-pop-body">
@@ -1178,44 +1449,6 @@
               />
             </div>
 
-            <div class="mp-section">
-              <div class="mp-section-head">
-                <span class="mp-section-title">
-                  <MapPin size={12} />
-                  <span>Color</span>
-                </span>
-              </div>
-              <div class="mp-color-swatches">
-                {#each MARKER_COLORS as c}
-                  <button
-                    class="mp-color-swatch"
-                    class:active={markerColorKey === c.key}
-                    style="background: {c.light}; border-color: {c.key ===
-                    MARKER_COLOR_DEFAULT
-                      ? '#9ca3af'
-                      : c.dark};"
-                    title={c.label}
-                    aria-label={`Marker colour ${c.label}`}
-                    on:click={() => setMarkerColor(c.key)}
-                  ></button>
-                {/each}
-              </div>
-              {#if markerColorKey !== MARKER_COLOR_DEFAULT}
-                <div class="mp-tint-modes">
-                  {#each TINT_MODES as m}
-                    <button
-                      class="mp-tint-mode"
-                      class:active={markerTintMode === m.key}
-                      on:click={() => setTintMode(m.key)}
-                      title={m.label}
-                    >
-                      {m.label}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-
             <div class="mp-delete-row">
               <button
                 class="mp-delete-btn"
@@ -1239,7 +1472,7 @@
           <button
             class="mp-action-btn"
             on:click={() => (view = "icon")}
-            title="Change icon"
+            title="Edit marker icon"
           >
             <span class="mp-action-glyph">
               {#if displayIconClass === "default"}
@@ -1261,7 +1494,7 @@
                 ></i>
               {/if}
             </span>
-            <span>↻ Icon</span>
+            <span>Edit</span>
           </button>
           <button class="mp-action-btn accent" on:click={toggleMove}>
             <span class="mp-action-glyph">
@@ -1358,6 +1591,14 @@
   .marker-pop.down {
     --pop-y: 0%;
   }
+  /* Smooth slide/flip when repositioning after a flip — disabled during
+     normal map tracking. */
+  .marker-pop.smooth {
+    transition:
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
   .marker-pop.hidden {
     opacity: 0;
     pointer-events: none;
@@ -1368,6 +1609,10 @@
     border-color: rgba(245, 158, 11, 0.9);
     cursor: grab;
     user-select: none;
+  }
+  /* Dim the menu while actively dragging so you can see what's behind it. */
+  .marker-pop.dragging {
+    opacity: 0.55;
   }
   /* Entrance pop-in — also covers the near-instant drawings load so the
      section appears without any visible layout adjustment. */
@@ -1411,6 +1656,12 @@
     flex-direction: column;
     gap: 0;
   }
+  .marker-pop-title-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
   .marker-pop-title {
     min-width: 0;
     font-size: 13px;
@@ -1429,6 +1680,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .marker-pop-color-name {
+    flex-shrink: 0;
+    align-self: center;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 1px 5px;
+    border-radius: 999px;
+    border: 1px solid;
+    white-space: nowrap;
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .marker-pop-close {
     display: flex;
@@ -1739,50 +2006,87 @@
   .mp-delete-row {
     display: flex;
   }
-  .mp-color-swatches {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .mp-color-trigger {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.15s ease;
   }
-  .mp-color-swatch {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
+  .mp-color-trigger:hover {
+    transform: scale(1.1);
+  }
+  /* Default selection — dashed rim with a D glyph (not the emulated colour) */
+  .mp-color-trigger-default {
+    border-style: dashed !important;
+    border-color: rgba(255, 255, 255, 0.55) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .mp-color-pop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: default;
+  }
+  .mp-color-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 31;
+    width: 112px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 8px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+  .mp-color-cell {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     border: 2px solid rgba(255, 255, 255, 0.2);
     cursor: pointer;
-    transition: all 0.15s ease;
+    padding: 0;
+    transition: transform 0.12s ease;
   }
-  .mp-color-swatch:hover {
+  .mp-color-cell:hover {
     transform: scale(1.12);
   }
-  .mp-color-swatch.active {
-    border-color: #fff;
+  .mp-color-cell.active {
+    /* White ring on the picked colour. */
+    border-color: #fff !important;
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
   }
-  .mp-tint-modes {
+  /* "Default" cell — dashed rim with a glyph */
+  .mp-color-cell-special {
+    border: 2px dashed rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.06);
     display: flex;
-    gap: 5px;
-    margin-top: 8px;
-  }
-  .mp-tint-mode {
-    flex: 1;
-    padding: 5px 4px;
-    border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
+    align-items: center;
+    justify-content: center;
     font-size: 11px;
-    line-height: 1;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
   }
-  .mp-tint-mode:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .mp-tint-mode.active {
-    border-color: rgba(96, 165, 250, 0.7);
-    background: rgba(96, 165, 250, 0.18);
-    color: #fff;
+  .mp-color-cell-special.active {
+    border-style: solid;
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
   }
   .mp-delete-btn {
     flex: 1;
@@ -1975,6 +2279,78 @@
     border-color: rgba(96, 165, 250, 0.8);
     background: rgba(96, 165, 250, 0.18);
     box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4);
+  }
+
+  /* Colour picker inside the icon edit view — the card IS the button so the
+     whole card (incl. its padding) is the clickable target for the popover. */
+  .mp-icon-color-section {
+    position: relative;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .mp-color-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mp-color-bar:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+  /* A colour is picked → slight border highlight around the card. */
+  .mp-color-bar.color-active {
+    border-color: rgba(96, 165, 250, 0.55);
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+  }
+  .mp-color-bar-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .mp-color-bar.open .mp-color-trigger {
+    transform: scale(1.1);
+  }
+
+  /* "Apply as default colour" chip — appears when a non-default colour is
+     picked, so the marker type can adopt it as its default. */
+  .mp-apply-default {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    background: rgba(96, 165, 250, 0.1);
+    color: #93c5fd;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mp-apply-default:hover {
+    background: rgba(96, 165, 250, 0.22);
+  }
+
+  /* Single-line note field inside the icon edit view. */
+  .mp-notes-input-icon {
+    resize: none;
+    margin-top: 10px;
   }
 
   /* DrawingPanel lives in the old bottom-bar's CSS: its .drawing-section is

@@ -20,12 +20,16 @@
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
   import {
-    MARKER_COLORS,
+    PICKABLE_MARKER_COLORS,
     MARKER_COLOR_DEFAULT,
-    TINT_MODES,
-    TINT_MODE_DEFAULT,
+    markerColor,
+    styleSwatchBg,
+    swatchText,
+    markerDefaultColorKey,
+    randomColorForId,
+    RANDOM_COLOR_KEY,
   } from "./markerPalette"
-  import TintedIconPreview from "./TintedIconPreview.svelte"
+  import { userSettingsStore } from "$lib/stores/userSettingsStore"
 
   export let map
   export let getCurrentIconClass
@@ -34,6 +38,8 @@
   export let confirmedMarkersStore
   export let selectedMarkerStore
   export let getIconImageName
+  export let previewTintName = (iconClass, colorKey, markerId) =>
+    getIconImageName(iconClass)
   export let updateMarkerNoteLabel = () => {}
   export let showPlacementRipple = () => {}
   export let showEditRipple = () => {}
@@ -50,24 +56,51 @@
   let shouldReopenAfterDrawing = false
   let previousMarkerId = null
 
-  // ── Colour + style selection for new markers (test mode) ──
-  // Lets the user preview every icon in a chosen colour + tint mode against
-  // the live farm map (panel turns translucent when "Test" is enabled). The
-  // chosen colour/style is persisted on the new marker on confirm.
+  // ── Colour selection for new markers ──
+  // Lets the user pick a marker colour that's persisted on the new marker
+  // on confirm. Shown as a row of swatches (one per pickable colour).
   let pickerColorKey = MARKER_COLOR_DEFAULT
-  let pickerTintMode = TINT_MODE_DEFAULT
-  let testMode = false
+  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+
+  // The colour the badge shows: the picked colour, or the effective default
+  // colour for the current icon when set to Default.
+  $: pickerTriggerKey = (() => {
+    if (pickerColorKey !== MARKER_COLOR_DEFAULT) return pickerColorKey
+    const iconClass =
+      previewIconClass || getCurrentIconClass($selectedMarkerStore?.id)
+    let key = markerDefaultColorKey(iconClass, $userSettingsStore || {})
+    if (key === RANDOM_COLOR_KEY) {
+      key = randomColorForId($selectedMarkerStore?.id || "preview")
+    }
+    return key
+  })()
+
+  function pickMenuColor(/** @type {string} */ key) {
+    setPickerColor(key)
+  }
+
+  // Live-preview the picked colour/icon on the map for a brand-new marker
+  // (rendered via the selected symbol layer) before it's confirmed.
+  function updateNewMarkerPreviewIcon(iconClass) {
+    if (!map || !$selectedMarkerStore) return
+    const id = $selectedMarkerStore.id
+    const source = map.getSource("markers")
+    const data = source?._data
+    const feature = data?.features?.find((f) => f.properties.id === id)
+    if (feature) {
+      feature.properties.icon = previewTintName(iconClass, pickerColorKey, id)
+      feature.properties.iconClass = iconClass
+      source.setData(data)
+    }
+  }
 
   function setPickerColor(/** @type {string} */ key) {
     pickerColorKey = key
-  }
-
-  function setPickerTintMode(/** @type {string} */ key) {
-    pickerTintMode = key
-  }
-
-  function toggleTestMode() {
-    testMode = !testMode
+    if (selectedMarkerIsNew) {
+      const iconClass =
+        previewIconClass || getCurrentIconClass($selectedMarkerStore?.id)
+      updateNewMarkerPreviewIcon(iconClass || "default")
+    }
   }
 
   // Unified notes state
@@ -409,7 +442,11 @@
     const feature = data.features.find((f) => f.properties.id === id)
 
     if (feature) {
-      feature.properties.icon = getIconImageName(newIconClass)
+      feature.properties.icon = previewTintName(
+        newIconClass,
+        pickerColorKey,
+        id,
+      )
       feature.properties.iconClass = newIconClass
       source.setData(data)
     }
@@ -442,7 +479,6 @@
       notes: markerNotes.trim() || undefined,
       noteLabelVisible: true,
       markerColor: pickerColorKey,
-      tintMode: pickerTintMode,
       created_at: new Date().toISOString(),
     }
 
@@ -683,7 +719,6 @@
   <div
     class="marker-panel"
     class:expanded={isExpanded}
-    class:test-mode={testMode}
   >
     <!-- Edit Section -->
     {#if isExpanded && showEditMenu}
@@ -726,55 +761,36 @@
         {#if selectedMarkerIsNew}
           <div class="picker-toolbar">
             <div class="picker-row">
-              <span class="picker-label">Colour</span>
               <div class="picker-swatches">
-                {#each MARKER_COLORS as c}
+                <button
+                  type="button"
+                  class="picker-swatch picker-swatch-default"
+                  class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
+                  title="Default — follows the marker default colour"
+                  aria-label="Marker colour: Default"
+                  on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
+                >D</button>
+                {#each PICKABLE_MARKER_COLORS.filter((c) => c.key !== MARKER_COLOR_DEFAULT) as c}
                   <button
+                    type="button"
                     class="picker-swatch"
                     class:active={pickerColorKey === c.key}
-                    style="background: {c.light}; border-color: {c.key ===
-                    MARKER_COLOR_DEFAULT
-                      ? '#9ca3af'
-                      : c.dark};"
+                    style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
                     title={c.label}
                     aria-label={`Marker colour ${c.label}`}
-                    on:click={() => setPickerColor(c.key)}
+                    on:click={() => pickMenuColor(c.key)}
                   ></button>
                 {/each}
               </div>
-            </div>
-            <div class="picker-row">
-              <span class="picker-label">Style</span>
-              <div class="picker-modes">
-                {#each TINT_MODES as m}
-                  <button
-                    class="picker-mode"
-                    class:active={pickerTintMode === m.key}
-                    on:click={() => setPickerTintMode(m.key)}
-                    title={m.label}
-                  >
-                    {m.label}
-                  </button>
-                {/each}
-              </div>
-              <button
-                class="test-toggle"
-                class:active={testMode}
-                on:click={toggleTestMode}
-                title="Turn the panel translucent to preview every icon against the map"
+              <span
+                class="picker-label"
+                style="color: {swatchText(markerColor(pickerTriggerKey, markerStyle))};"
               >
-                <RefreshCw size={13} />
-                <span>Test</span>
-              </button>
+                {pickerColorKey === MARKER_COLOR_DEFAULT
+                  ? "Default"
+                  : markerColor(pickerColorKey, markerStyle).label}
+              </span>
             </div>
-            {#if testMode}
-              <div class="picker-test-hint">
-                Previewing every icon as {pickerColorKey === MARKER_COLOR_DEFAULT
-                  ? "the default colour"
-                  : pickerColorKey}{" "}
-                / {pickerTintMode} against the map — the panel is translucent.
-              </div>
-            {/if}
           </div>
         {/if}
 
@@ -786,14 +802,7 @@
                 class:selected={getIsIconSelected(icon)}
                 on:click={() => handleIconPreview(icon)}
               >
-                {#if testMode}
-                  <TintedIconPreview
-                    icon={icon}
-                    colorKey={pickerColorKey}
-                    mode={pickerTintMode}
-                    size={56}
-                  />
-                {:else if icon.id === "default"}
+                {#if icon.id === "default"}
                   <IconSVG icon="mapbox-marker" size="28px" />
                 {:else if icon.class.startsWith("custom-svg")}
                   <IconSVG icon={icon.id} size="28px" />
@@ -1081,36 +1090,7 @@
     overflow-y: auto;
   }
 
-  /* ── Test mode: translucent panel so every icon can be previewed against
-     the live map behind it ── */
-  .marker-panel.test-mode {
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(3px);
-  }
-  .marker-panel.test-mode .icon-section {
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.42),
-      rgba(0, 0, 0, 0.3)
-    );
-  }
-  .marker-panel.test-mode .icon-option {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.14);
-  }
-  .marker-panel.test-mode .icon-option:hover {
-    background: rgba(255, 255, 255, 0.16);
-  }
-  .marker-panel.test-mode .icon-option.selected {
-    background: rgba(96, 165, 250, 0.28);
-    border-color: #60a5fa;
-  }
-  .marker-panel.test-mode .control-bar {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-  }
-
-  /* ── Colour + style picker toolbar (new-marker test mode) ── */
+  /* ── Colour picker toolbar (new markers) ── */
   .picker-toolbar {
     flex-shrink: 0;
     padding: 8px 20px 4px;
@@ -1125,88 +1105,62 @@
     gap: 10px;
   }
   .picker-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.55);
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.7);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    flex-shrink: 0;
-    width: 44px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    white-space: nowrap;
   }
+  /* Colour swatch row — one swatch per pickable colour (all shown at once).
+     Natural width (no flex:1) so the colour-name badge sits right after the
+     swatches instead of being pushed to the right edge. */
   .picker-swatches {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    flex: 1;
+    align-items: center;
+    gap: 7px;
   }
   .picker-swatch {
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
     cursor: pointer;
-    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+    transition: transform 0.12s ease;
   }
   .picker-swatch:hover {
     transform: scale(1.12);
   }
   .picker-swatch.active {
-    border-color: #fff;
+    border-color: #fff !important;
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
   }
-  .picker-modes {
+  /* "Default" swatch — dashed rim with a D glyph (matches the D cells in
+     the other pickers), instead of a colour swatch. */
+  .picker-swatch-default {
     display: flex;
-    gap: 5px;
-    flex: 1;
-  }
-  .picker-mode {
-    flex: 1;
-    padding: 5px 4px;
-    border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
-    font-size: 11px;
-    line-height: 1;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  .picker-mode:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .picker-mode.active {
-    border-color: rgba(96, 165, 250, 0.7);
-    background: rgba(96, 165, 250, 0.18);
-    color: #fff;
-  }
-  .test-toggle {
-    display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    border: 2px dashed rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.06);
   }
-  .test-toggle:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .test-toggle.active {
-    border-color: rgba(52, 211, 153, 0.8);
-    background: rgba(52, 211, 153, 0.18);
-    color: #6ee7b7;
-  }
-  .picker-test-hint {
-    font-size: 11px;
-    color: #6ee7b7;
-    padding-bottom: 2px;
+  .picker-swatch-default.active {
+    border-style: solid;
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
   }
 
   /* Marker Settings Section (unified panel: title → notes → drawings → location) */

@@ -1,0 +1,380 @@
+<!doctype html>
+<!--
+  tmp-selection-overlay-test.html — mirrors MarkerManager's per-style
+  selection overlay system EXACTLY (same SELECTION_VISUALS, same
+  buildSelectionElement HTML, same :global CSS + -global-msv-* keyframes,
+  same updateSelectionOverlay logic) on a real Mapbox map so we can verify
+  each visual renders, follows the selected marker, and swaps when the
+  global marker style changes.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marker Selection Overlay Test (real map)</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; left: 12px; z-index: 5;
+        background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0; max-width: 300px;
+      }
+      #ui h1 { font-size: 14px; margin: 0 0 4px; }
+      #ui .sub { font-size: 11px; color: #94a3b8; margin: 0 0 10px; }
+      #ui button {
+        display: block; width: 100%; margin: 4px 0; padding: 6px 10px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+        color: #e2e8f0; font-size: 12px; text-align: left; cursor: pointer;
+      }
+      #ui button.active { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+      #ui .hint { font-size: 10px; color: #64748b; margin-top: 8px; }
+
+      /* ═══ EXACT :global CSS copied from MarkerManager.svelte ═══ */
+      .marker-selection-overlay {
+        width: 120px;
+        height: 120px;
+        position: relative;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      /* 1. Original — ripple */
+      .msv-ripple { position: absolute; left: 50%; top: 50%; }
+      .msv-ripple i {
+        position: absolute;
+        width: 66px; height: 66px;
+        margin: -33px 0 0 -33px;
+        border: 2px solid var(--sel);
+        border-radius: 50%;
+        opacity: 0;
+        animation: msv-ripple 2.4s ease-out infinite;
+      }
+      .msv-ripple i.r2 { animation-delay: 1.2s; }
+      @keyframes msv-ripple {
+        0% { transform: scale(0.4); opacity: 0.85; }
+        100% { transform: scale(1.5); opacity: 0; }
+      }
+
+      /* 2. Circle fill white — breathing glow */
+      .msv-breathe {
+        position: absolute; left: 50%; top: 50%;
+        width: 96px; height: 96px;
+        margin: -48px 0 0 -48px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--selc) 0%, transparent 68%);
+        animation: msv-breathe 2.2s ease-in-out infinite;
+      }
+      @keyframes msv-breathe {
+        0%, 100% { transform: scale(0.75); opacity: 0.45; }
+        50% { transform: scale(1.2); opacity: 0.95; }
+      }
+
+      /* 3. Circle fill black — corner brackets */
+      .msv-brackets { position: absolute; left: 50%; top: 50%; }
+      .msv-brackets i {
+        position: absolute;
+        width: 20px; height: 20px;
+        border: 2.5px solid var(--sel);
+        opacity: 0.2;
+        animation: msv-brk 1.6s ease-in-out infinite;
+      }
+      .msv-brackets i.tl { left: -39px; top: -39px; border-right: none; border-bottom: none; border-radius: 5px 0 0 0; }
+      .msv-brackets i.tr { right: -39px; top: -39px; border-left: none; border-bottom: none; border-radius: 0 5px 0 0; }
+      .msv-brackets i.bl { left: -39px; bottom: -39px; border-right: none; border-top: none; border-radius: 0 0 0 5px; }
+      .msv-brackets i.br { right: -39px; bottom: -39px; border-left: none; border-top: none; border-radius: 0 0 5px 0; }
+      .msv-brackets i.tr, .msv-brackets i.bl { animation-delay: 0.8s; }
+      @keyframes msv-brk {
+        0%, 100% { opacity: 0.2; }
+        50% { opacity: 1; }
+      }
+
+      /* 4. Icon fill — target reticle */
+      .msv-reticle {
+        position: absolute; left: 50%; top: 50%;
+        width: 76px; height: 76px;
+        margin: -38px 0 0 -38px;
+        animation: msv-reticle 2.2s ease-in-out infinite;
+      }
+      .msv-reticle .ring {
+        position: absolute; inset: 0;
+        border: 2px solid var(--sel);
+        border-radius: 50%;
+        opacity: 0.85;
+        animation: msv-spin 7s linear infinite;
+      }
+      .msv-reticle .ring::after {
+        content: "";
+        position: absolute; top: -3px; left: 50%; margin-left: -3px;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--sel);
+        box-shadow: 0 0 6px var(--sel);
+      }
+      .msv-reticle .h, .msv-reticle .v {
+        position: absolute;
+        background: var(--sel);
+        opacity: 0.6;
+      }
+      .msv-reticle .h { left: 8px; right: 8px; top: 50%; height: 1px; }
+      .msv-reticle .v { top: 8px; bottom: 8px; left: 50%; width: 1px; }
+      @keyframes msv-reticle {
+        0%, 100% { transform: scale(0.9); opacity: 0.7; }
+        50% { transform: scale(1.08); opacity: 1; }
+      }
+      @keyframes msv-spin { to { transform: rotate(360deg); } }
+
+      /* 5. Icon only — anchor pulse */
+      .msv-anchor { position: absolute; left: 50%; top: 50%; }
+      .msv-anchor .dot {
+        position: absolute; left: 0; top: 27px;
+        width: 12px; height: 12px;
+        margin: -6px 0 0 -6px;
+        border-radius: 50%;
+        background: var(--sel);
+        box-shadow: 0 0 10px var(--sel);
+        animation: msv-dot 1.5s ease-in-out infinite;
+      }
+      .msv-anchor .shadow {
+        position: absolute; left: 0; top: 25px;
+        width: 40px; height: 10px;
+        margin: -5px 0 0 -20px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.45);
+        filter: blur(2px);
+        animation: msv-shadow 1.5s ease-in-out infinite;
+      }
+      @keyframes msv-dot {
+        0%, 100% { transform: scale(0.6); opacity: 0.65; }
+        50% { transform: scale(1.25); opacity: 1; }
+      }
+      @keyframes msv-shadow {
+        0%, 100% { transform: scaleX(1); opacity: 0.7; }
+        50% { transform: scaleX(0.7); opacity: 0.5; }
+      }
+
+      /* 6. Icon dark glass — neon halo */
+      .msv-neon {
+        position: absolute; left: 50%; top: 50%;
+        width: 78px; height: 78px;
+        margin: -39px 0 0 -39px;
+        border-radius: 50%;
+        border: 3px solid var(--sel);
+        box-shadow: 0 0 16px var(--sel), 0 0 40px var(--sel);
+        animation: msv-neon 1.8s ease-in-out infinite;
+      }
+      @keyframes msv-neon {
+        0%, 100% { transform: scale(0.82); opacity: 0.55; }
+        50% { transform: scale(1.12); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <h1>Per-style selection overlay (real map)</h1>
+      <p class="sub">Mirrors MarkerManager exactly. Click the map to place/select a marker, then switch style.</p>
+      <div id="styleBtns"></div>
+      <div class="hint">Bounce (icon-light-glass) animates the marker's icon-size; others use a DOM overlay.</div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css" rel="stylesheet" />
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      // ── Exact SELECTION_VISUALS + logic from MarkerManager ──
+      const SELECTION_VISUALS = {
+        original: "ripple",
+        "circle-fill": "breathe",
+        "circle-fill-black": "brackets",
+        "icon-fill": "reticle",
+        "icon-only": "anchor",
+        "icon-dark-glass": "neon",
+        "icon-light-glass": "bounce",
+      }
+      const TINT_MODES = [
+        ["original", "Original"],
+        ["circle-fill", "Circle fill white"],
+        ["circle-fill-black", "Circle fill black"],
+        ["icon-fill", "Icon fill"],
+        ["icon-only", "Icon only"],
+        ["icon-dark-glass", "Icon dark glass"],
+        ["icon-light-glass", "Icon light glass"],
+      ]
+      const COLOR = { dark: "#2563eb", light: "#bfdbfe" }
+
+      let globalStyle = "original"
+      let selectedMarker = null // {id, coordinates}
+      let selectionOverlayMarker = null
+      let selectionOverlayEl = null
+      let lastOverlayVisual = null
+      let bounceRaf = null
+
+      function destroySelectionOverlay() {
+        if (selectionOverlayMarker) {
+          try { selectionOverlayMarker.remove() } catch (e) {}
+          selectionOverlayMarker = null
+          selectionOverlayEl = null
+          lastOverlayVisual = null
+        }
+      }
+
+      // Exact buildSelectionElement from MarkerManager
+      function buildSelectionElement(visual, colorDef) {
+        const el = document.createElement("div")
+        el.className = "marker-selection-overlay"
+        el.style.setProperty("--sel", (colorDef && colorDef.dark) || "#60a5fa")
+        el.style.setProperty("--selc", (colorDef && colorDef.light) || "#bfdbfe")
+        const htmlMap = {
+          ripple: '<div class="msv-ripple"><i class="r1"></i><i class="r2"></i></div>',
+          breathe: '<div class="msv-breathe"></div>',
+          brackets:
+            '<div class="msv-brackets"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>',
+          reticle: '<div class="msv-reticle"><span class="ring"></span><span class="h"></span><span class="v"></span></div>',
+          anchor: '<div class="msv-anchor"><i class="shadow"></i><i class="dot"></i></div>',
+          neon: '<div class="msv-neon"></div>',
+        }
+        const html = htmlMap[visual]
+        if (html) el.innerHTML = html
+        return el
+      }
+
+      function stopBounce(m) {
+        if (bounceRaf) { cancelAnimationFrame(bounceRaf); bounceRaf = null }
+        if (m && m.getLayer && m.getLayer("markers-selected-layer")) {
+          try { m.setLayoutProperty("markers-selected-layer", "icon-size", 0.35) } catch (e) {}
+        }
+      }
+
+      function startBounce(m) {
+        if (bounceRaf || !m || !m.getLayer("markers-selected-layer")) return
+        const DURATION = 1700
+        const start = performance.now()
+        const step = (now) => {
+          if (!m || !m.getLayer("markers-selected-layer")) return
+          const t = ((now - start) % DURATION) / DURATION
+          let s = 0.35
+          if (t < 0.3) s = 0.35 + 0.11 * Math.sin((t / 0.3) * Math.PI)
+          else if (t < 0.55) s = 0.46 - 0.13 * ((t - 0.3) / 0.25)
+          else s = 0.33 + 0.03 * Math.sin(((t - 0.55) / 0.45) * Math.PI)
+          try { m.setLayoutProperty("markers-selected-layer", "icon-size", s) } catch (e) {}
+          bounceRaf = requestAnimationFrame(step)
+        }
+        bounceRaf = requestAnimationFrame(step)
+      }
+
+      function updateSelectionOverlay(m) {
+        if (!m || !selectedMarker) {
+          destroySelectionOverlay()
+          stopBounce()
+          return
+        }
+        const visual = SELECTION_VISUALS[globalStyle] || "ripple"
+        const colorDef = COLOR
+
+        if (visual === "bounce") {
+          destroySelectionOverlay()
+          startBounce(m)
+          return
+        }
+        stopBounce(m)
+        if (!selectionOverlayMarker || lastOverlayVisual !== visual) {
+          destroySelectionOverlay()
+          selectionOverlayEl = buildSelectionElement(visual, colorDef)
+          selectionOverlayMarker = new mapboxgl.Marker({
+            element: selectionOverlayEl,
+            anchor: "center",
+          })
+            .setLngLat(selectedMarker.coordinates)
+            .addTo(m)
+          lastOverlayVisual = visual
+        } else {
+          selectionOverlayEl.style.setProperty("--sel", (colorDef && colorDef.dark) || "#60a5fa")
+          selectionOverlayEl.style.setProperty("--selc", (colorDef && colorDef.light) || "#bfdbfe")
+          selectionOverlayMarker.setLngLat(selectedMarker.coordinates)
+        }
+      }
+
+      // ── map setup ──
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/outdoors-v11",
+        center: [151.2093, -33.8688],
+        zoom: 13,
+      })
+      window.__testMap = map
+
+      // Real tinted marker as the "selected" marker
+      const markerEl = document.createElement("div")
+      markerEl.style.cssText =
+        "width:34px;height:34px;background:url('http://localhost:8099/static/icons/pin-ionic-3x.png') center/contain no-repeat;"
+      const mapMarker = new mapboxgl.Marker({ element: markerEl, anchor: "center" })
+        .setLngLat([151.2093, -33.8688])
+        .addTo(map)
+
+      // click to move selected marker + overlay
+      map.on("click", (e) => {
+        selectedMarker = { id: "test-1", coordinates: [e.lngLat.lng, e.lngLat.lat] }
+        mapMarker.setLngLat(e.lngLat)
+        updateSelectionOverlay(map)
+      })
+
+      // style switcher
+      const btns = document.getElementById("styleBtns")
+      TINT_MODES.forEach(([key, label]) => {
+        const b = document.createElement("button")
+        b.textContent = `${label}  →  ${SELECTION_VISUALS[key]}`
+        b.dataset.key = key
+        b.addEventListener("click", () => {
+          globalStyle = key
+          document.querySelectorAll("#styleBtns button").forEach((x) => x.classList.remove("active"))
+          b.classList.add("active")
+          // Simulate what refreshMapMarkers does: re-render + update overlay
+          updateSelectionOverlay(map)
+        })
+        btns.appendChild(b)
+      })
+
+      map.on("load", () => {
+        // Register a real markers-selected-layer so bounce has a target
+        map.addSource("markers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        })
+        const img = new Image()
+        img.onload = () => {
+          map.addImage("pin-ionic-blue-icon-fill", img)
+          map.addLayer({
+            id: "markers-layer",
+            type: "symbol",
+            source: "markers",
+            layout: { "icon-image": "pin-ionic-blue-icon-fill", "icon-size": 0.35, "icon-anchor": "center" },
+          })
+          map.addLayer({
+            id: "markers-selected-layer",
+            type: "symbol",
+            source: "markers",
+            filter: ["==", ["get", "selected"], true],
+            layout: { "icon-image": "pin-ionic-blue-icon-fill", "icon-size": 0.35, "icon-anchor": "center" },
+          })
+          // seed a selected feature so bounce has something to animate
+          map.getSource("markers").setData({
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [151.2093, -33.8688] },
+                properties: { selected: true },
+              },
+            ],
+          })
+          document.querySelector('#styleBtns button[data-key="original"]').classList.add("active")
+        }
+        img.src = "http://localhost:8099/static/icons/pin-ionic-3x.png"
+      })
+    </script>
+  </body>
+</html>

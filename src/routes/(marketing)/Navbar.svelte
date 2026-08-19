@@ -72,9 +72,9 @@
   $: currentPath = $page.url.pathname
 
   const navItems = [
-    { href: "/how-it-works", label: "How It Works" },
-    { href: "/faq", label: "FAQ" },
-    { href: "/pricing", label: "Pricing" },
+    { href: "/#setup", label: "How It Works" },
+    { href: "/#qanda", label: "FAQ" },
+    { href: "/#pricing", label: "Pricing" },
     { href: "/contact-us", label: "Contact Us" },
   ]
 </script>

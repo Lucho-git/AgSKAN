@@ -22,8 +22,11 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
-  import { SILO_GRAIN_DEFAULT } from "./markers/siloPalette"
-  import { MARKER_COLOR_DEFAULT, TINT_MODE_DEFAULT } from "./markers/markerPalette"
+  import {
+    MARKER_COLOR_DEFAULT,
+    TINT_MODE_DEFAULT,
+    SILO_COLOR_DEFAULT,
+  } from "./markers/markerPalette"
   import {
     persistPendingMarkerChange,
     persistPendingMarkerDeletion,
@@ -181,14 +184,14 @@
         siloFill: newData.marker_data?.properties?.silo_fill ?? 0,
         grainType: newData.marker_data?.properties?.grain_type ?? "",
         grainColor:
-          newData.marker_data?.properties?.grain_color ?? SILO_GRAIN_DEFAULT,
+          newData.marker_data?.properties?.grain_color ?? SILO_COLOR_DEFAULT,
         markerColor:
           newData.marker_data?.properties?.marker_color ??
           MARKER_COLOR_DEFAULT,
         tintMode:
           newData.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
         capacityTonnes:
-          newData.marker_data?.properties?.capacity_tonnes ?? 0,
+          newData.marker_data?.properties?.capacity_tonnes ?? 200,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -537,14 +540,14 @@
             grainType: marker.marker_data?.properties?.grain_type ?? "",
             grainColor:
               marker.marker_data?.properties?.grain_color ??
-              SILO_GRAIN_DEFAULT,
+              SILO_COLOR_DEFAULT,
             markerColor:
               marker.marker_data?.properties?.marker_color ??
               MARKER_COLOR_DEFAULT,
             tintMode:
               marker.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
             capacityTonnes:
-              marker.marker_data?.properties?.capacity_tonnes ?? 0,
+              marker.marker_data?.properties?.capacity_tonnes ?? 200,
             photos: marker.marker_data?.properties?.photos || [],
             created_at:
               marker.last_confirmed ||
@@ -652,10 +655,10 @@
               note_label_visible: marker.noteLabelVisible !== false,
               silo_fill: marker.siloFill ?? 0,
               grain_type: marker.grainType || "",
-              grain_color: marker.grainColor || SILO_GRAIN_DEFAULT,
+              grain_color: marker.grainColor || SILO_COLOR_DEFAULT,
               marker_color: marker.markerColor || MARKER_COLOR_DEFAULT,
               tint_mode: marker.tintMode || TINT_MODE_DEFAULT,
-              capacity_tonnes: marker.capacityTonnes ?? 0,
+              capacity_tonnes: marker.capacityTonnes ?? 200,
               photos: marker.photos || [],
             },
           },

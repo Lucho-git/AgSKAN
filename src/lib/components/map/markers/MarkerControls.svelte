@@ -15,6 +15,13 @@
     resolveDefaultMarkerPreference,
     type MarkerPreference,
   } from "$lib/utils/defaultMarkerPreference"
+  import {
+    markerDefaultColorKey,
+    markerColor,
+    styleSwatchBg,
+    randomColorForId,
+    RANDOM_COLOR_KEY,
+  } from "./markerPalette"
   import MyMarkers from "$lib/components/map/toolbox/MyMarkers.svelte"
 
   const dispatch = createEventDispatcher()
@@ -46,6 +53,20 @@
   $: zoomToLocation = $userSettingsStore?.zoomToLocationMarkers ?? true
   $: zoomToPlaced = $userSettingsStore?.zoomToPlacedMarkers ?? true
   $: autoConfirm = $userSettingsStore?.autoConfirmMarkers ?? false
+
+  // The marker style + per-type default colour for each type's colour dot
+  // (reacts to the profile's default-colour changes, so the toolbox menu
+  // stays in sync with the map).
+  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+  function markerTypeColorKey(marker: MarkerDefinition): string {
+    const iconClass =
+      marker.class === "custom-svg"
+        ? `custom-svg-${marker.id}`
+        : marker.class
+    let key = markerDefaultColorKey(iconClass, $userSettingsStore || {})
+    if (key === RANDOM_COLOR_KEY) key = randomColorForId(iconClass)
+    return key
+  }
 
   // Lazy loading state
   let visibleMarkers: MarkerDefinition[] = allMarkerIcons.slice(0, 20)
@@ -513,6 +534,11 @@
               on:click={() => selectMarker(marker)}
             >
               <div class="marker-icon-small">
+                <span
+                  class="marker-color-dot"
+                  style="background: {styleSwatchBg(markerColor(markerTypeColorKey(marker), markerStyle), markerStyle)};"
+                  title={`Default colour: ${markerColor(markerTypeColorKey(marker), markerStyle).label}`}
+                ></span>
                 {#if marker.id === "default"}
                   <IconSVG icon="mapbox-marker" size="40px" />
                 {:else if marker.class.startsWith("custom-svg")}
@@ -564,6 +590,11 @@
               on:click={() => addExtraMarker(marker)}
             >
               <div class="marker-icon-small">
+                <span
+                  class="marker-color-dot"
+                  style="background: {styleSwatchBg(markerColor(markerTypeColorKey(marker), markerStyle), markerStyle)};"
+                  title={`Default colour: ${markerColor(markerTypeColorKey(marker), markerStyle).label}`}
+                ></span>
                 {#if marker.id === "default"}
                   <IconSVG icon="mapbox-marker" size="40px" />
                 {:else if marker.class.startsWith("custom-svg")}
@@ -1054,11 +1085,26 @@
   }
 
   .marker-icon-small {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     height: 40px;
     color: rgba(255, 255, 255, 0.9);
+  }
+
+  /* Little colour dot on each marker option — shows the type's current
+     default colour and updates when the profile default changes. */
+  .marker-color-dot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
   }
 
   .marker-label {

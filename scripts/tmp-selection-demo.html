@@ -1,0 +1,284 @@
+<!doctype html>
+<!--
+  tmp-selection-demo.html — one DISTINCT selection visual per marker style.
+  Renders the real pin icon tinted in each of the 7 styles (mirroring
+  markerTint.js), then overlays a different selection animation on each.
+  Styles & their selection methods:
+    1. Original         → Ripple        (concentric sonar pings)
+    2. Circle fill white→ Breathing glow(soft pulsing halo)
+    3. Circle fill black→ Corner brackets(editor crop brackets)
+    4. Icon fill        → Target reticle (spinning crosshair)
+    5. Icon only        → Anchor pulse  (pulsing dot at the anchor)
+    6. Icon dark glass  → Neon halo     (bright glowing ring)
+    7. Icon light glass → Bounce        (marker springs up)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marker Selection Ideas</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; font-family: system-ui, sans-serif;
+        background: #0f172a; color: #e2e8f0; padding: 24px;
+      }
+      h1 { font-size: 18px; color: #e2e8f0; margin: 0 0 4px; }
+      .sub { font-size: 13px; color: #94a3b8; margin: 0 0 20px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px; padding: 14px; display: flex; flex-direction: column;
+      }
+      .stage {
+        position: relative; height: 170px; border-radius: 10px; overflow: hidden;
+        background:
+          radial-gradient(ellipse at 30% 20%, rgba(56,120,90,0.5), transparent 60%),
+          radial-gradient(ellipse at 70% 60%, rgba(120,110,60,0.4), transparent 55%),
+          linear-gradient(160deg, #1a2b26, #22303a 55%, #2a2a20);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .stage canvas { width: 74px; height: 74px; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
+      .meta { margin-top: 10px; }
+      .style-name { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+      .sel-name { font-size: 11px; color: #93c5fd; margin-top: 2px; }
+
+      /* ── selection visuals ── */
+      .sel { position: absolute; left: 50%; top: 50%; pointer-events: none; }
+
+      /* 1. Ripple (original) */
+      .ripple-ring {
+        width: 110px; height: 110px; margin: -55px 0 0 -55px;
+        border: 2px solid var(--sel); border-radius: 50%; opacity: 0;
+        animation: ripple 2.4s ease-out infinite;
+      }
+      .ripple-ring.d2 { animation-delay: 1.2s; }
+      @keyframes ripple {
+        0% { transform: scale(0.35); opacity: 0.85; }
+        100% { transform: scale(1.35); opacity: 0; }
+      }
+
+      /* 2. Breathing glow (circle fill white) */
+      .breathe {
+        width: 160px; height: 160px; margin: -80px 0 0 -80px; border-radius: 50%;
+        background: radial-gradient(circle, var(--selc) 0%, transparent 68%);
+        animation: breathe 2.2s ease-in-out infinite;
+      }
+      @keyframes breathe {
+        0%, 100% { transform: scale(0.75); opacity: 0.45; }
+        50% { transform: scale(1.18); opacity: 0.95; }
+      }
+
+      /* 3. Corner brackets (circle fill black) */
+      .brk { position: absolute; width: 26px; height: 26px; border: 3px solid var(--sel); opacity: 0.2; animation: brkPulse 1.6s ease-in-out infinite; }
+      .brk.tl { left: -58px; top: -58px; border-right: none; border-bottom: none; border-radius: 7px 0 0 0; }
+      .brk.tr { right: -58px; top: -58px; border-left: none; border-bottom: none; border-radius: 0 7px 0 0; }
+      .brk.bl { left: -58px; bottom: -58px; border-right: none; border-top: none; border-radius: 0 0 0 7px; }
+      .brk.br { right: -58px; bottom: -58px; border-left: none; border-top: none; border-radius: 0 0 7px 0; }
+      .brk.d2 { animation-delay: 0.8s; }
+      @keyframes brkPulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+      /* 4. Target reticle (icon fill) */
+      .reticle {
+        width: 130px; height: 130px; margin: -65px 0 0 -65px;
+        animation: reticlePulse 2.2s ease-in-out infinite;
+      }
+      .reticle .ring {
+        position: absolute; inset: 0;
+        border: 2px solid var(--sel); border-radius: 50%; opacity: 0.85;
+        animation: spin 7s linear infinite;
+      }
+      .reticle .ring::after {
+        content: "";
+        position: absolute; top: -3px; left: 50%; margin-left: -3px;
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--sel); box-shadow: 0 0 6px var(--sel);
+      }
+      .reticle .h, .reticle .v { position: absolute; background: var(--sel); opacity: 0.6; }
+      .reticle .h { left: 8px; right: 8px; top: 50%; height: 1px; }
+      .reticle .v { top: 8px; bottom: 8px; left: 50%; width: 1px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes reticlePulse {
+        0%, 100% { transform: scale(0.9); opacity: 0.7; }
+        50% { transform: scale(1.08); opacity: 1; }
+      }
+
+      /* 5. Anchor pulse (icon only) */
+      .anchor {
+        left: 50%; top: calc(50% + 42px); width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px;
+        border-radius: 50%; background: var(--sel);
+        box-shadow: 0 0 12px var(--sel);
+        animation: dotPulse 1.5s ease-in-out infinite;
+      }
+      .anchor-shadow {
+        left: 50%; top: calc(50% + 40px); width: 46px; height: 12px; margin: -6px 0 0 -23px;
+        border-radius: 50%; background: rgba(0,0,0,0.45); filter: blur(2px);
+        animation: shadowPulse 1.5s ease-in-out infinite;
+      }
+      @keyframes dotPulse { 0%,100% { transform: scale(0.6); opacity: 0.65; } 50% { transform: scale(1.25); opacity: 1; } }
+      @keyframes shadowPulse { 0%,100% { transform: scaleX(1); opacity: 0.7; } 50% { transform: scaleX(0.72); opacity: 0.5; } }
+
+      /* 6. Neon halo (icon dark glass) */
+      .neon {
+        width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%;
+        border: 3px solid var(--sel);
+        box-shadow: 0 0 16px var(--sel), 0 0 42px var(--sel);
+        animation: neonPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes neonPulse { 0%,100% { transform: scale(0.82); opacity: 0.55; } 50% { transform: scale(1.12); opacity: 1; } }
+
+      /* 7. Bounce (icon light glass) */
+      .bounce { animation: bounce 1.7s ease-in-out infinite; transform-origin: 50% 100%; }
+      @keyframes bounce {
+        0%, 100% { transform: scale(1); }
+        35% { transform: scale(1.22); }
+        55% { transform: scale(0.95); }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Marker selection ideas — one per style</h1>
+    <p class="sub">Each card shows the marker in that style with a DIFFERENT selection visual. The current app uses a plain circle rim for everything — these are the alternatives.</p>
+    <div class="grid" id="grid"></div>
+
+    <script>
+      // ── tint mirror (markerTint.js) ──
+      const hexToRgb = (hex) => {
+        const h = hex.replace("#", "")
+        return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]
+      }
+      const clamp = (v) => Math.max(0, Math.min(1, v))
+      function hslToRgb(h, s, l) {
+        const a = s * Math.min(l, 1 - l)
+        const f = (n) => { const k = (n + h / 30) % 12; return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))) }
+        return [f(0), f(8), f(4)]
+      }
+      function tintMarker(canvas, colorDef, mode) {
+        const ctx = canvas.getContext("2d")
+        const { width, height } = canvas
+        const img = ctx.getImageData(0,0,width,height)
+        const d = img.data
+        const [lr,lg,lb] = hexToRgb(colorDef.light)
+        const [dr,dg,db] = hexToRgb(colorDef.deep)
+        const [br,bg,bb] = hexToRgb(colorDef.dark)
+        const GLYPH=[248,250,252], GLYPH_BLACK=[0,0,0]
+        const CIRCLE_WHITE=[241,245,249]
+        const GLASS=[240,244,248], GLASS_A=0.38
+        const GLASS_DARK=[15,23,42], GLASS_DA=0.55
+        const lerp=(a,b,x)=>a+(b-a)*x
+        const isRainbow = colorDef.key === "rainbow"
+        for (let i=0;i<d.length;i+=4){
+          const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3]
+          if (a===0) continue
+          const lum=0.299*r+0.587*g+0.114*b
+          const dev=Math.max(Math.abs(r-g),Math.abs(g-b),Math.abs(r-b))
+          const greyT=clamp((40-dev)/30)
+          const lumT=clamp((lum-60)/100)
+          const t=greyT*lumT
+          let rainR=0,rainG=0,rainB=0
+          if(isRainbow){ const px=(i/4)%width, py=Math.floor(i/4/width); const hue=((Math.atan2(py-height/2,px-width/2)+Math.PI)/(2*Math.PI))*360; [rainR,rainG,rainB]=hslToRgb(hue,0.95,0.55) }
+          if(mode==="circle-fill"){
+            d[i]=lerp(GLYPH[0],isRainbow?rainR:dr,t); d[i+1]=lerp(GLYPH[1],isRainbow?rainG:dg,t); d[i+2]=lerp(GLYPH[2],isRainbow?rainB:db,t)
+          } else if(mode==="circle-fill-black"){
+            d[i]=lerp(GLYPH_BLACK[0],isRainbow?rainR:br,t); d[i+1]=lerp(GLYPH_BLACK[1],isRainbow?rainG:bg,t); d[i+2]=lerp(GLYPH_BLACK[2],isRainbow?rainB:bb,t)
+          } else if(mode==="icon-fill"){
+            d[i]=lerp(isRainbow?rainR:dr,CIRCLE_WHITE[0],t); d[i+1]=lerp(isRainbow?rainG:dg,CIRCLE_WHITE[1],t); d[i+2]=lerp(isRainbow?rainB:db,CIRCLE_WHITE[2],t)
+          } else if(mode==="icon-only"){
+            d[i]=isRainbow?rainR:dr; d[i+1]=isRainbow?rainG:dg; d[i+2]=isRainbow?rainB:db; d[i+3]=Math.round(a*(1-t))
+          } else if(mode==="icon-dark-glass"){
+            d[i]=lerp(isRainbow?rainR:br,GLASS_DARK[0],t); d[i+1]=lerp(isRainbow?rainG:bg,GLASS_DARK[1],t); d[i+2]=lerp(isRainbow?rainB:bb,GLASS_DARK[2],t); d[i+3]=Math.round(a*(1-t+t*GLASS_DA))
+          } else if(mode==="icon-light-glass"){
+            d[i]=lerp(isRainbow?rainR:dr,GLASS[0],t); d[i+1]=lerp(isRainbow?rainG:dg,GLASS[1],t); d[i+2]=lerp(isRainbow?rainB:db,GLASS[2],t); d[i+3]=Math.round(a*(1-t+t*GLASS_A))
+          } else {
+            d[i]=lerp(r,isRainbow?rainR:lr,t); d[i+1]=lerp(g,isRainbow?rainG:lg,t); d[i+2]=lerp(b,isRainbow?rainB:lb,t)
+          }
+        }
+        ctx.putImageData(img,0,0)
+        if (mode==="original"){
+          const ring=hexToRgb(colorDef.dark)
+          ctx.beginPath(); ctx.arc(width/2,height/2,width/2-6,0,2*Math.PI); ctx.lineWidth=Math.max(3,Math.round(width*0.05)); ctx.strokeStyle=`rgba(${ring[0]},${ring[1]},${ring[2]},0.9)`; ctx.stroke()
+        } else if (mode==="icon-fill"){
+          ctx.beginPath(); ctx.arc(width/2,height/2,width/2-6,0,2*Math.PI); ctx.lineWidth=Math.max(3,Math.round(width*0.05)); ctx.strokeStyle="rgba(203,213,225,0.7)"; ctx.stroke()
+        }
+      }
+
+      const ICON_SRC = "/static/icons/pin-ionic-3x.png"
+      const COLORS = {
+        blue: { key:"blue", light:"#bfdbfe", dark:"#2563eb", deep:"#1e40af" },
+        yellow:{ key:"yellow", light:"#fef08a", dark:"#eab308", deep:"#a16207" },
+        purple:{ key:"purple", light:"#e9d5ff", dark:"#9333ea", deep:"#6b21a8" },
+        orange:{ key:"orange", light:"#fed7aa", dark:"#ea580c", deep:"#9a3412" },
+        green: { key:"green", light:"#bbf7d0", dark:"#16a34a", deep:"#166534" },
+        red:   { key:"red", light:"#fecaca", dark:"#dc2626", deep:"#991b1b" },
+      }
+
+      const STYLES = [
+        { mode:"original", color:"blue", styleName:"Original", selName:"Ripple — sonar pings", visual:"ripple" },
+        { mode:"circle-fill", color:"blue", styleName:"Circle fill white", selName:"Breathing glow — soft halo", visual:"breathe" },
+        { mode:"circle-fill-black", color:"yellow", styleName:"Circle fill black", selName:"Corner brackets — crop UI", visual:"brackets" },
+        { mode:"icon-fill", color:"purple", styleName:"Icon fill", selName:"Target reticle — spinning crosshair", visual:"reticle" },
+        { mode:"icon-only", color:"orange", styleName:"Icon only", selName:"Anchor pulse — dot at base", visual:"anchor" },
+        { mode:"icon-dark-glass", color:"green", styleName:"Icon dark glass", selName:"Neon halo — glowing ring", visual:"neon" },
+        { mode:"icon-light-glass", color:"red", styleName:"Icon light glass", selName:"Bounce — marker springs", visual:"bounce" },
+      ]
+
+      const grid = document.getElementById("grid")
+      const img = new Image()
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight
+        STYLES.forEach((s) => {
+          // tint the icon
+          const c = document.createElement("canvas")
+          c.width = w; c.height = h
+          c.getContext("2d").drawImage(img, 0, 0)
+          tintMarker(c, COLORS[s.color], s.mode)
+
+          // card
+          const card = document.createElement("div")
+          card.className = "card"
+          const stage = document.createElement("div")
+          stage.className = "stage"
+          const selHex = COLORS[s.color].dark
+          const selCss = COLORS[s.color].light
+          stage.style.setProperty("--sel", selHex)
+          stage.style.setProperty("--selc", selHex)
+
+          // marker (bounce wraps canvas)
+          const holder = document.createElement("div")
+          holder.style.cssText = "position:relative; display:flex; align-items:center; justify-content:center;"
+          if (s.visual === "bounce") holder.classList.add("bounce")
+          holder.appendChild(c)
+          stage.appendChild(holder)
+
+          // selection visual
+          if (s.visual === "ripple") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel ripple-ring"></div><div class="sel ripple-ring d2"></div>')
+          } else if (s.visual === "breathe") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel breathe"></div>')
+          } else if (s.visual === "brackets") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel brk tl"></div><div class="sel brk tr d2"></div><div class="sel brk bl d2"></div><div class="sel brk br"></div>')
+          } else if (s.visual === "reticle") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel reticle"><span class="ring"></span><span class="h"></span><span class="v"></span></div>')
+          } else if (s.visual === "anchor") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel anchor-shadow"></div><div class="sel anchor"></div>')
+          } else if (s.visual === "neon") {
+            stage.insertAdjacentHTML("beforeend", '<div class="sel neon"></div>')
+          }
+
+          const meta = document.createElement("div")
+          meta.className = "meta"
+          const sn = document.createElement("div"); sn.className = "style-name"; sn.textContent = s.styleName
+          const mn = document.createElement("div"); mn.className = "sel-name"; mn.textContent = s.selName
+          meta.appendChild(sn); meta.appendChild(mn)
+          card.appendChild(stage); card.appendChild(meta)
+          grid.appendChild(card)
+        })
+      }
+      img.src = ICON_SRC
+    </script>
+  </body>
+</html>

@@ -230,22 +230,12 @@
       if (handlerLayerIds.has(layerId) || !map.getLayer(layerId)) continue
       handlerLayerIds.add(layerId)
 
+      // Roads are NOT clickable on the map — selecting one happens from the
+      // Road menu only. Swallow road clicks so they don't select the road
+      // (which would show the edit highlight + vertices over other icons) or
+      // fall through to the map-level handler.
       map.on("click", layerId, (e) => {
-        const feature = e.features && e.features[0]
-        if (!feature) return
-        // Prevent the map-level click handler below from deselecting
         if (e.preventDefault) e.preventDefault()
-        const index = feature.properties?.id
-        if (typeof index === "number") {
-          kmzOverlaysStore.setSelection(overlay.id, index)
-        }
-      })
-
-      map.on("mouseenter", layerId, () => {
-        if (map) map.getCanvas().style.cursor = "pointer"
-      })
-      map.on("mouseleave", layerId, () => {
-        if (map) map.getCanvas().style.cursor = ""
       })
     }
   }

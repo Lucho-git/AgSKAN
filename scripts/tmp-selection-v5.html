@@ -1,0 +1,418 @@
+<!doctype html>
+<!--
+  tmp-selection-v5.html — FIXED demo. Every per-style treatment applies
+  directly to the DOM marker (the pin) so it's actually visible:
+    original         → Ring Breathe  (3px ring + glow, gentle scale)
+    circle-fill      → Soft Spring   (pop, then hover bob)
+    circle-fill-black→ Size Pop      (ring + grow to 1.3x, hold)
+    icon-fill        → Subtle Neon   (thin glow ring, slow pulse)
+    icon-only        → Halo Breathe  (soft radial glow)
+    icon-dark-glass  → Bright Icon   (brightened image + grow to 1.5x)
+    icon-light-glass → Bounce        (gentle bounce, never dips below rest)
+  Plus the 3-way selection ring colour: Blue / White / Marker.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selection v5 — per-style treatments + ring colour</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; right: 12px; z-index: 5; width: 300px;
+        max-height: calc(100% - 24px); overflow-y: auto;
+        background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0;
+      }
+      #ui h1 { font-size: 14px; margin: 0 0 4px; }
+      #ui .sub { font-size: 11px; color: #94a3b8; margin: 0 0 10px; }
+      .group-label { font-size: 10px; font-weight: 700; color: #93c5fd; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+      #ui button.style {
+        display: block; width: 100%; margin: 3px 0; padding: 6px 10px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+        color: #e2e8f0; font-size: 12px; text-align: left; cursor: pointer;
+      }
+      #ui button.style.active { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+      #ui button.style .treat { float: right; font-size: 10px; color: #93c5fd; opacity: 0.9; }
+      #ui button.style.active .treat { color: #dbeafe; }
+      .ring-row { display: flex; gap: 6px; }
+      #ui button.ringopt {
+        flex: 1; padding: 6px 4px; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px; color: #e2e8f0; font-size: 11px; cursor: pointer;
+      }
+      #ui button.ringopt.active { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+      .hint { font-size: 10px; color: #64748b; margin-top: 8px; }
+
+      /* ═══ icon-integration scaffold (inner animated layer under mapbox) ═══ */
+      .sv-inner {
+        position: relative;
+        width: 34px; height: 34px;
+        transform-origin: 50% 50%;
+        will-change: transform;
+      }
+      .sv-icon {
+        position: absolute; inset: 0;
+        background: center / contain no-repeat;
+      }
+
+      /* ── rings / halos / glows (coloured via --sel / --selc) ── */
+      .sv-ring {
+        position: absolute; left: 50%; top: 50%;
+        width: 56px; height: 56px; margin: -28px 0 0 -28px;
+        border: 3px solid var(--sel); border-radius: 50%;
+        box-shadow: 0 0 6px var(--sel), 0 0 14px var(--selc);
+        pointer-events: none;
+      }
+      .sv-ring-tight {
+        position: absolute; left: 50%; top: 50%;
+        width: 34px; height: 34px; margin: -17px 0 0 -17px;
+        border: 2.5px solid var(--sel); border-radius: 50%;
+        box-shadow: 0 0 5px var(--sel), 0 0 10px var(--selc);
+        pointer-events: none;
+      }
+      .sv-ring-soft {
+        position: absolute; left: 50%; top: 50%;
+        width: 52px; height: 52px; margin: -26px 0 0 -26px;
+        border: 2px solid var(--sel); border-radius: 50%; opacity: 0.85;
+        pointer-events: none;
+      }
+      .sv-neon {
+        position: absolute; left: 50%; top: 50%;
+        width: 60px; height: 60px; margin: -30px 0 0 -30px;
+        border-radius: 50%;
+        border: 2px solid var(--sel);
+        box-shadow: 0 0 10px var(--sel), 0 0 24px var(--sel);
+        animation: svNeon 3s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes svNeon {
+        0%, 100% { transform: scale(0.96); opacity: 0.5; }
+        50% { transform: scale(1.06); opacity: 1; }
+      }
+      .sv-halo {
+        position: absolute; left: 50%; top: 50%;
+        width: 110px; height: 110px; margin: -55px 0 0 -55px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--selc) 0%, transparent 66%);
+        opacity: 0.5;
+        animation: svHalo 2.6s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes svHalo {
+        0%, 100% { transform: scale(0.96); opacity: 0.4; }
+        50% { transform: scale(1.06); opacity: 0.65; }
+      }
+
+      /* ── icon animations (applied to the inner layer → the icon itself) ── */
+      .sv-breathe { animation: svBreathe 2.6s ease-in-out infinite; }
+      @keyframes svBreathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.06); }
+      }
+      .sv-breathe-xl { animation: svBreatheXL 2.6s ease-in-out infinite; }
+      @keyframes svBreatheXL {
+        0%, 100% { transform: scale(1.5); }
+        50% { transform: scale(1.56); }
+      }
+      .sv-spring { animation: svSpring 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards; }
+      @keyframes svSpring {
+        0% { transform: scale(1); }
+        55% { transform: scale(1.14); }
+        100% { transform: scale(1.07); }
+      }
+      .sv-bob { animation: svBob 2.8s ease-in-out infinite; }
+      @keyframes svBob {
+        0%, 100% { transform: translateY(0) scale(1.07); }
+        50% { transform: translateY(-3px) scale(1.07); }
+      }
+      .sv-pop-big { animation: svPopBig 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards; }
+      @keyframes svPopBig {
+        0% { transform: scale(1); }
+        55% { transform: scale(1.4); }
+        100% { transform: scale(1.3); }
+      }
+      .sv-bounce { animation: svBounce 2.4s ease-in-out infinite; }
+      @keyframes svBounce {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      /* bounce-after-pop: keeps the popped size (1.3) and gently bounces around it */
+      .sv-bounce-pop { animation: svBouncePop 2.4s ease-in-out infinite; }
+      @keyframes svBouncePop {
+        0%, 100% { transform: scale(1.3); }
+        50% { transform: scale(1.37); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <h1>Selection v5 (fixed demo)</h1>
+      <p class="sub">Click the map to place the marker (1 icon). Click the marker to select it — shows the treatment; click it again to unselect (plain icon). Click the map to move it.</p>
+      <div class="group-label">Marker style → treatment</div>
+      <div id="styleBtns"></div>
+      <div class="group-label">Selection ring colour</div>
+      <div class="ring-row">
+        <button class="ringopt" data-ring="blue">Blue</button>
+        <button class="ringopt" data-ring="white">White</button>
+        <button class="ringopt" data-ring="marker">Marker</button>
+      </div>
+      <div class="hint">Bright Icon fills the disc with the ring colour and size-pops. Bounce does the same, then keeps bouncing. Size Pop grows the icon with a tight ring bordering it. Soft Spring size-pops, then ring-breathes.</div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css" rel="stylesheet" />
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      const ICON = "http://localhost:8099/static/icons/pin-ionic-3x.png"
+      const SEL = { dark: "#2563eb", light: "#bfdbfe" }
+      const STYLES = [
+        ["original", "Original", "ring-breathe"],
+        ["circle-fill", "Circle fill white", "soft-spring"],
+        ["circle-fill-black", "Circle fill black", "size-pop"],
+        ["icon-fill", "Icon fill", "subtle-neon"],
+        ["icon-only", "Icon only", "halo-breathe"],
+        ["icon-dark-glass", "Icon dark glass", "bright-icon"],
+        ["icon-light-glass", "Icon light glass", "bounce"],
+      ]
+
+      let globalStyle = "original"
+      let ringChoice = "marker"
+      let currentId = "ring-breathe"
+      let placed = false
+      let selected = false
+      let springTimer = null
+      let bounceTimer = null
+      let suppressMarkerClick = false
+
+      // ── map ──
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/outdoors-v11",
+        center: [151.2093, -33.8688],
+        zoom: 14,
+      })
+
+      // the selected marker: mapbox wraps `wrap`; `inner` is the animated layer
+      const wrap = document.createElement("div")
+      const inner = document.createElement("div")
+      inner.className = "sv-inner"
+      const iconEl = document.createElement("div")
+      iconEl.className = "sv-icon"
+      iconEl.style.backgroundImage = "url('" + ICON + "')"
+      inner.appendChild(iconEl)
+      wrap.appendChild(inner)
+      const mapMarker = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+      // added to the map on the first click (see map click handler)
+
+      // clicking the marker itself toggles select / unselect
+      wrap.addEventListener("click", (e) => {
+        e.stopPropagation()
+        if (!placed || suppressMarkerClick) return
+        selected = !selected
+        if (selected) apply(currentId)
+        else reset()
+      })
+
+      // ── canvas variants for Bright Icon (fill ONLY the disc, keep the glyph) ──
+      const fills = {}
+      function fillVariant(img, hex) {
+        const c = document.createElement("canvas")
+        c.width = img.naturalWidth; c.height = img.naturalHeight
+        const ctx = c.getContext("2d")
+        ctx.drawImage(img, 0, 0)
+        const d = ctx.getImageData(0, 0, c.width, c.height)
+        const fr = parseInt(hex.slice(1, 3), 16)
+        const fg = parseInt(hex.slice(3, 5), 16)
+        const fb = parseInt(hex.slice(5, 7), 16)
+        const clamp = (v) => Math.max(0, Math.min(1, v))
+        // crisp-edge t: light/grey disc pixels → fill colour; dark glyph stays
+        for (let i = 0; i < d.data.length; i += 4) {
+          if (d.data[i + 3] === 0) continue
+          const r = d.data[i], g = d.data[i + 1], b = d.data[i + 2]
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b
+          const dev = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b))
+          const t = clamp((40 - dev) / 30) * clamp((lum - 60) / 100)
+          d.data[i] = Math.round(r + (fr - r) * t)
+          d.data[i + 1] = Math.round(g + (fg - g) * t)
+          d.data[i + 2] = Math.round(b + (fb - b) * t)
+        }
+        ctx.putImageData(d, 0, 0)
+        return c.toDataURL()
+      }
+      function brightFillUrl() {
+        if (ringChoice === "blue") return fills.blue || null
+        if (ringChoice === "white") return fills.white || null
+        return null // marker = keep the icon's own colour
+      }
+
+      // ── treatments ──
+      const attached = []
+      function attach(className) {
+        const el = document.createElement("div")
+        el.className = className
+        el.style.setProperty("--sel", selectionColor().dark)
+        el.style.setProperty("--selc", selectionColor().light)
+        inner.appendChild(el)
+        attached.push(el)
+        return el
+      }
+      function selectionColor() {
+        if (ringChoice === "blue") return { dark: "#2563eb", light: "#bfdbfe" }
+        if (ringChoice === "white") return { dark: "#ffffff", light: "#f8fafc" }
+        return SEL
+      }
+      function reset() {
+        clearTimeout(springTimer)
+        clearTimeout(bounceTimer)
+        attached.forEach((el) => el.remove())
+        attached.length = 0
+        inner.className = "sv-inner"
+        iconEl.style.backgroundImage = "url('" + ICON + "')"
+      }
+
+      const TREATMENTS = {
+        "ring-breathe": () => {
+          reset(); attach("sv-ring"); inner.classList.add("sv-breathe")
+        },
+        "soft-spring": () => {
+          // size/spring pop first, then settle into ring breathing
+          reset(); attach("sv-ring")
+          inner.classList.remove("sv-spring")
+          void inner.offsetWidth
+          inner.classList.add("sv-spring")
+          clearTimeout(springTimer)
+          springTimer = setTimeout(() => {
+            if (currentId === "soft-spring") {
+              inner.classList.remove("sv-spring")
+              inner.classList.add("sv-breathe")
+            }
+          }, 460)
+        },
+        "size-pop": () => {
+          reset(); attach("sv-ring-tight")
+          inner.classList.remove("sv-pop-big")
+          void inner.offsetWidth
+          inner.classList.add("sv-pop-big")
+        },
+        "subtle-neon": () => {
+          reset(); attach("sv-neon")
+        },
+        "halo-breathe": () => {
+          reset(); attach("sv-halo"); inner.classList.add("sv-breathe")
+        },
+        "bright-icon": () => {
+          reset()
+          const url = brightFillUrl()
+          if (url) iconEl.style.backgroundImage = "url('" + url + "')"
+          inner.classList.remove("sv-pop-big")
+          void inner.offsetWidth
+          inner.classList.add("sv-pop-big")
+        },
+        "bounce": () => {
+          // like bright-icon (disc fill + size pop), then keep bouncing
+          reset()
+          const url = brightFillUrl()
+          if (url) iconEl.style.backgroundImage = "url('" + url + "')"
+          inner.classList.remove("sv-pop-big", "sv-bounce-pop")
+          void inner.offsetWidth
+          inner.classList.add("sv-pop-big")
+          clearTimeout(bounceTimer)
+          bounceTimer = setTimeout(() => {
+            if (currentId === "bounce") {
+              inner.classList.remove("sv-pop-big")
+              inner.classList.add("sv-bounce-pop")
+            }
+          }, 460)
+        },
+      }
+
+      function apply(id) {
+        currentId = id
+        const fn = TREATMENTS[id]
+        if (fn) fn()
+        // keep ring colour vars in sync on attached elements
+        const c = selectionColor()
+        attached.forEach((el) => {
+          el.style.setProperty("--sel", c.dark)
+          el.style.setProperty("--selc", c.light)
+        })
+        document.querySelectorAll("#styleBtns button").forEach((x) => {
+          x.classList.toggle("active", x.dataset.key === id)
+        })
+      }
+
+      // ── UI: style buttons ──
+      const btns = document.getElementById("styleBtns")
+      STYLES.forEach(([key, label, treat]) => {
+        const b = document.createElement("button")
+        b.className = "style"
+        b.dataset.key = treat
+        b.innerHTML = `${label} <span class="treat">${treat}</span>`
+        b.addEventListener("click", () => {
+          currentId = treat
+          if (placed && selected) {
+            apply(treat)
+          } else {
+            // just update the active button — nothing shows until the marker is selected
+            document.querySelectorAll("#styleBtns button").forEach((x) => {
+              x.classList.toggle("active", x.dataset.key === treat)
+            })
+          }
+        })
+        btns.appendChild(b)
+      })
+
+      // ── UI: ring colour buttons ──
+      document.querySelectorAll(".ringopt").forEach((b) => {
+        b.addEventListener("click", () => {
+          ringChoice = b.dataset.ring
+          document.querySelectorAll(".ringopt").forEach((x) => x.classList.remove("active"))
+          b.classList.add("active")
+          // bright-icon / bounce refill with the new colour; rings re-tint
+          if (currentId === "bright-icon" || currentId === "bounce") {
+            if (placed && selected) apply(currentId)
+          } else {
+            const c = selectionColor()
+            attached.forEach((el) => {
+              el.style.setProperty("--sel", c.dark)
+              el.style.setProperty("--selc", c.light)
+            })
+          }
+        })
+      })
+      document.querySelector('.ringopt[data-ring="marker"]').classList.add("active")
+
+      // ── map click: first click places the marker, later clicks move it ──
+      map.on("click", (e) => {
+        if (!placed) {
+          placed = true
+          mapMarker.setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map)
+        } else {
+          mapMarker.setLngLat([e.lngLat.lng, e.lngLat.lat])
+        }
+        // the click that placed/moved the marker also lands on it — ignore that
+        suppressMarkerClick = true
+        setTimeout(() => { suppressMarkerClick = false }, 150)
+        selected = false
+        reset()
+      })
+
+      // ── init: load icon, build fill variants, show default ──
+      const img = new Image()
+      img.onload = () => {
+        fills.blue = fillVariant(img, "#2563eb")
+        fills.white = fillVariant(img, "#ffffff")
+        // marker starts unplaced & unselected — no treatment applied yet
+        document.querySelectorAll("#styleBtns button").forEach((x) => {
+          x.classList.toggle("active", x.dataset.key === currentId)
+        })
+      }
+      img.src = ICON
+    </script>
+  </body>
+</html>

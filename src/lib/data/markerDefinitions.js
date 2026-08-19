@@ -2,16 +2,21 @@
 export const MARKER_DEFINITIONS = [
   { id: "default", class: "default", name: "Default Marker", active: true },
   
-  // Custom SVG markers - ACTIVE (high usage)
+  // Custom SVG markers - ACTIVE (high usage) — grouped so related icons sit
+  // together: rocks + natural landmarks, water storage, refuelling, then rest.
   { id: "rock", class: "custom-svg", name: "Rock", active: true },
+  { id: "rock_pile", class: "custom-svg", name: "Rock Pile", active: true },
   { id: "tree13", class: "custom-svg", name: "Tree", active: true },
-  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
   { id: "wheat2", class: "custom-svg", name: "Wheat", active: true },
   { id: "kangaroo", class: "custom-svg", name: "Kangaroo", active: true },
+  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
+  { id: "water_tower2", class: "custom-svg", name: "Water Tower", active: true },
+  { id: "liquid_tank", class: "custom-svg", name: "Liquid Tank", active: true },
+  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
+  { id: "fuel_refill", class: "custom-svg", name: "Fuel Pump", active: true },
+  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
   { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
   { id: "gate", class: "custom-svg", name: "Gate", active: true },
-  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
-  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
   { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
   { id: "tractor", class: "custom-svg", name: "Tractor", active: true },
   { id: "silo2", class: "custom-svg", name: "Silo", active: true },

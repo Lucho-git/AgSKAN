@@ -1,0 +1,411 @@
+<!doctype html>
+<!--
+  tmp-selection-v3.html — selection that INTEGRATES WITH THE ICON ITSELF.
+  No big floating widgets: the treatment hugs the icon (tight ring, halo,
+  glow) and the ICON itself moves — gently, continuously, subtly.
+  Every candidate is "alive" (subtle breathe/bob/pulse) but calm.
+  Real Mapbox map: click a card to apply, click the map to move the marker.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selection — Built Into the Icon</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; right: 12px; z-index: 5; width: 308px;
+        max-height: calc(100% - 24px); overflow-y: auto;
+        background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0;
+      }
+      #ui h1 { font-size: 14px; margin: 0 0 4px; }
+      #ui .sub { font-size: 11px; color: #94a3b8; margin: 0 0 10px; }
+      .card {
+        display: flex; gap: 10px; align-items: center; margin: 6px 0; padding: 8px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+        cursor: pointer; transition: border-color 0.15s;
+      }
+      .card:hover { border-color: rgba(96,165,250,0.5); }
+      .card.active { border-color: #3b82f6; background: #1d3a5f; }
+      .stage {
+        position: relative; flex: 0 0 66px; width: 66px; height: 66px; border-radius: 8px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 30% 20%, rgba(56,120,90,0.5), transparent 60%),
+          radial-gradient(ellipse at 70% 60%, rgba(120,110,60,0.4), transparent 55%),
+          linear-gradient(160deg, #1a2b26, #22303a 55%, #2a2a20);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .stage .sv-inner { width: 34px; height: 34px; }
+      .stage .sv-icon { width: 34px; height: 34px; }
+      .meta { min-width: 0; }
+      .cname { font-size: 12px; font-weight: 700; color: #e2e8f0; }
+      .cnote { font-size: 10px; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+      .hint { font-size: 10px; color: #64748b; margin-top: 8px; }
+
+      /* ═══════════ shared icon-integration scaffold ═══════════
+         mapboxgl.Marker sets transform:translate on the OUTER element —
+         so we animate an INNER wrapper (.sv-inner) that holds the icon
+         and any attached ring/glow. They all move together. */
+      .sv-inner {
+        position: relative;
+        width: 34px; height: 34px;
+        transform-origin: 50% 50%;
+        will-change: transform;
+      }
+      .sv-icon {
+        position: absolute; inset: 0;
+        background: center / contain no-repeat;
+      }
+
+      /* ── 1. Ring Breathe: tight ring hugs the icon + the icon gently scales ── */
+      .sv-ring {
+        position: absolute; left: 50%; top: 50%;
+        width: 48px; height: 48px; margin: -24px 0 0 -24px;
+        border: 2px solid var(--sel); border-radius: 50%;
+        pointer-events: none;
+      }
+      .sv-breathe { animation: svBreathe 2.6s ease-in-out infinite; }
+      @keyframes svBreathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.06); }
+      }
+
+      /* ── 2. Halo Breathe: soft glow hugs the icon + gentle scale ── */
+      .sv-halo {
+        position: absolute; left: 50%; top: 50%;
+        width: 62px; height: 62px; margin: -31px 0 0 -31px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--selc) 0%, transparent 68%);
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      /* ── 3. Soft Spring: one quick pop on select, then a gentle hover bob ── */
+      .sv-spring { animation: svSpring 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards; }
+      @keyframes svSpring {
+        0% { transform: scale(1); }
+        55% { transform: scale(1.14); }
+        100% { transform: scale(1.07); }
+      }
+      .sv-bob { animation: svBob 2.8s ease-in-out infinite; }
+      @keyframes svBob {
+        0%, 100% { transform: translateY(0) scale(1.07); }
+        50% { transform: translateY(-3px) scale(1.07); }
+      }
+      .sv-ring-soft {
+        position: absolute; left: 50%; top: 50%;
+        width: 52px; height: 52px; margin: -26px 0 0 -26px;
+        border: 2px solid var(--sel); border-radius: 50%; opacity: 0.85;
+        pointer-events: none;
+      }
+
+      /* ── 4. Pulse Ring: the hugging ring itself breathes in/out ── */
+      .sv-pulse { animation: svPulse 2.6s ease-in-out infinite; }
+      @keyframes svPulse {
+        0%, 100% { transform: scale(0.96); opacity: 0.55; }
+        50% { transform: scale(1.1); opacity: 1; }
+      }
+
+      /* ── 5. Lift & Shadow: icon floats up, soft shadow grows beneath ── */
+      .sv-lift { animation: svLift 2.4s ease-in-out infinite; }
+      @keyframes svLift {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+      .sv-shadow {
+        position: absolute; left: 50%; bottom: -6px;
+        width: 40px; height: 9px; margin-left: -20px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.4);
+        filter: blur(2px);
+        animation: svShadow 2.4s ease-in-out infinite;
+      }
+      @keyframes svShadow {
+        0%, 100% { transform: scaleX(1); opacity: 0.55; }
+        50% { transform: scaleX(0.7); opacity: 0.3; }
+      }
+
+      /* ── 6. Subtle Neon: thin glow ring, slow gentle pulse ── */
+      .sv-neon {
+        position: absolute; left: 50%; top: 50%;
+        width: 54px; height: 54px; margin: -27px 0 0 -27px;
+        border-radius: 50%;
+        border: 2px solid var(--sel);
+        box-shadow: 0 0 10px var(--sel), 0 0 24px var(--sel);
+        animation: svNeon 3s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes svNeon {
+        0%, 100% { transform: scale(0.96); opacity: 0.5; }
+        50% { transform: scale(1.06); opacity: 1; }
+      }
+
+      /* ── 7. Ripple & Settle: one small ripple, then ring + gentle breathe ── */
+      .sv-ripple {
+        position: absolute; left: 50%; top: 50%;
+        width: 48px; height: 48px; margin: -24px 0 0 -24px;
+        border: 2px solid var(--sel); border-radius: 50%;
+        opacity: 0.7;
+        animation: svRipple 0.9s ease-out 1 forwards;
+        pointer-events: none;
+      }
+      @keyframes svRipple {
+        0% { transform: scale(0.5); opacity: 0.75; }
+        100% { transform: scale(1.7); opacity: 0; }
+      }
+
+      /* ── 8. Color Lift: the icon's colour itself brightens on selection ── */
+      .sv-brighten { filter: brightness(1.18) saturate(1.25) drop-shadow(0 0 6px var(--selc)); }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <h1>Selection built into the icon</h1>
+      <p class="sub">Every treatment hugs the icon and the icon itself moves — gently, continuously, calmly. Click a card to try it; click the map to move the marker.</p>
+      <div id="cards"></div>
+      <div class="hint">No big floating widgets — ring/halo/glow are attached to the marker and move with it.</div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css" rel="stylesheet" />
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      const SEL = { dark: "#2563eb", light: "#bfdbfe" }
+      const MARKERS = [
+        { name: "Selected", lng: 151.2093, lat: -33.8688 },
+        { name: "Silo 1", lng: 151.211, lat: -33.871 },
+        { name: "Gate", lng: 151.207, lat: -33.8665 },
+        { name: "House", lng: 151.2135, lat: -33.866 },
+        { name: "Dam", lng: 151.2055, lat: -33.8715 },
+      ]
+
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/outdoors-v11",
+        center: [151.2093, -33.8688],
+        zoom: 14,
+      })
+
+      const markerEls = []
+      MARKERS.forEach((m, i) => {
+        // mapbox positions the OUTER wrap via inline transform; the animated
+        // sv-inner is a CHILD so our scale/bob transforms never conflict.
+        const wrap = document.createElement("div")
+        const el = document.createElement("div")
+        el.className = "sv-inner"
+        const icon = document.createElement("div")
+        icon.className = "sv-icon"
+        icon.style.backgroundImage =
+          "url('http://localhost:8099/static/icons/pin-ionic-3x.png')"
+        el.appendChild(icon)
+        wrap.appendChild(el)
+        const mk = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+          .setLngLat([m.lng, m.lat])
+          .addTo(map)
+        markerEls.push({ data: m, el, icon, mk })
+      })
+
+      const selMarker = markerEls[0]
+
+      // ── candidate definitions: each apply() mutates the ICON's inner layer ──
+      const candidates = [
+        {
+          id: "ring-breathe",
+          name: "Ring Breathe",
+          note: "A tight ring hugs the icon and the icon itself gently scales in/out. Calm, alive, obvious.",
+          stageHTML: '<div class="sv-ring"></div>',
+          apply() {
+            reset()
+            attach('sv-ring')
+            animate('sv-breathe')
+          },
+        },
+        {
+          id: "halo-breathe",
+          name: "Halo Breathe",
+          note: "A soft glow wraps the icon while it gently breathes. Like a warm selected light.",
+          stageHTML: '<div class="sv-halo"></div>',
+          apply() {
+            reset()
+            attach('sv-halo')
+            animate('sv-breathe')
+          },
+        },
+        {
+          id: "soft-spring",
+          name: "Soft Spring",
+          note: "A quick pop on select, then the icon rests slightly bigger with a gentle hover bob.",
+          stageHTML: '<div class="sv-ring-soft"></div>',
+          apply() {
+            reset()
+            attach('sv-ring-soft')
+            // one-shot pop, then continuous bob
+            selMarker.el.classList.remove("sv-spring", "sv-bob")
+            void selMarker.el.offsetWidth
+            selMarker.el.classList.add("sv-spring")
+            setTimeout(() => {
+              if (currentId === "soft-spring") {
+                selMarker.el.classList.add("sv-bob")
+              }
+            }, 420)
+          },
+        },
+        {
+          id: "pulse-ring",
+          name: "Pulse Ring",
+          note: "The hugging ring itself pulses — slow, soft, in and out. The icon stays put.",
+          stageHTML: '<div class="sv-ring sv-pulse"></div>',
+          apply() {
+            reset()
+            const r = attach('sv-ring')
+            r.classList.add("sv-pulse")
+          },
+        },
+        {
+          id: "lift-shadow",
+          name: "Lift & Shadow",
+          note: "The icon floats up a few px while a soft shadow grows beneath it — like it's picked up.",
+          stageHTML: '<div class="sv-shadow"></div>',
+          apply() {
+            reset()
+            attach('sv-shadow')
+            animate('sv-lift')
+          },
+        },
+        {
+          id: "subtle-neon",
+          name: "Subtle Neon",
+          note: "A thin glowing ring — neon made gentle. Slow pulse, low opacity, hugs the icon.",
+          stageHTML: '<div class="sv-neon"></div>',
+          apply() {
+            reset()
+            attach('sv-neon')
+          },
+        },
+        {
+          id: "ripple-settle",
+          name: "Ripple & Settle",
+          note: "One small ripple fires from the icon on select, then a ring remains with a gentle breathe.",
+          stageHTML: '<div class="sv-ring"></div>',
+          apply() {
+            reset()
+            attach('sv-ripple')
+            animate('sv-breathe')
+            setTimeout(() => {
+              if (currentId === "ripple-settle") {
+                attach('sv-ring')
+              }
+            }, 900)
+          },
+        },
+        {
+          id: "color-lift",
+          name: "Colour Lift",
+          note: "The icon's own colour brightens and gains a soft glow — integrated, then a gentle breathe.",
+          stageHTML: '<div class="sv-ring" style="opacity:0.7"></div>',
+          apply() {
+            reset()
+            selMarker.icon.classList.add("sv-brighten")
+            attach('sv-ring')
+            animate('sv-breathe')
+          },
+        },
+      ]
+
+      // ── overlay management ──
+      let currentId = null
+      const attached = [] // extra elements attached to the icon's inner layer
+
+      function attach(className) {
+        const el = document.createElement("div")
+        el.className = className
+        el.style.setProperty("--sel", SEL.dark)
+        el.style.setProperty("--selc", SEL.light)
+        selMarker.el.appendChild(el)
+        attached.push(el)
+        return el
+      }
+      function animate(className) {
+        selMarker.el.classList.add(className)
+      }
+      function reset() {
+        attached.forEach((el) => el.remove())
+        attached.length = 0
+        selMarker.el.className = "sv-inner"
+        selMarker.icon.className = "sv-icon"
+      }
+
+      function applyCandidate(id) {
+        const c = candidates.find((x) => x.id === id)
+        if (!c) return
+        currentId = id
+        document.querySelectorAll(".card").forEach((el) => {
+          el.classList.toggle("active", el.dataset.id === id)
+        })
+        c.apply()
+      }
+
+      // ── build cards with mini previews ──
+      const cardsBox = document.getElementById("cards")
+      const img = new Image()
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight
+        candidates.forEach((c) => {
+          const card = document.createElement("div")
+          card.className = "card"
+          card.dataset.id = c.id
+
+          const stage = document.createElement("div")
+          stage.className = "stage"
+          stage.style.setProperty("--sel", SEL.dark)
+          stage.style.setProperty("--selc", SEL.light)
+          const inner = document.createElement("div")
+          inner.className = "sv-inner"
+          const cv = document.createElement("div")
+          cv.className = "sv-icon"
+          const cnv = document.createElement("canvas")
+          cnv.width = w; cnv.height = h
+          cnv.getContext("2d").drawImage(img, 0, 0)
+          cnv.style.cssText = "width:34px;height:34px;"
+          cv.appendChild(cnv)
+          inner.appendChild(cv)
+          stage.appendChild(inner)
+          stage.insertAdjacentHTML("beforeend", c.stageHTML)
+
+          const meta = document.createElement("div")
+          meta.className = "meta"
+          const name = document.createElement("div")
+          name.className = "cname"
+          name.textContent = c.name
+          const note = document.createElement("div")
+          note.className = "cnote"
+          note.textContent = c.note
+          meta.appendChild(name)
+          meta.appendChild(note)
+
+          card.appendChild(stage)
+          card.appendChild(meta)
+          card.addEventListener("click", () => applyCandidate(c.id))
+          cardsBox.appendChild(card)
+        })
+        applyCandidate("ring-breathe")
+      }
+      img.src = "http://localhost:8099/static/icons/pin-ionic-3x.png"
+
+      // move the selected marker on map click
+      map.on("click", (e) => {
+        selMarker.data.lng = e.lngLat.lng
+        selMarker.data.lat = e.lngLat.lat
+        selMarker.mk.setLngLat(e.lngLat)
+        applyCandidate(currentId)
+      })
+    </script>
+  </body>
+</html>

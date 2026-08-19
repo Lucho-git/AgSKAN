@@ -18,6 +18,7 @@
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
   $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? false
+  $: overlayPlacementMenuEnabled = $userSettingsStore.overlayPlacementMenuEnabled ?? false
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
 
   $: isConnected = $connectedMapStore?.id
@@ -54,6 +55,24 @@
       if (!r.success) { userSettingsStore.update(s => ({ ...s, autoConfirmMarkers: !v })); toast.error("Failed") }
       else { toast.success(v ? "Auto-confirm enabled" : "Auto-confirm disabled") }
     } catch { userSettingsStore.update(s => ({ ...s, autoConfirmMarkers: !v })); toast.error("Failed") }
+  }
+
+  async function setOverlayMarkerMenu(v: boolean) {
+    userSettingsStore.update(s => ({ ...s, overlayMarkerMenuEnabled: v }))
+    try {
+      const r = await userSettingsApi.updateOverlayMarkerMenuEnabled(v)
+      if (!r.success) { userSettingsStore.update(s => ({ ...s, overlayMarkerMenuEnabled: !v })); toast.error(r.message || "Failed") }
+      else { toast.success(v ? "Marker menu: on-map panel" : "Marker menu: bottom panel") }
+    } catch { userSettingsStore.update(s => ({ ...s, overlayMarkerMenuEnabled: !v })); toast.error("Failed") }
+  }
+
+  async function setOverlayPlacementMenu(v: boolean) {
+    userSettingsStore.update(s => ({ ...s, overlayPlacementMenuEnabled: v }))
+    try {
+      const r = await userSettingsApi.updateOverlayPlacementMenuEnabled(v)
+      if (!r.success) { userSettingsStore.update(s => ({ ...s, overlayPlacementMenuEnabled: !v })); toast.error(r.message || "Failed") }
+      else { toast.success(v ? "Placement menu: on-map panel" : "Placement menu: bottom panel") }
+    } catch { userSettingsStore.update(s => ({ ...s, overlayPlacementMenuEnabled: !v })); toast.error("Failed") }
   }
 
   async function setDefaultImagerySource(e: Event) {
@@ -162,6 +181,33 @@
             on:click={() => setOverlayMarkerMenu(false)}
           >Bottom Panel</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Placement menu style -->
+  <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex min-w-0 items-center gap-3">
+        <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <Icon icon="solar:widget-bold-duotone" width="18" height="18" class="text-base-content" />
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-contrast-content">Placement menu style</p>
+          <p class="text-xs text-contrast-content/60">How the icon menu opens when placing a new marker</p>
+        </div>
+      </div>
+      <div class="flex flex-shrink-0 rounded-lg bg-base-200 p-0.5">
+        <button
+          type="button"
+          class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors {overlayPlacementMenuEnabled ? 'bg-primary/20 text-primary' : 'text-contrast-content/50 hover:text-contrast-content'}"
+          on:click={() => setOverlayPlacementMenu(true)}
+        >On Map Panel</button>
+        <button
+          type="button"
+          class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors {!overlayPlacementMenuEnabled ? 'bg-primary/20 text-primary' : 'text-contrast-content/50 hover:text-contrast-content'}"
+          on:click={() => setOverlayPlacementMenu(false)}
+        >Bottom Panel</button>
       </div>
     </div>
   </div>

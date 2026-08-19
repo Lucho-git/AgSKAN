@@ -1,0 +1,389 @@
+<!doctype html>
+<!--
+  tmp-selection-candidates.html — CALMER selection approaches.
+  The looping per-style visuals were over-animated; these are candidates
+  that are mostly STATIC or ONE-SHOT (animate once, then rest).
+  Real Mapbox map: click a candidate card to preview it on the live marker,
+  click the map to move the marker (one-shot cues replay).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calmer Selection Approaches</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; right: 12px; z-index: 5; width: 300px;
+        max-height: calc(100% - 24px); overflow-y: auto;
+        background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0;
+      }
+      #ui h1 { font-size: 14px; margin: 0 0 4px; }
+      #ui .sub { font-size: 11px; color: #94a3b8; margin: 0 0 10px; }
+      .card {
+        display: flex; gap: 10px; align-items: center; margin: 6px 0; padding: 8px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+        cursor: pointer; transition: border-color 0.15s;
+      }
+      .card:hover { border-color: rgba(96,165,250,0.5); }
+      .card.active { border-color: #3b82f6; background: #1d3a5f; }
+      .stage {
+        position: relative; flex: 0 0 64px; width: 64px; height: 64px; border-radius: 8px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 30% 20%, rgba(56,120,90,0.5), transparent 60%),
+          radial-gradient(ellipse at 70% 60%, rgba(120,110,60,0.4), transparent 55%),
+          linear-gradient(160deg, #1a2b26, #22303a 55%, #2a2a20);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .stage canvas { width: 30px; height: 30px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+      .meta { min-width: 0; }
+      .cname { font-size: 12px; font-weight: 700; color: #e2e8f0; }
+      .cnote { font-size: 10px; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+      .badge {
+        display: inline-block; font-size: 9px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; padding: 1px 5px; border-radius: 4px; margin-bottom: 3px;
+      }
+      .badge.static { background: rgba(148,163,184,0.18); color: #cbd5e1; }
+      .badge.oneshot { background: rgba(96,165,250,0.18); color: #93c5fd; }
+      .hint { font-size: 10px; color: #64748b; margin-top: 8px; }
+
+      /* ── selection treatments (all calm) ── */
+
+      /* 1. Steady ring — static */
+      .tr-ring {
+        position: absolute; left: 50%; top: 50%;
+        width: 84px; height: 84px; margin: -42px 0 0 -42px;
+        border: 2.5px solid var(--sel); border-radius: 50%;
+        opacity: 0.95;
+      }
+
+      /* 2. Pop & Settle — one-shot pop on the marker, then static ring */
+      .tr-pop-marker { animation: tr-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards; transform-origin: 50% 50%; }
+      @keyframes tr-pop {
+        0% { transform: scale(1); }
+        60% { transform: scale(1.3); }
+        100% { transform: scale(1.22); }
+      }
+      .tr-ring-after {
+        position: absolute; left: 50%; top: 50%;
+        width: 92px; height: 92px; margin: -46px 0 0 -46px;
+        border: 2px solid var(--sel); border-radius: 50%;
+        opacity: 0.9;
+      }
+
+      /* 3. Soft halo — static glow, no pulse */
+      .tr-halo {
+        position: absolute; left: 50%; top: 50%;
+        width: 130px; height: 130px; margin: -65px 0 0 -65px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--selc) 0%, transparent 66%);
+        opacity: 0.55;
+      }
+
+      /* 4. One-shot ripple → settles to steady ring */
+      .tr-ripple1 {
+        position: absolute; left: 50%; top: 50%;
+        width: 84px; height: 84px; margin: -42px 0 0 -42px;
+        border: 2px solid var(--sel); border-radius: 50%;
+        animation: tr-ripple1 0.55s ease-out 1 forwards;
+      }
+      @keyframes tr-ripple1 {
+        0% { transform: scale(0.4); opacity: 0.9; }
+        100% { transform: scale(1.6); opacity: 0; }
+      }
+
+      /* 5. Raise & Dim — selected rings + bigger; others fade (no anim) */
+      .tr-dim { opacity: 0.4 !important; transition: opacity 0.25s; }
+      .tr-raised { transform: scale(1.22); }
+
+      /* 6. Name tag — static pill beside the marker */
+      .tr-tag {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -38px);
+        background: var(--sel); color: #fff; font-size: 10px; font-weight: 600;
+        padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        pointer-events: none;
+      }
+      .tr-tag::after {
+        content: ""; position: absolute; left: 50%; top: 100%; margin-left: -4px;
+        border: 4px solid transparent; border-top-color: var(--sel);
+      }
+
+      /* 7. Anchor dot — static dot at the base point */
+      .tr-dot {
+        position: absolute; left: 50%; top: 50%;
+        width: 14px; height: 14px; margin: 22px 0 0 -7px;
+        border-radius: 50%; background: var(--sel);
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.75), 0 0 8px var(--sel);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <h1>Calmer selection approaches</h1>
+      <p class="sub">Static or one-shot — nothing loops. Click a card to try it on the map; click the map to move the marker.</p>
+      <div id="cards"></div>
+      <div class="hint">Darker markers = "Raise &amp; Dim" demo. Bounce/ripple-style looping is gone.</div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css" rel="stylesheet" />
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      const SEL = { dark: "#2563eb", light: "#bfdbfe" }
+      const MARKERS = [
+        { name: "Selected", lng: 151.2093, lat: -33.8688 },
+        { name: "Silo 1", lng: 151.211, lat: -33.871 },
+        { name: "Gate", lng: 151.207, lat: -33.8665 },
+        { name: "House", lng: 151.2135, lat: -33.866 },
+        { name: "Dam", lng: 151.2055, lat: -33.8715 },
+      ]
+
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/outdoors-v11",
+        center: [151.2093, -33.8688],
+        zoom: 14,
+      })
+
+      // real pin markers (small, tinted-ish via CSS filter not needed)
+      const markerEls = []
+      MARKERS.forEach((m, i) => {
+        const el = document.createElement("div")
+        el.style.cssText = `width:34px;height:34px;background:url('http://localhost:8099/static/icons/pin-ionic-3x.png') center/contain no-repeat;${i===0?'':'opacity:1;'}`
+        const mk = new mapboxgl.Marker({ element: el, anchor: "center" })
+          .setLngLat([m.lng, m.lat])
+          .addTo(map)
+        markerEls.push({ data: m, el, mk })
+      })
+
+      // selected marker = index 0
+      const selMarker = markerEls[0]
+
+      // ── candidate definitions ──
+      // Each candidate: { id, name, note, badge, stageHTML(overlay), apply(map, ctx) }
+      const candidates = [
+        {
+          id: "steady-ring",
+          name: "Steady Ring",
+          note: "A crisp static ring in the marker's colour. Nothing moves.",
+          badge: ["static", "Static"],
+          stageHTML: '<div class="tr-ring"></div>',
+          apply() {
+            removeAll()
+            const ring = document.createElement("div")
+            ring.className = "tr-ring"
+            ring.style.setProperty("--sel", SEL.dark)
+            addOverlay(ring)
+          },
+        },
+        {
+          id: "pop-settle",
+          name: "Pop & Settle",
+          note: "One quick pop on select, then the marker rests slightly larger with a thin ring. No looping.",
+          badge: ["oneshot", "One-shot"],
+          stageHTML: '<div class="tr-ring-after"></div>',
+          apply() {
+            removeAll()
+            unDim()
+            selMarker.el.classList.remove("tr-pop-marker")
+            // replay pop
+            void selMarker.el.offsetWidth
+            selMarker.el.classList.add("tr-pop-marker")
+            const ring = document.createElement("div")
+            ring.className = "tr-ring-after"
+            ring.style.setProperty("--sel", SEL.dark)
+            addOverlay(ring)
+          },
+        },
+        {
+          id: "halo",
+          name: "Soft Halo",
+          note: "A steady soft glow behind the marker. No pulse, no movement.",
+          badge: ["static", "Static"],
+          stageHTML: '<div class="tr-halo"></div>',
+          apply() {
+            removeAll()
+            const halo = document.createElement("div")
+            halo.className = "tr-halo"
+            halo.style.setProperty("--selc", SEL.light)
+            addOverlay(halo)
+          },
+        },
+        {
+          id: "ripple-once",
+          name: "One-Shot Ripple",
+          note: "A single sonar ping fires once on selection, then leaves a calm ring. Never loops.",
+          badge: ["oneshot", "One-shot"],
+          stageHTML: '<div class="tr-ring"></div>',
+          apply() {
+            removeAll()
+            const ripple = document.createElement("div")
+            ripple.className = "tr-ripple1"
+            ripple.style.setProperty("--sel", SEL.dark)
+            addOverlay(ripple)
+            setTimeout(() => {
+              if (currentId === "ripple-once") {
+                const ring = document.createElement("div")
+                ring.className = "tr-ring"
+                ring.style.setProperty("--sel", SEL.dark)
+                addOverlay(ring)
+              }
+            }, 560)
+          },
+        },
+        {
+          id: "raise-dim",
+          name: "Raise & Dim",
+          note: "Selected marker rings and sits larger; every other marker fades. Selection via contrast — nothing animates.",
+          badge: ["static", "Static"],
+          stageHTML: '<div class="tr-ring" style="opacity:0.8"></div>',
+          apply() {
+            removeAll()
+            markerEls.forEach((m) => {
+              if (m !== selMarker) m.el.classList.add("tr-dim")
+            })
+            selMarker.el.classList.add("tr-raised")
+            const ring = document.createElement("div")
+            ring.className = "tr-ring"
+            ring.style.setProperty("--sel", SEL.dark)
+            addOverlay(ring)
+          },
+        },
+        {
+          id: "name-tag",
+          name: "Name Tag",
+          note: "A steady pill label beside the marker — you always know exactly which one is selected.",
+          badge: ["static", "Static"],
+          stageHTML: '<div class="tr-tag">Dam</div>',
+          apply() {
+            removeAll()
+            const tag = document.createElement("div")
+            tag.className = "tr-tag"
+            tag.textContent = selMarker.data.name || "Marker"
+            tag.style.setProperty("--sel", SEL.dark)
+            addOverlay(tag)
+          },
+        },
+        {
+          id: "anchor-dot",
+          name: "Anchor Dot",
+          note: "A small solid dot at the marker's base point. Minimal and calm.",
+          badge: ["static", "Static"],
+          stageHTML: '<div class="tr-dot"></div>',
+          apply() {
+            removeAll()
+            const dot = document.createElement("div")
+            dot.className = "tr-dot"
+            dot.style.setProperty("--sel", SEL.dark)
+            addOverlay(dot)
+          },
+        },
+      ]
+
+      // ── overlay management ──
+      let currentId = null
+      let overlayMarkers = [] // may be >1 for one-shot cues that add a settling overlay
+
+      function addOverlay(el) {
+        const mk = new mapboxgl.Marker({ element: el, anchor: "center" })
+          .setLngLat([selMarker.data.lng, selMarker.data.lat])
+          .addTo(map)
+        overlayMarkers.push(mk)
+        return mk
+      }
+      function removeAll() {
+        overlayMarkers.forEach((mk) => {
+          try { mk.remove() } catch (e) {}
+        })
+        overlayMarkers = []
+        // remove dim + raised + pop
+        markerEls.forEach((m) => {
+          m.el.classList.remove("tr-dim", "tr-raised", "tr-pop-marker")
+        })
+      }
+      function unDim() {
+        markerEls.forEach((m) => m.el.classList.remove("tr-dim", "tr-raised"))
+      }
+
+      function applyCandidate(id, replay) {
+        const c = candidates.find((x) => x.id === id)
+        if (!c) return
+        currentId = id
+        document.querySelectorAll(".card").forEach((el) => {
+          el.classList.toggle("active", el.dataset.id === id)
+        })
+        // for pop/ripple, replay requires a fresh element; for others reapply is idempotent
+        c.apply()
+        // if we're just re-applying the same one-shot on map move, replay it
+        if (replay && (id === "pop-settle" || id === "ripple-once")) {
+          // handled inside apply via classList reset + timeout
+        }
+      }
+
+      // ── build cards with mini previews ──
+      const cardsBox = document.getElementById("cards")
+      const img = new Image()
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight
+        candidates.forEach((c) => {
+          const card = document.createElement("div")
+          card.className = "card"
+          card.dataset.id = c.id
+
+          const stage = document.createElement("div")
+          stage.className = "stage"
+          stage.style.setProperty("--sel", SEL.dark)
+          stage.style.setProperty("--selc", SEL.light)
+          const cv = document.createElement("canvas")
+          cv.width = w; cv.height = h
+          cv.getContext("2d").drawImage(img, 0, 0)
+          const holder = document.createElement("div")
+          holder.style.cssText = "position:relative;display:flex;align-items:center;justify-content:center;"
+          holder.appendChild(cv)
+          stage.appendChild(holder)
+          stage.insertAdjacentHTML("beforeend", c.stageHTML)
+
+          const meta = document.createElement("div")
+          meta.className = "meta"
+          const badge = document.createElement("span")
+          badge.className = "badge " + c.badge[0]
+          badge.textContent = c.badge[1]
+          const name = document.createElement("div")
+          name.className = "cname"
+          name.textContent = c.name
+          const note = document.createElement("div")
+          note.className = "cnote"
+          note.textContent = c.note
+          meta.appendChild(badge)
+          meta.appendChild(name)
+          meta.appendChild(note)
+
+          card.appendChild(stage)
+          card.appendChild(meta)
+          card.addEventListener("click", () => applyCandidate(c.id, true))
+          cardsBox.appendChild(card)
+        })
+        // default select steady-ring
+        applyCandidate("steady-ring")
+      }
+      img.src = "http://localhost:8099/static/icons/pin-ionic-3x.png"
+
+      // move the selected marker on map click
+      map.on("click", (e) => {
+        selMarker.data.lng = e.lngLat.lng
+        selMarker.data.lat = e.lngLat.lat
+        selMarker.mk.setLngLat(e.lngLat)
+        applyCandidate(currentId, true)
+      })
+    </script>
+  </body>
+</html>

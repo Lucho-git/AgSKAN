@@ -26,6 +26,7 @@
     selectedOperationStore,
   } from "$lib/stores/operationStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { TINT_MODE_DEFAULT } from "$lib/components/map/markers/markerPalette"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore" // 🆕 NEW
@@ -176,11 +177,19 @@
         const currentSettings = get(userSettingsStore)
 
         userSettingsStore.set({
+          markerStyle: user_settings.marker_style ?? TINT_MODE_DEFAULT,
+          markerDefaultColorMode:
+            user_settings.marker_default_color_mode ?? "custom",
+          markerDefaultColor: user_settings.marker_default_color ?? "blue",
+          markerTypeDefaultColors:
+            user_settings.marker_type_default_colors ?? {},
+          iconGlassOpacity: user_settings.icon_glass_opacity ?? 0.3,
           zoomToLocationMarkers:
             user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? true,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
           overlayMarkerMenuEnabled: user_settings.overlay_marker_menu_enabled ?? false,
+          overlayPlacementMenuEnabled: user_settings.overlay_placement_menu_enabled ?? false,
           showBinsAlways: user_settings.show_bins_always ?? false,
           showVehiclesAlways: user_settings.show_vehicles_always ?? true,
           satelliteDropdownEnabled:
@@ -209,7 +218,7 @@
           measureMenuEnabled: user_settings.measure_menu_enabled ?? true,
           flashMenuEnabled: user_settings.flash_menu_enabled ?? true,
           rockPickingMenuEnabled: user_settings.rock_picking_menu_enabled ?? true,
-          weatherMenuEnabled: user_settings.weather_menu_enabled ?? false,
+          weatherMenuEnabled: user_settings.weather_menu_enabled ?? true,
           weatherSource: user_settings.weather_source ?? null,
         })
 
@@ -219,10 +228,16 @@
       } else {
         // If no user settings exist, use defaults
         userSettingsStore.set({
+          markerStyle: TINT_MODE_DEFAULT,
+          markerDefaultColorMode: "custom",
+          markerDefaultColor: "blue",
+          markerTypeDefaultColors: {},
+          iconGlassOpacity: 0.3,
           zoomToLocationMarkers: false,
           zoomToPlacedMarkers: true,
           autoConfirmMarkers: false,
           overlayMarkerMenuEnabled: false,
+          overlayPlacementMenuEnabled: false,
           showBinsAlways: false,
           showVehiclesAlways: true,
           satelliteDropdownEnabled: false,
@@ -247,7 +262,7 @@
           measureMenuEnabled: true,
           flashMenuEnabled: true,
           rockPickingMenuEnabled: true,
-          weatherMenuEnabled: false,
+          weatherMenuEnabled: true,
           weatherSource: null,
         })
 

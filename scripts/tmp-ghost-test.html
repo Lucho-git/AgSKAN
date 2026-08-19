@@ -1,0 +1,143 @@
+<!doctype html>
+<!--
+  tmp-ghost-test.html — reproduces the "ghost marker behind the selection
+  overlay" scenario: a symbol-layer marker (icon) with a DOM overlay on top,
+  and a toggle that sets markers-selected-layer icon-opacity to 0/1, exactly
+  like the app's setSelectedLayerHidden(). Purpose: verify opacity-0 actually
+  hides the underlying symbol marker (and keeps clicks working).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghost Test — icon-opacity hide</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; left: 12px; z-index: 5; width: 260px;
+        background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0; font-size: 12px;
+      }
+      #ui button { display: block; width: 100%; margin: 4px 0; padding: 6px 10px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+        color: #e2e8f0; cursor: pointer; }
+      #ui button.active { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+      #ui .hint { font-size: 10px; color: #94a3b8; margin-top: 6px; }
+      .ov-inner {
+        position: absolute; left: 50%; top: 50%;
+        width: 37px; height: 37px; margin: -18.5px 0 0 -18.5px;
+        transform-origin: 50% 50%;
+      }
+      .ov-icon { position: absolute; inset: 0; background: center / contain no-repeat; }
+      .ov-pop { animation: ovPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards; }
+      @keyframes ovPop {
+        0% { transform: scale(1); }
+        55% { transform: scale(1.4); }
+        100% { transform: scale(1.3); }
+      }
+      .ov-ring {
+        position: absolute; left: 50%; top: 50%;
+        width: 37px; height: 37px; margin: -18.5px 0 0 -18.5px;
+        border: 2.5px solid #2563eb; border-radius: 50%;
+        box-shadow: 0 0 5px #2563eb, 0 0 10px #bfdbfe; pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <b>Ghost test</b>
+      <div class="hint">Symbol-layer marker + DOM selection overlay on top (size-pop).</div>
+      <button id="hideBtn" class="active">Symbol layer: icon-opacity 0 (hidden)</button>
+      <button id="showBtn">Symbol layer: icon-opacity 1 (visible)</button>
+      <button id="clickTest">queryRenderedFeatures at marker (count)</button>
+      <div class="hint" id="result"></div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css" rel="stylesheet" />
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      const ICON = "http://localhost:8099/static/icons/gate-3x.png"
+      const CENTER = [151.2093, -33.8688]
+
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/outdoors-v11",
+        center: CENTER,
+        zoom: 14,
+      })
+
+      map.on("load", () => {
+        // register the raw icon as a mapbox image
+        map.loadImage(ICON, (err, image) => {
+          if (err) return
+          map.addImage("test-icon", image)
+          map.addSource("test", {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  geometry: { type: "Point", coordinates: CENTER },
+                  properties: { id: 1, icon: "test-icon", selected: true },
+                },
+              ],
+            },
+          })
+          map.addLayer({
+            id: "test-selected-layer",
+            type: "symbol",
+            source: "test",
+            filter: ["==", ["get", "selected"], true],
+            layout: { "icon-image": ["get", "icon"], "icon-size": 0.35 },
+          })
+
+          // DOM selection overlay (size-pop style) on top of the symbol marker
+          const wrap = document.createElement("div")
+          const inner = document.createElement("div")
+          inner.className = "ov-inner ov-pop"
+          const icon = document.createElement("div")
+          icon.className = "ov-icon"
+          icon.style.backgroundImage = "url('" + ICON + "')"
+          inner.appendChild(icon)
+          const ring = document.createElement("div")
+          ring.className = "ov-ring"
+          inner.appendChild(ring)
+          wrap.appendChild(inner)
+          new mapboxgl.Marker({ element: wrap, anchor: "center" })
+            .setLngLat(CENTER)
+            .addTo(map)
+        })
+      })
+
+      function setOpacity(v) {
+        if (!map.getLayer("test-selected-layer")) return
+        map.setPaintProperty("test-selected-layer", "icon-opacity", v)
+      }
+      document.getElementById("hideBtn").addEventListener("click", () => {
+        setOpacity(0)
+        document.getElementById("hideBtn").classList.add("active")
+        document.getElementById("showBtn").classList.remove("active")
+      })
+      document.getElementById("showBtn").addEventListener("click", () => {
+        setOpacity(1)
+        document.getElementById("showBtn").classList.add("active")
+        document.getElementById("hideBtn").classList.remove("active")
+      })
+      document.getElementById("clickTest").addEventListener("click", () => {
+        const p = map.project(CENTER)
+        const feats = map.queryRenderedFeatures(p, {
+          layers: ["test-selected-layer"],
+        })
+        document.getElementById("result").textContent =
+          "features found at marker: " + feats.length
+      })
+    </script>
+  </body>
+</html>

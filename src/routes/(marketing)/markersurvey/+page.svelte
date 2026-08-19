@@ -23,6 +23,7 @@
     TINT_MODES,
     TINT_MODE_DEFAULT,
     markerColor,
+    isCustomSvgIcon,
   } from "$lib/components/map/markers/markerPalette"
   import {
     loadIconPaths,
@@ -39,6 +40,16 @@
   // All atlas-styled markers — the family being phased out.
   const atlasMarkers = getAllMarkers().filter(
     (m) => m.class && m.class.startsWith("at-"),
+  )
+
+  // Random grid colours draw from the 7 normal colours only — black/white
+  // would make low-contrast samples on the satellite map.
+  const SURVEY_COLORS = MARKER_COLORS.filter(
+    (c) =>
+      c.key !== MARKER_COLOR_DEFAULT &&
+      c.key !== "black" &&
+      c.key !== "white" &&
+      c.key !== "rainbow",
   )
 
   // ── Map + grid state ──
@@ -127,12 +138,11 @@
         return cls === "default" || !!iconPaths[cls]
       })
       .map((def) => {
+        const cls = iconClassFor(def)
         const colorDef =
-          MARKER_COLORS[
-            1 + Math.floor(Math.random() * (MARKER_COLORS.length - 1))
-          ]
+          SURVEY_COLORS[Math.floor(Math.random() * SURVEY_COLORS.length)]
         return {
-          key: iconClassFor(def),
+          key: cls,
           colorKey: colorDef?.key || MARKER_COLOR_DEFAULT,
         }
       })
@@ -152,23 +162,22 @@
     const images = new Map()
     for (const item of renderableIcons) {
       const { key, colorKey } = item
-      let name
+      // Custom SVG icons keep their glyph's baked-in colours but their
+      // circle/disc still follows the style (name gets a "-g" suffix).
+      const keepGlyph = isCustomSvgIcon(key)
+      // The default Mapbox pin uses the dedicated "default-pin" tint (body
+      // recolours, white circle stays white) instead of the style modes.
+      const tintMode = key === "default" ? "default-pin" : styleKey
+      const name = `survey-${key}-${tintMode}${keepGlyph ? "-g" : ""}`
       try {
-        if (key === "default") {
-          name = "survey-default"
-          if (!map.hasImage(name)) {
-            const base = await getIconBaseCanvas("default")
-            if (base) registerCanvas(name, base)
-          }
-        } else {
-          name = `survey-${key}-${styleKey}`
-          if (!map.hasImage(name)) {
-            const base = await getIconBaseCanvas(key)
-            if (!base) continue
-            const copy = cloneCanvas(base)
-            tintMarkerCanvas(copy, markerColor(colorKey), styleKey)
-            registerCanvas(name, copy)
-          }
+        if (!map.hasImage(name)) {
+          const base = await getIconBaseCanvas(key)
+          if (!base) continue
+          const copy = cloneCanvas(base)
+          tintMarkerCanvas(copy, markerColor(colorKey), tintMode, {
+            keepGlyphOriginal: keepGlyph,
+          })
+          registerCanvas(name, copy)
         }
         images.set(key, name)
       } catch (e) {
@@ -243,9 +252,7 @@
     // 1) New random rainbow colour for every icon (never default).
     for (const item of renderableIcons) {
       const colorDef =
-        MARKER_COLORS[
-          1 + Math.floor(Math.random() * (MARKER_COLORS.length - 1))
-        ]
+        SURVEY_COLORS[Math.floor(Math.random() * SURVEY_COLORS.length)]
       item.colorKey = colorDef?.key || MARKER_COLOR_DEFAULT
     }
     // 2) Drop all cached tinted images (they were tinted with the old

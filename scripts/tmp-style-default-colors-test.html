@@ -1,0 +1,257 @@
+<!doctype html>
+<!--
+  tmp-style-default-colors-test.html — standalone visual check of the new
+  "Style default colours" section in the Profile menu (Map Marker Settings).
+  Mirrors ProfileControls.svelte: only the SELECTED style is shown, with a
+  Fill colour row and a separate Border colour row (incl. a dashed
+  "Match fill" swatch).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Style Default Colours Test</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      h2 { margin: 0; font-size: 14px; color: #94a3b8; }
+      .desc { margin: 0; font-size: 12px; color: #64748b; }
+
+      .profile-panel {
+        width: 400px;
+        max-width: 100%;
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .section-title { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #e2e8f0; }
+      .setting-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .setting-row-top { display: flex; align-items: flex-start; gap: 10px; }
+      .setting-icon {
+        width: 28px; height: 28px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      }
+      .marker-icon { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
+      .setting-name { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+      .setting-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; display: block; }
+
+      /* ── the section ── */
+      .style-default-colours { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+      .sdc-style-head { font-size: 12px; font-weight: 600; color: #93c5fd; }
+      .sdc-row { display: flex; align-items: center; gap: 10px; }
+      .sdc-style {
+        flex-shrink: 0; width: 96px; font-size: 12px;
+        color: rgba(255, 255, 255, 0.75); text-align: left;
+      }
+      .sdc-swatches { display: flex; flex-wrap: nowrap; gap: 4px; flex: 1; }
+      .sdc-swatch {
+        width: 16px; height: 16px; flex-shrink: 1; min-width: 0;
+        border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer; padding: 0; transition: all 0.15s ease;
+      }
+      .sdc-swatch:hover { transform: scale(1.15); }
+      .sdc-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6); }
+      .sdc-swatch:disabled { opacity: 0.5; cursor: not-allowed; }
+      .sdc-match { border: 2px dashed rgba(255, 255, 255, 0.5); background: transparent; }
+      .sdc-match.active { border-style: solid; border-color: #fff; box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6); }
+      .sdc-random {
+        border: 2px dashed rgba(255, 255, 255, 0.55);
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .sdc-random.active {
+        border-style: solid;
+        border-color: #fff;
+        box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+        color: #fff;
+      }
+
+      .styles { display: flex; flex-wrap: wrap; gap: 6px; }
+      .styles button {
+        padding: 6px 10px; border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.06); color: #e2e8f0;
+        font-size: 12px; cursor: pointer;
+      }
+      .styles button.active { background: rgba(96, 165, 250, 0.28); color: #93c5fd; }
+    </style>
+  </head>
+  <body>
+    <h2>Map Marker Settings → Style default colours (selected style only)</h2>
+    <p class="desc">Pick a style below to simulate the profile's "Marker style" — only that style's defaults are shown.</p>
+
+    <div class="styles" id="styles"></div>
+
+    <div class="profile-panel">
+      <h5 class="section-title">Map Marker Settings</h5>
+      <div class="setting-row">
+        <div class="setting-row-top">
+          <div class="setting-icon marker-icon">●</div>
+          <div>
+            <span class="setting-name">Style default colours</span>
+            <span class="setting-desc">Colour used for markers with no colour set, for the selected style</span>
+          </div>
+        </div>
+        <div class="style-default-colours" id="sdc"></div>
+      </div>
+    </div>
+
+    <p class="desc" id="status"></p>
+
+    <script>
+      // ── Mirror of markerPalette.ts (2026-08-13) ──
+      const MARKER_COLORS = [
+        { key: "default", label: "Default", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
+        { key: "red", label: "Red", light: "#fecaca", dark: "#dc2626", deep: "#991b1b" },
+        { key: "blue", label: "Blue", light: "#bfdbfe", dark: "#2563eb", deep: "#1e40af" },
+        { key: "green", label: "Green", light: "#bbf7d0", dark: "#16a34a", deep: "#166534" },
+        { key: "orange", label: "Orange", light: "#fed7aa", dark: "#ea580c", deep: "#9a3412" },
+        { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308", deep: "#a16207" },
+        { key: "purple", label: "Purple", light: "#e9d5ff", dark: "#9333ea", deep: "#6b21a8" },
+        { key: "pink", label: "Pink", light: "#fbcfe8", dark: "#db2777", deep: "#9d174d" },
+        { key: "skyblue", label: "Sky blue", light: "#bae6fd", dark: "#0284c7", deep: "#075985" },
+        { key: "rainbow", label: "Rainbow", light: "#ffffff", dark: "#ffffff", deep: "#ffffff" },
+        { key: "black", label: "Black", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
+        { key: "white", label: "White", light: "#ffffff", dark: "#ffffff", deep: "#f8fafc" },
+      ]
+      const MARKER_COLOR_DEFAULT = "default"
+      const PICKABLE_COLORS = MARKER_COLORS.filter((c) => c.key !== MARKER_COLOR_DEFAULT)
+      const TINT_MODES = [
+        { key: "original", label: "Original" },
+        { key: "circle-fill", label: "Circle fill white" },
+        { key: "circle-fill-black", label: "Circle fill black" },
+        { key: "icon-fill", label: "Icon fill" },
+        { key: "icon-only", label: "Icon only" },
+        { key: "icon-dark-glass", label: "Icon dark glass" },
+        { key: "icon-light-glass", label: "Icon light glass" },
+      ]
+      const STYLE_DEFAULT_COLORS = {
+        original: "blue",
+        "circle-fill": "blue",
+        "circle-fill-black": "blue",
+        "icon-fill": "blue",
+        "icon-only": "black",
+        "icon-dark-glass": "blue",
+        "icon-light-glass": "black",
+      }
+      const swatchBg = (c) =>
+        c.key === "rainbow"
+          ? "conic-gradient(from 0deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)"
+          : c.key === "black" ? "#111827" : c.key === "white" ? "#ffffff" : c.key === MARKER_COLOR_DEFAULT ? "#e5e7eb" : c.light
+      const swatchBorder = (c) =>
+        c.key === "rainbow" ? "#334155" : c.key === "white" ? "#94a3b8" : c.key === MARKER_COLOR_DEFAULT ? "#000000" : c.dark
+
+      let activeStyle = "original"
+      let fillOverrides = {}
+      let borderOverrides = {}
+
+      function styleDefaultFor(styleKey) {
+        return fillOverrides[styleKey] || STYLE_DEFAULT_COLORS[styleKey] || "blue"
+      }
+      function styleDefaultBorderFor(styleKey) {
+        return borderOverrides[styleKey] || null
+      }
+
+      function swatchButton(rowEl, c, active, title, onClick) {
+        const b = document.createElement("button")
+        b.className = "sdc-swatch" + (active ? " active" : "")
+        b.style.background = swatchBg(c)
+        b.style.borderColor = swatchBorder(c)
+        b.title = title
+        b.onclick = onClick
+        rowEl.appendChild(b)
+      }
+
+      function render() {
+        // style switcher
+        const sw = document.getElementById("styles")
+        sw.innerHTML = ""
+        TINT_MODES.forEach((m) => {
+          const b = document.createElement("button")
+          b.className = activeStyle === m.key ? "active" : ""
+          b.textContent = m.label
+          b.onclick = () => { activeStyle = m.key; render() }
+          sw.appendChild(b)
+        })
+
+        // section — only the selected style
+        const wrap = document.getElementById("sdc")
+        wrap.innerHTML = ""
+        const head = document.createElement("div")
+        head.className = "sdc-style-head"
+        head.textContent = TINT_MODES.find((m) => m.key === activeStyle).label
+        wrap.appendChild(head)
+
+        // Fill colour row
+        const fillRow = document.createElement("div")
+        fillRow.className = "sdc-row"
+        const fillLabel = document.createElement("span")
+        fillLabel.className = "sdc-style"
+        fillLabel.textContent = "Fill colour"
+        const fillSw = document.createElement("div")
+        fillSw.className = "sdc-swatches"
+        const rnd = document.createElement("button")
+        rnd.className = "sdc-swatch sdc-random" + (styleDefaultFor(activeStyle) === "random" ? " active" : "")
+        rnd.textContent = "R"
+        rnd.title = "Random — every marker with no colour gets a random palette colour"
+        rnd.onclick = () => { fillOverrides = { ...fillOverrides, [activeStyle]: "random" }; render() }
+        fillSw.appendChild(rnd)
+        PICKABLE_COLORS.forEach((c) => {
+          swatchButton(fillSw, c, styleDefaultFor(activeStyle) === c.key,
+            `${activeStyle} fill default: ${c.label}`,
+            () => { fillOverrides = { ...fillOverrides, [activeStyle]: c.key }; render() })
+        })
+        fillRow.appendChild(fillLabel)
+        fillRow.appendChild(fillSw)
+        wrap.appendChild(fillRow)
+
+        // Border colour row (with Match fill)
+        const bRow = document.createElement("div")
+        bRow.className = "sdc-row"
+        const bLabel = document.createElement("span")
+        bLabel.className = "sdc-style"
+        bLabel.textContent = "Border colour"
+        const bSw = document.createElement("div")
+        bSw.className = "sdc-swatches"
+        const match = document.createElement("button")
+        match.className = "sdc-swatch sdc-match" + (!styleDefaultBorderFor(activeStyle) ? " active" : "")
+        match.title = "Match fill — border follows the marker's fill colour"
+        match.onclick = () => { const next = { ...borderOverrides }; delete next[activeStyle]; borderOverrides = next; render() }
+        bSw.appendChild(match)
+        PICKABLE_COLORS.forEach((c) => {
+          swatchButton(bSw, c, styleDefaultBorderFor(activeStyle) === c.key,
+            `${activeStyle} border default: ${c.label}`,
+            () => { borderOverrides = { ...borderOverrides, [activeStyle]: c.key }; render() })
+        })
+        bRow.appendChild(bLabel)
+        bRow.appendChild(bSw)
+        wrap.appendChild(bRow)
+
+        document.getElementById("status").textContent =
+          `Style: ${activeStyle} | fill: ${JSON.stringify(fillOverrides)} | border: ${JSON.stringify(borderOverrides)}`
+      }
+      render()
+    </script>
+  </body>
+</html>

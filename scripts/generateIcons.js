@@ -23,6 +23,10 @@ const customSvgIcons = [
   "silo2",
   "tree_stump",
   "workshop_icon",
+  "fuel_refill",
+  "liquid_tank",
+  "rock_pile",
+  "water_tower2",
   "mapbox-marker",
     "mapbox-marker-selected", 
   "mapbox-marker-outlined"  

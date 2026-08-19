@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores"
-  import { goto } from "$app/navigation"
+  import { goto, replaceState } from "$app/navigation"
   import { onMount } from "svelte"
   import { afterNavigate } from "$app/navigation"
   import { fade } from "svelte/transition"
@@ -111,11 +111,27 @@
         block: "start",
       })
 
+      // Keep the URL in sync so the section link is a real, shareable
+      // "link modifier" (e.g. skanfarming.com.au/#pricing) and survives a
+      // refresh - +page.svelte picks the hash back up on load.
+      replaceState(`/#${elementId}`)
+
       setTimeout(() => {
         isScrollingFromButton = false
         isNavigating = false
       }, 2000) // Extended timeout
     }
+  }
+
+  // Click handler for section links. On the home page we handle the smooth
+  // scroll ourselves and prevent the default navigation to avoid double
+  // handling; from any other page we let the hash link navigate and rely on
+  // +page.svelte to perform the scroll.
+  function handleSectionLinkClick(event: MouseEvent, elementId: string) {
+    if ($page.url.pathname === "/") {
+      event.preventDefault()
+    }
+    scrollToSection(elementId)
   }
 
   // Enhanced navigation function for mobile links that preserves navbar
@@ -194,27 +210,27 @@
       <div class="hidden items-center space-x-5 lg:flex">
         <!-- How It Works -->
         <OgTextAnimatedDecoration
-          href="javascript:void(0)"
+          href="/#setup"
           className="text-base font-semibold cursor-pointer"
-          on:click={() => scrollToSection("setup")}
+          on:click={(e) => handleSectionLinkClick(e, "setup")}
         >
           How It Works
         </OgTextAnimatedDecoration>
 
         <!-- Pricing -->
         <OgTextAnimatedDecoration
-          href="javascript:void(0)"
+          href="/#pricing"
           className="text-base font-semibold cursor-pointer"
-          on:click={() => scrollToSection("pricing")}
+          on:click={(e) => handleSectionLinkClick(e, "pricing")}
         >
           Pricing
         </OgTextAnimatedDecoration>
 
         <!-- FAQ -->
         <OgTextAnimatedDecoration
-          href="javascript:void(0)"
+          href="/#qanda"
           className="text-base font-semibold cursor-pointer"
-          on:click={() => scrollToSection("qanda")}
+          on:click={(e) => handleSectionLinkClick(e, "qanda")}
         >
           FAQ
         </OgTextAnimatedDecoration>
@@ -338,45 +354,33 @@
         <div class="space-y-1 pb-4 pt-4">
           <!-- Mobile Main Links with Perfect Animation Pattern -->
           <div class="rounded-lg transition-colors hover:bg-base-200">
-            <button
-              class="block w-full p-3 text-left"
-              on:click={() => scrollToSection("setup")}
+            <OgTextAnimatedDecoration
+              href="/#setup"
+              className="block w-full p-3 text-base font-semibold cursor-pointer"
+              on:click={(e) => handleSectionLinkClick(e, "setup")}
             >
-              <OgTextAnimatedDecoration
-                href="javascript:void(0)"
-                className="text-base font-semibold cursor-pointer"
-              >
-                How It Works
-              </OgTextAnimatedDecoration>
-            </button>
+              How It Works
+            </OgTextAnimatedDecoration>
           </div>
 
           <div class="rounded-lg transition-colors hover:bg-base-200">
-            <button
-              class="block w-full p-3 text-left"
-              on:click={() => scrollToSection("pricing")}
+            <OgTextAnimatedDecoration
+              href="/#pricing"
+              className="block w-full p-3 text-base font-semibold cursor-pointer"
+              on:click={(e) => handleSectionLinkClick(e, "pricing")}
             >
-              <OgTextAnimatedDecoration
-                href="javascript:void(0)"
-                className="text-base font-semibold cursor-pointer"
-              >
-                Pricing
-              </OgTextAnimatedDecoration>
-            </button>
+              Pricing
+            </OgTextAnimatedDecoration>
           </div>
 
           <div class="rounded-lg transition-colors hover:bg-base-200">
-            <button
-              class="block w-full p-3 text-left"
-              on:click={() => scrollToSection("qanda")}
+            <OgTextAnimatedDecoration
+              href="/#qanda"
+              className="block w-full p-3 text-base font-semibold cursor-pointer"
+              on:click={(e) => handleSectionLinkClick(e, "qanda")}
             >
-              <OgTextAnimatedDecoration
-                href="javascript:void(0)"
-                className="text-base font-semibold cursor-pointer"
-              >
-                FAQ
-              </OgTextAnimatedDecoration>
-            </button>
+              FAQ
+            </OgTextAnimatedDecoration>
           </div>
 
           <!-- Mobile Company Section with Same Perfect Pattern -->

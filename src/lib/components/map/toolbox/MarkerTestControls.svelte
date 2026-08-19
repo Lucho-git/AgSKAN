@@ -18,6 +18,16 @@
   import { markerTestStore } from "$lib/stores/markerTestStore"
   import { loadIconPaths } from "$lib/components/map/markers/markerTint"
 
+  // Random grid colours come from the 7 normal colours only — black/white
+  // would make low-contrast test samples.
+  const TEST_GRID_COLORS = MARKER_COLORS.filter(
+    (c) =>
+      c.key !== MARKER_COLOR_DEFAULT &&
+      c.key !== "black" &&
+      c.key !== "white" &&
+      c.key !== "rainbow",
+  )
+
   // Generate a unique id without the uuid dependency (keeps this file free of
   // the pre-existing missing-@types/uuid error that the rest of the codebase has).
   function newId() {
@@ -95,10 +105,11 @@
         }
         const lngLat = map.unproject(px)
 
-        // Random rainbow colour from the palette (never default).
+        // Random rainbow colour from the normal colours (never default,
+        // black or white).
         const colorDef =
-          MARKER_COLORS[
-            1 + Math.floor(Math.random() * (MARKER_COLORS.length - 1))
+          TEST_GRID_COLORS[
+            Math.floor(Math.random() * TEST_GRID_COLORS.length)
           ]
 
         return {

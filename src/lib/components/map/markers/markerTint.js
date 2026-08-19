@@ -19,6 +19,22 @@ export function hexToRgb(hex) {
 }
 
 /**
+ * Convert HSL (h in degrees 0-360, s/l 0-1) to [r, g, b].
+ * @param {number} h
+ * @param {number} s
+ * @param {number} l
+ * @returns {number[]}
+ */
+function hslToRgb(h, s, l) {
+  const a = s * Math.min(l, 1 - l)
+  const f = (/** @type {number} */ n) => {
+    const k = (n + h / 30) % 12
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
+  }
+  return [f(0), f(8), f(4)]
+}
+
+/**
  * Load an image file into a canvas at its natural size.
  * @param {string} path
  * @returns {Promise<HTMLCanvasElement>}
@@ -30,7 +46,8 @@ export function loadPngToCanvas(path) {
       const canvas = document.createElement("canvas")
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")
+      // willReadFrequently: tintMarkerCanvas does getImageData readbacks.
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })
       if (ctx) ctx.drawImage(img, 0, 0)
       resolve(canvas)
     }
@@ -47,6 +64,7 @@ export function loadPngToCanvas(path) {
 //                 strong dark border.
 //   circle-fill — the circle carries all the colour right to the edge; the
 //                 middle (glyph) is white for contrast. No ring.
+//   circle-fill-black — same as circle-fill but the glyph is black.
 //   icon-fill   — the icon itself carries the rich deep colour; the circle
 //                 is a pure white/grey canvas so the icon pops. Ring is a
 //                 subtle neutral grey.
@@ -54,6 +72,8 @@ export function loadPngToCanvas(path) {
 //   icon-dark-glass — bright accent icon on a DARK translucent glass disc.
 //   icon-light-glass — DEEP (much darker) accent icon on the light frosted
 //                 glass disc (better contrast than bright-on-bright).
+//   default-pin — the default Mapbox pin: the body recolours with the vivid
+//                 accent, the baked white circle ALWAYS stays white.
 //
 // Crispness: instead of hard-snapping each pixel to "circle" or "glyph",
 // we compute a smooth circle-ness factor t in [0,1] per pixel from its
@@ -62,21 +82,36 @@ export function loadPngToCanvas(path) {
 // rather than stepping, so edges stay clean instead of "baked".
 /**
  * @param {HTMLCanvasElement} canvas  Mutated in place.
- * @param {{ light: string, dark: string, deep: string }} colorDef
+ * @param {{ key: string, light: string, dark: string, deep: string }} colorDef
  * @param {string} mode
+ * @param {{ keepGlyphOriginal?: boolean, borderColor?: string | null, glassAlpha?: number | null }} [opts]
+ *   keepGlyphOriginal — when true the glyph keeps its baked-in colours
+ *   (custom SVG icons), only the circle/disc follows the mode.
+ *   borderColor — hex override for the ring/rim colour (the profile's
+ *   per-style "Border colour" default); null = ring follows the fill.
+ *   glassAlpha — 0-1 override for how solid the icon-only glass disc is
+ *   (the Profile's opacity slider); null/undefined = built-in per-variant
+ *   alphas (dark 0.55 / light 0.38).
  */
-export function tintMarkerCanvas(canvas, colorDef, mode) {
-  const ctx = canvas.getContext("2d")
+export function tintMarkerCanvas(canvas, colorDef, mode, opts = {}) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })
   if (!ctx) return
   const { width, height } = canvas
+  const keepGlyphOriginal = !!opts.keepGlyphOriginal
+  const borderColor = opts.borderColor || null
+  const isRainbow = colorDef.key === "rainbow"
   const imageData = ctx.getImageData(0, 0, width, height)
   const data = imageData.data
   const [lr, lg, lb] = hexToRgb(colorDef.light)
-  const [dr, dg, db] = hexToRgb(colorDef.deep)
-  // Bright accent used by icon-dark-glass so the icon pops on the dark disc.
+  // Bright vivid accent — the colour set used by every non-original style
+  // EXCEPT icon-fill (saturated, never the dark/deep shades).
   const [br, bg, bb] = hexToRgb(colorDef.dark)
+  // Deep rich shade — icon-fill only (its glyph on the white circle).
+  const [dr, dg, db] = hexToRgb(colorDef.deep)
   // Neutral glyph colour used by circle-fill so the symbol always shows.
   const GLYPH = [248, 250, 252] // slate-50
+  // Black glyph used by circle-fill-black (black on colour).
+  const GLYPH_BLACK = [0, 0, 0]
   // Pure white/grey "canvas" used by icon-fill so the icon pops.
   const CIRCLE_WHITE = [241, 245, 249] // slate-100
   // Light frosted "glass" disc used by icon-light-glass: translucent white
@@ -88,6 +123,13 @@ export function tintMarkerCanvas(canvas, colorDef, mode) {
   // dark-on-light needs more presence to read as "dark".
   const GLASS_DARK = [15, 23, 42] // slate-900
   const GLASS_DARK_ALPHA = 0.55
+  // Optional user override for how solid the glass disc is (0=invisible,
+  // 1=solid) — the Profile's "Icon only" opacity slider drives this. When
+  // absent each variant falls back to its baked-in alpha above.
+  const glassAlpha =
+    typeof opts.glassAlpha === "number" ? opts.glassAlpha : null
+  const glassAlphaDark = glassAlpha != null ? glassAlpha : GLASS_DARK_ALPHA
+  const glassAlphaLight = glassAlpha != null ? glassAlpha : GLASS_ALPHA
 
   const lerp = (/** @type {number} */ a, /** @type {number} */ b, /** @type {number} */ x) =>
     a + (b - a) * x
@@ -106,64 +148,134 @@ export function tintMarkerCanvas(canvas, colorDef, mode) {
     const lumT = Math.max(0, Math.min(1, (lum - 60) / 100))
     const t = greyT * lumT
 
+    // Rainbow fill: when the selected colour is "rainbow" every pixel of the
+    // colour-carrying part uses an angular rainbow gradient instead of a
+    // solid shade.
+    let rainR = 0
+    let rainG = 0
+    let rainB = 0
+    if (isRainbow) {
+      const px = (i / 4) % width
+      const py = Math.floor(i / 4 / width)
+      const hue =
+        ((Math.atan2(py - height / 2, px - width / 2) + Math.PI) /
+          (2 * Math.PI)) *
+        360
+      ;[rainR, rainG, rainB] = hslToRgb(hue, 0.95, 0.55)
+    }
+
+    // keepGlyphOriginal (custom SVG icons): each mode's glyph-end colour is
+    // swapped for the baked-in pixel so only the circle/disc/ring follows
+    // the style. `lerp(..., t)` keeps the glyph side (t→0) untouched and
+    // applies the mode colour to the circle (t→1), preserving anti-aliasing.
     if (mode === "circle-fill") {
-      // White/grey glyph → deep circle, blended smoothly.
-      data[i] = lerp(GLYPH[0], dr, t)
-      data[i + 1] = lerp(GLYPH[1], dg, t)
-      data[i + 2] = lerp(GLYPH[2], db, t)
+      // BRIGHT circle (the vivid accent shade used by every non-original
+      // style); the glyph inside turns white (or stays original for custom
+      // icons) so the symbol always stays visible.
+      const gR = keepGlyphOriginal ? r : GLYPH[0]
+      const gG = keepGlyphOriginal ? g : GLYPH[1]
+      const gB = keepGlyphOriginal ? b : GLYPH[2]
+      data[i] = lerp(gR, isRainbow ? rainR : br, t)
+      data[i + 1] = lerp(gG, isRainbow ? rainG : bg, t)
+      data[i + 2] = lerp(gB, isRainbow ? rainB : bb, t)
+    } else if (mode === "circle-fill-black") {
+      // Same BRIGHT circle as circle-fill — one consistent colour set across
+      // every non-original style — but the glyph turns black (custom icons
+      // keep their original glyph).
+      const gR = keepGlyphOriginal ? r : GLYPH_BLACK[0]
+      const gG = keepGlyphOriginal ? g : GLYPH_BLACK[1]
+      const gB = keepGlyphOriginal ? b : GLYPH_BLACK[2]
+      data[i] = lerp(gR, isRainbow ? rainR : br, t)
+      data[i + 1] = lerp(gG, isRainbow ? rainG : bg, t)
+      data[i + 2] = lerp(gB, isRainbow ? rainB : bb, t)
     } else if (mode === "icon-fill") {
-      // Deep rich icon → pure white/grey circle, blended smoothly.
-      data[i] = lerp(dr, CIRCLE_WHITE[0], t)
-      data[i + 1] = lerp(dg, CIRCLE_WHITE[1], t)
-      data[i + 2] = lerp(db, CIRCLE_WHITE[2], t)
+      // DEEP icon → pure white/grey circle (icon-fill is the one style that
+      // uses the deep shade); custom icons keep their original glyph so only
+      // the circle is blanked.
+      const gR = keepGlyphOriginal ? r : isRainbow ? rainR : dr
+      const gG = keepGlyphOriginal ? g : isRainbow ? rainG : dg
+      const gB = keepGlyphOriginal ? b : isRainbow ? rainB : db
+      data[i] = lerp(gR, CIRCLE_WHITE[0], t)
+      data[i + 1] = lerp(gG, CIRCLE_WHITE[1], t)
+      data[i + 2] = lerp(gB, CIRCLE_WHITE[2], t)
     } else if (mode === "icon-only") {
-      // Deep-coloured icon with the circle removed entirely: colour the
-      // glyph with the rich deep shade and fade the circle's alpha out so
-      // only the icon remains.
-      data[i] = dr
-      data[i + 1] = dg
-      data[i + 2] = db
+      // Glyph with the circle removed entirely: keep the glyph's colour
+      // (rainbow for the rainbow option, otherwise original for custom icons)
+      // and fade the circle's alpha out so only the icon remains.
+      data[i] = keepGlyphOriginal ? r : isRainbow ? rainR : br
+      data[i + 1] = keepGlyphOriginal ? g : isRainbow ? rainG : bg
+      data[i + 2] = keepGlyphOriginal ? b : isRainbow ? rainB : bb
       data[i + 3] = Math.round(a * (1 - t))
     } else if (mode === "icon-dark-glass") {
-      // Bright icon on a DARK frosted glass disc: the circle becomes a
-      // translucent dark slate so the bright colour pops instead of washing
-      // out.
-      data[i] = lerp(br, GLASS_DARK[0], t)
-      data[i + 1] = lerp(bg, GLASS_DARK[1], t)
-      data[i + 2] = lerp(bb, GLASS_DARK[2], t)
-      data[i + 3] = Math.round(a * (1 - t + t * GLASS_DARK_ALPHA))
+      // BRIGHT icon (same set as every non-original style) on the DARK
+      // frosted glass disc; custom icons keep their original glyph on the
+      // same dark disc.
+      const gR = keepGlyphOriginal ? r : isRainbow ? rainR : br
+      const gG = keepGlyphOriginal ? g : isRainbow ? rainG : bg
+      const gB = keepGlyphOriginal ? b : isRainbow ? rainB : bb
+      data[i] = lerp(gR, GLASS_DARK[0], t)
+      data[i + 1] = lerp(gG, GLASS_DARK[1], t)
+      data[i + 2] = lerp(gB, GLASS_DARK[2], t)
+      data[i + 3] = Math.round(a * (1 - t + t * glassAlphaDark))
     } else if (mode === "icon-light-glass") {
-      // DEEP (much darker) icon on the light frosted glass disc: tints the
-      // glyph with the rich deep shade so it reads clearly instead of
-      // bright-on-bright.
-      data[i] = lerp(dr, GLASS[0], t)
-      data[i + 1] = lerp(dg, GLASS[1], t)
-      data[i + 2] = lerp(db, GLASS[2], t)
-      data[i + 3] = Math.round(a * (1 - t + t * GLASS_ALPHA))
+      // BRIGHT icon on the light frosted glass disc; custom icons keep their
+      // original glyph on the same light disc.
+      const gR = keepGlyphOriginal ? r : isRainbow ? rainR : br
+      const gG = keepGlyphOriginal ? g : isRainbow ? rainG : bg
+      const gB = keepGlyphOriginal ? b : isRainbow ? rainB : bb
+      data[i] = lerp(gR, GLASS[0], t)
+      data[i + 1] = lerp(gG, GLASS[1], t)
+      data[i + 2] = lerp(gB, GLASS[2], t)
+      data[i + 3] = Math.round(a * (1 - t + t * glassAlphaLight))
+    } else if (mode === "default-pin") {
+      // The default Mapbox pin: recolour the pin body with the BRIGHT accent
+      // shade (same set as every non-original style) but ALWAYS keep the
+      // baked white circle white. The body is a saturated colour (high
+      // channel deviation) while the circle is bright grey — a "whiteness"
+      // factor separates them, blending so the anti-aliased edges stay crisp.
+      const whiteT =
+        Math.max(0, Math.min(1, (lum - 150) / 80)) *
+        (1 - Math.max(0, Math.min(1, (dev - 30) / 40)))
+      data[i] = lerp(br, 255, whiteT)
+      data[i + 1] = lerp(bg, 255, whiteT)
+      data[i + 2] = lerp(bb, 255, whiteT)
     } else {
-      // original — only the circle is tinted light; glyph stays as baked.
-      data[i] = lerp(r, lr, t)
-      data[i + 1] = lerp(g, lg, t)
-      data[i + 2] = lerp(b, lb, t)
+      // original — only the circle is tinted light (or rainbow); glyph stays
+      // as baked.
+      data[i] = lerp(r, isRainbow ? rainR : lr, t)
+      data[i + 1] = lerp(g, isRainbow ? rainG : lg, t)
+      data[i + 2] = lerp(b, isRainbow ? rainB : lb, t)
     }
   }
   ctx.putImageData(imageData, 0, 0)
 
-  // Ring — circle-fill, icon-only and the glass modes run to the edge with
-  // no border at all (icon-only has no circle, the glass discs are
-  // intentionally borderless). original gets the strong dark border;
-  // icon-fill gets a subtle neutral grey rim so the white circle reads on
-  // light maps. The ring is pulled in from the baked edge so no background
-  // pixels peek through.
+  // Ring — circle-fill, icon-only, the glass modes and default-pin run to
+  // the edge with no border at all (icon-only has no circle, the glass
+  // discs are intentionally borderless, and the pin has its own outline).
+  // original gets the strong dark border; icon-fill gets a subtle neutral
+  // grey rim so the white circle reads on light maps. The ring is pulled in
+  // from the baked edge so no background pixels peek through.
   if (
     mode === "circle-fill" ||
+    mode === "circle-fill-black" ||
     mode === "icon-only" ||
     mode === "icon-dark-glass" ||
-    mode === "icon-light-glass"
+    mode === "icon-light-glass" ||
+    mode === "default-pin"
   )
     return
   const isIconFill = mode === "icon-fill"
-  const [rr, rg, rb] = hexToRgb(isIconFill ? "#cbd5e1" : colorDef.dark)
+  // A user-set default border colour overrides the ring/rim colour
+  // (Profile → "Border colour"); otherwise the ring follows the marker's
+  // fill colour (original) or stays the neutral grey rim (icon-fill). When
+  // the fill is white (or very light) the matching ring would be invisible,
+  // so it falls back to a dark slate to keep the marker readable.
+  let ringHex = isIconFill ? "#cbd5e1" : colorDef.dark
+  if (!isIconFill && !borderColor) {
+    const [ar, ag, ab] = hexToRgb(ringHex)
+    if (0.299 * ar + 0.587 * ag + 0.114 * ab > 200) ringHex = "#334155"
+  }
+  const [rr, rg, rb] = borderColor ? hexToRgb(borderColor) : hexToRgb(ringHex)
   ctx.beginPath()
   ctx.arc(width / 2, height / 2, width / 2 - 6, 0, 2 * Math.PI)
   ctx.lineWidth = Math.max(3, Math.round(width * 0.05))

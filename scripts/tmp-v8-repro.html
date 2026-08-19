@@ -1,0 +1,473 @@
+<!doctype html>
+<!--
+  tmp-v8-repro.html — faithful standalone repro of MarkerManager's v8 selection
+  state machine (currentOverlay / shrinkingOverlays / overlayBuildToken) to
+  isolate the "new marker icon teleports below its spot when switching
+  marker→marker" flicker.
+
+  Two markers A and B (DOM gate-style icons). Buttons select A / select B /
+  deselect. Logs each new overlay's bounding rect over several frames so the
+  teleport (if any) is measured, not just eyeballed.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>v8 repro — marker→marker teleport</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #map { position: absolute; inset: 0; }
+      #ui {
+        position: absolute; top: 12px; right: 12px; z-index: 20; width: 320px;
+        max-height: calc(100% - 24px); overflow-y: auto;
+        background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 12px; color: #e2e8f0;
+      }
+      #ui h1 { font-size: 14px; margin: 0 0 4px; }
+      #ui .sub { font-size: 11px; color: #94a3b8; margin: 0 0 10px; }
+      #ui button {
+        display: block; width: 100%; margin: 3px 0; padding: 6px 10px;
+        background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+        color: #e2e8f0; font-size: 12px; text-align: left; cursor: pointer;
+      }
+      #ui button.active { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+      #log { font-size: 10px; color: #94a3b8; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+
+      /* ═══ EXACT app CSS for the selection overlay ═══ */
+      .marker-selection-overlay {
+        width: 120px;
+        height: 120px;
+        position: relative;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .msv-inner {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform-origin: 50% 50%;
+        will-change: transform;
+      }
+      .msv-icon {
+        position: absolute;
+        inset: 0;
+        background: center / contain no-repeat;
+      }
+      .msv-ring-tight {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 37px;
+        height: 37px;
+        margin: -18.5px 0 0 -18.5px;
+        border: 2.5px solid var(--sel);
+        border-radius: 50%;
+        box-shadow: 0 0 5px var(--sel), 0 0 10px var(--selc);
+        pointer-events: none;
+      }
+      .msv-inner.msv-pop-big {
+        animation: msv-pop-big 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards;
+      }
+      @keyframes msv-pop-big {
+        0% { transform: scale(1); }
+        55% { transform: scale(1.4); }
+        100% { transform: scale(1.3); }
+      }
+      .msv-inner.msv-pop-bounce {
+        animation: msv-pop-big 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 1 forwards,
+          msv-bounce-pop 2.4s ease-in-out 0.42s infinite;
+      }
+      @keyframes msv-bounce-pop {
+        0%, 100% { transform: scale(1.3); }
+        50% { transform: scale(1.37); }
+      }
+    </style>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="ui">
+      <h1>v8 repro — marker→marker</h1>
+      <p class="sub">Select A then B and watch the log: the new overlay's icon rect should stay centered on B in every frame.</p>
+      <button id="btnA">Select A</button>
+      <button id="btnB">Select B</button>
+      <button id="btnNone">Deselect (empty)</button>
+      <button id="btnRapid">Rapid A→B (80ms)</button>
+      <button id="btnCount">Count overlays per frame</button>
+      <div id="log">log…</div>
+    </div>
+    <script>
+      mapboxgl.accessToken =
+        "YOUR_MAPBOX_PUBLIC_TOKEN"
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/streets-v11",
+        center: [151.22, -33.86],
+        zoom: 14,
+      })
+
+      const A = { id: "A", coordinates: [151.222, -33.861] }
+      const B = { id: "B", coordinates: [151.2245, -33.8622] }
+      const markers = { A, B }
+      const sel = { current: null }
+
+      const logEl = document.getElementById("log")
+      function log(msg) {
+        logEl.textContent = (logEl.textContent + "\n" + msg).slice(-4000)
+        console.log(msg)
+      }
+
+      // ── v8 state machine (mirrors MarkerManager.svelte) ──
+      let currentOverlay = null
+      const shrinkingOverlays = new Map()
+      let overlayBuildToken = 0
+      const iconDataUrlCache = new Map()
+
+      function buildIconDataUrl() {
+        const key = "test"
+        const cached = iconDataUrlCache.get(key)
+        if (cached) return Promise.resolve(cached)
+        return Promise.resolve().then(() => {
+          const c = document.createElement("canvas")
+          c.width = 105
+          c.height = 105
+          const ctx = c.getContext("2d")
+          ctx.fillStyle = "#2563eb"
+          ctx.beginPath()
+          ctx.arc(52.5, 52.5, 45, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = "#ffffff"
+          ctx.font = "bold 46px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText("G", 52.5, 56)
+          const info = { url: c.toDataURL(), px: Math.max(20, Math.round(105 * 0.35)) }
+          iconDataUrlCache.set(key, info)
+          return info
+        })
+      }
+
+      function buildSelectionElement(visual, colorDef, iconInfo) {
+        const el = document.createElement("div")
+        el.className = "marker-selection-overlay"
+        el.style.setProperty("--sel", colorDef.dark)
+        el.style.setProperty("--selc", colorDef.light)
+        if (iconInfo && visual === "size-pop") {
+          const inner = document.createElement("div")
+          inner.className = "msv-inner"
+          inner.style.width = iconInfo.px + "px"
+          inner.style.height = iconInfo.px + "px"
+          inner.style.marginLeft = -(iconInfo.px / 2) + "px"
+          inner.style.marginTop = -(iconInfo.px / 2) + "px"
+          const icon = document.createElement("div")
+          icon.className = "msv-icon"
+          icon.style.backgroundImage = "url('" + iconInfo.url + "')"
+          inner.appendChild(icon)
+          const ring = document.createElement("div")
+          ring.className = "msv-ring-tight"
+          inner.appendChild(ring)
+          startSelectionAnimation(inner, "msv-pop-big")
+          el.appendChild(inner)
+          return el
+        }
+        return el
+      }
+
+      function startSelectionAnimation(inner, cls) {
+        requestAnimationFrame(() => {
+          if (inner.isConnected) inner.classList.add(cls)
+        })
+      }
+
+      function tweenShrinkOut(entry, onDone) {
+        const inner = entry.inner
+        const t = getComputedStyle(inner).transform
+        let from = 1
+        if (t && t !== "none") {
+          const parts = t.match(/matrix\(([^,]+),\s*[^,]+,\s*[^,]+,\s*([^,]+)/)
+          if (parts) from = Math.max(parseFloat(parts[1]), parseFloat(parts[2]))
+        }
+        inner.classList.remove(
+          "msv-pop-big",
+          "msv-pop-bounce",
+          "msv-spring-breathe",
+          "msv-spring",
+          "msv-bounce-pop",
+          "msv-breathe",
+        )
+        inner.style.transform = "scale(" + from + ")"
+        const start = performance.now()
+        const DUR = 200
+        const step = (now) => {
+          const p = Math.min(1, (now - start) / DUR)
+          const s = from + (1 - from) * (1 - Math.pow(1 - p, 3))
+          inner.style.transform = "scale(" + s + ")"
+          if (p < 1) {
+            entry.raf = requestAnimationFrame(step)
+          } else {
+            entry.raf = null
+            try {
+              entry.marker.remove()
+            } catch (e) {}
+            onDone()
+          }
+        }
+        entry.raf = requestAnimationFrame(step)
+      }
+
+      function startOverlayShrink(overlayMarker, overlayEl, markerId, onDone) {
+        const inner = overlayEl ? overlayEl.querySelector(".msv-inner") : null
+        if (!inner) {
+          try {
+            overlayMarker.remove()
+          } catch (e) {}
+          onDone()
+          return
+        }
+        const existing = shrinkingOverlays.get(markerId)
+        if (existing) {
+          if (existing.raf != null) cancelAnimationFrame(existing.raf)
+          try {
+            existing.marker.remove()
+          } catch (e) {}
+          shrinkingOverlays.delete(markerId)
+        }
+        const entry = { marker: overlayMarker, inner, raf: null }
+        shrinkingOverlays.set(markerId, entry)
+        tweenShrinkOut(entry, () => {
+          if (shrinkingOverlays.get(markerId) === entry) {
+            shrinkingOverlays.delete(markerId)
+          }
+          onDone()
+        })
+      }
+
+      function setSelectedLayerHidden(m, hidden) {
+        if (m.getLayer && m.getLayer("markers-selected-layer")) {
+          try {
+            m.setPaintProperty(
+              "markers-selected-layer",
+              "icon-opacity",
+              hidden ? 0 : 1,
+            )
+          } catch (e) {}
+        }
+      }
+
+      // Sample the icon's screen rect over a few frames to catch teleports,
+      // and report whether the selected-layer symbol is visible (paint).
+      function sampleIconRect(el, marker, label) {
+        const inner = el.querySelector(".msv-inner")
+        const target = map.project(marker.coordinates)
+        const frames = []
+        for (let i = 0; i <= 6; i++) {
+          requestAnimationFrame(() => {
+            let sym = "?"
+            if (map.getLayer && map.getLayer("markers-selected-layer")) {
+              sym = String(map.getPaintProperty("markers-selected-layer", "icon-opacity"))
+            }
+            if (!el.isConnected) {
+              frames.push("f" + i + ":gone(sel-op=" + sym + ")")
+              if (i === 6) log(label + " -> " + frames.join(" "))
+              return
+            }
+            const r = inner.getBoundingClientRect()
+            const cx = r.left + r.width / 2
+            const cy = r.top + r.height / 2
+            const d = Math.round(Math.hypot(cx - target.x, cy - target.y))
+            frames.push("f" + i + ":d=" + d + "(" + Math.round(cx) + "," + Math.round(cy) + ")")
+            if (i === 6) log(label + " -> " + frames.join(" "))
+          })
+        }
+      }
+
+      // Mirror the app's updateMarkerSelection (source data change).
+      function updateMarkerSelection(id, selected) {
+        if (!map.getSource("markers")) return
+        const data = map.getSource("markers")._data
+        data.features = data.features.map((f) => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            selected: f.properties.id === id ? selected : false,
+          },
+        }))
+        map.getSource("markers").setData(data)
+      }
+
+      function updateSelectionOverlay(m, marker) {
+        const selId = marker.id
+        const visual = "size-pop"
+        const overlayKey = selId + "|" + visual
+        if (currentOverlay && currentOverlay.key === overlayKey) {
+          currentOverlay.marker.setLngLat(marker.coordinates)
+          return
+        }
+        const old = currentOverlay
+        currentOverlay = null
+        if (old) {
+          startOverlayShrink(old.marker, old.el, old.id, () => {})
+        }
+        const ghost = shrinkingOverlays.get(selId)
+        if (ghost) {
+          if (ghost.raf != null) cancelAnimationFrame(ghost.raf)
+          try {
+            ghost.marker.remove()
+          } catch (e) {}
+          shrinkingOverlays.delete(selId)
+        }
+        const myToken = ++overlayBuildToken
+        setSelectedLayerHidden(m, true)
+        buildIconDataUrl().then((info) => {
+          if (myToken !== overlayBuildToken) return
+          const el = buildSelectionElement(
+            visual,
+            { dark: "#2563eb", light: "#bfdbfe" },
+            info,
+          )
+          currentOverlay = {
+            id: selId,
+            marker: new mapboxgl.Marker({
+              element: el,
+              anchor: "center",
+            })
+              .setLngLat(marker.coordinates)
+              .addTo(m),
+            el,
+            key: overlayKey,
+          }
+          sampleIconRect(el, marker, "NEW " + selId)
+        })
+      }
+
+      function deselect(m) {
+        const old = currentOverlay
+        currentOverlay = null
+        overlayBuildToken++
+        if (!old) {
+          setSelectedLayerHidden(m, false)
+          return
+        }
+        startOverlayShrink(old.marker, old.el, old.id, () => {
+          setSelectedLayerHidden(m, false)
+        })
+      }
+
+      map.on("load", () => {
+        log("map loaded")
+        // Symbol layers exactly like the app.
+        map.addSource("markers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        })
+        map.addLayer({
+          id: "markers-layer",
+          type: "symbol",
+          source: "markers",
+          filter: ["!=", ["get", "selected"], true],
+          layout: {
+            "icon-image": ["get", "icon"],
+            "icon-size": 0.35,
+            "icon-allow-overlap": true,
+          },
+        })
+        map.addLayer({
+          id: "markers-selected-layer",
+          type: "symbol",
+          source: "markers",
+          filter: ["==", ["get", "selected"], true],
+          layout: {
+            "icon-image": ["get", "icon"],
+            "icon-size": 0.35,
+            "icon-allow-overlap": true,
+          },
+        })
+        map.loadImage("/static/icons/gate-3x.png", (err, img) => {
+          if (err || !img) {
+            log("gate icon load FAILED")
+            return
+          }
+          map.addImage("gate", img)
+
+          const seed = (m) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: m.coordinates },
+            properties: {
+              id: m.id,
+              icon: "gate",
+              iconClass: "custom-svg-gate",
+              selected: false,
+              confirmed: true,
+            },
+          })
+          map.getSource("markers").setData({
+            type: "FeatureCollection",
+            features: [seed(A), seed(B)],
+          })
+          log("gate icon + features ready")
+
+          // MIMIC THE REAL APP's marker→marker click: setGlobalSelection
+          // calls clearCurrentSelection() FIRST (deselect + reactive), then
+          // handleMarkerSelection(select) runs (awaited → a microtask
+          // boundary), then its reactive runs. Both before the next render.
+          const select = async (m) => {
+            const prev = sel.current
+            log("── real flow: click " + m.id + (prev ? " (was " + prev + ")" : " (nothing selected)"))
+            if (prev) {
+              // clearCurrentSelection() → handleMarkerSelection({features:[]})
+              log("   [deselect] store.set(null) + updateMarkerSelection(" + prev + ",false)")
+              updateMarkerSelection(prev, false)
+              sel.current = null
+              await Promise.resolve() // Svelte flush #1 → shrinkSelectionOverlay
+              deselect(map)
+              log("   [deselect reactive done]")
+            }
+            // handleMarkerSelection(select) → await → store.set(B)
+            await Promise.resolve()
+            log("   [select] store.set(" + m.id + ") + updateMarkerSelection(" + m.id + ",true)")
+            updateMarkerSelection(m.id, true)
+            sel.current = m.id
+            await Promise.resolve() // Svelte flush #2 → updateSelectionOverlay
+            updateSelectionOverlay(map, m)
+            log("   [select reactive done]")
+          }
+          const clearSel = () => {
+            sel.current = null
+            log("── deselect (full flow)")
+            updateMarkerSelection("", false)
+            deselect(map)
+          }
+
+          document.getElementById("btnA").addEventListener("click", () => select(A))
+          document.getElementById("btnB").addEventListener("click", () => select(B))
+          document.getElementById("btnNone").addEventListener("click", clearSel)
+
+          // Rapid A→B (clicks ~80ms apart, like a fast user).
+          document.getElementById("btnRapid").addEventListener("click", () => {
+            log("── RAPID: select A then B 80ms later")
+            select(A)
+            setTimeout(() => select(B), 80)
+          })
+          // Log how many selection overlays are on the map each frame for
+          // the next ~0.5s (catches duplicate overlays or lingering ghosts).
+          document.getElementById("btnCount").addEventListener("click", () => {
+            log("── counting .marker-selection-overlay per frame")
+            let c = 0
+            const iv = setInterval(() => {
+              const n = document.querySelectorAll(".marker-selection-overlay").length
+              const hasShrink = shrinkingOverlays.size
+              log("  t+" + c + "ms overlays=" + n + " shrinking=" + hasShrink)
+              c += 50
+              if (c > 600) clearInterval(iv)
+            }, 50)
+          })
+        })
+      })
+    </script>
+  </body>
+</html>

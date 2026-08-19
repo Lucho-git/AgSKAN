@@ -1,4 +1,5 @@
 // src/lib/api/userSettingsApi.ts
+import { get } from 'svelte/store';
 import { supabase } from '$lib/supabaseClient';
 import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
@@ -383,6 +384,175 @@ export const userSettingsApi = {
     },
 
     /**
+     * Updates the global marker style (tint mode) applied to every marker.
+     */
+    async updateMarkerStyle(markerStyle: string) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, marker_style: markerStyle },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving marker style:", error);
+                return { success: false, message: "Failed to save marker style", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                markerStyle,
+            }));
+
+            return { success: true, message: "Marker style updated" };
+        } catch (error) {
+            console.error("Error in updateMarkerStyle:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
+     * Updates the "Marker default colours" settings: the mode ('single' /
+     * 'custom'), the single default colour (also the per-type fallback;
+     * 'random' = random colours), and the per-marker-type colour overrides
+     * ({iconClass: colorKey}).
+     */
+    async updateMarkerDefaultColors(
+        mode: string,
+        color: string,
+        perType: Record<string, string>,
+    ) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    marker_default_color_mode: mode,
+                    marker_default_color: color,
+                    marker_type_default_colors: perType,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving marker default colours:", error);
+                return { success: false, message: "Failed to save marker default colours", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                markerDefaultColorMode: mode,
+                markerDefaultColor: color,
+                markerTypeDefaultColors: perType,
+            }));
+
+            return { success: true, message: "Marker default colours updated" };
+        } catch (error) {
+            console.error("Error in updateMarkerDefaultColors:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
+     * Marker type usage counts for the user's map ({iconClass → count}),
+     * used to order the per-type default-colour list by usage first, then
+     * alphabetically.
+     */
+    async getMarkerTypeUsage(): Promise<{
+        success: boolean;
+        data: { icon: string; count: number }[];
+    }> {
+        try {
+            const profile = get(profileStore);
+            const mapId = profile?.master_map_id;
+            if (!mapId) return { success: true, data: [] };
+
+            const { data, error } = await supabase
+                .from("map_markers")
+                // PostgREST aliases use `name:path`, NOT SQL `AS` — the old
+                // `"marker_data->properties->>icon as icon"` returned a
+                // literal "icon as icon" column with null values, so every
+                // type counted as 0 and the list fell back to alphabetical.
+                .select("icon:marker_data->properties->>icon")
+                .eq("master_map_id", mapId)
+                // Exclude soft-deleted markers so counts match the map.
+                .or("deleted.is.null,deleted.eq.false");
+
+            if (error) {
+                console.error("Error fetching marker type usage:", error);
+                return { success: false, data: [] };
+            }
+
+            const counts: Record<string, number> = {};
+            for (const row of data || []) {
+                const icon = (row as any)?.icon || "default";
+                counts[icon] = (counts[icon] || 0) + 1;
+            }
+
+            return {
+                success: true,
+                data: Object.entries(counts).map(([icon, count]) => ({
+                    icon,
+                    count,
+                })),
+            };
+        } catch (error) {
+            console.error("Error in getMarkerTypeUsage:", error);
+            return { success: false, data: [] };
+        }
+    },
+
+    /**
+     * Updates the "Icon only" glass disc opacity (0-1). Applies to the
+     * icon-dark-glass / icon-light-glass marker styles.
+     */
+    async updateIconGlassOpacity(iconGlassOpacity: number) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, icon_glass_opacity: iconGlassOpacity },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving icon glass opacity:", error);
+                return { success: false, message: "Failed to save icon glass opacity", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                iconGlassOpacity,
+            }));
+
+            return { success: true, message: "Icon glass opacity updated" };
+        } catch (error) {
+            console.error("Error in updateIconGlassOpacity:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Updates satellite imagery settings
      */
     async updateSatelliteSettings(satelliteDropdownEnabled: boolean, enabledImageryProviders: string[], defaultImagerySource: string) {
@@ -756,6 +926,61 @@ export const userSettingsApi = {
             return {
                 success: false,
                 message: "An error occurred while saving overlay marker menu setting",
+                errorFields: []
+            };
+        }
+    },
+
+    /**
+     * Toggle the overlay-style placement menu for NEW (unconfirmed) markers.
+     * ON = new markers open the floating MarkerPlacementPanel; OFF = classic
+     * MarkerEditPanel placement menu.
+     */
+    async updateOverlayPlacementMenuEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save overlay placement menu setting");
+                return {
+                    success: false,
+                    message: "Not logged in",
+                    errorFields: []
+                };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    overlay_placement_menu_enabled: enabled,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving overlay placement menu setting:", error);
+                return {
+                    success: false,
+                    message: "Failed to save overlay placement menu setting",
+                    errorFields: []
+                };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                overlayPlacementMenuEnabled: enabled,
+            }));
+
+            return {
+                success: true,
+                message: "Overlay placement menu setting updated"
+            };
+        } catch (error) {
+            console.error("Error in updateOverlayPlacementMenuEnabled:", error);
+            return {
+                success: false,
+                message: "An error occurred while saving overlay placement menu setting",
                 errorFields: []
             };
         }

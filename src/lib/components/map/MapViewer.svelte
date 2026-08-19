@@ -220,8 +220,14 @@
     "marker-drawings-fill": { order: 150, category: "marker-drawings" },
     "marker-drawings-line-solid": { order: 151, category: "marker-drawings" },
     "marker-drawings-line-dashed": { order: 152, category: "marker-drawings" },
-    "marker-drawings-highlight-fill": { order: 153, category: "marker-drawings" },
-    "marker-drawings-highlight-line": { order: 154, category: "marker-drawings" },
+    "marker-drawings-highlight-fill": {
+      order: 153,
+      category: "marker-drawings",
+    },
+    "marker-drawings-highlight-line": {
+      order: 154,
+      category: "marker-drawings",
+    },
 
     // Trail layers (middle) - 200-299
     "trail-layers-start": { order: 200, category: "trails" },
@@ -1846,7 +1852,7 @@
 
         // Faster scroll-wheel zoom: more zoom per tick + quicker animation
         map.scrollZoom.setWheelZoomRate(1 / 250)
-        map.scrollZoom.setZoomRate(1 / 70)      // halfway between 60 and 80
+        map.scrollZoom.setZoomRate(1 / 70) // halfway between 60 and 80
 
         const draw = new MapboxDraw({
           displayControlsDefault: false,

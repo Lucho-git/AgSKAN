@@ -1,0 +1,124 @@
+<!doctype html>
+<!--
+  tmp-border-colour-test.html — verifies the ring/border colour logic from
+  tintMarkerCanvas (markerTint.js). Draws the same "ionic-pin" icon in
+  "original" mode three ways:
+    1. no border override  -> ring follows the fill colour (blue dark)
+    2. border override red -> ring is red
+    3. border override black -> ring is black
+  Sample pixels on the ring to confirm the colour actually changes.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Border Colour Test</title>
+    <style>
+      body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
+      h2 { font-size: 14px; color: #94a3b8; }
+      #out { margin-top: 12px; font-size: 12px; white-space: pre; }
+    </style>
+  </head>
+  <body>
+    <h2>Border / ring colour test (original mode)</h2>
+    <div id="out">Loading…</div>
+    <script>
+      // ── Mirror of markerTint.js helpers ──
+      const hexToRgb = (hex) => {
+        const h = hex.replace("#", "")
+        return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+      }
+      const lerp = (a, b, x) => a + (b - a) * x
+      const clamp = (v) => Math.max(0, Math.min(1, v))
+
+      // The "original" mode + ring logic from tintMarkerCanvas
+      function tintOriginalWithRing(canvas, colorDef, borderColor) {
+        const ctx = canvas.getContext("2d")
+        const { width, height } = canvas
+        const img = ctx.getImageData(0, 0, width, height)
+        const d = img.data
+        const [lr, lg, lb] = hexToRgb(colorDef.light)
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3]
+          if (a === 0) continue
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b
+          const dev = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b))
+          const t = clamp((40 - dev) / 30) * clamp((lum - 60) / 100)
+          d[i] = lerp(r, lr, t)
+          d[i + 1] = lerp(g, lg, t)
+          d[i + 2] = lerp(b, lb, t)
+        }
+        ctx.putImageData(img, 0, 0)
+        // ring (as in markerTint.js)
+        const isIconFill = false
+        const [rr, rg, rb] = borderColor
+          ? hexToRgb(borderColor)
+          : hexToRgb(isIconFill ? "#cbd5e1" : colorDef.dark)
+        ctx.beginPath()
+        ctx.arc(width / 2, height / 2, width / 2 - 6, 0, 2 * Math.PI)
+        ctx.lineWidth = Math.max(3, Math.round(width * 0.05))
+        ctx.strokeStyle = `rgba(${rr}, ${rg}, ${rb}, 0.9)`
+        ctx.stroke()
+      }
+
+      function sampleRing(canvas) {
+        const ctx = canvas.getContext("2d")
+        const { width, height } = canvas
+        const d = ctx.getImageData(0, 0, width, height).data
+        const cx = width / 2, cy = height / 2
+        const ringR = width / 2 - 6
+        let sum = [0, 0, 0], n = 0
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const dist = Math.abs(Math.hypot(x - cx, y - cy) - ringR)
+            if (dist < 3) {
+              const i = (y * width + x) * 4
+              if (d[i + 3] > 200) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; n++ }
+            }
+          }
+        }
+        return n ? sum.map((v) => Math.round(v / n)) : null
+      }
+
+      async function run() {
+        const out = document.getElementById("out")
+        const img = new Image()
+        img.src = "/static/icons/pin-ionic-3x.png"
+        await new Promise((res) => (img.onload = res))
+        const w = img.naturalWidth, h = img.naturalHeight
+        const base = () => {
+          const c = document.createElement("canvas")
+          c.width = w; c.height = h
+          c.getContext("2d").drawImage(img, 0, 0)
+          return c
+        }
+        const blue = { key: "blue", light: "#bfdbfe", dark: "#2563eb", deep: "#1e40af" }
+
+        // 1) no override -> ring = fill dark (#2563eb)
+        const c1 = base(); tintOriginalWithRing(c1, blue, null)
+        // 2) border override red -> ring = #dc2626
+        const c2 = base(); tintOriginalWithRing(c2, blue, "#dc2626")
+        // 3) border override black -> ring = #000000
+        const c3 = base(); tintOriginalWithRing(c3, blue, "#000000")
+
+        const r1 = sampleRing(c1)
+        const r2 = sampleRing(c2)
+        const r3 = sampleRing(c3)
+
+        const near = (a, b, tol) => a.every((v, i) => Math.abs(v - b[i]) <= tol)
+        out.textContent = [
+          `icon size: ${w}x${h}`,
+          `no override    ring avg: rgb(${r1})   expected ~ #2563eb (37,99,235)`,
+          `border red     ring avg: rgb(${r2})   expected ~ #dc2626 (220,38,38)`,
+          `border black   ring avg: rgb(${r3})   expected ~ #000000 (0,0,0)`,
+          ``,
+          `no override == blue dark: ${near(r1, [37, 99, 235], 40)}`,
+          `border red   == red:      ${near(r2, [220, 38, 38], 40)}`,
+          `border black == black:    ${near(r3, [0, 0, 0], 40)}`,
+          `ring red != blue:         ${!near(r2, [37, 99, 235], 40)}`,
+        ].join("\n")
+      }
+      run()
+    </script>
+  </body>
+</html>

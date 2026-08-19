@@ -1,0 +1,229 @@
+<!doctype html>
+<!--
+  tmp-color-picker-test.html — standalone visual check of the marker colour
+  picker with the expanded 10-colour palette (default + 7 normal + black +
+  white). Mirrors the real swatch CSS from MarkerOverlayPanel / MarkerEditPanel
+  so the one-line layout and the black/white swatch rendering can be eyeballed.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Colour Picker Test — 10 swatches</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      h2 { margin: 0 0 8px; font-size: 14px; color: #94a3b8; }
+
+      /* ── marker menu colour section (MarkerOverlayPanel) ── */
+      .menu-card {
+        width: 300px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .mp-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #cbd5e1;
+      }
+      .mp-color-name { font-size: 11px; font-weight: 600; }
+      .mp-color-swatches {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 3px;
+      }
+      .mp-color-swatch {
+        width: 17px;
+        height: 17px;
+        flex-shrink: 1;
+        min-width: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        padding: 0;
+      }
+      .mp-color-swatch:hover { transform: scale(1.12); }
+      .mp-color-swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+      }
+
+      /* ── new-marker picker row (MarkerEditPanel) ── */
+      .picker-card {
+        width: 320px;
+        background: rgba(0, 0, 0, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .picker-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .picker-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        flex-shrink: 0;
+        min-width: 44px;
+        white-space: nowrap;
+      }
+      .picker-swatches {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 3px;
+        flex: 1;
+      }
+      .picker-swatch {
+        width: 17px;
+        height: 17px;
+        flex-shrink: 1;
+        min-width: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        padding: 0;
+      }
+      .picker-swatch:hover { transform: scale(1.12); }
+      .picker-swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Marker menu colour section (300px card)</h2>
+    <div class="menu-card">
+      <div class="mp-section-head">
+        <span>Color</span>
+        <span class="mp-color-name" id="menu-name" style="color:#2563eb">Blue</span>
+      </div>
+      <div class="mp-color-swatches" id="menu-swatches"></div>
+    </div>
+
+    <h2>New-marker picker row (320px card)</h2>
+    <div class="picker-card">
+      <div class="picker-row">
+        <span class="picker-label" id="picker-label" style="color:#2563eb">BLUE</span>
+        <div class="picker-swatches" id="picker-swatches"></div>
+      </div>
+    </div>
+
+    <h2>Current selection: <span id="cur">Default</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:400px">
+      <button id="select-default" style="padding:6px 10px">Set Default</button>
+      <button id="select-black" style="padding:6px 10px">Set Black</button>
+      <button id="select-white" style="padding:6px 10px">Set White</button>
+      <button id="select-red" style="padding:6px 10px">Set Red</button>
+    </div>
+
+    <script>
+      // ── Mirror of markerPalette.ts (2026-08-13) ──
+      const MARKER_COLORS = [
+        { key: "default", label: "Default", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
+        { key: "red", label: "Red", light: "#fecaca", dark: "#dc2626", deep: "#991b1b" },
+        { key: "blue", label: "Blue", light: "#bfdbfe", dark: "#2563eb", deep: "#1e40af" },
+        { key: "green", label: "Green", light: "#bbf7d0", dark: "#16a34a", deep: "#166534" },
+        { key: "orange", label: "Orange", light: "#fed7aa", dark: "#ea580c", deep: "#9a3412" },
+        { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308", deep: "#a16207" },
+        { key: "purple", label: "Purple", light: "#e9d5ff", dark: "#9333ea", deep: "#6b21a8" },
+        { key: "pink", label: "Pink", light: "#fbcfe8", dark: "#db2777", deep: "#9d174d" },
+        { key: "skyblue", label: "Sky blue", light: "#bae6fd", dark: "#0284c7", deep: "#075985" },
+        { key: "rainbow", label: "Rainbow", light: "#ffffff", dark: "#ffffff", deep: "#ffffff" },
+        { key: "black", label: "Black", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
+        { key: "white", label: "White", light: "#ffffff", dark: "#ffffff", deep: "#f8fafc" },
+      ]
+      const MARKER_COLOR_DEFAULT = "default"
+      const markerColor = (key) =>
+        MARKER_COLORS.find((c) => c.key === key) ||
+        MARKER_COLORS.find((c) => c.key === MARKER_COLOR_DEFAULT) ||
+        MARKER_COLORS[0]
+
+      // ── Per-style default colours ──
+      const STYLE_DEFAULT_COLORS = {
+        original: "blue",
+        "circle-fill": "blue",
+        "icon-fill": "blue",
+        "icon-only": "black",
+        "icon-dark-glass": "blue",
+        "icon-light-glass": "black",
+      }
+      const styleDefaultColor = (styleKey) => STYLE_DEFAULT_COLORS[styleKey || ""] || "blue"
+      const effectiveColorKey = (colorKey, styleKey) =>
+        colorKey && colorKey !== MARKER_COLOR_DEFAULT ? colorKey : styleDefaultColor(styleKey)
+
+      // ── Swatch helpers ──
+      const swatchBg = (c) =>
+        c.key === "rainbow"
+          ? "conic-gradient(from 0deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)"
+          : c.key === "black" ? "#111827" : c.key === "white" ? "#ffffff" : c.key === MARKER_COLOR_DEFAULT ? "#e5e7eb" : c.light
+      const swatchBorder = (c) =>
+        c.key === "rainbow" ? "#334155" : c.key === "white" ? "#94a3b8" : c.key === MARKER_COLOR_DEFAULT ? "#000000" : c.dark
+      const swatchText = (c) => (c.key === "rainbow" || c.key === "white" ? "#334155" : c.dark)
+
+      let current = MARKER_COLOR_DEFAULT
+
+      function render(container, activeClass) {
+        container.innerHTML = ""
+        MARKER_COLORS.forEach((c) => {
+          const b = document.createElement("button")
+          b.className = activeClass + (current === c.key ? " active" : "")
+          b.style.background = swatchBg(c)
+          b.style.borderColor = swatchBorder(c)
+          b.title = c.label
+          b.onclick = () => {
+            current = c.key
+            renderAll()
+          }
+          container.appendChild(b)
+        })
+      }
+
+      function renderAll() {
+        render(document.getElementById("menu-swatches"), "mp-color-swatch")
+        render(document.getElementById("picker-swatches"), "picker-swatch")
+        const c = markerColor(current)
+        document.getElementById("menu-name").textContent = c.label
+        document.getElementById("menu-name").style.color = swatchText(c)
+        document.getElementById("picker-label").textContent = current === MARKER_COLOR_DEFAULT ? "COLOUR" : c.label.toUpperCase()
+        document.getElementById("picker-label").style.color = swatchText(c)
+        document.getElementById("cur").textContent = `${c.label} (stored "${current}")`
+      }
+
+      document.getElementById("select-default").onclick = () => { current = "default"; renderAll() }
+      document.getElementById("select-black").onclick = () => { current = "black"; renderAll() }
+      document.getElementById("select-white").onclick = () => { current = "white"; renderAll() }
+      document.getElementById("select-red").onclick = () => { current = "red"; renderAll() }
+
+      // Log the effective colours per style for a Default marker
+      console.log("effectiveColorKey checks:", {
+        circleFill: effectiveColorKey(null, "circle-fill"),
+        iconOnly: effectiveColorKey(null, "icon-only"),
+        darkGlass: effectiveColorKey(null, "icon-dark-glass"),
+        explicitRed: effectiveColorKey("red", "circle-fill"),
+        defaultStored: effectiveColorKey("default", "icon-light-glass"),
+      })
+
+      renderAll()
+    </script>
+  </body>
+</html>
