@@ -116,10 +116,16 @@
       // refresh - +page.svelte picks the hash back up on load.
       replaceState(`/#${elementId}`)
 
-      setTimeout(() => {
+      // Re-enable the hide-on-scroll behaviour only after the smooth scroll
+      // has actually finished, so the navbar doesn't vanish mid-scroll.
+      const finishScroll = () => {
         isScrollingFromButton = false
         isNavigating = false
-      }, 2000) // Extended timeout
+      }
+      if ("onscrollend" in window) {
+        window.addEventListener("scrollend", finishScroll, { once: true })
+      }
+      setTimeout(finishScroll, 2000) // Fallback if scrollend isn't supported
     }
   }
 

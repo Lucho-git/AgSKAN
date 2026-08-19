@@ -24,33 +24,44 @@
     }
   }
 
+  // Tracks the last hash we actually scrolled to. SvelteKit's `replaceState`
+  // (used by the navbar) re-emits the `$page` store with the OLD url, which
+  // would otherwise re-trigger this handler and smooth-scroll back to the
+  // previous section - fighting the navbar's own scroll. Only scroll when the
+  // hash has actually changed.
+  let lastHandledHash = ""
+
   // Handle hash scrolling after components are mounted
   const handleHashScroll = async () => {
     if (!browser) return
 
     const hash = $page.url.hash
-    if (hash) {
-      const elementId = hash.substring(1) // Remove the #
+    if (!hash || hash === lastHandledHash) return
 
-      // Wait for all components to be fully rendered
-      await tick()
+    lastHandledHash = hash
+    const elementId = hash.substring(1) // Remove the #
 
-      // Additional small delay to ensure DOM is ready
-      setTimeout(() => {
-        const element = document.getElementById(elementId)
-        if (element) {
-          element.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          })
-        }
-      }, 300) // Longer delay for cross-page navigation
-    }
+    // Wait for all components to be fully rendered
+    await tick()
+
+    // Additional small delay to ensure DOM is ready
+    setTimeout(() => {
+      const element = document.getElementById(elementId)
+      if (element) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      }
+    }, 300) // Longer delay for cross-page navigation
   }
 
   // Handle after navigation
   afterNavigate(() => {
     if (!$page.url.hash) {
+      // Leaving a hashed section - allow a future return to the same hash to
+      // scroll again.
+      lastHandledHash = ""
       resetFocusAndScroll()
     } else {
       // Don't reset scroll if there's a hash - let handleHashScroll handle it
@@ -61,6 +72,7 @@
   // Handle initial mount
   onMount(() => {
     if (!$page.url.hash) {
+      lastHandledHash = ""
       resetFocusAndScroll()
     } else {
       // Handle hash on initial load
