@@ -54,6 +54,13 @@
   import { fileApi } from "$lib/api/fileApi"
   import { FARM_NAME_MAX_LENGTH, farmApi } from "$lib/api/farmApi"
 
+  // Native (Capacitor) file saving for the field export — the browser
+  // "download" attribute is ignored by the app's WebView, so on Android/iOS
+  // the file is written to the app cache and shared via the OS share sheet.
+  import { Capacitor } from "@capacitor/core"
+  import { Filesystem, Directory } from "@capacitor/filesystem"
+  import { Share } from "@capacitor/share"
+
   type ExportFormat = "geojson" | "kml" | "shapefile"
 
   // Accept the navigation function as a prop
@@ -182,6 +189,27 @@
     openFarmMenu = null
     openFieldMenu = null
     showSettingsMenu = false
+  }
+
+  // Toggle the header settings cog menu. NOTE: DaisyUI hides
+  // `.dropdown-content` unless the parent has `.dropdown-open` or is
+  // `:focus-within`, so we set `.dropdown-open` explicitly in the markup —
+  // on some devices/browsers clicking the button doesn't move focus to it,
+  // which previously left the menu rendered-but-invisible.
+  function toggleSettingsMenu() {
+    console.log(
+      "🔧 [FieldsOverview] Settings cog clicked. showSettingsMenu before:",
+      showSettingsMenu,
+    )
+    showSettingsMenu = !showSettingsMenu
+    console.log(
+      "🔧 [FieldsOverview] showSettingsMenu after:",
+      showSettingsMenu,
+      "| activeElement:",
+      document.activeElement?.tagName,
+      "| dropdown-open applied:",
+      showSettingsMenu,
+    )
   }
 
   function toggleFarmDropdown(farmId: string, e: MouseEvent) {
@@ -493,10 +521,48 @@
     mimeType: string,
   ) {
     const blob = new Blob([content], { type: mimeType })
-    downloadBlobFile(blob, fileName)
+    return downloadBlobFile(blob, fileName)
   }
 
-  function downloadBlobFile(blob: Blob, fileName: string) {
+  /** Convert a Blob to a base64 string (for Capacitor Filesystem.writeFile). */
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result).split(",")[1])
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  async function downloadBlobFile(blob: Blob, fileName: string) {
+    if (Capacitor.isNativePlatform()) {
+      // Mobile app: the WebView ignores the "download" attribute, so write
+      // the file to the app cache and open the OS share sheet — the user
+      // can save it to their device from there.
+      try {
+        const base64 = await blobToBase64(blob)
+        const saved = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache,
+        })
+        await Share.share({
+          title: fileName,
+          text: "Field boundaries from AgSKAN",
+          files: [saved.uri],
+          dialogTitle: "Save or share your export",
+        })
+        toast.success("Export ready — save it from the share sheet")
+      } catch (error) {
+        console.error("Native field export failed:", error)
+        toast.error("Couldn't export fields on this device")
+      }
+      return
+    }
+
+    // Web/desktop: trigger a normal file download. Defer revoking the blob
+    // URL so the browser has time to start the download (an immediate revoke
+    // can cancel it on some browsers).
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
@@ -504,7 +570,7 @@
     document.body.appendChild(link)
     link.click()
     link.remove()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   function getExportFileName(extension: "geojson" | "kml" | "zip") {
@@ -737,7 +803,7 @@
         polygon: "fields",
       },
     })
-    downloadBlobFile(zipBlob, getExportFileName("zip"))
+    await downloadBlobFile(zipBlob, getExportFileName("zip"))
   }
 
   async function exportFields() {
@@ -753,13 +819,13 @@
 
     try {
       if (exportFormat === "geojson") {
-        downloadTextFile(
+        await downloadTextFile(
           JSON.stringify(featureCollection, null, 2),
           getExportFileName("geojson"),
           "application/geo+json;charset=utf-8",
         )
       } else if (exportFormat === "kml") {
-        downloadTextFile(
+        await downloadTextFile(
           fieldsToKml(featureCollection),
           getExportFileName("kml"),
           "application/vnd.google-earth.kml+xml;charset=utf-8",
@@ -1957,12 +2023,16 @@
           class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-3 text-sm text-contrast-content placeholder:text-contrast-content/40 focus:border-base-content/40 focus:outline-none"
         />
       </div>
-      <div class="dropdown dropdown-end flex-shrink-0" on:click|stopPropagation>
+      <div
+        class="dropdown dropdown-end flex-shrink-0"
+        class:dropdown-open={showSettingsMenu}
+        on:click|stopPropagation
+      >
         <button
           type="button"
           class="btn btn-ghost btn-sm"
           aria-label="Field options"
-          on:click={() => (showSettingsMenu = !showSettingsMenu)}
+          on:click={toggleSettingsMenu}
         >
           <Settings class="h-4 w-4 text-contrast-content" />
         </button>
