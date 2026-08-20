@@ -34,7 +34,8 @@
   let contents = ""
   let capacityTonnes = 200 // bin size in tonnes (default 200T for new silos)
   let capacityInput = "" // text for the bin-size number field
-  let contentsInput = null // the "Storing" text field (auto-focused on open)
+  let contentsInput = null // the "Storing" text field
+  let tonnesDeltaInput = null // the Add/Take number field (auto-focused on open)
   let tonnesDelta = "" // text for the add/take number field
   let grainColor = SILO_COLOR_DEFAULT // tint for the on-map fill gauge
   let tab = "fill" // 'fill' | 'settings'
@@ -111,10 +112,10 @@
       capacityInput = capacityTonnes ? String(capacityTonnes) : ""
       tonnesDelta = ""
       grainColor = siloColorKey(marker?.grainColor)
-      // Open straight onto the "Storing" field (one tap to type, fewer
-      // clicks) — focus it once the Settings tab has rendered.
-      tab = "settings"
-      tick().then(() => contentsInput?.focus())
+      // Open straight onto the Add/Take number field (one tap to type,
+      // fewer clicks) — focus it once the Fill tab has rendered.
+      tab = "fill"
+      tick().then(() => tonnesDeltaInput?.focus())
       deltaHint = false
       confirmDelete = false
     }
@@ -642,6 +643,7 @@
               min="0"
               step="1"
               bind:value={tonnesDelta}
+              bind:this={tonnesDeltaInput}
               placeholder="t"
               disabled={capacityTonnes <= 0}
               on:keydown={(e) => {

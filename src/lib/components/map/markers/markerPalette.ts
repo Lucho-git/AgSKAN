@@ -38,7 +38,9 @@ export const MARKER_COLORS: MarkerColor[] = [
   { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308", deep: "#a16207" },
   { key: "purple", label: "Purple", light: "#e9d5ff", dark: "#9333ea", deep: "#6b21a8" },
   { key: "pink", label: "Pink", light: "#fbcfe8", dark: "#db2777", deep: "#9d174d" },
-  { key: "skyblue", label: "Sky blue", light: "#bae6fd", dark: "#0284c7", deep: "#075985" },
+  // Sky blue is a VERY light blue (2026-08-20) so it clearly reads as
+  // different from the regular blue.
+  { key: "skyblue", label: "Sky blue", light: "#e0f2fe", dark: "#7dd3fc", deep: "#38bdf8" },
   // Rainbow — the circle/glyph gets an angular rainbow gradient instead of a
   // solid shade (light/dark/deep are placeholders; a solid ring can't be a
   // rainbow so it falls back to dark slate).
@@ -78,7 +80,7 @@ export const PALETTE_VARIANTS: Record<
       { key: "yellow", label: "Yellow", light: "#fef9c3", dark: "#facc15", deep: "#ca8a04" },
       { key: "purple", label: "Purple", light: "#f3e8ff", dark: "#a855f7", deep: "#7e22ce" },
       { key: "pink", label: "Pink", light: "#fce7f3", dark: "#ec4899", deep: "#be185d" },
-      { key: "skyblue", label: "Sky blue", light: "#e0f2fe", dark: "#0ea5e9", deep: "#0369a1" },
+      { key: "skyblue", label: "Sky blue", light: "#e0f2fe", dark: "#7dd3fc", deep: "#38bdf8" },
       { key: "rainbow", label: "Rainbow", light: "#ffffff", dark: "#ffffff", deep: "#ffffff" },
       { key: "black", label: "Black", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
       { key: "white", label: "White", light: "#ffffff", dark: "#ffffff", deep: "#f8fafc" },
@@ -96,7 +98,7 @@ export const PALETTE_VARIANTS: Record<
       { key: "yellow", label: "Yellow", light: "#fef08a", dark: "#eab308", deep: "#ca8a04" },
       { key: "purple", label: "Purple", light: "#e9d5ff", dark: "#9333ea", deep: "#6b21a8" },
       { key: "pink", label: "Pink", light: "#fbcfe8", dark: "#db2777", deep: "#9d174d" },
-      { key: "skyblue", label: "Sky blue", light: "#bae6fd", dark: "#0284c7", deep: "#075985" },
+      { key: "skyblue", label: "Sky blue", light: "#e0f2fe", dark: "#7dd3fc", deep: "#38bdf8" },
       { key: "rainbow", label: "Rainbow", light: "#ffffff", dark: "#ffffff", deep: "#ffffff" },
       { key: "black", label: "Black", light: "#e5e7eb", dark: "#000000", deep: "#111827" },
       { key: "white", label: "White", light: "#ffffff", dark: "#ffffff", deep: "#f8fafc" },
@@ -128,13 +130,70 @@ export function paletteVariantSuffix(mode?: string | null): string {
 
 export const MARKER_COLOR_DEFAULT = "default"
 
-// The colours offered in the colour pickers/wheels. Black, white and rainbow
-// are intentionally excluded to keep every menu compact (they're still in
-// MARKER_COLORS so existing markers that use them keep rendering; they can
-// also still appear as per-type/random defaults).
+// The colours offered in the colour pickers/wheels. Rainbow is intentionally
+// excluded to keep every menu compact (it's still in MARKER_COLORS so
+// existing markers that use it keep rendering; it can also still appear as a
+// per-type/random default). Black and white ARE offered — they make great
+// high-contrast marker colours on the map.
 export const PICKABLE_MARKER_COLORS: MarkerColor[] = MARKER_COLORS.filter(
-  (c) => c.key !== "black" && c.key !== "white" && c.key !== "rainbow",
+  (c) => c.key !== "rainbow",
 )
+
+// ── Style-aware neutral colours ──
+// Black and white are only OFFERED as colour options (and used as the
+// "natural" default) when they complement the style — a white glyph on a
+// white disc would be invisible, a black icon on the dark glass disc would
+// vanish, etc. Complementary neutrals per style:
+//   original → white (pale disc), circle-fill → black (white glyph pops),
+//   circle-fill-black → white (black glyph pops), icon-fill → black (dark
+//   icon on the white canvas), icon-only → both, icon-dark-glass → white,
+//   icon-light-glass → black. Unknown styles keep both (current behaviour).
+const STYLE_NEUTRAL_COLORS: Record<string, string[]> = {
+  original: ["white"],
+  "circle-fill": ["black"],
+  "circle-fill-black": ["white"],
+  "icon-fill": ["black"],
+  "icon-only": ["black", "white"],
+  "icon-dark-glass": ["white"],
+  "icon-light-glass": ["black"],
+}
+
+// The colours offered in the pickers for a given style: the normal palette
+// plus black/white ONLY when the style complements them (Default excluded).
+export function pickableColorsForStyle(
+  styleKey?: string | null,
+): MarkerColor[] {
+  const neutrals = STYLE_NEUTRAL_COLORS[styleKey || ""]
+  return PICKABLE_MARKER_COLORS.filter((c) => {
+    if (c.key === MARKER_COLOR_DEFAULT) return false
+    if (c.key === "black" || c.key === "white") {
+      return neutrals ? neutrals.includes(c.key) : true
+    }
+    return true
+  })
+}
+
+// ── Colour ↔ style compatibility ──
+// Normal palette colours (red, blue, …) work in every style, but black/white
+// only read well on complementary styles (see STYLE_NEUTRAL_COLORS): a white
+// glyph on a white disc is invisible, a black icon on the dark glass disc
+// vanishes. compatibleColorForStyle is a PER-VIEWER RENDER-TIME adjustment:
+// a marker stored as white/black that doesn't complement the viewer's
+// CURRENT style renders as the style's compatible neutral — opposing styles
+// swap white ↔ black (white on circle-fill → black, black on circle-fill-
+// black → white, …). The shared stored colour is NEVER changed, so two
+// users on the same map with different styles each see readable markers.
+export function compatibleColorForStyle(
+  colorKey?: string | null,
+  styleKey?: string | null,
+): string {
+  if (colorKey !== "black" && colorKey !== "white") {
+    return colorKey || MARKER_COLOR_DEFAULT
+  }
+  const neutrals = STYLE_NEUTRAL_COLORS[styleKey || ""]
+  if (!neutrals || neutrals.includes(colorKey)) return colorKey
+  return neutrals[0]
+}
 
 export function markerColor(
   key?: string | null,
@@ -170,25 +229,23 @@ export function siloColorKey(key?: string | null): string {
   return LEGACY_SILO_COLOR_KEYS[k] || k
 }
 
-// Custom SVG icons that should be tinted fully (like atlas/ionic) instead of
-// keeping their baked-in glyph colours. Currently: the gate icon (it reads
-// better recoloured).
-// Custom SVG icons that tint FULLY (every pixel recoloured, like atlas/
-// ionic icons) instead of keeping their baked glyph colours. The gate was the
-// original; the new 2026-08 markers (fuel refill, liquid tank, repair marker,
-// water tower) are treated the same. rock_pile is deliberately NOT here — it
-// keeps its custom colours (glyph-original).
-const FULLY_TINTED_CUSTOM_SVG = new Set([
-  "custom-svg-gate",
-  "custom-svg-fuel_refill",
-  "custom-svg-liquid_tank",
-  "custom-svg-water_tower2",
+// Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,
+// tree, wheat, kangaroo sign). Every OTHER custom SVG marker tints fully
+// with the chosen colour (like atlas/ionic icons). The water tank tints its
+// outer tank but its inner droplet carries an explicit blue fill that
+// survives the tint wrapper, so the droplet stays blue.
+const KEEP_GLYPH_CUSTOM_SVG = new Set([
+  "custom-svg-rock",
+  "custom-svg-rock_pile",
+  "custom-svg-tree13",
+  "custom-svg-wheat2",
+  "custom-svg-kangaroo",
 ])
 
 /**
- * True for custom SVG icons that keep their glyph's original colours. The
- * excluded keys (e.g. "custom-svg-gate") are treated like atlas/ionic icons
- * and tinted fully with the chosen colour.
+ * True for custom SVG icons that keep their glyph's original colours (rock,
+ * rock pile, tree, wheat, kangaroo sign). The rest are treated like
+ * atlas/ionic icons and tint fully with the chosen colour.
  * @param {string | null | undefined} iconClass
  * @returns {boolean}
  */
@@ -196,21 +253,25 @@ export function isCustomSvgIcon(iconClass?: string | null): boolean {
   return (
     !!iconClass &&
     iconClass.startsWith("custom-svg-") &&
-    !FULLY_TINTED_CUSTOM_SVG.has(iconClass)
+    KEEP_GLYPH_CUSTOM_SVG.has(iconClass)
   )
 }
 
 // ── Per-style default colours ──
-// A marker with no explicit colour (set to "default") gets the colour that
-// best suits the selected style. circle-fill defaults to black (the classic
-// filled marker look); icon-only stays black too; the rest default to blue.
+// A marker with no explicit colour (set to "default") gets the NEUTRAL colour
+// that best suits the selected style — the "natural" baseline that isn't
+// user-set: original → white (pale disc, softened to off-white), circle-fill
+// → ORANGE (2026-08-20 — the slate/black then blue defaults didn't read
+// well; black is still a palette colour), circle-fill-black → white (black
+// glyph pops), icon-fill → black (dark icon on the white canvas), icon-only
+// → black, icon-dark-glass → white, icon-light-glass → black.
 export const STYLE_DEFAULT_COLORS: Record<string, string> = {
-  original: "blue",
-  "circle-fill": "black",
-  "circle-fill-black": "blue",
-  "icon-fill": "blue",
+  original: "white",
+  "circle-fill": "orange",
+  "circle-fill-black": "white",
+  "icon-fill": "black",
   "icon-only": "black",
-  "icon-dark-glass": "blue",
+  "icon-dark-glass": "white",
   "icon-light-glass": "black",
 }
 
@@ -226,91 +287,49 @@ export function styleDefaultColor(
 
 // ── Per-marker-type default colours (preselected) ──
 // When the "Marker default colours" mode is CUSTOM, every marker type starts
-// with a sensible preselected colour (from here) that the user can override
-// in the profile. Keyed by iconClass. Colours are chosen to match what each
-// type represents (nature → green, water → skyblue, danger → red, etc.).
-export const MARKER_TYPE_DEFAULT_COLORS: Record<string, string> = {
-  // Custom SVG markers
-  // NOTE: rock has no preset — its disc follows the style default; the grey
-  // boulder art itself stays original via the SVG glyph renderer (PoC).
-  "custom-svg-tree13": "green",
-  "custom-svg-watertank2": "skyblue",
-  "custom-svg-wheat2": "yellow",
-  "custom-svg-kangaroo": "orange",
-  "custom-svg-electric_tower": "yellow",
-  "custom-svg-gate": "green",
-  "custom-svg-machine_pump": "skyblue",
-  "custom-svg-recharge_icon": "green",
-  "custom-svg-repair_shop": "orange",
-  "custom-svg-tractor": "orange",
-  "custom-svg-silo2": "blue",
-  "custom-svg-tree_stump": "green",
-  "custom-svg-workshop_icon": "orange",
-  // Ionic markers
-  "ionic-pin": "blue",
-  "ionic-arrow-up-circle": "green",
-  "ionic-arrow-down-circle": "red",
-  "ionic-arrow-back-circle": "skyblue",
-  "ionic-arrow-forward-circle": "skyblue",
-  "ionic-thumbs-down": "red",
-  "ionic-thumbs-up": "green",
-  "ionic-people": "purple",
-  "ionic-home": "orange",
-  "ionic-checkmark-circle": "green",
-  "ionic-close-circle": "red",
-  "ionic-information-circle": "skyblue",
-  "ionic-warning": "yellow",
-  "ionic-help-circle": "skyblue",
-  "ionic-ban": "red",
-  "ionic-trail-sign": "green",
-  "ionic-beer": "yellow",
-  "ionic-paw": "orange",
-  "ionic-skull": "red",
-  "ionic-fish": "skyblue",
-  "ionic-bonfire": "orange",
-  "ionic-construct": "orange",
-  "ionic-leaf": "green",
-  "ionic-rainy": "skyblue",
-  "ionic-cloud": "skyblue",
-  "ionic-water": "blue",
-  // Atlas markers
-  "at-car-garage": "blue",
-  "at-exit": "red",
-  "at-gasoline": "yellow",
-  "at-carrot": "orange",
-  "at-middle-finger": "red",
-  "at-wheat-harvest": "yellow",
-  "at-houses": "orange",
-  "at-berries": "purple",
-  "at-rain-drops": "skyblue",
-  "at-home": "orange",
-  "at-farming-tractor": "orange",
-  "at-house-home": "orange",
-  "at-xmark-circle": "red",
-  "at-kg-weight": "purple",
-  "at-green-gas": "green",
-  "at-construction-transport": "orange",
-  "at-crane-truck": "orange",
-  "at-bulldozer": "orange",
-}
+// with a preselected colour (from here) that the user can override in the
+// profile. Keyed by iconClass.
+//
+// INTENTIONALLY EMPTY (2026-08-19): the baseline natural default for every
+// marker is now the NEUTRAL colour of its style (STYLE_DEFAULT_COLORS — see
+// above), not a colour per icon type. Specific per-icon natural defaults can
+// be re-added here later once they're chosen.
+export const MARKER_TYPE_DEFAULT_COLORS: Record<string, string> = {}
 
 // Resolve a marker's stored colour to the colour actually used for tinting:
 // an explicit colour always wins; "default" (or none) falls back to the
 // selected style's default colour (user override first, then built-in).
+//
+// The explicit case is ALSO adjusted for style compatibility (see
+// compatibleColorForStyle): a marker stored as white/black that doesn't
+// complement the viewer's CURRENT style renders as the style's compatible
+// neutral (opposing styles swap white ↔ black). This is a PER-VIEWER
+// render-time adjustment — the shared stored colour is never changed, so
+// two users on the same map with different styles each see readable
+// markers. "default" always resolves to a style-compatible colour, and
+// user per-style default overrides are respected untouched.
 export function effectiveColorKey(
   colorKey: string | null | undefined,
   styleKey: string | null | undefined,
   overrides?: Record<string, string> | null,
 ): string {
-  if (colorKey && colorKey !== MARKER_COLOR_DEFAULT) return colorKey
+  if (colorKey && colorKey !== MARKER_COLOR_DEFAULT) {
+    return compatibleColorForStyle(colorKey, styleKey)
+  }
   return styleDefaultColor(styleKey, overrides)
 }
 
 // Resolve the effective colour a marker gets from the "Marker default
 // colours" profile settings. Callers handle an explicit marker colour
-// first; for a marker set to Default: CUSTOM mode → the per-type override
-// (or built-in preset, or the single colour), SINGLE mode → the single
-// colour. May return RANDOM_COLOR_KEY, which callers resolve per-marker id.
+// first; for a marker set to Default:
+//   A marker type with its OWN explicitly-set colour keeps that (it always
+//     wins over the "All markers" base colour).
+//   Otherwise the "All markers" base colour applies: a specific colour,
+//     "random" (callers resolve per marker id), or "default" — meaning "use
+//     the original neutral default of the style" → returns `undefined` so
+//     it falls through to STYLE_DEFAULT_COLORS at render time.
+// (The old single/custom MODE no longer exists — there is just a base
+// colour + per-type overrides; markerDefaultColorMode is ignored.)
 export function markerDefaultColorKey(
   iconClass: string | null | undefined,
   settings: {
@@ -318,18 +337,22 @@ export function markerDefaultColorKey(
     markerDefaultColor?: string | null
     markerTypeDefaultColors?: Record<string, string> | null
   } | null,
-): string {
-  const mode = settings?.markerDefaultColorMode || "custom"
-  const single = settings?.markerDefaultColor || "blue"
-  if (mode === "custom" || mode === "per-type") {
-    const perType = settings?.markerTypeDefaultColors || {}
-    return (
-      perType[iconClass || ""] ||
-      MARKER_TYPE_DEFAULT_COLORS[iconClass || ""] ||
-      single
-    )
-  }
-  return single
+): string | undefined {
+  const single = settings?.markerDefaultColor || MARKER_COLOR_DEFAULT
+  const perType = settings?.markerTypeDefaultColors || {}
+  // A marker type with its OWN explicitly-set colour keeps that — it always
+  // wins over the "All markers" base colour.
+  if (perType[iconClass || ""]) return perType[iconClass || ""]
+  // Built-in per-type preset (currently empty — natural defaults are the
+  // per-style neutrals).
+  if (MARKER_TYPE_DEFAULT_COLORS[iconClass || ""])
+    return MARKER_TYPE_DEFAULT_COLORS[iconClass || ""]
+  // The "All markers" base colour (the only concept now). "random" is
+  // returned as-is (callers resolve per marker id); "default" means "use
+  // the original neutral default of the style" → we return undefined so it
+  // falls through to STYLE_DEFAULT_COLORS at render time.
+  if (single && single !== MARKER_COLOR_DEFAULT) return single
+  return undefined
 }
 
 // ── Swatch rendering helpers ──
@@ -387,6 +410,11 @@ export function styleSwatchBg(
   // Default keeps its pale light shade (never the black dark shade) — it's
   // shown as the dashed "D" cell in pickers anyway.
   if (c.key === MARKER_COLOR_DEFAULT) return c.light
+  // Neutral discs are softened (see the renderers): the pure WHITE swatches
+  // show icon-fill's soft off-white #f1f5f9 (circle-fill-black + original).
+  // Black is a real black in circle-fill again (its default is now blue).
+  if (styleKey === "circle-fill-black" && c.key === "white") return "#f1f5f9"
+  if (styleKey === "original" && c.key === "white") return "#f1f5f9"
   const shade = markerStyleShade(styleKey)
   return shade === "light" ? c.light : shade === "deep" ? c.deep : c.dark
 }

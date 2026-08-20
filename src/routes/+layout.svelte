@@ -33,6 +33,11 @@
   // to avoid iOS WKWebView "Localhost" location prompt
   import { patchGeolocationForNative } from "$lib/utils/nativeGeolocationPatch"
 
+  // Native <dialog> fallback — older Safari / iOS WKWebView (< 15.4) have no
+  // HTMLDialogElement.showModal(), which silently breaks every modal (field
+  // export, delete, edit, …). Registered here so it runs before any modal.
+  import { initDialogPolyfill } from "$lib/dialogPolyfill"
+
   // --- Theme Colors for System Bars ---
   const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
   const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
@@ -493,6 +498,10 @@
   }
 
   onMount(() => {
+    // Make native <dialog> modals work on browsers without showModal()
+    // (older Safari / iOS WKWebView) before any modal-opening code runs.
+    initDialogPolyfill()
+
     // Patch navigator.geolocation FIRST, before any map/location code runs
     patchGeolocationForNative()
 

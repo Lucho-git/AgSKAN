@@ -98,6 +98,7 @@
     "d3-geo": "^3.1.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.0.7",
+    "dialog-polyfill": "^0.5.0",
     "dotenv": "^16.4.5",
     "fast-xml-parser": "^4.5.0",
     "geojson-vt": "^3.2.1",

@@ -85,9 +85,19 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
   // Disc layer per mode ("" = no disc for icon-only).
   let disc = ''
   if (mode === 'original') {
-    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${light}"/>`
+    // The original style can't use a pure white disc — white reads as the
+    // same soft off-white as the circle-fill white disc (#f1f5f9).
+    const discFill = colorDef.key === 'white' ? '#f1f5f9' : light
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
   } else if (mode === 'circle-fill' || mode === 'circle-fill-black') {
-    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${dark}"/>`
+    // Circle-fill-black softens the pure white disc (reads as icon-fill's
+    // soft off-white #f1f5f9). Black stays a REAL black in circle-fill —
+    // it's a palette colour now (the circle-fill default is blue).
+    let discFill = dark
+    if (mode === 'circle-fill-black' && colorDef.key === 'white') {
+      discFill = '#f1f5f9'
+    }
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
   } else if (mode === 'icon-fill') {
     disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${CIRCLE_WHITE}"/>`
   } else if (mode === 'icon-dark-glass') {

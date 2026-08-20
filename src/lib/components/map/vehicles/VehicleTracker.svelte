@@ -23,6 +23,7 @@
   import UserMarker from "./UserMarker.svelte"
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleCompassButton from "./VehicleCompassButton.svelte"
+  import NorthResetToast from "./NorthResetToast.svelte"
   import NativeGeolocationAdapter from "../controls/NativeGeolocationAdapter.js"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
@@ -3283,6 +3284,12 @@
   onFirstPersonVehicle={handleFirstPersonVehicle}
   onFlashMe={handleOpenFlashPanel}
   onBroadcast={handleBroadcast}
+/>
+
+<NorthResetToast
+  {mapBearing}
+  suppress={isFirstPersonMode}
+  onTrueNorth={handleResetNorth}
 />
 
 <VehicleDetailsPanel

@@ -4,9 +4,10 @@
   farm showing a grid of every marker icon in one of 6 styles, plus a form
   for users to rank their top 3 styles, suggest new icons, and leave comments.
 
-  Style grids reuse the exact same tint pipeline as the in-app Marker Test
-  (markerTint.js) so the survey shows the real on-map look. Responses are
-  inserted into the `marker_survey_responses` table (anon INSERT only).
+  Style grids reuse the exact same tint pipeline as the on-map markers
+  (markerTint.js + the SVG renderer) so the survey shows the real on-map
+  look. Responses are inserted into the `marker_survey_responses` table
+  (anon INSERT only).
 -->
 <script>
   import { onMount, onDestroy } from "svelte"
@@ -23,13 +24,16 @@
     TINT_MODES,
     TINT_MODE_DEFAULT,
     markerColor,
-    isCustomSvgIcon,
   } from "$lib/components/map/markers/markerPalette"
   import {
     loadIconPaths,
     getIconBaseCanvas,
     tintMarkerCanvas,
   } from "$lib/components/map/markers/markerTint"
+  import {
+    isSvgRenderedIcon,
+    renderSvgMarkerImageData,
+  } from "$lib/components/map/markers/markerSvgRenderer"
   import { getActiveMarkers, getAllMarkers } from "$lib/data/markerDefinitions"
 
   // Survey farm location — [lng, lat] over the Australian farm.
@@ -162,22 +166,35 @@
     const images = new Map()
     for (const item of renderableIcons) {
       const { key, colorKey } = item
-      // Custom SVG icons keep their glyph's baked-in colours but their
-      // circle/disc still follows the style (name gets a "-g" suffix).
-      const keepGlyph = isCustomSvgIcon(key)
       // The default Mapbox pin uses the dedicated "default-pin" tint (body
       // recolours, white circle stays white) instead of the style modes.
       const tintMode = key === "default" ? "default-pin" : styleKey
-      const name = `survey-${key}-${tintMode}${keepGlyph ? "-g" : ""}`
+      // SVG-rendered icons (custom/atlas/ionic) tint via the runtime SVG
+      // renderer — the SAME images the app shows (keep glyphs stay put, the
+      // water tank's blue droplet survives). Anything else uses the PNG
+      // tint pipeline.
+      const name = `survey-${key}-${tintMode}-${colorKey}`
       try {
         if (!map.hasImage(name)) {
-          const base = await getIconBaseCanvas(key)
-          if (!base) continue
-          const copy = cloneCanvas(base)
-          tintMarkerCanvas(copy, markerColor(colorKey), tintMode, {
-            keepGlyphOriginal: keepGlyph,
-          })
-          registerCanvas(name, copy)
+          if (key === "default" || !isSvgRenderedIcon(key)) {
+            const base = await getIconBaseCanvas(key)
+            if (!base) continue
+            const copy = cloneCanvas(base)
+            tintMarkerCanvas(
+              copy,
+              markerColor(colorKey, "default-pin"),
+              tintMode,
+            )
+            registerCanvas(name, copy)
+          } else {
+            const image = await renderSvgMarkerImageData(
+              key,
+              colorKey,
+              tintMode,
+              0.3,
+            )
+            map.addImage(name, image)
+          }
         }
         images.set(key, name)
       } catch (e) {
@@ -890,5 +907,91 @@
   }
   .survey-thanks span {
     font-weight: 400;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    .survey-wrap {
+      padding: 24px 14px 56px;
+      gap: 20px;
+    }
+    .survey-hero h1 {
+      font-size: 22px;
+    }
+    .survey-hero p {
+      font-size: 14px;
+    }
+
+    /* Stylebar: "Icon style" + Randomize on one row, the style pills
+       scroll horizontally underneath instead of wrapping into rows. */
+    .survey-stylebar {
+      align-items: center;
+      gap: 8px;
+    }
+    .survey-stylebar-label {
+      font-size: 12px;
+    }
+    .survey-randomize {
+      margin-left: auto;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    .survey-stylebtns {
+      order: 3;
+      width: 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 6px;
+      scrollbar-width: none;
+    }
+    .survey-stylebtns::-webkit-scrollbar {
+      display: none;
+    }
+    .survey-stylebtn {
+      flex-shrink: 0;
+      padding: 9px 14px;
+      font-size: 12px;
+    }
+
+    .survey-map {
+      height: 340px;
+    }
+    .survey-map-hint {
+      font-size: 11px;
+    }
+
+    .survey-card,
+    .survey-submit-card {
+      padding: 16px;
+      border-radius: 12px;
+    }
+    .survey-card h2 {
+      font-size: 16px;
+    }
+    .survey-card-desc {
+      font-size: 12px;
+    }
+
+    .survey-atlas-grid {
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      gap: 8px;
+    }
+
+    .survey-picks {
+      flex-direction: column;
+      gap: 10px;
+    }
+    .survey-field {
+      min-width: 0;
+    }
+    .survey-name-field {
+      max-width: none;
+    }
+
+    .survey-submit {
+      width: 100%;
+      text-align: center;
+    }
   }
 </style>

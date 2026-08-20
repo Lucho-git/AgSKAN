@@ -14,7 +14,6 @@
     Radio,
     LandPlot,
     UserCircle,
-    Grid3x3,
   } from "lucide-svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import {
@@ -65,7 +64,6 @@
   // Import toolbox control components
   import SatelliteControls from "./SatelliteControls.svelte"
   import MarkerControls from "$lib/components/map/markers/MarkerControls.svelte"
-  import MarkerTestControls from "$lib/components/map/toolbox/MarkerTestControls.svelte"
   import VehicleControls from "$lib/components/map/vehicles/VehicleControls_lib.svelte"
   import TrailControls from "$lib/components/map/trails/TrailControls.svelte"
   import LayerControls from "./LayerControls.svelte"
@@ -76,7 +74,11 @@
   import WeatherControls from "./WeatherControls.svelte"
   import WeatherToolButton from "./WeatherToolButton.svelte"
   import VehicleFlashController from "$lib/components/map/vehicles/VehicleFlashController.svelte"
-  import { fetchWeatherHero, fetchWeatherPanel, weatherHeroKey } from "$lib/utils/weather"
+  import {
+    fetchWeatherHero,
+    fetchWeatherPanel,
+    weatherHeroKey,
+  } from "$lib/utils/weather"
 
   export let isOpen = false
   export let satelliteManager = null
@@ -202,10 +204,6 @@
 
   function showMarkerPanel() {
     activePanel = "marker"
-  }
-
-  function showMarkerTestPanel() {
-    activePanel = "markertest"
   }
 
   function showVehiclePanel() {
@@ -520,8 +518,6 @@
         <SatelliteControls {satelliteManager} />
       {:else if activePanel === "marker"}
         <MarkerControls on:close={closeToolbox} on:selectMarker />
-      {:else if activePanel === "markertest"}
-        <MarkerTestControls on:close={closeToolbox} />
       {:else if activePanel === "vehicle"}
         <VehicleControls on:close={closeToolbox} />
       {:else if activePanel === "trail"}
@@ -684,15 +680,6 @@
           {/if}
 
           {#if $userSettingsStore.devToolsEnabled}
-            <button
-              class="tool-button"
-              class:tool-active={activePanel === "markertest"}
-              on:click={showMarkerTestPanel}
-            >
-              <Grid3x3 size={26} />
-              <span>Marker Test</span>
-            </button>
-
             <button
               class="tool-button"
               class:tool-active={$devModeEnabled}
@@ -1124,7 +1111,11 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.3), rgba(59, 130, 246, 0.2));
+    background: linear-gradient(
+      135deg,
+      rgba(96, 165, 250, 0.3),
+      rgba(59, 130, 246, 0.2)
+    );
     border: 2px solid rgba(96, 165, 250, 0.5);
     display: flex;
     align-items: center;

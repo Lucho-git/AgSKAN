@@ -47,8 +47,17 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
   else if (mode === 'original') glyphFill = '#111827'
 
   let disc = ''
-  if (mode === 'original') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${light}"/>`
-  else if (mode === 'circle-fill' || mode === 'circle-fill-black') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${dark}"/>`
+  if (mode === 'original') {
+    const discFill = colorDef.key === 'white' ? '#f1f5f9' : light
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
+  }
+  else if (mode === 'circle-fill' || mode === 'circle-fill-black') {
+    // Mirror the runtime's softened neutral discs: circle-fill-black white →
+    // icon-fill's soft off-white (#f1f5f9); black stays a real black.
+    let discFill = dark
+    if (mode === 'circle-fill-black' && colorDef.key === 'white') discFill = '#f1f5f9'
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
+  }
   else if (mode === 'icon-fill') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${CIRCLE_WHITE}"/>`
   else if (mode === 'icon-dark-glass') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${GLASS_DARK}" fill-opacity="${glassAlphaDark}"/>`
   else if (mode === 'icon-light-glass') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${GLASS_LIGHT}" fill-opacity="${glassAlphaLight}"/>`
@@ -57,7 +66,7 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
   if (mode === 'original') ring = `<circle cx="52.5" cy="52.5" r="47" fill="none" stroke="${dark}" stroke-width="5" stroke-opacity="0.9"/>`
   else if (mode === 'icon-fill') ring = `<circle cx="52.5" cy="52.5" r="47" fill="none" stroke="${RING_GREY}" stroke-width="5" stroke-opacity="0.7"/>`
 
-  const glyphWrap = glyph.tint === 'fill' ? `<g fill="${glyphFill}">${glyph.content}</g>` : glyph.content
+  const glyphWrap = glyph.tint === 'fill' ? `<g color="${glyphFill}" fill="${glyphFill}">${glyph.content}</g>` : glyph.content
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   ${disc}
   ${ring}
@@ -67,13 +76,14 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
 
 const modes = ['original', 'circle-fill', 'circle-fill-black', 'icon-fill', 'icon-only', 'icon-dark-glass', 'icon-light-glass']
 // A representative spread across every glyph type: custom keep (rock,
-// kangaroo multi-colour, workshop_icon black), fully-tinted custom (gate),
-// ionic fill (thumbs-up, paw) and stroke-based atlas (gasoline).
+// kangaroo multi-colour), fully-tinted custom (gate, water tank — outer
+// tank tints while the droplet keeps its blue), ionic fill (thumbs-up, paw)
+// and stroke-based atlas (gasoline).
 const icons = [
   'custom-svg-rock',
   'custom-svg-rock_pile',
   'custom-svg-kangaroo',
-  'custom-svg-workshop_icon',
+  'custom-svg-watertank2',
   'custom-svg-gate',
   'ionic-thumbs-up',
   'ionic-paw',

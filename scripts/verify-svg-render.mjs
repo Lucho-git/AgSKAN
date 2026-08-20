@@ -12,7 +12,9 @@ const MARKER_SVG_GLYPHS = JSON.parse(
 
 const SIZE = 105
 const colorDefs = {
-  blue: { light: '#3b82f6', dark: '#1d4ed8', deep: '#1e3a8a' },
+  blue: { key: 'blue', light: '#3b82f6', dark: '#1d4ed8', deep: '#1e3a8a' },
+  black: { key: 'black', light: '#e5e7eb', dark: '#000000', deep: '#111827' },
+  white: { key: 'white', light: '#ffffff', dark: '#ffffff', deep: '#f8fafc' },
 }
 
 function glyphTransform(viewBox, target) {
@@ -39,15 +41,24 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
   else if (mode === 'icon-fill') glyphFill = deep
   else if (mode === 'original') glyphFill = '#111827'
   let disc = ''
-  if (mode === 'original') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${light}"/>`
-  else if (mode === 'circle-fill' || mode === 'circle-fill-black') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${dark}"/>`
+  if (mode === 'original') {
+    const discFill = colorDef.key === 'white' ? '#f1f5f9' : light
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
+  }
+  else if (mode === 'circle-fill' || mode === 'circle-fill-black') {
+    // Mirror the runtime's softened neutral discs: circle-fill-black white →
+    // icon-fill's soft off-white (#f1f5f9); black stays a real black.
+    let discFill = dark
+    if (mode === 'circle-fill-black' && colorDef.key === 'white') discFill = '#f1f5f9'
+    disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${discFill}"/>`
+  }
   else if (mode === 'icon-fill') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${CIRCLE_WHITE}"/>`
   else if (mode === 'icon-dark-glass') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${GLASS_DARK}" fill-opacity="${glassAlphaDark}"/>`
   else if (mode === 'icon-light-glass') disc = `<circle cx="52.5" cy="52.5" r="49.5" fill="${GLASS_LIGHT}" fill-opacity="${glassAlphaLight}"/>`
   let ring = ''
   if (mode === 'original') ring = `<circle cx="52.5" cy="52.5" r="46.5" fill="none" stroke="${dark}" stroke-width="4"/>`
   else if (mode === 'icon-fill') ring = `<circle cx="52.5" cy="52.5" r="46.5" fill="none" stroke="${RING_GREY}" stroke-width="2.5"/>`
-  const glyphWrap = glyph.tint === 'fill' ? `<g fill="${glyphFill}">${glyph.content}</g>` : glyph.content
+  const glyphWrap = glyph.tint === 'fill' ? `<g color="${glyphFill}" fill="${glyphFill}">${glyph.content}</g>` : glyph.content
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   ${disc}
   ${ring}
@@ -194,38 +205,114 @@ await check('rock-dg', 'custom-svg-rock', 'icon-dark-glass', (px) => { const c =
   }
   console.log(colourful > 200 ? '✅' : '❌', `kangaroo original: multi-colour art kept (${colourful} chroma px)`)
 }
-// 12. AT-GASOLINE (stroke-based atlas): circle-fill → blue disc + BLUE outline glyph (stroke:currentColor via <g color>), interior OPEN
+// 12. AT-GASOLINE (stroke-based atlas): circle-fill → blue disc + WHITE
+// outline glyph (stroke:currentColor via <g color> resolves to the glyph
+// fill = white in circle-fill) with an OPEN interior. A buggy FILLED glyph
+// (the stroke icons' class-based fills, see the ban fix) would be a solid
+// white blob — white would jump far past the thin-outline count.
 {
   const svg = buildSvg(MARKER_SVG_GLYPHS['at-gasoline'], colorDefs.blue, 'circle-fill', 0.3)
   const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
-  let outline = 0
   let white = 0
+  let blue = 0
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] > 200) {
       const r = data[i], g = data[i + 1], b = data[i + 2]
       if (r > 235 && g > 235 && b > 235) white++
-      else if (near([r, g, b], [29, 78, 216], 30)) outline++
+      else if (near([r, g, b], [29, 78, 216], 30)) blue++
     }
   }
-  // Interior of the hollow outline shows the BLUE disc (29,78,216); a buggy
-  // FILLED glyph would be mostly WHITE in circle-fill. So: outline present +
-  // very few white pixels = correct outline-only rendering.
-  const outlineOpen = white < 100
-  console.log(outline > 100 && outlineOpen ? '✅' : '❌', `at-gasoline circle-fill: blue outline present (${outline} px), interior open (white=${white} px)`)
+  const ok = blue > 1000 && white > 100 && white < 3000
+  console.log(
+    ok ? '✅' : '❌',
+    `at-gasoline circle-fill: blue disc (${blue} px) + white outline (${white} px), not a filled blob`,
+  )
 }
-// 13. WORKSHOP_ICON (keep, black glyph): original mode keeps the black glyph on the light disc
+// 13. WORKSHOP_ICON (fully-tinted custom now): circle-fill → blue disc +
+// WHITE workshop glyph (was keep/black before the 2026-08-20 change — all
+// custom SVG markers tint except rock/rock pile/tree/wheat/kangaroo).
 {
-  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-workshop_icon'], colorDefs.blue, 'original', 0.3)
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-workshop_icon'], colorDefs.blue, 'circle-fill', 0.3)
   const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
-  let black = 0
-  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r < 60 && g < 60 && b < 60) black++ } }
-  console.log(black > 200 ? '✅' : '❌', `workshop_icon original: black glyph kept (${black} px)`)
+  let white = 0
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
+  console.log(white > 200 ? '✅' : '❌', `workshop_icon circle-fill: white tinted glyph (${white} px)`)
 }
-// 14. SILO (keep) original mode: light disc + grain-coloured? silos render via SVG with original mode; check glyph pixels exist
+// 14. SILO (fully-tinted custom now) original mode: light disc + dark tinted glyph
 {
   const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-silo2'], colorDefs.blue, 'original', 0.3)
   const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  let dark = 0
   let opaque = 0
-  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) opaque++ }
-  console.log(opaque > 1500 ? '✅' : '❌', `silo2 original: glyph renders (${opaque} opaque px)`)
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { opaque++; const r = data[i], g = data[i + 1], b = data[i + 2]; if (r < 60 && g < 70 && b < 90) dark++ } }
+  console.log(dark > 400 ? '✅' : '❌', `silo2 original: dark tinted glyph renders (${opaque} opaque, ${dark} dark px)`)
+}
+// 15. CIRCLE-FILL BLACK IS REAL BLACK: black in circle-fill is a palette
+// colour again — it renders pure black (the circle-fill default is blue).
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['ionic-thumbs-up'], colorDefs.black, 'circle-fill', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  const edge = [data[(8 * info.width + 52) * 4], data[(8 * info.width + 52) * 4 + 1], data[(8 * info.width + 52) * 4 + 2]]
+  const isBlack = near(edge, [0, 0, 0], 30)
+  console.log(isBlack ? '✅' : '❌', `circle-fill black: disc is pure black (${edge.join(',')})`)
+}
+// 16. CIRCLE-FILL-BLACK SOFTENED WHITE DISC: white in circle-fill-black
+// renders icon-fill's soft off-white #f1f5f9, not pure white.
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['ionic-thumbs-up'], colorDefs.white, 'circle-fill-black', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  const edge = [data[(8 * info.width + 52) * 4], data[(8 * info.width + 52) * 4 + 1], data[(8 * info.width + 52) * 4 + 2]]
+  const isOffWhite = near(edge, [241, 245, 249], 12)
+  console.log(isOffWhite ? '✅' : '❌', `circle-fill-black white: disc is soft off-white #f1f5f9 (${edge.join(',')})`)
+}
+// 17. ORIGINAL SOFTENED WHITE DISC: white in original renders the soft
+// off-white #f1f5f9, not pure white — the original style can't use a pure
+// white disc. Sampled at (12,52): inside the disc, outside the ring + glyph.
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['ionic-thumbs-up'], colorDefs.white, 'original', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  const edge = [data[(12 * info.width + 52) * 4], data[(12 * info.width + 52) * 4 + 1], data[(12 * info.width + 52) * 4 + 2]]
+  const isOffWhite = near(edge, [241, 245, 249], 12)
+  console.log(isOffWhite ? '✅' : '❌', `original white: disc is soft off-white #f1f5f9 (${edge.join(',')})`)
+}
+// 18. BAN IS A RING + DIAGONAL (Ionicons stroke icon), NOT a solid circle:
+// the ring's hole (off the diagonal) shows the disc colour and the ring
+// stroke shows the glyph white. (2026-08-20 fix: the stroke icon relied on
+// the missing global `.ionicon-fill-none` stylesheet and filled solid.)
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['ionic-ban'], colorDefs.blue, 'circle-fill', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  const px = (x, y) => [data[(y * info.width + x) * 4], data[(y * info.width + x) * 4 + 1], data[(y * info.width + x) * 4 + 2]]
+  const hole = px(45, 60)
+  const holeIsDisc = near(hole, [29, 78, 216], 40)
+  console.log(holeIsDisc ? '✅' : '❌', `ban circle-fill: ring hole shows the disc colour (${hole.join(',')})`)
+  const ring = px(52, 24)
+  const ringIsWhite = near(ring, [248, 250, 252], 30)
+  console.log(ringIsWhite ? '✅' : '❌', `ban circle-fill: ring stroke is glyph white (${ring.join(',')})`)
+}
+// 19. WATER TANK (fully-tinted custom, special): circle-fill → outer tank
+// tints white while the inner droplet keeps its explicit #0000FF blue (the
+// droplet's own fill attribute survives the <g fill> wrapper).
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-watertank2'], colorDefs.blue, 'circle-fill', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  let white = 0
+  let dropletBlue = 0
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 200) {
+      const r = data[i], g = data[i + 1], b = data[i + 2]
+      if (r > 235 && g > 235 && b > 235) white++
+      else if (near([r, g, b], [0, 0, 255], 25)) dropletBlue++
+    }
+  }
+  const ok = white > 300 && dropletBlue > 80
+  console.log(ok ? '✅' : '❌', `water tank circle-fill: outer tank tints white (${white} px) + droplet stays pure blue (${dropletBlue} px)`)
+}
+// 20. TRACTOR (newly colourable custom): circle-fill → white tinted glyph
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-tractor'], colorDefs.blue, 'circle-fill', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  let white = 0
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
+  console.log(white > 200 ? '✅' : '❌', `tractor circle-fill: white tinted glyph (${white} px)`)
 }

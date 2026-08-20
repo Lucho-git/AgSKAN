@@ -23,7 +23,6 @@
     Plus,
     MapPin,
     Pencil,
-    Sparkles,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
@@ -47,12 +46,13 @@
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import {
-    PICKABLE_MARKER_COLORS,
+    pickableColorsForStyle,
     MARKER_COLOR_DEFAULT,
     markerColor,
     styleSwatchBg,
     swatchText,
     markerDefaultColorKey,
+    styleDefaultColor,
     randomColorForId,
     RANDOM_COLOR_KEY,
   } from "./markerPalette"
@@ -90,9 +90,9 @@
   let top = -9999
   let visible = false
   let offscreen = false
-  // True while the menu opens upward; flips to downward near the top of the
-  // screen so the whole menu box stays on screen in every state.
-  let openUp = true
+  // True while the menu opens upward; false by default so the menu GROWS
+  // DOWNWARD from the marker (flips up only when it won't fit below).
+  let openUp = false
   // When a drawing is selected, the panel anchors just above the drawing's
   // on-screen box instead of the marker. null = anchored to the marker.
   let drawingAnchor = null
@@ -150,11 +150,21 @@
   let pendingMarkerId = null
   let previewIconClass = null
 
+  // The bottom "Update marker" button shows whenever anything is pending:
+  // an icon/colour preview, or a note that hasn't been saved yet.
+  $: hasChanges =
+    pendingIconChange ||
+    notesText.trim() !== (originalNotes || "").trim()
+
   // ── Marker colour (option A: runtime-tinted icons) ──
   let markerColorKey = MARKER_COLOR_DEFAULT
 
   // ── Colour box picker (square trigger → popover grid, like the profile) ──
   let colorBoxOpen = false
+  // "Set as default" check next to Save — appears ONLY right after a colour
+  // change to a non-default colour; arming it makes Save also set the default.
+  let makeDefaultVisible = false
+  let makeDefaultArmed = false
   $: markerStyle = $userSettingsStore?.markerStyle || "original"
   function toggleColorBox() {
     colorBoxOpen = !colorBoxOpen
@@ -188,6 +198,10 @@
           : m,
       ),
     )
+    // Show the "set as default" check ONLY right after picking a non-default
+    // colour — never just from opening/reopening the colour menu.
+    makeDefaultArmed = false
+    makeDefaultVisible = key !== MARKER_COLOR_DEFAULT
   }
 
   // Set the picked colour as the DEFAULT for this marker type (the per-type
@@ -257,6 +271,7 @@
       $userSettingsStore || {},
     )
     if (key === RANDOM_COLOR_KEY) key = randomColorForId(marker?.id)
+    if (!key) key = styleDefaultColor(markerStyle)
     return key
   })()
   $: headerColorDef = markerColor(headerColorKey)
@@ -275,12 +290,14 @@
       markerColorKey = marker?.markerColor || MARKER_COLOR_DEFAULT
       noteEditing = false
       noteSavedFlash = false
-      openUp = true
+      openUp = false
       confirmDelete = false
       addMenuOpen = false
       view = "main"
       panelOpen = true
       colorBoxOpen = false
+      makeDefaultVisible = false
+      makeDefaultArmed = false
       loadPhotos()
       resetIconEdit()
     }
@@ -344,10 +361,10 @@
         left = rect.left + px
         top = rect.top + (openUp ? py - 44 : py + 44)
       } else {
-        // Vertically: open upward by default, but when the menu grazes the
-        // top edge it SLIDES down to hug it (8px gap) instead of snapping.
-        // Only flip once the slide would be too big AND the other side fits
-        // better (hysteresis keeps it stable across view/height changes).
+        // Vertically: open DOWNWARD from the marker by default (grows down);
+        // when it won't fit below it flips up, and near the top edge it
+        // slides to hug it (8px gap) instead of snapping. Only flip once the
+        // slide would be too big AND the other side fits better (hysteresis).
         const topMargin = 8
         const bottomMargin = 8
         const fitsVertically = menuH <= rect.height - topMargin - bottomMargin
@@ -418,24 +435,29 @@
   }
 
   // ── Icon editing (preview live on the map, commit on save) ──
-  function getIsIconSelected(icon) {
+  // The icon class the grid should highlight — the live preview while one is
+  // pending, otherwise the marker's committed icon. Passed INTO the per-cell
+  // test as an explicit argument so Svelte tracks it: a function call in an
+  // {#each} only re-evaluates when a TRACKED dependency changes, and Svelte
+  // can't see the variables used inside getIsIconSelected's body.
+  $: selectedIconKey = previewIconClass || getCurrentIconClass(marker?.id)
+  function getIsIconSelected(icon, selectedKey) {
     if (selectedIconForEdit) {
       return (
         selectedIconForEdit.id === icon.id &&
         selectedIconForEdit.class === icon.class
       )
     }
-    const current = getCurrentIconClass(marker?.id)
-    if (!current || current === "default") {
+    if (!selectedKey) {
       return icon.id === "default" && icon.class === "default"
     }
-    if (current.startsWith("custom-svg-")) {
-      return (
-        icon.class === "custom-svg" &&
-        icon.id === current.replace("custom-svg-", "")
-      )
-    }
-    return icon.class === current
+    const iconKey =
+      icon.id === "default"
+        ? "default"
+        : icon.class.startsWith("custom-svg")
+          ? `custom-svg-${icon.id}`
+          : icon.class
+    return iconKey === selectedKey
   }
 
   function previewIcon(icon) {
@@ -489,38 +511,53 @@
   }
 
   function confirmIcon() {
-    if (!marker || !pendingIconChange) return
+    if (!marker) return
+    const notesDirty = notesText.trim() !== (originalNotes || "").trim()
+    if (!pendingIconChange && !notesDirty) return
 
-    // Colour-only changes (no icon preview) also come through here — commit
-    // the pending colour, and only touch iconClass when one was previewed.
-    const newIconClass = previewIconClass
-    confirmedMarkersStore.update((markers) =>
-      markers.map((m) =>
-        m.id === marker.id
-          ? {
-              ...m,
-              ...(newIconClass ? { iconClass: newIconClass } : {}),
-              markerColor: markerColorKey,
-              updated_at: new Date().toISOString(),
-            }
-          : m,
-      ),
-    )
+    // Save any pending note (blur usually already commits it; this covers
+    // the case where the field is still focused when Update is clicked).
+    if (notesDirty) {
+      finishNoteEdit()
+    }
 
-    if (newIconClass) {
-      const oldDef = findMarkerByIconClass(marker.iconClass)
-      const newDef = findMarkerByIconClass(newIconClass)
-      const labelText = `${oldDef?.name || "Marker"} → ${newDef?.name || "Marker"}`
-      if (marker.coordinates) showEditRipple(marker.coordinates, labelText)
-    } else if (marker.coordinates) {
-      // Colour-only confirm — same edit-pulse confirmation visual/effect as
-      // an icon change, labelled with the colour that was picked.
-      const colourLabel = markerColor(markerColorKey)?.label || "Default"
-      showEditRipple(marker.coordinates, `Colour → ${colourLabel}`)
+    // Icon + colour changes (and the "set as default" check) commit below.
+    const newIconClass = pendingIconChange ? previewIconClass : null
+    if (pendingIconChange) {
+      confirmedMarkersStore.update((markers) =>
+        markers.map((m) =>
+          m.id === marker.id
+            ? {
+                ...m,
+                ...(newIconClass ? { iconClass: newIconClass } : {}),
+                markerColor: markerColorKey,
+                updated_at: new Date().toISOString(),
+              }
+            : m,
+        ),
+      )
+
+      if (newIconClass) {
+        const oldDef = findMarkerByIconClass(marker.iconClass)
+        const newDef = findMarkerByIconClass(newIconClass)
+        const labelText = `${oldDef?.name || "Marker"} → ${newDef?.name || "Marker"}`
+        if (marker.coordinates) showEditRipple(marker.coordinates, labelText)
+      } else if (marker.coordinates) {
+        // Colour-only confirm — same edit-pulse confirmation visual/effect
+        // as an icon change, labelled with the colour that was picked.
+        const colourLabel = markerColor(markerColorKey)?.label || "Default"
+        showEditRipple(marker.coordinates, `Colour → ${colourLabel}`)
+      }
+
+      // If the "set as default" check is armed, apply this colour as the
+      // marker type's default too (it shows its own toast confirmation).
+      if (makeDefaultVisible && makeDefaultArmed) {
+        applyDefaultColour()
+      }
     }
 
     resetIconEdit()
-    // Save confirms the change. Converting a marker INTO a silo keeps it
+    // Update confirms the change. Converting a marker INTO a silo keeps it
     // selected so the silo edit panel opens; everything else closes the menu.
     if (newIconClass !== "custom-svg-silo2") {
       deselectMarker()
@@ -1235,49 +1272,28 @@
             <span>Back</span>
           </button>
           <span class="mp-subhead-title">Icon</span>
-          {#if pendingIconChange}
-            <button class="mp-save-btn" on:click={confirmIcon}>
-              <Check size={14} />
-              <span>Save</span>
-            </button>
-          {:else}
-            <span class="mp-subhead-spacer"></span>
-          {/if}
         </div>
         <div class="marker-pop-body">
           <div class="mp-section mp-icon-color-section">
-            {#if
-              markerColorKey !== MARKER_COLOR_DEFAULT &&
-              marker?.iconClass
-            }
+            <div class="mp-color-bar-wrap">
               <button
                 type="button"
-                class="mp-apply-default"
-                title="Set this colour as the default for {markerName}"
-                on:click={applyDefaultColour}
+                class="mp-color-bar"
+                class:open={colorBoxOpen}
+                class:color-active={markerColorKey !== MARKER_COLOR_DEFAULT}
+                title="Change colour"
+                aria-label="Change colour"
+                on:click={toggleColorBox}
               >
-                <Sparkles size={11} />
-                <span>Apply as default</span>
+                <span class="mp-color-bar-title">Color</span>
+                <span
+                  class="mp-color-trigger"
+                  class:mp-color-trigger-default={markerColorKey === MARKER_COLOR_DEFAULT}
+                  style="background: {markerColorKey === MARKER_COLOR_DEFAULT
+                    ? "transparent"
+                    : styleSwatchBg(markerColor(menuTriggerColorKey, markerStyle), markerStyle)};"
+                >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span>
               </button>
-            {/if}
-            <button
-              type="button"
-              class="mp-color-bar"
-              class:open={colorBoxOpen}
-              class:color-active={markerColorKey !== MARKER_COLOR_DEFAULT}
-              title="Change colour"
-              aria-label="Change colour"
-              on:click={toggleColorBox}
-            >
-              <span class="mp-color-bar-title">Color</span>
-              <span
-                class="mp-color-trigger"
-                class:mp-color-trigger-default={markerColorKey === MARKER_COLOR_DEFAULT}
-                style="background: {markerColorKey === MARKER_COLOR_DEFAULT
-                  ? "transparent"
-                  : styleSwatchBg(markerColor(menuTriggerColorKey, markerStyle), markerStyle)};"
-              >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span>
-            </button>
               {#if colorBoxOpen}
                 <button
                   type="button"
@@ -1294,9 +1310,7 @@
                     aria-label="Marker colour: Default"
                     on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
                   >D</button>
-                  {#each PICKABLE_MARKER_COLORS.filter(
-                    (c) => c.key !== MARKER_COLOR_DEFAULT,
-                  ) as c}
+                  {#each pickableColorsForStyle(markerStyle) as c}
                     <button
                       type="button"
                       class="mp-color-cell"
@@ -1309,12 +1323,22 @@
                   {/each}
                 </div>
               {/if}
+            </div>
+            {#if makeDefaultVisible}
+              <label
+                class="mp-make-default-check"
+                title="Save will also set this colour as the default for {markerName}"
+              >
+                <input type="checkbox" bind:checked={makeDefaultArmed} />
+                <span>Make default</span>
+              </label>
+            {/if}
           </div>
           <div class="mp-icon-grid">
             {#each selectableMarkers as icon}
               <button
                 class="mp-icon-option"
-                class:selected={getIsIconSelected(icon)}
+                class:selected={getIsIconSelected(icon, selectedIconKey)}
                 on:click={() => previewIcon(icon)}
                 title={icon.name}
               >
@@ -1330,21 +1354,22 @@
               </button>
             {/each}
           </div>
-
-          <!-- Always-open note field (mirrors the placement panel). Saves on
-               blur; Enter (without Shift) also confirms. -->
-          <input
-            type="text"
-            class="mp-notes-input mp-notes-input-icon"
-            bind:this={noteInputEl}
-            bind:value={notesText}
-            placeholder="Add a note..."
-            maxlength="500"
-            aria-label="Add a note"
-            on:keydown={onNotesKeydown}
-            on:blur={finishNoteEdit}
-          />
         </div>
+
+        <!-- Always-open note field (mirrors the placement panel), pinned at
+             the bottom of the menu (outside the scroll body) so it stays
+             visible while editing. Saves on blur; Enter also confirms. -->
+        <input
+          type="text"
+          class="mp-notes-input mp-notes-input-icon"
+          bind:this={noteInputEl}
+          bind:value={notesText}
+          placeholder="Add a note..."
+          maxlength="500"
+          aria-label="Add a note"
+          on:keydown={onNotesKeydown}
+          on:blur={finishNoteEdit}
+        />
       {:else}
         <div class="marker-pop-body">
           <div class="mp-main">
@@ -1541,6 +1566,13 @@
             </div>
           {/if}
         </div>
+      {/if}
+
+      {#if !moving && hasChanges}
+        <button class="mp-update-btn" on:click={confirmIcon}>
+          <Check size={14} />
+          <span>Update marker</span>
+        </button>
       {/if}
     </div>
   {/key}
@@ -1746,10 +1778,6 @@
     letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.6);
   }
-  .mp-subhead-spacer {
-    width: 1px;
-  }
-
   /* Body fills the remaining fixed panel height, scrolls when needed.
      Bottom padding keeps the last item's border from being clipped by the
      scroll viewport edge when the content overflows. overflow-x is clipped
@@ -1931,25 +1959,28 @@
     left: 16px;
   }
 
-  .mp-save-btn {
-    display: inline-flex;
+  /* Compact full-width confirm button pinned at the bottom of the edit menu
+     (mirrors the placement menu's confirm). Shows whenever the marker has
+     pending changes: icon/colour preview or an unsaved note. */
+  .mp-update-btn {
+    display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border-radius: 7px;
-    border: none;
-    background: rgba(96, 165, 250, 0.25);
-    color: #fff;
-    font-size: 11px;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    flex-shrink: 0;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.14);
+    color: #fcd34d;
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
+    transition: all 0.15s ease;
   }
-  .mp-save-btn:hover {
-    background: rgba(96, 165, 250, 0.4);
-  }
-  .mp-save-btn:disabled {
-    opacity: 0.45;
-    cursor: default;
+  .mp-update-btn:hover {
+    background: rgba(245, 158, 11, 0.28);
   }
 
   /* Footer row: Icon + Move squares, with a Coords/Delete stacked column */
@@ -2042,8 +2073,8 @@
   }
   .mp-color-pop {
     position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
+    top: 0;
+    left: calc(100% + 6px);
     z-index: 31;
     width: 112px;
     display: grid;
@@ -2287,14 +2318,22 @@
     position: relative;
     margin-bottom: 10px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  /* Wraps the compact colour bar + its popover. The popover's top-left corner
+     sits against the bar's top-right corner (top:0; left: calc(100% + 6px)). */
+  .mp-color-bar-wrap {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
   }
   .mp-color-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
-    width: 100%;
+    width: auto;
     padding: 10px;
     border-radius: 9px;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2325,26 +2364,31 @@
     transform: scale(1.1);
   }
 
-  /* "Apply as default colour" chip — appears when a non-default colour is
-     picked, so the marker type can adopt it as its default. */
-  .mp-apply-default {
-    align-self: flex-end;
+  /* "Make default" checkbox — sits to the right of the colour bar; only
+     appears right after a non-default colour is picked. Checking it arms the
+     action; Save then also sets the colour as the marker type's default. */
+  .mp-make-default-check {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-bottom: 6px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(96, 165, 250, 0.35);
-    background: rgba(96, 165, 250, 0.1);
-    color: #93c5fd;
-    font-size: 10px;
-    font-weight: 700;
+    gap: 5px;
+    flex-shrink: 0;
+    white-space: nowrap;
     cursor: pointer;
-    transition: all 0.15s ease;
+    user-select: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 0.15s ease;
   }
-  .mp-apply-default:hover {
-    background: rgba(96, 165, 250, 0.22);
+  .mp-make-default-check:hover {
+    color: #93c5fd;
+  }
+  .mp-make-default-check input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: #34d399;
+    cursor: pointer;
   }
 
   /* Single-line note field inside the icon edit view. */

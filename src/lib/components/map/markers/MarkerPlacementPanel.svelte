@@ -14,12 +14,13 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import {
-    PICKABLE_MARKER_COLORS,
+    pickableColorsForStyle,
     MARKER_COLOR_DEFAULT,
     markerColor,
     styleSwatchBg,
     swatchText,
     markerDefaultColorKey,
+    styleDefaultColor,
     randomColorForId,
     RANDOM_COLOR_KEY,
     TINT_MODE_DEFAULT,
@@ -67,6 +68,7 @@
     if (key === RANDOM_COLOR_KEY) {
       key = randomColorForId(marker?.id || "preview")
     }
+    if (!key) key = styleDefaultColor(markerStyle)
     return key
   })()
   $: headerColorDef = markerColor(headerColorKey)
@@ -119,27 +121,22 @@
     updatePreview(iconClass)
   }
 
-  function getIsIconSelected(icon) {
-    if (previewIconClass) {
-      const previewKey =
-        icon.id === "default"
-          ? "default"
-          : icon.class.startsWith("custom-svg")
-            ? `custom-svg-${icon.id}`
-            : icon.class
-      return previewKey === previewIconClass
-    }
-    const currentIconClass = getCurrentIconClass(marker?.id)
-    if (!currentIconClass || currentIconClass === "default") {
+  // The icon class the grid should highlight — the live preview while one is
+  // pending, otherwise the marker's committed icon. Passed INTO the per-cell
+  // test as an explicit argument so Svelte tracks it (a function call in an
+  // {#each} only re-evaluates when a tracked dependency changes).
+  $: selectedIconKey = previewIconClass || getCurrentIconClass(marker?.id)
+  function getIsIconSelected(icon, selectedKey) {
+    if (!selectedKey) {
       return icon.id === "default" && icon.class === "default"
     }
-    if (currentIconClass.startsWith("custom-svg-")) {
-      return (
-        icon.class === "custom-svg" &&
-        icon.id === currentIconClass.replace("custom-svg-", "")
-      )
-    }
-    return icon.class === currentIconClass
+    const iconKey =
+      icon.id === "default"
+        ? "default"
+        : icon.class.startsWith("custom-svg")
+          ? `custom-svg-${icon.id}`
+          : icon.class
+    return iconKey === selectedKey
   }
 
   // ── Panel positioning (anchored to the marker, same as the overlay menu) ──
@@ -441,9 +438,7 @@
                 aria-label="Marker colour: Default"
                 on:click={() => setPickerColor(MARKER_COLOR_DEFAULT)}
               >D</button>
-              {#each PICKABLE_MARKER_COLORS.filter(
-                (c) => c.key !== MARKER_COLOR_DEFAULT,
-              ) as c}
+              {#each pickableColorsForStyle(markerStyle) as c}
                 <button
                   type="button"
                   class="mp-color-cell"
@@ -462,7 +457,7 @@
         {#each selectableMarkers as icon}
           <button
             class="mp-icon-option"
-            class:selected={getIsIconSelected(icon)}
+            class:selected={getIsIconSelected(icon, selectedIconKey)}
             on:click={() => previewIcon(icon)}
             title={icon.name}
           >

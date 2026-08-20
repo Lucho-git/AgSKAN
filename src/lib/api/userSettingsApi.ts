@@ -468,6 +468,129 @@ export const userSettingsApi = {
     },
 
     /**
+     * Persists the first-run marker onboarding flag (user_settings
+     * marker_onboarding_done) so the style → colours popup never shows again
+     * once the user has completed (or dismissed) it.
+     */
+    async setMarkerOnboardingDone() {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, marker_onboarding_done: true },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving marker onboarding done:", error);
+                return { success: false, message: "Failed to save marker onboarding done", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                markerOnboardingDone: true,
+            }));
+
+            return { success: true, message: "Marker onboarding done" };
+        } catch (error) {
+            console.error("Error in setMarkerOnboardingDone:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
+     * Resets the first-run marker onboarding flag (marker_onboarding_done
+     * = false, marker_onboarding_skips = 0) so the style → colours popup
+     * shows again — a dev/testing escape hatch.
+     */
+    async resetMarkerOnboarding() {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, marker_onboarding_done: false, marker_onboarding_skips: 0 },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error resetting marker onboarding:", error);
+                return { success: false, message: "Failed to reset marker onboarding", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                markerOnboardingDone: false,
+                markerOnboardingSkips: 0,
+            }));
+
+            return { success: true, message: "Marker onboarding reset" };
+        } catch (error) {
+            console.error("Error in resetMarkerOnboarding:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
+     * "Not now" on the first-run marker onboarding intro: dismisses it for
+     * this session WITHOUT marking it done — it comes back on the next map
+     * load. After 3 dismissals (marker_onboarding_skips >= 3) it stops.
+     */
+    async skipMarkerOnboarding() {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+            const current = get(userSettingsStore)?.markerOnboardingSkips ?? 0
+            const next = current + 1
+            const done = next >= 3
+            const { error } = await supabase.from("user_settings").upsert(
+                {
+                    user_id: userId,
+                    marker_onboarding_skips: next,
+                    marker_onboarding_done: done,
+                },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error skipping marker onboarding:", error);
+                return { success: false, message: "Failed to skip marker onboarding", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({
+                ...settings,
+                markerOnboardingSkips: next,
+                markerOnboardingDone: done,
+            }));
+
+            return {
+                success: true,
+                message: done ? "Marker onboarding dismissed" : "Marker onboarding skipped",
+            };
+        } catch (error) {
+            console.error("Error in skipMarkerOnboarding:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Marker type usage counts for the user's map ({iconClass → count}),
      * used to order the per-type default-colour list by usage first, then
      * alphabetically.

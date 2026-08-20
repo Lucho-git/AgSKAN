@@ -26,20 +26,24 @@ const SET_JS = path.join(__dirname, '../src/lib/components/map/markers/markerSvg
 const IONIC_DIR = path.join(__dirname, '../node_modules/ionicons/dist/ionicons/svg')
 
 // ── Icon lists ──
-// Custom SVG symbols (id in IconSVG.svelte). These keep their original glyph
-// colours EXCEPT the fully-tinted set (mirrors markerPalette
-// FULLY_TINTED_CUSTOM_SVG).
+// Custom SVG symbols (id in IconSVG.svelte). Every custom SVG marker tints
+// fully with the chosen colour EXCEPT the keep set below (rock, rock pile,
+// tree, wheat, kangaroo sign) which keeps its baked glyph colours (mirrors
+// markerPalette KEEP_GLYPH_CUSTOM_SVG). The water tank tints its outer tank
+// but its inner droplet carries an explicit blue fill that survives the
+// <g fill> wrapper, so the droplet stays blue.
 const CUSTOM_ICONS = [
   'rock', 'rock_pile', 'tree13', 'wheat2', 'kangaroo', 'watertank2',
   'water_tower2', 'liquid_tank', 'recharge_icon', 'fuel_refill',
   'machine_pump', 'electric_tower', 'gate', 'repair_shop', 'tractor',
   'silo2', 'tree_stump', 'workshop_icon',
 ]
-const FULLY_TINTED_CUSTOM = new Set([
-  'custom-svg-gate',
-  'custom-svg-fuel_refill',
-  'custom-svg-liquid_tank',
-  'custom-svg-water_tower2',
+const KEEP_GLYPH_CUSTOM = new Set([
+  'custom-svg-rock',
+  'custom-svg-rock_pile',
+  'custom-svg-tree13',
+  'custom-svg-wheat2',
+  'custom-svg-kangaroo',
 ])
 
 // Ionic icon names (same list as generateIcons.js).
@@ -145,7 +149,31 @@ function svgInner(fullSvg) {
     inner = inlineClassAttrs(inner, styleMap)
     inner = stripDefsAndStyle(inner)
   }
+  inner = fixIonicStrokeArt(inner)
   return { viewBox, content: inner.trim() }
+}
+
+// Ionicons "stroke" icons (ban, locate, …) carry `class="ionicon-fill-none"`
+// and rely on the library's GLOBAL stylesheet
+// (`.ionicon-fill-none { fill: none; stroke: currentColor }`, with stroke
+// width set per element) which is NOT in the SVG file. Inline those rules so
+// the runtime `<g color fill>` wrapper colours the strokes via currentColor
+// — otherwise the shapes render as solid filled blobs (e.g. the ban icon
+// became a solid circle). Hidden helper paths with the class but no
+// stroke-width become `fill: none` (matching the original Ionicons intent).
+function fixIonicStrokeArt(inner) {
+  if (!/ionicon-fill-none/.test(inner)) return inner
+  return inner.replace(
+    /<((?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*?)\/>/g,
+    (match, tag) => {
+      const hasClass = /class="ionicon-fill-none"/.test(tag)
+      const hasStrokeWidth = /\bstroke-width\s*=/i.test(tag)
+      if (/\bstroke\s*=/i.test(tag) || /\bfill\s*=/i.test(tag)) return match
+      if (!hasClass && !hasStrokeWidth) return match
+      const out = tag.replace(/class="ionicon-fill-none"/g, '')
+      return `<${out} fill="none"${hasStrokeWidth ? ' stroke="currentColor"' : ''}/>`
+    },
+  )
 }
 
 // ── Build the glyph map ──
@@ -156,7 +184,7 @@ for (const id of CUSTOM_ICONS) {
   const key = `custom-svg-${id}`
   glyphs[key] = {
     ...extractSymbol(id),
-    tint: FULLY_TINTED_CUSTOM.has(key) ? 'fill' : 'keep',
+    tint: KEEP_GLYPH_CUSTOM.has(key) ? 'keep' : 'fill',
   }
 }
 

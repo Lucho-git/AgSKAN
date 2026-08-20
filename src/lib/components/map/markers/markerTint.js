@@ -102,10 +102,25 @@ export function tintMarkerCanvas(canvas, colorDef, mode, opts = {}) {
   const isRainbow = colorDef.key === "rainbow"
   const imageData = ctx.getImageData(0, 0, width, height)
   const data = imageData.data
-  const [lr, lg, lb] = hexToRgb(colorDef.light)
+  let [lr, lg, lb] = hexToRgb(colorDef.light)
   // Bright vivid accent — the colour set used by every non-original style
   // EXCEPT icon-fill (saturated, never the dark/deep shades).
-  const [br, bg, bb] = hexToRgb(colorDef.dark)
+  let [br, bg, bb] = hexToRgb(colorDef.dark)
+  // Neutral-disc softening (2026-08-20): the pure WHITE discs read as
+  // icon-fill's soft off-white #f1f5f9 (circle-fill-black AND original).
+  // Black is a real black again in circle-fill — it's a palette colour now
+  // (the circle-fill default is blue).
+  if (mode === "circle-fill-black" && colorDef.key === "white") {
+    br = 241
+    bg = 245
+    bb = 249 // #f1f5f9 slate-100 (icon-fill's circle)
+  } else if (mode === "original" && colorDef.key === "white") {
+    // Original's disc uses the light shade — soften pure white to the same
+    // off-white so the original style stops being "too white".
+    lr = 241
+    lg = 245
+    lb = 249 // #f1f5f9 slate-100
+  }
   // Deep rich shade — icon-fill only (its glyph on the white circle).
   const [dr, dg, db] = hexToRgb(colorDef.deep)
   // Neutral glyph colour used by circle-fill so the symbol always shows.

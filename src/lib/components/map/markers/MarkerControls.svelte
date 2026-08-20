@@ -19,10 +19,12 @@
     markerDefaultColorKey,
     markerColor,
     styleSwatchBg,
+    styleDefaultColor,
     randomColorForId,
     RANDOM_COLOR_KEY,
   } from "./markerPalette"
   import MyMarkers from "$lib/components/map/toolbox/MyMarkers.svelte"
+  import MarkerSettingsPanel from "$lib/components/map/toolbox/MarkerSettingsPanel.svelte"
 
   const dispatch = createEventDispatcher()
 
@@ -65,6 +67,7 @@
         : marker.class
     let key = markerDefaultColorKey(iconClass, $userSettingsStore || {})
     if (key === RANDOM_COLOR_KEY) key = randomColorForId(iconClass)
+    if (!key) key = styleDefaultColor(markerStyle)
     return key
   }
 
@@ -72,33 +75,6 @@
   let visibleMarkers: MarkerDefinition[] = allMarkerIcons.slice(0, 20)
   let loadingMore = false
   let scrollContainer: HTMLDivElement
-
-  async function toggleZoomToLocation() {
-    const newVal = !zoomToLocation
-    userSettingsApi.updateMarkerInteractionSettings(
-      newVal,
-      zoomToPlaced,
-      autoConfirm,
-    )
-  }
-
-  async function toggleZoomToPlaced() {
-    const newVal = !zoomToPlaced
-    userSettingsApi.updateMarkerInteractionSettings(
-      zoomToLocation,
-      newVal,
-      autoConfirm,
-    )
-  }
-
-  async function toggleAutoConfirm() {
-    const newVal = !autoConfirm
-    userSettingsApi.updateMarkerInteractionSettings(
-      zoomToLocation,
-      zoomToPlaced,
-      newVal,
-    )
-  }
 
   let selectedMarker: MarkerDefinition = fallbackMarker
   let resolvedExtraMarkers: MarkerDefinition[] = []
@@ -462,55 +438,7 @@
           <span>Marker Settings</span>
         </div>
 
-        <div class="settings-list">
-          <!-- Zoom on quick-drop -->
-          <label class="settings-row">
-            <div class="settings-info">
-              <span class="settings-label">Zoom on quick-drop</span>
-              <span class="settings-hint"
-                >Auto-zoom when dropping at your location</span
-              >
-            </div>
-            <input
-              type="checkbox"
-              class="toggle toggle-sm"
-              checked={zoomToLocation}
-              on:change={toggleZoomToLocation}
-            />
-          </label>
-
-          <!-- Zoom on touch-hold -->
-          <label class="settings-row">
-            <div class="settings-info">
-              <span class="settings-label">Zoom on touch-hold</span>
-              <span class="settings-hint"
-                >Auto-zoom when placing pins on the map</span
-              >
-            </div>
-            <input
-              type="checkbox"
-              class="toggle toggle-sm"
-              checked={zoomToPlaced}
-              on:change={toggleZoomToPlaced}
-            />
-          </label>
-
-          <!-- Auto-confirm markers -->
-          <label class="settings-row">
-            <div class="settings-info">
-              <span class="settings-label">Auto-confirm markers</span>
-              <span class="settings-hint"
-                >Skip icon picker and confirm instantly</span
-              >
-            </div>
-            <input
-              type="checkbox"
-              class="toggle toggle-sm"
-              checked={autoConfirm}
-              on:change={toggleAutoConfirm}
-            />
-          </label>
-        </div>
+        <MarkerSettingsPanel />
       </div>
     </div>
   {:else if activeSubPanel === "markers"}

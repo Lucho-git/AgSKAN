@@ -17,7 +17,6 @@
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { userVehicleStore } from "$lib/stores/vehicleStore"
-  import { markerTestStore } from "$lib/stores/markerTestStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
   import { get } from "svelte/store"
@@ -34,6 +33,7 @@
     markerColor,
     markerDefaultColorKey,
     effectiveColorKey,
+    styleDefaultColor,
     isCustomSvgIcon,
     RANDOM_COLOR_KEY,
     randomColorForId,
@@ -287,7 +287,6 @@
   let locationMarkerUnsubscribe
   let extraLocationMarkerUnsubscribe
   let confirmedMarkersUnsubscribe
-  let testMarkersUnsubscribe
   let globalStyleUnsubscribe
   let lastGlobalStyle = null
   let lastGlassOpacity = null
@@ -934,12 +933,7 @@
       (marker) => ($markerVisibilityStore[marker.id] || "always") !== "hidden",
     )
 
-    // Merge in any "Marker Test" grid markers (toolbox feature) so they
-    // render exactly like real markers through the same tint pipeline.
-    const testMarkers = $markerTestStore || []
-    const allVisible = [...visibleMarkers, ...testMarkers]
-
-    const features = allVisible.map((marker) => {
+    const features = visibleMarkers.map((marker) => {
       const baseIcon = getIconImageName(marker.iconClass)
       // The global marker style (chosen in Profile → Marker Settings) is
       // applied to every tintable marker — even ones without their own
@@ -1021,7 +1015,6 @@
           iconClass: marker.iconClass || "default",
           selected: $selectedMarkerStore?.id === marker.id,
           confirmed: true,
-          testMarker: !!marker.testMarker,
           // Option B: selection ring colour derived from the marker colour.
           selectionColor: colorDef?.dark || "#60a5fa",
           // Add truncated note label for display
@@ -1103,7 +1096,6 @@
             // the next refresh.
             selected: p.selected,
             confirmed: true,
-            testMarker: !!p.testMarker,
             barImage: p.barImage,
             barOffset: p.barOffset,
           },
@@ -1476,8 +1468,9 @@
       resolved = markerDefaultColorKey(iconClass, $userSettingsStore || {})
     }
     if (resolved === RANDOM_COLOR_KEY) resolved = randomColorForId(markerId)
-    if (!MARKER_COLORS.some((c) => c.key === resolved)) {
-      resolved = randomColorForId(markerId)
+    // No user-set default → the style's neutral default (STYLE_DEFAULT_COLORS).
+    if (!resolved || !MARKER_COLORS.some((c) => c.key === resolved)) {
+      resolved = styleDefaultColor(globalStyle)
     }
     const useTint =
       isCustomIcon ||
@@ -2149,12 +2142,6 @@
     const markerId = feature.properties.id
     const coordinates = feature.geometry.coordinates
 
-    // "Marker Test" grid markers are for viewing only — don't select them.
-    if (feature.properties.testMarker) {
-      console.log("🎯 MarkerManager: Ignoring test marker click:", markerId)
-      return
-    }
-
     console.log("🎯 MarkerManager: Selecting marker:", markerId)
 
     updateMarkerSelection(markerId, true)
@@ -2480,11 +2467,6 @@
       if (markersInitialized && map) refreshMapMarkers()
     })
 
-    // Re-render when the "Marker Test" grid is placed or cleared.
-    testMarkersUnsubscribe = markerTestStore.subscribe(() => {
-      if (markersInitialized && map) refreshMapMarkers()
-    })
-
     // Re-render all markers when the global marker style, the per-style
     // default colours, or the icon-only glass opacity changes.
     globalStyleUnsubscribe = userSettingsStore.subscribe((settings) => {
@@ -2539,7 +2521,6 @@
     if (locationMarkerUnsubscribe) locationMarkerUnsubscribe()
     if (extraLocationMarkerUnsubscribe) extraLocationMarkerUnsubscribe()
     if (confirmedMarkersUnsubscribe) confirmedMarkersUnsubscribe()
-    if (testMarkersUnsubscribe) testMarkersUnsubscribe()
     if (globalStyleUnsubscribe) globalStyleUnsubscribe()
     if (remoteRippleUnsubscribe) remoteRippleUnsubscribe()
     if (remoteEditUnsubscribe) remoteEditUnsubscribe()

@@ -50,6 +50,7 @@
   import BulkDeleteOverlay from "$lib/components/map/markers/BulkDeleteOverlay.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
+  import MarkerOnboarding from "$lib/components/map/toolbox/MarkerOnboarding.svelte"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
@@ -2261,6 +2262,9 @@
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}
 />
+
+<!-- First-run marker onboarding (pick a style → set default colours) -->
+<MarkerOnboarding {mapLoaded} />
 
 <!-- Dev Mode Joystick Overlay -->
 {#if $devModeEnabled}

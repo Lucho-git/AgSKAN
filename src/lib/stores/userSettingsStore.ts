@@ -5,8 +5,10 @@ import { TINT_MODE_DEFAULT } from '../components/map/markers/markerPalette';
 // Default settings - start with 7 days ago
 const defaultSettings = {
     markerStyle: TINT_MODE_DEFAULT, // Global marker style (tint mode) applied to every marker
-    markerDefaultColorMode: 'custom', // Default colour for markers with none: 'single' | 'custom' (per type)
-    markerDefaultColor: 'blue', // The single default colour ('single' mode + per-type fallback; 'random' = random colours)
+    markerDefaultColorMode: 'single', // Legacy — single/custom mode is gone; the modal always writes 'single'
+    markerDefaultColor: 'default', // 'All markers' base colour: a colour key, 'random', or 'default' = the style's original neutral
+    markerOnboardingDone: false, // First-run marker style + colour popup shown once (persisted on the server)
+    markerOnboardingSkips: 0, // "Not now" dismissals of the first-run popup — it returns until 3 then stops
     markerTypeDefaultColors: {} as Record<string, string>, // Per-marker-type default colours ({iconClass: colorKey})
     iconGlassOpacity: 0.3, // 0-1: how strong the translucent disc is for the "Icon only" light/dark styles
     zoomToLocationMarkers: false, // Auto-zoom on quick-drop markers (default off)
