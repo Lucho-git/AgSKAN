@@ -229,6 +229,12 @@ export function siloColorKey(key?: string | null): string {
   return LEGACY_SILO_COLOR_KEYS[k] || k
 }
 
+// The marker icon class that carries the special grain-bin functionality
+// (the on-map fill gauge + Add/Take grain editor, "what's stored" + bin
+// size). This used to be the Silo (custom-svg-silo2) — the Silo is a normal
+// marker again, and the Fiverr "Field Bin" icon now owns the machinery.
+export const GRAIN_BIN_ICON_CLASS = "custom-svg-fiver_field_bin_v4"
+
 // Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,
 // tree, wheat, kangaroo sign). Every OTHER custom SVG marker tints fully
 // with the chosen colour (like atlas/ionic icons). The water tank tints its

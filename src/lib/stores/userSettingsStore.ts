@@ -12,10 +12,10 @@ const defaultSettings = {
     markerTypeDefaultColors: {} as Record<string, string>, // Per-marker-type default colours ({iconClass: colorKey})
     iconGlassOpacity: 0.3, // 0-1: how strong the translucent disc is for the "Icon only" light/dark styles
     zoomToLocationMarkers: false, // Auto-zoom on quick-drop markers (default off)
-    zoomToPlacedMarkers: true, // Auto-zoom to manually placed markers
+    zoomToPlacedMarkers: false, // Camera find on touch hold — no auto-zoom (default off)
     autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
-    overlayMarkerMenuEnabled: false, // Use the new on-map overlay marker menu for all (non-silo) markers
-    overlayPlacementMenuEnabled: false, // Use the new overlay-style placement menu for new markers
+    overlayMarkerMenuEnabled: true, // Marker menu style: on-map panel by default
+    overlayPlacementMenuEnabled: true, // Placement menu style: on-map panel by default
     showBinsAlways: false, // Show offscreen tracking circles for all silo bins (default off)
     showVehiclesAlways: true, // Show offscreen tracking dots for recently-active vehicles (default on)
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)

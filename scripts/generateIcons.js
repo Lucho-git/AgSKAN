@@ -29,7 +29,18 @@ const customSvgIcons = [
   "water_tower2",
   "mapbox-marker",
     "mapbox-marker-selected", 
-  "mapbox-marker-outlined"  
+  "mapbox-marker-outlined",
+  // FIVER_ICONS_START
+  "fiver_field_bin_v4",
+  "fiver_bulldozer",
+  "fiver_dump_truck_v2",
+  "fiver_tow_truck",
+  "fiver_fuel",
+  "fiver_harvest",
+  "fiver_harvest_v2",
+  "fiver_vegetables",
+  "fiver_kg",
+// FIVER_ICONS_END
 ]
 
 const ionicIcons = [
@@ -57,7 +68,7 @@ const atlasIcons = [
 
 // Function to extract everything from IconSVG.svelte including individual defs
 function extractSvgContent() {
-  const iconSvgPath = path.join(__dirname, '../src/components/IconSVG.svelte')
+  const iconSvgPath = path.join(__dirname, '../src/lib/components/general/IconSVG.svelte')
   const content = readFileSync(iconSvgPath, 'utf-8')
   
   const symbols = {}

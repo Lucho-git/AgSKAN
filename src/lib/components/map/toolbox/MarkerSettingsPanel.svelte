@@ -92,11 +92,11 @@
   $: isGlassStyle =
     markerStyle === "icon-dark-glass" || markerStyle === "icon-light-glass"
   $: overlayMarkerMenuEnabled =
-    $userSettingsStore.overlayMarkerMenuEnabled ?? false
+    $userSettingsStore.overlayMarkerMenuEnabled ?? true
   $: overlayPlacementMenuEnabled =
-    $userSettingsStore.overlayPlacementMenuEnabled ?? false
+    $userSettingsStore.overlayPlacementMenuEnabled ?? true
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
-  $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
+  $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? false
 
   // ── Handlers (mirror the old ProfileControls section) ──
   async function toggleAutoConfirm(value) {
@@ -105,7 +105,7 @@
       const s = $userSettingsStore
       const result = await userSettingsApi.updateMarkerInteractionSettings(
         s.zoomToLocationMarkers ?? false,
-        s.zoomToPlacedMarkers ?? true,
+        s.zoomToPlacedMarkers ?? false,
         value,
       )
       if (result?.success) {
@@ -128,7 +128,7 @@
       const s = $userSettingsStore
       const result = await userSettingsApi.updateZoomSettings(
         value,
-        s.zoomToPlacedMarkers ?? true,
+        s.zoomToPlacedMarkers ?? false,
       )
       if (result?.success) {
         toast.success("Camera find on quick drop: " + (value ? "zoom" : "none"))

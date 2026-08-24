@@ -15,10 +15,10 @@
 
   // Derived from store — same pattern as app-information (no flash)
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
-  $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? true
+  $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
-  $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? false
-  $: overlayPlacementMenuEnabled = $userSettingsStore.overlayPlacementMenuEnabled ?? false
+  $: overlayMarkerMenuEnabled = $userSettingsStore.overlayMarkerMenuEnabled ?? true
+  $: overlayPlacementMenuEnabled = $userSettingsStore.overlayPlacementMenuEnabled ?? true
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
 
   $: isConnected = $connectedMapStore?.id

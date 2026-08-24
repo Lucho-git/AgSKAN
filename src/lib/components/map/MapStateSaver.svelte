@@ -192,6 +192,8 @@
           newData.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
         capacityTonnes:
           newData.marker_data?.properties?.capacity_tonnes ?? 200,
+        fieldBinConfigured:
+          newData.marker_data?.properties?.field_bin_configured === true,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -240,6 +242,7 @@
         markerColor: processedMarker.markerColor,
         tintMode: processedMarker.tintMode,
         capacityTonnes: processedMarker.capacityTonnes,
+        fieldBinConfigured: processedMarker.fieldBinConfigured,
         created_at: processedMarker.created_at,
       })
 
@@ -314,7 +317,8 @@
         lastKnown.grainColor !== marker.grainColor ||
         lastKnown.markerColor !== marker.markerColor ||
         lastKnown.tintMode !== marker.tintMode ||
-        lastKnown.capacityTonnes !== marker.capacityTonnes
+        lastKnown.capacityTonnes !== marker.capacityTonnes ||
+        lastKnown.fieldBinConfigured !== marker.fieldBinConfigured
       ) {
         pendingChanges.add(id)
         persistPendingMarkerChange(marker)
@@ -351,6 +355,7 @@
         markerColor: marker.markerColor,
         tintMode: marker.tintMode,
         capacityTonnes: marker.capacityTonnes,
+        fieldBinConfigured: marker.fieldBinConfigured,
       })
     })
     pendingChanges.clear()
@@ -548,6 +553,8 @@
               marker.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
             capacityTonnes:
               marker.marker_data?.properties?.capacity_tonnes ?? 200,
+            fieldBinConfigured:
+              marker.marker_data?.properties?.field_bin_configured === true,
             photos: marker.marker_data?.properties?.photos || [],
             created_at:
               marker.last_confirmed ||
@@ -659,6 +666,7 @@
               marker_color: marker.markerColor || MARKER_COLOR_DEFAULT,
               tint_mode: marker.tintMode || TINT_MODE_DEFAULT,
               capacity_tonnes: marker.capacityTonnes ?? 200,
+              field_bin_configured: !!marker.fieldBinConfigured,
               photos: marker.photos || [],
             },
           },

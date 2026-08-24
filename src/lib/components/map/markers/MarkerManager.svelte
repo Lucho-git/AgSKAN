@@ -42,6 +42,7 @@
     PICKABLE_MARKER_COLORS,
     SILO_COLOR_DEFAULT,
     siloColorKey,
+    GRAIN_BIN_ICON_CLASS,
     paletteVariantSuffix,
   } from "./markerPalette"
   import {
@@ -655,7 +656,7 @@
       return
     }
     const silos = (markers || []).filter(
-      (m) => (m.iconClass || "") === "custom-svg-silo2",
+      (m) => (m.iconClass || "") === GRAIN_BIN_ICON_CLASS,
     )
     const wanted = new Set(
       enabled ? silos.map((s) => `silo-track-${s.id}`) : [],
@@ -684,7 +685,7 @@
         id: `silo-track-${s.id}`,
         coordinates: s.coordinates,
         color: colorDef.dark,
-        label: s.notes?.trim() || "Silo",
+        label: s.notes?.trim() || "Field Bin",
         barLevel: s.siloFill ?? 0,
         barColor: colorDef.dark,
         iconSvg: SILO_TRACK_ICON_SVG,
@@ -874,7 +875,7 @@
         minzoom: 11,
         filter: [
           "all",
-          ["==", ["get", "iconClass"], "custom-svg-silo2"],
+          ["==", ["get", "iconClass"], GRAIN_BIN_ICON_CLASS],
           ["==", ["get", "confirmed"], true],
           // The SELECTED silo's label lives in the DOM selection overlay
           // (it pops with the icon instead of being covered by it).
@@ -953,7 +954,7 @@
       // grain colour (from the same standard palette, legacy keys mapped) is
       // their only colour, and they render in "original" mode so the global
       // marker style / default-colour mode can never affect them.
-      const isSilo = marker.iconClass === "custom-svg-silo2"
+      const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
       // A marker without its own colour (or set to Default) uses the
       // selected style's default colour. The pin keeps its original look
       // unless given an explicit colour.
@@ -1026,22 +1027,22 @@
           hasNotes: !!marker.notes,
           // Silo fill gauge — level + grain colour derived from the marker.
           barImage:
-            marker.iconClass === "custom-svg-silo2"
+            marker.iconClass === GRAIN_BIN_ICON_CLASS
               ? `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
                   marker.siloFill,
                 )}`
               : null,
           barOffset:
-            marker.iconClass === "custom-svg-silo2" ? [0, 56] : null,
+            marker.iconClass === GRAIN_BIN_ICON_CLASS ? [0, 56] : null,
           // Silo contents label shown on the map (like the note labels),
           // truncated to 20 chars so long contents don't sprawl.
           grainLabel:
-            marker.iconClass === "custom-svg-silo2"
+            marker.iconClass === GRAIN_BIN_ICON_CLASS
               ? truncateContents(marker.grainType)
               : null,
           // Push the grain label higher when the silo also has a note label.
           grainOffset:
-            marker.iconClass === "custom-svg-silo2"
+            marker.iconClass === GRAIN_BIN_ICON_CLASS
               ? marker.notes
                 ? [0, -3.2]
                 : [0, -1.6]
@@ -1081,14 +1082,14 @@
     for (const f of features) {
       expanded.push(f)
       const p = f.properties
-      if (p.iconClass === "custom-svg-silo2") {
+      if (p.iconClass === GRAIN_BIN_ICON_CLASS) {
         expanded.push({
           type: "Feature",
           geometry: f.geometry,
           properties: {
             id: p.id,
             isBar: true,
-            iconClass: "custom-svg-silo2",
+            iconClass: GRAIN_BIN_ICON_CLASS,
             // Emit the bar for SELECTED silos too (selected=true → hidden by
             // the layer filter). Otherwise a refresh while selected (e.g.
             // commitSiloMove during a move) DROPS the bar feature and
@@ -1238,7 +1239,7 @@
 
     data.features = data.features.map((f) => {
       const isTarget = f.properties.id === markerId
-      const isSilo = f.properties.iconClass === "custom-svg-silo2"
+      const isSilo = f.properties.iconClass === GRAIN_BIN_ICON_CLASS
       return {
         ...f,
         properties: {
@@ -1272,7 +1273,7 @@
     const marker = ($confirmedMarkersStore || []).find(
       (/** @type {any} */ m) => m.id === markerId,
     )
-    if (!marker || marker.iconClass !== "custom-svg-silo2") return
+    if (!marker || marker.iconClass !== GRAIN_BIN_ICON_CLASS) return
     const source = map.getSource("markers")
     const data = source._data
     data.features = data.features.map(
@@ -1360,7 +1361,7 @@
   function effectiveColorForMarker(marker) {
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = !marker.iconClass || marker.iconClass === "default"
-    const isSilo = marker.iconClass === "custom-svg-silo2"
+    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
     let colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1419,7 +1420,7 @@
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
-    const isSilo = marker.iconClass === "custom-svg-silo2"
+    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
     const colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1502,7 +1503,7 @@
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
-    const isSilo = marker.iconClass === "custom-svg-silo2"
+    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
     const colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1830,7 +1831,7 @@
     // symbol-layer bar is hidden for the selected silo), so compute its
     // fill + grain colour here — it pops with the icon, never covered. The
     // bar mirrors the symbol-layer gauge (light→dark gradient).
-    const isSilo = effectiveMarker.iconClass === "custom-svg-silo2"
+    const isSilo = effectiveMarker.iconClass === GRAIN_BIN_ICON_CLASS
     const siloInfo = isSilo
       ? (() => {
           const def = markerColor(
@@ -2552,7 +2553,7 @@
         null)
     : null
   $: selectedIsSilo =
-    (selectedMarker?.iconClass || "") === "custom-svg-silo2"
+    (selectedMarker?.iconClass || "") === GRAIN_BIN_ICON_CLASS
   // The new on-map overlay marker menu (MarkerOverlayPanel) applies to all
   // non-silo markers when the user setting is enabled; otherwise markers use
   // the classic MarkerEditPanel. Silos always use SiloMarkerPanel.

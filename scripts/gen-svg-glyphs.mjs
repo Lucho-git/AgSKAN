@@ -37,6 +37,17 @@ const CUSTOM_ICONS = [
   'water_tower2', 'liquid_tank', 'recharge_icon', 'fuel_refill',
   'machine_pump', 'electric_tower', 'gate', 'repair_shop', 'tractor',
   'silo2', 'tree_stump', 'workshop_icon',
+  // FIVER_ICONS_START
+  'fiver_field_bin_v4',
+  'fiver_bulldozer',
+  'fiver_dump_truck_v2',
+  'fiver_tow_truck',
+  'fiver_fuel',
+  'fiver_harvest',
+  'fiver_harvest_v2',
+  'fiver_vegetables',
+  'fiver_kg',
+// FIVER_ICONS_END
 ]
 const KEEP_GLYPH_CUSTOM = new Set([
   'custom-svg-rock',

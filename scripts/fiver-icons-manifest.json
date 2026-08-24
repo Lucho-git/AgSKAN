@@ -1,0 +1,68 @@
+{
+  "imported": [
+    {
+      "file": "field bin (4).svg",
+      "id": "fiver_field_bin_v4",
+      "name": "Field Bin",
+      "special": true
+    },
+    {
+      "file": "bulldozer.svg",
+      "id": "fiver_bulldozer",
+      "name": "Bulldozer"
+    },
+    {
+      "file": "dump truck 2.svg",
+      "id": "fiver_dump_truck_v2",
+      "name": "Dump Truck 2"
+    },
+    {
+      "file": "tow truck.svg",
+      "id": "fiver_tow_truck",
+      "name": "Tow Truck"
+    },
+    {
+      "file": "fuel.svg",
+      "id": "fiver_fuel",
+      "name": "Fuel",
+      "pad": 0.1
+    },
+    {
+      "file": "harvest .svg",
+      "id": "fiver_harvest",
+      "name": "Harvest",
+      "pad": 0.1
+    },
+    {
+      "file": "harvest 2.svg",
+      "id": "fiver_harvest_v2",
+      "name": "Harvest 2"
+    },
+    {
+      "file": "vegetables.svg",
+      "id": "fiver_vegetables",
+      "name": "Vegetables",
+      "pad": 0.1
+    },
+    {
+      "file": "kg.svg",
+      "id": "fiver_kg",
+      "name": "KG Weight",
+      "pad": 0.1
+    }
+  ],
+  "removed": [
+    "fiver_field_bin",
+    "fiver_field_bin_v2",
+    "fiver_bulldozer_v2",
+    "fiver_dump_truck",
+    "fiver_fuel_v2",
+    "fiver_house_car",
+    "fiver_house_car_v2",
+    "fiver_kg_v2",
+    "fiver_rude",
+    "fiver_rude_v2",
+    "fiver_tow_truck_v2",
+    "fiver_vegetables_v2"
+  ]
+}

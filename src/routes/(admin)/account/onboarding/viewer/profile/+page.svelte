@@ -425,8 +425,8 @@
                     <button
                       type="button"
                       on:click={handleJoinMap}
-                      disabled={!isValidMapId || isJoiningMap}
-                      class="rounded-lg border border-base-300 bg-base-200 px-3 py-2.5 text-sm font-semibold transition-all {!isValidMapId ||
+                      disabled={!joinMapId.trim() || isJoiningMap}
+                      class="rounded-lg border border-base-300 bg-base-200 px-3 py-2.5 text-sm font-semibold transition-all {!joinMapId.trim() ||
                       isJoiningMap
                         ? 'cursor-not-allowed text-contrast-content/50'
                         : 'text-base-content hover:border-base-content/40 hover:bg-base-content/10'}"

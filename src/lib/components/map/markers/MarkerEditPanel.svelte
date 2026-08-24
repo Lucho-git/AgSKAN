@@ -133,30 +133,6 @@
     : null
   $: selectedMarkerIsNew = $selectedMarkerStore && !currentMarker
 
-  // ── Silo fill slider ──
-  let siloFill = 0
-  $: isSiloMarker = (currentMarker?.iconClass || "") === "custom-svg-silo2"
-  $: if (currentMarker && isSiloMarker) {
-    const f = currentMarker.siloFill ?? 0
-    if (siloFill !== f) siloFill = f
-  }
-
-  // Dragging updates the map gauge live (no store write per tick).
-  function handleSiloFillInput() {
-    if (isSiloMarker && currentMarker) {
-      updateSiloBarLive(currentMarker.id, siloFill)
-    }
-  }
-
-  // On release, commit to the store so the sync/realtime pipeline persists
-  // it (other users see the change too).
-  function commitSiloFill() {
-    if (!isSiloMarker || !currentMarker) return
-    confirmedMarkersStore.update((markers) =>
-      markers.map((m) => (m.id === currentMarker.id ? { ...m, siloFill } : m)),
-    )
-  }
-
   // Revert pending icon change when component is destroyed (deselected, clicked away, etc.)
   onDestroy(() => {
     if (pendingIconChange) {
@@ -262,7 +238,15 @@
 
   // Use unified marker definitions
   const allMarkerIcons = getAllMarkers()
-  $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
+  // Atlas (at-*) outline icons are being phased out: they still render for
+  // existing markers on the map but are no longer offered in the pickers.
+  $: selectableMarkers = allMarkerIcons.filter(
+    (m) => m.active && !m.class.startsWith("at-"),
+  )
+  // Standard icons vs icons with special functionality (marked `special: true`
+  // in markerDefinitions) — rendered as separate groups with a divider.
+  $: standardMarkers = selectableMarkers.filter((m) => !m.special)
+  $: specialMarkers = selectableMarkers.filter((m) => m.special)
 
   // Get marker name
   function getMarkerName(iconClass) {
@@ -792,7 +776,26 @@
 
         <div class="icon-grid-container">
           <div class="icon-grid">
-            {#each selectableMarkers as icon}
+            {#if specialMarkers.length}
+              {#each specialMarkers as icon}
+                <button
+                  class="icon-option icon-option-special"
+                  class:selected={getIsIconSelected(icon, selectedIconKey)}
+                  on:click={() => handleIconPreview(icon)}
+                >
+                  {#if icon.id === "default"}
+                    <IconSVG icon="mapbox-marker" size="28px" />
+                  {:else if icon.class.startsWith("custom-svg")}
+                    <IconSVG icon={icon.id} size="28px" />
+                  {:else if icon.class.startsWith("ionic-")}
+                    <ion-icon name={icon.id} style="font-size: 28px;"></ion-icon>
+                  {:else}
+                    <i class={`${icon.class} text-2xl`}></i>
+                  {/if}
+                </button>
+              {/each}
+            {/if}
+            {#each standardMarkers as icon}
               <button
                 class="icon-option"
                 class:selected={getIsIconSelected(icon, selectedIconKey)}
@@ -1998,6 +2001,24 @@
     grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
     gap: 12px;
     padding-bottom: 16px;
+  }
+  /* Special icons: a small overlaying amber dot badge in the corner — the
+     tile itself stays normal-sized (no extra height, no colouring). The
+     name shows on hover via the button's title. */
+  .icon-option.icon-option-special {
+    position: relative;
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  .icon-option.icon-option-special::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.25);
   }
 
   .icon-option {

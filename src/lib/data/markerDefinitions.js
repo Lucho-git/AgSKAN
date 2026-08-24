@@ -1,55 +1,82 @@
 // Single source of truth for all markers
 export const MARKER_DEFINITIONS = [
   { id: "default", class: "default", name: "Default Marker", active: true },
-  
-  // Custom SVG markers - ACTIVE (high usage) — grouped so related icons sit
-  // together: rocks + natural landmarks, water storage, refuelling, then rest.
+
+  // ── Coloured (keep-their-own-colour) custom icons ──
   { id: "rock", class: "custom-svg", name: "Rock", active: true },
   { id: "rock_pile", class: "custom-svg", name: "Rock Pile", active: true },
   { id: "tree13", class: "custom-svg", name: "Tree", active: true },
   { id: "wheat2", class: "custom-svg", name: "Wheat", active: true },
   { id: "kangaroo", class: "custom-svg", name: "Kangaroo", active: true },
-  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
-  { id: "water_tower2", class: "custom-svg", name: "Water Tower", active: true },
-  { id: "liquid_tank", class: "custom-svg", name: "Liquid Tank", active: true },
-  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
-  { id: "fuel_refill", class: "custom-svg", name: "Fuel Pump", active: true },
-  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
-  { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
-  { id: "gate", class: "custom-svg", name: "Gate", active: true },
-  { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
-  { id: "tractor", class: "custom-svg", name: "Tractor", active: true },
-  { id: "silo2", class: "custom-svg", name: "Silo", active: true },
-  { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
-  { id: "workshop_icon", class: "custom-svg", name: "Workshop", active: true },
-  
-  // Ionic markers - ACTIVE (high/medium usage)
+
+  // ── Status & direction ──
   { id: "pin", class: "ionic-pin", name: "Pin", active: true },
   { id: "arrow-up-circle", class: "ionic-arrow-up-circle", name: "Arrow Up", active: true },
   { id: "arrow-down-circle", class: "ionic-arrow-down-circle", name: "Arrow Down", active: true },
   { id: "arrow-back-circle", class: "ionic-arrow-back-circle", name: "Arrow Back", active: true },
   { id: "arrow-forward-circle", class: "ionic-arrow-forward-circle", name: "Arrow Forward", active: true },
-  { id: "thumbs-down", class: "ionic-thumbs-down", name: "Thumbs Down", active: true },
-  { id: "thumbs-up", class: "ionic-thumbs-up", name: "Thumbs Up", active: true },
-  { id: "people", class: "ionic-people", name: "People", active: true },
-  { id: "home", class: "ionic-home", name: "Home", active: true },
   { id: "checkmark-circle", class: "ionic-checkmark-circle", name: "Success", active: true },
   { id: "close-circle", class: "ionic-close-circle", name: "Error", active: true },
   { id: "information-circle", class: "ionic-information-circle", name: "Info", active: true },
   { id: "warning", class: "ionic-warning", name: "Warning", active: true },
   { id: "help-circle", class: "ionic-help-circle", name: "Help", active: true },
   { id: "ban", class: "ionic-ban", name: "Ban", active: true },
-  { id: "trail-sign", class: "ionic-trail-sign", name: "Trail", active: true },
-  { id: "beer", class: "ionic-beer", name: "Beer", active: true },
-  { id: "paw", class: "ionic-paw", name: "Animal", active: true },
   { id: "skull", class: "ionic-skull", name: "Danger", active: true },
+  { id: "trail-sign", class: "ionic-trail-sign", name: "Trail", active: true },
+
+  // ── People & reactions ──
+  { id: "people", class: "ionic-people", name: "People", active: true },
+  { id: "thumbs-up", class: "ionic-thumbs-up", name: "Thumbs Up", active: true },
+  { id: "thumbs-down", class: "ionic-thumbs-down", name: "Thumbs Down", active: true },
+
+  // ── Nature & landmarks ──
+  { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
+
+  // ── Tanks, fuel & utilities ──
+  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
+  { id: "water_tower2", class: "custom-svg", name: "Water Tower", active: true },
+  { id: "liquid_tank", class: "custom-svg", name: "Liquid Tank", active: true },
+  { id: "fuel_refill", class: "custom-svg", name: "Fuel Pump", active: true },
+  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
+  { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
+  { id: "silo2", class: "custom-svg", name: "Silo", active: true },
+  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
+
+  // ── Places & buildings ──
+  { id: "gate", class: "custom-svg", name: "Gate", active: true },
+  { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
+  { id: "workshop_icon", class: "custom-svg", name: "Workshop", active: true },
+  { id: "home", class: "ionic-home", name: "Home", active: true },
+
+  // ── Vehicles & machinery (tractor sits right before the fiver vehicles) ──
+  { id: "tractor", class: "custom-svg", name: "Tractor", active: true },
+
+  // FIVER_ICONS_START
+  { id: "fiver_field_bin_v4", class: "custom-svg", name: "Field Bin", active: true, special: true },
+  { id: "fiver_bulldozer", class: "custom-svg", name: "Bulldozer", active: true },
+  { id: "fiver_dump_truck_v2", class: "custom-svg", name: "Dump Truck 2", active: true },
+  { id: "fiver_tow_truck", class: "custom-svg", name: "Tow Truck", active: true },
+  { id: "fiver_fuel", class: "custom-svg", name: "Fuel", active: true },
+  { id: "fiver_harvest", class: "custom-svg", name: "Harvest", active: true },
+  { id: "fiver_harvest_v2", class: "custom-svg", name: "Harvest 2", active: true },
+  { id: "fiver_vegetables", class: "custom-svg", name: "Vegetables", active: true },
+  { id: "fiver_kg", class: "custom-svg", name: "KG Weight", active: true },
+// FIVER_ICONS_END
+
+  // ── Animals ──
+  { id: "paw", class: "ionic-paw", name: "Animal", active: true },
   { id: "fish", class: "ionic-fish", name: "Fish", active: true },
-  { id: "bonfire", class: "ionic-bonfire", name: "Fire", active: true },
-  { id: "construct", class: "ionic-construct", name: "Construction", active: true },
-  { id: "leaf", class: "ionic-leaf", name: "Leaf", active: true },
+
+  // ── Weather ──
   { id: "rainy", class: "ionic-rainy", name: "Rain", active: true },
   { id: "cloud", class: "ionic-cloud", name: "Cloud", active: true },
   { id: "water", class: "ionic-water", name: "Water", active: true },
+
+  // ── Misc ──
+  { id: "beer", class: "ionic-beer", name: "Beer", active: true },
+  { id: "bonfire", class: "ionic-bonfire", name: "Fire", active: true },
+  { id: "construct", class: "ionic-construct", name: "Construction", active: true },
+  { id: "leaf", class: "ionic-leaf", name: "Leaf", active: true },
   
   // Atlas markers - ACTIVE (high/medium usage)
   { id: "car-garage", class: "at-car-garage", name: "Garage", active: true },

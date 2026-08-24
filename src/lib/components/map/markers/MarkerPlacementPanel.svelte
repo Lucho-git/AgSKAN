@@ -82,7 +82,15 @@
 
   // ── Icon selection + live preview ──
   let previewIconClass = null
-  $: selectableMarkers = getAllMarkers().filter((m) => m.active)
+  // Atlas (at-*) outline icons are being phased out: they still render for
+  // existing markers on the map but are no longer offered in the pickers.
+  $: selectableMarkers = getAllMarkers().filter(
+    (m) => m.active && !m.class.startsWith("at-"),
+  )
+  // Standard icons vs icons with special functionality (marked `special: true`
+  // in markerDefinitions) — rendered as separate groups with a divider.
+  $: standardMarkers = selectableMarkers.filter((m) => !m.special)
+  $: specialMarkers = selectableMarkers.filter((m) => m.special)
 
   // Live-preview the picked colour/icon on the map for the brand-new marker
   // (rendered via the selected symbol layer) before it's confirmed.
@@ -454,7 +462,27 @@
       </div>
 
       <div class="mp-icon-grid">
-        {#each selectableMarkers as icon}
+        {#if specialMarkers.length}
+          {#each specialMarkers as icon}
+            <button
+              class="mp-icon-option mp-icon-option-special"
+              class:selected={getIsIconSelected(icon, selectedIconKey)}
+              on:click={() => previewIcon(icon)}
+              title={icon.name}
+            >
+              {#if icon.id === "default"}
+                <IconSVG icon="mapbox-marker" size="22px" />
+              {:else if icon.class.startsWith("custom-svg")}
+                <IconSVG icon={icon.id} size="22px" />
+              {:else if icon.class.startsWith("ionic-")}
+                <ion-icon name={icon.id} style="font-size: 22px;"></ion-icon>
+              {:else}
+                <i class={`${icon.class} text-lg`}></i>
+              {/if}
+            </button>
+          {/each}
+        {/if}
+        {#each standardMarkers as icon}
           <button
             class="mp-icon-option"
             class:selected={getIsIconSelected(icon, selectedIconKey)}
@@ -760,10 +788,31 @@
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.6);
   }
 
+  /* Single compact grid — special icons come first and stand out via an
+     amber accent (border, tint, amber name + corner dot) instead of a
+     divider, so they don't waste space. */
   .mp-icon-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 6px;
+  }
+  /* Special icons: a small overlaying amber dot badge in the corner — the
+     tile itself stays normal-sized (no extra height, no colouring). The
+     name shows on hover via the button's title. */
+  .mp-icon-option.mp-icon-option-special {
+    position: relative;
+    border-color: rgba(245, 158, 11, 0.35);
+  }
+  .mp-icon-option.mp-icon-option-special::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.25);
   }
   .mp-icon-option {
     display: flex;

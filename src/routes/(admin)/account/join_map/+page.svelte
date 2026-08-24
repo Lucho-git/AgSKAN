@@ -42,13 +42,24 @@
       return
     }
 
-    const { data: map, error } = await supabase
+    // Try the short join code first, then fall back to the master map UUID
+    // — same as mapApi.connectToMap and the onboarding pages.
+    let { data: map } = await supabase
       .from("master_maps")
       .select("id")
-      .eq("id", joinMapId)
-      .single()
+      .eq("join_code", joinMapId)
+      .maybeSingle()
 
-    isValidMapId = !error && map !== null
+    if (!map) {
+      const { data: byId } = await supabase
+        .from("master_maps")
+        .select("id")
+        .eq("id", joinMapId)
+        .maybeSingle()
+      map = byId
+    }
+
+    isValidMapId = map !== null
   }
 
   async function handleJoinMap() {
@@ -286,7 +297,7 @@
                 <input
                   type="text"
                   bind:value={joinMapId}
-                  placeholder="Enter map ID"
+                  placeholder="Enter map code or map ID"
                   class="input input-bordered flex-1"
                   required={!skipMapId}
                   on:input={checkMapIdValidity}
@@ -294,7 +305,7 @@
                 <button
                   type="button"
                   class="btn btn-primary"
-                  disabled={!isValidMapId || isJoiningMap}
+                  disabled={!joinMapId.trim() || isJoiningMap}
                   on:click={handleJoinMap}
                 >
                   {#if isJoiningMap}
@@ -305,7 +316,9 @@
               </div>
               {#if joinMapId && !isValidMapId}
                 <label class="label">
-                  <span class="label-text-alt text-error">Invalid Map ID</span>
+                  <span class="label-text-alt text-error">
+                    Map not found — check the code
+                  </span>
                 </label>
               {/if}
             </div>

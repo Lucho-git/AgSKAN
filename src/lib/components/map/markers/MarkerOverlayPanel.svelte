@@ -55,6 +55,7 @@
     styleDefaultColor,
     randomColorForId,
     RANDOM_COLOR_KEY,
+    GRAIN_BIN_ICON_CLASS,
   } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import PhotoLightbox from "$lib/components/map/markers/PhotoLightbox.svelte"
@@ -277,7 +278,15 @@
   $: headerColorDef = markerColor(headerColorKey)
 
   const allMarkerIcons = getAllMarkers()
-  $: selectableMarkers = allMarkerIcons.filter((m) => m.active)
+  // Atlas (at-*) outline icons are being phased out: they still render for
+  // existing markers on the map but are no longer offered in the pickers.
+  $: selectableMarkers = allMarkerIcons.filter(
+    (m) => m.active && !m.class.startsWith("at-"),
+  )
+  // Standard icons vs icons with special functionality (marked `special: true`
+  // in markerDefinitions) — rendered as separate groups with a divider.
+  $: standardMarkers = selectableMarkers.filter((m) => !m.special)
+  $: specialMarkers = selectableMarkers.filter((m) => m.special)
 
   // Sync local state when the marker changes.
   $: {
@@ -492,10 +501,11 @@
     // Commit to the confirmed store too so MarkerManager re-renders the
     // marker with its colour/style applied on the map BEFORE Save is pressed
     // (the selection overlay reads confirmedMarkersStore). EXCEPT the silo:
-    // committing iconClass=custom-svg-silo2 here would flip selectedIsSilo
-    // and switch the menu to the silo panel mid-preview. The conversion only
-    // happens on Save (confirmIcon commits it, then the silo panel opens).
-    if (newIconClass !== "custom-svg-silo2") {
+    // committing iconClass=GRAIN_BIN_ICON_CLASS here would flip
+    // selectedIsSilo and switch the menu to the special panel mid-preview.
+    // The conversion only happens on Save (confirmIcon commits it, then the
+    // special panel opens).
+    if (newIconClass !== GRAIN_BIN_ICON_CLASS) {
       confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
         markers.map((/** @type {any} */ m) =>
           m.id === marker.id
@@ -557,9 +567,10 @@
     }
 
     resetIconEdit()
-    // Update confirms the change. Converting a marker INTO a silo keeps it
-    // selected so the silo edit panel opens; everything else closes the menu.
-    if (newIconClass !== "custom-svg-silo2") {
+    // Update confirms the change. Converting a marker INTO the special
+    // grain bin keeps it selected so its edit panel opens; everything else
+    // closes the menu.
+    if (newIconClass !== GRAIN_BIN_ICON_CLASS) {
       deselectMarker()
     }
   }
@@ -1335,7 +1346,27 @@
             {/if}
           </div>
           <div class="mp-icon-grid">
-            {#each selectableMarkers as icon}
+            {#if specialMarkers.length}
+              {#each specialMarkers as icon}
+                <button
+                  class="mp-icon-option mp-icon-option-special"
+                  class:selected={getIsIconSelected(icon, selectedIconKey)}
+                  on:click={() => previewIcon(icon)}
+                  title={icon.name}
+                >
+                  {#if icon.id === "default"}
+                    <IconSVG icon="mapbox-marker" size="22px" />
+                  {:else if icon.class.startsWith("custom-svg")}
+                    <IconSVG icon={icon.id} size="22px" />
+                  {:else if icon.class.startsWith("ionic-")}
+                    <ion-icon name={icon.id} style="font-size: 22px;"></ion-icon>
+                  {:else}
+                    <i class={`${icon.class} text-lg`}></i>
+                  {/if}
+                </button>
+              {/each}
+            {/if}
+            {#each standardMarkers as icon}
               <button
                 class="mp-icon-option"
                 class:selected={getIsIconSelected(icon, selectedIconKey)}
@@ -2285,11 +2316,31 @@
     cursor: default;
   }
 
-  /* Icon grid */
+  /* Single compact grid — special icons come first and stand out via an
+     amber accent (border, tint, amber name + corner dot) instead of a
+     divider, so they don't waste space. */
   .mp-icon-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 6px;
+  }
+  /* Special icons: a small overlaying amber dot badge in the corner — the
+     tile itself stays normal-sized (no extra height, no colouring). The
+     name shows on hover via the button's title. */
+  .mp-icon-option.mp-icon-option-special {
+    position: relative;
+    border-color: rgba(245, 158, 11, 0.35);
+  }
+  .mp-icon-option.mp-icon-option-special::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.25);
   }
   .mp-icon-option {
     display: flex;

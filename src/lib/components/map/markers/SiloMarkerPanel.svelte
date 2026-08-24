@@ -2,7 +2,7 @@
 <!-- Map-anchored silo editor: appears above the selected silo marker, with
      the silo symbol, a free-text "what's stored" field, and a fill slider. -->
 <script>
-  import { onMount, onDestroy, tick } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { X, Trash2, Move, Hand, Check, Plus, Minus } from "lucide-svelte"
   import {
@@ -35,7 +35,7 @@
   let capacityTonnes = 200 // bin size in tonnes (default 200T for new silos)
   let capacityInput = "" // text for the bin-size number field
   let contentsInput = null // the "Storing" text field
-  let tonnesDeltaInput = null // the Add/Take number field (auto-focused on open)
+  let tonnesDeltaInput = null // the Add/Take number field
   let tonnesDelta = "" // text for the add/take number field
   let grainColor = SILO_COLOR_DEFAULT // tint for the on-map fill gauge
   let tab = "fill" // 'fill' | 'settings'
@@ -97,7 +97,7 @@
   let dragRafId = null
   let lastDragFrame = 0
 
-  $: markerName = marker?.notes?.trim() || "Silo"
+  $: markerName = marker?.notes?.trim() || "Field Bin"
   $: currentTonnes = capacityTonnes > 0 ? (capacityTonnes * fill) / 100 : 0
 
   // Sync local state when the marker changes (NOT while dragging — that's
@@ -112,12 +112,20 @@
       capacityInput = capacityTonnes ? String(capacityTonnes) : ""
       tonnesDelta = ""
       grainColor = siloColorKey(marker?.grainColor)
-      // Open straight onto the Add/Take number field (one tap to type,
-      // fewer clicks) — focus it once the Fill tab has rendered.
-      tab = "fill"
-      tick().then(() => tonnesDeltaInput?.focus())
+      // The first time a field bin's panel opens (right after it's placed),
+      // land on the Settings tab so the user can set it up; every later open
+      // uses the usual Fill tab. `fieldBinConfigured` is persisted on the
+      // marker (field_bin_configured property) so it survives reloads.
+      tab = marker?.fieldBinConfigured ? "fill" : "settings"
       deltaHint = false
       confirmDelete = false
+      if (id && marker && !marker.fieldBinConfigured) {
+        confirmedMarkersStore.update((markers) =>
+          markers.map((m) =>
+            m.id === id ? { ...m, fieldBinConfigured: true } : m,
+          ),
+        )
+      }
     }
   }
 
@@ -557,7 +565,7 @@
         class="silo-pop-icon"
         style="background: {grainColorDef.dark}26;"
       >
-        <IconSVG icon="silo2" size="26px" />
+        <IconSVG icon="fiver_field_bin_v4" size="26px" />
       </div>
       <span
         class="silo-pop-title"
@@ -576,7 +584,7 @@
       <button
         class="silo-pop-close"
         on:click={handleClose}
-        aria-label="Close silo panel"
+        aria-label="Close field bin panel"
       >
         <X size={16} />
       </button>
@@ -623,7 +631,7 @@
               bind:value={fill}
               on:input={handleFillInput}
               on:change={commit}
-              aria-label="Silo fill level"
+              aria-label="Field bin fill level"
               style="--silo-thumb: {grainColorDef.dark}; background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
             />
             <span class="silo-pop-pct">{Math.round(fill)}%</span>
@@ -683,7 +691,7 @@
         <button
           class="silo-pop-move"
           on:click={toggleMove}
-          aria-label="Move silo"
+          aria-label="Move field bin"
         >
           <Move size={15} />
           <span>Move</span>
@@ -726,8 +734,13 @@
         <div class="silo-pop-field">
           <span class="silo-pop-label">Color</span>
           <div class="silo-pop-swatches">
+            <!-- Silos use their own custom grain colour palette — black and
+                 white aren't grain colours, so keep them out of this picker. -->
             {#each PICKABLE_MARKER_COLORS.filter(
-              (c) => c.key !== MARKER_COLOR_DEFAULT,
+              (c) =>
+                c.key !== MARKER_COLOR_DEFAULT &&
+                c.key !== "black" &&
+                c.key !== "white",
             ) as c}
               <button
                 class="silo-pop-swatch"

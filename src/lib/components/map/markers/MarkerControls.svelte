@@ -53,7 +53,7 @@
 
   // Marker interaction settings
   $: zoomToLocation = $userSettingsStore?.zoomToLocationMarkers ?? true
-  $: zoomToPlaced = $userSettingsStore?.zoomToPlacedMarkers ?? true
+  $: zoomToPlaced = $userSettingsStore?.zoomToPlacedMarkers ?? false
   $: autoConfirm = $userSettingsStore?.autoConfirmMarkers ?? false
 
   // The marker style + per-type default colour for each type's colour dot
