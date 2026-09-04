@@ -40,6 +40,7 @@
   import MapFields from "./MapFields.svelte"
   import EmOverlays from "$lib/components/map/overlays/EmOverlays.svelte"
   import KmzOverlays from "$lib/components/map/overlays/KmzOverlays.svelte"
+  import PowerLinesOverlay from "$lib/components/map/overlays/PowerLinesOverlay.svelte"
   import KmzRoadEditor from "$lib/components/map/overlays/KmzRoadEditor.svelte"
   import TrailSynchronizer from "$lib/components/map/trails/TrailSynchronizer.svelte"
   import TrailView from "$lib/components/map/trails/TrailView.svelte"
@@ -50,7 +51,6 @@
   import BulkDeleteOverlay from "$lib/components/map/markers/BulkDeleteOverlay.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
-  import MarkerOnboarding from "$lib/components/map/toolbox/MarkerOnboarding.svelte"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
@@ -2111,6 +2111,7 @@
     />
     <EmOverlays {map} />
     <KmzOverlays {map} />
+    <PowerLinesOverlay {map} />
     <KmzRoadEditor {map} />
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
@@ -2262,9 +2263,6 @@
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}
 />
-
-<!-- First-run marker onboarding (pick a style → set default colours) -->
-<MarkerOnboarding {mapLoaded} />
 
 <!-- Dev Mode Joystick Overlay -->
 {#if $devModeEnabled}

@@ -16,6 +16,8 @@
     Home,
     Save,
     SlidersHorizontal,
+    Zap,
+    Globe,
   } from "lucide-svelte"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
@@ -89,6 +91,26 @@
       name: "Road Overlays",
       icon: RoadIcon,
       color: "#fbbf24",
+    },
+    {
+      id: "powerLines",
+      name: "Power Lines",
+      icon: Zap,
+      color: "#f59e0b",
+    },
+    {
+      id: "powerPoles",
+      name: "Power Poles",
+      icon: Zap,
+      color: "#d97706",
+      indent: true,
+    },
+    {
+      id: "powerOutsideFields",
+      name: "Show Outside Fields",
+      icon: Globe,
+      color: "#ca8a04",
+      indent: true,
     },
     {
       id: "vehicles",

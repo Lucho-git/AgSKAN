@@ -13,6 +13,7 @@
   } from "$lib/stores/markerStore"
 
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { controlStore } from "$lib/stores/controlStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
@@ -43,6 +44,7 @@
     SILO_COLOR_DEFAULT,
     siloColorKey,
     GRAIN_BIN_ICON_CLASS,
+    isNoBackgroundIcon,
     paletteVariantSuffix,
   } from "./markerPalette"
   import {
@@ -517,7 +519,6 @@
           glassAlpha,
         )
         if (!map.hasImage(tintedKey)) map.addImage(tintedKey, image)
-        console.log(`🖼️ SVG icon registered: ${tintedKey}`)
       } else {
         const path = iconPaths[iconKey]
         if (!path) return
@@ -536,7 +537,6 @@
             data: imageData.data,
           })
         }
-        console.log(`🎨 Tinted icon registered: ${tintedKey}`)
       }
       // The icon wasn't available when the marker first rendered — re-render
       // now that it exists so the marker shows with its tint. Preview tints
@@ -984,7 +984,9 @@
         ? "original"
         : isDefaultPin
           ? "default-pin"
-          : globalStyle
+          : isNoBackgroundIcon(marker.iconClass)
+            ? "icon-only"
+            : globalStyle
       // Mode-aware: Original uses the classic palette, every other style the
       // vivid one (both sets share the same colour keys).
       const colorDef = markerColor(colorKeyResolved, mode)
@@ -1051,27 +1053,6 @@
       }
     })
 
-    // Diagnostic — how the default-colour settings resolved (debugging the
-    // "custom default colour isn't working" reports): settings state + a
-    // sample of what a few icon classes resolved to.
-    const dc = $userSettingsStore || {}
-    const dcOverrides = Object.entries(dc.markerTypeDefaultColors || {})
-      .map(([k, v]) => `${k}=${v}`)
-      .join(", ")
-    console.log(
-      `🎨 Default colours: mode=${dc.markerDefaultColorMode || "single"}, single=${dc.markerDefaultColor || "blue"}, overrides={${dcOverrides || "none"}}`,
-    )
-    const seenClasses = new Set()
-    const sampleTints = []
-    for (const f of features) {
-      const cls = f.properties.iconClass || "default"
-      if (seenClasses.has(cls)) continue
-      seenClasses.add(cls)
-      sampleTints.push(`${cls} → ${f.properties.icon}`)
-      if (sampleTints.length >= 6) break
-    }
-    console.log(`🎨 Sample tints: ${sampleTints.join(" | ")}`)
-
     // Silos render TWO features in the SAME markers layer — the icon feature
     // plus a level-bar feature emitted right after it. Symbol layers draw
     // features in data order (later = on top), so the bar sits just above its
@@ -1108,10 +1089,6 @@
       type: "FeatureCollection",
       features: expanded,
     })
-
-    console.log(
-      `📍 Refreshed ${expanded.length} markers, ${features.filter((f) => f.properties.noteLabel).length} with notes`,
-    )
 
     updateSelectionOverlay(map)
   }
@@ -1380,7 +1357,9 @@
       ? "original"
       : isDefaultPin
         ? "default-pin"
-        : globalStyle
+        : isNoBackgroundIcon(marker.iconClass)
+          ? "icon-only"
+          : globalStyle
     return markerColor(resolved, mode)
   }
 
@@ -1442,7 +1421,9 @@
       ? "original"
       : isDefaultPin
         ? "default-pin"
-        : globalStyle
+        : isNoBackgroundIcon(marker.iconClass)
+          ? "icon-only"
+          : globalStyle
     return useTint
       ? `${baseIcon}-${colorKeyResolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}`
       : baseIcon
@@ -1463,7 +1444,11 @@
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isCustomIcon = isCustomSvgIcon(iconClass)
     const isDefaultPin = baseIcon === "default"
-    const mode = isDefaultPin ? "default-pin" : globalStyle
+    const mode = isDefaultPin
+      ? "default-pin"
+      : isNoBackgroundIcon(iconClass)
+        ? "icon-only"
+        : globalStyle
     let resolved = colorKey
     if (!resolved || resolved === MARKER_COLOR_DEFAULT) {
       resolved = markerDefaultColorKey(iconClass, $userSettingsStore || {})
@@ -1525,7 +1510,9 @@
       ? "original"
       : isDefaultPin
         ? "default-pin"
-        : globalStyle
+        : isNoBackgroundIcon(marker.iconClass)
+          ? "icon-only"
+          : globalStyle
     // Proof of concept: SVG-rendered icons compose the same image the symbol
     // layer shows (no pixel tinting), so the selection overlay matches.
     if (isSvgRenderedIcon(marker.iconClass)) {
@@ -2377,6 +2364,9 @@
       defaultMarker?.name || "Marker",
     )
 
+    // Per-account marker usage stat + recency (fire-and-forget).
+    userSettingsApi.recordMarkerUsage(iconClass)
+
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({
         center: [coordinates.longitude, coordinates.latitude],
@@ -2426,6 +2416,9 @@
       "rgba(34, 197, 94",
       extraMarker?.name || "Marker",
     )
+
+    // Per-account marker usage stat + recency (fire-and-forget).
+    userSettingsApi.recordMarkerUsage(iconClass)
 
     if ($userSettingsStore?.zoomToLocationMarkers) {
       map.flyTo({

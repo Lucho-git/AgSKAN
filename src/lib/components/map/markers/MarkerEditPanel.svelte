@@ -16,10 +16,12 @@
   import {
     getAllMarkers,
     findMarkerByIconClass,
+    orderMarkersByUsage,
   } from "$lib/data/markerDefinitions"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
   import {
+    TINT_MODE_DEFAULT,
     pickableColorsForStyle,
     MARKER_COLOR_DEFAULT,
     markerColor,
@@ -61,7 +63,7 @@
   // Lets the user pick a marker colour that's persisted on the new marker
   // on confirm. Shown as a row of swatches (one per pickable colour).
   let pickerColorKey = MARKER_COLOR_DEFAULT
-  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+  $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
 
   // The colour the badge shows: the picked colour, or the effective default
   // colour for the current icon when set to Default.
@@ -240,8 +242,9 @@
   const allMarkerIcons = getAllMarkers()
   // Atlas (at-*) outline icons are being phased out: they still render for
   // existing markers on the map but are no longer offered in the pickers.
-  $: selectableMarkers = allMarkerIcons.filter(
-    (m) => m.active && !m.class.startsWith("at-"),
+  $: selectableMarkers = orderMarkersByUsage(
+    allMarkerIcons.filter((m) => m.active && !m.class.startsWith("at-")),
+    $userSettingsStore?.markerUsageOrder || [],
   )
   // Standard icons vs icons with special functionality (marked `special: true`
   // in markerDefinitions) — rendered as separate groups with a divider.

@@ -135,7 +135,11 @@
     if (!canUseMap()) return false
     if (hasFieldSelectionLayers()) return true
 
-    if (allowReload && !getMapSource("fields") && get(mapFieldsStore).length > 0) {
+    if (
+      allowReload &&
+      !getMapSource("fields") &&
+      get(mapFieldsStore).length > 0
+    ) {
       loadFields()
       return hasFieldSelectionLayers()
     }

@@ -10,8 +10,10 @@
   import {
     getAllMarkers,
     findMarkerByIconClass,
+    orderMarkersByUsage,
   } from "$lib/data/markerDefinitions"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import {
     pickableColorsForStyle,
@@ -84,8 +86,9 @@
   let previewIconClass = null
   // Atlas (at-*) outline icons are being phased out: they still render for
   // existing markers on the map but are no longer offered in the pickers.
-  $: selectableMarkers = getAllMarkers().filter(
-    (m) => m.active && !m.class.startsWith("at-"),
+  $: selectableMarkers = orderMarkersByUsage(
+    getAllMarkers().filter((m) => m.active && !m.class.startsWith("at-")),
+    $userSettingsStore?.markerUsageOrder || [],
   )
   // Standard icons vs icons with special functionality (marked `special: true`
   // in markerDefinitions) — rendered as separate groups with a divider.
@@ -166,7 +169,7 @@
   /** @type {HTMLElement | null} */
   let markerPopEl = null
   const SLIDE_BUFFER = 56
-  const MENU_W = 250
+  const MENU_W = 280
 
   function position() {
     if (!map || !marker) return
@@ -311,6 +314,9 @@
     }
 
     deselectMarker()
+
+    // Per-account marker usage stat + recency (fire-and-forget).
+    userSettingsApi.recordMarkerUsage(iconClass)
   }
 
   // Close (X): cancel placement AND remove the unconfirmed marker entirely.
@@ -528,7 +534,7 @@
     --pop-y: -100%;
     position: fixed;
     transform: translate(-50%, var(--pop-y));
-    width: 250px;
+    width: 280px;
     height: 360px;
     max-height: calc(100vh - 70px);
     z-index: 1001;
@@ -790,7 +796,8 @@
 
   /* Single compact grid — special icons come first and stand out via an
      amber accent (border, tint, amber name + corner dot) instead of a
-     divider, so they don't waste space. */
+     divider. 5 per row — the wider (280px) menu gives the tiles room to be
+     bigger than the original 250px layout. */
   .mp-icon-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -818,7 +825,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
+    height: 46px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);

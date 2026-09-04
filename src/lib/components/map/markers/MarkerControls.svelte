@@ -16,6 +16,7 @@
     type MarkerPreference,
   } from "$lib/utils/defaultMarkerPreference"
   import {
+    TINT_MODE_DEFAULT,
     markerDefaultColorKey,
     markerColor,
     styleSwatchBg,
@@ -59,7 +60,7 @@
   // The marker style + per-type default colour for each type's colour dot
   // (reacts to the profile's default-colour changes, so the toolbox menu
   // stays in sync with the map).
-  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+  $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
   function markerTypeColorKey(marker: MarkerDefinition): string {
     const iconClass =
       marker.class === "custom-svg"

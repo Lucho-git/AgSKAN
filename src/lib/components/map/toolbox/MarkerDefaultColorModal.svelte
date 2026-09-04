@@ -22,6 +22,7 @@
     styleDefaultColor,
     styleSwatchBg,
     TINT_MODES,
+    TINT_MODE_DEFAULT,
   } from "$lib/components/map/markers/markerPalette"
   import {
     isSvgRenderedIcon,
@@ -37,7 +38,7 @@
   const DEFAULT_GRADIENT = "linear-gradient(135deg, #475569 0%, #94a3b8 100%)"
 
   const styles = TINT_MODES
-  $: markerStyle = $userSettingsStore?.markerStyle || "circle-fill"
+  $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
   $: styleLabel = styles.find((s) => s.key === markerStyle)?.label || markerStyle
   $: perType = $userSettingsStore?.markerTypeDefaultColors || {}
   $: styleNeutral = styleDefaultColor(markerStyle)

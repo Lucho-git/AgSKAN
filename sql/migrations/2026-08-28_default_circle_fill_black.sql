@@ -1,0 +1,16 @@
+-- 2026-08-28: The "v2 marker" (circle fill black, default sky blue) is now
+-- the ONLY marker style. The first-run marker style/colour onboarding modal
+-- was removed, so every user is moved to circle-fill-black.
+--
+-- Run these statements ONE AT A TIME (the Supabase Management API SQL
+-- endpoint rejects multi-statement payloads):
+--
+-- 1)  alter table user_settings alter column marker_style set default 'circle-fill-black';
+-- 2)  update user_settings set marker_style = 'circle-fill-black';
+-- 3)  update user_settings set style_default_colors = '{}'::jsonb;
+--     -- clear per-style colour overrides so the built-in sky-blue default applies
+-- 4)  update user_settings set marker_default_color = 'default', marker_default_color_mode = 'single';
+--     -- colourless markers now use the style default (sky blue)
+--
+-- NOTE: marker_onboarding_done / marker_onboarding_skips columns are left in
+-- place (harmless; no code reads them anymore).

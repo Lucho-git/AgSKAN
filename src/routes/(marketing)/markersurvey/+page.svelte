@@ -24,6 +24,7 @@
     TINT_MODES,
     TINT_MODE_DEFAULT,
     markerColor,
+    isNoBackgroundIcon,
   } from "$lib/components/map/markers/markerPalette"
   import {
     loadIconPaths,
@@ -168,7 +169,14 @@
       const { key, colorKey } = item
       // The default Mapbox pin uses the dedicated "default-pin" tint (body
       // recolours, white circle stays white) instead of the style modes.
-      const tintMode = key === "default" ? "default-pin" : styleKey
+      // No-background icons (rock, rock pile) render as a bare glyph in
+      // every style — no disc behind them.
+      const tintMode =
+        key === "default"
+          ? "default-pin"
+          : isNoBackgroundIcon(key)
+            ? "icon-only"
+            : styleKey
       // SVG-rendered icons (custom/atlas/ionic) tint via the runtime SVG
       // renderer — the SAME images the app shows (keep glyphs stay put, the
       // water tank's blue droplet survives). Anything else uses the PNG

@@ -1,0 +1,16 @@
+-- 2026-08-28: per-account marker usage tracking.
+--
+-- marker_usage_counts: {iconClass → count} — how many of each marker type
+--   this account has placed (a stat recorded on every placement).
+-- marker_usage_order: [iconClass, ...] most-recently-used first — index 0 is
+--   the last marker used; drives the icon-picker recency ordering.
+--
+-- Run these statements ONE AT A TIME (the Supabase Management API SQL
+-- endpoint rejects multi-statement payloads):
+--
+-- 1)  alter table user_settings add column if not exists marker_usage_counts jsonb not null default '{}';
+-- 2)  alter table user_settings add column if not exists marker_usage_order jsonb not null default '[]';
+--
+-- Recording happens client-side in userSettingsApi.recordMarkerUsage()
+-- (called on every marker placement), so existing rows get their defaults and
+-- fill up organically from now on.

@@ -18,7 +18,6 @@
     MapPin,
     Magnet,
     Palette,
-    RotateCcw,
     Warehouse,
   } from "lucide-svelte"
   import MarkerStylePreviewModal from "./MarkerStylePreviewModal.svelte"
@@ -60,26 +59,6 @@
   $: activeMarkerGroup = MARKER_SETTINGS_GROUPS.find(
     (g) => g.key === markerSettingsGroup,
   )
-
-  let resettingPrompt = false
-
-  // Dev/testing escape hatch — reset the first-run onboarding flag so the
-  // style → colours popup shows again on the next map load.
-  async function resetOnboardingPrompt() {
-    resettingPrompt = true
-    try {
-      const result = await userSettingsApi.resetMarkerOnboarding()
-      if (result?.success) {
-        toast.success("First-run prompt will show again on next map load")
-      } else {
-        toast.error(result?.message || "Failed to reset prompt")
-      }
-    } catch (e) {
-      toast.error(e?.message || "Error resetting prompt")
-    } finally {
-      resettingPrompt = false
-    }
-  }
 
   // ── Store reactives ──
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
@@ -319,15 +298,6 @@
         <span class="ms-group-arrow"><ChevronRight size={14} /></span>
       </button>
     {/each}
-    <button
-      type="button"
-      class="ms-reset-prompt"
-      disabled={resettingPrompt}
-      on:click={resetOnboardingPrompt}
-    >
-      <RotateCcw size={12} />
-      {resettingPrompt ? "Resetting…" : "Reset first-run prompt"}
-    </button>
   </div>
 {:else}
   <!-- Drill-down: back + only this group's settings -->
@@ -692,34 +662,6 @@
     align-items: center;
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.4);
-  }
-
-  /* Dev/testing — reset the first-run onboarding popup */
-  .ms-reset-prompt {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 4px;
-    padding: 7px 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px dashed rgba(148, 163, 184, 0.3);
-    border-radius: 8px;
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: color 0.15s ease, border-color 0.15s ease,
-      background 0.15s ease;
-  }
-  .ms-reset-prompt:hover:not(:disabled) {
-    background: rgba(96, 165, 250, 0.1);
-    border-color: rgba(96, 165, 250, 0.4);
-    color: #93c5fd;
-  }
-  .ms-reset-prompt:disabled {
-    opacity: 0.5;
-    cursor: default;
   }
 
   /* Marker Settings drill-down — view head (back + title) */

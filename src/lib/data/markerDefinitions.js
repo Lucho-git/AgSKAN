@@ -181,6 +181,63 @@ export function getAllMarkers() {
   return MARKER_DEFINITIONS
 }
 
+// Marker ids that are always pinned in their default position (never moved by
+// recency reordering): the Default Marker and the rock/rock-pile pair stay at
+// the very top of the picker no matter how often other icons are used.
+const PINNED_MARKER_IDS = new Set(["default", "rock", "rock_pile"])
+
+/**
+ * Reorder a picker list by usage recency: special icons + the pinned markers
+ * (default, rock, rock pile) stay in their default positions, then any
+ * markers in `usageOrder` (most-recently-used first), then everything else in
+ * the original (default) order.
+ *
+ * @param {Array<any>} markers marker definitions (already filtered)
+ * @param {string[]} [usageOrder] iconClass list, most recent first
+ * @returns {Array<any>}
+ */
+export function orderMarkersByUsage(markers, usageOrder = []) {
+  if (!usageOrder || usageOrder.length === 0) return markers
+
+  const ordered = []
+  const placed = new Set()
+
+  // (1) Special icons stay pinned first (rendered as their own group anyway).
+  for (const m of markers) {
+    if (m.special && !placed.has(m)) {
+      ordered.push(m)
+      placed.add(m)
+    }
+  }
+
+  // (2) Pinned markers (default, rock, rock pile) keep their default spots.
+  for (const m of markers) {
+    if (PINNED_MARKER_IDS.has(m.id) && !placed.has(m)) {
+      ordered.push(m)
+      placed.add(m)
+    }
+  }
+
+  // (3) Recently-used icons, most recent first (skip specials/pinned — already up top).
+  for (const iconClass of usageOrder) {
+    const def = findMarkerByIconClass(iconClass)
+    if (def && !def.special && !placed.has(def)) {
+      ordered.push(def)
+      placed.add(def)
+    }
+  }
+
+  // (4) Everything else keeps the default order.
+  for (const m of markers) {
+    if (!placed.has(m)) {
+      ordered.push(m)
+      placed.add(m)
+    }
+  }
+
+  return ordered
+}
+
 export function findMarkerByIconClass(iconClass) {
   if (!iconClass || iconClass === "default") {
     return MARKER_DEFINITIONS.find(m => m.id === "default")

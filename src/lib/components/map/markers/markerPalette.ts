@@ -263,6 +263,25 @@ export function isCustomSvgIcon(iconClass?: string | null): boolean {
   )
 }
 
+// Icons that render as a BARE glyph with no disc/ring/glass behind them —
+// like the default Mapbox pin (the icon IS the marker, no background). They
+// stand out against the map on their own, so they never get a circle even
+// when the global style or marker colour changes.
+const NO_BACKGROUND_CUSTOM_SVG = new Set([
+  "custom-svg-rock",
+  "custom-svg-rock_pile",
+])
+
+/**
+ * True for custom SVG icons that render with NO background (no disc, ring or
+ * glass) — the glyph floats on the map like the default pin.
+ * @param {string | null | undefined} iconClass
+ * @returns {boolean}
+ */
+export function isNoBackgroundIcon(iconClass?: string | null): boolean {
+  return !!iconClass && NO_BACKGROUND_CUSTOM_SVG.has(iconClass)
+}
+
 // ── Per-style default colours ──
 // A marker with no explicit colour (set to "default") gets the NEUTRAL colour
 // that best suits the selected style — the "natural" baseline that isn't
@@ -274,7 +293,7 @@ export function isCustomSvgIcon(iconClass?: string | null): boolean {
 export const STYLE_DEFAULT_COLORS: Record<string, string> = {
   original: "white",
   "circle-fill": "orange",
-  "circle-fill-black": "white",
+  "circle-fill-black": "skyblue",
   "icon-fill": "black",
   "icon-only": "black",
   "icon-dark-glass": "white",
@@ -486,9 +505,10 @@ export const TINT_MODES: TintMode[] = [
   { key: "icon-light-glass", label: "Icon (light)" },
 ]
 
-// Circle fill is now the default marker style (2026-08-19): new users start
-// on it and the DB column default is 'circle-fill'.
-export const TINT_MODE_DEFAULT = "circle-fill"
+// Circle fill BLACK (the "v2 marker") is now the default marker style
+// (2026-08-28): every user is on it (new + backfilled) and the DB column
+// default is 'circle-fill-black'.
+export const TINT_MODE_DEFAULT = "circle-fill-black"
 
 // ── Grouped marker style picker ──
 // The Profile's "Marker style" menu shows 4 base styles; two of them expose

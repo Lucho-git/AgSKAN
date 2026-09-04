@@ -181,10 +181,10 @@
           markerDefaultColorMode:
             user_settings.marker_default_color_mode ?? "single",
           markerDefaultColor: user_settings.marker_default_color ?? "default",
-          markerOnboardingDone: user_settings.marker_onboarding_done ?? false,
-          markerOnboardingSkips: user_settings.marker_onboarding_skips ?? 0,
           markerTypeDefaultColors:
             user_settings.marker_type_default_colors ?? {},
+          markerUsageCounts: user_settings.marker_usage_counts ?? {},
+          markerUsageOrder: user_settings.marker_usage_order ?? [],
           iconGlassOpacity: user_settings.icon_glass_opacity ?? 0.3,
           zoomToLocationMarkers:
             user_settings.zoom_to_location_markers ?? false,
@@ -233,9 +233,9 @@
           markerStyle: TINT_MODE_DEFAULT,
           markerDefaultColorMode: "single",
           markerDefaultColor: "default",
-          markerOnboardingDone: false,
-          markerOnboardingSkips: 0,
           markerTypeDefaultColors: {},
+          markerUsageCounts: {},
+          markerUsageOrder: [],
           iconGlassOpacity: 0.3,
           zoomToLocationMarkers: false,
           zoomToPlacedMarkers: false,

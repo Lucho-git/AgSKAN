@@ -16,6 +16,9 @@ const defaultState = {
   activeTrails: true,
   trailArrows: false,
   kmzOverlays: true,       // KMZ/KML road overlays
+  powerLines: true,        // Power lines (national local GeoJSON + WA Mapbox tileset)
+  powerPoles: true,        // WA power poles (Mapbox tileset overlay)
+  powerOutsideFields: false, // Show power lines/poles OUTSIDE field boundaries too (default: fields only)
 }
 
 function createLayerVisibilityStore() {

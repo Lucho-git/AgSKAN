@@ -41,11 +41,13 @@
   import {
     getAllMarkers,
     findMarkerByIconClass,
+    orderMarkersByUsage,
   } from "$lib/data/markerDefinitions"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import {
+    TINT_MODE_DEFAULT,
     pickableColorsForStyle,
     MARKER_COLOR_DEFAULT,
     markerColor,
@@ -166,7 +168,7 @@
   // change to a non-default colour; arming it makes Save also set the default.
   let makeDefaultVisible = false
   let makeDefaultArmed = false
-  $: markerStyle = $userSettingsStore?.markerStyle || "original"
+  $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
   function toggleColorBox() {
     colorBoxOpen = !colorBoxOpen
   }
@@ -280,8 +282,9 @@
   const allMarkerIcons = getAllMarkers()
   // Atlas (at-*) outline icons are being phased out: they still render for
   // existing markers on the map but are no longer offered in the pickers.
-  $: selectableMarkers = allMarkerIcons.filter(
-    (m) => m.active && !m.class.startsWith("at-"),
+  $: selectableMarkers = orderMarkersByUsage(
+    allMarkerIcons.filter((m) => m.active && !m.class.startsWith("at-")),
+    $userSettingsStore?.markerUsageOrder || [],
   )
   // Standard icons vs icons with special functionality (marked `special: true`
   // in markerDefinitions) — rendered as separate groups with a divider.
@@ -351,7 +354,7 @@
 
       // Menu box dimensions (match the .marker-pop CSS; measured so the flip
       // uses the real rendered height).
-      const menuW = 250
+      const menuW = 280
       const menuH =
         markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
 
@@ -408,7 +411,7 @@
           anchorY = Math.min(anchorY, rect.height - menuH - bottomMargin)
         }
         // Horizontally: keep the menu centered on the marker, but shift it so
-        // the 250px box never leaves the screen edges.
+        // the 280px box never leaves the screen edges.
         px = Math.min(Math.max(px, menuW / 2 + 8), rect.width - menuW / 2 - 8)
 
         left = rect.left + px
@@ -1634,7 +1637,7 @@
     --pop-y: -100%;
     position: fixed;
     transform: translate(-50%, var(--pop-y));
-    width: 250px;
+    width: 280px;
     height: 360px;
     max-height: calc(100vh - 70px);
     z-index: 1001;
@@ -2318,7 +2321,8 @@
 
   /* Single compact grid — special icons come first and stand out via an
      amber accent (border, tint, amber name + corner dot) instead of a
-     divider, so they don't waste space. */
+     divider. 5 per row — the wider (280px) menu gives the tiles room to be
+     bigger than the original 250px layout. */
   .mp-icon-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -2346,7 +2350,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
+    height: 46px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);
