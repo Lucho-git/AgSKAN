@@ -6,8 +6,8 @@ export const MARKER_DEFINITIONS = [
   { id: "rock", class: "custom-svg", name: "Rock", active: true },
   { id: "rock_pile", class: "custom-svg", name: "Rock Pile", active: true },
   { id: "tree13", class: "custom-svg", name: "Tree", active: true },
+  { id: "fiver2_tree", class: "custom-svg", name: "Tree", active: true },
   { id: "wheat2", class: "custom-svg", name: "Wheat", active: true },
-  { id: "kangaroo", class: "custom-svg", name: "Kangaroo", active: true },
 
   // ── Status & direction ──
   { id: "pin", class: "ionic-pin", name: "Pin", active: true },
@@ -29,64 +29,80 @@ export const MARKER_DEFINITIONS = [
   { id: "thumbs-up", class: "ionic-thumbs-up", name: "Thumbs Up", active: true },
   { id: "thumbs-down", class: "ionic-thumbs-down", name: "Thumbs Down", active: true },
 
-  // ── Nature & landmarks ──
-  { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
-
-  // ── Tanks, fuel & utilities ──
-  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
-  { id: "water_tower2", class: "custom-svg", name: "Water Tower", active: true },
-  { id: "liquid_tank", class: "custom-svg", name: "Liquid Tank", active: true },
-  { id: "fuel_refill", class: "custom-svg", name: "Fuel Pump", active: true },
-  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
-  { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
-  { id: "silo2", class: "custom-svg", name: "Silo", active: true },
-  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
-
-  // ── Places & buildings ──
+  // ── Yards, gates & utilities ──
   { id: "gate", class: "custom-svg", name: "Gate", active: true },
-  { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
+  { id: "fiver2_crossing", class: "custom-svg", name: "Crossing", active: true },
+  { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
+  { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
   { id: "workshop_icon", class: "custom-svg", name: "Workshop", active: true },
+  { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
   { id: "home", class: "ionic-home", name: "Home", active: true },
 
-  // ── Vehicles & machinery (tractor sits right before the fiver vehicles) ──
+  // ── Animals (kept high, just above fuel/tanks) ──
+  { id: "fiver_sheep_mob", class: "custom-svg", name: "Sheep Mob", active: true },
+  { id: "fiver2_cow_mob", class: "custom-svg", name: "Cow Mob", active: true },
+  { id: "fiver2_fox", class: "custom-svg", name: "Fox", active: true },
+  { id: "fiver2_kangaroo", class: "custom-svg", name: "Kangaroo", active: true },
+  { id: "fiver2_pig", class: "custom-svg", name: "Pig", active: true },
+  { id: "fiver2_rabbit", class: "custom-svg", name: "Rabbit", active: true },
+
+  // ── Fuel, tanks & storage (hand-managed cluster — excluded from the FARM
+  // auto-block below so they never duplicate) ──
+  { id: "fiver_fuel", class: "custom-svg", name: "Fuel", active: true },
+  { id: "recharge_icon", class: "custom-svg", name: "Charging", active: true },
+  { id: "liquid_tank", class: "custom-svg", name: "Liquid Tank", active: true },
+  { id: "fiver2_liquid", class: "custom-svg", name: "Liquid", active: true },
+  { id: "machine_pump", class: "custom-svg", name: "Pump", active: true },
+  { id: "fiver_diesel_bowser", class: "custom-svg", name: "Diesel Bowser", active: true },
+  { id: "fiver_flexy_tank", class: "custom-svg", name: "Flexy Tank", active: true },
+  { id: "watertank2", class: "custom-svg", name: "Water Tank", active: true },
+  { id: "water_tower2", class: "custom-svg", name: "Water Tower", active: true },
+  { id: "silo2", class: "custom-svg", name: "Silo", active: true },
+  { id: "fiver2_trough", class: "custom-svg", name: "Trough", active: true },
+
+  // ── Vehicles & machinery (tractor sits right before the farm vehicles) ──
   { id: "tractor", class: "custom-svg", name: "Tractor", active: true },
 
-  // FIVER_ICONS_START
-  { id: "fiver_field_bin_v4", class: "custom-svg", name: "Field Bin", active: true, special: true },
-  { id: "fiver_bulldozer", class: "custom-svg", name: "Bulldozer", active: true },
-  { id: "fiver_dump_truck_v2", class: "custom-svg", name: "Dump Truck 2", active: true },
-  { id: "fiver_tow_truck", class: "custom-svg", name: "Tow Truck", active: true },
-  { id: "fiver_fuel", class: "custom-svg", name: "Fuel", active: true },
-  { id: "fiver_harvest", class: "custom-svg", name: "Harvest", active: true },
-  { id: "fiver_harvest_v2", class: "custom-svg", name: "Harvest 2", active: true },
-  { id: "fiver_vegetables", class: "custom-svg", name: "Vegetables", active: true },
-  { id: "fiver_kg", class: "custom-svg", name: "KG Weight", active: true },
+  // FARM_ICONS_START
+  // ── Sheds & buildings ──
   { id: "fiver_open_shed", class: "custom-svg", name: "Open Shed", active: true },
+  { id: "fiver2_hay_shed", class: "custom-svg", name: "Hay Shed", active: true },
   { id: "fiver_chem_shed", class: "custom-svg", name: "Chem Shed", active: true },
   { id: "fiver_fert_shed", class: "custom-svg", name: "Fert Shed", active: true },
   { id: "fiver_grain_shed", class: "custom-svg", name: "Grain Shed", active: true },
-  { id: "fiver_hay_shed", class: "custom-svg", name: "Hay Shed", active: true },
+  { id: "fiver_sheep_shed", class: "custom-svg", name: "Sheep Shed", active: true },
   { id: "fiver_tractor_shed", class: "custom-svg", name: "Tractor Shed", active: true },
   { id: "fiver_tools_shed", class: "custom-svg", name: "Tools Shed", active: true },
-  { id: "fiver_sheep_shed", class: "custom-svg", name: "Sheep Shed", active: true },
-  { id: "fiver_flexy_tank", class: "custom-svg", name: "Flexy Tank", active: true },
-  { id: "fiver_diesel_bowser", class: "custom-svg", name: "Diesel Bowser", active: true },
-  { id: "fiver_hay_stack", class: "custom-svg", name: "Hay Stack", active: true },
-  { id: "fiver_mother_bin", class: "custom-svg", name: "Mother Bin", active: true },
-  { id: "fiver_grain_bag", class: "custom-svg", name: "Grain Bag", active: true },
-  { id: "fiver_spray_trailer", class: "custom-svg", name: "Spray Trailer", active: true },
-  { id: "fiver_road_train", class: "custom-svg", name: "Road Train", active: true },
-  { id: "fiver_sheep_mob", class: "custom-svg", name: "Sheep Mob", active: true },
-  { id: "fiver_cattle_mob", class: "custom-svg", name: "Cattle Mob", active: true },
+
+  // ── Storage & grain ──
+  { id: "fiver_field_bin_v4", class: "custom-svg", name: "Field Bin", active: true, special: true },
+  { id: "fiver2_mother_bin", class: "custom-svg", name: "Mother Bin", active: true },
+  { id: "fiver2_hay_stack", class: "custom-svg", name: "Hay Stack", active: true },
+  { id: "fiver2_grain_bag", class: "custom-svg", name: "Grain Bag", active: true },
+
+  // ── Vehicles & machinery ──
+  { id: "fiver_dump_truck_v2", class: "custom-svg", name: "Dump Truck 2", active: true },
+  { id: "fiver_tow_truck", class: "custom-svg", name: "Tow Truck", active: true },
+  { id: "fiver_bulldozer", class: "custom-svg", name: "Bulldozer", active: true },
+  { id: "fiver2_ute", class: "custom-svg", name: "Ute", active: true },
+  { id: "fiver3_fillup_truck", class: "custom-svg", name: "Fillup Truck", active: true },
+  { id: "fiver3_truck_fillup", class: "custom-svg", name: "Truck Fill Up", active: true },
+  { id: "fiver2_delivery_b", class: "custom-svg", name: "Delivery", active: true },
+  { id: "fiver2_fuel_trailer", class: "custom-svg", name: "Fuel Trailer", active: true },
   { id: "fiver_service_trailer", class: "custom-svg", name: "Service Trailer", active: true },
-  { id: "fiver_water_trough", class: "custom-svg", name: "Water Trough", active: true },
-  { id: "fiver_crossing", class: "custom-svg", name: "Crossing", active: true },
-  { id: "fiver_fillup_truck", class: "custom-svg", name: "Fillup Truck", active: true },
-  { id: "fiver_kangaroo", class: "custom-svg", name: "Kangaroo", active: true },
-  { id: "fiver_rabbit", class: "custom-svg", name: "Rabbit", active: true },
-  { id: "fiver_fox", class: "custom-svg", name: "Fox", active: true },
-  { id: "fiver_pig", class: "custom-svg", name: "Pig", active: true },
-// FIVER_ICONS_END
+  { id: "fiver_spray_trailer", class: "custom-svg", name: "Spray Trailer", active: true },
+  { id: "fiver2_road_train", class: "custom-svg", name: "Road Train", active: true },
+  { id: "fiver2_wheel_ruts", class: "custom-svg", name: "Wheel Ruts", active: true },
+
+  // ── Produce & crops ──
+  { id: "fiver_harvest", class: "custom-svg", name: "Harvest", active: true },
+  { id: "fiver_vegetables", class: "custom-svg", name: "Vegetables", active: true },
+  { id: "fiver2_berries", class: "custom-svg", name: "Berries", active: true },
+  { id: "fiver_kg", class: "custom-svg", name: "KG Weight", active: true },
+
+  // ── Misc ──
+  { id: "fiver2_rude", class: "custom-svg", name: "Rude", active: true },
+// FARM_ICONS_END
 
   // ── Animals ──
   { id: "paw", class: "ionic-paw", name: "Animal", active: true },

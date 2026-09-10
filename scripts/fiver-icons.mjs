@@ -33,6 +33,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIVER_DIR = path.join(__dirname, '../static/icons/fiver')
 const MANIFEST_FILE = path.join(__dirname, 'fiver-icons-manifest.json')
 
+// Second art pack — static/icons/fiver2 (prefix fiver2_). Same pipeline,
+// separate manifest so each pack's removed/imported state is independent.
+const FIVER2_DIR = path.join(__dirname, '../static/icons/fiver2')
+const FIVER2_MANIFEST_FILE = path.join(__dirname, 'fiver2-icons-manifest.json')
+
+// Third art pack — static/icons/fiver3 (prefix fiver3_): late review/test
+// icons (better directions / new variants) the user added.
+const FIVER3_DIR = path.join(__dirname, '../static/icons/fiver3')
+const FIVER3_MANIFEST_FILE = path.join(__dirname, 'fiver3-icons-manifest.json')
+
 // Files we recognise. IMPORTANT: exact filename (spaces + trailing spaces
 // preserved) — the SVG folder is the source of truth.
 const MANIFEST = [
@@ -84,16 +94,173 @@ const MANIFEST = [
   { file: 'Artboard 25.svg',       id: 'fiver_pig',           name: 'Pig' },
 ]
 
+// fiver2 pack — files live in static/icons/fiver2. "OPTION B/C" art variants
+// keep a _b/_c suffix so the user can say "remove fiver2_mother_bin_b" later.
+const FIVER2_MANIFEST = [
+  { file: 'Berries.svg',               id: 'fiver2_berries',        name: 'Berries' },
+  { file: 'Chem Shed.svg',             id: 'fiver2_chem_shed',      name: 'Chem Shed' },
+  { file: 'Cow Mob.svg',               id: 'fiver2_cow_mob',        name: 'Cow Mob' },
+  { file: 'Crossing.svg',              id: 'fiver2_crossing',       name: 'Crossing' },
+  { file: 'Delivery.svg',              id: 'fiver2_delivery',       name: 'Delivery' },
+  { file: 'Delivery OPTION B.svg',     id: 'fiver2_delivery_b',     name: 'Delivery' },
+  { file: 'Diesel Bowser.svg',         id: 'fiver2_diesel_bowser',  name: 'Diesel Bowser' },
+  { file: 'Fert Shed.svg',             id: 'fiver2_fert_shed',      name: 'Fert Shed' },
+  { file: 'Field Bin.svg',             id: 'fiver2_field_bin',      name: 'Field Bin' },
+  { file: 'Fill Up Truck.svg',         id: 'fiver2_fillup_truck',   name: 'Fillup Truck' },
+  { file: 'Flexi Tank.svg',            id: 'fiver2_flexi_tank',     name: 'Flexi Tank' },
+  { file: 'Fox.svg',                   id: 'fiver2_fox',            name: 'Fox' },
+  { file: 'Fuel.svg',                  id: 'fiver2_fuel',           name: 'Fuel' },
+  { file: 'Fuel Trailer.svg',          id: 'fiver2_fuel_trailer',   name: 'Fuel Trailer' },
+  { file: 'Grain Bag.svg',             id: 'fiver2_grain_bag',      name: 'Grain Bag' },
+  { file: 'Grain Bag OPTION B.svg',    id: 'fiver2_grain_bag_b',    name: 'Grain Bag B' },
+  { file: 'Grain Shed.svg',            id: 'fiver2_grain_shed',     name: 'Grain Shed' },
+  { file: 'Harvest.svg',               id: 'fiver2_harvest',        name: 'Harvest' },
+  { file: 'hay shed.svg',              id: 'fiver2_hay_shed',       name: 'Hay Shed' },
+  { file: 'Hay Stack.svg',             id: 'fiver2_hay_stack',      name: 'Hay Stack' },
+  { file: 'Hay Stack OPTION B.svg',    id: 'fiver2_hay_stack_b',    name: 'Hay Stack B' },
+  { file: 'Kangaroo.svg',              id: 'fiver2_kangaroo',       name: 'Kangaroo' },
+  { file: 'Liquid.svg',                id: 'fiver2_liquid',         name: 'Liquid' },
+  { file: 'Machine Shed.svg',          id: 'fiver2_machine_shed',   name: 'Machine Shed' },
+  { file: 'Mother Bin.svg',            id: 'fiver2_mother_bin',     name: 'Mother Bin' },
+  { file: 'Mother Bin OPTION B.svg',   id: 'fiver2_mother_bin_b',   name: 'Mother Bin B' },
+  { file: 'Mother Bin OPTION C.svg',   id: 'fiver2_mother_bin_c',   name: 'Mother Bin C' },
+  { file: 'Open Shed.svg',             id: 'fiver2_open_shed',      name: 'Open Shed' },
+  { file: 'Pig.svg',                   id: 'fiver2_pig',            name: 'Pig' },
+  { file: 'Pile of Rocks.svg',         id: 'fiver2_pile_of_rocks',  name: 'Pile of Rocks' },
+  { file: 'Rabbit.svg',                id: 'fiver2_rabbit',         name: 'Rabbit' },
+  { file: 'Road Train.svg',            id: 'fiver2_road_train',     name: 'Road Train' },
+  { file: 'Road Train OPTION B.svg',   id: 'fiver2_road_train_b',   name: 'Road Train B' },
+  { file: 'Rock.svg',                  id: 'fiver2_rock',           name: 'Rock' },
+  { file: 'Rude.svg',                  id: 'fiver2_rude',           name: 'Rude' },
+  { file: 'Shearing Shed.svg',         id: 'fiver2_shearing_shed',  name: 'Shearing Shed' },
+  { file: 'Sheep Mob.svg',             id: 'fiver2_sheep_mob',      name: 'Sheep Mob' },
+  { file: 'Sheep Mob OPTION B.svg',    id: 'fiver2_sheep_mob_b',    name: 'Sheep Mob B' },
+  { file: 'Silo.svg',                  id: 'fiver2_silo',           name: 'Silo' },
+  { file: 'Spray Trailer.svg',         id: 'fiver2_spray_trailer',  name: 'Spray Trailer' },
+  { file: 'Tree.svg',                  id: 'fiver2_tree',           name: 'Tree' },
+  { file: 'Trough.svg',                id: 'fiver2_trough',         name: 'Trough' },
+  { file: 'Ute Vehicle.svg',           id: 'fiver2_ute',            name: 'Ute' },
+  { file: 'Vegetables.svg',            id: 'fiver2_vegetables',     name: 'Vegetables' },
+  { file: 'Water Tank.svg',            id: 'fiver2_water_tank',     name: 'Water Tank' },
+  { file: 'Wheel Ruts.svg',            id: 'fiver2_wheel_ruts',     name: 'Wheel Ruts' },
+  { file: 'Workshop Shed.svg',         id: 'fiver2_workshop_shed',  name: 'Workshop Shed' },
+]
+
+// fiver3 pack — static/icons/fiver3 (prefix fiver3_). User-added review/test
+// icons; artboards map to the concept they improve so they can be compared
+// with the existing versions and later chosen/rejected.
+const FIVER3_MANIFEST = [
+  { file: 'Artboard 15.svg', id: 'fiver3_road_train',    name: 'Road Train' },
+  { file: 'Artboard 19.svg', id: 'fiver3_trough',        name: 'Trough' },
+  { file: 'Artboard 21.svg', id: 'fiver3_fillup_truck',  name: 'Fillup Truck' },
+  { file: 'Artboard 31.svg', id: 'fiver3_truck_fillup',  name: 'Truck Fill Up' },
+]
+
+// Pack registry. One script drives both packs: --pack fiver2 targets the
+// second art pack; the default (fiver) behaves exactly as before.
+const PACKS = {
+  fiver: {
+    dir: FIVER_DIR,
+    manifestFile: MANIFEST_FILE,
+    tag: 'FIVER',
+    manifest: MANIFEST,
+  },
+  fiver2: {
+    dir: FIVER2_DIR,
+    manifestFile: FIVER2_MANIFEST_FILE,
+    tag: 'FIVER2',
+    manifest: FIVER2_MANIFEST,
+  },
+  fiver3: {
+    dir: FIVER3_DIR,
+    manifestFile: FIVER3_MANIFEST_FILE,
+    tag: 'FIVER3',
+    manifest: FIVER3_MANIFEST,
+  },
+}
+
+// The markers differ per file type (HTML comment in IconSVG, // in JS).
+function markersFor(kind, tag) {
+  if (kind === 'html') {
+    return { start: `<!-- ${tag}_ICONS_START -->`, end: `<!-- ${tag}_ICONS_END -->` }
+  }
+  return { start: `// ${tag}_ICONS_START`, end: `// ${tag}_ICONS_END` }
+}
+
+// Picker ordering in markerDefinitions.js is one COMBINED, grouped block
+// (FARM_ICONS_* sentinels) fed by BOTH packs, so related icons from the old
+// (fiver) and new (fiver2) packs sit together and duplicate concepts are
+// adjacent for easy comparing. Order lives here, not in the generated file.
+//
+// Icons in FARM_BLOCK_EXCLUDED live in the hand-edited CORE region above the
+// block (the "Fuel, tanks & storage" cluster in markerDefinitions.js, next to
+// the charge/pump/tank icons) so they are never written into the auto block
+// (which would duplicate them).
+const FARM_BLOCK_EXCLUDED = new Set([
+  // Fuel/tank cluster (hand-placed above the FARM block)
+  'fiver_fuel',
+  'fiver_diesel_bowser',
+  'fiver_flexy_tank',
+  'fiver2_trough',
+  'fiver2_liquid',
+  // New tree sits beside the old (core) tree at the top of the picker
+  'fiver2_tree',
+  // Animals group sits just above the fuel cluster
+  'fiver_sheep_mob',
+  'fiver2_cow_mob',
+  'fiver2_fox',
+  'fiver2_kangaroo',
+  'fiver2_pig',
+  'fiver2_rabbit',
+  // Crossing sits next to the high-usage Gate
+  'fiver2_crossing',
+])
+
+const FARM_GROUPS = [
+  {
+    h: 'Sheds & buildings',
+    ids: [
+      'fiver_open_shed', 'fiver2_hay_shed',
+      'fiver_chem_shed', 'fiver_fert_shed', 'fiver_grain_shed',
+      'fiver_sheep_shed', 'fiver_tractor_shed', 'fiver_tools_shed',
+    ],
+  },
+  {
+    h: 'Storage & grain',
+    ids: [
+      'fiver_field_bin_v4', 'fiver2_mother_bin', 'fiver2_hay_stack',
+      'fiver2_grain_bag',
+    ],
+  },
+  {
+    h: 'Vehicles & machinery',
+    ids: [
+      'fiver_dump_truck_v2', 'fiver_tow_truck', 'fiver_bulldozer', 'fiver2_ute',
+      'fiver3_fillup_truck', 'fiver3_truck_fillup',
+      'fiver2_delivery_b', 'fiver2_fuel_trailer',
+      'fiver_service_trailer', 'fiver_spray_trailer',
+      'fiver2_road_train', 'fiver2_wheel_ruts',
+    ],
+  },
+  {
+    h: 'Produce & crops',
+    ids: ['fiver_harvest', 'fiver_vegetables', 'fiver2_berries', 'fiver_kg'],
+  },
+  {
+    h: 'Misc',
+    ids: ['fiver2_rude'],
+  },
+]
+
 const SOURCES = [
   {
-    label: 'IconSVG.svelte',
-    file: path.join(__dirname, '../src/lib/components/general/IconSVG.svelte'),
-    start: '<!-- FIVER_ICONS_START -->',
-    end: '<!-- FIVER_ICONS_END -->',
-    block: async (entries) => {
+    label: 'IconSprite.svelte',
+    file: path.join(__dirname, '../src/lib/components/general/IconSprite.svelte'),
+    kind: 'html',
+    block: async (entries, pack) => {
       const blocks = []
       for (const e of entries) {
-        const b = await buildSymbolBlock(e)
+        const b = await buildSymbolBlock(pack, e)
         if (b) blocks.push(b)
       }
       return blocks.join('\n\n')
@@ -102,38 +269,23 @@ const SOURCES = [
   {
     label: 'gen-svg-glyphs.mjs (CUSTOM_ICONS)',
     file: path.join(__dirname, 'gen-svg-glyphs.mjs'),
-    start: '// FIVER_ICONS_START',
-    end: '// FIVER_ICONS_END',
+    kind: 'js',
     block: (entries) => entries.map((e) => `  '${e.id}',`).join('\n'),
   },
   {
     label: 'generateIcons.js (customSvgIcons)',
     file: path.join(__dirname, 'generateIcons.js'),
-    start: '// FIVER_ICONS_START',
-    end: '// FIVER_ICONS_END',
+    kind: 'js',
     block: (entries) => entries.map((e) => `  "${e.id}",`).join('\n'),
-  },
-  {
-    label: 'markerDefinitions.js',
-    file: path.join(__dirname, '../src/lib/data/markerDefinitions.js'),
-    start: '// FIVER_ICONS_START',
-    end: '// FIVER_ICONS_END',
-    block: (entries) =>
-      entries
-        .map(
-          (e) =>
-            `  { id: "${e.id}", class: "custom-svg", name: "${e.name}", active: true${e.special ? ', special: true' : ''} },`,
-        )
-        .join('\n'),
   },
 ]
 
 // ── helpers ──
 
-function readState() {
-  if (!existsSync(MANIFEST_FILE)) return { imported: [], removed: [] }
+function readState(manifestFile = MANIFEST_FILE) {
+  if (!existsSync(manifestFile)) return { imported: [], removed: [] }
   try {
-    const data = JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8'))
+    const data = JSON.parse(readFileSync(manifestFile, 'utf-8'))
     return {
       imported: Array.isArray(data.imported) ? data.imported : [],
       removed: Array.isArray(data.removed) ? data.removed : [],
@@ -143,22 +295,33 @@ function readState() {
   }
 }
 
-function writeState(state) {
-  writeFileSync(MANIFEST_FILE, JSON.stringify(state, null, 2) + '\n')
+function writeState(manifestFile, state) {
+  writeFileSync(manifestFile, JSON.stringify(state, null, 2) + '\n')
 }
 
-async function buildSymbolBlock(entry) {
-  const p = path.join(FIVER_DIR, entry.file)
+async function buildSymbolBlock(pack, entry) {
+  const p = path.join(pack.dir, entry.file)
   if (!existsSync(p)) {
     console.warn(`  ⚠️  Missing file (skipped): ${entry.file}`)
     return null
   }
   let svg = readFileSync(p, 'utf-8')
   svg = svg.replace(/<\?xml[^>]*\?>/g, '')
+  // Some art styles shapes via a <style> block (e.g. `.cls-1 { fill:#000207;
+  // fill-rule:evenodd; }`) instead of inline attributes. The CSS fill overrides
+  // the tint colour just like an inline one, so drop every `fill:` declaration
+  // but keep other props (fill-rule keeps even-odd winding rendering right).
+  svg = svg.replace(/\bfill\s*:\s*[^;}]*(?:;|})/g, '')
   let viewBox = (svg.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 512 512'
   const inner = (svg.match(/<svg[^>]*>([\s\S]*)<\/svg>/) || [])[1] || ''
   // Drop id="..." attrs from nested elements so the symbols never collide.
-  const content = inner.replace(/\sid="[^"]*"/g, '').trim()
+  // Also strip baked colour fills (e.g. fill="#000000") — these packs are
+  // black silhouettes meant to be tinted, and an explicit fill overrides the
+  // tint colour (making the icon render black in the pickers/map).
+  const content = inner
+    .replace(/\sid="[^"]*"/g, '')
+    .replace(/\sfill="[^"]*"/g, '')
+    .trim()
   if (!content) {
     console.warn(`  ⚠️  No <svg> content in ${entry.file}`)
     return null
@@ -218,28 +381,76 @@ async function tightViewBox(content, viewBox, pad = 0) {
   }
 }
 
-async function regenerate(entries) {
+async function regenerate(entries, pack) {
   for (const src of SOURCES) {
     const text = readFileSync(src.file, 'utf-8')
-    const s = text.indexOf(src.start)
-    const e = text.indexOf(src.end)
+    const { start, end } = markersFor(src.kind, pack.tag)
+    const s = text.indexOf(start)
+    const e = text.indexOf(end)
     if (s === -1 || e === -1) {
-      console.warn(`  ⚠️  Sentinel not found in ${src.label} — skipped`)
+      console.warn(`  ⚠️  Sentinel ${start} not found in ${src.label} — skipped`)
       continue
     }
-    const head = text.slice(0, s + src.start.length)
+    const head = text.slice(0, s + start.length)
     const tail = text.slice(e)
-    const block = await src.block(entries)
+    const block = await src.block(entries, pack)
     const body = block ? `\n${block}\n` : '\n'
     writeFileSync(src.file, head + body + tail)
     console.log(`  ✅ ${src.label} — ${entries.length} icon(s)`)
   }
 }
 
-function printTable(entries) {
+// Rewrite the COMBINED, grouped picker block in markerDefinitions.js from the
+// current imported state of both packs (see FARM_GROUPS above).
+function regenerateFarmDefs() {
+  const file = path.join(__dirname, '../src/lib/data/markerDefinitions.js')
+  const start = '// FARM_ICONS_START'
+  const end = '// FARM_ICONS_END'
+  const text = readFileSync(file, 'utf-8')
+  const s = text.indexOf(start)
+  const e = text.indexOf(end)
+  if (s === -1 || e === -1) {
+    console.warn(`  ⚠️  Sentinel ${start} not found in markerDefinitions.js — skipped`)
+    return
+  }
+  const map = new Map()
+  for (const mf of [MANIFEST_FILE, FIVER2_MANIFEST_FILE, FIVER3_MANIFEST_FILE]) {
+    for (const ent of readState(mf).imported) {
+      if (!FARM_BLOCK_EXCLUDED.has(ent.id)) map.set(ent.id, ent)
+    }
+  }
+  const lineFor = (id) => {
+    const ent = map.get(id)
+    return `  { id: "${ent.id}", class: "custom-svg", name: "${ent.name}", active: true${ent.special ? ', special: true' : ''} },`
+  }
+  const lines = []
+  const listed = new Set()
+  for (const g of FARM_GROUPS) {
+    const ids = g.ids.filter((id) => map.has(id))
+    if (!ids.length) continue
+    if (lines.length) lines.push('')
+    lines.push(`  // ── ${g.h} ──`)
+    for (const id of ids) {
+      lines.push(lineFor(id))
+      listed.add(id)
+    }
+  }
+  const leftovers = [...map.keys()].filter((id) => !listed.has(id))
+  if (leftovers.length) {
+    if (lines.length) lines.push('')
+    lines.push('  // ── Others ──')
+    for (const id of leftovers) lines.push(lineFor(id))
+  }
+  const head = text.slice(0, s + start.length)
+  const tail = text.slice(e)
+  writeFileSync(file, head + '\n' + lines.join('\n') + '\n' + tail)
+  console.log(`  ✅ markerDefinitions.js (grouped) — ${map.size} icon(s)`)
+}
+
+function printTable(pack, entries) {
   console.log('\nNaming manifest (id → file → display name):')
   for (const e of entries) {
-    const exists = existsSync(path.join(FIVER_DIR, e.file))
+    const exists = existsSync(path.join(pack.dir, e.file))
     console.log(`  ${e.id.padEnd(24)} ${e.name.padEnd(14)} ${e.file}${exists ? '' : '  ⚠️ missing'}`)
   }
 }
@@ -248,11 +459,17 @@ function printTable(entries) {
 
 const args = process.argv.slice(2)
 
+// Which pack to act on: `--pack fiver2`, default `fiver`.
+const packKey = args.includes('--pack')
+  ? args[args.indexOf('--pack') + 1]
+  : 'fiver'
+const PACK = PACKS[packKey] || PACKS.fiver
+
 // ── --list ──
 if (args.includes('--list')) {
-  const { imported, removed } = readState()
-  printTable(MANIFEST)
-  console.log(`\nCurrently imported: ${imported.length} icon(s)`)
+  const { imported, removed } = readState(PACK.manifestFile)
+  printTable(PACK, imported)
+  console.log(`\n[${packKey}] imported: ${imported.length} icon(s)`)
   if (removed.length) console.log(`Removed (won't re-import): ${removed.join(', ')}`)
   process.exit(0)
 }
@@ -262,45 +479,53 @@ if (args.includes('--remove')) {
   const idx = args.indexOf('--remove')
   const ids = args[idx + 1] ? args[idx + 1].split(',').map((s) => s.trim()).filter(Boolean) : []
   if (!ids.length) {
-    console.error('Usage: node scripts/fiver-icons.mjs --remove id1,id2')
+    console.error('Usage: node scripts/fiver-icons.mjs --pack fiver2 --remove id1,id2')
     process.exit(1)
   }
-  const state = readState()
+  const state = readState(PACK.manifestFile)
   const removedHere = ids.filter((id) => state.imported.some((i) => i.id === id))
   state.imported = state.imported.filter((i) => !ids.includes(i.id))
   for (const id of ids) {
     if (!state.removed.includes(id)) state.removed.push(id)
   }
-  writeState(state)
+  writeState(PACK.manifestFile, state)
   console.log(`Removed ${removedHere.length} icon(s): ${removedHere.join(', ') || '(none were imported)'}`)
-  await regenerate(state.imported)
+  await regenerate(state.imported, PACK)
+  regenerateFarmDefs()
   console.log('\nNext: run "node scripts/gen-svg-glyphs.mjs" then "node scripts/generateIcons.js"')
   process.exit(0)
 }
 
 // ── default: import ──
 {
-  const files = readdirSync(FIVER_DIR).filter((f) => f.endsWith('.svg'))
-  const state = readState()
+  const files = readdirSync(PACK.dir).filter((f) => f.endsWith('.svg'))
+  const state = readState(PACK.manifestFile)
   const importedIds = new Set(state.imported.map((i) => i.id))
   const removedSet = new Set(state.removed)
   let added = 0
-  for (const m of MANIFEST) {
+  for (const m of PACK.manifest) {
     if (!files.includes(m.file)) {
-      console.warn(`  ⚠️  ${m.file} not found in static/icons/fiver/`)
+      console.warn(`  ⚠️  ${m.file} not found in ${PACK.dir}`)
       continue
     }
     if (removedSet.has(m.id)) continue
     if (!importedIds.has(m.id)) {
-      state.imported.push({ file: m.file, id: m.id, name: m.name, ...(m.special ? { special: true } : {}) })
+      state.imported.push({
+        file: m.file,
+        id: m.id,
+        name: m.name,
+        ...(m.pad ? { pad: m.pad } : {}),
+        ...(m.special ? { special: true } : {}),
+      })
       importedIds.add(m.id)
       added++
     }
   }
-  writeState(state)
-  console.log(`\nImporting fiver icons… (${added} new, ${state.imported.length} total)`)
-  printTable(state.imported)
+  writeState(PACK.manifestFile, state)
+  console.log(`\nImporting ${packKey} icons… (${added} new, ${state.imported.length} total)`)
+  printTable(PACK, state.imported)
   console.log('')
-  await regenerate(state.imported)
+  await regenerate(state.imported, PACK)
+  regenerateFarmDefs()
   console.log('\nNext: run "node scripts/gen-svg-glyphs.mjs" then "node scripts/generateIcons.js"')
 }

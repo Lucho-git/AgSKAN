@@ -122,7 +122,8 @@
   {#if show}
     <div
       class="edge-badge"
-      style="left:{containerLeft + x}px; top:{containerTop + y}px; --ec:{item.color || '#f59e0b'};"
+      style="left:{containerLeft + x}px; top:{containerTop +
+        y}px; --ec:{item.color || '#f59e0b'};"
       title={item.label || "Off-screen"}
       role="button"
       aria-label={`Go to ${item.label || "off-screen item"}`}
@@ -133,10 +134,13 @@
         class="edge-badge-ico"
         style={item.heading !== undefined
           ? `transform: rotate(${item.heading}deg);`
-          : ''}
+          : ""}
       >
         {#if item.component}
-          <svelte:component this={item.component} {...(item.componentProps || {})} />
+          <svelte:component
+            this={item.component}
+            {...item.componentProps || {}}
+          />
         {:else if item.icon}
           <svelte:component this={item.icon} size={18} />
         {:else if item.iconSvg}
@@ -149,7 +153,10 @@
         <span class="edge-badge-bar">
           <span
             class="edge-badge-bar-fill"
-            style="width:{Math.max(0, Math.min(100, item.barLevel))}%; background:{item.barColor || '#f59e0b'};"
+            style="width:{Math.max(
+              0,
+              Math.min(100, item.barLevel),
+            )}%; background:{item.barColor || '#f59e0b'};"
           ></span>
         </span>
       {/if}

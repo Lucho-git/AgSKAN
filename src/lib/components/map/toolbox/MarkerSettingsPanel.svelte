@@ -113,7 +113,10 @@
         toast.success("Camera find on quick drop: " + (value ? "zoom" : "none"))
       } else {
         toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({ ...s, zoomToLocationMarkers: !value }))
+        userSettingsStore.update((s) => ({
+          ...s,
+          zoomToLocationMarkers: !value,
+        }))
       }
     } catch (e) {
       toast.error(e?.message || "Error saving setting")
@@ -150,14 +153,22 @@
     try {
       const result = await userSettingsApi.updateOverlayMarkerMenuEnabled(value)
       if (result?.success) {
-        toast.success(value ? "Marker menu: on-map panel" : "Marker menu: bottom panel")
+        toast.success(
+          value ? "Marker menu: on-map panel" : "Marker menu: bottom panel",
+        )
       } else {
         toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({ ...s, overlayMarkerMenuEnabled: !value }))
+        userSettingsStore.update((s) => ({
+          ...s,
+          overlayMarkerMenuEnabled: !value,
+        }))
       }
     } catch (e) {
       toast.error(e?.message || "Error saving setting")
-      userSettingsStore.update((s) => ({ ...s, overlayMarkerMenuEnabled: !value }))
+      userSettingsStore.update((s) => ({
+        ...s,
+        overlayMarkerMenuEnabled: !value,
+      }))
     } finally {
       saving = null
     }
@@ -166,16 +177,27 @@
   async function toggleOverlayPlacementMenu(value) {
     saving = "overlayPlacementMenuEnabled"
     try {
-      const result = await userSettingsApi.updateOverlayPlacementMenuEnabled(value)
+      const result =
+        await userSettingsApi.updateOverlayPlacementMenuEnabled(value)
       if (result?.success) {
-        toast.success(value ? "Placement menu: on-map panel" : "Placement menu: bottom panel")
+        toast.success(
+          value
+            ? "Placement menu: on-map panel"
+            : "Placement menu: bottom panel",
+        )
       } else {
         toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({ ...s, overlayPlacementMenuEnabled: !value }))
+        userSettingsStore.update((s) => ({
+          ...s,
+          overlayPlacementMenuEnabled: !value,
+        }))
       }
     } catch (e) {
       toast.error(e?.message || "Error saving setting")
-      userSettingsStore.update((s) => ({ ...s, overlayPlacementMenuEnabled: !value }))
+      userSettingsStore.update((s) => ({
+        ...s,
+        overlayPlacementMenuEnabled: !value,
+      }))
     } finally {
       saving = null
     }
@@ -186,7 +208,9 @@
     try {
       const result = await userSettingsApi.updateShowBinsAlways(value)
       if (result?.success) {
-        toast.success(value ? "Bin edge tracking: on" : "Bin edge tracking: off")
+        toast.success(
+          value ? "Bin edge tracking: on" : "Bin edge tracking: off",
+        )
       } else {
         toast.error(result?.message || "Failed to update setting")
         userSettingsStore.update((s) => ({ ...s, showBinsAlways: !value }))
@@ -204,7 +228,9 @@
     try {
       const result = await userSettingsApi.updateShowVehiclesAlways(value)
       if (result?.success) {
-        toast.success(value ? "Vehicle edge tracking: on" : "Vehicle edge tracking: off")
+        toast.success(
+          value ? "Vehicle edge tracking: on" : "Vehicle edge tracking: off",
+        )
       } else {
         toast.error(result?.message || "Failed to update setting")
         userSettingsStore.update((s) => ({ ...s, showVehiclesAlways: !value }))
@@ -322,15 +348,17 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Marker style</span>
-          <span class="setting-desc">Style applied to every marker on the map</span>
+          <span class="setting-desc"
+            >Style applied to every marker on the map</span
+          >
         </div>
         <button
           type="button"
           class="ms-help-btn"
           title="Preview every marker in every style"
           aria-label="Preview marker styles"
-          on:click={() => (showStylePreview = true)}
-        >?</button>
+          on:click={() => (showStylePreview = true)}>?</button
+        >
       </div>
       <div class="style-seg marker-style-seg">
         {#each MARKER_STYLE_GROUPS as g}
@@ -338,8 +366,8 @@
             type="button"
             class:active={activeStyleGroup === g.key}
             disabled={saving === "markerStyle"}
-            on:click={() => setMarkerStyleGroup(g)}
-          >{g.label}</button>
+            on:click={() => setMarkerStyleGroup(g)}>{g.label}</button
+          >
         {/each}
       </div>
 
@@ -350,14 +378,14 @@
             type="button"
             class:active={markerStyle === "circle-fill"}
             disabled={saving === "markerStyle"}
-            on:click={() => setMarkerStyle("circle-fill")}
-          >White</button>
+            on:click={() => setMarkerStyle("circle-fill")}>White</button
+          >
           <button
             type="button"
             class:active={markerStyle === "circle-fill-black"}
             disabled={saving === "markerStyle"}
-            on:click={() => setMarkerStyle("circle-fill-black")}
-          >Black</button>
+            on:click={() => setMarkerStyle("circle-fill-black")}>Black</button
+          >
         </div>
       {/if}
 
@@ -368,14 +396,14 @@
             type="button"
             class:active={markerStyle === "icon-dark-glass"}
             disabled={saving === "markerStyle"}
-            on:click={() => setMarkerStyle("icon-dark-glass")}
-          >Dark</button>
+            on:click={() => setMarkerStyle("icon-dark-glass")}>Dark</button
+          >
           <button
             type="button"
             class:active={markerStyle === "icon-light-glass"}
             disabled={saving === "markerStyle"}
-            on:click={() => setMarkerStyle("icon-light-glass")}
-          >Light</button>
+            on:click={() => setMarkerStyle("icon-light-glass")}>Light</button
+          >
         </div>
       {/if}
     </div>
@@ -389,7 +417,9 @@
           </div>
           <div class="setting-label">
             <span class="setting-name">Icon glass strength</span>
-            <span class="setting-desc">How strong the translucent disc behind the icon is</span>
+            <span class="setting-desc"
+              >How strong the translucent disc behind the icon is</span
+            >
           </div>
         </div>
         <div class="glass-opacity-row">
@@ -416,15 +446,17 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Default colour</span>
-          <span class="setting-desc">Colour a new marker gets when it has none set</span>
+          <span class="setting-desc"
+            >Colour a new marker gets when it has none set</span
+          >
         </div>
         <button
           type="button"
           class="ms-help-btn"
           title="Set a default colour for each marker type"
           aria-label="Default colour help"
-          on:click={() => (showDefaultColorHelp = true)}
-        >?</button>
+          on:click={() => (showDefaultColorHelp = true)}>?</button
+        >
       </div>
       <button
         type="button"
@@ -444,7 +476,9 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Marker menu style</span>
-          <span class="setting-desc">How marker menus open when a marker is selected</span>
+          <span class="setting-desc"
+            >How marker menus open when a marker is selected</span
+          >
         </div>
       </div>
       <div class="style-seg">
@@ -452,14 +486,14 @@
           type="button"
           class:active={overlayMarkerMenuEnabled}
           disabled={saving === "overlayMarkerMenuEnabled"}
-          on:click={() => toggleOverlayMarkerMenu(true)}
-        >On Map Panel</button>
+          on:click={() => toggleOverlayMarkerMenu(true)}>On Map Panel</button
+        >
         <button
           type="button"
           class:active={!overlayMarkerMenuEnabled}
           disabled={saving === "overlayMarkerMenuEnabled"}
-          on:click={() => toggleOverlayMarkerMenu(false)}
-        >Bottom Panel</button>
+          on:click={() => toggleOverlayMarkerMenu(false)}>Bottom Panel</button
+        >
       </div>
     </div>
 
@@ -471,7 +505,9 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Placement menu style</span>
-          <span class="setting-desc">How the icon menu opens when placing a new marker</span>
+          <span class="setting-desc"
+            >How the icon menu opens when placing a new marker</span
+          >
         </div>
       </div>
       <div class="style-seg">
@@ -479,14 +515,15 @@
           type="button"
           class:active={overlayPlacementMenuEnabled}
           disabled={saving === "overlayPlacementMenuEnabled"}
-          on:click={() => toggleOverlayPlacementMenu(true)}
-        >On Map Panel</button>
+          on:click={() => toggleOverlayPlacementMenu(true)}>On Map Panel</button
+        >
         <button
           type="button"
           class:active={!overlayPlacementMenuEnabled}
           disabled={saving === "overlayPlacementMenuEnabled"}
           on:click={() => toggleOverlayPlacementMenu(false)}
-        >Bottom Panel</button>
+          >Bottom Panel</button
+        >
       </div>
     </div>
 
@@ -498,7 +535,9 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Camera find on quick drop</span>
-          <span class="setting-desc">Auto-zoom map when quick-dropping a marker</span>
+          <span class="setting-desc"
+            >Auto-zoom map when quick-dropping a marker</span
+          >
         </div>
       </div>
       <div class="style-seg">
@@ -506,14 +545,14 @@
           type="button"
           class:active={zoomToLocationMarkers}
           disabled={saving === "zoomToLocationMarkers"}
-          on:click={() => setZoomToLocation(true)}
-        >Zoom</button>
+          on:click={() => setZoomToLocation(true)}>Zoom</button
+        >
         <button
           type="button"
           class:active={!zoomToLocationMarkers}
           disabled={saving === "zoomToLocationMarkers"}
-          on:click={() => setZoomToLocation(false)}
-        >None</button>
+          on:click={() => setZoomToLocation(false)}>None</button
+        >
       </div>
     </div>
 
@@ -525,7 +564,9 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Camera find on touch hold</span>
-          <span class="setting-desc">Auto-zoom map when holding to place a marker</span>
+          <span class="setting-desc"
+            >Auto-zoom map when holding to place a marker</span
+          >
         </div>
       </div>
       <div class="style-seg">
@@ -533,14 +574,14 @@
           type="button"
           class:active={zoomToPlacedMarkers}
           disabled={saving === "zoomToPlacedMarkers"}
-          on:click={() => setZoomToPlaced(true)}
-        >Zoom</button>
+          on:click={() => setZoomToPlaced(true)}>Zoom</button
+        >
         <button
           type="button"
           class:active={!zoomToPlacedMarkers}
           disabled={saving === "zoomToPlacedMarkers"}
-          on:click={() => setZoomToPlaced(false)}
-        >None</button>
+          on:click={() => setZoomToPlaced(false)}>None</button
+        >
       </div>
     </div>
 
@@ -552,7 +593,9 @@
         </div>
         <div class="setting-label">
           <span class="setting-name">Marker icon selection</span>
-          <span class="setting-desc">Skip the edit panel and use the default icon when placing</span>
+          <span class="setting-desc"
+            >Skip the edit panel and use the default icon when placing</span
+          >
         </div>
       </div>
       <div class="style-seg">
@@ -560,14 +603,14 @@
           type="button"
           class:active={!autoConfirmMarkers}
           disabled={saving === "autoConfirmMarkers"}
-          on:click={() => toggleAutoConfirm(false)}
-        >Selection menu</button>
+          on:click={() => toggleAutoConfirm(false)}>Selection menu</button
+        >
         <button
           type="button"
           class:active={autoConfirmMarkers}
           disabled={saving === "autoConfirmMarkers"}
-          on:click={() => toggleAutoConfirm(true)}
-        >Use default</button>
+          on:click={() => toggleAutoConfirm(true)}>Use default</button
+        >
       </div>
     </div>
   {:else}
@@ -580,10 +623,16 @@
         <span class="setting-name">Show bins always</span>
         <span class="setting-desc">Track all silo bins at the map edge</span>
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={showBinsAlways}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={showBinsAlways}
         disabled={saving === "showBinsAlways"}
-        on:change={() => toggleShowBinsAlways(!showBinsAlways)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() => toggleShowBinsAlways(!showBinsAlways)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Show vehicles always (offscreen tracking) -->
@@ -593,12 +642,20 @@
       </div>
       <div class="setting-label">
         <span class="setting-name">Show vehicles always</span>
-        <span class="setting-desc">Track recently-active vehicles at the map edge</span>
+        <span class="setting-desc"
+          >Track recently-active vehicles at the map edge</span
+        >
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={showVehiclesAlways}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={showVehiclesAlways}
         disabled={saving === "showVehiclesAlways"}
-        on:change={() => toggleShowVehiclesAlways(!showVehiclesAlways)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() => toggleShowVehiclesAlways(!showVehiclesAlways)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
   {/if}
 {/if}
@@ -812,7 +869,9 @@
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease,
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
       border-color 0.15s ease;
   }
   .ms-help-btn:hover {
@@ -880,7 +939,9 @@
     padding: 9px 14px;
     border-radius: 10px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
   .sdc-choose-btn:hover:not(:disabled) {
     background: rgba(245, 158, 11, 0.26);

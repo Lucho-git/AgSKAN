@@ -34,11 +34,6 @@
       "pad": 0.1
     },
     {
-      "file": "harvest 2.svg",
-      "id": "fiver_harvest_v2",
-      "name": "Harvest 2"
-    },
-    {
       "file": "vegetables.svg",
       "id": "fiver_vegetables",
       "name": "Vegetables",
@@ -71,11 +66,6 @@
       "name": "Grain Shed"
     },
     {
-      "file": "Artboard 5.svg",
-      "id": "fiver_hay_shed",
-      "name": "Hay Shed"
-    },
-    {
       "file": "Artboard 6.svg",
       "id": "fiver_tractor_shed",
       "name": "Tractor Shed"
@@ -101,29 +91,9 @@
       "name": "Diesel Bowser"
     },
     {
-      "file": "Artboard 11.svg",
-      "id": "fiver_hay_stack",
-      "name": "Hay Stack"
-    },
-    {
-      "file": "Artboard 12.svg",
-      "id": "fiver_mother_bin",
-      "name": "Mother Bin"
-    },
-    {
-      "file": "Artboard 13.svg",
-      "id": "fiver_grain_bag",
-      "name": "Grain Bag"
-    },
-    {
       "file": "Artboard 14.svg",
       "id": "fiver_spray_trailer",
       "name": "Spray Trailer"
-    },
-    {
-      "file": "Artboard 15.svg",
-      "id": "fiver_road_train",
-      "name": "Road Train"
     },
     {
       "file": "Artboard 16.svg",
@@ -131,49 +101,9 @@
       "name": "Sheep Mob"
     },
     {
-      "file": "Artboard 17.svg",
-      "id": "fiver_cattle_mob",
-      "name": "Cattle Mob"
-    },
-    {
       "file": "Artboard 18.svg",
       "id": "fiver_service_trailer",
       "name": "Service Trailer"
-    },
-    {
-      "file": "Artboard 19.svg",
-      "id": "fiver_water_trough",
-      "name": "Water Trough"
-    },
-    {
-      "file": "Artboard 20.svg",
-      "id": "fiver_crossing",
-      "name": "Crossing"
-    },
-    {
-      "file": "Artboard 21.svg",
-      "id": "fiver_fillup_truck",
-      "name": "Fillup Truck"
-    },
-    {
-      "file": "Artboard 22.svg",
-      "id": "fiver_kangaroo",
-      "name": "Kangaroo"
-    },
-    {
-      "file": "Artboard 23.svg",
-      "id": "fiver_rabbit",
-      "name": "Rabbit"
-    },
-    {
-      "file": "Artboard 24.svg",
-      "id": "fiver_fox",
-      "name": "Fox"
-    },
-    {
-      "file": "Artboard 25.svg",
-      "id": "fiver_pig",
-      "name": "Pig"
     }
   ],
   "removed": [
@@ -188,6 +118,20 @@
     "fiver_rude",
     "fiver_rude_v2",
     "fiver_tow_truck_v2",
-    "fiver_vegetables_v2"
+    "fiver_vegetables_v2",
+    "fiver_harvest_v2",
+    "fiver_hay_shed",
+    "fiver_hay_stack",
+    "fiver_mother_bin",
+    "fiver_cattle_mob",
+    "fiver_kangaroo",
+    "fiver_rabbit",
+    "fiver_fox",
+    "fiver_pig",
+    "fiver_water_trough",
+    "fiver_grain_bag",
+    "fiver_crossing",
+    "fiver_road_train",
+    "fiver_fillup_truck"
   ]
 }

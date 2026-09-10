@@ -156,8 +156,7 @@
   // The bottom "Update marker" button shows whenever anything is pending:
   // an icon/colour preview, or a note that hasn't been saved yet.
   $: hasChanges =
-    pendingIconChange ||
-    notesText.trim() !== (originalNotes || "").trim()
+    pendingIconChange || notesText.trim() !== (originalNotes || "").trim()
 
   // ── Marker colour (option A: runtime-tinted icons) ──
   let markerColorKey = MARKER_COLOR_DEFAULT
@@ -269,10 +268,7 @@
     ) {
       return explicit
     }
-    let key = markerDefaultColorKey(
-      marker?.iconClass,
-      $userSettingsStore || {},
-    )
+    let key = markerDefaultColorKey(marker?.iconClass, $userSettingsStore || {})
     if (key === RANDOM_COLOR_KEY) key = randomColorForId(marker?.id)
     if (!key) key = styleDefaultColor(markerStyle)
     return key
@@ -355,8 +351,7 @@
       // Menu box dimensions (match the .marker-pop CSS; measured so the flip
       // uses the real rendered height).
       const menuW = 280
-      const menuH =
-        markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
+      const menuH = markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
 
       // Keep the on/off-screen tests on the raw marker point.
       visible =
@@ -1246,10 +1241,13 @@
         </div>
         <div class="marker-pop-titles">
           <div class="marker-pop-title-row">
-            <span class="marker-pop-title" title={markerName}>{markerName}</span>
+            <span class="marker-pop-title" title={markerName}>{markerName}</span
+            >
             <span
               class="marker-pop-color-name"
-              style="color: {swatchText(headerColorDef)}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
+              style="color: {swatchText(
+                headerColorDef,
+              )}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
               title={`Marker colour: ${headerColorDef.label}`}
             >
               {headerColorDef.label}
@@ -1302,11 +1300,16 @@
                 <span class="mp-color-bar-title">Color</span>
                 <span
                   class="mp-color-trigger"
-                  class:mp-color-trigger-default={markerColorKey === MARKER_COLOR_DEFAULT}
+                  class:mp-color-trigger-default={markerColorKey ===
+                    MARKER_COLOR_DEFAULT}
                   style="background: {markerColorKey === MARKER_COLOR_DEFAULT
-                    ? "transparent"
-                    : styleSwatchBg(markerColor(menuTriggerColorKey, markerStyle), markerStyle)};"
-                >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span>
+                    ? 'transparent'
+                    : styleSwatchBg(
+                        markerColor(menuTriggerColorKey, markerStyle),
+                        markerStyle,
+                      )};"
+                  >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span
+                >
               </button>
               {#if colorBoxOpen}
                 <button
@@ -1323,13 +1326,17 @@
                     title="Default — follows the marker default colour"
                     aria-label="Marker colour: Default"
                     on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
-                  >D</button>
+                    >D</button
+                  >
                   {#each pickableColorsForStyle(markerStyle) as c}
                     <button
                       type="button"
                       class="mp-color-cell"
                       class:active={markerColorKey === c.key}
-                      style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
+                      style="background: {styleSwatchBg(
+                        markerColor(c.key, markerStyle),
+                        markerStyle,
+                      )};"
                       title={c.label}
                       aria-label={`Marker colour ${c.label}`}
                       on:click={() => pickMenuColor(c.key)}
@@ -1362,7 +1369,8 @@
                   {:else if icon.class.startsWith("custom-svg")}
                     <IconSVG icon={icon.id} size="22px" />
                   {:else if icon.class.startsWith("ionic-")}
-                    <ion-icon name={icon.id} style="font-size: 22px;"></ion-icon>
+                    <ion-icon name={icon.id} style="font-size: 22px;"
+                    ></ion-icon>
                   {:else}
                     <i class={`${icon.class} text-lg`}></i>
                   {/if}
@@ -1413,7 +1421,10 @@
                   <FileText size={12} />
                   <span>Notes</span>
                 </span>
-                <label class="mp-label-toggle" title="Show map label above marker">
+                <label
+                  class="mp-label-toggle"
+                  title="Show map label above marker"
+                >
                   <span class="mp-label-toggle-text">Map Label</span>
                   <input
                     type="checkbox"
@@ -2395,7 +2406,10 @@
     background: rgba(255, 255, 255, 0.04);
     color: rgba(255, 255, 255, 0.55);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
   }
   .mp-color-bar:hover {
     background: rgba(255, 255, 255, 0.08);

@@ -63,9 +63,7 @@
   $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
   function markerTypeColorKey(marker: MarkerDefinition): string {
     const iconClass =
-      marker.class === "custom-svg"
-        ? `custom-svg-${marker.id}`
-        : marker.class
+      marker.class === "custom-svg" ? `custom-svg-${marker.id}` : marker.class
     let key = markerDefaultColorKey(iconClass, $userSettingsStore || {})
     if (key === RANDOM_COLOR_KEY) key = randomColorForId(iconClass)
     if (!key) key = styleDefaultColor(markerStyle)
@@ -465,7 +463,10 @@
               <div class="marker-icon-small">
                 <span
                   class="marker-color-dot"
-                  style="background: {styleSwatchBg(markerColor(markerTypeColorKey(marker), markerStyle), markerStyle)};"
+                  style="background: {styleSwatchBg(
+                    markerColor(markerTypeColorKey(marker), markerStyle),
+                    markerStyle,
+                  )};"
                   title={`Default colour: ${markerColor(markerTypeColorKey(marker), markerStyle).label}`}
                 ></span>
                 {#if marker.id === "default"}
@@ -521,7 +522,10 @@
               <div class="marker-icon-small">
                 <span
                   class="marker-color-dot"
-                  style="background: {styleSwatchBg(markerColor(markerTypeColorKey(marker), markerStyle), markerStyle)};"
+                  style="background: {styleSwatchBg(
+                    markerColor(markerTypeColorKey(marker), markerStyle),
+                    markerStyle,
+                  )};"
                   title={`Default colour: ${markerColor(markerTypeColorKey(marker), markerStyle).label}`}
                 ></span>
                 {#if marker.id === "default"}

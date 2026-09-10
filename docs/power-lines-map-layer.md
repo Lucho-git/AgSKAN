@@ -195,3 +195,14 @@ fresh map load until the user toggled Show Outside Fields OFF/ON. Fixes that lan
    toggle never races. Verified on the 98-field live map: first load now logs `overlay ready` →
    `near-fields: N lines, M poles` with no interaction needed.
 
+**Load optimisations A + B (2026-09-07):**
+- **No mapped fields ⇒ nothing shown by default.** `PowerLinesOverlay.svelte` now has
+  `active()` (= toggles on AND (fields exist OR Show Outside Fields on)). With no fields and
+  the outside toggle off, no layers/sources are added at all (and the national GeoJSON isn't
+  fetched) — previously those users got the full national + WA network rendered. Fields being
+  added/removed or the toggle being flipped re-adds/removes the layers automatically.
+- **WA-extent gate.** `powerNearFields.js` declares `WA_REGION_BOUNDS` and only fetches a
+  decode tile if its geographic bbox intersects it — paddocks in other states cause ZERO WA
+  tileset requests (their near lines still come from the national GeoJSON, which is filtered
+  with turf regardless of tiles). Tighten to the SWIS extent if a Horizon Power pack is added.
+

@@ -27,51 +27,51 @@ let started = false
  * modern browsers. Call once on the client (e.g. the root layout onMount).
  */
 export function initDialogPolyfill(): void {
-  if (!browser || started) return
-  started = true
+    if (!browser || started) return
+    started = true
 
-  // Modern browsers (Chrome/Edge/Firefox/Safari 15.4+) already support the
-  // native element — nothing to polyfill, don't even attach the observer.
-  const nativeDialog =
-    typeof window !== "undefined" ? window.HTMLDialogElement : undefined
-  if (
-    nativeDialog &&
-    typeof nativeDialog.prototype.showModal === "function"
-  ) {
-    return
-  }
-
-  // Only old browsers load the polyfill stylesheet (backdrop + base dialog
-  // styles; DaisyUI's .modal classes override the base rules).
-  void import("dialog-polyfill/dist/dialog-polyfill.css").catch(() => {
-    /* stylesheet is best-effort */
-  })
-
-  const register = (el: Element): void => {
-    try {
-      // No-op when the element already has showModal — safe to call again.
-      dialogPolyfill.registerDialog(el)
-    } catch (e) {
-      console.warn("dialog-polyfill:", e)
+    // Modern browsers (Chrome/Edge/Firefox/Safari 15.4+) already support the
+    // native element — nothing to polyfill, don't even attach the observer.
+    const nativeDialog =
+        typeof window !== "undefined" ? window.HTMLDialogElement : undefined
+    if (
+        nativeDialog &&
+        typeof nativeDialog.prototype.showModal === "function"
+    ) {
+        return
     }
-  }
 
-  // Dialogs already in the DOM (SSR'd + hydrated).
-  document.querySelectorAll("dialog").forEach(register)
+    // Only old browsers load the polyfill stylesheet (backdrop + base dialog
+    // styles; DaisyUI's .modal classes override the base rules).
+    void import("dialog-polyfill/dist/dialog-polyfill.css").catch(() => {
+        /* stylesheet is best-effort */
+    })
 
-  // Svelte renders and swaps modals at any time (navigation, {#if} blocks),
-  // so watch for new <dialog> elements and register them on the fly.
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue
-        if (node.tagName === "DIALOG") register(node)
-        node.querySelectorAll("dialog").forEach(register)
-      }
+    const register = (el: Element): void => {
+        try {
+            // No-op when the element already has showModal — safe to call again.
+            dialogPolyfill.registerDialog(el)
+        } catch (e) {
+            console.warn("dialog-polyfill:", e)
+        }
     }
-  })
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-  })
+
+    // Dialogs already in the DOM (SSR'd + hydrated).
+    document.querySelectorAll("dialog").forEach(register)
+
+    // Svelte renders and swaps modals at any time (navigation, {#if} blocks),
+    // so watch for new <dialog> elements and register them on the fly.
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (!(node instanceof HTMLElement)) continue
+                if (node.tagName === "DIALOG") register(node)
+                node.querySelectorAll("dialog").forEach(register)
+            }
+        }
+    })
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+    })
 }

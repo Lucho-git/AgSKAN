@@ -1,0 +1,133 @@
+{
+  "imported": [
+    {
+      "file": "Berries.svg",
+      "id": "fiver2_berries",
+      "name": "Berries"
+    },
+    {
+      "file": "Cow Mob.svg",
+      "id": "fiver2_cow_mob",
+      "name": "Cow Mob"
+    },
+    {
+      "file": "Crossing.svg",
+      "id": "fiver2_crossing",
+      "name": "Crossing"
+    },
+    {
+      "file": "Fox.svg",
+      "id": "fiver2_fox",
+      "name": "Fox"
+    },
+    {
+      "file": "Fuel Trailer.svg",
+      "id": "fiver2_fuel_trailer",
+      "name": "Fuel Trailer"
+    },
+    {
+      "file": "Grain Bag.svg",
+      "id": "fiver2_grain_bag",
+      "name": "Grain Bag"
+    },
+    {
+      "file": "hay shed.svg",
+      "id": "fiver2_hay_shed",
+      "name": "Hay Shed"
+    },
+    {
+      "file": "Hay Stack.svg",
+      "id": "fiver2_hay_stack",
+      "name": "Hay Stack"
+    },
+    {
+      "file": "Kangaroo.svg",
+      "id": "fiver2_kangaroo",
+      "name": "Kangaroo"
+    },
+    {
+      "file": "Liquid.svg",
+      "id": "fiver2_liquid",
+      "name": "Liquid"
+    },
+    {
+      "file": "Mother Bin.svg",
+      "id": "fiver2_mother_bin",
+      "name": "Mother Bin"
+    },
+    {
+      "file": "Pig.svg",
+      "id": "fiver2_pig",
+      "name": "Pig"
+    },
+    {
+      "file": "Rabbit.svg",
+      "id": "fiver2_rabbit",
+      "name": "Rabbit"
+    },
+    {
+      "file": "Road Train.svg",
+      "id": "fiver2_road_train",
+      "name": "Road Train"
+    },
+    {
+      "file": "Rude.svg",
+      "id": "fiver2_rude",
+      "name": "Rude"
+    },
+    {
+      "file": "Tree.svg",
+      "id": "fiver2_tree",
+      "name": "Tree"
+    },
+    {
+      "file": "Trough.svg",
+      "id": "fiver2_trough",
+      "name": "Trough"
+    },
+    {
+      "file": "Ute Vehicle.svg",
+      "id": "fiver2_ute",
+      "name": "Ute"
+    },
+    {
+      "file": "Wheel Ruts.svg",
+      "id": "fiver2_wheel_ruts",
+      "name": "Wheel Ruts"
+    },
+    {
+      "file": "Delivery OPTION B.svg",
+      "id": "fiver2_delivery_b",
+      "name": "Delivery"
+    }
+  ],
+  "removed": [
+    "fiver2_sheep_mob",
+    "fiver2_sheep_mob_b",
+    "fiver2_chem_shed",
+    "fiver2_fert_shed",
+    "fiver2_grain_shed",
+    "fiver2_machine_shed",
+    "fiver2_open_shed",
+    "fiver2_shearing_shed",
+    "fiver2_workshop_shed",
+    "fiver2_hay_stack_b",
+    "fiver2_mother_bin_b",
+    "fiver2_mother_bin_c",
+    "fiver2_silo",
+    "fiver2_spray_trailer",
+    "fiver2_vegetables",
+    "fiver2_water_tank",
+    "fiver2_flexi_tank",
+    "fiver2_field_bin",
+    "fiver2_harvest",
+    "fiver2_fuel",
+    "fiver2_diesel_bowser",
+    "fiver2_fillup_truck",
+    "fiver2_delivery",
+    "fiver2_road_train_b",
+    "fiver2_grain_bag_b",
+    "fiver2_rock",
+    "fiver2_pile_of_rocks"
+  ]
+}

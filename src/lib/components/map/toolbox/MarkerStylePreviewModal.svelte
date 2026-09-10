@@ -307,10 +307,11 @@
         <ChevronLeft size={26} />
       </button>
       <div class="msp-head-text">
-        <div class="msp-title">{activeStyleLabel || "Marker style preview"}</div>
+        <div class="msp-title">
+          {activeStyleLabel || "Marker style preview"}
+        </div>
         <div class="msp-sub">
-          Style {styleIndex + 1} of {styles.length} — every marker on a real
-          farm.
+          Style {styleIndex + 1} of {styles.length} — every marker on a real farm.
         </div>
       </div>
       <button
@@ -366,7 +367,9 @@
           ></button>
         {/each}
       </div>
-      <p class="msp-hint">Scroll to zoom · drag to pan · arrows to change style</p>
+      <p class="msp-hint">
+        Scroll to zoom · drag to pan · arrows to change style
+      </p>
     </div>
   </div>
 </div>
@@ -437,8 +440,11 @@
     color: #93c5fd;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, color 0.15s ease,
-      border-color 0.15s ease, opacity 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
   }
 
   .msp-arrow:hover:not(:disabled) {
@@ -464,7 +470,9 @@
     color: #cbd5e1;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
 
   .msp-close:hover {
@@ -532,7 +540,9 @@
     padding: 8px 22px;
     border-radius: 999px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .msp-apply:hover:not(:disabled) {
@@ -558,7 +568,9 @@
     background: rgba(148, 163, 184, 0.4);
     cursor: pointer;
     padding: 0;
-    transition: background 0.15s ease, transform 0.15s ease;
+    transition:
+      background 0.15s ease,
+      transform 0.15s ease;
   }
 
   .msp-dot.active {

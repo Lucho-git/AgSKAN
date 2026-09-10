@@ -14,6 +14,10 @@
   // Session management
   import { initializeSession } from "$lib/stores/sessionStore"
 
+  // Shared icon <symbol> sprite — mounted ONCE below so every <IconSVG> <use>
+  // reference resolves without duplicating the ~300 KB library per icon.
+  import IconSprite from "$lib/components/general/IconSprite.svelte"
+
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
   import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
@@ -646,6 +650,14 @@
     }
   })
 </script>
+
+<!-- Single shared icon sprite (see IconSprite.svelte) — must stay mounted
+     exactly once so every <IconSVG> <use> reference resolves. -->
+<IconSprite />
+
+<!-- Single shared icon sprite (see IconSprite.svelte) — mounted exactly once
+     so every <IconSVG> <use> reference resolves. -->
+<IconSprite />
 
 <svelte:head>
   <link rel="preconnect" href="https://fonts.googleapis.com" />

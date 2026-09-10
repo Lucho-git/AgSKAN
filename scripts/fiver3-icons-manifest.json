@@ -1,0 +1,18 @@
+{
+  "imported": [
+    {
+      "file": "Artboard 21.svg",
+      "id": "fiver3_fillup_truck",
+      "name": "Fillup Truck"
+    },
+    {
+      "file": "Artboard 31.svg",
+      "id": "fiver3_truck_fillup",
+      "name": "Truck Fill Up"
+    }
+  ],
+  "removed": [
+    "fiver3_road_train",
+    "fiver3_trough"
+  ]
+}

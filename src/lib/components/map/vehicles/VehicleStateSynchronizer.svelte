@@ -30,7 +30,8 @@
 
   function parseUpdateTime(value) {
     if (!value) return 0
-    const timestamp = typeof value === "string" ? new Date(value).getTime() : value
+    const timestamp =
+      typeof value === "string" ? new Date(value).getTime() : value
     return Number.isFinite(timestamp) ? timestamp : 0
   }
 
@@ -69,8 +70,10 @@
       full_name: profile.full_name || row.full_name || "Unknown User",
       selected_operation_id:
         row.selected_operation_id ?? profile.selected_operation_id ?? null,
-      current_operation: row.current_operation ?? profile.current_operation ?? null,
-      operation_name: row.operation_name || profile.operation_name || "No operation",
+      current_operation:
+        row.current_operation ?? profile.current_operation ?? null,
+      operation_name:
+        row.operation_name || profile.operation_name || "No operation",
       operation_id: row.operation_id || profile.operation_id || null,
     }
   }
@@ -602,7 +605,12 @@
                 (vehicle) => vehicle.vehicle_id === payload.new.vehicle_id,
               )
               if (existingVehicleIndex !== -1) {
-                if (isOlderVehicleUpdate(payload.new, pruned[existingVehicleIndex])) {
+                if (
+                  isOlderVehicleUpdate(
+                    payload.new,
+                    pruned[existingVehicleIndex],
+                  )
+                ) {
                   console.warn(
                     `⏳ Ignoring older CDC vehicle_state from ${payload.new.vehicle_id?.slice(0, 8)}`,
                     {

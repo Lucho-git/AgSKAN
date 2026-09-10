@@ -223,7 +223,8 @@
   // pending, otherwise the marker's committed icon. Passed INTO the per-cell
   // test as an explicit argument so Svelte tracks it (a function call in an
   // {#each} only re-evaluates when a tracked dependency changes).
-  $: selectedIconKey = previewIconClass || getCurrentIconClass($selectedMarkerStore?.id)
+  $: selectedIconKey =
+    previewIconClass || getCurrentIconClass($selectedMarkerStore?.id)
   // Reactive function for icon selection
   $: getIsIconSelected = (icon, selectedKey) => {
     if (!selectedKey) {
@@ -699,10 +700,7 @@
 
 <!-- Marker Panel -->
 {#if !shouldReopenAfterDrawing}
-  <div
-    class="marker-panel"
-    class:expanded={isExpanded}
-  >
+  <div class="marker-panel" class:expanded={isExpanded}>
     <!-- Edit Section -->
     {#if isExpanded && showEditMenu}
       <div class="icon-section">
@@ -751,14 +749,17 @@
                   class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
                   title="Default — follows the marker default colour"
                   aria-label="Marker colour: Default"
-                  on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
-                >D</button>
+                  on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}>D</button
+                >
                 {#each pickableColorsForStyle(markerStyle) as c}
                   <button
                     type="button"
                     class="picker-swatch"
                     class:active={pickerColorKey === c.key}
-                    style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
+                    style="background: {styleSwatchBg(
+                      markerColor(c.key, markerStyle),
+                      markerStyle,
+                    )};"
                     title={c.label}
                     aria-label={`Marker colour ${c.label}`}
                     on:click={() => pickMenuColor(c.key)}
@@ -767,7 +768,9 @@
               </div>
               <span
                 class="picker-label"
-                style="color: {swatchText(markerColor(pickerTriggerKey, markerStyle))};"
+                style="color: {swatchText(
+                  markerColor(pickerTriggerKey, markerStyle),
+                )};"
               >
                 {pickerColorKey === MARKER_COLOR_DEFAULT
                   ? "Default"
@@ -791,7 +794,8 @@
                   {:else if icon.class.startsWith("custom-svg")}
                     <IconSVG icon={icon.id} size="28px" />
                   {:else if icon.class.startsWith("ionic-")}
-                    <ion-icon name={icon.id} style="font-size: 28px;"></ion-icon>
+                    <ion-icon name={icon.id} style="font-size: 28px;"
+                    ></ion-icon>
                   {:else}
                     <i class={`${icon.class} text-2xl`}></i>
                   {/if}

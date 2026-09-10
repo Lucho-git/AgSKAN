@@ -31,6 +31,14 @@ export const WA_POLES_TILESET = "luchodore.rzpget"
 export const WA_LINES_LAYER = "powerlines"
 export const WA_POLES_LAYER = "poles"
 
+// Geographic extent of the WA (Western Power) tilesets, [west, south, east,
+// north]. Tiles entirely outside this box contain no data, so they are never
+// fetched — fields in other states therefore trigger ZERO WA tile requests
+// (their near lines still come from the national GeoJSON below). Currently
+// covers all of WA state; tighten to the SWIS-only extent if a Horizon Power
+// (north WA) region pack is added later.
+export const WA_REGION_BOUNDS = [112.9, -35.5, 129.0, -13.5]
+
 function lonLatToTile(lon, lat, z) {
   const n = 2 ** z
   const x = Math.floor(((lon + 180) / 360) * n)
@@ -52,6 +60,24 @@ function bboxToTiles(bbox, z) {
     }
   }
   return tiles
+}
+
+// Geographic bounds of one web-mercator tile → [west, south, east, north].
+function tileBounds(x, y, z) {
+  const n = 2 ** z
+  const west = (x / n) * 360 - 180
+  const east = ((x + 1) / n) * 360 - 180
+  const yLat = (yy) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * yy) / n))) * 180) / Math.PI
+  return [west, yLat(y + 1), east, yLat(y)]
+}
+
+function boundsIntersect(a, b) {
+  return a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
+}
+
+// Does any part of this tile fall inside the region's bounding box?
+function tileIntersectsRegion(tile, regionBounds) {
+  return boundsIntersect(tileBounds(tile.x, tile.y, tile.z), regionBounds)
 }
 
 // Pick a decode zoom so the tile count stays sane for huge multi-farm setups.
@@ -245,24 +271,32 @@ export async function computePowerNearData({ fields, accessToken, nationalData }
   const bufferedFields = buildBufferedFields(fields)
   if (!bufferedFields.length) return empty
 
-  // Pick the tiles to fetch from each buffered paddock's bbox (deduped).
+  // Pick the tiles to fetch from each buffered paddock's bbox (deduped), but
+  // keep only the tiles that overlap the WA tilesets' geographic extent — a
+  // tile outside it (fields in other states) holds no data, so fetching it
+  // would be pure waste. National lines below are NOT extent-limited, so
+  // out-of-region paddocks still get their transmission lines.
   const z = chooseZoom(bufferedFields)
   const seen = new Set()
   const tiles = []
   for (const bf of bufferedFields) {
     for (const t of bboxToTiles(bf.bbox, z)) {
       const key = `${t.x},${t.y}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        tiles.push(t)
-      }
+      if (seen.has(key)) continue
+      seen.add(key)
+      if (tileIntersectsRegion(t, WA_REGION_BOUNDS)) tiles.push(t)
     }
   }
-  if (!tiles.length) return { ...empty, decodeZoom: z }
 
+  // Only decode WA tiles when there are in-extent tiles to decode; the
+  // national features are always filtered directly with turf.
   const [waLines, waPoles, nationalLines] = await Promise.all([
-    decodeTiles(tiles, WA_LINES_TILESET, WA_LINES_LAYER, accessToken),
-    decodeTiles(tiles, WA_POLES_TILESET, WA_POLES_LAYER, accessToken),
+    tiles.length
+      ? decodeTiles(tiles, WA_LINES_TILESET, WA_LINES_LAYER, accessToken)
+      : Promise.resolve([]),
+    tiles.length
+      ? decodeTiles(tiles, WA_POLES_TILESET, WA_POLES_LAYER, accessToken)
+      : Promise.resolve([]),
     nationalData ? Promise.resolve(nationalData.features || []) : Promise.resolve([]),
   ])
 

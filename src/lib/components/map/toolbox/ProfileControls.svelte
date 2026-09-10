@@ -1,7 +1,19 @@
 <!-- src/lib/components/map/toolbox/ProfileControls.svelte -->
 <script lang="ts">
   import { toast } from "svelte-sonner"
-  import { User, Droplets, RefreshCw, UserCheck, Clock, Satellite, Ruler, Zap, Magnet, CloudSun, ChevronDown } from "lucide-svelte"
+  import {
+    User,
+    Droplets,
+    RefreshCw,
+    UserCheck,
+    Clock,
+    Satellite,
+    Ruler,
+    Zap,
+    Magnet,
+    CloudSun,
+    ChevronDown,
+  } from "lucide-svelte"
   import RoadIcon from "$lib/components/general/RoadIcon.svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -97,7 +109,10 @@
         toast.success("GPS interval: " + value + "s")
       } else {
         toast.error(result?.message || "Failed to update")
-        userSettingsStore.update((s) => ({ ...s, gpsIntervalSeconds: $userSettingsStore.gpsIntervalSeconds }))
+        userSettingsStore.update((s) => ({
+          ...s,
+          gpsIntervalSeconds: $userSettingsStore.gpsIntervalSeconds,
+        }))
       }
     } catch (e: any) {
       toast.error(e?.message || "Error saving setting")
@@ -140,7 +155,10 @@
       on:click={openOperatorPicker}
     >
       {#if $operatorStore?.operator}
-        <div class="operator-avatar" style="--op-color: {$operatorStore.operator.color}">
+        <div
+          class="operator-avatar"
+          style="--op-color: {$operatorStore.operator.color}"
+        >
           {getInitials($operatorStore.operator.name)}
         </div>
         <div class="operator-info">
@@ -154,7 +172,9 @@
         </div>
         <div class="operator-info">
           <span class="operator-label">No Operator Selected</span>
-          <span class="operator-name operator-name-muted">Required to trail</span>
+          <span class="operator-name operator-name-muted"
+            >Required to trail</span
+          >
         </div>
         <UserCheck size={16} class="operator-switch-icon" />
       {/if}
@@ -182,10 +202,16 @@
         <span class="setting-name">Record confirm popup</span>
         <span class="setting-desc">Show confirmation when closing a trail</span>
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={sprayConfirmEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={sprayConfirmEnabled}
         disabled={saving === "sprayConfirmEnabled"}
-        on:change={() => toggleSprayConfirm(!sprayConfirmEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() => toggleSprayConfirm(!sprayConfirmEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- GPS interval -->
@@ -197,9 +223,12 @@
         <span class="setting-name">GPS update interval</span>
         <span class="setting-desc">How often GPS position updates</span>
       </div>
-      <select class="gps-select" value={gpsIntervalStr}
+      <select
+        class="gps-select"
+        value={gpsIntervalStr}
         disabled={saving === "gpsIntervalSeconds"}
-        on:change={handleGpsChange}>
+        on:change={handleGpsChange}
+      >
         <option value="1">1s</option>
         <option value="2">2s</option>
         <option value="3">3s</option>
@@ -243,12 +272,20 @@
       </div>
       <div class="setting-label">
         <span class="setting-name">Road overlays menu</span>
-        <span class="setting-desc">Show the Road Overlays tool in the toolbox</span>
+        <span class="setting-desc"
+          >Show the Road Overlays tool in the toolbox</span
+        >
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={roadOverlaysEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={roadOverlaysEnabled}
         disabled={saving === "roadOverlaysEnabled"}
-        on:change={() => toggleRoadOverlays(!roadOverlaysEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() => toggleRoadOverlays(!roadOverlaysEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Satellite menu -->
@@ -260,10 +297,21 @@
         <span class="setting-name">Satellite menu</span>
         <span class="setting-desc">Show the Satellite tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={satelliteMenuEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={satelliteMenuEnabled}
         disabled={saving === "satelliteMenuEnabled"}
-        on:change={() => toggleMenu("satelliteMenuEnabled", "Satellite", !satelliteMenuEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() =>
+          toggleMenu(
+            "satelliteMenuEnabled",
+            "Satellite",
+            !satelliteMenuEnabled,
+          )}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Measure menu -->
@@ -275,10 +323,17 @@
         <span class="setting-name">Measure menu</span>
         <span class="setting-desc">Show the Measure tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={measureMenuEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={measureMenuEnabled}
         disabled={saving === "measureMenuEnabled"}
-        on:change={() => toggleMenu("measureMenuEnabled", "Measure", !measureMenuEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() =>
+          toggleMenu("measureMenuEnabled", "Measure", !measureMenuEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Flash Signal menu -->
@@ -288,12 +343,21 @@
       </div>
       <div class="setting-label">
         <span class="setting-name">Flash signal menu</span>
-        <span class="setting-desc">Show the Flash Signal tool in the toolbox</span>
+        <span class="setting-desc"
+          >Show the Flash Signal tool in the toolbox</span
+        >
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={flashMenuEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={flashMenuEnabled}
         disabled={saving === "flashMenuEnabled"}
-        on:change={() => toggleMenu("flashMenuEnabled", "Flash signal", !flashMenuEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() =>
+          toggleMenu("flashMenuEnabled", "Flash signal", !flashMenuEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Rock Picking menu -->
@@ -303,12 +367,25 @@
       </div>
       <div class="setting-label">
         <span class="setting-name">Rock picking menu</span>
-        <span class="setting-desc">Show the Rock Picking tool in the toolbox</span>
+        <span class="setting-desc"
+          >Show the Rock Picking tool in the toolbox</span
+        >
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={rockPickingMenuEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={rockPickingMenuEnabled}
         disabled={saving === "rockPickingMenuEnabled"}
-        on:change={() => toggleMenu("rockPickingMenuEnabled", "Rock picking", !rockPickingMenuEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() =>
+          toggleMenu(
+            "rockPickingMenuEnabled",
+            "Rock picking",
+            !rockPickingMenuEnabled,
+          )}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
 
     <!-- Weather menu -->
@@ -320,10 +397,17 @@
         <span class="setting-name">Weather menu</span>
         <span class="setting-desc">Show the Weather tool in the toolbox</span>
       </div>
-      <input type="checkbox" class="setting-toggle-input" checked={weatherMenuEnabled}
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={weatherMenuEnabled}
         disabled={saving === "weatherMenuEnabled"}
-        on:change={() => toggleMenu("weatherMenuEnabled", "Weather", !weatherMenuEnabled)} />
-      <span class="setting-toggle-track"><span class="setting-toggle-thumb"></span></span>
+        on:change={() =>
+          toggleMenu("weatherMenuEnabled", "Weather", !weatherMenuEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
   </div>
 </div>
@@ -773,7 +857,9 @@
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease,
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
       border-color 0.15s ease;
   }
   .ms-help-btn:hover {
@@ -841,7 +927,9 @@
     padding: 9px 14px;
     border-radius: 10px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
   .sdc-choose-btn:hover:not(:disabled) {
     background: rgba(245, 158, 11, 0.26);

@@ -42,9 +42,8 @@
   // ── Marker state (the unconfirmed new marker) ──
   $: marker = $selectedMarkerStore
   $: markerName = marker
-    ? findMarkerByIconClass(
-        previewIconClass || getCurrentIconClass(marker.id),
-      )?.name || "Marker"
+    ? findMarkerByIconClass(previewIconClass || getCurrentIconClass(marker.id))
+        ?.name || "Marker"
     : "Marker"
   // The icon shown in the header thumb (preview wins over the current one).
   $: displayIconClass =
@@ -64,8 +63,7 @@
     ) {
       return pickerColorKey
     }
-    const iconClass =
-      previewIconClass || getCurrentIconClass(marker?.id)
+    const iconClass = previewIconClass || getCurrentIconClass(marker?.id)
     let key = markerDefaultColorKey(iconClass, $userSettingsStore || {})
     if (key === RANDOM_COLOR_KEY) {
       key = randomColorForId(marker?.id || "preview")
@@ -108,9 +106,7 @@
       feature.properties.iconClass = iconClass
       source.setData(data)
     }
-    selectedMarkerStore.update((m) =>
-      m?.id === id ? { ...m, iconClass } : m,
-    )
+    selectedMarkerStore.update((m) => (m?.id === id ? { ...m, iconClass } : m))
   }
 
   function previewIcon(icon) {
@@ -181,8 +177,7 @@
       const p = map.project(coords)
       const px = p.x
       const py = p.y
-      const menuH =
-        markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
+      const menuH = markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
 
       visible =
         px > -40 && px < rect.width + 40 && py > 60 && py < rect.height + 40
@@ -202,11 +197,7 @@
       if (fitsVertically) {
         if (openUp && upSlide > SLIDE_BUFFER && upSlide > downSlide) {
           openUp = false
-        } else if (
-          !openUp &&
-          downSlide > SLIDE_BUFFER &&
-          downSlide > upSlide
-        ) {
+        } else if (!openUp && downSlide > SLIDE_BUFFER && downSlide > upSlide) {
           openUp = true
         }
       }
@@ -386,9 +377,15 @@
         {#if displayIconClass === "default"}
           <IconSVG icon="mapbox-marker" size="18px" />
         {:else if displayIconClass?.startsWith("custom-svg")}
-          <IconSVG icon={displayIconClass.replace("custom-svg-", "")} size="18px" />
+          <IconSVG
+            icon={displayIconClass.replace("custom-svg-", "")}
+            size="18px"
+          />
         {:else if displayIconClass?.startsWith("ionic-")}
-          <ion-icon name={displayIconClass.replace("ionic-", "")} style="font-size: 18px;"></ion-icon>
+          <ion-icon
+            name={displayIconClass.replace("ionic-", "")}
+            style="font-size: 18px;"
+          ></ion-icon>
         {:else if displayIconClass?.startsWith("at-")}
           <i class={`${displayIconClass} text-base`}></i>
         {:else}
@@ -400,8 +397,11 @@
           <span class="marker-pop-title" title={markerName}>{markerName}</span>
           <span
             class="marker-pop-color-name"
-            style="color: {swatchText(headerColorDef)}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
-          >{headerColorDef.label}</span>
+            style="color: {swatchText(
+              headerColorDef,
+            )}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
+            >{headerColorDef.label}</span
+          >
         </div>
         <span class="marker-pop-sub">New marker</span>
       </div>
@@ -430,41 +430,49 @@
           <span class="mp-color-bar-title">Color</span>
           <span
             class="mp-color-trigger"
-            class:mp-color-trigger-default={pickerColorKey === MARKER_COLOR_DEFAULT}
+            class:mp-color-trigger-default={pickerColorKey ===
+              MARKER_COLOR_DEFAULT}
             style="background: {pickerColorKey === MARKER_COLOR_DEFAULT
-              ? "transparent"
-              : styleSwatchBg(markerColor(menuTriggerColorKey, markerStyle), markerStyle)};"
-          >{#if pickerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span>
+              ? 'transparent'
+              : styleSwatchBg(
+                  markerColor(menuTriggerColorKey, markerStyle),
+                  markerStyle,
+                )};"
+            >{#if pickerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span
+          >
         </button>
-          {#if colorBoxOpen}
+        {#if colorBoxOpen}
+          <button
+            type="button"
+            class="mp-color-pop-overlay"
+            aria-label="Close colour picker"
+            on:click={() => (colorBoxOpen = false)}
+          ></button>
+          <div class="mp-color-pop">
             <button
               type="button"
-              class="mp-color-pop-overlay"
-              aria-label="Close colour picker"
-              on:click={() => (colorBoxOpen = false)}
-            ></button>
-            <div class="mp-color-pop">
+              class="mp-color-cell mp-color-cell-special"
+              class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
+              title="Default — follows the marker default colour"
+              aria-label="Marker colour: Default"
+              on:click={() => setPickerColor(MARKER_COLOR_DEFAULT)}>D</button
+            >
+            {#each pickableColorsForStyle(markerStyle) as c}
               <button
                 type="button"
-                class="mp-color-cell mp-color-cell-special"
-                class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
-                title="Default — follows the marker default colour"
-                aria-label="Marker colour: Default"
-                on:click={() => setPickerColor(MARKER_COLOR_DEFAULT)}
-              >D</button>
-              {#each pickableColorsForStyle(markerStyle) as c}
-                <button
-                  type="button"
-                  class="mp-color-cell"
-                  class:active={pickerColorKey === c.key}
-                  style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
-                  title={c.label}
-                  aria-label={`Marker colour ${c.label}`}
-                  on:click={() => setPickerColor(c.key)}
-                ></button>
-              {/each}
-            </div>
-          {/if}
+                class="mp-color-cell"
+                class:active={pickerColorKey === c.key}
+                style="background: {styleSwatchBg(
+                  markerColor(c.key, markerStyle),
+                  markerStyle,
+                )};"
+                title={c.label}
+                aria-label={`Marker colour ${c.label}`}
+                on:click={() => setPickerColor(c.key)}
+              ></button>
+            {/each}
+          </div>
+        {/if}
       </div>
 
       <div class="mp-icon-grid">
@@ -518,11 +526,7 @@
       aria-label="Add a note"
     />
 
-    <button
-      type="button"
-      class="mp-place-confirm"
-      on:click={confirmPlacement}
-    >
+    <button type="button" class="mp-place-confirm" on:click={confirmPlacement}>
       <Check size={14} />
       <span>Place Marker</span>
     </button>
@@ -690,7 +694,10 @@
     background: rgba(255, 255, 255, 0.04);
     color: rgba(255, 255, 255, 0.55);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
   }
   .mp-color-bar:hover {
     background: rgba(255, 255, 255, 0.08);

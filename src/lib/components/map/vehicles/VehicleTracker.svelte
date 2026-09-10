@@ -138,7 +138,9 @@
   /** @param {any} error */
   function isPermanentRefreshError(error) {
     const status = Number(error?.status || error?.code || error?.statusCode)
-    const message = String(error?.message || error?.error_description || "").toLowerCase()
+    const message = String(
+      error?.message || error?.error_description || "",
+    ).toLowerCase()
 
     return (
       status === 400 ||
@@ -192,7 +194,10 @@
       // that could interrupt the login flow and cause the map connection to
       // not be re-established.
     } catch (error) {
-      console.warn("[BG-DIAG] Local sign-out after native auth failure failed:", error)
+      console.warn(
+        "[BG-DIAG] Local sign-out after native auth failure failed:",
+        error,
+      )
     }
   }
 
@@ -225,7 +230,8 @@
           return {
             authFailed: true,
             status: error?.status || error?.code || null,
-            message: error?.message || `Session refresh failed during ${context}`,
+            message:
+              error?.message || `Session refresh failed during ${context}`,
           }
         }
 
@@ -251,7 +257,8 @@
         return {
           authFailed: true,
           status: refreshError?.status || refreshError?.code || null,
-          message: refreshError?.message || `Session refresh failed during ${context}`,
+          message:
+            refreshError?.message || `Session refresh failed during ${context}`,
         }
       }
 
@@ -306,8 +313,8 @@
     timestamp: null,
     source: null,
     // Frequency tracking: events per second over a rolling window
-    recentEventTimes: [],   // timestamps of recent events
-    recentUniqueTimes: [],  // timestamps of recent unique-coord events
+    recentEventTimes: [], // timestamps of recent events
+    recentUniqueTimes: [], // timestamps of recent unique-coord events
     eventsPerSec: 0,
     uniquePerSec: 0,
   }
@@ -1093,7 +1100,9 @@
       const authToken = tokenResult.accessToken
       const refreshToken = tokenResult.refreshToken
       if (!authToken || !refreshToken) {
-        console.warn("[BG-DIAG] No native sync auth tokens — native sync not configured")
+        console.warn(
+          "[BG-DIAG] No native sync auth tokens — native sync not configured",
+        )
         return
       }
 
@@ -1174,13 +1183,18 @@
         // Process each stored location through the normal pipeline
         for (const loc of storedLocations) {
           if (loc.coords) {
-            streamMarkerPosition({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              heading: loc.coords.heading || 0,
-              speed: loc.coords.speed || 0,
-              accuracy: loc.coords.accuracy || null,
-            }, false, 'catchup', loc.timestamp)
+            streamMarkerPosition(
+              {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+                heading: loc.coords.heading || 0,
+                speed: loc.coords.speed || 0,
+                accuracy: loc.coords.accuracy || null,
+              },
+              false,
+              "catchup",
+              loc.timestamp,
+            )
           }
         }
         // Clear the plugin's stored locations after processing
@@ -1337,24 +1351,50 @@
             // If foreground GPS service isn't running (e.g. permission was just granted),
             // retry starting it now that we're back in the foreground.
             if (isMobileApp && !foregroundGpsService.isRunning) {
-              const intervalMs = ($userSettingsStore?.gpsIntervalSeconds || 2) * 1000
-              console.log('[GPS-DIAG] Foreground GPS not running on resume — retrying start with interval', intervalMs)
-              foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
-                if (started) {
-                  console.log('[GPS-DIAG] foregroundGpsService STARTED after permission grant')
-                  // Register listener if not already set
-                  if (!removeForegroundGpsListener) {
-                    removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
-                      if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
-                      latestNativePos = data.coords
-                      latestNativeTimestamp = data.timestamp || null
-                      streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
-                    })
+              const intervalMs =
+                ($userSettingsStore?.gpsIntervalSeconds || 2) * 1000
+              console.log(
+                "[GPS-DIAG] Foreground GPS not running on resume — retrying start with interval",
+                intervalMs,
+              )
+              foregroundGpsService
+                .start({ intervalMs, minDistanceM: 0 })
+                .then((started) => {
+                  if (started) {
+                    console.log(
+                      "[GPS-DIAG] foregroundGpsService STARTED after permission grant",
+                    )
+                    // Register listener if not already set
+                    if (!removeForegroundGpsListener) {
+                      removeForegroundGpsListener =
+                        foregroundGpsService.addListener((data) => {
+                          if ($devModeEnabled)
+                            console.log("[GPS-DIAG] raw-gps fix", {
+                              lat: data.coords.latitude,
+                              lng: data.coords.longitude,
+                            })
+                          latestNativePos = data.coords
+                          latestNativeTimestamp = data.timestamp || null
+                          streamMarkerPosition(
+                            data.coords,
+                            true,
+                            "raw-gps",
+                            data.timestamp,
+                          )
+                        })
+                    }
+                  } else {
+                    console.warn(
+                      "[GPS-DIAG] foregroundGpsService still failed to start on resume",
+                    )
                   }
-                } else {
-                  console.warn('[GPS-DIAG] foregroundGpsService still failed to start on resume')
-                }
-              }).catch(e => console.warn('[GPS-DIAG] foregroundGpsService retry error:', e))
+                })
+                .catch((e) =>
+                  console.warn(
+                    "[GPS-DIAG] foregroundGpsService retry error:",
+                    e,
+                  ),
+                )
             }
 
             // Fetch any trail points that were saved natively while JS was frozen
@@ -1394,9 +1434,20 @@
 
               // Raw overlay data is now updated inside streamMarkerPosition (proven Svelte-reactive path)
 
-              const applyImmediately = $userSettingsStore?.enableFull1Hz || !isMapboxTracking
+              const applyImmediately =
+                $userSettingsStore?.enableFull1Hz || !isMapboxTracking
 
-              if ($devModeEnabled) console.log("[1Hz-DIAG] native location received | applyImmediately=", applyImmediately, "bg=", isBackground, "devMode=", $devModeEnabled, "rawGpsActive=", !!removeForegroundGpsListener)
+              if ($devModeEnabled)
+                console.log(
+                  "[1Hz-DIAG] native location received | applyImmediately=",
+                  applyImmediately,
+                  "bg=",
+                  isBackground,
+                  "devMode=",
+                  $devModeEnabled,
+                  "rawGpsActive=",
+                  !!removeForegroundGpsListener,
+                )
 
               // When raw GPS foreground service is active, TransistorSoft only
               // buffers latestNativePos (already set above) but does NOT drive
@@ -1405,7 +1456,12 @@
 
               if (applyImmediately) {
                 // Force UI update bypassing throttle
-                streamMarkerPosition(data.coords, true, 'native', data.timestamp)
+                streamMarkerPosition(
+                  data.coords,
+                  true,
+                  "native",
+                  data.timestamp,
+                )
 
                 // If the user is tracking their vehicle, ensure the camera follows.
                 try {
@@ -1434,7 +1490,10 @@
               })
             }
           } else if (event === "authRequired") {
-            console.warn("[BG-DIAG] Native sync requires re-authentication:", data)
+            console.warn(
+              "[BG-DIAG] Native sync requires re-authentication:",
+              data,
+            )
             handleNativeSyncAuthRequired(data)
           } else if (event === "nativeSyncHalted") {
             console.warn("[BG-DIAG] Native sync halted:", data)
@@ -1460,7 +1519,10 @@
           }
         }
       } catch (error) {
-        console.warn("[BG-DIAG] Could not restore native sync auth state:", error)
+        console.warn(
+          "[BG-DIAG] Could not restore native sync auth state:",
+          error,
+        )
       }
     } catch (error) {
       toast.error("Error setting up background tracking", {
@@ -1629,7 +1691,9 @@
           if (!coordsToApply) return
 
           // Use stored native GPS timestamp when available, else browser GeolocationPosition timestamp
-          const geoTimestamp = latestNativePos ? latestNativeTimestamp : (e.timestamp || null)
+          const geoTimestamp = latestNativePos
+            ? latestNativeTimestamp
+            : e.timestamp || null
 
           streamMarkerPosition(
             {
@@ -1640,7 +1704,7 @@
               accuracy: coordsToApply.accuracy,
             },
             true,
-            'geolocate',
+            "geolocate",
             geoTimestamp,
           )
 
@@ -1672,36 +1736,76 @@
       try {
         const enabled = !!s?.enableFull1Hz
         const newIntervalSeconds = s?.gpsIntervalSeconds || 2
-        if ($devModeEnabled) console.log("[GPS-DIAG] userSettings subscription invoked", { enableFull1Hz: enabled, gpsIntervalSeconds: newIntervalSeconds, latestNativePosExists: !!latestNativePos })
+        if ($devModeEnabled)
+          console.log("[GPS-DIAG] userSettings subscription invoked", {
+            enableFull1Hz: enabled,
+            gpsIntervalSeconds: newIntervalSeconds,
+            latestNativePosExists: !!latestNativePos,
+          })
 
         // ── Foreground GPS service (always-on for native) ──
         // Start service if on native and not yet running
         if (isMobileApp && !removeForegroundGpsListener) {
           const intervalMs = newIntervalSeconds * 1000
-          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then((started) => {
-            if (started) {
-              if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService STARTED with interval', intervalMs)
-            } else {
-              console.warn('[GPS-DIAG] foregroundGpsService failed to start — falling back to default location sources')
-            }
-          }).catch(e => {
-            console.warn('[GPS-DIAG] foregroundGpsService error — falling back to default location sources:', e)
-          })
-          removeForegroundGpsListener = foregroundGpsService.addListener((data) => {
-            if ($devModeEnabled) console.log('[GPS-DIAG] raw-gps fix', { lat: data.coords.latitude, lng: data.coords.longitude })
-            latestNativePos = data.coords
-            latestNativeTimestamp = data.timestamp || null
-            streamMarkerPosition(data.coords, true, 'raw-gps', data.timestamp)
-          })
+          foregroundGpsService
+            .start({ intervalMs, minDistanceM: 0 })
+            .then((started) => {
+              if (started) {
+                if ($devModeEnabled)
+                  console.log(
+                    "[GPS-DIAG] foregroundGpsService STARTED with interval",
+                    intervalMs,
+                  )
+              } else {
+                console.warn(
+                  "[GPS-DIAG] foregroundGpsService failed to start — falling back to default location sources",
+                )
+              }
+            })
+            .catch((e) => {
+              console.warn(
+                "[GPS-DIAG] foregroundGpsService error — falling back to default location sources:",
+                e,
+              )
+            })
+          removeForegroundGpsListener = foregroundGpsService.addListener(
+            (data) => {
+              if ($devModeEnabled)
+                console.log("[GPS-DIAG] raw-gps fix", {
+                  lat: data.coords.latitude,
+                  lng: data.coords.longitude,
+                })
+              latestNativePos = data.coords
+              latestNativeTimestamp = data.timestamp || null
+              streamMarkerPosition(data.coords, true, "raw-gps", data.timestamp)
+            },
+          )
         }
 
         // When GPS interval changes while service is running, restart with new interval
-        if (isMobileApp && removeForegroundGpsListener && _prevGpsIntervalSeconds !== null && _prevGpsIntervalSeconds !== newIntervalSeconds) {
-          if ($devModeEnabled) console.log(`[GPS-DIAG] GPS interval changed ${_prevGpsIntervalSeconds}s → ${newIntervalSeconds}s — restarting foreground service`)
+        if (
+          isMobileApp &&
+          removeForegroundGpsListener &&
+          _prevGpsIntervalSeconds !== null &&
+          _prevGpsIntervalSeconds !== newIntervalSeconds
+        ) {
+          if ($devModeEnabled)
+            console.log(
+              `[GPS-DIAG] GPS interval changed ${_prevGpsIntervalSeconds}s → ${newIntervalSeconds}s — restarting foreground service`,
+            )
           const intervalMs = newIntervalSeconds * 1000
-          foregroundGpsService.start({ intervalMs, minDistanceM: 0 }).then(() => {
-            if ($devModeEnabled) console.log('[GPS-DIAG] foregroundGpsService RESTARTED with interval', intervalMs)
-          }).catch(e => console.warn('Failed to restart foregroundGpsService:', e))
+          foregroundGpsService
+            .start({ intervalMs, minDistanceM: 0 })
+            .then(() => {
+              if ($devModeEnabled)
+                console.log(
+                  "[GPS-DIAG] foregroundGpsService RESTARTED with interval",
+                  intervalMs,
+                )
+            })
+            .catch((e) =>
+              console.warn("Failed to restart foregroundGpsService:", e),
+            )
         }
         _prevGpsIntervalSeconds = newIntervalSeconds
 
@@ -1721,28 +1825,51 @@
           const immediateSrc = latestNativeTimestamp ? latestNativePos : null
           const immediateCoords = buildCoords(immediateSrc)
           if (immediateCoords) {
-            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz immediate tick using latest native fix")
-            streamMarkerPosition(immediateCoords, true, 'interval', latestNativeTimestamp)
+            if ($devModeEnabled)
+              console.log(
+                "[GPS-DIAG] full1Hz immediate tick using latest native fix",
+              )
+            streamMarkerPosition(
+              immediateCoords,
+              true,
+              "interval",
+              latestNativeTimestamp,
+            )
           }
 
           full1HzIntervalId = setInterval(() => {
             // When raw GPS foreground service is active, it fires directly —
             // skip the interval-based fallback to avoid duplicate/stale updates.
             if (removeForegroundGpsListener) return
-            if ($devModeEnabled) console.log("[GPS-DIAG] full1Hz interval tick", { latestNativePosExists: !!latestNativePos })
+            if ($devModeEnabled)
+              console.log("[GPS-DIAG] full1Hz interval tick", {
+                latestNativePosExists: !!latestNativePos,
+              })
             const src = latestNativeTimestamp ? latestNativePos : null
             const coordsToUse = buildCoords(src)
             if (coordsToUse) {
-              streamMarkerPosition(coordsToUse, true, 'interval', latestNativeTimestamp)
+              streamMarkerPosition(
+                coordsToUse,
+                true,
+                "interval",
+                latestNativeTimestamp,
+              )
             }
           }, 1000)
           if ($devModeEnabled) console.log("🚀 Full 1Hz UI updates ENABLED")
           // Disable adapter-side throttling so Mapbox watchers receive every native fix
           try {
             NativeGeolocationAdapter.setEmitInterval(NATIVE_ADAPTER_LOW_EMIT_MS)
-            if ($devModeEnabled) console.log('[GPS-DIAG] NativeGeolocationAdapter throttling set to', NATIVE_ADAPTER_LOW_EMIT_MS)
+            if ($devModeEnabled)
+              console.log(
+                "[GPS-DIAG] NativeGeolocationAdapter throttling set to",
+                NATIVE_ADAPTER_LOW_EMIT_MS,
+              )
           } catch (e) {
-            console.warn('Failed to set NativeGeolocationAdapter emit interval:', e)
+            console.warn(
+              "Failed to set NativeGeolocationAdapter emit interval:",
+              e,
+            )
           }
           // Start debug overlay refresh tick (computes rolling frequency + forces re-render)
           if (!debugOverlayTickId) {
@@ -1750,8 +1877,12 @@
               debugOverlayTick++
               const WINDOW_MS = 5000
               const cutoff = Date.now() - WINDOW_MS
-              const recentEvents = debugOverlayData.recentEventTimes.filter(t => t > cutoff)
-              const recentUniques = debugOverlayData.recentUniqueTimes.filter(t => t > cutoff)
+              const recentEvents = debugOverlayData.recentEventTimes.filter(
+                (t) => t > cutoff,
+              )
+              const recentUniques = debugOverlayData.recentUniqueTimes.filter(
+                (t) => t > cutoff,
+              )
               debugOverlayData = {
                 ...debugOverlayData,
                 recentEventTimes: recentEvents,
@@ -1767,17 +1898,45 @@
           if ($devModeEnabled) console.log("🛑 Full 1Hz UI updates DISABLED")
           // Restore adapter emit interval to default
           try {
-            NativeGeolocationAdapter.setEmitInterval(NATIVE_ADAPTER_DEFAULT_EMIT_MS)
-            if ($devModeEnabled) console.log('[GPS-DIAG] NativeGeolocationAdapter throttling RESTORED to', NATIVE_ADAPTER_DEFAULT_EMIT_MS)
+            NativeGeolocationAdapter.setEmitInterval(
+              NATIVE_ADAPTER_DEFAULT_EMIT_MS,
+            )
+            if ($devModeEnabled)
+              console.log(
+                "[GPS-DIAG] NativeGeolocationAdapter throttling RESTORED to",
+                NATIVE_ADAPTER_DEFAULT_EMIT_MS,
+              )
           } catch (e) {
-            console.warn('Failed to restore NativeGeolocationAdapter throttling:', e)
+            console.warn(
+              "Failed to restore NativeGeolocationAdapter throttling:",
+              e,
+            )
           }
           // Stop debug overlay tick and reset counters
           if (debugOverlayTickId) {
             clearInterval(debugOverlayTickId)
             debugOverlayTickId = null
           }
-          debugOverlayData = { rawLat: null, rawLng: null, appliedLat: null, appliedLng: null, nativeEventCount: 0, uniqueCoordCount: 0, lastChangedAt: null, prevRawLat: null, prevRawLng: null, accuracy: null, heading: null, speed: null, timestamp: null, source: null, recentEventTimes: [], recentUniqueTimes: [], eventsPerSec: 0, uniquePerSec: 0 }
+          debugOverlayData = {
+            rawLat: null,
+            rawLng: null,
+            appliedLat: null,
+            appliedLng: null,
+            nativeEventCount: 0,
+            uniqueCoordCount: 0,
+            lastChangedAt: null,
+            prevRawLat: null,
+            prevRawLng: null,
+            accuracy: null,
+            heading: null,
+            speed: null,
+            timestamp: null,
+            source: null,
+            recentEventTimes: [],
+            recentUniqueTimes: [],
+            eventsPerSec: 0,
+            uniquePerSec: 0,
+          }
         }
       } catch (e) {
         console.warn("Error handling userSettings subscription:", e)
@@ -1808,8 +1967,13 @@
       window.__simulateAuthFailure = () => {
         nativeSyncAuthPromptShown = false
         console.log("[TEST] Simulating auth failure — force logout in 3s...")
-        toast.info("Simulating auth failure — signing out in 3 seconds", { duration: 3000 })
-        setTimeout(() => handleNativeSyncAuthRequired({ simulated: true }), 3000)
+        toast.info("Simulating auth failure — signing out in 3 seconds", {
+          duration: 3000,
+        })
+        setTimeout(
+          () => handleNativeSyncAuthRequired({ simulated: true }),
+          3000,
+        )
       }
     }
   })
@@ -1923,7 +2087,9 @@
       // don't linger in the list.
       if (update_types.includes("vehicle_removed")) {
         otherVehiclesStore.update((vehicles) =>
-          vehicles.filter((/** @type {any} */ v) => v.vehicle_id !== vehicle_id),
+          vehicles.filter(
+            (/** @type {any} */ v) => v.vehicle_id !== vehicle_id,
+          ),
         )
         const idx = otherVehicleMarkers.findIndex(
           (item) => item.vehicleId === vehicle_id,
@@ -2433,14 +2599,20 @@
 
   // ✅ Dev mode: pipe synthetic position into the normal GPS pipeline
   $: if ($devModeEnabled && $devPositionStore.latitude != null) {
-    streamMarkerPosition($devPositionStore, false, 'devmode')
+    streamMarkerPosition($devPositionStore, false, "devmode")
   }
 
   /**
    * Show a red floating "GPS Rejected" label at the given coordinates on the map.
    * Mirrors the marker-floating-label pattern but uses a dedicated red variant.
    */
-  function showGpsRejectedLabel(longitude, latitude, category, accuracy, reason) {
+  function showGpsRejectedLabel(
+    longitude,
+    latitude,
+    category,
+    accuracy,
+    reason,
+  ) {
     if (!map) return
     const el = document.createElement("div")
     el.style.pointerEvents = "none"
@@ -2452,7 +2624,8 @@
     label.className = "gps-rejected-label"
     // Prefer a concise display: category + numeric accuracy (if provided)
     const cat = category ? String(category).toUpperCase() : "GPS"
-    const accText = typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
+    const accText =
+      typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
     label.textContent = `GPS Rejected — ${cat}${accText}`
     label.title = reason || `${cat} rejection`
     el.appendChild(label)
@@ -2480,7 +2653,8 @@
     // Use the same base class as the rejected label so layout matches,
     // and add an extra class to indicate positive state.
     label.className = "gps-rejected-label gps-accepted"
-    const accText = typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
+    const accText =
+      typeof accuracy === "number" ? ` (${Math.round(accuracy)}m)` : ""
     label.textContent = `GPS Accepted — OK${accText}`
     label.title = `Accepted GPS fix${accText}`
     // Positive color variant while preserving general rejected-label layout
@@ -2531,13 +2705,18 @@
     return { accepted: true }
   }
 
-  function streamMarkerPosition(coords, forceUpdate = false, source = 'unknown', gpsTimestamp = null) {
+  function streamMarkerPosition(
+    coords,
+    forceUpdate = false,
+    source = "unknown",
+    gpsTimestamp = null,
+  ) {
     const { latitude, longitude, heading, speed, accuracy } = coords
 
     // Use the GPS hardware timestamp when available. This prevents fallback
     // loops from turning an old coordinate into a fresh vehicle update.
     const parsedGpsTimestamp = gpsTimestamp
-      ? typeof gpsTimestamp === 'string'
+      ? typeof gpsTimestamp === "string"
         ? new Date(gpsTimestamp).getTime()
         : gpsTimestamp
       : null
@@ -2546,14 +2725,20 @@
       : Date.now()
     const trailTimestamp = currentTime
 
-    if ($devModeEnabled) console.log("[1Hz-DIAG] streamMarkerPosition called", { forceUpdate, enableFull1Hz: $userSettingsStore?.enableFull1Hz, now: currentTime, lastUiUpdateTime, source })
+    if ($devModeEnabled)
+      console.log("[1Hz-DIAG] streamMarkerPosition called", {
+        forceUpdate,
+        enableFull1Hz: $userSettingsStore?.enableFull1Hz,
+        now: currentTime,
+        lastUiUpdateTime,
+        source,
+      })
 
     // ── Update raw overlay data BEFORE filtering (shows what we received) ──
     if ($userSettingsStore?.enableFull1Hz) {
       const prevLat = debugOverlayData.rawLat
       const prevLng = debugOverlayData.rawLng
-      const coordChanged =
-        prevLat !== latitude || prevLng !== longitude
+      const coordChanged = prevLat !== latitude || prevLng !== longitude
       const now = Date.now()
       // Push timestamps for rolling-window frequency calculation
       const recentEvents = [...debugOverlayData.recentEventTimes, now]
@@ -2570,7 +2755,8 @@
         heading: heading,
         speed: speed,
         nativeEventCount: debugOverlayData.nativeEventCount + 1,
-        uniqueCoordCount: debugOverlayData.uniqueCoordCount + (coordChanged ? 1 : 0),
+        uniqueCoordCount:
+          debugOverlayData.uniqueCoordCount + (coordChanged ? 1 : 0),
         lastChangedAt: coordChanged ? now : debugOverlayData.lastChangedAt,
         timestamp: now,
         source: source,
@@ -2581,7 +2767,12 @@
 
     // Run the hybrid filter (skipped in dev mode)
     if (!$devModeEnabled) {
-      const filterResult = filterGpsCoordinate(latitude, longitude, accuracy, currentTime)
+      const filterResult = filterGpsCoordinate(
+        latitude,
+        longitude,
+        accuracy,
+        currentTime,
+      )
       if (!filterResult.accepted) {
         // Keep rejection logging minimal — only warn when accuracy fails
         console.warn("🚫 GPS coordinate rejected (accuracy):", {
@@ -2654,16 +2845,31 @@
       currentTime - lastUiUpdateTime < USER_UI_UPDATE_INTERVAL_MS
     ) {
       // still update internal accepted anchor and speed, but skip UI/store churn
-      if ($devModeEnabled) console.log("[1Hz-DIAG] throttled - skipping UI update", { now: currentTime, lastUiUpdateTime, intervalMs: USER_UI_UPDATE_INTERVAL_MS })
+      if ($devModeEnabled)
+        console.log("[1Hz-DIAG] throttled - skipping UI update", {
+          now: currentTime,
+          lastUiUpdateTime,
+          intervalMs: USER_UI_UPDATE_INTERVAL_MS,
+        })
       return
     }
     lastUiUpdateTime = currentTime
 
-    if ($devModeEnabled) console.log("[1Hz-DIAG] performing UI update", { latitude, longitude, accuracy, smoothedHeading: heading })
+    if ($devModeEnabled)
+      console.log("[1Hz-DIAG] performing UI update", {
+        latitude,
+        longitude,
+        accuracy,
+        smoothedHeading: heading,
+      })
 
     // Update overlay with the coords that actually reached UI
     if ($userSettingsStore?.enableFull1Hz) {
-      debugOverlayData = { ...debugOverlayData, appliedLat: latitude, appliedLng: longitude }
+      debugOverlayData = {
+        ...debugOverlayData,
+        appliedLat: latitude,
+        appliedLng: longitude,
+      }
     }
 
     if (
@@ -2687,10 +2893,20 @@
       }
     }
 
-    updateUserVehicleData(currentTime, vehicleData, smoothedHeading, trailTimestamp)
+    updateUserVehicleData(
+      currentTime,
+      vehicleData,
+      smoothedHeading,
+      trailTimestamp,
+    )
   }
 
-  function updateUserVehicleData(currentTime, vehicleData, updatedHeading, trailTimestamp = null) {
+  function updateUserVehicleData(
+    currentTime,
+    vehicleData,
+    updatedHeading,
+    trailTimestamp = null,
+  ) {
     if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
       const { coordinates, speed } = vehicleData
       const { latitude, longitude } = coordinates
@@ -3136,7 +3352,13 @@
     map,
   )
 
-  function syncVehicleTracking(enabled, userVehicle, otherVehicles, vehiclesVisible, mapReady) {
+  function syncVehicleTracking(
+    enabled,
+    userVehicle,
+    otherVehicles,
+    vehiclesVisible,
+    mapReady,
+  ) {
     if (!mapReady) return
     const now = Date.now()
     const wanted = new Set()
@@ -3307,40 +3529,66 @@
     <div class="hz-debug-title">1Hz GPS Debug</div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Source</span>
-      <span class="hz-debug-value hz-source">{debugOverlayData.source ?? '—'}</span>
+      <span class="hz-debug-value hz-source"
+        >{debugOverlayData.source ?? "—"}</span
+      >
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Raw Lat</span>
-      <span class="hz-debug-value" class:hz-changed={debugOverlayData.rawLat !== debugOverlayData.prevRawLat && debugOverlayData.prevRawLat !== null}>
-        {debugOverlayData.rawLat?.toFixed(7) ?? '—'}
+      <span
+        class="hz-debug-value"
+        class:hz-changed={debugOverlayData.rawLat !==
+          debugOverlayData.prevRawLat && debugOverlayData.prevRawLat !== null}
+      >
+        {debugOverlayData.rawLat?.toFixed(7) ?? "—"}
       </span>
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Raw Lng</span>
-      <span class="hz-debug-value" class:hz-changed={debugOverlayData.rawLng !== debugOverlayData.prevRawLng && debugOverlayData.prevRawLng !== null}>
-        {debugOverlayData.rawLng?.toFixed(7) ?? '—'}
+      <span
+        class="hz-debug-value"
+        class:hz-changed={debugOverlayData.rawLng !==
+          debugOverlayData.prevRawLng && debugOverlayData.prevRawLng !== null}
+      >
+        {debugOverlayData.rawLng?.toFixed(7) ?? "—"}
       </span>
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Accuracy</span>
-      <span class="hz-debug-value">{debugOverlayData.accuracy != null ? `${Math.round(debugOverlayData.accuracy)}m` : '—'}</span>
+      <span class="hz-debug-value"
+        >{debugOverlayData.accuracy != null
+          ? `${Math.round(debugOverlayData.accuracy)}m`
+          : "—"}</span
+      >
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Heading</span>
-      <span class="hz-debug-value">{debugOverlayData.heading != null ? `${Math.round(debugOverlayData.heading)}°` : '—'}</span>
+      <span class="hz-debug-value"
+        >{debugOverlayData.heading != null
+          ? `${Math.round(debugOverlayData.heading)}°`
+          : "—"}</span
+      >
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Speed</span>
-      <span class="hz-debug-value">{debugOverlayData.speed != null ? `${(debugOverlayData.speed * 3.6).toFixed(1)} km/h` : '—'}</span>
+      <span class="hz-debug-value"
+        >{debugOverlayData.speed != null
+          ? `${(debugOverlayData.speed * 3.6).toFixed(1)} km/h`
+          : "—"}</span
+      >
     </div>
     <div class="hz-debug-divider"></div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Applied Lat</span>
-      <span class="hz-debug-value">{debugOverlayData.appliedLat?.toFixed(7) ?? '—'}</span>
+      <span class="hz-debug-value"
+        >{debugOverlayData.appliedLat?.toFixed(7) ?? "—"}</span
+      >
     </div>
     <div class="hz-debug-row">
       <span class="hz-debug-label">Applied Lng</span>
-      <span class="hz-debug-value">{debugOverlayData.appliedLng?.toFixed(7) ?? '—'}</span>
+      <span class="hz-debug-value"
+        >{debugOverlayData.appliedLng?.toFixed(7) ?? "—"}</span
+      >
     </div>
     <div class="hz-debug-divider"></div>
     <div class="hz-debug-row">
@@ -3355,7 +3603,12 @@
       <span class="hz-debug-label">Dup ratio</span>
       <span class="hz-debug-value">
         {#if debugOverlayData.nativeEventCount > 0}
-          {Math.round((1 - debugOverlayData.uniqueCoordCount / debugOverlayData.nativeEventCount) * 100)}%
+          {Math.round(
+            (1 -
+              debugOverlayData.uniqueCoordCount /
+                debugOverlayData.nativeEventCount) *
+              100,
+          )}%
         {:else}
           —
         {/if}
@@ -3379,7 +3632,8 @@
       <span class="hz-debug-label">Last change</span>
       <span class="hz-debug-value">
         {#if debugOverlayData.lastChangedAt}
-          {Math.round((Date.now() - debugOverlayData.lastChangedAt) / 1000)}s ago
+          {Math.round((Date.now() - debugOverlayData.lastChangedAt) / 1000)}s
+          ago
         {:else}
           —
         {/if}
@@ -3397,7 +3651,7 @@
     z-index: 1000;
     background: rgba(0, 0, 0, 0.88);
     color: #e0e0e0;
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
     font-size: 11px;
     padding: 10px 14px;
     border-radius: 10px;
@@ -3433,7 +3687,7 @@
     color: #34d399;
   }
   .hz-debug-divider {
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin: 4px 0;
   }
   .hz-source {

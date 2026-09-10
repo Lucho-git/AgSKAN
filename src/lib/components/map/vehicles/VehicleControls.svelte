@@ -530,7 +530,9 @@
     style="bottom: calc(1rem + 130px); width: 320px; max-width: calc(100vw - 1.5rem); max-height: 65vh; transform-origin: bottom left;"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between gap-2 border-b border-white/20 p-4">
+    <div
+      class="flex items-center justify-between gap-2 border-b border-white/20 p-4"
+    >
       <div class="flex items-center gap-2">
         <Users size={18} class="flex-shrink-0 text-white" />
         <h3 class="text-base font-semibold text-white">Vehicles</h3>
@@ -550,7 +552,10 @@
           ? "Edge tracking on — hide vehicles off-screen"
           : "Edge tracking off — show vehicles off-screen"}
       >
-        <Eye size={13} class={showVehiclesAlways ? "text-emerald-300" : "text-white/50"} />
+        <Eye
+          size={13}
+          class={showVehiclesAlways ? "text-emerald-300" : "text-white/50"}
+        />
         <span>{showVehiclesAlways ? "Tracking" : "Off"}</span>
       </button>
       <button

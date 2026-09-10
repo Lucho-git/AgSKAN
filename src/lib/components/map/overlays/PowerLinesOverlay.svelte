@@ -15,9 +15,15 @@
 
   FIELD-BOUNDARY FILTER — by default ("Show Outside Fields" OFF in the Layers
   menu) the overlay only shows lines/poles that touch the operator's mapped
-  fields (buffered ~150 m). That subset is computed in powerNearFields.js by
+  fields (buffered 1000 m). That subset is computed in powerNearFields.js by
   decoding the handful of Mapbox vector tiles overlapping the fields. Toggling
   "Show Outside Fields" ON restores the full network everywhere.
+
+  OPTIMISATIONS: with NO mapped fields and "Show Outside Fields" OFF, nothing
+  is added/shown at all (no national/WA sources, no tile fetches). And the
+  WA tileset decode is gated to the WA geographic extent — fields in other
+  states never fetch empty WA tiles (their near lines come from the national
+  GeoJSON).
 
   National & WA layers sit behind fields/markers. Visibility is driven from the
   Layers menu: "Power Lines", "Power Poles" and "Show Outside Fields".
@@ -30,7 +36,11 @@
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
-  import { computePowerNearData, buildPowerMask, filterNationalNear } from "$lib/utils/powerNearFields.js"
+  import {
+    computePowerNearData,
+    buildPowerMask,
+    filterNationalNear,
+  } from "$lib/utils/powerNearFields.js"
 
   export let map
 
@@ -99,9 +109,16 @@
   function refresh() {
     if (!map || destroyed) return
     readStores()
-    if ((linesOn || polesOn) && !added) {
-      addLayers()
-    } else if (added) {
+    // No mapped fields + "Show Outside Fields" OFF → nothing to show. Drop any
+    // layers/sources we might be holding so those users never fetch or render
+    // the whole national + WA network.
+    if (!active()) {
+      if (added) removeLayers()
+      return
+    }
+    if (!added) {
+      ensureEventuallyAdded()
+    } else {
       applyVisibility()
       syncNear()
       ensureMask()
@@ -144,10 +161,15 @@
   }
 
   const widthZoom = (base) => [
-    "interpolate", ["linear"], ["zoom"],
-    8, base,
-    12, base * 3,
-    14, base * 4.5,
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    8,
+    base,
+    12,
+    base * 3,
+    14,
+    base * 4.5,
   ]
 
   // Single flat yellow used for every power line.
@@ -254,12 +276,19 @@
       layout: {
         "icon-image": "power-bolt",
         "icon-size": [
-          "interpolate", ["linear"], ["zoom"],
-          12, 0.35,
-          13, 0.45,
-          14, 0.6,
-          15, 0.85,
-          16, 1,
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12,
+          0.35,
+          13,
+          0.45,
+          14,
+          0.6,
+          15,
+          0.85,
+          16,
+          1,
         ],
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
@@ -303,12 +332,19 @@
       layout: {
         "icon-image": "power-bolt",
         "icon-size": [
-          "interpolate", ["linear"], ["zoom"],
-          12, 0.35,
-          13, 0.45,
-          14, 0.6,
-          15, 0.85,
-          16, 1,
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12,
+          0.35,
+          13,
+          0.45,
+          14,
+          0.6,
+          15,
+          0.85,
+          16,
+          1,
         ],
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
@@ -339,12 +375,33 @@
     return spec.key === "powerPoles" ? polesOn : linesOn
   }
 
+  // True if the operator has mapped paddocks at all.
+  function hasFields() {
+    return fieldFeatures.length > 0
+  }
+
+  // Any reason to hold power layers on the map: paddocks exist (the layer is
+  // paddock-relative) OR the user explicitly enabled "Show Outside Fields".
+  // With neither, nothing is added or shown — a user with no mapped fields
+  // sees no power lines by default instead of the whole national + WA network.
+  function active() {
+    if (!(linesOn || polesOn)) return false
+    return hasFields() || outsideOn
+  }
+
   // True while the full network should be hidden (default "within fields" mode
   // with mapped fields). The mask + near layers take over. On near-fields
   // compute errors we fall back to the full network (nearError → false).
   function withinMode() {
     if (outsideOn || nearError) return false
-    return fieldFeatures.length > 0
+    return hasFields()
+  }
+
+  // The full (un-clipped) network only draws when the user turned "Show
+  // Outside Fields" ON, or when a within-fields decode failed and we fall back
+  // to showing everything.
+  function fullVisible() {
+    return outsideOn || nearError
   }
 
   // Near-fields layers are only worth showing once their data is ready AND
@@ -352,14 +409,17 @@
   function nearVisible() {
     if (!withinMode()) return false
     if (!nearReady || !nearData) return false
-    return nearData.lines.features.length > 0 || nearData.poles.features.length > 0
+    return (
+      nearData.lines.features.length > 0 || nearData.poles.features.length > 0
+    )
   }
 
   function setLayerVisibility(id, visibility) {
     if (!map || !getLayer(id)) return
     try {
       const current = map.getLayoutProperty(id, "visibility") || "visible"
-      if (current !== visibility) map.setLayoutProperty(id, "visibility", visibility)
+      if (current !== visibility)
+        map.setLayoutProperty(id, "visibility", visibility)
     } catch {
       /* layer may be mid-removal */
     }
@@ -367,10 +427,11 @@
 
   function applyVisibility() {
     if (!map) return
+    const full = fullVisible()
     const within = withinMode()
     const near = nearVisible()
     for (const spec of LAYER_SPECS) {
-      setLayerVisibility(spec.id, !within && onFor(spec) ? "visible" : "none")
+      setLayerVisibility(spec.id, full && onFor(spec) ? "visible" : "none")
     }
     for (const spec of NEAR_LAYER_SPECS) {
       setLayerVisibility(spec.id, near && onFor(spec) ? "visible" : "none")
@@ -556,7 +617,7 @@
   // near-fields data immediately. Layers are added even while hidden —
   // visibility is handled by applyVisibility — so a later toggle never races.
   async function addLayers() {
-    if (added || !map || destroyed || !styleReady()) return
+    if (added || !map || destroyed || !styleReady() || !active()) return
     try {
       ensureWASources()
       ensureBoltImage()
@@ -617,7 +678,8 @@
     if (!map || destroyed) return
     if (outsideOn || !fieldFeatures.length) return
     if (!geojsonPromise) return
-    if (!nearData || nearKey !== fieldsKey() || nearData.includedNational) return
+    if (!nearData || nearKey !== fieldsKey() || nearData.includedNational)
+      return
     let nat = null
     try {
       nat = await loadGeoJson()
@@ -644,7 +706,9 @@
     } else {
       ensureNearSourcesAndLayers()
     }
-    console.info(`[powerlines] merged ${nf.features.length} national lines near fields`)
+    console.info(
+      `[powerlines] merged ${nf.features.length} national lines near fields`,
+    )
   }
 
   async function syncNear() {
@@ -731,7 +795,10 @@
       if (!destroyed) {
         nearError = true
         nearReady = false
-        console.warn("[powerlines] near-fields compute failed, showing full network:", e)
+        console.warn(
+          "[powerlines] near-fields compute failed, showing full network:",
+          e,
+        )
         applyVisibility()
       }
     } finally {
@@ -793,7 +860,7 @@
   // Guarantee the base layers get added even if every event is missed during a
   // busy first load (retries until the style is ready, then adds once).
   function ensureEventuallyAdded() {
-    if (!map || destroyed || added) return
+    if (!map || destroyed || added || !active()) return
     if (styleReady()) {
       addLayers()
       return

@@ -1366,43 +1366,57 @@
 <!-- Edit Field Modal -->
 <dialog id={editModalId} class="modal modal-bottom sm:modal-middle">
   <div class="modal-box">
-    <div class="flex items-center justify-between border-b border-base-300 pb-3">
+    <div
+      class="flex items-center justify-between border-b border-base-300 pb-3"
+    >
       <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200"
+        >
           <SquarePen class="h-5 w-5 text-contrast-content" />
         </div>
         <div>
           <h3 class="text-lg font-bold text-contrast-content">Edit Field</h3>
-          <p class="text-sm text-contrast-content/60">Change field information</p>
+          <p class="text-sm text-contrast-content/60">
+            Change field information
+          </p>
         </div>
       </div>
       <button
         class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-base-300"
-        on:click={closeEditModal} title="Close">
+        on:click={closeEditModal}
+        title="Close"
+      >
         <X class="h-4 w-4 text-contrast-content/60" />
       </button>
     </div>
 
     <div class="space-y-4 p-4">
       <div class="grid gap-2">
-        <label for="edit-field-name" class="text-sm font-medium text-contrast-content">Field Name</label>
+        <label
+          for="edit-field-name"
+          class="text-sm font-medium text-contrast-content">Field Name</label
+        >
         <input
           id="edit-field-name"
           bind:value={newFieldName}
           placeholder="Enter field name"
-          class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
+          class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
 
       <div class="grid gap-2">
-        <label for="edit-field-area" class="text-sm font-medium text-contrast-content">Area (ha)</label>
+        <label
+          for="edit-field-area"
+          class="text-sm font-medium text-contrast-content">Area (ha)</label
+        >
         <input
           id="edit-field-area"
           type="number"
           step="0.1"
           bind:value={newFieldArea}
           placeholder="Enter area in hectares"
-          class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
+          class="w-full rounded-lg border border-base-300 bg-base-100 px-4 py-3 text-contrast-content placeholder-contrast-content/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
     </div>

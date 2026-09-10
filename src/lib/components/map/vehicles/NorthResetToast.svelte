@@ -90,11 +90,7 @@
     <button class="north-toast-action" on:click={handleAlignNorth}>
       Align north
     </button>
-    <button
-      class="north-toast-close"
-      on:click={hideToast}
-      aria-label="Dismiss"
-    >
+    <button class="north-toast-close" on:click={hideToast} aria-label="Dismiss">
       ✕
     </button>
   </div>
@@ -141,7 +137,9 @@
     border-radius: 999px;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .north-toast-action:hover {
@@ -163,7 +161,9 @@
     line-height: 1;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
 
   .north-toast-close:hover {

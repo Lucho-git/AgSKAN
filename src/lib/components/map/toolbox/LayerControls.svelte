@@ -183,28 +183,36 @@
       })
 
       if (!layerResult.success) {
-        throw new Error(layerResult.error || "Could not save layer visibility settings")
+        throw new Error(
+          layerResult.error || "Could not save layer visibility settings",
+        )
       }
 
-      const changedMarkerVisibility = Array.from(changedMarkerVisibilityIds).reduce(
-        (settings, markerId) => {
-          settings[markerId] = $markerVisibilityStore[markerId] || "always"
-          return settings
-        },
-        {},
+      const changedMarkerVisibility = Array.from(
+        changedMarkerVisibilityIds,
+      ).reduce((settings, markerId) => {
+        settings[markerId] = $markerVisibilityStore[markerId] || "always"
+        return settings
+      }, {})
+
+      const markerResult = await markerApi.updateMarkerVisibilitySettings(
+        changedMarkerVisibility,
       )
 
-      const markerResult = await markerApi.updateMarkerVisibilitySettings(changedMarkerVisibility)
-
       if (!markerResult.success) {
-        throw new Error(markerResult.error || "Could not save marker visibility settings")
+        throw new Error(
+          markerResult.error || "Could not save marker visibility settings",
+        )
       }
 
       hasUnsavedVisibilityChanges = false
       changedMarkerVisibilityIds = new Set()
       toast.success("Layer visibility settings saved")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not save layer visibility settings"
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not save layer visibility settings"
       toast.error(message)
     } finally {
       isSavingVisibilitySettings = false
@@ -256,13 +264,18 @@
 
       {#if layer.id === "markers"}
         <div class="marker-settings-row">
-          <button class="marker-settings-btn" on:click={() => (showMarkerVisibilityModal = true)}>
+          <button
+            class="marker-settings-btn"
+            on:click={() => (showMarkerVisibilityModal = true)}
+          >
             <span class="marker-settings-left">
               <SlidersHorizontal size={16} />
               <span>Marker Types</span>
             </span>
             <span class="marker-settings-count">
-              {hiddenMarkerCount > 0 ? `${hiddenMarkerCount} hidden` : "All visible"}
+              {hiddenMarkerCount > 0
+                ? `${hiddenMarkerCount} hidden`
+                : "All visible"}
             </span>
           </button>
         </div>
@@ -279,7 +292,8 @@
         on:click={handleSaveVisibilitySettings}
       >
         <Save size={16} />
-        <span>{isSavingVisibilitySettings ? "Saving..." : "Save Settings"}</span>
+        <span>{isSavingVisibilitySettings ? "Saving..." : "Save Settings"}</span
+        >
       </button>
     </div>
 
@@ -578,5 +592,4 @@
   .save-settings-btn:disabled {
     opacity: 0.7;
   }
-
 </style>

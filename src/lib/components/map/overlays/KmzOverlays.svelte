@@ -80,8 +80,14 @@
           properties: {
             ...props,
             id: index,
-            name: typeof props.name === "string" && props.name.trim() ? props.name : `Road ${index + 1}`,
-            color: typeof props.color === "string" && props.color ? props.color : defaultColor,
+            name:
+              typeof props.name === "string" && props.name.trim()
+                ? props.name
+                : `Road ${index + 1}`,
+            color:
+              typeof props.color === "string" && props.color
+                ? props.color
+                : defaultColor,
             dashed: hasOwnDashed ? props.dashed : defaultDashed,
             width: typeof props.width === "number" ? props.width : defaultWidth,
           },
@@ -95,7 +101,10 @@
   }
 
   function lineLayerIdsFor(overlay) {
-    return [`kmz-overlay-solid-${overlay.id}`, `kmz-overlay-dashed-${overlay.id}`]
+    return [
+      `kmz-overlay-solid-${overlay.id}`,
+      `kmz-overlay-dashed-${overlay.id}`,
+    ]
   }
 
   function labelLayerIdFor(overlay) {
@@ -268,7 +277,10 @@
     const visible = globalVisible && !hiddenIds.has(overlay.id)
     const vis = visible ? "visible" : "none"
 
-    for (const layerId of [...lineLayerIdsFor(overlay), labelLayerIdFor(overlay)]) {
+    for (const layerId of [
+      ...lineLayerIdsFor(overlay),
+      labelLayerIdFor(overlay),
+    ]) {
       if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, "visibility", vis)
       }
@@ -295,10 +307,7 @@
       for (let i = 0; i < count; i++) {
         const isSel = selected === i
         try {
-          map.setFeatureState(
-            { source: sourceId, id: i },
-            { selected: isSel },
-          )
+          map.setFeatureState({ source: sourceId, id: i }, { selected: isSel })
         } catch (err) {
           // ignore — feature may not exist yet
         }

@@ -551,8 +551,8 @@
 {#if visible && marker}
   <div
     class="silo-pop"
-    class:moving={moving}
-    class:dragging={dragging}
+    class:moving
+    class:dragging
     class:down={!openUp}
     class:smooth={smoothReposition}
     on:mousedown={onPanelDragStart}
@@ -561,10 +561,7 @@
     bind:this={siloPopEl}
   >
     <div class="silo-pop-head">
-      <div
-        class="silo-pop-icon"
-        style="background: {grainColorDef.dark}26;"
-      >
+      <div class="silo-pop-icon" style="background: {grainColorDef.dark}26;">
         <IconSVG icon="fiver_field_bin_v4" size="26px" />
       </div>
       <span
@@ -736,12 +733,7 @@
           <div class="silo-pop-swatches">
             <!-- Silos use their own custom grain colour palette — black and
                  white aren't grain colours, so keep them out of this picker. -->
-            {#each PICKABLE_MARKER_COLORS.filter(
-              (c) =>
-                c.key !== MARKER_COLOR_DEFAULT &&
-                c.key !== "black" &&
-                c.key !== "white",
-            ) as c}
+            {#each PICKABLE_MARKER_COLORS.filter((c) => c.key !== MARKER_COLOR_DEFAULT && c.key !== "black" && c.key !== "white") as c}
               <button
                 class="silo-pop-swatch"
                 class:active={grainColor === c.key}
@@ -768,8 +760,8 @@
             on:change={toggleShowBinsAlways}
           />
           <span class="silo-pop-toggle-track"
-            ><span class="silo-pop-toggle-thumb"></span
-          ></span>
+            ><span class="silo-pop-toggle-thumb"></span></span
+          >
         </label>
 
         {#if confirmDelete}
@@ -805,8 +797,7 @@
         {/if}
       {/if}
     {/if}
-
-    </div>
+  </div>
 {/if}
 
 {#if moving && originalCoords}
@@ -1105,12 +1096,15 @@
     background: rgba(255, 255, 255, 0.08);
     pointer-events: none;
     z-index: 1001;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
   .silo-origin.moved {
     background: rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.75);
-    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 0, 0, 0.35),
       0 0 0 5px rgba(0, 0, 0, 0.18);
   }
   .silo-pop-confirm {
@@ -1270,7 +1264,8 @@
   .silo-pop-toggle-input:checked + .silo-pop-toggle-track {
     background: #fbbf24;
   }
-  .silo-pop-toggle-input:checked + .silo-pop-toggle-track
+  .silo-pop-toggle-input:checked
+    + .silo-pop-toggle-track
     .silo-pop-toggle-thumb {
     transform: translateX(16px);
     background: #fff7ed;

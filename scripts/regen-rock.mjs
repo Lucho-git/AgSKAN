@@ -1,4 +1,4 @@
-// Regenerates static/icons/rock-3x.png from the rock <symbol> in IconSVG.svelte
+// Regenerates static/icons/rock-3x.png from the rock <symbol> in IconSprite.svelte
 // with a FULLY OPAQUE disc (the previous 0.9-alpha disc let the map background
 // show through, which combined with the grey-rock tint made the rock look
 // translucent and recoloured). Same rendering as scripts/generateIcons.js

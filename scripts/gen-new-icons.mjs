@@ -4,7 +4,7 @@
 // scale, viewBox fitted + centered).
 //
 // Also writes scripts/gen-new-icons-symbols.txt with ready-to-paste
-// <symbol> blocks for src/lib/components/general/IconSVG.svelte (rock_pile's
+// <symbol> blocks for src/lib/components/general/IconSprite.svelte (rock_pile's
 // class-based fills are inlined so rendering never depends on a <style>).
 //
 // Run: node scripts/gen-new-icons.mjs
@@ -146,7 +146,7 @@ async function main() {
   // render <svg>) so the marker pickers' thumbnails render them. Existing
   // symbols are replaced (so regenerated SVGs like rock_pile update), missing
   // ones are inserted — idempotent.
-  const iconSvgPath = path.join(__dirname, '../src/lib/components/general/IconSVG.svelte')
+  const iconSvgPath = path.join(__dirname, '../src/lib/components/general/IconSprite.svelte')
   let iconSvg = readFileSync(iconSvgPath, 'utf-8')
   const marker = '<svg width={size} height={size} fill={color}>'
   const insertAt = iconSvg.indexOf(marker)

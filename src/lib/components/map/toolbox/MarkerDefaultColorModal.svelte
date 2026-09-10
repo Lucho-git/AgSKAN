@@ -39,7 +39,8 @@
 
   const styles = TINT_MODES
   $: markerStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
-  $: styleLabel = styles.find((s) => s.key === markerStyle)?.label || markerStyle
+  $: styleLabel =
+    styles.find((s) => s.key === markerStyle)?.label || markerStyle
   $: perType = $userSettingsStore?.markerTypeDefaultColors || {}
   $: styleNeutral = styleDefaultColor(markerStyle)
   // The "All markers" base colour: a specific colour, "random", or
@@ -202,7 +203,8 @@
   /** @param {string} iconClass @param {string} key */
   async function pickColor(iconClass, key) {
     const next = { ...perType }
-    if (key === "builtin" || key === MARKER_COLOR_DEFAULT) delete next[iconClass]
+    if (key === "builtin" || key === MARKER_COLOR_DEFAULT)
+      delete next[iconClass]
     else next[iconClass] = key
     picker = null
     const result = await saveDefaults("single", singleColor, next)
@@ -335,8 +337,8 @@
           class="mdc-cell mdc-cell-special"
           class:active={!perType[picker.iconClass]}
           title="Follow the all-markers colour"
-          on:click={() => pickColor(picker.iconClass, "builtin")}
-        >D</button>
+          on:click={() => pickColor(picker.iconClass, "builtin")}>D</button
+        >
         <button
           type="button"
           class="mdc-cell mdc-cell-special"
@@ -344,13 +346,17 @@
           style="background: conic-gradient(from 0deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444);"
           title="Random — this marker type gets a random palette colour"
           on:click={() => pickColor(picker.iconClass, RANDOM_COLOR_KEY)}
-        >R</button>
+          >R</button
+        >
         {#each pickableColorsForStyle(markerStyle) as c}
           <button
             type="button"
             class="mdc-cell"
             class:active={perType[picker.iconClass] === c.key}
-            style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
+            style="background: {styleSwatchBg(
+              markerColor(c.key, markerStyle),
+              markerStyle,
+            )};"
             title={c.label}
             on:click={() => pickColor(picker.iconClass, c.key)}
           ></button>
@@ -373,22 +379,25 @@
           class="mdc-cell mdc-cell-special"
           class:active={singleColor === MARKER_COLOR_DEFAULT}
           title="Original default — the style's natural neutral colour"
-          on:click={() => pickGlobalColor(MARKER_COLOR_DEFAULT)}
-        >D</button>
+          on:click={() => pickGlobalColor(MARKER_COLOR_DEFAULT)}>D</button
+        >
         <button
           type="button"
           class="mdc-cell mdc-cell-special"
           class:active={singleColor === RANDOM_COLOR_KEY}
           style="background: conic-gradient(from 0deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444);"
           title="Random — every marker with no colour set gets a random palette colour"
-          on:click={() => pickGlobalColor(RANDOM_COLOR_KEY)}
-        >R</button>
+          on:click={() => pickGlobalColor(RANDOM_COLOR_KEY)}>R</button
+        >
         {#each pickableColorsForStyle(markerStyle) as c}
           <button
             type="button"
             class="mdc-cell"
             class:active={singleColor === c.key}
-            style="background: {styleSwatchBg(markerColor(c.key, markerStyle), markerStyle)};"
+            style="background: {styleSwatchBg(
+              markerColor(c.key, markerStyle),
+              markerStyle,
+            )};"
             title={c.label}
             on:click={() => pickGlobalColor(c.key)}
           ></button>
@@ -479,7 +488,9 @@
     color: #cbd5e1;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
 
   .mdc-close:hover {
@@ -561,7 +572,9 @@
     background: rgba(15, 23, 42, 0.45);
     cursor: pointer;
     padding: 2px;
-    transition: border-color 0.15s ease, background 0.15s ease,
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease,
       transform 0.15s ease;
   }
 
@@ -643,7 +656,9 @@
     border: 2px solid transparent;
     cursor: pointer;
     padding: 0;
-    transition: transform 0.15s ease, border-color 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .mdc-cell:hover {
@@ -687,7 +702,9 @@
     padding: 8px 18px;
     border-radius: 999px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .mdc-reset:hover:not(:disabled) {
@@ -709,7 +726,9 @@
     padding: 8px 26px;
     border-radius: 999px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .mdc-ok:hover:not(:disabled) {

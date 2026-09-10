@@ -4,7 +4,7 @@
 //   - src/lib/components/map/markers/markerSvgGlyphs.js → tiny sync key set
 //
 // Sources:
-//   custom-svg-*  → IconSVG.svelte <symbol> blocks (class fills inlined;
+//   custom-svg-*  → IconSprite.svelte <symbol> blocks (class fills inlined;
 //                   <defs>/<use>/<style> removed so browser + librsvg render)
 //   ionic-*       → node_modules/ionicons/dist/ionicons/svg/<name>.svg
 //   at-*          → scripts/atlas-icons.js (stroke:currentColor outline icons)
@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url'
 import { atlasIconSvgs } from './atlas-icons.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const ICON_SVG = path.join(__dirname, '../src/lib/components/general/IconSVG.svelte')
+const ICON_SVG = path.join(__dirname, '../src/lib/components/general/IconSprite.svelte')
 const GLYPHS_JSON = path.join(__dirname, '../static/marker-svg-glyphs.json')
 const SET_JS = path.join(__dirname, '../src/lib/components/map/markers/markerSvgGlyphs.js')
 const IONIC_DIR = path.join(__dirname, '../node_modules/ionicons/dist/ionicons/svg')
@@ -33,8 +33,8 @@ const IONIC_DIR = path.join(__dirname, '../node_modules/ionicons/dist/ionicons/s
 // but its inner droplet carries an explicit blue fill that survives the
 // <g fill> wrapper, so the droplet stays blue.
 const CUSTOM_ICONS = [
-  'rock', 'rock_pile', 'tree13', 'wheat2', 'kangaroo', 'watertank2',
-  'water_tower2', 'liquid_tank', 'recharge_icon', 'fuel_refill',
+  'rock', 'rock_pile', 'tree13', 'wheat2', 'watertank2',
+  'water_tower2', 'liquid_tank', 'recharge_icon',
   'machine_pump', 'electric_tower', 'gate', 'repair_shop', 'tractor',
   'silo2', 'tree_stump', 'workshop_icon',
   // FIVER_ICONS_START
@@ -44,42 +44,53 @@ const CUSTOM_ICONS = [
   'fiver_tow_truck',
   'fiver_fuel',
   'fiver_harvest',
-  'fiver_harvest_v2',
   'fiver_vegetables',
   'fiver_kg',
   'fiver_open_shed',
   'fiver_chem_shed',
   'fiver_fert_shed',
   'fiver_grain_shed',
-  'fiver_hay_shed',
   'fiver_tractor_shed',
   'fiver_tools_shed',
   'fiver_sheep_shed',
   'fiver_flexy_tank',
   'fiver_diesel_bowser',
-  'fiver_hay_stack',
-  'fiver_mother_bin',
-  'fiver_grain_bag',
   'fiver_spray_trailer',
-  'fiver_road_train',
   'fiver_sheep_mob',
-  'fiver_cattle_mob',
   'fiver_service_trailer',
-  'fiver_water_trough',
-  'fiver_crossing',
-  'fiver_fillup_truck',
-  'fiver_kangaroo',
-  'fiver_rabbit',
-  'fiver_fox',
-  'fiver_pig',
 // FIVER_ICONS_END
+// FIVER2_ICONS_START
+  'fiver2_berries',
+  'fiver2_cow_mob',
+  'fiver2_crossing',
+  'fiver2_fox',
+  'fiver2_fuel_trailer',
+  'fiver2_grain_bag',
+  'fiver2_hay_shed',
+  'fiver2_hay_stack',
+  'fiver2_kangaroo',
+  'fiver2_liquid',
+  'fiver2_mother_bin',
+  'fiver2_pig',
+  'fiver2_rabbit',
+  'fiver2_road_train',
+  'fiver2_rude',
+  'fiver2_tree',
+  'fiver2_trough',
+  'fiver2_ute',
+  'fiver2_wheel_ruts',
+  'fiver2_delivery_b',
+// FIVER2_ICONS_END
+// FIVER3_ICONS_START
+  'fiver3_fillup_truck',
+  'fiver3_truck_fillup',
+// FIVER3_ICONS_END
 ]
 const KEEP_GLYPH_CUSTOM = new Set([
   'custom-svg-rock',
   'custom-svg-rock_pile',
   'custom-svg-tree13',
   'custom-svg-wheat2',
-  'custom-svg-kangaroo',
 ])
 
 // Ionic icon names (same list as generateIcons.js).
@@ -142,7 +153,7 @@ function stripDefsAndStyle(content) {
     .replace(/<style[^>]*>[\s\S]*?<\/style>/g, '')
 }
 
-// ── IconSVG.svelte: symbol extraction + style inlining ──
+// ── IconSprite.svelte: symbol extraction + style inlining ──
 const src = readFileSync(ICON_SVG, 'utf-8')
 
 // Build a global class → presentation-attribute map from every <style> block

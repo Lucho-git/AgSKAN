@@ -80,15 +80,24 @@
     const items = await Promise.all(
       photos.map(
         (p) =>
-          new Promise<{ src: string; width: number; height: number; id: string }>(
-            (resolve) => {
-              const img = new Image()
-              img.onload = () =>
-                resolve({ src: p.url, width: img.naturalWidth, height: img.naturalHeight, id: p.id })
-              img.onerror = () => resolve({ src: p.url, width: 1200, height: 800, id: p.id })
-              img.src = p.url
-            },
-          ),
+          new Promise<{
+            src: string
+            width: number
+            height: number
+            id: string
+          }>((resolve) => {
+            const img = new Image()
+            img.onload = () =>
+              resolve({
+                src: p.url,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                id: p.id,
+              })
+            img.onerror = () =>
+              resolve({ src: p.url, width: 1200, height: 800, id: p.id })
+            img.src = p.url
+          }),
       ),
     )
     const start = Math.max(0, Math.min(index, items.length - 1))
@@ -111,8 +120,7 @@
         name: "agskan-download-button",
         order: 9,
         isButton: true,
-        html:
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--pswp-icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.8));"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--pswp-icon-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.8));"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
         title: "Download photo",
         ariaLabel: "Download photo",
         onClick: () => {

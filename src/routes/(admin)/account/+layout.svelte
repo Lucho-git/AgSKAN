@@ -190,8 +190,10 @@
             user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? false,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
-          overlayMarkerMenuEnabled: user_settings.overlay_marker_menu_enabled ?? true,
-          overlayPlacementMenuEnabled: user_settings.overlay_placement_menu_enabled ?? true,
+          overlayMarkerMenuEnabled:
+            user_settings.overlay_marker_menu_enabled ?? true,
+          overlayPlacementMenuEnabled:
+            user_settings.overlay_placement_menu_enabled ?? true,
           showBinsAlways: user_settings.show_bins_always ?? false,
           showVehiclesAlways: user_settings.show_vehicles_always ?? true,
           satelliteDropdownEnabled:
@@ -219,7 +221,8 @@
           satelliteMenuEnabled: user_settings.satellite_menu_enabled ?? true,
           measureMenuEnabled: user_settings.measure_menu_enabled ?? true,
           flashMenuEnabled: user_settings.flash_menu_enabled ?? true,
-          rockPickingMenuEnabled: user_settings.rock_picking_menu_enabled ?? true,
+          rockPickingMenuEnabled:
+            user_settings.rock_picking_menu_enabled ?? true,
           weatherMenuEnabled: user_settings.weather_menu_enabled ?? true,
           weatherSource: user_settings.weather_source ?? null,
         })
@@ -402,8 +405,6 @@
           operation_year: trail.operations?.year || new Date().getFullYear(),
         })) || []
 
-
-
       // Process connected profiles with operation data
       const connectedProfiles = connectedProfilesResult.data || []
 
@@ -426,8 +427,6 @@
           operation_id: profile.operations?.id || null,
         }),
       )
-
-
 
       // Load additional map-related data
       const [
@@ -454,8 +453,6 @@
             connectedProfilesWithOperations.map((profile) => profile.id) || [],
           ),
       ])
-
-
 
       // Create connected map object
       const connected_map = {
@@ -625,8 +622,6 @@
           userData.subscription,
         )
       }
-
-
     } catch (e) {
       console.error("Data loading error:", e)
       error = e
@@ -694,20 +689,26 @@
     return () => {
       console.log("Account layout unmounting")
       if (authStateUnsubscribe) authStateUnsubscribe()
-      if (operatorRealtimeChannel) supabase.removeChannel(operatorRealtimeChannel)
+      if (operatorRealtimeChannel)
+        supabase.removeChannel(operatorRealtimeChannel)
     }
   })
 
   // ── Operator kick detection: check on tab focus + realtime ──
   // Tab-focus check covers the common "switch tab to kick, switch back" flow
   function handleVisibilityChange() {
-    if (document.visibilityState === "visible" && $profileStore?.master_map_id) {
+    if (
+      document.visibilityState === "visible" &&
+      $profileStore?.master_map_id
+    ) {
       // Only re-check if user had an operator selected (skip if they never picked one)
       if ($operatorStore?.operator) {
         console.log("[op-kick] Tab focused — re-checking operator")
-        operatorApi.checkOperatorStatus($profileStore.master_map_id).then(check => {
-          if (!check.operator) showMapLoadOperatorPicker = true
-        })
+        operatorApi
+          .checkOperatorStatus($profileStore.master_map_id)
+          .then((check) => {
+            if (!check.operator) showMapLoadOperatorPicker = true
+          })
       }
     }
   }
@@ -715,7 +716,7 @@
   $: {
     const mapId = $profileStore?.master_map_id
     const userId = $session?.user?.id
-    
+
     if (mapId && userId) {
       // Set up visibility listener (tab focus)
       if (!visibilityListenerSet) {
@@ -732,16 +733,18 @@
             "postgres_changes",
             { event: "UPDATE", schema: "public", table: "operator_sessions" },
             (payload) => {
-              if (payload.old?.account_id === userId &&
-                  payload.old?.ended_at === null &&
-                  payload.new?.ended_at !== null &&
-                  payload.old?.map_id === mapId) {
+              if (
+                payload.old?.account_id === userId &&
+                payload.old?.ended_at === null &&
+                payload.new?.ended_at !== null &&
+                payload.old?.map_id === mapId
+              ) {
                 console.log("[op-realtime] KICKED!")
-                operatorApi.checkOperatorStatus(mapId).then(check => {
+                operatorApi.checkOperatorStatus(mapId).then((check) => {
                   if (!check.operator) showMapLoadOperatorPicker = true
                 })
               }
-            }
+            },
           )
           .subscribe()
       }

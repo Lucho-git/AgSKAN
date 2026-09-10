@@ -130,7 +130,11 @@
     if (isConfirm) {
       // Soft gather — thin ring contracts inward, sharp dot snap + outward
       // pulse. This is the "circle click" confirmation animation.
-      showGatherAnimation(lngLat, color, markerName ? `${markerName} Placed` : "")
+      showGatherAnimation(
+        lngLat,
+        color,
+        markerName ? `${markerName} Placed` : "",
+      )
     } else {
       // Gold placement: two expanding rings
       const ring1 = document.createElement("div")
@@ -962,11 +966,9 @@
         ? siloColorKey(marker.grainColor)
         : isDefaultPin
           ? marker.markerColor || MARKER_COLOR_DEFAULT
-          : effectiveColorKey(
-              marker.markerColor,
-              globalStyle,
-              { [globalStyle]: defaultColorKeyForMarker(marker) },
-            )
+          : effectiveColorKey(marker.markerColor, globalStyle, {
+              [globalStyle]: defaultColorKeyForMarker(marker),
+            })
       // "random" (the profile's Random fill default) resolves to a random
       // colour per marker — stable via its id so it doesn't change on every
       // re-render. If the resolved key is ever invalid, fall back to a
@@ -1034,8 +1036,7 @@
                   marker.siloFill,
                 )}`
               : null,
-          barOffset:
-            marker.iconClass === GRAIN_BIN_ICON_CLASS ? [0, 56] : null,
+          barOffset: marker.iconClass === GRAIN_BIN_ICON_CLASS ? [0, 56] : null,
           // Silo contents label shown on the map (like the note labels),
           // truncated to 20 chars so long contents don't sprawl.
           grainLabel:
@@ -1253,19 +1254,18 @@
     if (!marker || marker.iconClass !== GRAIN_BIN_ICON_CLASS) return
     const source = map.getSource("markers")
     const data = source._data
-    data.features = data.features.map(
-      (/** @type {any} */ f) =>
-        f.properties.id === markerId
-          ? {
-              ...f,
-              properties: {
-                ...f.properties,
-                barImage: `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
-                  marker.siloFill,
-                )}`,
-              },
-            }
-          : f,
+    data.features = data.features.map((/** @type {any} */ f) =>
+      f.properties.id === markerId
+        ? {
+            ...f,
+            properties: {
+              ...f.properties,
+              barImage: `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
+                marker.siloFill,
+              )}`,
+            },
+          }
+        : f,
     )
     source.setData(data)
   }
@@ -1343,11 +1343,9 @@
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
         ? marker.markerColor || MARKER_COLOR_DEFAULT
-        : effectiveColorKey(
-            marker.markerColor,
-            globalStyle,
-            { [globalStyle]: defaultColorKeyForMarker(marker) },
-          )
+        : effectiveColorKey(marker.markerColor, globalStyle, {
+            [globalStyle]: defaultColorKeyForMarker(marker),
+          })
     let resolved =
       colorKey === RANDOM_COLOR_KEY ? randomColorForId(marker.id) : colorKey
     if (!MARKER_COLORS.some((c) => c.key === resolved)) {
@@ -1404,19 +1402,16 @@
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
         ? marker.markerColor || MARKER_COLOR_DEFAULT
-        : effectiveColorKey(
-            marker.markerColor,
-            globalStyle,
-            { [globalStyle]: defaultColorKeyForMarker(marker) },
-          )
+        : effectiveColorKey(marker.markerColor, globalStyle, {
+            [globalStyle]: defaultColorKeyForMarker(marker),
+          })
     let colorKeyResolved =
       colorKey === RANDOM_COLOR_KEY ? randomColorForId(marker.id) : colorKey
     if (!MARKER_COLORS.some((c) => c.key === colorKeyResolved)) {
       colorKeyResolved = randomColorForId(marker.id)
     }
     const useTint =
-      isCustomIcon ||
-      (isDefaultPin ? colorKey !== MARKER_COLOR_DEFAULT : true)
+      isCustomIcon || (isDefaultPin ? colorKey !== MARKER_COLOR_DEFAULT : true)
     const mode = isSilo
       ? "original"
       : isDefaultPin
@@ -1459,8 +1454,7 @@
       resolved = styleDefaultColor(globalStyle)
     }
     const useTint =
-      isCustomIcon ||
-      (isDefaultPin ? resolved !== MARKER_COLOR_DEFAULT : true)
+      isCustomIcon || (isDefaultPin ? resolved !== MARKER_COLOR_DEFAULT : true)
     const name = useTint
       ? `${baseIcon}-${resolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}`
       : baseIcon
@@ -1493,19 +1487,16 @@
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
         ? marker.markerColor || MARKER_COLOR_DEFAULT
-        : effectiveColorKey(
-            marker.markerColor,
-            globalStyle,
-            { [globalStyle]: defaultColorKeyForMarker(marker) },
-          )
+        : effectiveColorKey(marker.markerColor, globalStyle, {
+            [globalStyle]: defaultColorKeyForMarker(marker),
+          })
     let colorKeyResolved =
       colorKey === RANDOM_COLOR_KEY ? randomColorForId(marker.id) : colorKey
     if (!MARKER_COLORS.some((c) => c.key === colorKeyResolved)) {
       colorKeyResolved = randomColorForId(marker.id)
     }
     const useTint =
-      isCustomIcon ||
-      (isDefaultPin ? colorKey !== MARKER_COLOR_DEFAULT : true)
+      isCustomIcon || (isDefaultPin ? colorKey !== MARKER_COLOR_DEFAULT : true)
     const mode = isSilo
       ? "original"
       : isDefaultPin
@@ -1673,9 +1664,7 @@
     const t = getComputedStyle(inner).transform
     let from = 1
     if (t && t !== "none") {
-      const parts = t.match(
-        /matrix\(([^,]+),\s*[^,]+,\s*[^,]+,\s*([^,]+)/,
-      )
+      const parts = t.match(/matrix\(([^,]+),\s*[^,]+,\s*[^,]+,\s*([^,]+)/)
       if (parts) {
         from = Math.max(parseFloat(parts[1]), parseFloat(parts[2]))
       }
@@ -1712,7 +1701,9 @@
   /** @param {any} overlayMarker @param {HTMLElement} overlayEl @param {string} markerId @param {() => void} onDone */
   function startOverlayShrink(overlayMarker, overlayEl, markerId, onDone) {
     const inner = overlayEl
-      ? /** @type {HTMLElement | null} */ (overlayEl.querySelector(".msv-inner"))
+      ? /** @type {HTMLElement | null} */ (
+          overlayEl.querySelector(".msv-inner")
+        )
       : null
     if (!inner) {
       try {
@@ -1759,7 +1750,7 @@
       // Only reveal the symbol marker if nothing is selected anymore — if
       // the user re-selected during the shrink, the new overlay handles
       // symbol visibility.
-      if (!/** @type {any} */ ($selectedMarkerStore)) {
+      if (!(/** @type {any} */ ($selectedMarkerStore))) {
         setSelectedLayerHidden(m, false)
       }
       // The shrink is over — bring the silo's level bar back (it was hidden
@@ -2542,11 +2533,10 @@
 
   // Selected confirmed marker + silo detection for the custom silo panel.
   $: selectedMarker = $selectedMarkerStore
-    ? ($confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id) ||
-        null)
+    ? $confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id) ||
+      null
     : null
-  $: selectedIsSilo =
-    (selectedMarker?.iconClass || "") === GRAIN_BIN_ICON_CLASS
+  $: selectedIsSilo = (selectedMarker?.iconClass || "") === GRAIN_BIN_ICON_CLASS
   // The new on-map overlay marker menu (MarkerOverlayPanel) applies to all
   // non-silo markers when the user setting is enabled; otherwise markers use
   // the classic MarkerEditPanel. Silos always use SiloMarkerPanel.
@@ -2925,7 +2915,9 @@
     margin: -18.5px 0 0 -18.5px;
     border: 2.5px solid var(--sel);
     border-radius: 50%;
-    box-shadow: 0 0 5px var(--sel), 0 0 10px var(--selc);
+    box-shadow:
+      0 0 5px var(--sel),
+      0 0 10px var(--selc);
     pointer-events: none;
   }
 

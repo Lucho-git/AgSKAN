@@ -253,7 +253,9 @@
 
     try {
       const bounds = new mapboxgl.LngLatBounds()
-      collectAllCoords(drawing.geometry).forEach((coord) => bounds.extend(coord))
+      collectAllCoords(drawing.geometry).forEach((coord) =>
+        bounds.extend(coord),
+      )
 
       // Pan over to the drawing and fit it comfortably in view. Generous top
       // padding leaves room for the on-map menu, which moves over to sit just

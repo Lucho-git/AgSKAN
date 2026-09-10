@@ -6,14 +6,8 @@
      Uses the SAME tint logic as MarkerManager (markerTint.js) so previews
      match the real map exactly. -->
 <script>
-  import {
-    MARKER_COLOR_DEFAULT,
-    markerColor,
-  } from "./markerPalette"
-  import {
-    getIconBaseCanvas,
-    tintMarkerCanvas,
-  } from "./markerTint"
+  import { MARKER_COLOR_DEFAULT, markerColor } from "./markerPalette"
+  import { getIconBaseCanvas, tintMarkerCanvas } from "./markerTint"
 
   // Marker definition { id, class, name, active } — same shape as the
   // entries in markerDefinitions.

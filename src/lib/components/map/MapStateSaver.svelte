@@ -86,7 +86,8 @@
           if (
             payload.old?.update_user_id === userId &&
             payload.eventType === "UPDATE"
-          ) return
+          )
+            return
 
           // Handle the change immediately using payload data
           handleRealtimeMarkerChange(payload)
@@ -161,7 +162,6 @@
         })
       }
 
-
       return
     }
 
@@ -186,12 +186,10 @@
         grainColor:
           newData.marker_data?.properties?.grain_color ?? SILO_COLOR_DEFAULT,
         markerColor:
-          newData.marker_data?.properties?.marker_color ??
-          MARKER_COLOR_DEFAULT,
+          newData.marker_data?.properties?.marker_color ?? MARKER_COLOR_DEFAULT,
         tintMode:
           newData.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
-        capacityTonnes:
-          newData.marker_data?.properties?.capacity_tonnes ?? 200,
+        capacityTonnes: newData.marker_data?.properties?.capacity_tonnes ?? 200,
         fieldBinConfigured:
           newData.marker_data?.properties?.field_bin_configured === true,
         created_at: newData.last_confirmed || newData.created_at,
@@ -209,7 +207,6 @@
           // Update existing marker
           markers[existingIndex] = processedMarker
 
-
           // Trigger edit animation for remote marker edits
           remoteMarkerEditStore.set({
             coordinates: processedMarker.coordinates,
@@ -218,7 +215,6 @@
         } else {
           // Add new marker
           markers.push(processedMarker)
-
 
           // Trigger ripple animation for new remote markers
           remoteMarkerRippleStore.set({
@@ -544,8 +540,7 @@
             siloFill: marker.marker_data?.properties?.silo_fill ?? 0,
             grainType: marker.marker_data?.properties?.grain_type ?? "",
             grainColor:
-              marker.marker_data?.properties?.grain_color ??
-              SILO_COLOR_DEFAULT,
+              marker.marker_data?.properties?.grain_color ?? SILO_COLOR_DEFAULT,
             markerColor:
               marker.marker_data?.properties?.marker_color ??
               MARKER_COLOR_DEFAULT,
