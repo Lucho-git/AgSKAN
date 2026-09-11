@@ -1,4 +1,4 @@
-// Converts the new marker SVGs in static/icons/new/ into high-DPI (3x) PNGs
+// Converts the new marker SVGs in icon-art/new/ into high-DPI (3x) PNGs
 // in static/icons/, using the same rendering as scripts/generateIcons.js
 // (35px display @ 3x = 105px canvas, light-grey disc + shadow, icon at 0.85
 // scale, viewBox fitted + centered).
@@ -14,7 +14,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SRC = path.join(__dirname, '../static/icons/new')
+const SRC = path.join(__dirname, '../icon-art/new')
 const OUT = path.join(__dirname, '../static/icons')
 
 const ICONS = [

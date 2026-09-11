@@ -10,10 +10,23 @@ const ftwArchives = new Map<string, PMTiles>()
 const isCapacitorLocalOrigin =
   self.location.protocol === "https:" && self.location.hostname === "localhost"
 
-const precache_list = [...build, ...files, ...prerendered].map((s) => ({
-  url: s,
-  revision: CACHE_VERSION,
-}))
+// Heavy marketing media is deliberately NOT precached: /images/ + /content/
+// (~90 MB) would otherwise be downloaded to every device on first visit.
+// Those files still load on demand for marketing pages and are then held by
+// the normal browser cache. Icons, fonts, docs and app data stay precached
+// so the app works offline after the first online visit.
+const NON_PRECACHE_PREFIXES = ['images/', 'content/', 'mobiledisplay']
+const isPrecached = (s) => {
+  const p = s.startsWith('/') ? s.slice(1) : s
+  return !NON_PRECACHE_PREFIXES.some((prefix) => p.startsWith(prefix))
+}
+
+const precache_list = [...build, ...files, ...prerendered]
+  .filter((s) => isPrecached(s))
+  .map((s) => ({
+    url: s,
+    revision: CACHE_VERSION,
+  }))
 
 if (!isCapacitorLocalOrigin) {
   precacheAndRoute(precache_list)

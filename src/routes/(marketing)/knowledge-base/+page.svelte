@@ -1,16 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
-  import {
-    Play,
-    BookOpen,
-    ChevronDown,
-    Clock,
-    Phone,
-    Mail,
-    ChevronRight,
-  } from "lucide-svelte"
-  import { getArticlesByCategory } from "$lib/data/articleData"
+  import { Play, Clock, Phone, Mail, ChevronRight } from "lucide-svelte"
 
   let mounted = false
   let activeVideoId = null
@@ -198,25 +189,6 @@
     ],
   }
 
-  // Article categories
-  const articleCategories = [
-    {
-      title: "Getting Started",
-      slug: "getting-started",
-      articles: getArticlesByCategory("Getting Started"),
-    },
-    {
-      title: "Troubleshooting",
-      slug: "troubleshooting",
-      articles: getArticlesByCategory("Troubleshooting"),
-    },
-    {
-      title: "FAQs",
-      slug: "faqs",
-      articles: getArticlesByCategory("FAQs"),
-    },
-  ]
-
   function toggleVideo(videoId) {
     if (activeVideoId === videoId) {
       activeVideoId = null
@@ -244,7 +216,7 @@
         Help Center
       </h1>
       <p class="mx-auto max-w-2xl text-center text-xl text-base-content/70">
-        Video tutorials and articles to help you get the most out of AgSKAN
+        Video tutorials to help you get the most out of AgSKAN
       </p>
     </div>
   </div>
@@ -405,55 +377,6 @@
                 </div>
               {/each}
             </div>
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <!-- Help Articles Section -->
-    <div>
-      <div class="mb-8 flex items-center gap-3">
-        <div class="rounded-lg bg-base-content/10 p-3">
-          <BookOpen class="text-base-content" size={28} />
-        </div>
-        <h2 class="text-3xl font-bold text-base-content">Help Articles</h2>
-      </div>
-
-      <div class="grid gap-6 md:grid-cols-3">
-        {#each articleCategories as category}
-          <div
-            class="rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm transition-shadow hover:shadow-lg"
-          >
-            <div
-              class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-base-content/10"
-            >
-              <BookOpen class="text-base-content" size={28} />
-            </div>
-
-            <h3 class="mb-6 text-2xl font-semibold text-base-content">
-              {category.title}
-            </h3>
-
-            <ul class="mb-6 space-y-3">
-              {#each category.articles.slice(0, 5) as article}
-                <li>
-                  <a
-                    href={`/knowledge-base/article/${article.slug}`}
-                    class="block py-1 text-base-content/80 hover:text-base-content hover:underline"
-                  >
-                    {article.title}
-                  </a>
-                </li>
-              {/each}
-            </ul>
-
-            <a
-              href={`/knowledge-base/category/${category.slug}`}
-              class="inline-flex items-center font-medium text-base-content transition-colors hover:text-base-content/70"
-            >
-              View all articles
-              <ChevronDown class="ml-1 rotate-[-90deg]" size={18} />
-            </a>
           </div>
         {/each}
       </div>

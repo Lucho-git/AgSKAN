@@ -1,7 +1,31 @@
 // atlas-icons.js
-// Simple Atlas icon storage - just paste the complete SVG strings
+// Atlas marker icon storage. The built-in glyphs are inline SVG strings
+// below; extra glyphs recovered from the atlas font packs live as files in
+// icon-art/atlas/*.svg and are merged in at load time
+// (regenerate them with scripts/extract-atlas-glyphs.mjs).
 
-export const atlasIconSvgs = {
+import { readdirSync, readFileSync } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __atlasDir = path.dirname(fileURLToPath(import.meta.url))
+const EXTRA_ATLAS_DIR = path.join(__atlasDir, '../icon-art/atlas')
+
+function readExtraAtlasSvgs() {
+  const out = {}
+  try {
+    for (const f of readdirSync(EXTRA_ATLAS_DIR)) {
+      if (f.endsWith('.svg')) {
+        out[f.slice(0, -4)] = readFileSync(path.join(EXTRA_ATLAS_DIR, f), 'utf-8')
+      }
+    }
+  } catch {
+    /* icon-art/atlas missing — the built-in set still works */
+  }
+  return out
+}
+
+const builtinAtlasIconSvgs = {
   "construction-truck": `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" width="24" height="24" color="#000000"><defs><style>.cls-63763c42c3a86d32eae6f129-1{fill:none;stroke:currentColor;stroke-miterlimit:10;}</style></defs><circle class="cls-63763c42c3a86d32eae6f129-1" cx="5.32" cy="18.68" r="1.91"></circle><circle class="cls-63763c42c3a86d32eae6f129-1" cx="18.68" cy="18.68" r="1.91"></circle><polyline class="cls-63763c42c3a86d32eae6f129-1" points="20.59 18.68 22.5 18.68 22.5 13.91 22.5 12.96 20.59 7.23 16.77 7.23 16.77 13.91 16.77 18.68"></polyline><line class="cls-63763c42c3a86d32eae6f129-1" x1="19.64" y1="13.91" x2="22.5" y2="13.91"></line><polyline class="cls-63763c42c3a86d32eae6f129-1" points="19.64 3.41 16.77 3.41 16.77 13.91 4.36 13.91 1.5 11.04 1.5 5.32 12.96 5.32 14.86 3.41 16.77 3.41"></polyline><line class="cls-63763c42c3a86d32eae6f129-1" x1="9.14" y1="9.14" x2="9.14" y2="13.91"></line><line class="cls-63763c42c3a86d32eae6f129-1" x1="5.32" y1="9.14" x2="5.32" y2="13.91"></line><line class="cls-63763c42c3a86d32eae6f129-1" x1="12.95" y1="9.14" x2="12.95" y2="13.91"></line><polyline class="cls-63763c42c3a86d32eae6f129-1" points="7.23 18.68 16.77 18.68 16.77 13.91 12.96 13.91 9.14 13.91 5.32 13.91 4.36 13.91 1.5 13.91 1.5 18.68 3.41 18.68"></polyline></svg>`,
   
   "electric-car": `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" width="24" height="24" color="#000000"><defs><style>.cls-637a2287b95f902aafde8fbe-1{fill:none;stroke:currentColor;stroke-miterlimit:10;}</style></defs><circle class="cls-637a2287b95f902aafde8fbe-1" cx="17.75" cy="20.59" r="1.91"></circle><circle class="cls-637a2287b95f902aafde8fbe-1" cx="9.16" cy="20.59" r="1.91"></circle><line class="cls-637a2287b95f902aafde8fbe-1" x1="15.84" y1="20.59" x2="11.07" y2="20.59"></line><path class="cls-637a2287b95f902aafde8fbe-1" d="M7.25,20.59H5.34V14.86l1.19-3a2.86,2.86,0,0,1,2.66-1.81h6a2.87,2.87,0,0,1,2.46,1.39l2,3.38a2.87,2.87,0,0,1,2.86,2.87v2.86H19.66"></path><line class="cls-637a2287b95f902aafde8fbe-1" x1="19.66" y1="14.86" x2="11.07" y2="14.86"></line><line class="cls-637a2287b95f902aafde8fbe-1" x1="13.93" y1="12" x2="13.93" y2="14.86"></line><path class="cls-637a2287b95f902aafde8fbe-1" d="M5.34,17.73h-1a2.86,2.86,0,0,1-2.87-2.87V7.23A2.87,2.87,0,0,1,4.39,4.36H15.84"></path><path class="cls-637a2287b95f902aafde8fbe-1" d="M17.75,1.5h1.91a0,0,0,0,1,0,0V7.23a0,0,0,0,1,0,0H17.75a1.91,1.91,0,0,1-1.91-1.91V3.41A1.91,1.91,0,0,1,17.75,1.5Z"></path><line class="cls-637a2287b95f902aafde8fbe-1" x1="23.48" y1="2.45" x2="19.66" y2="2.45"></line><line class="cls-637a2287b95f902aafde8fbe-1" x1="23.48" y1="6.27" x2="19.66" y2="6.27"></line></svg>`,
@@ -44,3 +68,7 @@ export const atlasIconSvgs = {
   
   "ladder-truck": `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" width="24" height="24" color="#000000"><defs><style>.cls-637b87aff95e86b59c57a1cb-1{fill:none;stroke:currentColor;stroke-miterlimit:10;}</style></defs><circle class="cls-637b87aff95e86b59c57a1cb-1" cx="6.24" cy="16.78" r="1.91"></circle><circle class="cls-637b87aff95e86b59c57a1cb-1" cx="17.72" cy="16.78" r="1.91"></circle><polyline class="cls-637b87aff95e86b59c57a1cb-1" points="8.15 16.78 13.89 16.78 13.89 12 10.06 12 6.24 12 2.41 12 1.46 12 1.46 16.78 4.33 16.78"></polyline><polyline class="cls-637b87aff95e86b59c57a1cb-1" points="19.63 16.78 22.5 16.78 22.5 12 20.59 11.04 18.67 5.3 13.89 5.3 13.89 8.17 13.89 12 13.89 16.78 15.8 16.78"></polyline><line class="cls-637b87aff95e86b59c57a1cb-1" x1="20.59" y1="11.04" x2="16.76" y2="11.04"></line><line class="cls-637b87aff95e86b59c57a1cb-1" x1="10.07" y1="8.17" x2="10.07" y2="12"></line><line class="cls-637b87aff95e86b59c57a1cb-1" x1="6.24" y1="8.17" x2="6.24" y2="12"></line><line class="cls-637b87aff95e86b59c57a1cb-1" x1="2.41" y1="8.17" x2="2.41" y2="12"></line><line class="cls-637b87aff95e86b59c57a1cb-1" x1="13.89" y1="8.17" x2="0.5" y2="8.17"></line></svg>`
 }
+
+// Built-in glyphs above + glyphs extracted from the atlas font packs
+// (icon-art/atlas/*.svg — see scripts/extract-atlas-glyphs.mjs).
+export const atlasIconSvgs = { ...builtinAtlasIconSvgs, ...readExtraAtlasSvgs() }

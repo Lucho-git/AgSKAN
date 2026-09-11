@@ -20,6 +20,7 @@
     trailPausedStore,
     trailPausePointStore,
     trailClosingStore,
+    trailStartingStore,
   } from "$lib/stores/currentTrailStore"
 
   import {
@@ -261,12 +262,30 @@
   // TRAIL CONTROL - CALLED VIA COMMAND STORE
   // ============================================
 
+  // Guarded entry point: ignores repeat clicks while a start is already in
+  // flight (operator check + trail creation are async). Without this, rapid
+  // double/triple taps each kicked off a full start flow — duplicate toasts
+  // and duplicate trail creation requests.
   async function startTrail() {
     if ($userVehicleTrailing) {
       toast.warning("Trail recording already active")
       return
     }
 
+    if (get(trailStartingStore)) {
+      console.log("⏸️ Trail start already in progress, ignoring duplicate click")
+      return
+    }
+
+    trailStartingStore.set(true)
+    try {
+      await startTrailInner()
+    } finally {
+      trailStartingStore.set(false)
+    }
+  }
+
+  async function startTrailInner() {
     // Gate: require an operator to be selected before trailing
     if (!$operatorStore?.operator) {
       showOperatorPicker = true
@@ -375,6 +394,18 @@
 
     const trailId = $currentTrailStore.id
 
+    // Mark the close as in flight NOW — before any awaits. Fetching the
+    // stream points below can take seconds on big trails, and every tap
+    // during that window used to start another close flow (duplicate
+    // toasts and duplicate close_trail_fast requests).
+    const trailMeta = {
+      vehicle_id: $currentTrailStore.vehicle_id,
+      operation_id: $currentTrailStore.operation_id,
+      trail_color: $currentTrailStore.trail_color,
+      trail_width: $currentTrailStore.trail_width,
+    }
+    trailClosingStore.set(true)
+
     // ── Merge background-synced trail_stream points from the DB ─────────
     // The native HTTP engine may have POSTed coordinates directly to
     // trail_stream (via background_sync RPC) while JS was frozen.
@@ -479,11 +510,8 @@
 
     const trailData = {
       trail_id: trailId,
-      vehicle_id: $currentTrailStore.vehicle_id,
-      operation_id: $currentTrailStore.operation_id,
+      ...trailMeta,
       path: pathData,
-      trail_color: $currentTrailStore.trail_color,
-      trail_width: $currentTrailStore.trail_width,
     }
 
     // Check if we have pending coordinates for this trail
@@ -496,7 +524,6 @@
     )
 
     // Use toast.promise for better UX
-    trailClosingStore.set(true)
     const closurePromise = (async () => {
       try {
         // If we have pending coordinates, sync them FIRST and AWAIT

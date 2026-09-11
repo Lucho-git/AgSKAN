@@ -6,6 +6,7 @@
     pendingCoordinatesStore,
     pendingClosuresStore,
     trailClosingStore,
+    trailStartingStore,
   } from "$lib/stores/currentTrailStore"
   import {
     pendingMarkerChangesStore,
@@ -192,7 +193,7 @@
   }
 
   function endTrailFromModal() {
-    if ($trailClosingStore) return
+    if ($trailClosingStore || $trailStartingStore) return
     if ($userVehicleTrailing) {
       commands.trail.stop()
       toast.success("Trail recording stopped")
@@ -362,7 +363,7 @@
           <button
             class="modal-btn danger"
             on:click={endTrailFromModal}
-            disabled={$trailClosingStore}
+            disabled={$trailClosingStore || $trailStartingStore}
           >
             {#if $trailClosingStore}Closing...{:else}Stop Trail{/if}
           </button>

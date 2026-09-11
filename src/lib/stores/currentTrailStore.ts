@@ -172,6 +172,11 @@ export const pendingClosuresStore = createPendingClosuresStore()
 // Used to disable the stop button and prevent duplicate close requests.
 export const trailClosingStore = writable<boolean>(false)
 
+// Trail starting state — true while startTrail() is in flight (operator
+// check, trail creation). Used to disable the record button and prevent
+// duplicate starts from rapid double/triple taps.
+export const trailStartingStore = writable<boolean>(false)
+
 // Trail pause state
 export const trailPausedStore = writable<boolean>(false)
 

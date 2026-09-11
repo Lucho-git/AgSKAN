@@ -1,6 +1,6 @@
 // fiver-icons.mjs — Import / remove the Fiverr SVG marker icons
 // ==============================================================
-// The SVGs live in static/icons/fiver/*.svg. They are imported into the
+// The SVGs live in icon-art/fiver/*.svg. They are imported into the
 // existing custom-SVG marker pipeline so they:
 //   • render on the map (runtime SVG renderer via marker-svg-glyphs.json)
 //   • render in the marker pickers (<IconSVG> symbols)
@@ -30,17 +30,17 @@ import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const FIVER_DIR = path.join(__dirname, '../static/icons/fiver')
+const FIVER_DIR = path.join(__dirname, '../icon-art/fiver')
 const MANIFEST_FILE = path.join(__dirname, 'fiver-icons-manifest.json')
 
-// Second art pack — static/icons/fiver2 (prefix fiver2_). Same pipeline,
+// Second art pack — icon-art/fiver2 (prefix fiver2_). Same pipeline,
 // separate manifest so each pack's removed/imported state is independent.
-const FIVER2_DIR = path.join(__dirname, '../static/icons/fiver2')
+const FIVER2_DIR = path.join(__dirname, '../icon-art/fiver2')
 const FIVER2_MANIFEST_FILE = path.join(__dirname, 'fiver2-icons-manifest.json')
 
-// Third art pack — static/icons/fiver3 (prefix fiver3_): late review/test
+// Third art pack — icon-art/fiver3 (prefix fiver3_): late review/test
 // icons (better directions / new variants) the user added.
-const FIVER3_DIR = path.join(__dirname, '../static/icons/fiver3')
+const FIVER3_DIR = path.join(__dirname, '../icon-art/fiver3')
 const FIVER3_MANIFEST_FILE = path.join(__dirname, 'fiver3-icons-manifest.json')
 
 // Files we recognise. IMPORTANT: exact filename (spaces + trailing spaces

@@ -25,9 +25,9 @@ const customSvgIcons = [
   "liquid_tank",
   "rock_pile",
   "water_tower2",
-  "mapbox-marker",
-    "mapbox-marker-selected", 
-  "mapbox-marker-outlined",
+  // Legacy core kangaroo (removed from the picker, but ~427 markers still
+  // use custom-svg-kangaroo on live maps) — keep generating its PNG.
+  "kangaroo",
   // FIVER_ICONS_START
   "fiver_field_bin_v4",
   "fiver_bulldozer",
@@ -78,27 +78,22 @@ const customSvgIcons = [
 // FIVER3_ICONS_END
 ]
 
+// Only the Ionicons that are still OFFERED in the marker pickers need PNGs.
+// Deprecated ionics (hidden from pickers, ≤2 live markers each) keep rendering
+// via the SVG glyph pipeline (marker-svg-glyphs.json) — no PNG needed.
 const ionicIcons = [
-  "pin", "arrow-up-circle", "arrow-down-circle", "arrow-back-circle", 
-  "arrow-forward-circle", "thumbs-down", "thumbs-up", "accessibility", 
-  "people", "settings", "home", "checkmark-circle", "close-circle",
-  "information-circle", "warning", "help-circle", "ban", "location",
-  "lock-closed", "lock-open", "trash", "cart", "locate", "leaf", "call",
-  "wifi", "radio", "cloud-offline", "battery-charging", "thermometer",
-  "sunny", "cloud", "thunderstorm", "rainy", "water", "fast-food",
-  "restaurant", "airplane", "trail-sign", "car", "beer", "bonfire",
-  "boat", "bed", "bicycle", "build", "desktop", "earth", "camera",
-  "fish", "flame", "footsteps", "key", "man", "paw", "skull",
-  "construct", "bus", "subway", "telescope"
+  "pin", "arrow-up-circle", "arrow-down-circle", "arrow-back-circle",
+  "arrow-forward-circle", "thumbs-down", "thumbs-up", "people", "home",
+  "checkmark-circle", "close-circle", "information-circle", "warning",
+  "help-circle", "ban", "trail-sign", "leaf", "cloud", "water", "rainy",
+  "beer", "bonfire", "construct", "fish", "paw", "skull"
 ]
 
+// Atlas (at-*) icons are phased out of the pickers and ALL of them now render
+// through the SVG glyph pipeline. No atlas PNGs are generated any more — the
+// art (scripts/atlas-icons.js) and glyph entries stay so existing markers
+// keep rendering. Re-add names here if atlas icons ever return to the picker.
 const atlasIcons = [
-  "construction-truck", "electric-car", "gasoline", "kg-weight", "carrot",
-  "middle-finger", "toilet-bathroom", "car-garage", "electricity-home",
-  "carrot-turnip-vegetable", "wheat-harvest", "helicopter-travel",
-  "camper-vehicle", "cargo-transport", "bulldozer", "construction-transport",
-  "crane-truck", "delivery-truck", "liquid-transportation", "transport-truck",
-  "ladder-truck"
 ]
 
 // Function to extract everything from IconSprite.svelte including individual defs

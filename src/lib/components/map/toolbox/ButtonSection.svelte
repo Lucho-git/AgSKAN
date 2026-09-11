@@ -21,6 +21,7 @@
     trailPausedStore,
     trailPausePointStore,
     trailClosingStore,
+    trailStartingStore,
   } from "$lib/stores/currentTrailStore"
   import { toast } from "svelte-sonner"
 
@@ -548,7 +549,7 @@
                     pulseBadge("record")
                   }
                 }}
-                disabled={$trailClosingStore}
+                disabled={$trailClosingStore || $trailStartingStore}
               >
                 {#if $userVehicleTrailing}
                   <!-- Animated trail icon - plays while trailing, pauses when paused -->
@@ -608,7 +609,7 @@
                   class="trail-status-pill-a"
                   class:paused-pill-a={$trailPausedStore}
                   on:click={() => stopTrailing()}
-                  disabled={$trailClosingStore}
+                  disabled={$trailClosingStore || $trailStartingStore}
                   title="Stop trailing"
                 >
                   <span class="pill-a-text"
