@@ -1,6 +1,7 @@
 import { writable } from "svelte/store"
 
-export const historicalTrailStore = writable([])
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const historicalTrailStore = writable<any[]>([])
 export const otherActiveTrailStore = writable([])
 export const selectedTrailIdStore = writable<string | null>(null)
 export const trailsLoadingStore = writable(false)

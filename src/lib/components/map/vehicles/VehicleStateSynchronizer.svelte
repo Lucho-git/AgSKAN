@@ -61,13 +61,114 @@
     return vehicleId && profileMap.has(vehicleId)
   }
 
+  // Merge a changed profile into connected_profiles so isConnectedUser()
+  // starts passing for them immediately — no page refresh needed when a
+  // guest joins or renames themselves.
+  function mergeConnectedProfile(profileRow) {
+    mapActivityStore.update((state) => {
+      const list = [...(state.connected_profiles || [])]
+      const idx = list.findIndex((p) => p.id === profileRow.id)
+      const patch = {
+        id: profileRow.id,
+        full_name: profileRow.full_name,
+        map_role: profileRow.map_role || null,
+      }
+      if (idx === -1) {
+        list.push({
+          selected_operation_id: profileRow.selected_operation_id || null,
+          current_operation: null,
+          operation_name: "No operation",
+          operation_id: null,
+          ...patch,
+        })
+      } else {
+        list[idx] = { ...list[idx], ...patch }
+      }
+      return { ...state, connected_profiles: list }
+    })
+  }
+
+  // A profile on this map changed (joined / renamed / re-roled). Track them,
+  // then push their vehicle row through the normal change pipeline so the
+  // people/vehicles menu updates live instead of after a reload.
+  async function handleProfileChanged(profileRow) {
+    mergeConnectedProfile(profileRow)
+    try {
+      const { data, error } = await supabase
+        .from("vehicle_state")
+        .select("*")
+        .eq("vehicle_id", profileRow.id)
+        .maybeSingle()
+      if (error || !data) return
+
+      const profileMap = getConnectedProfileMap()
+      serverOtherVehiclesData.update((vehicles) => {
+        const idx = vehicles.findIndex((v) => v.vehicle_id === profileRow.id)
+        if (idx === -1) {
+          return [...vehicles, enrichWithProfile(data, profileMap)]
+        }
+        if (isOlderVehicleUpdate(data, vehicles[idx])) {
+          // Keep the newer position, but refresh profile-derived fields.
+          return vehicles.map((v, i) =>
+            i === idx ? { ...v, ...enrichWithProfile(v, profileMap) } : v,
+          )
+        }
+        return vehicles.map((v, i) =>
+          i === idx ? { ...v, ...enrichWithProfile(data, profileMap) } : v,
+        )
+      })
+
+      const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
+      otherVehiclesDataChanges.set(changes)
+    } catch (e) {
+      console.warn("Profile refresh failed:", e)
+    }
+  }
+
+  // Re-read the map's profile list (used by the poll so stale entries —
+  // removed or expired guests — drop out of every filter within a minute).
+  async function refreshConnectedProfiles() {
+    const mapId = $profileStore.master_map_id
+    if (!mapId) return
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, map_role, selected_operation_id")
+        .eq("master_map_id", mapId)
+      if (error || !data) return
+      mapActivityStore.update((state) => {
+        const existing = state.connected_profiles || []
+        const list = data.map((p) => {
+          const prev = existing.find((c) => c.id === p.id)
+          return prev
+            ? { ...prev, ...p }
+            : {
+                selected_operation_id: p.selected_operation_id || null,
+                current_operation: null,
+                operation_name: "No operation",
+                operation_id: null,
+                ...p,
+              }
+        })
+        return { ...state, connected_profiles: list }
+      })
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
   // Merge profile data (name + operation) onto a raw vehicle_state row.
   function enrichWithProfile(row, profileMap) {
     const profile = profileMap.get(row.vehicle_id)
     if (!profile) return row
     return {
       ...row,
-      full_name: profile.full_name || row.full_name || "Unknown User",
+      full_name:
+        profile.full_name ||
+        (profile.map_role === "viewer" ? "Visitor" : null) ||
+        row.full_name ||
+        "Unknown User",
+      map_role: profile.map_role ?? row.map_role ?? null,
       selected_operation_id:
         row.selected_operation_id ?? profile.selected_operation_id ?? null,
       current_operation:
@@ -132,6 +233,7 @@
         flash_started_at: serverItem.flash_started_at || null,
         flash_reason: serverItem.flash_reason || null,
         full_name: serverItem.full_name || clientItem?.full_name,
+        map_role: serverItem.map_role || clientItem?.map_role || null,
         selected_operation_id:
           serverItem.selected_operation_id || clientItem?.selected_operation_id,
         current_operation:
@@ -210,6 +312,10 @@
     if (!masterMapId || !userId) return
 
     try {
+      // Pick up anyone who joined/left since the last cycle first — the
+      // connected filter below depends on it (removed guests get pruned).
+      await refreshConnectedProfiles()
+
       const { data, error } = await supabase
         .from("vehicle_state")
         .select("*")
@@ -591,6 +697,21 @@
           filter: `master_map_id=eq.${masterMapId}`,
         },
         (payload) => {
+          if (payload.eventType === "DELETE") {
+            const removedId = payload.old?.vehicle_id
+            if (removedId && removedId !== userId) {
+              serverOtherVehiclesData.update((vehicles) =>
+                vehicles.filter((v) => v.vehicle_id !== removedId),
+              )
+              const changes = compareData(
+                $serverOtherVehiclesData,
+                $otherVehiclesStore,
+              )
+              otherVehiclesDataChanges.set(changes)
+            }
+            return
+          }
+
           const profileMap = getConnectedProfileMap()
           if (
             payload.new.vehicle_id !== userId &&
@@ -642,6 +763,21 @@
             )
             otherVehiclesDataChanges.set(changes)
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `master_map_id=eq.${masterMapId}`,
+        },
+        (payload) => {
+          // Someone joined / renamed themselves on this map — surface them
+          // immediately instead of waiting for the next reload or poll.
+          if (!payload.new?.id || payload.new.id === userId) return
+          handleProfileChanged(payload.new)
         },
       )
       .subscribe()

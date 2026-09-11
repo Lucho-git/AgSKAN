@@ -31,7 +31,9 @@
   }
 
   $: colorDef = markerColor(colorKey)
-  $: draw(icon, colorKey, mode, size)
+  // Re-run when the canvas element binds: the first invocation happens before
+  // mount, when canvasEl is still undefined, so nothing would be drawn.
+  $: canvasEl, draw(icon, colorKey, mode, size)
 
   /**
    * @param {{ id: string, class: string } | null | undefined} def

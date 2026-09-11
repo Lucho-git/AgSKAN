@@ -13,6 +13,7 @@
     userVehicleTrailing,
   } from "$lib/stores/vehicleStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { profileStore } from "$lib/stores/profileStore"
   import { commands } from "$lib/stores/commandStore"
   import {
     currentTrailStore,
@@ -26,7 +27,7 @@
   import { toast } from "svelte-sonner"
 
   import { browser } from "$app/environment"
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import {
     Home,
     MapPin,
@@ -49,6 +50,31 @@
   let isCircular = true
   let isRefreshing = false
   let isExpanded = false
+
+  // View-only guests (temporary invite links) can't record or place anything.
+  $: isViewer = $profileStore?.user_type === "viewer"
+
+  // ── Guest-mode tooltip ──
+  // Guests keep the yellow buttons visible, but pin drop + trail recording
+  // are disabled — tapping them explains why with a small tooltip.
+  /** @type {{ text: string, x: number, y: number } | null} */
+  let guestTip = null
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let guestTipTimer = null
+
+  /** @param {MouseEvent} event */
+  function showGuestTip(event, text = "Guest mode — view only") {
+    const target = /** @type {HTMLElement | null} */ (event.currentTarget)
+    if (!target) return
+    const rect = target.getBoundingClientRect()
+    guestTip = { text, x: rect.left - 12, y: rect.top + rect.height / 2 }
+    if (guestTipTimer) clearTimeout(guestTipTimer)
+    guestTipTimer = setTimeout(() => (guestTip = null), 2200)
+  }
+
+  onDestroy(() => {
+    if (guestTipTimer) clearTimeout(guestTipTimer)
+  })
 
   // ── UI variation ──
   // Locked to A. Other variations (B = bottom-right position) removed.
@@ -353,7 +379,8 @@
 </script>
 
 <div>
-  <!-- Back to Dashboard Button, Top Left -->
+  <!-- Back to Dashboard Button, Top Left (hidden for guests — they have the guest bar) -->
+  {#if !isViewer}
   <button
     class="back-button btn {isCircular
       ? 'btn-circle'
@@ -375,6 +402,7 @@
       />
     </svg>
   </button>
+  {/if}
 
   <!-- ── Top-right column: dropdown + marker grid stacked ── -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end gap-3">
@@ -386,7 +414,14 @@
           <button
             class="marker-slot btn btn-circle"
             class:marker-just-dropped={flashedMarkerKey === "primary"}
-            on:click={dropPrimaryMarker}
+            class:guest-disabled={isViewer}
+            on:click={(event) => {
+              if (isViewer) {
+                showGuestTip(event, "Guest mode — pins are disabled")
+                return
+              }
+              dropPrimaryMarker()
+            }}
             title="Drop {defaultMarker?.name || 'Default'} marker"
           >
             <div class="marker-icon-container fan-icon">
@@ -410,7 +445,14 @@
             <button
               class="marker-slot btn btn-circle"
               class:marker-just-dropped={flashedMarkerKey === eKey}
-              on:click={() => dropExtraMarker(extraMarker)}
+              class:guest-disabled={isViewer}
+              on:click={(event) => {
+                if (isViewer) {
+                  showGuestTip(event, "Guest mode — pins are disabled")
+                  return
+                }
+                dropExtraMarker(extraMarker)
+              }}
               title="Drop {extraMarker?.name || 'Marker'}"
             >
               <div class="marker-icon-container fan-icon">
@@ -513,9 +555,8 @@
           </div>
 
           <!-- ══════════════════════════════════════ -->
-          <!-- TRAIL BUTTON                            -->
+          <!-- TRAIL BUTTON (guests see it greyed out)  -->
           <!-- ══════════════════════════════════════ -->
-
           <div class="trail-btn-row-a">
             {#if $userVehicleTrailing}
               <!-- Pause / Resume -->
@@ -541,7 +582,12 @@
                   : 'btn-square'} btn-lg {$userVehicleTrailing
                   ? 'trailing-active'
                   : ''}"
-                on:click={() => {
+                class:guest-disabled={isViewer}
+                on:click={(event) => {
+                  if (isViewer) {
+                    showGuestTip(event, "Guest mode — recording is disabled")
+                    return
+                  }
                   if ($userVehicleTrailing) {
                     stopTrailing()
                   } else {
@@ -549,7 +595,7 @@
                     pulseBadge("record")
                   }
                 }}
-                disabled={$trailClosingStore || $trailStartingStore}
+                disabled={!isViewer && ($trailClosingStore || $trailStartingStore)}
               >
                 {#if $userVehicleTrailing}
                   <!-- Animated trail icon - plays while trailing, pauses when paused -->
@@ -638,7 +684,14 @@
                     ? 'btn-circle'
                     : 'btn-square'} btn-lg"
                   class:marker-just-dropped={flashedMarkerKey === "primary"}
-                  on:click={dropPrimaryMarker}
+                  class:guest-disabled={isViewer}
+                  on:click={(event) => {
+                    if (isViewer) {
+                      showGuestTip(event, "Guest mode — pins are disabled")
+                      return
+                    }
+                    dropPrimaryMarker()
+                  }}
                   title="Drop {defaultMarker?.name || 'Default'} marker"
                 >
                   <div class="marker-icon-container">
@@ -671,7 +724,14 @@
                       ? 'btn-circle'
                       : 'btn-square'} btn-lg"
                     class:marker-just-dropped={flashedMarkerKey === eKey}
-                    on:click={() => dropExtraMarker(extraMarker)}
+                    class:guest-disabled={isViewer}
+                    on:click={(event) => {
+                      if (isViewer) {
+                        showGuestTip(event, "Guest mode — pins are disabled")
+                        return
+                      }
+                      dropExtraMarker(extraMarker)
+                    }}
                     title="Drop {extraMarker?.name || 'Marker'}"
                   >
                     <div class="marker-icon-container">
@@ -755,6 +815,16 @@
   </div>
 {/if}
 
+<!-- Guest-mode tooltip -->
+{#if guestTip}
+  <div
+    class="guest-tip fixed z-[80]"
+    style="left: {guestTip.x}px; top: {guestTip.y}px;"
+  >
+    {guestTip.text}
+  </div>
+{/if}
+
 <style>
   /* Base styles for all menu buttons */
   .menu-button {
@@ -772,6 +842,26 @@
   .menu-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  /* Guest mode: buttons stay visible but greyed out */
+  .guest-disabled {
+    opacity: 0.45;
+    filter: grayscale(0.9);
+    cursor: not-allowed;
+  }
+
+  .guest-tip {
+    transform: translate(-100%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fde68a;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   }
 
   /* Divider between dropdown actions and marker buttons */

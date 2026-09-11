@@ -49,6 +49,8 @@
   export let disableAutoZoom = false
   export let onOpenVehicleControls = null
   export let onOpenFlashPanel = null
+  /** @type {((detail: { trailId: string }) => void) | null} */
+  export let onViewTrail = null
 
   let globalSelectionContext = null
   let globalSelectionState = null
@@ -116,6 +118,11 @@
 
   // ── GPS glitch filter thresholds ──
   const GPS_MAX_ACCURACY_M = 100 // Reject if reported accuracy > 100m (WiFi/cell)
+  // Guests (viewer accounts) are usually on desktops or phones using network
+  // / IP-based location, which can be hundreds of metres — or kilometres —
+  // off. They still get a pointer on the map, so give them an effectively
+  // unlimited gate instead of rejecting every fix.
+  const GPS_MAX_ACCURACY_GUEST_M = 500000
   const GPS_MAX_SPEED_KMH = 500 // Reject if implied speed > 500 km/h
   const GPS_SPEED_GATE_MAX_GAP_S = 180 // Only apply speed gate if time gap < 3 minutes
   const GPS_SNAP_BACK_THRESHOLD = 3 // Consecutive rejections before snap-back kicks in
@@ -573,6 +580,18 @@
     }
 
     return (names[0][0] + names[names.length - 1][0]).toUpperCase()
+  }
+
+  // Guests show "<initials> (Guest)" in their floating tag instead of a bare
+  // name — e.g. "KS (Guest)" for Kim Smith.
+  function getGuestTagLabel(fullName) {
+    const initials = getUserInitials(fullName)
+    return initials ? `${initials} (Guest)` : "Guest"
+  }
+
+  // Guests show "Guest" in their floating tag instead of initials.
+  function isSelfGuest() {
+    return $profileStore?.user_type === "viewer"
   }
 
   // 3-day inactivity threshold (ms)
@@ -2075,6 +2094,7 @@
         update_types,
         is_trailing,
         full_name,
+        map_role,
         speed,
         is_flashing,
         flash_started_at,
@@ -2107,10 +2127,24 @@
         return
       }
 
-      const [longitude, latitude] = coordinates
-        .slice(1, -1)
-        .split(",")
-        .map(parseFloat)
+      // A vehicle_state row can exist without coordinates (e.g. a guest who
+      // redeemed an invite but hasn't sent a GPS fix yet). It still belongs in
+      // the vehicles menu — only map drawing needs a real position.
+      const isGuest = map_role === "viewer"
+      const hasCoordinates = !!coordinates && typeof coordinates === "string"
+      let longitude = null
+      let latitude = null
+      if (hasCoordinates) {
+        ;[longitude, latitude] = coordinates
+          .slice(1, -1)
+          .split(",")
+          .map(parseFloat)
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+          longitude = null
+          latitude = null
+        }
+      }
+      const hasFix = longitude !== null && latitude !== null
 
       // Handle flash state changes with toasts
       if (update_types.includes("flash_state_changed")) {
@@ -2140,16 +2174,18 @@
               ? `${full_name} needs assistance!`
               : `${full_name} is signaling ${reasonLabel}`,
             duration: isHelpSignal ? 45000 : 8000,
-            action: {
-              label: "Locate",
-              onClick: () => {
-                map.flyTo({
-                  center: [longitude, latitude],
-                  zoom: 16,
-                  duration: 1500,
-                })
-              },
-            },
+            action: hasFix
+              ? {
+                  label: "Locate",
+                  onClick: () => {
+                    map.flyTo({
+                      center: [longitude, latitude],
+                      zoom: 16,
+                      duration: 1500,
+                    })
+                  },
+                }
+              : undefined,
             style: `border-left: 4px solid ${reasonColor};`,
           }
 
@@ -2173,7 +2209,7 @@
         }
       }
 
-      if (isTrackingVehicle && vehicle_id === trackedVehicleId) {
+      if (hasFix && isTrackingVehicle && vehicle_id === trackedVehicleId) {
         if (
           update_types.includes("position_changed") ||
           update_types.includes("heading_changed") ||
@@ -2226,7 +2262,9 @@
               vehicle_marker.bodyColor,
               inactive,
             )
-            const initials = getUserInitials(full_name)
+            const initials = isGuest
+              ? getGuestTagLabel(full_name)
+              : getUserInitials(full_name)
             if (initials)
               updateInitialsMarkerText(
                 initialsMarker,
@@ -2242,15 +2280,18 @@
         component.$set({ isInactive: inactive })
 
         if (
-          update_types.includes("position_changed") ||
-          update_types.includes("heading_changed")
+          hasFix &&
+          (update_types.includes("position_changed") ||
+            update_types.includes("heading_changed"))
         ) {
           animateMarker(marker, longitude, latitude, heading)
 
           if (initialsMarker) {
             animateMarker(initialsMarker, longitude, latitude, 0)
             // Update speed in the tag
-            const initials = getUserInitials(full_name)
+            const initials = isGuest
+              ? getGuestTagLabel(full_name)
+              : getUserInitials(full_name)
             if (initials)
               updateInitialsMarkerText(
                 initialsMarker,
@@ -2272,7 +2313,7 @@
 
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected })
-      } else {
+      } else if (hasFix) {
         console.log(`🆕 Creating new vehicle marker for ${vehicle_id}`)
 
         const inactive = isVehicleInactive(last_update)
@@ -2299,8 +2340,10 @@
         element.style.display = vehiclesVisible ? "block" : "none"
 
         let initialsMarker = null
-        if (full_name) {
-          const initials = getUserInitials(full_name)
+        if (full_name || isGuest) {
+          const initials = isGuest
+            ? getGuestTagLabel(full_name)
+            : getUserInitials(full_name)
           if (initials) {
             const initialsEl = createInitialsMarkerElement(
               initials,
@@ -2333,6 +2376,8 @@
           vehicleId: vehicle_id,
           initialsMarker,
         })
+      } else {
+        console.log(`🕓 ${vehicle_id} has no GPS fix yet — marker deferred`)
       }
 
       otherVehiclesStore.update((vehicles) => {
@@ -2348,16 +2393,18 @@
           ) {
             toast.info(`Trailing Status Changed`, {
               description: `${full_name}'s ${vehicle_marker.type} has ${is_trailing ? "started" : "stopped"} trailing`,
-              action: {
-                label: "Locate",
-                onClick: () => {
-                  map.flyTo({
-                    center: [longitude, latitude],
-                    zoom: 15,
-                    duration: 1000,
-                  })
-                },
-              },
+              action: hasFix
+                ? {
+                    label: "Locate",
+                    onClick: () => {
+                      map.flyTo({
+                        center: [longitude, latitude],
+                        zoom: 15,
+                        duration: 1000,
+                      })
+                    },
+                  }
+                : undefined,
             })
           }
 
@@ -2525,8 +2572,10 @@
       const vehiclesVisible = $layerVisibilityStore.vehicles
       element.style.display = vehiclesVisible ? "block" : "none"
 
-      if ($profileStore?.full_name) {
-        const initials = getUserInitials($profileStore.full_name)
+      if ($profileStore?.full_name || isSelfGuest()) {
+        const initials = isSelfGuest()
+          ? getGuestTagLabel($profileStore?.full_name)
+          : getUserInitials($profileStore.full_name)
         if (initials) {
           const initialsEl = createInitialsMarkerElement(
             initials,
@@ -2682,7 +2731,9 @@
    * Returns { accepted: true } or { accepted: false, reason: string }.
    *
    * Rules:
-   *  1. If accuracy > GPS_MAX_ACCURACY_M → reject (WiFi/cell tower fix)
+   *  1. If accuracy > GPS_MAX_ACCURACY_M → reject (WiFi/cell tower fix).
+   *     Guest/viewer sessions use a far looser threshold — network-based
+   *     location would otherwise never pass and they'd be invisible.
    *  2. If implied speed > GPS_MAX_SPEED_KMH AND time gap < GPS_SPEED_GATE_MAX_GAP_S → reject
    *  3. Snap-back detection: if we've been rejecting GPS_SNAP_BACK_THRESHOLD
    *     consecutive points from the current anchor, the anchor itself was a
@@ -2693,10 +2744,15 @@
     // Only enforce an accuracy gate. All other filters (speed, snap-back)
     // have been removed per request so native fixes are not rejected
     // except when accuracy indicates a likely cell/WiFi-derived fix.
-    if (accuracy != null && accuracy > GPS_MAX_ACCURACY_M) {
+    const maxAccuracy =
+      $profileStore?.user_type === "viewer"
+        ? GPS_MAX_ACCURACY_GUEST_M
+        : GPS_MAX_ACCURACY_M
+
+    if (accuracy != null && accuracy > maxAccuracy) {
       return {
         accepted: false,
-        reason: `Accuracy too low: ${Math.round(accuracy)}m (max ${GPS_MAX_ACCURACY_M}m)`,
+        reason: `Accuracy too low: ${Math.round(accuracy)}m (max ${maxAccuracy}m)`,
         category: "accuracy",
         accuracy,
       }
@@ -2956,8 +3012,10 @@
             if (userInitialsMarker) {
               animateMarker(userInitialsMarker, longitude, latitude, 0)
               // Update speed in the user's tag
-              if ($profileStore?.full_name) {
-                const initials = getUserInitials($profileStore.full_name)
+              if ($profileStore?.full_name || isSelfGuest()) {
+                const initials = isSelfGuest()
+                  ? getGuestTagLabel($profileStore?.full_name)
+                  : getUserInitials($profileStore.full_name)
                 if (initials)
                   updateInitialsMarkerText(
                     userInitialsMarker,
@@ -2991,8 +3049,10 @@
             }
 
             // Create initials marker if it doesn't exist yet
-            if (!userInitialsMarker && $profileStore?.full_name) {
-              const initials = getUserInitials($profileStore.full_name)
+            if (!userInitialsMarker && ($profileStore?.full_name || isSelfGuest())) {
+              const initials = isSelfGuest()
+                ? getGuestTagLabel($profileStore?.full_name)
+                : getUserInitials($profileStore.full_name)
               if (initials) {
                 const initialsEl = createInitialsMarkerElement(
                   initials,
@@ -3023,11 +3083,22 @@
   }
 
   function handleStartTracking(event) {
-    startTrackingVehicle(event.detail.vehicleId)
+    const detail = event.detail || {}
+    startTrackingVehicle(detail.vehicleId)
+    // "Track vehicle and rotation" — follow AND rotate with the heading
+    if (detail.rotation) {
+      enableFirstPersonMode(detail.vehicleId)
+    }
   }
 
   function handleStopTracking() {
     stopTrackingVehicle()
+  }
+
+  // "Show trail" from the map log — hand the trail id up to MapViewer,
+  // which owns the trail highlighter / replay panel.
+  function handleViewTrail(event) {
+    if (typeof onViewTrail === "function") onViewTrail(event.detail)
   }
 
   function handleToggleFirstPerson() {
@@ -3263,35 +3334,41 @@
   function handleFirstPersonVehicle(vehicleId) {
     // Start tracking the selected vehicle, then enable first person
     startTrackingVehicle(vehicleId)
-    if (!isFirstPersonMode) {
-      isFirstPersonMode = true
-      lastTrackedHeading = null
+    enableFirstPersonMode(vehicleId)
+  }
 
-      const vehicle = getVehicleById(vehicleId)
-      if (vehicle) {
-        const parsedCoords = parseCoordinates(vehicle.coordinates)
-        if (parsedCoords) {
-          updateCameraForTrackedVehicle(
-            vehicleId,
-            parsedCoords.longitude,
-            parsedCoords.latitude,
-            vehicle.heading,
-          )
-        }
+  // Enable first-person mode (camera rotates with the vehicle's heading).
+  // Shared by the compass button flow and the "Track vehicle and rotation"
+  // option in the vehicle options menu.
+  function enableFirstPersonMode(vehicleId) {
+    if (isFirstPersonMode) return
+    isFirstPersonMode = true
+    lastTrackedHeading = null
+
+    const vehicle = getVehicleById(vehicleId)
+    if (vehicle) {
+      const parsedCoords = parseCoordinates(vehicle.coordinates)
+      if (parsedCoords) {
+        updateCameraForTrackedVehicle(
+          vehicleId,
+          parsedCoords.longitude,
+          parsedCoords.latitude,
+          vehicle.heading,
+        )
       }
-
-      toast.success("First-person mode enabled", {
-        description: "Camera will rotate with vehicle heading",
-        action: {
-          label: "Disable",
-          onClick: () => {
-            isFirstPersonMode = false
-            map.easeTo({ bearing: 0, duration: 1000 })
-            toast.info("First-person mode disabled")
-          },
-        },
-      })
     }
+
+    toast.success("First-person mode enabled", {
+      description: "Camera will rotate with vehicle heading",
+      action: {
+        label: "Disable",
+        onClick: () => {
+          isFirstPersonMode = false
+          map.easeTo({ bearing: 0, duration: 1000 })
+          toast.info("First-person mode disabled")
+        },
+      },
+    })
   }
 
   // Build vehicle list for the HUD vehicle picker
@@ -3454,8 +3531,10 @@
   // Re-render every visible initials tag when tagStyle changes
   function refreshAllTags() {
     // User's own tag
-    if (userInitialsMarker && $profileStore?.full_name) {
-      const initials = getUserInitials($profileStore.full_name)
+    if (userInitialsMarker && ($profileStore?.full_name || isSelfGuest())) {
+      const initials = isSelfGuest()
+        ? getGuestTagLabel($profileStore?.full_name)
+        : getUserInitials($profileStore.full_name)
       if (initials)
         updateInitialsMarkerText(
           userInitialsMarker,
@@ -3470,7 +3549,10 @@
       if (!initialsMarker) return
       const v = $otherVehiclesStore.find((v) => v.vehicle_id === vehicleId)
       if (!v) return
-      const initials = getUserInitials(v.full_name)
+      const initials =
+        v.map_role === "viewer"
+          ? getGuestTagLabel(v.full_name)
+          : getUserInitials(v.full_name)
       if (!initials) return
       const inactive = isVehicleInactive(v.last_update)
       updateInitialsMarkerText(
@@ -3495,6 +3577,7 @@
   on:toggleFirstPerson={handleToggleFirstPerson}
   on:zoomToVehicle={handleZoomToVehicle}
   on:instantZoomToVehicle={handleInstantZoomToVehicle}
+  on:viewTrail={handleViewTrail}
 />
 
 <VehicleCompassButton

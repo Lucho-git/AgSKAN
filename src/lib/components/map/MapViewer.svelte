@@ -85,6 +85,8 @@
   export let handleBackToDashboard
   export let initialLocation
   export let selectedOperation
+  // Read-only guest sessions: authoring tools aren't mounted at all.
+  export let viewerMode = false
 
   /** @param {unknown} value */
   function formatHectares(value) {
@@ -496,6 +498,27 @@
       if (api.playTrail) api.playTrail(index)
     }
     // Keep toolbox open — don't call closeToolbox()
+  }
+
+  // "Show trail" from the map log — replay a specific trail by id (loads it
+  // first if it isn't part of the currently loaded operation).
+  function handleViewTrailFromLog(detail) {
+    const trailId = detail?.trailId
+    if (!trailId) return
+    const api = trailHighlighter?.highlighterAPI
+    if (!api?.playTrailById) {
+      toast.error("Trail viewer not available")
+      return
+    }
+    // Register trail as active selection so other menus dismiss
+    if (mapEventManagerRef?.setSelection) {
+      mapEventManagerRef.setSelection(
+        "trail",
+        `log-${trailId}`,
+        trailHighlighter,
+      )
+    }
+    api.playTrailById(trailId)
   }
 
   function handleOpenVehicleControls() {
@@ -2047,6 +2070,7 @@
     <!-- Persistent Managers -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
+    {#if !viewerMode}
     <!-- Toolbox Trigger Button -->
     <div class="toolbox-trigger-container">
       <button
@@ -2058,8 +2082,9 @@
       </button>
       <span class="toolbox-badge">Tools</span>
     </div>
+    {/if}
 
-    <!-- ButtonSection with event dispatching -->
+    <!-- ButtonSection with event dispatching (guests: greyed view-only buttons) -->
     <ButtonSection
       {pendingCoordinates}
       {pendingClosures}
@@ -2077,7 +2102,9 @@
       coordinatedEvents={true}
     />
 
+    {#if !viewerMode}
     <CrosshairMarkerPlacement {map} {markerManagerRef} />
+    {/if}
 
     <MapStateSaver {map} />
     <VehicleStateSynchronizer />
@@ -2087,6 +2114,7 @@
       disableAutoZoom={initialLocation}
       onOpenVehicleControls={handleOpenVehicleControls}
       onOpenFlashPanel={handleOpenFlashPanel}
+      onViewTrail={handleViewTrailFromLog}
     />
     <MapFields
       bind:this={mapFieldsRef}
@@ -2112,14 +2140,18 @@
     <EmOverlays {map} />
     <KmzOverlays {map} />
     <PowerLinesOverlay {map} />
+    {#if !viewerMode}
     <KmzRoadEditor {map} />
+    {/if}
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <EdgeIndicator {map} />
 
     <DrawingHectares {map} />
+    {#if !viewerMode}
     <CollectionRoutePlanner {map} />
     <BulkDeleteOverlay {map} />
+    {/if}
 
     <TrailView bind:this={trailHighlighter} {map} />
     <OverlayTrailManager {map} />
@@ -2134,6 +2166,7 @@
       />
     {/if}
 
+    {#if !viewerMode}
     <!-- Drawing Components (Always Present) -->
     <DrawingTool {map} />
     <DrawingModePanel
@@ -2141,6 +2174,7 @@
       onComplete={handleDrawingComplete}
       onCancel={handleDrawingCancel}
     />
+    {/if}
 
     {#if addFieldFarm}
       <AddFieldOverlay
@@ -2248,6 +2282,7 @@
 {/if}
 
 <!-- Toolbox -->
+{#if !viewerMode}
 <Toolbox
   bind:this={toolboxRef}
   {satelliteManager}
@@ -2263,6 +2298,7 @@
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}
 />
+{/if}
 
 <!-- Dev Mode Joystick Overlay -->
 {#if $devModeEnabled}

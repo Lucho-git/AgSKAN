@@ -1,8 +1,9 @@
 <!-- src/lib/components/VehicleControls.svelte -->
 <script>
-  import { createEventDispatcher } from "svelte"
+  import { createEventDispatcher, onMount } from "svelte"
   import {
     ChevronRight,
+    ChevronDown,
     Check,
     Minus,
     Plus,
@@ -11,6 +12,7 @@
     Bookmark,
     Truck,
     Trash2,
+    History,
   } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
   import { userVehicleStore } from "$lib/stores/vehicleStore"
@@ -18,6 +20,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
   import PresetNameDialog from "$lib/components/map/toolbox/PresetNameDialog.svelte"
+  import { fetchMapLogVehicleOptions } from "$lib/api/mapLogApi"
 
   const dispatch = createEventDispatcher()
 
@@ -32,6 +35,17 @@
 
   // Dialog state
   let showPresetDialog = false
+  // When set, the name dialog saves THIS config (starred item) instead of
+  // the currently selected one.
+  let pendingPresetConfig = null
+
+  // Previously selected vehicles on this map (derived from the map log).
+  let showPrevVehicles = false
+  let prevVehicles = []
+  let prevVehiclesLoading = false
+  let prevVehiclesLoadedAt = 0
+
+  onMount(loadPrevVehicles)
 
   // Check if current config is saved as preset
   $: currentPreset = $vehiclePresetStore.find(
@@ -187,6 +201,7 @@
   }
 
   function openSavePresetDialog() {
+    pendingPresetConfig = null
     showPresetDialog = true
   }
 
@@ -215,7 +230,14 @@
 
   async function handleSavePreset(event) {
     const { name } = event.detail
-    const defaultSize = getDefaultSizeForVehicle(selectedVehicle)
+    // Star from the Presets/star flow saves the current selection; a starred
+    // "previously selected" vehicle saves its own config instead.
+    const config = pendingPresetConfig || {
+      type: selectedVehicle,
+      bodyColor: selectedColor,
+      swath: selectedSwath,
+      size: getDefaultSizeForVehicle(selectedVehicle),
+    }
 
     try {
       await vehiclePresetStore.addPreset(
@@ -223,13 +245,14 @@
         $profileStore.id,
         {
           name,
-          type: selectedVehicle,
-          bodyColor: selectedColor,
-          swath: selectedSwath,
-          size: defaultSize,
+          type: config.type,
+          bodyColor: config.bodyColor,
+          swath: config.swath,
+          size: config.size ?? getDefaultSizeForVehicle(config.type),
         },
       )
 
+      pendingPresetConfig = null
       showPresetDialog = false
       toast.success(`Preset "${name}" saved!`)
     } catch (error) {
@@ -238,6 +261,7 @@
   }
 
   function handleCancelPresetDialog() {
+    pendingPresetConfig = null
     showPresetDialog = false
   }
 
@@ -249,6 +273,75 @@
 
     hideSubPanel()
     toast.success(`Loaded preset: ${preset.name}`)
+  }
+
+  // ── Previously selected vehicles (from this map's activity) ────────────
+  async function loadPrevVehicles() {
+    const mapId = $profileStore?.master_map_id
+    if (!mapId) return
+    if (prevVehicles.length && Date.now() - prevVehiclesLoadedAt < 60_000) return
+    prevVehiclesLoading = true
+    try {
+      prevVehicles = await fetchMapLogVehicleOptions(mapId, 40)
+      prevVehiclesLoadedAt = Date.now()
+    } catch (error) {
+      console.warn("Failed to load previously used vehicles:", error)
+    } finally {
+      prevVehiclesLoading = false
+    }
+  }
+
+  function togglePrevVehicles() {
+    showPrevVehicles = !showPrevVehicles
+    if (showPrevVehicles) loadPrevVehicles()
+  }
+
+  /** Swath recorded for the vehicle, falling back to its standard width. */
+  function getPrevSwath(item) {
+    const n = Number(item.swath)
+    if (Number.isFinite(n) && n > 0) return n
+    const def = vehicles.find((v) => v.type === item.vehicleType)
+    return def ? def.swath : 12
+  }
+
+  function pickPrevVehicle(item) {
+    if (!item.vehicleType) return
+    selectedVehicle = item.vehicleType
+    if (item.bodyColor) selectedColor = item.bodyColor
+    const swath = getPrevSwath(item)
+    selectedSwath = swath
+    tempSwath = swath
+    hideSubPanel()
+    toast.success(
+      `Selected: ${getShortName(item.vehicleType)} • ${selectedColor} • ${swath}m`,
+    )
+  }
+
+  function starPrevVehicle(event, item) {
+    event.stopPropagation()
+    if (!item.vehicleType) return
+    const swath = getPrevSwath(item)
+    const bodyColor = item.bodyColor || "Red"
+
+    const existing = $vehiclePresetStore.find(
+      (p) =>
+        p.type === item.vehicleType &&
+        p.body_color === bodyColor &&
+        p.swath === swath,
+    )
+    if (existing) {
+      toast.info(`Already saved as "${existing.name}"`)
+      return
+    }
+
+    // Save this item's config (not the current selection) as a named preset.
+    pendingPresetConfig = {
+      type: item.vehicleType,
+      bodyColor,
+      swath,
+      size: getDefaultSizeForVehicle(item.vehicleType),
+    }
+    showPresetDialog = true
   }
 
   async function deletePreset(event, presetId, presetName) {
@@ -428,6 +521,64 @@
           </div>
           <ChevronRight size={16} class="chevron" />
         </button>
+      </div>
+
+      <!-- Previously selected vehicles on this map (from the map log) -->
+      <div class="prev-vehicles-section">
+        <button class="prev-vehicles-toggle" on:click={togglePrevVehicles}>
+          <History size={14} />
+          <span>PREVIOUSLY SELECTED</span>
+          <span class="prev-count" class:empty={prevVehicles.length === 0}
+            >{prevVehicles.length}</span
+          >
+          <ChevronDown
+            size={14}
+            class="prev-chevron {showPrevVehicles ? 'open' : ''}"
+          />
+        </button>
+        {#if showPrevVehicles}
+          {#if prevVehiclesLoading && prevVehicles.length === 0}
+            <div class="prev-loading">Loading…</div>
+          {:else if prevVehicles.length === 0}
+            <div class="prev-loading">No vehicles used on this map yet</div>
+          {:else}
+            <div class="preset-quick-grid prev-grid">
+              {#each prevVehicles as item (item.vehicleId)}
+                <button
+                  class="preset-quick-card prev-vehicle-card"
+                  class:selected={selectedVehicle === item.vehicleType}
+                  title={item.name}
+                  on:click={() => pickPrevVehicle(item)}
+                >
+                  <button
+                    class="prev-star-btn"
+                    title="Save as preset"
+                    on:click={(e) => starPrevVehicle(e, item)}
+                  >
+                    <Star size={13} />
+                  </button>
+                  <div class="preset-quick-icon">
+                    {#if SVGComponents[item.vehicleType]}
+                      <svelte:component
+                        this={SVGComponents[item.vehicleType]}
+                        bodyColor={item.bodyColor || "red"}
+                        size="32px"
+                      />
+                    {:else}
+                      <div class="fallback-icon-small">🚜</div>
+                    {/if}
+                  </div>
+                  <div class="preset-quick-name">
+                    {getShortName(item.vehicleType)}
+                  </div>
+                  <div class="preset-quick-specs">
+                    {item.bodyColor || "?"} • {getPrevSwath(item)}m
+                  </div>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </div>
 
       {#if hasChanges}
@@ -1007,6 +1158,106 @@
 
   .presets-in-vehicles-section {
     margin-bottom: 12px;
+  }
+
+  /* ── Previously selected vehicles ── */
+  .prev-vehicles-section {
+    margin-bottom: 12px;
+  }
+
+  .prev-vehicles-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: background 0.15s ease;
+  }
+
+  .prev-vehicles-toggle:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .prev-vehicles-toggle .prev-count {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .prev-vehicles-toggle .prev-count.empty {
+    visibility: hidden;
+  }
+
+  .prev-vehicles-toggle .prev-chevron {
+    transition: transform 0.15s ease;
+  }
+
+  .prev-vehicles-toggle .prev-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .prev-grid {
+    margin-top: 10px;
+  }
+
+  .prev-loading {
+    padding: 12px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .prev-vehicle-card {
+    background: linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.12),
+      rgba(148, 163, 184, 0.05)
+    );
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+
+  .prev-vehicle-card:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.22),
+      rgba(148, 163, 184, 0.1)
+    );
+    border-color: rgba(148, 163, 184, 0.55);
+    box-shadow: 0 4px 12px rgba(148, 163, 184, 0.25);
+  }
+
+  /* Instant star — save the item as a named preset */
+  .prev-star-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 10;
+    display: flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.12);
+    color: #fbbf24;
+    transition: all 0.2s ease;
+  }
+
+  .prev-star-btn:hover {
+    background: rgba(251, 191, 36, 0.28);
+    border-color: rgba(251, 191, 36, 0.6);
+    transform: scale(1.1);
   }
 
   .section-header {

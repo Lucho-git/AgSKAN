@@ -256,6 +256,10 @@
         continue
       }
 
+      // Vehicles without a GPS fix yet (e.g. fresh guest rows) have no
+      // coordinates to accumulate.
+      if (!coordinates || typeof coordinates !== "string") continue
+
       // Parse "(lng,lat)" coordinate string
       const [lng, lat] = coordinates.slice(1, -1).split(",").map(parseFloat)
       if (isNaN(lng) || isNaN(lat)) continue

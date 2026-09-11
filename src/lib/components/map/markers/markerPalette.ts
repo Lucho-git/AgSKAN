@@ -236,15 +236,16 @@ export function siloColorKey(key?: string | null): string {
 export const GRAIN_BIN_ICON_CLASS = "custom-svg-fiver_field_bin_v4"
 
 // Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,
-// tree, wheat). Every OTHER custom SVG marker tints fully with the chosen
-// colour (like atlas/ionic icons). The water tank tints its outer tank but
-// its inner droplet carries an explicit blue fill that survives the tint
-// wrapper, so the droplet stays blue.
+// tree, wheat, kangaroo sign). Every OTHER custom SVG marker tints fully
+// with the chosen colour (like atlas/ionic icons). The water tank tints its
+// outer tank but its inner droplet carries an explicit blue fill that
+// survives the tint wrapper, so the droplet stays blue.
 const KEEP_GLYPH_CUSTOM_SVG = new Set([
     "custom-svg-rock",
     "custom-svg-rock_pile",
     "custom-svg-tree13",
     "custom-svg-wheat2",
+    "custom-svg-kangaroo",
 ])
 
 /**

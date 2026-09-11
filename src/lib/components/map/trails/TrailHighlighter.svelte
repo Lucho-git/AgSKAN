@@ -11,6 +11,8 @@
 
   import * as mapboxgl from "mapbox-gl"
 
+  import { supabase } from "$lib/supabaseClient"
+
   import { onMount } from "svelte"
 
   import { toast } from "svelte-sonner"
@@ -1534,6 +1536,57 @@ font-size: 12px;
     }
   }
 
+  // Replay a trail by its id (e.g. from the map log). If the trail isn't in
+  // the store yet — e.g. it belongs to another operation — fetch the row +
+  // path, add it (the historical manager draws it), then replay it.
+  async function playTrailById(trailId: string) {
+    if (!trailId) return false
+
+    let index = $historicalTrailStore.findIndex((t) => t.id === trailId)
+
+    if (index === -1) {
+      try {
+        const { data: trailRow, error } = await supabase
+          .from("trails")
+          .select("*")
+          .eq("id", trailId)
+          .not("end_time", "is", null)
+          .maybeSingle()
+
+        if (error || !trailRow) {
+          toast.error("Trail not found")
+          return false
+        }
+
+        const { data: pathData, error: pathError } = await supabase.rpc(
+          "get_trail_path_as_geojson",
+          { trail_id_param: trailId },
+        )
+
+        if (pathError || !pathData) {
+          toast.error("Could not load the trail path")
+          return false
+        }
+
+        historicalTrailStore.update((trails) =>
+          trails.some((t) => t.id === trailId)
+            ? trails
+            : [...trails, { ...trailRow, path: pathData }],
+        )
+        index = $historicalTrailStore.findIndex((t) => t.id === trailId)
+      } catch (err) {
+        console.error("playTrailById failed:", err)
+        toast.error("Could not open the trail")
+        return false
+      }
+    }
+
+    if (index === -1) return false
+
+    playTrail(index)
+    return true
+  }
+
   export const highlighterAPI = {
     selectTrail,
 
@@ -1554,6 +1607,8 @@ font-size: 12px;
     toggleNavigationUI,
 
     playTrail,
+
+    playTrailById,
 
     closeReplayPanel,
   }

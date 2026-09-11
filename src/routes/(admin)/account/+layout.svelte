@@ -158,6 +158,18 @@
           selected_operation_id: profile.selected_operation_id,
           mobile: profile.mobile,
         })
+
+        // Guest accounts (anonymous viewer sessions) live on the map only —
+        // every other account route bounces straight back to it.
+        if (
+          profile.role === "viewer" &&
+          profile.onboarded &&
+          ($session?.user as any)?.is_anonymous &&
+          browser &&
+          !window.location.pathname.startsWith("/account/mapviewer")
+        ) {
+          goto("/account/mapviewer")
+        }
       }
 
       // Update subscription store
@@ -346,6 +358,7 @@
                 id, 
                 full_name, 
                 selected_operation_id,
+                map_role,
                 operations!profiles_selected_operation_id_fkey (
                   id,
                   name,
@@ -414,6 +427,7 @@
           id: profile.id,
           full_name: profile.full_name,
           selected_operation_id: profile.selected_operation_id,
+          map_role: profile.map_role || null,
           current_operation: profile.operations
             ? {
                 id: profile.operations.id,

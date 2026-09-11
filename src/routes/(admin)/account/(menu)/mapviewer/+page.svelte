@@ -14,6 +14,8 @@
   import { session } from "$lib/stores/sessionStore"
   import { fileApi } from "$lib/api/fileApi" // Import the fileApi
   import { farmApi } from "$lib/api/farmApi"
+  import { profileStore } from "$lib/stores/profileStore"
+  import GuestMapBar from "$lib/components/map/GuestMapBar.svelte"
 
   import { locationApi } from "$lib/api/locationApi" // Import the locationApi
   export let data: PageData
@@ -35,6 +37,9 @@
   selectedOperationStore.subscribe((value) => {
     selectedOperation = value
   })
+
+  // Guest / view-only sessions get the simplified map shell.
+  $: isGuest = $profileStore?.user_type === "viewer"
 
   function isAndroid() {
     return browser && /Android/.test(navigator.userAgent)
@@ -230,8 +235,13 @@
           {handleBackToDashboard}
           {initialLocation}
           {selectedOperation}
+          viewerMode={isGuest}
         />
       {/key}
     </div>
+
+    {#if isGuest}
+      <GuestMapBar />
+    {/if}
   {/if}
 {/if}

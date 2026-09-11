@@ -1,0 +1,340 @@
+<!-- src/lib/components/map/vehicles/InviteToMapModal.svelte -->
+<script>
+  import { createEventDispatcher } from "svelte"
+  import { X, Copy, Mail, MessageSquare, UserPlus, Loader2 } from "lucide-svelte"
+  import { toast } from "svelte-sonner"
+  import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { supabase } from "$lib/stores/sessionStore"
+
+  export let open = false
+
+  const dispatch = createEventDispatcher()
+
+  // Stub durations — once view-only invites ship, the token (not the client)
+  // will define the real window; the exp param rides along for the server to
+  // validate.
+  const EXPIRY_OPTIONS = [
+    { key: "24h", label: "24 hrs", hours: 24 },
+    { key: "7d", label: "7 days", hours: 24 * 7 },
+    { key: "30d", label: "30 days", hours: 24 * 30 },
+  ]
+
+  let expiryKey = "7d"
+  let inviteToken = ""
+  let createdExpiryKey = ""
+  let generating = false
+  let inviteWarning = ""
+  let email = ""
+  let phone = ""
+
+  $: mapCode = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
+  $: mapName = $connectedMapStore?.map_name || "our farm map"
+
+  $: expiry =
+    EXPIRY_OPTIONS.find((option) => option.key === expiryKey) || EXPIRY_OPTIONS[1]
+
+  // Mint a real invite (token + expiry live server-side). Falls back to a
+  // local stub token if the RPC isn't available yet, so the modal keeps
+  // working during rollout.
+  $: if (
+    open &&
+    !generating &&
+    mapCode &&
+    (!inviteToken || createdExpiryKey !== expiryKey)
+  ) {
+    generateInvite()
+  }
+
+  $: if (!open) {
+    inviteToken = ""
+    createdExpiryKey = ""
+    inviteWarning = ""
+  }
+
+  $: inviteLink = inviteToken
+    ? `https://www.skanfarming.com.au/guest?invite=${inviteToken}`
+    : ""
+
+  async function generateInvite() {
+    generating = true
+    inviteWarning = ""
+    try {
+      const { data, error } = await supabase.rpc("create_map_invite", {
+        p_role: "viewer",
+        p_expires_hours: expiry.hours,
+        p_access_hours: 48,
+      })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row?.token) throw new Error("No invite token returned")
+      inviteToken = row.token
+    } catch (error) {
+      console.warn(
+        "create_map_invite failed — using a temporary local token:",
+        error,
+      )
+      inviteToken = makeToken()
+      inviteWarning =
+        "Could not create a server invite — this link isn't time-limited yet."
+    } finally {
+      createdExpiryKey = expiryKey
+      generating = false
+    }
+  }
+  $: messageBody = `You're invited to view "${mapName}" on AgSKAN.\n\nOpen this link to join — no account needed:\n${inviteLink}\n\nThe guest link is valid for ${expiry.label} and grants view-only access.`
+  $: mailtoHref = `mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent(`Join ${mapName} on AgSKAN`)}&body=${encodeURIComponent(messageBody)}`
+  $: smsHref = `sms:${encodeURIComponent(phone.trim())}?body=${encodeURIComponent(messageBody)}`
+
+  function makeToken() {
+    return (
+      Math.random().toString(36).slice(2, 10) +
+      Math.random().toString(36).slice(2, 6)
+    )
+  }
+
+  function copyLink() {
+    if (!inviteLink) return
+    navigator.clipboard.writeText(inviteLink)
+    toast.success("Invite link copied!")
+  }
+
+  function close() {
+    dispatch("close")
+  }
+
+  function guardEmpty(event, value) {
+    if (!value.trim() || !inviteLink) event.preventDefault()
+  }
+</script>
+
+{#if open}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div
+    class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+    on:click={close}
+  >
+    <div
+      class="invite-modal max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-xl bg-[#101013]/95 p-4 text-white shadow-2xl backdrop-blur-md"
+      on:click|stopPropagation
+    >
+      <!-- Header -->
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/15"
+        >
+          <UserPlus size={16} class="text-blue-300" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <h4 class="text-sm font-semibold text-white">Invite to map</h4>
+          <p class="truncate text-xs text-white/50">{mapName}</p>
+        </div>
+        <button
+          class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+          on:click={close}
+          aria-label="Close"
+          title="Close"
+        >
+          <X size={15} class="text-white/60" />
+        </button>
+      </div>
+
+      {#if !mapCode}
+        <p class="mt-4 text-xs text-white/60">
+          Connect to a map first to generate invite links.
+        </p>
+      {:else}
+        <!-- Invite link + duration -->
+        <div class="mt-4">
+          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+            Invite link
+          </div>
+          <div class="flex gap-1.5">
+            {#if generating && !inviteToken}
+              <div
+                class="invite-input flex min-w-0 flex-1 items-center gap-2 text-white/50"
+              >
+                <Loader2 size={12} class="animate-spin" /> Creating link…
+              </div>
+            {:else}
+              <input
+                type="text"
+                readonly
+                value={inviteLink}
+                class="invite-input min-w-0 flex-1"
+              />
+            {/if}
+            <button
+              class="invite-icon-btn"
+              on:click={copyLink}
+              title="Copy link"
+              disabled={!inviteLink}
+              class:opacity-50={!inviteLink}
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <span class="text-[10px] text-white/45">Link valid for</span>
+            <div class="flex gap-1">
+              {#each EXPIRY_OPTIONS as option (option.key)}
+                <button
+                  class="invite-chip {expiryKey === option.key ? 'active' : ''}"
+                  on:click={() => (expiryKey = option.key)}
+                >
+                  {option.label}
+                </button>
+              {/each}
+            </div>
+          </div>
+          <p class="mt-1.5 text-[10px] text-white/40">
+            Guests join with view-only access for 48 hours — no account
+            needed.
+          </p>
+          {#if inviteWarning}
+            <p class="mt-1 text-[10px] text-amber-300/80">{inviteWarning}</p>
+          {/if}
+        </div>
+
+        <!-- Email -->
+        <div class="mt-4">
+          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+            Send by email
+          </div>
+          <div class="flex gap-1.5">
+            <input
+              type="email"
+              bind:value={email}
+              placeholder="name@example.com"
+              class="invite-input min-w-0 flex-1"
+            />
+            <a
+              class="invite-send-btn"
+              class:muted={!email.trim()}
+              href={mailtoHref}
+              on:click={(event) => guardEmpty(event, email)}
+            >
+              <Mail size={13} />
+              Email
+            </a>
+          </div>
+        </div>
+
+        <!-- Text -->
+        <div class="mt-3">
+          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+            Send by text
+          </div>
+          <div class="flex gap-1.5">
+            <input
+              type="tel"
+              bind:value={phone}
+              placeholder="0400 000 000"
+              class="invite-input min-w-0 flex-1"
+            />
+            <a
+              class="invite-send-btn"
+              class:muted={!phone.trim()}
+              href={smsHref}
+              on:click={(event) => guardEmpty(event, phone)}
+            >
+              <MessageSquare size={13} />
+              Text
+            </a>
+          </div>
+        </div>
+
+        <p class="mt-4 rounded-lg bg-white/5 p-2.5 text-[10px] leading-relaxed text-white/50">
+          Guests open the link and land on the map in seconds — no signup, no
+          app install. They can see everything but can't add or change
+          anything, and their access ends automatically.
+        </p>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+<style>
+  .invite-input {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    padding: 6px 9px;
+    font-size: 12px;
+    color: #fff;
+    outline: none;
+  }
+
+  .invite-input:focus {
+    border-color: rgba(96, 165, 250, 0.6);
+  }
+
+  .invite-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .invite-icon-btn {
+    display: flex;
+    flex-shrink: 0;
+    width: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.8);
+    transition: background-color 0.15s ease;
+  }
+
+  .invite-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .invite-chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .invite-chip:hover {
+    background: rgba(255, 255, 255, 0.13);
+  }
+
+  .invite-chip.active {
+    color: #fff;
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(96, 165, 250, 0.22);
+  }
+
+  .invite-send-btn {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.14);
+    padding: 6px 11px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6ee7b7;
+    transition: background-color 0.15s ease;
+  }
+
+  .invite-send-btn:hover {
+    background: rgba(16, 185, 129, 0.26);
+  }
+
+  .invite-send-btn.muted {
+    opacity: 0.5;
+  }
+</style>
