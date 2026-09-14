@@ -86,7 +86,7 @@ serve(async (req: Request) => {
             body: JSON.stringify({
                 messages: [{
                     source: "sdk",
-                    from: "agskan",
+                    from: "AgSKAN",
                     body: String(message),
                     to: String(phone),
                 }],

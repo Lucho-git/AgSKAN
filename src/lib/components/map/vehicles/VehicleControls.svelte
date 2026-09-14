@@ -985,6 +985,30 @@
     })
   }
 
+  /**
+   * Trail log entries record the vehicle in details — zoom to where that
+   * vehicle is right now (with a friendly toast when it isn't live).
+   */
+  function locateTrailVehicle(entry) {
+    const vehicleId = entry?.details?.vehicle_id
+    const vehicle = vehicleId ? getVehicleById(vehicleId) : null
+
+    if (!vehicle) {
+      toast.info("That vehicle isn't on the map right now", {
+        description: "You can still replay its trail from this entry.",
+      })
+      return
+    }
+    if (!parseCoordinates(vehicle.coordinates)) {
+      toast.info("No location yet for this vehicle", {
+        description: "It'll appear once it sends its first GPS fix.",
+      })
+      return
+    }
+
+    dispatch("zoomToVehicle", { vehicle })
+  }
+
   function getSafeArray(value) {
     return Array.isArray(value) ? value : []
   }
@@ -1899,25 +1923,39 @@
                       {/if}
                     </p>
                     {#if expanded}
-                      {#if entryPos}
-                        <button
-                          class="log-action-btn go"
-                          title="Zoom to this marker's position"
-                          on:click|stopPropagation={() =>
-                            locateLogPosition(entryPos)}
-                        >
-                          <Crosshair size={11} />
-                          Go to marker location
-                        </button>
-                      {:else if canShowTrail(entry)}
-                        <button
-                          class="log-action-btn trail"
-                          on:click|stopPropagation={() => handleShowTrail(entry)}
-                        >
-                          <Play size={11} />
-                          Show trail
-                        </button>
-                      {/if}
+                      <div class="log-actions-row">
+                        {#if entryPos}
+                          <button
+                            class="log-action-btn go"
+                            title="Zoom to this marker's position"
+                            on:click|stopPropagation={() =>
+                              locateLogPosition(entryPos)}
+                          >
+                            <Crosshair size={11} />
+                            Go to marker location
+                          </button>
+                        {/if}
+                        {#if isTrailAction(entry.action) && entry.details?.vehicle_id}
+                          <button
+                            class="log-action-btn go"
+                            title="Zoom to this vehicle's current position"
+                            on:click|stopPropagation={() =>
+                              locateTrailVehicle(entry)}
+                          >
+                            <Crosshair size={11} />
+                            Locate vehicle
+                          </button>
+                        {/if}
+                        {#if canShowTrail(entry)}
+                          <button
+                            class="log-action-btn trail"
+                            on:click|stopPropagation={() => handleShowTrail(entry)}
+                          >
+                            <Play size={11} />
+                            Show trail
+                          </button>
+                        {/if}
+                      </div>
                       <div class="log-details">
                         {#each getLogDetailRows(entry) as row (row.label)}
                           <span class="log-detail-label">{row.label}</span>
@@ -2547,6 +2585,19 @@
     font-size: 11px;
     font-weight: 600;
     transition: background 0.15s ease;
+  }
+
+  /* Entries can offer two actions side by side (Locate vehicle + Show trail). */
+  .log-actions-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .log-actions-row .log-action-btn {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .log-action-btn.go {

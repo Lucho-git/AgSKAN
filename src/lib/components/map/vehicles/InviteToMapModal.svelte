@@ -1,7 +1,17 @@
 <!-- src/lib/components/map/vehicles/InviteToMapModal.svelte -->
 <script>
-  import { createEventDispatcher } from "svelte"
-  import { X, Copy, Mail, MessageSquare, UserPlus, Loader2 } from "lucide-svelte"
+  import { createEventDispatcher, onMount } from "svelte"
+  import {
+    X,
+    Copy,
+    Mail,
+    MessageSquare,
+    UserPlus,
+    Loader2,
+    Contact,
+    Check,
+    RotateCcw,
+  } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { supabase } from "$lib/stores/sessionStore"
@@ -29,6 +39,45 @@
   let retainAfterSignup = false
   let sendingSms = false
   let sendingEmail = false
+  let openChannel = "text" // "email" | "text" — Text starts open
+  let canPickContact = false
+  let sentEmailTo = "" // set after a successful send → row resolves
+  let sentTextTo = ""
+
+  onMount(() => {
+    // Contacts Picker API — Chrome/Android only; button hides elsewhere.
+    canPickContact =
+      typeof navigator !== "undefined" && !!navigator.contacts?.select
+  })
+
+  function toggleChannel(channel) {
+    openChannel = openChannel === channel ? null : channel
+  }
+
+  async function pickContact() {
+    try {
+      const contacts = await navigator.contacts.select(["tel"], {
+        multiple: false,
+      })
+      const raw = contacts?.[0]?.tel?.[0]
+      if (raw) phone = raw.replace(/[^\d+]/g, "")
+    } catch (error) {
+      // Picker dismissed — nothing to do.
+    }
+  }
+
+  // Pull the provider's error detail out of an edge-function failure so the
+  // toast explains what actually went wrong.
+  async function describeFunctionError(error, fallback) {
+    let detail = error?.message || fallback
+    try {
+      const body = await error?.context?.json?.()
+      if (body?.error) detail = body.error
+    } catch {
+      /* response body unavailable */
+    }
+    return detail
+  }
 
   $: mapCode = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
   $: mapName = $connectedMapStore?.map_name || "our farm map"
@@ -54,6 +103,9 @@
     inviteToken = ""
     createdKey = ""
     inviteWarning = ""
+    sentEmailTo = ""
+    sentTextTo = ""
+    openChannel = "text"
   }
 
   $: inviteLink = inviteToken
@@ -97,6 +149,9 @@
     } finally {
       createdKey = `${expiryKey}|${retainAfterSignup ? 1 : 0}`
       generating = false
+      // A fresh link invalidates anything already sent.
+      sentEmailTo = ""
+      sentTextTo = ""
     }
   }
   $: messageBody = `You're invited to view "${mapName}" on AgSKAN.\n\nOpen this link to join — no account needed:\n${inviteLink}\n\nThe guest link is valid for ${expiry.label} and grants view-only access.`
@@ -140,8 +195,14 @@
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       toast.success("Invite emailed", { description: `Sent to ${address}` })
+      sentEmailTo = address
     } catch (error) {
-      console.warn("send-invite-email unavailable — opening mail app:", error)
+      console.warn("send-invite-email failed — opening mail app:", error)
+      const detail = await describeFunctionError(
+        error,
+        "Could not send the email",
+      )
+      toast.warning("Email service unavailable", { description: detail })
       window.location.href = mailtoHref
     } finally {
       sendingEmail = false
@@ -162,8 +223,14 @@
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       toast.success("Invite texted", { description: `Sent to ${number}` })
+      sentTextTo = number
     } catch (error) {
-      console.warn("send-invite-sms unavailable — opening SMS app:", error)
+      console.warn("send-invite-sms failed — opening SMS app:", error)
+      const detail = await describeFunctionError(
+        error,
+        "Could not send the text",
+      )
+      toast.warning("Text service unavailable", { description: detail })
       window.location.href = smsHref
     } finally {
       sendingSms = false
@@ -207,6 +274,12 @@
           Connect to a map first to generate invite links.
         </p>
       {:else}
+        <p class="mt-3 text-xs leading-relaxed text-white/60">
+          Anyone with this link can join your map and view it — no account
+          needed. Guest access lasts a limited time, unless you tick the box
+          below and they create an account.
+        </p>
+
         <!-- Invite link + duration -->
         <div class="mt-4">
           <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
@@ -258,86 +331,134 @@
             />
             <span class="min-w-0">
               <span class="block text-[11px] font-medium text-white/80">
-                Keep map access after they create an account
+                Keep their access after signup
               </span>
               <span class="block text-[10px] leading-snug text-white/45">
-                If the guest signs up for a real AgSKAN account, they stay on
-                this map instead of losing access.
+                They stay on this map if they create an account.
               </span>
             </span>
           </label>
-          <p class="mt-1.5 text-[10px] text-white/40">
-            Guests join with view-only access for 48 hours — no account
-            needed.
-          </p>
           {#if inviteWarning}
             <p class="mt-1 text-[10px] text-amber-300/80">{inviteWarning}</p>
           {/if}
         </div>
 
-        <!-- Email -->
+        <!-- Send -->
         <div class="mt-4">
           <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-            Send by email
+            Send invite
           </div>
           <div class="flex gap-1.5">
-            <input
-              type="email"
-              bind:value={email}
-              placeholder="name@example.com"
-              class="invite-input min-w-0 flex-1"
-            />
             <button
-              class="invite-send-btn"
-              class:muted={!email.trim()}
-              on:click={sendEmail}
-              disabled={sendingEmail}
+              class="invite-channel-btn {openChannel === 'text'
+                ? 'active'
+                : ''}"
+              on:click={() => toggleChannel("text")}
             >
-              {#if sendingEmail}
-                <Loader2 size={13} class="animate-spin" />
-                Sending…
-              {:else}
-                <Mail size={13} />
-                Email
-              {/if}
+              <MessageSquare size={13} /> Text
+            </button>
+            <button
+              class="invite-channel-btn {openChannel === 'email'
+                ? 'active'
+                : ''}"
+              on:click={() => toggleChannel("email")}
+            >
+              <Mail size={13} /> Email
             </button>
           </div>
-        </div>
 
-        <!-- Text -->
-        <div class="mt-3">
-          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-            Send by text
-          </div>
-          <div class="flex gap-1.5">
-            <input
-              type="tel"
-              bind:value={phone}
-              placeholder="0400 000 000"
-              class="invite-input min-w-0 flex-1"
-            />
-            <button
-              class="invite-send-btn"
-              class:muted={!phone.trim()}
-              on:click={sendText}
-              disabled={sendingSms}
-            >
-              {#if sendingSms}
-                <Loader2 size={13} class="animate-spin" />
-                Sending…
-              {:else}
-                <MessageSquare size={13} />
-                Text
-              {/if}
-            </button>
-          </div>
+          {#if openChannel === "email"}
+            {#if sentEmailTo}
+              <div class="mt-2 flex items-center gap-2">
+                <span
+                  class="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-emerald-300"
+                >
+                  <Check size={13} />
+                  <span class="truncate">Sent to {sentEmailTo}</span>
+                </span>
+                <button
+                  class="invite-again-btn"
+                  on:click={() => (sentEmailTo = "")}
+                >
+                  <RotateCcw size={12} /> Send again
+                </button>
+              </div>
+            {:else}
+              <div class="mt-2 flex gap-1.5">
+                <input
+                  type="email"
+                  bind:value={email}
+                  placeholder="name@example.com"
+                  class="invite-input min-w-0 flex-1"
+                  autocomplete="email"
+                />
+                <button
+                  class="invite-send-btn"
+                  class:muted={!email.trim()}
+                  on:click={sendEmail}
+                  disabled={sendingEmail || !email.trim()}
+                >
+                  {#if sendingEmail}
+                    <Loader2 size={13} class="animate-spin" />
+                    Sending…
+                  {:else}
+                    <Mail size={13} /> Send
+                  {/if}
+                </button>
+              </div>
+            {/if}
+          {:else if openChannel === "text"}
+            {#if sentTextTo}
+              <div class="mt-2 flex items-center gap-2">
+                <span
+                  class="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-emerald-300"
+                >
+                  <Check size={13} />
+                  <span class="truncate">Sent to {sentTextTo}</span>
+                </span>
+                <button
+                  class="invite-again-btn"
+                  on:click={() => (sentTextTo = "")}
+                >
+                  <RotateCcw size={12} /> Send again
+                </button>
+              </div>
+            {:else}
+              <div class="mt-2 flex gap-1.5">
+                <input
+                  type="tel"
+                  bind:value={phone}
+                  placeholder="0400 000 000"
+                  class="invite-input min-w-0 flex-1"
+                  autocomplete="tel"
+                />
+                {#if canPickContact}
+                  <button
+                    class="invite-icon-btn"
+                    on:click={pickContact}
+                    title="Choose from contacts"
+                    aria-label="Choose from contacts"
+                  >
+                    <Contact size={14} />
+                  </button>
+                {/if}
+                <button
+                  class="invite-send-btn"
+                  class:muted={!phone.trim()}
+                  on:click={sendText}
+                  disabled={sendingSms || !phone.trim()}
+                >
+                  {#if sendingSms}
+                    <Loader2 size={13} class="animate-spin" />
+                    Sending…
+                  {:else}
+                    <MessageSquare size={13} /> Send
+                  {/if}
+                </button>
+              </div>
+            {/if}
+          {/if}
         </div>
-
-        <p class="mt-4 rounded-lg bg-white/5 p-2.5 text-[10px] leading-relaxed text-white/50">
-          Guests open the link and land on the map in seconds — no signup, no
-          app install. They can see everything but can't add or change
-          anything, and their access ends automatically.
-        </p>
       {/if}
     </div>
   </div>
@@ -422,6 +543,54 @@
 
   .invite-send-btn:hover {
     background: rgba(16, 185, 129, 0.26);
+  }
+
+  .invite-channel-btn {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 7px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .invite-channel-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .invite-channel-btn.active {
+    color: #fff;
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(96, 165, 250, 0.22);
+  }
+
+  .invite-again-btn {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    transition: background-color 0.15s ease;
+  }
+
+  .invite-again-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
   }
 
   .invite-send-btn.muted {
