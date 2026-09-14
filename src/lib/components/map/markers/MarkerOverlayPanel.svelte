@@ -60,6 +60,7 @@
     GRAIN_BIN_ICON_CLASS,
   } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
+  import { blockForViewer } from "$lib/utils/guestMode"
   import PhotoLightbox from "$lib/components/map/markers/PhotoLightbox.svelte"
 
   export let map
@@ -78,6 +79,10 @@
   export let showMoveRipple = () => {}
   export let showEditRipple = () => {}
   export let showPlacementRipple = () => {}
+
+  // View-only guests: write actions (notes, photos, move, delete, edits) are
+  // locked — taps show a "Guest mode" tooltip instead of doing anything.
+  $: isViewer = $profileStore?.user_type === "viewer"
 
   // ── Drill-in navigation: main → icon sub-view ──
   let view = "main" // 'main' | 'icon'
@@ -616,7 +621,8 @@
 
   // ── Notes ──
   // Open the note editor and put the cursor straight into the textarea.
-  function startNoteEdit() {
+  function startNoteEdit(event) {
+    if (blockForViewer(event, isViewer)) return
     noteEditing = true
     tick().then(() => noteInputEl?.focus())
   }
@@ -799,7 +805,8 @@
     }
   }
 
-  async function deletePhoto(photo) {
+  async function deletePhoto(photo, event) {
+    if (blockForViewer(event, isViewer)) return
     const res = await markerPhotoApi.deletePhoto(marker.id, photo)
     if (res.success) {
       photos = photos.filter((p) => p.id !== photo.id)
@@ -871,7 +878,8 @@
   }
 
   // ── Move mode (drag the marker icon, like the silo) ──
-  function toggleMove() {
+  function toggleMove(event) {
+    if (!moving && blockForViewer(event, isViewer)) return
     if (!map) return
     moving = !moving
     dragging = false
@@ -1078,13 +1086,15 @@
   }
 
   // ── Delete (header trash — tap once to arm, tap again to confirm) ──
-  function armDelete() {
+  function armDelete(event) {
+    if (blockForViewer(event, isViewer)) return
     confirmDelete = true
     clearTimeout(confirmDeleteTimer)
     confirmDeleteTimer = setTimeout(() => (confirmDelete = false), 2500)
   }
 
-  function doDelete() {
+  function doDelete(event) {
+    if (blockForViewer(event, isViewer)) return
     confirmDelete = false
     clearTimeout(confirmDeleteTimer)
     removeMarker()
@@ -1423,13 +1433,20 @@
                 </span>
                 <label
                   class="mp-label-toggle"
+                  class:guest-disabled={isViewer}
                   title="Show map label above marker"
                 >
                   <span class="mp-label-toggle-text">Map Label</span>
                   <input
                     type="checkbox"
                     checked={noteLabelVisible}
-                    on:change={(e) => toggleNoteLabel(e.currentTarget.checked)}
+                    on:change={(e) => {
+                      if (blockForViewer(e, isViewer)) {
+                        e.currentTarget.checked = noteLabelVisible
+                        return
+                      }
+                      toggleNoteLabel(e.currentTarget.checked)
+                    }}
                   />
                   <span class="mp-switch-track">
                     <span class="mp-switch-thumb"></span>
@@ -1451,6 +1468,7 @@
                 <button
                   class="mp-note-card"
                   class:empty={!notesText}
+                  class:guest-disabled={isViewer}
                   on:click={startNoteEdit}
                   title="Tap to edit note"
                 >
@@ -1493,7 +1511,8 @@
                     >
                       <button
                         class="mp-photo-delete"
-                        on:click|stopPropagation={() => deletePhoto(p)}
+                        class:guest-disabled={isViewer}
+                        on:click|stopPropagation={(e) => deletePhoto(p, e)}
                         title="Delete photo"
                         aria-label="Delete photo"
                       >
@@ -1523,6 +1542,7 @@
               <button
                 class="mp-delete-btn"
                 class:armed={confirmDelete}
+                class:guest-disabled={isViewer}
                 on:click={confirmDelete ? doDelete : armDelete}
                 title={confirmDelete ? "Tap again to confirm" : "Delete marker"}
               >
@@ -1541,7 +1561,11 @@
         <div class="mp-footer-row">
           <button
             class="mp-action-btn"
-            on:click={() => (view = "icon")}
+            class:guest-disabled={isViewer}
+            on:click={(e) => {
+              if (blockForViewer(e, isViewer)) return
+              view = "icon"
+            }}
             title="Edit marker icon"
           >
             <span class="mp-action-glyph">
@@ -1566,7 +1590,11 @@
             </span>
             <span>Edit</span>
           </button>
-          <button class="mp-action-btn accent" on:click={toggleMove}>
+          <button
+            class="mp-action-btn accent"
+            class:guest-disabled={isViewer}
+            on:click={toggleMove}
+          >
             <span class="mp-action-glyph">
               <Move size={16} />
             </span>
@@ -1575,7 +1603,11 @@
           <button
             class="mp-action-btn"
             class:open={addMenuOpen}
-            on:click={() => (addMenuOpen = !addMenuOpen)}
+            class:guest-disabled={isViewer}
+            on:click={(e) => {
+              if (blockForViewer(e, isViewer)) return
+              addMenuOpen = !addMenuOpen
+            }}
             title="Add photo or drawing"
             aria-label="Add photo or drawing"
           >

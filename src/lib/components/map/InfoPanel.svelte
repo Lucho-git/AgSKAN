@@ -5,6 +5,8 @@
   import { fieldStore } from "$lib/stores/fieldStore"
   import { farmsStore } from "$lib/stores/farmsStore"
   import { fileApi } from "$lib/api/fileApi"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { blockForViewer } from "$lib/utils/guestMode"
   import {
     Check,
     X,
@@ -18,6 +20,9 @@
   export let selectedField: any
   export let selectedFieldId: number
   export let showInfoPanel: boolean = false
+
+  // View-only guests can open the panel but not the edit menu.
+  $: isViewer = $profileStore?.user_type === "viewer"
 
   const dispatch = createEventDispatcher()
 
@@ -208,7 +213,8 @@
     farmDropdownOpen = false
   }
 
-  function handleEditBoundaries() {
+  function handleEditBoundaries(event) {
+    if (blockForViewer(event, isViewer)) return
     if (!selectedField?.field_id) return
     clearSubAreaHighlight()
     showEditMenu = false
@@ -252,7 +258,8 @@
     deleteConfirmSeconds = DELETE_CONFIRM_SECONDS
   }
 
-  function handleDeleteFieldClick() {
+  function handleDeleteFieldClick(event) {
+    if (blockForViewer(event, isViewer)) return
     if (!selectedField?.field_id) return
 
     if (deleteConfirmActive) {
@@ -705,16 +712,24 @@
     <div class="action-controls">
       <button
         class="control-btn settings-btn"
+        class:guest-disabled={isViewer}
         class:active={showEditMenu && isExpanded && activeTab === "details"}
-        on:click={() => toggleEditMenu("details")}
+        on:click={(e) => {
+          if (blockForViewer(e, isViewer)) return
+          toggleEditMenu("details")
+        }}
         title="Edit field settings"
       >
         <Settings size={22} />
       </button>
       <button
         class="control-btn color-swatch-btn"
+        class:guest-disabled={isViewer}
         class:active={showEditMenu && isExpanded && activeTab === "color"}
-        on:click={() => toggleEditMenu("color")}
+        on:click={(e) => {
+          if (blockForViewer(e, isViewer)) return
+          toggleEditMenu("color")
+        }}
         title="Edit field color"
       >
         <span

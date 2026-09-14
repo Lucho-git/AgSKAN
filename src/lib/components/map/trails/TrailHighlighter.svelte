@@ -12,6 +12,8 @@
   import * as mapboxgl from "mapbox-gl"
 
   import { supabase } from "$lib/supabaseClient"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { blockForViewer } from "$lib/utils/guestMode"
 
   import { onMount } from "svelte"
 
@@ -1247,7 +1249,11 @@ font-size: 12px;
     startPulsingGlow(trail.id)
   }
 
-  function handleDeleteTrail() {
+  // View-only guests can replay trails but not delete them.
+  $: isViewer = $profileStore?.user_type === "viewer"
+
+  function handleDeleteTrail(event) {
+    if (blockForViewer(event, isViewer)) return
     const trail = $historicalTrailStore[currentTrailIndex]
     if (!trail) {
       console.warn(
@@ -1696,8 +1702,10 @@ font-size: 12px;
         >
       </div>
       <div class="ve-actions">
-        <button class="icon-btn del" on:click={handleDeleteTrail}
-          ><Trash2 size={16} /></button
+        <button
+          class="icon-btn del"
+          class:guest-disabled={isViewer}
+          on:click={handleDeleteTrail}><Trash2 size={16} /></button
         >
       </div>
     </div>

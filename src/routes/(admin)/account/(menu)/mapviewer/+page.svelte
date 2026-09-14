@@ -187,6 +187,11 @@
     if (browser) {
       releaseWakeLock()
     }
+    // Guests don't have a dashboard — they get their own guest home.
+    if (isGuest) {
+      goto("/guest/home")
+      return
+    }
     goto("/account")
   }
 </script>

@@ -1,12 +1,10 @@
 <!--src\lib\components\map\GuestMapBar.svelte-->
 <script lang="ts">
   import { onMount } from "svelte"
-  import { goto } from "$app/navigation"
   import { toast } from "svelte-sonner"
   import {
     ChevronDown,
     Loader2,
-    LogOut,
     MapPin,
     UserPlus,
   } from "lucide-svelte"
@@ -67,18 +65,12 @@
       duration: 5000,
     })
   }
-
-  function leave() {
-    // Keep the anonymous session — reopening the same invite link then
-    // rejoins this same guest account instead of creating a new one.
-    goto("/")
-  }
 </script>
 
 <svelte:window on:click={() => (opsOpen = false)} />
 
 <div
-  class="guest-bar fixed left-3 top-3 z-[60] flex flex-col gap-1"
+  class="guest-bar fixed left-20 top-3 z-[60] flex flex-col gap-1"
   on:click|stopPropagation
   on:keydown|stopPropagation
 >
@@ -126,14 +118,6 @@
     >
       <UserPlus size={12} />
       Create account
-    </button>
-
-    <button
-      class="flex h-7 w-7 items-center justify-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white"
-      on:click|stopPropagation={leave}
-      title="Leave the map (rejoin anytime with the same link)"
-    >
-      <LogOut size={13} />
     </button>
   </div>
 

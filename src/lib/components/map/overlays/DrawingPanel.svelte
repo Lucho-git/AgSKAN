@@ -6,6 +6,7 @@
   import length from "@turf/length"
   import { supabase } from "$lib/supabaseClient"
   import { profileStore } from "$lib/stores/profileStore"
+  import { blockForViewer } from "$lib/utils/guestMode"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
   import { markerVisibilityStore } from "$lib/stores/markerVisibilityStore"
   import { findMarkerByIconClass } from "$lib/data/markerDefinitions"
@@ -271,7 +272,11 @@
     }
   }
 
+  // View-only guests can view drawings but not edit/delete them.
+  $: isViewer = $profileStore?.user_type === "viewer"
+
   function editDrawing(drawingId, event) {
+    if (blockForViewer(event, isViewer)) return
     event.stopPropagation()
     const drawing = savedDrawings.find((d) => d.id === drawingId)
     if (drawing) {
@@ -327,6 +332,7 @@
   }
 
   async function deleteDrawing(drawingId, event) {
+    if (blockForViewer(event, isViewer)) return
     event.stopPropagation()
 
     const { error } = await supabase
@@ -554,6 +560,7 @@
                 <div class="drawing-actions">
                   <button
                     class="edit-drawing-btn"
+                    class:guest-disabled={isViewer}
                     on:click={(e) => editDrawing(drawing.id, e)}
                     title="Edit style"
                   >
@@ -561,6 +568,7 @@
                   </button>
                   <button
                     class="delete-drawing-btn"
+                    class:guest-disabled={isViewer}
                     on:click={(e) => deleteDrawing(drawing.id, e)}
                     title="Delete"
                   >

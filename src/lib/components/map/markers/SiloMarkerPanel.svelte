@@ -16,6 +16,8 @@
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { profileStore } from "$lib/stores/profileStore"
+  import { blockForViewer, showGuestTip } from "$lib/utils/guestMode"
 
   export let map
   export let marker
@@ -26,6 +28,32 @@
   export let showMoveRipple = () => {}
   export let removeMarker = () => {}
   export let deselectMarker = () => {}
+
+  // ── Guest mode lock (view-only) ──
+  $: isViewer = $profileStore?.user_type === "viewer"
+
+  /** @param {MouseEvent} event */
+  function handleGuestIntercept(event) {
+    if (!isViewer) return
+    const target = /** @type {HTMLElement | null} */ (event.target)
+    // Close + tab switching stay usable so guests can still look around.
+    if (
+      target?.closest?.(".silo-pop-close") ||
+      target?.closest?.(".silo-pop-tab")
+    ) {
+      return
+    }
+    event.stopPropagation()
+    event.preventDefault()
+    const rect = target?.getBoundingClientRect
+      ? target.getBoundingClientRect()
+      : null
+    if (rect && (rect.width || rect.height)) {
+      showGuestTip(rect.left + rect.width / 2, rect.top - 8)
+    } else {
+      showGuestTip(event.clientX ?? 0, (event.clientY ?? 0) - 8)
+    }
+  }
 
   let left = -9999
   let top = -9999
@@ -49,7 +77,11 @@
   $: showBinsAlways = $userSettingsStore?.showBinsAlways ?? false
 
   // Toggle the per-user show-bins-always setting (persisted to the DB).
-  async function toggleShowBinsAlways() {
+  async function toggleShowBinsAlways(event) {
+    if (blockForViewer(event, isViewer)) {
+      if (event?.currentTarget) event.currentTarget.checked = showBinsAlways
+      return
+    }
     const next = !showBinsAlways
     userSettingsStore.update((s) => ({ ...s, showBinsAlways: next }))
     try {
@@ -225,12 +257,14 @@
 
   // Dragging updates the map gauge live (no store write per tick).
   function handleFillInput() {
+    if (isViewer) return
     if (marker) updateSiloBarLive(marker.id, fill, grainColor)
   }
 
   // On release / contents change, commit to the store so the sync/realtime
   // pipeline persists it (other users see the change too).
   function commit() {
+    if (isViewer) return
     if (!marker) return
     confirmedMarkersStore.update((markers) =>
       markers.map((m) =>
@@ -251,6 +285,7 @@
   // percentage recalculates so the bin change doesn't magically add/remove
   // grain.
   function commitCapacity() {
+    if (isViewer) return
     if (!marker) return
     const parsed = Math.max(0, Math.round(Number(capacityInput) || 0))
     const prevCap = capacityTonnes
@@ -266,6 +301,7 @@
 
   // Pick a grain colour for the on-map fill gauge.
   function setGrainColor(key) {
+    if (isViewer) return
     grainColor = key
     if (marker) updateSiloBarLive(marker.id, fill, key)
     commit()
@@ -273,6 +309,7 @@
 
   // Add (dir = 1) or take (dir = -1) the entered tonnes. Clamps to 0..capacity.
   function applyTonnesDelta(dir) {
+    if (isViewer) return
     if (!marker || capacityTonnes <= 0) return
     const delta = Math.round(Number(tonnesDelta) || 0)
     if (delta <= 0) {
@@ -295,6 +332,7 @@
 
   // ── Move mode ──
   function toggleMove() {
+    if (!moving && isViewer) return
     if (!map) return
     moving = !moving
     dragging = false
@@ -443,6 +481,7 @@
 
   // Place the silo: commit its position, show a "moved" ripple, and close.
   function placeSilo() {
+    if (isViewer) return
     if (!marker) return
     if (liveCoords) {
       commitSiloMove(marker.id, liveCoords)
@@ -551,12 +590,14 @@
 {#if visible && marker}
   <div
     class="silo-pop"
+    class:viewer-locked={isViewer}
     class:moving
     class:dragging
     class:down={!openUp}
     class:smooth={smoothReposition}
     on:mousedown={onPanelDragStart}
     on:touchstart={onPanelDragStart}
+    on:click|capture={handleGuestIntercept}
     style="left:{left}px; top:{top}px;"
     bind:this={siloPopEl}
   >
@@ -1300,5 +1341,14 @@
     border-left: 8px solid transparent;
     border-right: 8px solid transparent;
     border-top: 8px solid rgba(245, 158, 11, 0.4);
+  }
+
+  /* Guest mode: controls stay visible but greyed; close + tabs stay live. */
+  .viewer-locked :global(button:not(.silo-pop-close):not(.silo-pop-tab)),
+  .viewer-locked :global(input),
+  .viewer-locked :global(.silo-pop-toggle-row) {
+    opacity: 0.45;
+    filter: grayscale(0.9);
+    cursor: not-allowed;
   }
 </style>

@@ -60,6 +60,8 @@
   import CreateFieldOverlay from "$lib/components/map/overlays/CreateFieldOverlay.svelte"
   import MarkerDrawings from "$lib/components/map/markers/MarkerDrawings.svelte"
   import EdgeIndicator from "$lib/components/map/overlays/EdgeIndicator.svelte"
+  import GuestTipLayer from "$lib/components/map/GuestTipLayer.svelte"
+  import { showGuestTip } from "$lib/utils/guestMode"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
   import {
@@ -425,6 +427,16 @@
     // Don't place markers while lasso-drawing a collection route or bulk delete
     if ($collectionRouteStore.phase === "drawing") return
     if ($bulkDeleteStore.phase === "drawing") return
+    if (viewerMode) {
+      // Guests can't drop markers — explain why instead of silently ignoring.
+      try {
+        const p = map?.project?.(lngLat)
+        if (p) showGuestTip(p.x, p.y - 20)
+      } catch {
+        /* map not ready */
+      }
+      return
+    }
     if (markerManagerRef) {
       markerManagerRef.handleMarkerPlacement(lngLat)
     }
@@ -2070,7 +2082,6 @@
     <!-- Persistent Managers -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
-    {#if !viewerMode}
     <!-- Toolbox Trigger Button -->
     <div class="toolbox-trigger-container">
       <button
@@ -2082,7 +2093,6 @@
       </button>
       <span class="toolbox-badge">Tools</span>
     </div>
-    {/if}
 
     <!-- ButtonSection with event dispatching (guests: greyed view-only buttons) -->
     <ButtonSection
@@ -2146,6 +2156,7 @@
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
     <EdgeIndicator {map} />
+    <GuestTipLayer />
 
     <DrawingHectares {map} />
     {#if !viewerMode}
@@ -2167,7 +2178,9 @@
     {/if}
 
     {#if !viewerMode}
-    <!-- Drawing Components (Always Present) -->
+    <!-- Drawing Components (Always Present) — these persist marker drawings,
+         so guests never get them. Measure for guests is handled by
+         DrawingHectares (mounted below). -->
     <DrawingTool {map} />
     <DrawingModePanel
       {map}
@@ -2282,12 +2295,12 @@
 {/if}
 
 <!-- Toolbox -->
-{#if !viewerMode}
 <Toolbox
   bind:this={toolboxRef}
   {satelliteManager}
   trailReplayAPI={trailHighlighter?.highlighterAPI}
   isOpen={toolboxOpen}
+  {viewerMode}
   on:close={closeToolbox}
   on:tool={handleToolAction}
   on:openTrailViewer={handleOpenTrailViewer}
@@ -2298,7 +2311,6 @@
   on:selectTrail={handleTrailSelect}
   on:replayTrail={handleTrailReplay}
 />
-{/if}
 
 <!-- Dev Mode Joystick Overlay -->
 {#if $devModeEnabled}

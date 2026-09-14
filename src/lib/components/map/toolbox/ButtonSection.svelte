@@ -379,8 +379,7 @@
 </script>
 
 <div>
-  <!-- Back to Dashboard Button, Top Left (hidden for guests — they have the guest bar) -->
-  {#if !isViewer}
+  <!-- Back to Dashboard Button, Top Left (guests: leads to their guest home) -->
   <button
     class="back-button btn {isCircular
       ? 'btn-circle'
@@ -402,7 +401,6 @@
       />
     </svg>
   </button>
-  {/if}
 
   <!-- ── Top-right column: dropdown + marker grid stacked ── -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end gap-3">

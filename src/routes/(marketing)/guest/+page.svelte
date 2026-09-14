@@ -66,6 +66,12 @@
       }
       mapName = row.map_name || "the map"
       mapId = row.map_id || null
+      // Cache the map name for the guest home page.
+      try {
+        if (row.map_name) localStorage.setItem("guest_map_name", row.map_name)
+      } catch {
+        /* storage unavailable */
+      }
       step = "ready"
 
       // Returning visitor? Anonymous sessions persist in this browser — if

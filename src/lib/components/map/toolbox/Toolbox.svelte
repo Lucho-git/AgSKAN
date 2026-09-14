@@ -83,6 +83,50 @@
   export let isOpen = false
   export let satelliteManager = null
   export let trailReplayAPI = null
+  // View-only guests: the toolbox renders, but every control inside is locked
+  // (greyed out, taps show a "Guest mode" tooltip).
+  export let viewerMode = false
+
+  // ── Guest mode lock ──
+  // Guests keep the whole toolbox visible, but only view-only panels are
+  // usable — Trails, Weather, Measure, Satellite and Layers. Their buttons
+  // are marked .guest-allow (plus the weather hero button .wx-hero); the
+  // back arrow always works. Everything else stays greyed + locked.
+  const GUEST_PANELS = ["trail", "weather", "satellite", "layers"]
+  $: guestPanelOpen = viewerMode && GUEST_PANELS.includes(activePanel)
+
+  /** @type {{ x: number, y: number } | null} */
+  let guestTip = null
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let guestTipTimer = null
+
+  /** @param {MouseEvent} event */
+  function handleGuestIntercept(event) {
+    if (!viewerMode) return
+
+    const el = /** @type {HTMLElement | null} */ (event.target)
+    // Allowed: using a whitelisted panel + the buttons that open them.
+    if (
+      (GUEST_PANELS.includes(activePanel) &&
+        el?.closest?.(".toolbox-content")) ||
+      el?.closest?.(".guest-allow") ||
+      el?.closest?.(".wx-hero") ||
+      el?.closest?.(".header-arrow-center")
+    ) {
+      return
+    }
+
+    // Swallow the interaction before any control sees it.
+    event.stopPropagation()
+    event.preventDefault()
+
+    const rect = el?.getBoundingClientRect ? el.getBoundingClientRect() : null
+    guestTip = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top - 8 }
+      : { x: event.clientX, y: event.clientY - 8 }
+    if (guestTipTimer) clearTimeout(guestTipTimer)
+    guestTipTimer = setTimeout(() => (guestTip = null), 2200)
+  }
 
   const dispatch = createEventDispatcher()
 
@@ -398,13 +442,26 @@
 </script>
 
 {#if isOpen}
+  {#if guestTip}
+    <div
+      class="guest-mode-tip"
+      style="left: {guestTip.x}px; top: {guestTip.y}px;"
+    >
+      Guest mode — view only
+    </div>
+  {/if}
+
   <div
     class="toolbox-backdrop"
     on:click={closeToolbox}
     on:keydown={(e) => e.key === "Escape" && closeToolbox()}
   ></div>
 
-  <div class="toolbox-panel">
+  <div
+    class="toolbox-panel"
+    class:viewer-locked={viewerMode && !guestPanelOpen}
+    on:click|capture={handleGuestIntercept}
+  >
     <div class="toolbox-header">
       <div class="header-content">
         {#if !activePanel}
@@ -602,7 +659,7 @@
             {/if}
           </button>
 
-          <button class="tool-button" on:click={handleTrailControls}>
+          <button class="tool-button guest-allow" on:click={handleTrailControls}>
             <Route size={26} />
             <span>Trails</span>
             {#if $trailsLoadingStore}
@@ -636,7 +693,7 @@
 
           {#if $userSettingsStore.measureMenuEnabled}
             <button
-              class="tool-button"
+              class="tool-button guest-allow"
               class:tool-active={$drawingModeEnabled}
               on:click={handleMeasurement}
             >
@@ -646,13 +703,13 @@
           {/if}
 
           {#if $userSettingsStore.satelliteMenuEnabled}
-            <button class="tool-button" on:click={showSatellitePanel}>
+            <button class="tool-button guest-allow" on:click={showSatellitePanel}>
               <Satellite size={26} />
               <span>Satellite</span>
             </button>
           {/if}
 
-          <button class="tool-button" on:click={showLayersPanel}>
+          <button class="tool-button guest-allow" on:click={showLayersPanel}>
             <Layers size={26} />
             <span>Layers</span>
           </button>
@@ -768,6 +825,41 @@
     flex-direction: column;
     animation: agskan-slideInLeft 0.3s ease-out;
     color: rgba(255, 255, 255, 0.95);
+  }
+
+  /* Guest mode: everything inside stays visible, but is greyed + locked */
+  .viewer-locked :global(button),
+  .viewer-locked :global(input),
+  .viewer-locked :global(select),
+  .viewer-locked :global(a) {
+    opacity: 0.45 !important;
+    filter: grayscale(0.9);
+    cursor: not-allowed !important;
+  }
+
+  /* ...except the controls that open/use whitelisted panels */
+  .viewer-locked :global(.guest-allow),
+  .viewer-locked :global(.guest-allow *),
+  .viewer-locked :global(.wx-hero),
+  .viewer-locked :global(.header-arrow-center) {
+    opacity: 1 !important;
+    filter: none !important;
+    cursor: pointer !important;
+  }
+
+  .guest-mode-tip {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    z-index: 1200;
+    background: rgba(0, 0, 0, 0.88);
+    color: #fde68a;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   }
 
   .toolbox-header {

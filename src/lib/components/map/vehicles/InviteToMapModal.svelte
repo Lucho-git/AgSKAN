@@ -19,13 +19,16 @@
     { key: "30d", label: "30 days", hours: 24 * 30 },
   ]
 
-  let expiryKey = "7d"
+  let expiryKey = "24h"
   let inviteToken = ""
-  let createdExpiryKey = ""
+  let createdKey = ""
   let generating = false
   let inviteWarning = ""
   let email = ""
   let phone = ""
+  let retainAfterSignup = false
+  let sendingSms = false
+  let sendingEmail = false
 
   $: mapCode = $connectedMapStore?.join_code || $connectedMapStore?.id || ""
   $: mapName = $connectedMapStore?.map_name || "our farm map"
@@ -36,18 +39,20 @@
   // Mint a real invite (token + expiry live server-side). Falls back to a
   // local stub token if the RPC isn't available yet, so the modal keeps
   // working during rollout.
+  $: desiredKey = `${expiryKey}|${retainAfterSignup ? 1 : 0}`
+
   $: if (
     open &&
     !generating &&
     mapCode &&
-    (!inviteToken || createdExpiryKey !== expiryKey)
+    (!inviteToken || createdKey !== desiredKey)
   ) {
     generateInvite()
   }
 
   $: if (!open) {
     inviteToken = ""
-    createdExpiryKey = ""
+    createdKey = ""
     inviteWarning = ""
   }
 
@@ -59,13 +64,26 @@
     generating = true
     inviteWarning = ""
     try {
-      const { data, error } = await supabase.rpc("create_map_invite", {
+      let result = await supabase.rpc("create_map_invite", {
         p_role: "viewer",
         p_expires_hours: expiry.hours,
         p_access_hours: 48,
+        p_retain_on_signup: retainAfterSignup,
       })
-      if (error) throw error
-      const row = Array.isArray(data) ? data[0] : data
+      // Until the retain-flag migration is applied the server function has no
+      // such parameter — retry without it so invites keep working.
+      if (
+        result.error &&
+        /function|schema cache|does not exist/i.test(result.error.message || "")
+      ) {
+        result = await supabase.rpc("create_map_invite", {
+          p_role: "viewer",
+          p_expires_hours: expiry.hours,
+          p_access_hours: 48,
+        })
+      }
+      if (result.error) throw result.error
+      const row = Array.isArray(result.data) ? result.data[0] : result.data
       if (!row?.token) throw new Error("No invite token returned")
       inviteToken = row.token
     } catch (error) {
@@ -77,7 +95,7 @@
       inviteWarning =
         "Could not create a server invite — this link isn't time-limited yet."
     } finally {
-      createdExpiryKey = expiryKey
+      createdKey = `${expiryKey}|${retainAfterSignup ? 1 : 0}`
       generating = false
     }
   }
@@ -102,8 +120,54 @@
     dispatch("close")
   }
 
-  function guardEmpty(event, value) {
-    if (!value.trim() || !inviteLink) event.preventDefault()
+  // Email the invite via our Brevo-backed edge function; fall back to the
+  // device's mail app when the function isn't deployed yet.
+  async function sendEmail() {
+    const address = email.trim()
+    if (!address || !inviteLink || sendingEmail) return
+    sendingEmail = true
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "send-invite-email",
+        {
+          body: {
+            email: address,
+            subject: `Join ${mapName} on AgSKAN`,
+            message: messageBody,
+          },
+        },
+      )
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      toast.success("Invite emailed", { description: `Sent to ${address}` })
+    } catch (error) {
+      console.warn("send-invite-email unavailable — opening mail app:", error)
+      window.location.href = mailtoHref
+    } finally {
+      sendingEmail = false
+    }
+  }
+
+  // Text the invite via our ClickSend-backed edge function; fall back to the
+  // device's SMS app when the function isn't deployed yet.
+  async function sendText() {
+    const number = phone.trim()
+    if (!number || !inviteLink || sendingSms) return
+    sendingSms = true
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "send-invite-sms",
+        { body: { phone: number, message: messageBody } },
+      )
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      toast.success("Invite texted", { description: `Sent to ${number}` })
+    } catch (error) {
+      console.warn("send-invite-sms unavailable — opening SMS app:", error)
+      window.location.href = smsHref
+    } finally {
+      sendingSms = false
+    }
   }
 </script>
 
@@ -186,6 +250,22 @@
               {/each}
             </div>
           </div>
+          <label class="invite-retain mt-2 flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              class="mt-0.5"
+              bind:checked={retainAfterSignup}
+            />
+            <span class="min-w-0">
+              <span class="block text-[11px] font-medium text-white/80">
+                Keep map access after they create an account
+              </span>
+              <span class="block text-[10px] leading-snug text-white/45">
+                If the guest signs up for a real AgSKAN account, they stay on
+                this map instead of losing access.
+              </span>
+            </span>
+          </label>
           <p class="mt-1.5 text-[10px] text-white/40">
             Guests join with view-only access for 48 hours — no account
             needed.
@@ -207,15 +287,20 @@
               placeholder="name@example.com"
               class="invite-input min-w-0 flex-1"
             />
-            <a
+            <button
               class="invite-send-btn"
               class:muted={!email.trim()}
-              href={mailtoHref}
-              on:click={(event) => guardEmpty(event, email)}
+              on:click={sendEmail}
+              disabled={sendingEmail}
             >
-              <Mail size={13} />
-              Email
-            </a>
+              {#if sendingEmail}
+                <Loader2 size={13} class="animate-spin" />
+                Sending…
+              {:else}
+                <Mail size={13} />
+                Email
+              {/if}
+            </button>
           </div>
         </div>
 
@@ -231,15 +316,20 @@
               placeholder="0400 000 000"
               class="invite-input min-w-0 flex-1"
             />
-            <a
+            <button
               class="invite-send-btn"
               class:muted={!phone.trim()}
-              href={smsHref}
-              on:click={(event) => guardEmpty(event, phone)}
+              on:click={sendText}
+              disabled={sendingSms}
             >
-              <MessageSquare size={13} />
-              Text
-            </a>
+              {#if sendingSms}
+                <Loader2 size={13} class="animate-spin" />
+                Sending…
+              {:else}
+                <MessageSquare size={13} />
+                Text
+              {/if}
+            </button>
           </div>
         </div>
 
@@ -336,5 +426,16 @@
 
   .invite-send-btn.muted {
     opacity: 0.5;
+  }
+
+  .invite-send-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .invite-retain input {
+    accent-color: #60a5fa;
+    width: 14px;
+    height: 14px;
   }
 </style>
