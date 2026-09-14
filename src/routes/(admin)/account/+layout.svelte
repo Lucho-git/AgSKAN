@@ -35,6 +35,9 @@
   import { operatorStore } from "$lib/stores/operatorStore"
   import OperatorPicker from "$lib/components/map/trails/OperatorPicker.svelte"
 
+  // Native push (OneSignal) — links this device to the signed-in user
+  import { initNativePush, syncNativePushUser } from "$lib/nativePush"
+
   // Import map API
   import { mapApi } from "$lib/api/mapApi"
 
@@ -670,6 +673,11 @@
     }
   }
 
+  // ── Native push (OneSignal) — keep this device linked to the signed-in user ──
+  $: if (browser && isNative) {
+    void syncNativePushUser($session?.user?.id ?? null)
+  }
+
   // Initialize the component
   onMount(() => {
     if (browser) {
@@ -678,6 +686,12 @@
       } catch (error) {
         isNative = false
       }
+    }
+
+    if (isNative) {
+      // Initialise on this route too (idempotent) in case the root layout
+      // call was skipped or this area is entered directly.
+      void initNativePush()
     }
 
     // Process session if we have a promise

@@ -42,6 +42,9 @@ const config: CapacitorConfig = {
     },
     ios: {
         limitsNavigationsToAppBoundDomains: false,
+        // OneSignal owns APNs delegate handling in the iOS app — without this
+        // the OneSignal delegate never fires ("APNs Delegate Never Fired").
+        handleApplicationNotifications: false,
     }
 };
 

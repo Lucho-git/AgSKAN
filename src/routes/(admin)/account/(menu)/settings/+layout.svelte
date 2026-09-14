@@ -46,6 +46,12 @@
       href: "/account/settings/location-permissions",
     },
     {
+      id: "notifications",
+      icon: "solar:bell-bold-duotone",
+      label: "Notifications",
+      href: "/account/settings/notifications",
+    },
+    {
       id: "subscription",
       icon: "solar:card-bold-duotone",
       label: "Subscription",

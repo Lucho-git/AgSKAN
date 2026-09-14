@@ -46,6 +46,7 @@
   import InviteToMapModal from "$lib/components/map/vehicles/InviteToMapModal.svelte"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { supabase } from "$lib/stores/sessionStore"
+  import { messageUnreadStore, openMessagePanel } from "$lib/stores/messageStore"
   import {
     MARKER_COLORS,
     MARKER_COLOR_DEFAULT,
@@ -653,16 +654,10 @@
   }
 
   function menuSendMessage() {
-    const name = openMenuVehicle
-      ? openMenuVehicle.isCurrentUser
-        ? "your vehicle"
-        : getSafeVehicleName(openMenuVehicle)
-      : "this vehicle"
+    const vehicle = openMenuVehicle
     closeRowMenu()
-    toast.info("Messaging coming soon", {
-      description: `You'll be able to message ${name} in a future update.`,
-      duration: 4000,
-    })
+    if (!vehicle?.id || vehicle.isCurrentUser) return
+    openMessagePanel({ id: vehicle.id, name: getSafeVehicleName(vehicle) })
   }
 
   // ── Map log presentation helpers ──────────────────────────────────────
@@ -1678,7 +1673,7 @@
 
               <!-- Options: track / track + rotation / message -->
               <button
-                class="flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked
+                class="relative flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked
                   ? 'bg-green-500/20'
                   : ''}"
                 on:click|stopPropagation={(event) =>
@@ -1690,6 +1685,9 @@
                   size={16}
                   class={isTracked ? "text-green-300" : "text-white/60"}
                 />
+                {#if $messageUnreadStore[vehicle.id]}
+                  <span class="unread-dot"></span>
+                {/if}
               </button>
             </div>
           {/each}
@@ -2153,12 +2151,13 @@
         <span>Track vehicle and rotation</span>
       </button>
     {/if}
-    <div class="row-option-divider"></div>
-    <button class="row-option" on:click={menuSendMessage}>
-      <MessageSquare size={15} class="text-sky-300" />
-      <span>Send message</span>
-      <span class="row-option-soon">soon</span>
-    </button>
+    {#if !openMenuVehicle.isCurrentUser}
+      <div class="row-option-divider"></div>
+      <button class="row-option" on:click={menuSendMessage}>
+        <MessageSquare size={15} class="text-sky-300" />
+        <span>Send message</span>
+      </button>
+    {/if}
     {#if $profileStore?.user_type !== "viewer" && openMenuVehicle.map_role === "viewer" && openMenuVehicle.id !== $userVehicleStore.vehicle_id}
       <div class="row-option-divider"></div>
       <button class="row-option" on:click={menuRemoveGuest}>
@@ -2618,6 +2617,18 @@
 
   .log-action-btn.trail:hover {
     background: rgba(16, 185, 129, 0.24);
+  }
+
+  /* Unread-messages dot on the row options button */
+  .unread-dot {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
   }
 
   .log-state-pill {

@@ -44,6 +44,9 @@ project(':capawesome-capacitor-app-update').projectDir = new File('../node_modul
 include ':capgo-capacitor-social-login'
 project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/@capgo/capacitor-social-login/android')
 
+include ':onesignal-capacitor-plugin'
+project(':onesignal-capacitor-plugin').projectDir = new File('../node_modules/@onesignal/capacitor-plugin/android')
+
 include ':transistorsoft-capacitor-background-fetch'
 project(':transistorsoft-capacitor-background-fetch').projectDir = new File('../node_modules/@transistorsoft/capacitor-background-fetch/android')
 

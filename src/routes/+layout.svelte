@@ -37,6 +37,9 @@
   // to avoid iOS WKWebView "Localhost" location prompt
   import { patchGeolocationForNative } from "$lib/utils/nativeGeolocationPatch"
 
+  // Native push (OneSignal) for the packaged iOS/Android apps
+  import { initNativePush } from "$lib/nativePush"
+
   // Native <dialog> fallback — older Safari / iOS WKWebView (< 15.4) have no
   // HTMLDialogElement.showModal(), which silently breaks every modal (field
   // export, delete, edit, …). Registered here so it runs before any modal.
@@ -530,6 +533,10 @@
           handleDeepLink(event.url)
         })
         console.log("✅ Deep link listener registered successfully")
+
+        // Native push (OneSignal) — initialise at startup so notification
+        // taps and permission state are ready before the user reaches the map.
+        void initNativePush()
 
         appUpdateListener = await setupNativeAppUpdateListener()
         await promptForNativeAppUpdate()

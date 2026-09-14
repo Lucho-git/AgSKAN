@@ -110,6 +110,7 @@ self.addEventListener("push", function (event) {
     body: data.body,
     icon: "/favicon.png",
     badge: "/badge.png",
+    data: { url: data.url || undefined },
   }
 
   event.waitUntil(self.registration.showNotification(data.title, options))
@@ -117,5 +118,7 @@ self.addEventListener("push", function (event) {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  event.waitUntil(clients.openWindow("https://www.skanfarming.com.au/account"))
+  const target =
+    event.notification.data?.url || "https://www.skanfarming.com.au/account"
+  event.waitUntil(clients.openWindow(target))
 })

@@ -13,6 +13,7 @@
   } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
+  import { mapPresenceStore } from "$lib/stores/mapPresenceStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { vehicleDataLoaded } from "$lib/stores/loadedStore"
@@ -611,7 +612,14 @@
     otherVehiclesDataChanges.set(changes)
 
     channel = supabase
-      .channel(`vehicle_updates_${masterMapId}`)
+      .channel(`vehicle_updates_${masterMapId}`, {
+        config: { presence: { key: userId } },
+      })
+      .on("presence", { event: "sync" }, () => {
+        // Who has the app open right now (used by messaging: online → popup,
+        // offline → phone notification).
+        mapPresenceStore.set(new Set(Object.keys(channel.presenceState())))
+      })
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         const profileMap = getConnectedProfileMap()
         if (
@@ -780,7 +788,14 @@
           handleProfileChanged(payload.new)
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          channel.track({
+            user_id: userId,
+            online_at: new Date().toISOString(),
+          })
+        }
+      })
 
     // Reliable polling fallback — catches background-sync DB writes
     // even when broadcast + postgres_changes both miss
@@ -795,6 +810,7 @@
   })
 
   onDestroy(() => {
+    mapPresenceStore.set(new Set())
     if (pollInterval) {
       clearInterval(pollInterval)
       pollInterval = null

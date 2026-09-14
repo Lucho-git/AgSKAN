@@ -62,6 +62,8 @@
   import EdgeIndicator from "$lib/components/map/overlays/EdgeIndicator.svelte"
   import GuestTipLayer from "$lib/components/map/GuestTipLayer.svelte"
   import { showGuestTip } from "$lib/utils/guestMode"
+  import MessageCenter from "$lib/components/map/messages/MessageCenter.svelte"
+  import MessagePanel from "$lib/components/map/messages/MessagePanel.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
   import {
@@ -2157,6 +2159,8 @@
 
     <EdgeIndicator {map} />
     <GuestTipLayer />
+    <MessageCenter />
+    <MessagePanel />
 
     <DrawingHectares {map} />
     {#if !viewerMode}
