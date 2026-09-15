@@ -51,6 +51,7 @@
   import BulkDeleteOverlay from "$lib/components/map/markers/BulkDeleteOverlay.svelte"
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
+  import { locationPickStore } from "$lib/stores/locationPickStore"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
@@ -64,6 +65,7 @@
   import { showGuestTip } from "$lib/utils/guestMode"
   import MessageCenter from "$lib/components/map/messages/MessageCenter.svelte"
   import MessagePanel from "$lib/components/map/messages/MessagePanel.svelte"
+  import MapFocusFlyer from "$lib/components/map/MapFocusFlyer.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
   import {
@@ -450,6 +452,15 @@
   }
 
   function closeToolbox() {
+    toolboxOpen = false
+  }
+
+  // While picking / confirming a message location, clear the toolbox out of
+  // the way so the map is unobstructed.
+  $: if (
+    ($locationPickStore.active || $locationPickStore.captured) &&
+    toolboxOpen
+  ) {
     toolboxOpen = false
   }
 
@@ -2061,7 +2072,12 @@
   }
 </script>
 
-<div class="map-container" bind:this={mapContainer}>
+<div
+  class="map-container"
+  class:location-picking={$locationPickStore.active ||
+    $locationPickStore.captured}
+  bind:this={mapContainer}
+>
   {#if mapboxInitError}
     <div class="error-container">
       <h2>Map Initialization Error</h2>
@@ -2084,29 +2100,34 @@
     <!-- Persistent Managers -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
-    <!-- Toolbox Trigger Button -->
-    <div class="toolbox-trigger-container">
-      <button
-        class="toolbox-trigger-button"
-        class:active={toolboxOpen}
-        on:click={toggleToolbox}
-      >
-        <Menu size={28} />
-      </button>
-      <span class="toolbox-badge">Tools</span>
-    </div>
+    <!-- Toolbox Trigger Button (hidden while picking a message location) -->
+    {#if !$locationPickStore.active && !$locationPickStore.captured}
+      <div class="toolbox-trigger-container">
+        <button
+          class="toolbox-trigger-button"
+          class:active={toolboxOpen}
+          on:click={toggleToolbox}
+        >
+          <Menu size={28} />
+        </button>
+        <span class="toolbox-badge">Tools</span>
+      </div>
+    {/if}
 
-    <!-- ButtonSection with event dispatching (guests: greyed view-only buttons) -->
-    <ButtonSection
-      {pendingCoordinates}
-      {pendingClosures}
-      on:openTrailInfo={handleOpenTrailInfo}
-      on:requestExit={handleRequestExit}
-      on:locateHome={handleLocateHome}
-      on:openMarkerSettings={handleOpenMarkerSettings}
-    />
+    <!-- ButtonSection with event dispatching (guests: greyed view-only buttons).
+         Hidden while picking / confirming a message location. -->
+    {#if !$locationPickStore.active && !$locationPickStore.captured}
+      <ButtonSection
+        {pendingCoordinates}
+        {pendingClosures}
+        on:openTrailInfo={handleOpenTrailInfo}
+        on:requestExit={handleRequestExit}
+        on:locateHome={handleLocateHome}
+        on:openMarkerSettings={handleOpenMarkerSettings}
+      />
 
-    <NavigationControl />
+      <NavigationControl />
+    {/if}
     <MarkerManager
       bind:this={markerManagerRef}
       {map}
@@ -2159,6 +2180,7 @@
 
     <EdgeIndicator {map} />
     <GuestTipLayer />
+    <MapFocusFlyer {map} />
     <MessageCenter />
     <MessagePanel />
 
@@ -2298,23 +2320,25 @@
   />
 {/if}
 
-<!-- Toolbox -->
-<Toolbox
-  bind:this={toolboxRef}
-  {satelliteManager}
-  trailReplayAPI={trailHighlighter?.highlighterAPI}
-  isOpen={toolboxOpen}
-  {viewerMode}
-  on:close={closeToolbox}
-  on:tool={handleToolAction}
-  on:openTrailViewer={handleOpenTrailViewer}
-  on:selectField={handleFieldSelect}
-  on:addField={handleAddField}
-  on:editField={handleEditField}
-  on:selectMarker={handleMarkerSelect}
-  on:selectTrail={handleTrailSelect}
-  on:replayTrail={handleTrailReplay}
-/>
+<!-- Toolbox (hidden while picking a message location) -->
+{#if !$locationPickStore.active && !$locationPickStore.captured}
+  <Toolbox
+    bind:this={toolboxRef}
+    {satelliteManager}
+    trailReplayAPI={trailHighlighter?.highlighterAPI}
+    isOpen={toolboxOpen}
+    {viewerMode}
+    on:close={closeToolbox}
+    on:tool={handleToolAction}
+    on:openTrailViewer={handleOpenTrailViewer}
+    on:selectField={handleFieldSelect}
+    on:addField={handleAddField}
+    on:editField={handleEditField}
+    on:selectMarker={handleMarkerSelect}
+    on:selectTrail={handleTrailSelect}
+    on:replayTrail={handleTrailReplay}
+  />
+{/if}
 
 <!-- Dev Mode Joystick Overlay -->
 {#if $devModeEnabled}
@@ -2565,5 +2589,11 @@
       border-right: none;
       border-bottom: none;
     }
+  }
+
+  /* While choosing / confirming a message location, clear the map UI. */
+  .map-container.location-picking :global(.msg-popup-stack),
+  .map-container.location-picking :global(.tracking-bar) {
+    display: none !important;
   }
 </style>

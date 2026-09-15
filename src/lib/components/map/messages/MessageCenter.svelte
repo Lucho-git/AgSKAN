@@ -70,9 +70,13 @@
 
           messageBumpTick()
           const panel = get(messagePanelStore)
-          if (panel && panel.id === msg.sender_id) return // actively chatting
+          if (panel && (panel.id === msg.sender_id || panel.view === "inbox")) {
+            return // already looking at messages
+          }
 
           messageBumpUnread(msg.sender_id)
+          // No point popping in-app while the app is hidden (backgrounded).
+          if (typeof document !== "undefined" && document.hidden) return
           addPopup(msg)
         },
       )
@@ -110,10 +114,16 @@
 {#if popups.length > 0}
   <div class="msg-popup-stack">
     {#each popups as popup (popup.key)}
-      <div class="msg-popup">
+      <div
+        class="msg-popup"
+        role="button"
+        tabindex="0"
+        on:click={() => replyTo(popup)}
+        on:keydown={(e) => e.key === "Enter" && replyTo(popup)}
+      >
         <div class="flex items-start gap-2.5">
           <span class="msg-popup-icon">
-            <MessageSquare size={14} />
+            <MessageSquare size={16} />
           </span>
           <div class="min-w-0 flex-1">
             <p class="msg-popup-name">{popup.name}</p>
@@ -121,15 +131,19 @@
           </div>
           <button
             class="msg-popup-close"
-            on:click={() => dismissPopup(popup.key)}
+            on:click|stopPropagation={() => dismissPopup(popup.key)}
             aria-label="Dismiss"
             title="Dismiss"
           >
-            <X size={13} />
+            <X size={16} />
           </button>
         </div>
-        <div class="mt-2 flex justify-end">
-          <button class="msg-popup-reply" on:click={() => replyTo(popup)}>
+        <div class="mt-1.5 flex items-center justify-between">
+          <span class="msg-popup-hint">Tap to open</span>
+          <button
+            class="msg-popup-reply"
+            on:click|stopPropagation={() => replyTo(popup)}
+          >
             <Reply size={12} /> Reply
           </button>
         </div>
@@ -232,5 +246,27 @@
 
   .msg-popup-reply:hover {
     background: rgba(56, 189, 248, 0.26);
+  }
+
+  /* Whole card is tappable — opens the conversation. */
+  .msg-popup {
+    cursor: pointer;
+  }
+
+  .msg-popup:active {
+    transform: scale(0.995);
+  }
+
+  /* Much easier to hit than the old 22px circle. */
+  .msg-popup-close {
+    height: 38px;
+    width: 38px;
+    margin: -8px -8px 0 0;
+    border-radius: 10px;
+  }
+
+  .msg-popup-hint {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
   }
 </style>

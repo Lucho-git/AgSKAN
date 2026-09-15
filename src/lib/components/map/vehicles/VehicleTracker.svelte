@@ -16,6 +16,7 @@
   } from "$lib/stores/currentTrailStore"
   import { trailPausedStore } from "$lib/stores/currentTrailStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { locationPickStore } from "$lib/stores/locationPickStore"
 
   // ✅ IMPORT COMMAND STORE
   import { commands } from "$lib/stores/commandStore"
@@ -446,6 +447,20 @@
       console.log("🚗 VehicleTracker: Selected vehicle ID:", selectedVehicleId)
     }
 
+    updateAllVehicleSelectionStates()
+  }
+
+  // Highlight a vehicle (the same styling a normal tap-selection uses)
+  // WITHOUT toggling or opening vehicle controls — used by the message
+  // location picker. Pass null to clear.
+  export function highlightVehicle(vehicleId) {
+    if (vehicleId === null || vehicleId === undefined) {
+      if (selectedVehicleId === null) return
+      selectedVehicleId = null
+    } else {
+      if (selectedVehicleId === vehicleId) return
+      selectedVehicleId = vehicleId
+    }
     updateAllVehicleSelectionStates()
   }
 
@@ -3597,15 +3612,17 @@
   onTrueNorth={handleResetNorth}
 />
 
-<VehicleDetailsPanel
-  {selectedVehicleId}
-  {getVehicleById}
-  {map}
-  {centerCameraOnVehicle}
-  {startTrackingVehicle}
-  {zoomToVehicle}
-  {onOpenVehicleControls}
-/>
+{#if !$locationPickStore.active && !$locationPickStore.captured}
+  <VehicleDetailsPanel
+    {selectedVehicleId}
+    {getVehicleById}
+    {map}
+    {centerCameraOnVehicle}
+    {startTrackingVehicle}
+    {zoomToVehicle}
+    {onOpenVehicleControls}
+  />
+{/if}
 
 {#if $userSettingsStore?.enableFull1Hz}
   <div class="hz-debug-overlay">

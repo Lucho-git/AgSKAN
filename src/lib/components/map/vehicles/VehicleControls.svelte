@@ -46,7 +46,13 @@
   import InviteToMapModal from "$lib/components/map/vehicles/InviteToMapModal.svelte"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { supabase } from "$lib/stores/sessionStore"
-  import { messageUnreadStore, openMessagePanel } from "$lib/stores/messageStore"
+  import {
+    messageUnreadStore,
+    openMessagePanel,
+    openMessageInbox,
+    closeMessagePanel,
+  } from "$lib/stores/messageStore"
+  import { controlStore } from "$lib/stores/controlStore"
   import {
     MARKER_COLORS,
     MARKER_COLOR_DEFAULT,
@@ -522,6 +528,14 @@
 
   // Poll the feed while the menu is open; reset transient UI when it closes.
   $: handleMenuVisibility(showUnifiedMenu)
+
+  // External coordination (messages opening / location picking) can ask this
+  // menu to close so only one panel is in the way at a time.
+  $: if (!$controlStore.showVehicleMenu && showUnifiedMenu) {
+    showUnifiedMenu = false
+    openMenuVehicleId = null
+  }
+
   function handleMenuVisibility(open) {
     if (open) {
       startUnreadPolling()
@@ -658,6 +672,17 @@
     closeRowMenu()
     if (!vehicle?.id || vehicle.isCurrentUser) return
     openMessagePanel({ id: vehicle.id, name: getSafeVehicleName(vehicle) })
+  }
+
+  // Footer "Messages" — opens the conversation inbox and closes this menu.
+  $: totalUnread = Object.values($messageUnreadStore || {}).reduce(
+    (sum, n) => sum + (Number(n) || 0),
+    0,
+  )
+
+  function openMessagesInbox() {
+    closeUnifiedMenu()
+    openMessageInbox()
   }
 
   // ── Map log presentation helpers ──────────────────────────────────────
@@ -1275,6 +1300,7 @@
   function toggleUnifiedMenu() {
     if (showUnifiedMenu) {
       showUnifiedMenu = false
+      controlStore.update((c) => ({ ...c, showVehicleMenu: false }))
       return
     }
 
@@ -1288,6 +1314,9 @@
       lastSortAt = 0
     }
     showUnifiedMenu = true
+    controlStore.update((c) => ({ ...c, showVehicleMenu: true }))
+    // One panel at a time — opening the vehicles menu puts the chat away.
+    closeMessagePanel()
   }
 
   // Refresh row data live, but only reorder immediately when priority state changes.
@@ -1303,6 +1332,7 @@
 
   function closeUnifiedMenu() {
     showUnifiedMenu = false
+    controlStore.update((c) => ({ ...c, showVehicleMenu: false }))
   }
 
   function stopTrackingAndClose() {
@@ -1693,27 +1723,6 @@
           {/each}
         </div>
       {/if}
-
-      <!-- Invite row — bottom of the vehicle list (members only) -->
-      {#if $profileStore?.user_type !== "viewer"}
-      <button
-        class="flex w-full items-center gap-2.5 border-t border-white/10 px-3 py-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
-        on:click={() => (showInviteModal = true)}
-      >
-        <span
-          class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/15"
-        >
-          <UserPlus size={15} class="text-blue-300" />
-        </span>
-        <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium text-white">Invite to map</span>
-          <span class="block text-xs text-white/60"
-            >Send a link by email or text</span
-          >
-        </span>
-        <ChevronRight size={16} class="flex-shrink-0 text-white/40" />
-      </button>
-      {/if}
       {:else}
         <!-- Filters: category chips + vehicle/account dropdowns + start-from -->
         <div class="log-filter-bar">
@@ -1982,6 +1991,53 @@
         </div>
       {/if}
     </div>
+
+    <!-- Sticky actions — pinned above the collapse bar (vehicles tab) -->
+    {#if activeTab === "vehicles"}
+      <div class="flex flex-shrink-0 border-t border-white/10">
+        {#if $profileStore?.user_type !== "viewer"}
+          <button
+            class="flex flex-1 items-center gap-2 border-r border-white/10 px-3 py-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
+            on:click={() => (showInviteModal = true)}
+          >
+            <span
+              class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/15"
+            >
+              <UserPlus size={15} class="text-blue-300" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[13px] font-medium text-white">
+                Invite to map
+              </span>
+              <span class="block truncate text-[10px] text-white/60">
+                Email or text link
+              </span>
+            </span>
+          </button>
+        {/if}
+        <button
+          class="flex flex-1 items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
+          on:click={openMessagesInbox}
+        >
+          <span
+            class="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15"
+          >
+            <MessageSquare size={15} class="text-sky-300" />
+            {#if totalUnread > 0}
+              <span class="unread-dot"></span>
+            {/if}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-[13px] font-medium text-white">
+              Messages
+            </span>
+            <span class="block truncate text-[10px] text-white/60">
+              {totalUnread > 0 ? `${totalUnread} unread` : "Team conversations"}
+            </span>
+          </span>
+        </button>
+      </div>
+    {/if}
 
     <!-- Footer -->
     <div

@@ -9,8 +9,18 @@
   } from "$lib/stores/markerStore"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
+  import { controlStore } from "$lib/stores/controlStore"
   import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
   import { pendingDrawingSelection } from "$lib/stores/markerDrawingSelectionStore"
+  import { userVehicleStore, otherVehiclesStore } from "$lib/stores/vehicleStore"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import {
+    locationPickStore,
+    completeLocationPick,
+    markLocationPickHandled,
+    locationPickHandledRecently,
+    focusMapLocation,
+  } from "$lib/stores/locationPickStore"
 
   export let map
   export let mapLoaded = false
@@ -303,6 +313,48 @@
     return null
   }
 
+  // Map canvas pixel → viewport client coordinates (for DOM hit-testing).
+  function clientPointFromMapPoint(mapPoint) {
+    try {
+      const container = map?.getContainer?.()
+      const rect = container?.getBoundingClientRect?.()
+      if (!rect) return null
+      return { x: rect.left + mapPoint.x, y: rect.top + mapPoint.y }
+    } catch {
+      return null
+    }
+  }
+
+  // Current position of a vehicle from the vehicle stores (own vehicle or a
+  // teammate's). Handles both {latitude, longitude} objects and "(lng,lat)"
+  // strings — the same shapes VehicleTracker.parseCoordinates accepts.
+  function vehicleCoordsFromStore(vehicleId) {
+    try {
+      const own = get(userVehicleStore)
+      const source =
+        own?.vehicle_id && own.vehicle_id === vehicleId
+          ? own
+          : (get(otherVehiclesStore) || []).find(
+              (v) => v.vehicle_id === vehicleId,
+            )
+      const coords = source?.coordinates
+      if (!coords) return null
+      if (typeof coords === "object" && coords.latitude && coords.longitude) {
+        return { lng: Number(coords.longitude), lat: Number(coords.latitude) }
+      }
+      if (typeof coords === "string") {
+        const [lng, lat] = coords.slice(1, -1).split(",").map(parseFloat)
+        if (Number.isFinite(lng) && Number.isFinite(lat)) return { lng, lat }
+      }
+      if (Array.isArray(coords) && coords.length >= 2) {
+        return { lng: Number(coords[0]), lat: Number(coords[1]) }
+      }
+    } catch {
+      // fall through to null
+    }
+    return null
+  }
+
   // ── Drawing geometry helpers ──
   function collectCoords(geometry) {
     const out = []
@@ -529,6 +581,238 @@
     console.log("✅ Unified map event listeners setup complete")
   }
 
+  // ── Location picking (message attachments) ──
+  // While the picker is collecting (`active`), the next map tap captures a
+  // location: a vehicle, a marker, a field, or any spot. During review
+  // (`captured`), taps re-target the pick live until the user confirms.
+  function maybeHandleLocationPick(mapPoint, lngLat) {
+    if ($locationPickStore.active) {
+      captureLocationPick(mapPoint, lngLat)
+      markLocationPickHandled() // swallow the paired touchend/click event
+      return true
+    }
+    if ($locationPickStore.captured) {
+      // A tap that isn't the twin of the last one re-targets the pick.
+      if (!locationPickHandledRecently()) {
+        captureLocationPick(mapPoint, lngLat)
+        markLocationPickHandled()
+      }
+      return true
+    }
+    // The same physical tap fires both touchend and click — ignore the twin.
+    if (locationPickHandledRecently()) return true
+    return false
+  }
+
+  function captureLocationPick(mapPoint, lngLat) {
+    const point = lngLat || map.unproject(mapPoint)
+    let result = null
+    let markerHitId = null
+    let fieldHitId = null
+    let vehicleHitId = null
+
+    try {
+      // 0) Vehicle under the tap? (they render as DOM markers — hit-test the
+      // same way a normal tap does, via client coordinates.)
+      const clientPoint = clientPointFromMapPoint(mapPoint)
+      const vehicleId = clientPoint
+        ? getVehicleAtPoint(clientPoint.x, clientPoint.y)
+        : null
+      if (vehicleId) {
+        const vehicle = (get(otherVehiclesStore) || []).find(
+          (v) => v.vehicle_id === vehicleId,
+        )
+        // Use the vehicle's actual centre (from the vehicle stores) rather
+        // than the tap point, so the shared location sits on the vehicle.
+        const vCoords = vehicleCoordsFromStore(vehicleId)
+        result = {
+          lng: vCoords ? vCoords.lng : point.lng,
+          lat: vCoords ? vCoords.lat : point.lat,
+          label: vehicle?.full_name || "Vehicle",
+          refType: "vehicle",
+          refId: vehicleId,
+        }
+        vehicleHitId = vehicleId
+        // Strip preview: the vehicle's real icon (cloned from its map marker).
+        const vehicleIconSvg = document.querySelector(
+          `[data-vehicle-id="${vehicleId}"] svg`,
+        )?.outerHTML
+        if (vehicleIconSvg) result.iconHtml = vehicleIconSvg
+      }
+
+      // 1) Marker under the tap?
+      if (!result && map.getLayer("markers-layer")) {
+        const markerFeatures =
+          map.queryRenderedFeatures(mapPoint, { layers: ["markers-layer"] }) ||
+          []
+        const markerId = markerFeatures[0]?.properties?.id
+        if (markerId !== undefined && markerId !== null) {
+          const marker = get(confirmedMarkersStore).find(
+            (m) => m.id === markerId,
+          )
+          const coords = markerFeatures[0]?.geometry?.coordinates
+          // Prefer the marker's own stored coordinates (its true centre).
+          const storeCoords = Array.isArray(marker?.coordinates)
+            ? marker.coordinates
+            : null
+          result = {
+            lng: storeCoords
+              ? storeCoords[0]
+              : coords
+                ? coords[0]
+                : point.lng,
+            lat: storeCoords
+              ? storeCoords[1]
+              : coords
+                ? coords[1]
+                : point.lat,
+            label: marker?.noteLabel || "Marker",
+            refType: "marker",
+            refId: markerId,
+          }
+          markerHitId = markerId
+          // Strip preview: the marker's actual map icon.
+          const markerIconUrl = markerManagerRef?.getMarkerIconUrl?.(markerId)
+          if (markerIconUrl) result.iconUrl = markerIconUrl
+        }
+      }
+
+      // 2) Field under the tap?
+      if (!result) {
+        const fieldLayers = ["fields-fill", "fields-fill-selected"].filter(
+          (layerId) => map.getLayer(layerId),
+        )
+        if (fieldLayers.length > 0) {
+          const fieldFeatures =
+            map.queryRenderedFeatures(mapPoint, { layers: fieldLayers }) || []
+          const props = fieldFeatures[0]?.properties
+          if (props && props.id !== undefined && props.id !== null) {
+            result = {
+              lng: point.lng,
+              lat: point.lat,
+              label: props.name || props.field_name || props.label || "Field",
+              refType: "field",
+              refId: String(props.id),
+            }
+            // Layer filters compare against the raw (numeric) feature id.
+            fieldHitId = props.id
+            // Strip preview: mini field shape (same source the toolbox's
+            // field list uses for its little polygon icons).
+            const fieldShape = get(mapFieldsStore)?.[props.id]?.boundary
+            if (fieldShape) result.geo = fieldShape
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Location pick hit-test failed:", error)
+    }
+
+    // Keep only the tapped target highlighted — mirror the app's selection
+    // visuals (marker ring / field highlight / vehicle highlight) without
+    // opening any menus. Runs on every pick so re-taps move the highlight.
+    applyPickHighlight(markerHitId, fieldHitId, vehicleHitId)
+
+    // 3) Fallback: empty space — just the dropped point.
+    if (!result) {
+      result = {
+        lng: point.lng,
+        lat: point.lat,
+        label: null,
+        refType: null,
+        refId: null,
+      }
+    }
+
+    // Tag the spot with a plain text chip (no pin — the selection highlight
+    // and the picker strip are the indicators), camera stays put.
+    focusMapLocation({
+      lng: result.lng,
+      lat: result.lat,
+      label: result.label || "Dropped pin",
+      refType: result.refType,
+      refId: result.refId,
+      // A real target already has its selection highlight — only empty-space
+      // picks get their own pin so the dropped point is visible.
+      noPin: !!result.refType,
+      fly: false,
+    })
+    completeLocationPick(result)
+  }
+
+  // ── Location picker: selection highlights ──
+  // When a pick lands on a marker / field / vehicle we reuse the app's normal
+  // selection visuals (without opening any overlay menus) so the user can see
+  // exactly what was picked. They're cleared when the pick / review ends.
+  let highlightedPickMarkerId = null
+
+  function clearPickedMarkerHighlight() {
+    if (!highlightedPickMarkerId) return
+    try {
+      markerManagerRef?.highlightMarker?.(highlightedPickMarkerId, false)
+    } catch (error) {
+      console.warn("Could not clear pick highlight:", error)
+    }
+    highlightedPickMarkerId = null
+  }
+
+  function highlightPickedMarker(markerId) {
+    if (highlightedPickMarkerId === markerId) return
+    clearPickedMarkerHighlight()
+    try {
+      markerManagerRef?.highlightMarker?.(markerId, true)
+      highlightedPickMarkerId = markerId
+    } catch (error) {
+      console.warn("Could not highlight picked marker:", error)
+    }
+  }
+
+  // Mirror the app's selection styling for whichever target was tapped.
+  function applyPickHighlight(markerId, fieldId, vehicleId) {
+    // Insurance: the picker never wants a selection menu on screen.
+    controlStore.update((controls) =>
+      controls.showMarkerMenu || controls.showVehicleMenu
+        ? { ...controls, showMarkerMenu: false, showVehicleMenu: false }
+        : controls,
+    )
+
+    if (markerId) highlightPickedMarker(markerId)
+    else clearPickedMarkerHighlight()
+
+    try {
+      mapFieldsRef?.highlightField?.(fieldId ?? null)
+    } catch (error) {
+      console.warn("Could not highlight picked field:", error)
+    }
+
+    try {
+      vehicleTrackerRef?.highlightVehicle?.(vehicleId ?? null)
+    } catch (error) {
+      console.warn("Could not highlight picked vehicle:", error)
+    }
+  }
+
+  function clearPickedHighlights() {
+    clearPickedMarkerHighlight()
+    try {
+      mapFieldsRef?.highlightField?.(null)
+    } catch (error) {
+      console.warn("Could not clear field highlight:", error)
+    }
+    try {
+      vehicleTrackerRef?.highlightVehicle?.(null)
+    } catch (error) {
+      console.warn("Could not clear vehicle highlight:", error)
+    }
+  }
+
+  onMount(() => {
+    // Drop the highlights once the user leaves the pick / review flow.
+    const unsubscribePickState = locationPickStore.subscribe((state) => {
+      if (!state.active && !state.captured) clearPickedHighlights()
+    })
+    return unsubscribePickState
+  })
+
   // Single click handler for everything
   function handleMapClick(event) {
     if ($mapInteractionsSuppressed) {
@@ -546,6 +830,8 @@
       longPressJustCompleted = false
       return
     }
+
+    if (maybeHandleLocationPick(event.point, event.lngLat)) return
 
     console.log("🖱️ Unified click handler")
 
@@ -626,6 +912,11 @@
       return
     }
 
+    if (maybeHandleLocationPick(event.point, null)) {
+      resetMapLevelTouchTracking()
+      return
+    }
+
     console.log("📱 Unified touch handler")
 
     handleUnifiedInteraction(
@@ -661,6 +952,14 @@
   function handleMouseDown(event) {
     // ── Guard: suppress long-press during any drawing mode ──
     if ($drawingModeEnabled) return
+    // ── Guard: while choosing / confirming a message location, taps pick ──
+    if (
+      $locationPickStore.active ||
+      $locationPickStore.captured ||
+      locationPickHandledRecently()
+    ) {
+      return
+    }
     // ── Guard: suppress while silo move mode is active ──
     if ($mapInteractionsSuppressed) return
     if ($collectionRouteStore.phase === "drawing") return

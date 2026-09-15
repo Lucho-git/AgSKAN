@@ -19,8 +19,11 @@
   import { vehicleDataLoaded } from "$lib/stores/loadedStore"
   import { page } from "$app/stores"
   import { toast } from "svelte-sonner"
+  import { App } from "@capacitor/app"
+  import { Capacitor } from "@capacitor/core"
 
   let channel = null
+  let appStateListener = null
   let unsubscribe
   let lastDatabaseUpdate = 0
   let previousVehicleData = null
@@ -797,6 +800,33 @@
         }
       })
 
+    // Messaging presence: when the app goes to the background, drop out of
+    // the online set so senders know to push a phone notification instead of
+    // relying on an in-app popup nobody can see. Re-join on return.
+    try {
+      if (Capacitor.isNativePlatform()) {
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (!channel) return
+          try {
+            if (isActive) {
+              channel.track({
+                user_id: userId,
+                online_at: new Date().toISOString(),
+              })
+            } else {
+              channel.untrack()
+            }
+          } catch (error) {
+            console.warn("Presence app-state update failed:", error)
+          }
+        }).then((listener) => {
+          appStateListener = listener
+        })
+      }
+    } catch (error) {
+      console.warn("Could not register appStateChange for presence:", error)
+    }
+
     // Reliable polling fallback — catches background-sync DB writes
     // even when broadcast + postgres_changes both miss
     pollInterval = setInterval(pollVehicleStates, POLL_INTERVAL_MS)
@@ -811,6 +841,10 @@
 
   onDestroy(() => {
     mapPresenceStore.set(new Set())
+    if (appStateListener) {
+      appStateListener.remove()
+      appStateListener = null
+    }
     if (pollInterval) {
       clearInterval(pollInterval)
       pollInterval = null

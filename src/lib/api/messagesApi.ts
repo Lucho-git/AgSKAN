@@ -2,6 +2,15 @@
 // Direct messages between people on a map (map_messages table).
 import { supabase } from "$lib/stores/sessionStore"
 
+export type MessageAttachment = {
+  kind: "location"
+  lng: number
+  lat: number
+  label: string | null
+  refType: "marker" | "field" | "vehicle" | null
+  refId: string | null
+}
+
 export type MapMessage = {
   id: number
   master_map_id: string
@@ -9,6 +18,7 @@ export type MapMessage = {
   sender_name: string | null
   recipient_id: string
   body: string
+  attachment: MessageAttachment | null
   created_at: string
   read_at: string | null
 }
@@ -39,12 +49,14 @@ export async function sendMapMessage({
   senderName,
   recipientId,
   body,
+  attachment = null,
 }: {
   masterMapId: string
   senderId: string
   senderName: string
   recipientId: string
   body: string
+  attachment?: MessageAttachment | null
 }): Promise<MapMessage> {
   const { data, error } = await supabase
     .from("map_messages")
@@ -54,6 +66,7 @@ export async function sendMapMessage({
       sender_name: senderName,
       recipient_id: recipientId,
       body,
+      attachment,
     })
     .select("*")
     .single()
@@ -94,4 +107,53 @@ export async function fetchUnreadBySender(
     counts[row.sender_id] = (counts[row.sender_id] || 0) + 1
   }
   return counts
+}
+
+/** One row per person I've exchanged messages with (latest message first). */
+export type ConversationSummary = {
+  contactId: string
+  name: string | null
+  lastBody: string
+  lastAt: string
+  lastFromMe: boolean
+  unread: number
+}
+
+/**
+ * Builds the inbox: everyone who has messaged me or been messaged by me,
+ * with the latest message preview and my unread count for each.
+ */
+export async function fetchMyConversations(
+  masterMapId: string,
+  meId: string,
+  limit = 300,
+): Promise<ConversationSummary[]> {
+  const { data, error } = await supabase
+    .from("map_messages")
+    .select("*")
+    .eq("master_map_id", masterMapId)
+    .or(`sender_id.eq.${meId},recipient_id.eq.${meId}`)
+    .order("id", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+
+  const byContact = new Map<string, ConversationSummary>()
+  for (const row of data || []) {
+    const fromMe = row.sender_id === meId
+    const contactId = fromMe ? row.recipient_id : row.sender_id
+    let convo = byContact.get(contactId)
+    if (!convo) {
+      convo = {
+        contactId,
+        name: fromMe ? null : row.sender_name,
+        lastBody: row.body || (row.attachment ? "📍 Shared a location" : ""),
+        lastAt: row.created_at,
+        lastFromMe: fromMe,
+        unread: 0,
+      }
+      byContact.set(contactId, convo)
+    }
+    if (!fromMe && !row.read_at) convo.unread += 1
+  }
+  return [...byContact.values()]
 }

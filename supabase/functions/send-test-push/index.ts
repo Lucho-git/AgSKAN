@@ -4,7 +4,7 @@
 // pipeline end-to-end.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { sendOneSignalPush } from "../_shared/onesignal.ts"
+import { countOneSignalSubscriptions, sendOneSignalPush } from "../_shared/onesignal.ts"
 
 const supabaseUrl = Deno.env.get("PUBLIC_SUPABASE_URL")!
 const serviceRole = Deno.env.get("PRIVATE_SUPABASE_SERVICE_ROLE")!
@@ -70,10 +70,19 @@ serve(async (req: Request) => {
             )
         }
 
+        // The immediate `recipients` count can read 0 while OneSignal's alias
+        // resolution is still in flight (the message still delivers). When
+        // that happens, look the user up so the response is accurate.
+        const subscriptions =
+            result.recipients > 0
+                ? result.recipients
+                : await countOneSignalSubscriptions({ externalId: user.id })
+
         return json(
             {
                 success: true,
                 recipients: result.recipients,
+                subscriptions,
                 id: result.id ?? null,
                 errors: result.errors ?? null,
             },

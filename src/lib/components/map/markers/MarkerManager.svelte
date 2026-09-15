@@ -1204,6 +1204,45 @@
     source.setData(data)
   }
 
+  // Highlight a marker using the app's usual selection styling, WITHOUT
+  // opening its overlay menu — used by the message location picker to confirm
+  // which marker a tap captured. `highlightMarker(id, false)` clears it again.
+  export function highlightMarker(markerId, selected = true) {
+    try {
+      updateMarkerSelection(markerId, selected)
+      if (selected) {
+        const marker = ($confirmedMarkersStore || []).find(
+          (m) => m.id === markerId,
+        )
+        selectedMarkerStore.set({
+          id: markerId,
+          coordinates: marker?.coordinates || null,
+        })
+      } else {
+        selectedMarkerStore.update((current) =>
+          current?.id === markerId ? null : current,
+        )
+      }
+    } catch (error) {
+      console.warn("Marker highlight failed:", error)
+    }
+  }
+
+  // Resolve the on-map image URL for a marker — used by the message
+  // location pin so it can show the marker's actual icon. Base (untinted)
+  // glyph; returns null when unavailable (caller falls back to 📍).
+  export function getMarkerIconUrl(markerId) {
+    try {
+      const marker = $confirmedMarkersStore.find((m) => m.id === markerId)
+      if (!marker || !iconPaths) return null
+      const baseIcon = getIconImageName(marker.iconClass)
+      const path = iconPaths[baseIcon]
+      return path ? `/${path}` : null
+    } catch {
+      return null
+    }
+  }
+
   function updateMarkerSelection(markerId, selected) {
     if (!map || !map.getSource("markers")) return
 

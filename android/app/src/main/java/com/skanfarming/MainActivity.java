@@ -8,6 +8,9 @@ import com.getcapacitor.Plugin;
 import android.content.Intent;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 import android.os.Bundle;
 
 // ModifiedMainActivityForSocialLoginPlugin is VERY VERY important !!!!!!
@@ -19,6 +22,27 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(MockLocationPlugin.class);
         registerPlugin(RawGpsPlugin.class);
         super.onCreate(savedInstanceState);
+
+        createMessageNotificationChannel();
+    }
+
+    // High-importance "Messages" channel so message pushes arrive as heads-up
+    // banner notifications. OneSignal payloads reference this channel via
+    // existing_android_channel_id ("agskan_messages").
+    private void createMessageNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null && manager.getNotificationChannel("agskan_messages") == null) {
+                NotificationChannel channel = new NotificationChannel(
+                        "agskan_messages",
+                        "Messages",
+                        NotificationManager.IMPORTANCE_HIGH);
+                channel.setDescription("Direct messages and important updates from your team");
+                channel.enableVibration(true);
+                channel.setShowBadge(true);
+                manager.createNotificationChannel(channel);
+            }
+        }
     }
 
     @Override

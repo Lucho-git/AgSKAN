@@ -31,6 +31,8 @@ export async function sendOneSignalPush(opts: {
   data?: Record<string, unknown>
   /** Optional top-level launch URL (web push fallback). Prefer `data.url`. */
   url?: string
+  /** Groups notifications by conversation (e.g. sender id) on iOS + Android. */
+  groupKey?: string
   appId?: string
   apiKey?: string
 }): Promise<OneSignalSendResult> {
@@ -54,6 +56,15 @@ export async function sendOneSignalPush(opts: {
     }
   }
 
+  // Optional: route to a specific Android channel (e.g. a high-importance
+  // "Messages" channel configured in the OneSignal dashboard) so phones show
+  // these as banner notifications. Set the secret once the channel exists.
+  const androidChannelId = Deno.env.get("ONESIGNAL_ANDROID_CHANNEL_ID")
+  // Channel created by the Android app itself (MainActivity) — high importance,
+  // so message pushes show as heads-up banners.
+  const existingAndroidChannelId =
+    Deno.env.get("ONESIGNAL_ANDROID_EXISTING_CHANNEL_ID") ?? "agskan_messages"
+
   const payload: Record<string, unknown> = {
     app_id: appId,
     target_channel: "push",
@@ -62,6 +73,11 @@ export async function sendOneSignalPush(opts: {
     contents: { en: opts.body },
     ...(opts.data ? { data: opts.data } : {}),
     ...(opts.url ? { url: opts.url } : {}),
+    ...(opts.groupKey
+      ? { thread_id: opts.groupKey, android_group: opts.groupKey }
+      : {}),
+    ...(androidChannelId ? { android_channel_id: androidChannelId } : {}),
+    existing_android_channel_id: existingAndroidChannelId,
   }
 
   try {
@@ -99,5 +115,41 @@ export async function sendOneSignalPush(opts: {
       recipients: 0,
       error: error instanceof Error ? error.message : String(error),
     }
+  }
+}
+
+/**
+ * Count a user's enabled push subscriptions.
+ *
+ * OneSignal's immediate `recipients` count on a send can read 0 while alias
+ * resolution is still in flight (the message still delivers). Looking the
+ * user up afterwards gives the real subscription state.
+ */
+export async function countOneSignalSubscriptions(opts: {
+  externalId?: string | null
+  appId?: string
+  apiKey?: string
+}): Promise<number> {
+  const appId = opts.appId ?? Deno.env.get("ONESIGNAL_APP_ID") ?? DEFAULT_APP_ID
+  const apiKey = opts.apiKey ?? Deno.env.get("ONESIGNAL_REST_API_KEY")
+  if (!apiKey || !opts.externalId) return 0
+  try {
+    const res = await fetch(
+      `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(opts.externalId)}`,
+      { headers: { Authorization: `Key ${apiKey}` } },
+    )
+    if (!res.ok) return 0
+    const json = await res.json()
+    const subs = Array.isArray(json?.subscriptions) ? json.subscriptions : []
+    return subs.filter(
+      (s: { type?: string; enabled?: boolean }) =>
+        s &&
+        typeof s.type === "string" &&
+        s.type.toLowerCase().includes("push") &&
+        s.enabled !== false,
+    ).length
+  } catch (error) {
+    console.warn("[onesignal] subscription lookup failed:", error)
+    return 0
   }
 }

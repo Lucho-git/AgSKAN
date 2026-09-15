@@ -2,6 +2,10 @@
 <script>
   import { createEventDispatcher, onDestroy } from "svelte"
   import { toast } from "svelte-sonner"
+  import {
+    locationPickStore,
+    locationPickHandledRecently,
+  } from "$lib/stores/locationPickStore"
   import * as turf from "@turf/turf"
   import { FTW_FIELD_SELECTION_MIN_ZOOM } from "./fieldSelectionConstants.js"
 
@@ -1213,6 +1217,13 @@
   }
 
   function handleFieldClick(event) {
+    if (
+      $locationPickStore.active ||
+      $locationPickStore.captured ||
+      locationPickHandledRecently()
+    ) {
+      return
+    }
     const features = getRenderedFieldFeatures(event.point)
     const feature = features?.[0] || event.features?.[0]
     if (!feature || !event.lngLat) return
@@ -1272,6 +1283,13 @@
       return
     }
     touchMoved = false
+    if (
+      $locationPickStore.active ||
+      $locationPickStore.captured ||
+      locationPickHandledRecently()
+    ) {
+      return
+    }
     if (!map?.getLayer || !map.getLayer(layerIds.fill)) return
 
     const features = getRenderedFieldFeatures(start.point)

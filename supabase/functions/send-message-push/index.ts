@@ -32,8 +32,8 @@ serve(async (req: Request) => {
 
     try {
         const { recipient_id, sender_name, body } = await req.json()
-        if (!recipient_id || !body) {
-            return json({ error: "Missing recipient_id or body" }, 400)
+        if (!recipient_id) {
+            return json({ error: "Missing recipient_id" }, 400)
         }
 
         // Caller must be a signed-in member of the same map.
@@ -74,8 +74,11 @@ serve(async (req: Request) => {
             console.error("[send-message-push] subscription lookup failed:", subsError)
         }
 
-        const title = `Message from ${sender_name || sender.full_name || "a team member"}`
-        const text = String(body).length > 160 ? `${String(body).slice(0, 157)}…` : String(body)
+        // Keep the title to just the sender's name so the message preview gets
+        // the rest of the space on the notification.
+        const title = sender_name || sender.full_name || "Team member"
+        const rawText = body ? String(body) : ""
+        const text = rawText || "📍 Shared a location"
 
         // 1) Web push (VAPID) to PWA/browser subscriptions.
         let sent = 0
@@ -92,7 +95,7 @@ serve(async (req: Request) => {
             const payload = JSON.stringify({
                 title,
                 body: text,
-                url: "https://www.skanfarming.com.au/account/mapviewer",
+                url: `https://www.skanfarming.com.au/account/mapviewer?messageFrom=${user.id}`,
             })
             const staleIds: number[] = []
             for (const row of webSubs) {
@@ -126,7 +129,12 @@ serve(async (req: Request) => {
             externalId: recipient_id,
             title,
             body: text,
-            data: { url: "/account/mapviewer", type: "map_message", sender_id: user.id },
+            data: {
+                url: `/account/mapviewer?messageFrom=${user.id}`,
+                type: "map_message",
+                sender_id: user.id,
+            },
+            groupKey: user.id,
         })
 
         return json({

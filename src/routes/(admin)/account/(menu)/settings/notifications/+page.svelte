@@ -75,16 +75,21 @@
         })
         return
       }
-      if (data?.success && data.recipients > 0) {
-        toast.success(
-          `Test notification sent to ${data.recipients} device${data.recipients === 1 ? "" : "s"}`,
-          {
-            description:
-              "It should arrive in your notification tray — lock screen too if the app is closed.",
-          },
-        )
+      // OneSignal's immediate recipient count can read 0 even when the
+      // message delivers (alias resolution is async). Treat an accepted send
+      // as success when we know a subscription exists — locally on this
+      // device, or from the server-side subscription lookup.
+      const registered =
+        (data?.recipients ?? 0) > 0 ||
+        (data?.subscriptions ?? 0) > 0 ||
+        !!pushState.subscriptionId
+      if (data?.success && registered) {
+        toast.success("Test notification sent", {
+          description:
+            "It should arrive in your notification tray — lock screen too if the app is closed.",
+        })
       } else if (data?.success) {
-        toast.warning("Sent, but no devices are registered yet", {
+        toast.warning("Sent, but this device hasn't registered yet", {
           description:
             "Tap “Enable notifications” above, wait a few seconds, then try again.",
         })

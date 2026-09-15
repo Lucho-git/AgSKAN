@@ -10,6 +10,7 @@
   import * as mapboxgl from "mapbox-gl"
   import * as turf from "@turf/turf"
   import InfoPanel from "./InfoPanel.svelte"
+  import { locationPickStore } from "$lib/stores/locationPickStore"
 
   export let map: mapboxgl.Map
   export let coordinatedEvents = false
@@ -589,6 +590,27 @@
     updateFieldSelection()
   }
 
+  // Highlight a field in the app's usual selection style WITHOUT toggling or
+  // opening the info panel — used by the message location picker so a tap
+  // visibly selects the field while the user reviews it on the map.
+  // Pass null to clear.
+  export function highlightField(fieldId) {
+    if (fieldId === null || fieldId === undefined) {
+      if (selectedFieldId !== null) {
+        selectedFieldId = null
+        showInfoPanel = false
+        updateFieldSelection()
+      }
+      return
+    }
+
+    if (selectedFieldId === fieldId) return
+
+    selectedFieldId = fieldId
+    showInfoPanel = false
+    updateFieldSelection()
+  }
+
   function updateFieldSelection(allowReload = true) {
     if (!canUseMap()) return
     if (!ensureFieldSelectionLayers(allowReload)) return
@@ -918,7 +940,10 @@
     selectedFieldId !== null ? $mapFieldsStore[selectedFieldId] : null
 </script>
 
-{#if selectedFieldId !== null && selectedField}
+{#if selectedFieldId !== null &&
+  selectedField &&
+  !$locationPickStore.active &&
+  !$locationPickStore.captured}
   <InfoPanel
     {selectedField}
     {selectedFieldId}
