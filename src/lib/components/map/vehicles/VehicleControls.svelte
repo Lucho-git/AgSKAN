@@ -11,7 +11,6 @@
     Activity,
     Users,
     Crosshair,
-    Target,
     ChevronDown,
     ChevronUp,
     X,
@@ -594,11 +593,24 @@
     closeRowMenu()
   }
 
-  function handleWindowClick() {
+  function handleWindowClick(event) {
     closeRowMenu()
     showSettings = false
     showDateMenu = false
     showLogTeamMenu = false
+    // Clicking anywhere outside the expanded menu closes it (same pattern as
+    // the row / settings popups). Its own trigger buttons are exempt so
+    // toggling them keeps working.
+    if (event?.type === "click" && showUnifiedMenu) {
+      const target = event.target
+      if (
+        !(target instanceof Element) ||
+        (!target.closest(".menu-expanded") &&
+          !target.closest("[data-vehicle-menu-trigger]"))
+      ) {
+        closeUnifiedMenu()
+      }
+    }
   }
 
   function handleWindowKeydown(event) {
@@ -607,6 +619,7 @@
       showSettings = false
       showDateMenu = false
       showLogTeamMenu = false
+      closeUnifiedMenu()
     }
   }
 
@@ -1492,6 +1505,7 @@
   <button
     class="fixed left-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
     style="bottom: calc(1rem + 130px);"
+    data-vehicle-menu-trigger
     on:click={toggleUnifiedMenu}
     aria-label="Open vehicle menu"
   >
@@ -1541,7 +1555,7 @@
           aria-label="Vehicle menu settings"
           title="Vehicle menu settings"
         >
-          <Settings size={15} class="text-white/80" />
+          <Settings size={18} class="text-white/80" />
         </button>
         <button
           class="header-icon-btn"
@@ -1549,7 +1563,7 @@
           aria-label="Close vehicle menu"
           title="Close menu"
         >
-          <X size={16} class="text-white/70" />
+          <X size={19} class="text-white/70" />
         </button>
       </div>
     </div>
@@ -1992,7 +2006,7 @@
       {/if}
     </div>
 
-    <!-- Sticky actions — pinned above the collapse bar (vehicles tab) -->
+    <!-- Bottom bar — invite + messages (vehicles tab) -->
     {#if activeTab === "vehicles"}
       <div class="flex flex-shrink-0 border-t border-white/10">
         {#if $profileStore?.user_type !== "viewer"}
@@ -2038,57 +2052,6 @@
         </button>
       </div>
     {/if}
-
-    <!-- Footer -->
-    <div
-      class="flex-shrink-0 border-t border-white/20 {isTrackingVehicle
-        ? 'bg-green-500/10'
-        : ''}"
-    >
-      {#if isTrackingVehicle && trackedVehicle}
-        <div class="flex items-center justify-between p-3">
-          <div class="flex items-center gap-2">
-            <Target size={14} class="animate-pulse text-green-300" />
-            <span class="text-xs text-green-300"
-              >Tracking {getTrackedVehicleName(trackedVehicle)}</span
-            >
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              on:click={toggleFirstPersonMode}
-              class="flex h-7 w-7 items-center justify-center rounded-full transition-all hover:scale-110 {isFirstPersonMode
-                ? 'bg-yellow-500/30 hover:bg-yellow-500/50'
-                : 'bg-white/20 hover:bg-white/30'}"
-              aria-label={isFirstPersonMode
-                ? "Disable first-person view"
-                : "Enable first-person view"}
-            >
-              {#if isFirstPersonMode}<Navigation
-                  size={12}
-                  class="text-yellow-300"
-                />{:else}<Navigation2 size={12} class="text-white/70" />{/if}
-            </button>
-            <button
-              on:click={closeUnifiedMenu}
-              class="flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/10"
-              aria-label="Collapse to tracking bar"
-              title="Minimize to tracking bar"
-            >
-              <ChevronDown size={12} class="text-white/70" />
-            </button>
-          </div>
-        </div>
-      {:else}
-        <button
-          class="flex w-full items-center justify-center gap-2 p-3 transition-colors hover:bg-white/10 active:bg-white/20"
-          on:click={closeUnifiedMenu}
-          aria-label="Collapse menu"
-        >
-          <ChevronDown size={16} class="text-white/70" />
-          <span class="text-xs text-white/60">Collapse</span>
-        </button>
-      {/if}
-    </div>
   </div>
 {/if}
 
@@ -2101,6 +2064,7 @@
     <!-- Expand back to full menu (Users icon + count) -->
     <button
       class="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+      data-vehicle-menu-trigger
       on:click={toggleUnifiedMenu}
       title="Open vehicle menu"
       aria-label="Open vehicle menu"
@@ -2122,6 +2086,7 @@
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       class="flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-white/10"
+      data-vehicle-menu-trigger
       on:click={toggleUnifiedMenu}
       title="Open vehicle menu"
     >
@@ -2486,8 +2451,8 @@
 
   .header-icon-btn {
     display: flex;
-    height: 30px;
-    width: 30px;
+    height: 36px;
+    width: 36px;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;

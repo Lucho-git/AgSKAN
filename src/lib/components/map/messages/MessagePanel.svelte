@@ -83,6 +83,26 @@
       ? (recipient?.name || resolvedName || "").trim().split(/\s+/)[0]
       : "") || ""
 
+  // People on this map (for the inbox "New message" strip) — online first,
+  // excluding anyone who already has a message history with us.
+  $: convoContactIds = new Set(convos.map((c) => c.contactId))
+  $: newMessagePeople = ($otherVehiclesStore || [])
+    .filter(
+      (v) =>
+        v?.vehicle_id &&
+        v.vehicle_id !== me &&
+        !convoContactIds.has(v.vehicle_id),
+    )
+    .map((v) => {
+      const name = v.full_name || "Team member"
+      return { id: v.vehicle_id, name, first: name.split(/\s+/)[0] }
+    })
+    .sort((a, b) => {
+      const ao = $mapPresenceStore.has(a.id) ? 0 : 1
+      const bo = $mapPresenceStore.has(b.id) ? 0 : 1
+      return ao - bo || a.name.localeCompare(b.name)
+    })
+
   // Free-form sheet sizing: the sheet stays where you leave it. While
   // dragging it follows the finger 1:1 (down shrinks, up grows); on release
   // the height is kept unless it ended up below the close threshold.
@@ -652,6 +672,33 @@
     {#if view === "inbox"}
       <!-- Inbox: everyone I've exchanged messages with -->
       <div class="msg-panel-list">
+        {#if newMessagePeople.length > 0}
+          <!-- New message: pick any person on the map -->
+          <div class="msg-new-section">
+            <p class="msg-new-title">New message</p>
+            <div class="msg-new-strip">
+              {#each newMessagePeople as person (person.id)}
+                <button
+                  class="msg-new-person"
+                  on:click={() =>
+                    openMessagePanel({ id: person.id, name: person.name })}
+                  title={person.name}
+                >
+                  <span
+                    class="msg-avatar"
+                    style="background: {avatarColor(person.id)}"
+                  >
+                    {initials(person.name)}
+                    {#if $mapPresenceStore.has(person.id)}
+                      <span class="msg-avatar-online"></span>
+                    {/if}
+                  </span>
+                  <span class="msg-new-name">{person.first}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
         {#if loadingList && convos.length === 0}
           <div
             class="flex items-center justify-center gap-2 py-8 text-white/50"
@@ -661,8 +708,7 @@
           </div>
         {:else if convos.length === 0}
           <p class="py-8 text-center text-[11px] text-white/45">
-            No conversations yet.<br />Message someone from the people menu to
-            start one.
+            No conversations yet.<br />Pick someone above to start one.
           </p>
         {:else}
           {#each convos as convo (convo.contactId)}
@@ -1042,6 +1088,52 @@
     border-radius: 9999px;
     border: 2px solid rgba(10, 10, 12, 0.95);
     background: #34d399;
+  }
+
+  /* ── Inbox: new-message people strip ── */
+  .msg-new-section {
+    margin: 2px 0 8px;
+  }
+
+  .msg-new-title {
+    margin: 0 0 6px 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .msg-new-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .msg-new-person {
+    display: flex;
+    width: 56px;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .msg-new-person .msg-avatar {
+    height: 34px;
+    width: 34px;
+    font-size: 12px;
+  }
+
+  .msg-new-name {
+    width: 100%;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+    color: rgba(255, 255, 255, 0.75);
   }
 
   .msg-convo-top {
