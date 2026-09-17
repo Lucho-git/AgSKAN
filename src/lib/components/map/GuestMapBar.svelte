@@ -6,7 +6,6 @@
   import {
     ChevronDown,
     DoorOpen,
-    LogOut,
     MapPin,
     UserPlus,
   } from "lucide-svelte"
@@ -14,11 +13,8 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
-  import { resetMapStores } from "$lib/stores/resetMapStores"
-  import { mapApi } from "$lib/api/mapApi"
 
   let menuOpen = false
-  let leaving = false
 
   $: mapId = $profileStore?.master_map_id
   $: mapName = $connectedMapStore?.map_name || "Shared map"
@@ -64,37 +60,12 @@
     })
   }
 
-  // Leave map = disconnect this guest from the shared map (clears
-  // master_map_id server-side) and return them to the guest home.
-  async function leaveMap() {
-    if (leaving) return
-    leaving = true
+  // Leave map = head back to the guest home. Deliberately does NOT
+  // disconnect (no clearing master_map_id) — a guest keeps their access and
+  // can reopen the map until their invite window expires.
+  function leaveMap() {
     closeMenu()
-    try {
-      const result = await mapApi.disconnectFromMap()
-      if (result.success) {
-        resetMapStores()
-        toast.success("Left the map")
-        await goto("/guest/home")
-      } else {
-        toast.error(`Failed to leave: ${result.message}`)
-      }
-    } catch (error) {
-      toast.error(`Error: ${error.message}`)
-    } finally {
-      leaving = false
-    }
-  }
-
-  async function signOut() {
-    closeMenu()
-    try {
-      await supabase.auth.signOut()
-      goto("/")
-    } catch (error) {
-      console.error("Sign out failed:", error)
-      toast.error("Failed to sign out")
-    }
+    goto("/guest/home")
   }
 </script>
 
@@ -151,18 +122,9 @@
         <UserPlus size={13} />
         <span>Create account</span>
       </button>
-      <button
-        class="guest-menu-item"
-        role="menuitem"
-        on:click={leaveMap}
-        disabled={leaving}
-      >
+      <button class="guest-menu-item" role="menuitem" on:click={leaveMap}>
         <DoorOpen size={13} />
-        <span>{leaving ? "Leaving…" : "Leave map"}</span>
-      </button>
-      <button class="guest-menu-item" role="menuitem" on:click={signOut}>
-        <LogOut size={13} />
-        <span>Sign out</span>
+        <span>Leave map</span>
       </button>
     </div>
   {/if}
