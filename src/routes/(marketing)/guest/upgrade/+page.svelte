@@ -1,10 +1,14 @@
 <!-- src/routes/(marketing)/guest/upgrade/+page.svelte -->
-<!-- In-app signup for guests whose invite was created with "Keep their access
-     after signup" ticked (profiles.retain_after_signup). Converts the
-     anonymous guest session into a real account via auth.updateUser — the
-     user id stays the same, so the profile (and their membership of the map)
-     carries over and they stay joined. The usual signup flow is used for
-     guests without the retain flag (see $lib/utils/guestUpgrade). -->
+<!-- Guest signup page — adapts to the invite's "Keep their access after
+     signup" checkbox (profiles.retain_after_signup):
+       - ticked  → upgrade the anonymous guest session into a real account in
+                   place (auth.updateUser keeps the same user id, so the
+                   profile + map membership carry over) and make the access
+                   permanent.
+       - unticked → the guest STAYS on the map while filling the form; only
+                   on SUBMIT are they removed (map disconnect + session end)
+                   and a fresh account is created (signUp), heading toward the
+                   usual /account setup. -->
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
@@ -16,6 +20,8 @@
     Sparkles,
   } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
+  import { mapApi } from "$lib/api/mapApi"
+  import { updateOrCreateProfile } from "$lib/helpers/authHelpers"
 
   let step: "loading" | "form" | "saving" | "confirm" | "done" | "error" =
     "loading"
@@ -23,6 +29,7 @@
   let fullName = ""
   let email = ""
   let password = ""
+  let keepAccess = true
   let errorMessage = ""
 
   onMount(async () => {
@@ -44,11 +51,17 @@
         .eq("id", uid)
         .single()
 
-      // No map, or the invite wasn't marked to keep access after signup.
-      if (!profile?.master_map_id || !profile?.retain_after_signup) {
+      // No map → nothing to sign up for.
+      if (!profile?.master_map_id) {
         goto("/guest/home")
         return
       }
+
+      // Ticked invite → the new account keeps the map access (upgrade this
+      // session in place). Unticked → fresh signup: the guest STAYS on the
+      // map until they submit the form, then the guest session + map
+      // attachment are cleared and a brand-new account is created.
+      keepAccess = !!profile.retain_after_signup
 
       fullName =
         profile.full_name && profile.full_name !== "Visitor"
@@ -88,48 +101,112 @@
         )
       }
 
-      // Upgrade THIS anonymous session into a real account. Same user id, so
-      // the guest profile (and their place on this map) carries over.
-      const { data, error } = await supabase.auth.updateUser({
-        email: email.trim(),
-        password,
-      })
-      if (error) {
-        const message = error.message || ""
-        if (/already|registered|exists/i.test(message)) {
-          throw new Error(
-            "That email already has an AgSKAN account — sign in to it instead, or use a different email.",
-          )
-        }
-        throw error
-      }
-
-      // This path exists because the invite ticked "keep their access after
-      // signup" — make the map access permanent (no guest window expiring).
-      const patch: Record<string, unknown> = { access_expires_at: null }
-      if (fullName.trim()) patch.full_name = fullName.trim()
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update(patch)
-        .eq("id", uid)
-      if (profileError) {
-        console.warn(
-          "Could not make map access permanent:",
-          profileError.message,
-        )
-      }
-
-      // With email confirmation enabled the new email stays pending until
-      // the link is clicked — access keeps working in the meantime.
-      const pendingConfirmation = !!data?.user?.new_email
-      step = pendingConfirmation ? "confirm" : "done"
-      if (!pendingConfirmation) {
-        setTimeout(() => goto("/account/mapviewer"), 1400)
+      if (keepAccess) {
+        await upgradeInPlace(uid)
+      } else {
+        await signUpFresh()
       }
     } catch (error: any) {
       errorMessage = error?.message || "Could not create your account."
       step = "error"
     }
+  }
+
+  // Ticked invite: upgrade THIS anonymous session into a real account. Same
+  // user id, so the guest profile (and their place on this map) carries over.
+  async function upgradeInPlace(uid: string) {
+    const { data, error } = await supabase.auth.updateUser({
+      email: email.trim(),
+      password,
+    })
+    if (error) throw friendlyAuthError(error)
+
+    // This path exists because the invite ticked "keep their access after
+    // signup" — make the map access permanent (no guest window expiring).
+    const patch: Record<string, unknown> = { access_expires_at: null }
+    if (fullName.trim()) patch.full_name = fullName.trim()
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", uid)
+    if (profileError) {
+      console.warn("Could not make map access permanent:", profileError.message)
+    }
+
+    // With email confirmation enabled the new email stays pending until the
+    // link is clicked — access keeps working in the meantime.
+    const pendingConfirmation = !!data?.user?.new_email
+    step = pendingConfirmation ? "confirm" : "done"
+    if (!pendingConfirmation) {
+      setTimeout(() => goto("/account/mapviewer"), 1400)
+    }
+  }
+
+  // Unticked invite: the guest does NOT keep the map. Only NOW — after they
+  // submitted the form — do we take them off the map (people list) and end
+  // the anonymous session, then create a fresh account that goes through the
+  // usual signup outcome (/account setup).
+  async function signUpFresh() {
+    try {
+      const result = await mapApi.disconnectFromMap()
+      if (!result.success) {
+        console.warn("Guest disconnect before signup failed:", result.message)
+      }
+    } catch (error) {
+      console.warn("Guest disconnect before signup failed:", error)
+    }
+    try {
+      await supabase.auth.signOut({ scope: "local" })
+    } catch (error) {
+      console.warn("Guest sign-out before signup failed:", error)
+    }
+
+    const options: Record<string, unknown> = {
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/account`,
+    }
+    if (fullName.trim()) options.data = { full_name: fullName.trim() }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options,
+    })
+    if (error) throw friendlyAuthError(error)
+
+    // With confirmation on, an already-registered email comes back as a
+    // user with no identities instead of an error.
+    if (data?.user && data.user.identities?.length === 0) {
+      throw new Error(
+        "That email already has an AgSKAN account — sign in to it instead, or use a different email.",
+      )
+    }
+
+    if (data?.session) {
+      // Signed in immediately (email confirmation off) — provision the
+      // profile exactly like the usual signup path does, then head into the
+      // standard account setup.
+      try {
+        await updateOrCreateProfile(data.session)
+      } catch (error) {
+        console.warn("Profile provisioning failed:", error)
+      }
+      step = "done"
+      setTimeout(() => goto("/account"), 1400)
+    } else {
+      // Confirmation email sent — its link finishes setup and lands on
+      // /account.
+      step = "confirm"
+    }
+  }
+
+  function friendlyAuthError(error: any) {
+    const message = error?.message || ""
+    if (/already|registered|exists/i.test(message)) {
+      return new Error(
+        "That email already has an AgSKAN account — sign in to it instead, or use a different email.",
+      )
+    }
+    return error
   }
 </script>
 
@@ -158,11 +235,21 @@
           Create your account
         </p>
         <h1 class="text-xl font-bold text-base-content">
-          Keep your access to {mapName}
+          {#if keepAccess}
+            Keep your access to {mapName}
+          {:else}
+            Create your AgSKAN account
+          {/if}
         </h1>
         <p class="mt-1 text-sm text-base-content/60">
-          This invite lets you stay on the map after you create an account —
-          your access continues without a guest window.
+          {#if keepAccess}
+            This invite lets you stay on the map after you create an account —
+            your access continues without a guest window.
+          {:else}
+            Heads up — this guest invite doesn't include post-signup access.
+            Creating an account will remove you from {mapName} as a guest and
+            set you up with your own account.
+          {/if}
         </p>
 
         <div class="mt-4 w-full text-left">
@@ -249,14 +336,18 @@
         </div>
         <h1 class="text-xl font-bold text-base-content">Confirm your email</h1>
         <p class="text-sm text-base-content/60">
-          We've sent a confirmation link to <strong>{email}</strong>. Your map
-          access keeps working while you confirm.
+          We've sent a confirmation link to <strong>{email}</strong>.
+          {#if keepAccess}
+            Your map access keeps working while you confirm.
+          {:else}
+            Click it to finish setting up your account.
+          {/if}
         </p>
         <button
           class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
-          on:click={() => goto("/account/mapviewer")}
+          on:click={() => goto(keepAccess ? "/account/mapviewer" : "/login")}
         >
-          Continue to the map
+          {keepAccess ? "Continue to the map" : "Go to sign in"}
           <ArrowRight
             size={16}
             class="transition-transform group-hover:translate-x-1"
@@ -272,8 +363,12 @@
         </div>
         <h1 class="text-xl font-bold text-base-content">You're all set</h1>
         <p class="text-sm text-base-content/60">
-          Your account is created and you're staying on {mapName}. Taking you
-          to the map…
+          {#if keepAccess}
+            Your account is created and you're staying on {mapName}. Taking
+            you to the map…
+          {:else}
+            Your account is ready. Taking you through account setup…
+          {/if}
         </p>
         <Loader2 size={18} class="animate-spin text-base-content/50" />
       </div>

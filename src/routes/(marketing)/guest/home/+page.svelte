@@ -18,6 +18,8 @@
   let mapName = ""
   let accessExpiresAt: string | null = null
   let hasMap = false
+  // Invite flag: does creating an account keep this map's access?
+  let keepAccess = false
 
   let now = Date.now()
   let tickTimer: ReturnType<typeof setInterval> | null = null
@@ -67,13 +69,17 @@
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, master_map_id, access_expires_at, map_role")
+        .select(
+          "full_name, master_map_id, access_expires_at, map_role, retain_after_signup",
+        )
         .eq("id", uid)
         .single()
 
       guestName = profile?.full_name || ""
       accessExpiresAt = profile?.access_expires_at || null
       hasMap = !!profile?.master_map_id
+      // Inherited from the invite's "Keep their access after signup" box.
+      keepAccess = !!profile?.retain_after_signup
 
       // Map name: direct read if allowed, otherwise the name cached by /guest.
       let name = ""
@@ -171,11 +177,18 @@
           class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
         >
           <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
-            <Sparkles size={15} class="text-amber-500" /> Keep your access
+            <Sparkles size={15} class="text-amber-500" />
+            {keepAccess ? "Keep your access" : "Create your own account"}
           </p>
           <p class="mt-1 text-xs text-base-content/60">
-            Create a free account to keep viewing this map beyond your guest
-            window, save your name and settings, and get your own maps.
+            {#if keepAccess}
+              Create a free account to keep viewing this map beyond your guest
+              window, save your name and settings, and get your own maps.
+            {:else}
+              This guest invite doesn't carry over after signup. Creating an
+              account takes you off {mapName} and sets you up with your own
+              AgSKAN account.
+            {/if}
           </p>
           <button
             class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
