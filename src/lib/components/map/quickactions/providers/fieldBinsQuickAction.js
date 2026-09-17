@@ -21,7 +21,9 @@ export function createFieldBinsQuickAction({ openBin }) {
   return {
     id: "field-bins",
     order: 10,
-    getItems({ markers, glyph }) {
+    getItems({ markers, glyph, canEdit }) {
+      // Read-only guests never get the bin rail section.
+      if (!canEdit) return []
       return (markers || [])
         .filter(
           (m) => isGrainBinIcon(m.iconClass) && m.binShowAlways !== false,

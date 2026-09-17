@@ -9,11 +9,17 @@
 
   /** @type {Array<{id: string, label: string, title?: string, accent?: string, bg?: string, iconSvg?: string, icon?: any, fill?: number|null, text?: string|null, onActivate?: () => void}>} */
   export let items = []
+
+  /** Distance of the rail's bottom edge from the viewport bottom (px).
+      Default 206 = sitting above the people button; guest mode passes a
+      smaller value because the (HUD-less) people button sits lower. */
+  export let bottomOffset = 206
 </script>
 
 {#if items.length}
   <div
     class="qa-rail"
+    style="--qa-rail-offset: {bottomOffset}px;"
     role="toolbar"
     aria-orientation="vertical"
     aria-label="Map quick actions"
@@ -62,7 +68,7 @@
   .qa-rail {
     position: fixed;
     left: calc(1rem + 5px);
-    bottom: calc(1rem + 206px);
+    bottom: calc(1rem + var(--qa-rail-offset, 206px));
     z-index: 40;
     display: flex;
     flex-direction: column;

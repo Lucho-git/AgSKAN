@@ -105,7 +105,10 @@
 </script>
 
 {#if railVisible}
-  <QuickActionRail {items} />
+  <QuickActionRail
+    {items}
+    bottomOffset={$profileStore?.user_type === "viewer" ? 76 : 206}
+  />
 {/if}
 
 {#if openBin}

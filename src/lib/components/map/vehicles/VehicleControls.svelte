@@ -1490,6 +1490,12 @@
   $: shouldShowTeamButton =
     !showUnifiedMenu && (!isTrackingVehicle || !trackedVehicle)
 
+  // Guests: the vehicle HUD (bottom-left) is hidden in viewer mode, so the
+  // people button drops into the freed space — every menu anchored to it
+  // follows via peopleButtonBottom.
+  $: isGuestViewer = $profileStore?.user_type === "viewer"
+  $: peopleButtonBottom = isGuestViewer ? "1rem" : "calc(1rem + 130px)"
+
   // Count of actively online vehicles (updated in 5-min window)
   $: onlineCount = (() => {
     const others = getSafeArray($otherVehiclesStore).filter((vehicle) =>
@@ -1505,7 +1511,7 @@
 {#if shouldShowTeamButton}
   <button
     class="fixed left-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-black/70 text-white backdrop-blur transition-all hover:scale-110 hover:bg-black/90"
-    style="bottom: calc(1rem + 130px);"
+    style="bottom: {peopleButtonBottom};"
     data-vehicle-menu-trigger
     on:click={toggleUnifiedMenu}
     aria-label="Open vehicle menu"
@@ -1533,7 +1539,7 @@
 {#if showUnifiedMenu}
   <div
     class="menu-expanded fixed left-4 z-50 flex flex-col overflow-hidden rounded-xl bg-black/70 text-white shadow-2xl backdrop-blur-md"
-    style="bottom: calc(1rem + 130px); width: 320px; max-width: calc(100vw - 1.5rem); height: min(65vh, 480px); transform-origin: bottom left;"
+    style="bottom: {peopleButtonBottom}; width: 320px; max-width: calc(100vw - 1.5rem); height: min(65vh, 480px); transform-origin: bottom left;"
   >
     <!-- Header: tabs + settings + close -->
     <div class="flex-shrink-0 border-b border-white/20">
@@ -2080,7 +2086,7 @@
 {#if isTrackingVehicle && !showUnifiedMenu && trackedVehicle}
   <div
     class="tracking-bar fixed left-4 z-50 flex h-10 items-center gap-1 rounded-full bg-black/70 px-1 text-white shadow-lg backdrop-blur"
-    style="bottom: calc(1rem + 130px); transform-origin: left center;"
+    style="bottom: {peopleButtonBottom}; transform-origin: left center;"
   >
     <!-- Expand back to full menu (Users icon + count) -->
     <button

@@ -609,6 +609,11 @@
     return $profileStore?.user_type === "viewer"
   }
 
+  // Reactive mirror for template use — a bare isSelfGuest() call in the
+  // markup hides the $profileStore dependency, so the HUD would never
+  // re-evaluate once the profile finishes loading.
+  $: isSelfViewer = $profileStore?.user_type === "viewer"
+
   // 3-day inactivity threshold (ms)
   const INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000
 
@@ -3526,16 +3531,18 @@
   on:viewTrail={handleViewTrail}
 />
 
-<VehicleCompassButton
-  {onOpenVehicleControls}
-  {currentSpeed}
-  {mapBearing}
-  vehicles={vehicleList}
-  onTrueNorth={handleResetNorth}
-  onFirstPersonVehicle={handleFirstPersonVehicle}
-  onFlashMe={handleOpenFlashPanel}
-  onBroadcast={handleBroadcast}
-/>
+{#if !isSelfViewer}
+  <VehicleCompassButton
+    {onOpenVehicleControls}
+    {currentSpeed}
+    {mapBearing}
+    vehicles={vehicleList}
+    onTrueNorth={handleResetNorth}
+    onFirstPersonVehicle={handleFirstPersonVehicle}
+    onFlashMe={handleOpenFlashPanel}
+    onBroadcast={handleBroadcast}
+  />
+{/if}
 
 <NorthResetToast
   {mapBearing}
