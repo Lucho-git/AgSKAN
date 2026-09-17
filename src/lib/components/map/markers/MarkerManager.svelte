@@ -20,10 +20,8 @@
   import { userVehicleStore } from "$lib/stores/vehicleStore"
 
   import { onMount, onDestroy, getContext } from "svelte"
-  import { get } from "svelte/store"
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
-  import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import MarkerEditPanel from "./MarkerEditPanel.svelte"
   import MarkerPlacementPanel from "./MarkerPlacementPanel.svelte"
   import SiloMarkerPanel from "./SiloMarkerPanel.svelte"
@@ -43,7 +41,8 @@
     PICKABLE_MARKER_COLORS,
     SILO_COLOR_DEFAULT,
     siloColorKey,
-    GRAIN_BIN_ICON_CLASS,
+    GRAIN_BIN_ICON_CLASSES,
+    isGrainBinIcon,
     isNoBackgroundIcon,
     paletteVariantSuffix,
   } from "./markerPalette"
@@ -635,71 +634,6 @@
     return { width: w, height: h, data: ctx.getImageData(0, 0, w, h).data }
   }
 
-  // Compact silo glyph shown inside the offscreen bin-tracking badge
-  // (tinted by currentColor = the bin's grain colour).
-  const SILO_TRACK_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2c-4 0-7 2-7 5v10a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4V7c0-3-3-5-7-5zM7 7c0-1.7 2.2-3 5-3s5 1.3 5 3v2H7V7z"/></svg>`
-
-  // When "Show bins always" is on, register every silo in the attention
-  // store so the EdgeIndicator pins an offscreen circle at the map edge with
-  // the bin's fill bar + colour. When off, all bin badges are removed.
-  // NOTE: dependencies must be passed as explicit arguments — Svelte 4 only
-  // tracks variables referenced directly in the reactive statement, so a
-  // bare `$: syncBinTracking()` would run once at init and never again.
-  $: syncBinTracking(
-    $userSettingsStore?.showBinsAlways ?? false,
-    $confirmedMarkersStore,
-    markersInitialized,
-    map,
-  )
-
-  function syncBinTracking(enabled, markers, ready, mapReady) {
-    if (!ready || !mapReady) {
-      console.log(
-        `[bin-tracking] skipped (markersInitialized=${ready}, map=${!!mapReady})`,
-      )
-      return
-    }
-    const silos = (markers || []).filter(
-      (m) => (m.iconClass || "") === GRAIN_BIN_ICON_CLASS,
-    )
-    const wanted = new Set(
-      enabled ? silos.map((s) => `silo-track-${s.id}`) : [],
-    )
-    console.log(
-      `[bin-tracking] enabled=${enabled}, silos=${silos.length}, wanted=${wanted.size}`,
-    )
-
-    // Remove bin badges that are no longer wanted (setting off, or marker
-    // deleted / no longer a silo).
-    const current = get(mapAttentionStore)
-    for (const item of current) {
-      if (
-        item.id &&
-        item.id.startsWith("silo-track-") &&
-        !wanted.has(item.id)
-      ) {
-        mapAttentionStore.remove(item.id)
-      }
-    }
-    if (!enabled) return
-
-    for (const s of silos) {
-      const colorDef = markerColor(siloColorKey(s.grainColor), "original")
-      mapAttentionStore.add({
-        id: `silo-track-${s.id}`,
-        coordinates: s.coordinates,
-        color: colorDef.dark,
-        label: s.notes?.trim() || "Field Bin",
-        barLevel: s.siloFill ?? 0,
-        barColor: colorDef.dark,
-        iconSvg: SILO_TRACK_ICON_SVG,
-      })
-      console.log(
-        `[bin-tracking] registered ${s.id} (${colorDef.label}, fill=${s.siloFill})`,
-      )
-    }
-  }
-
   // Register gauge images for every palette colour × 0..100 in 10% steps.
   function registerSiloBarImages() {
     if (!map) return
@@ -879,7 +813,11 @@
         minzoom: 11,
         filter: [
           "all",
-          ["==", ["get", "iconClass"], GRAIN_BIN_ICON_CLASS],
+          [
+            "in",
+            ["get", "iconClass"],
+            ["literal", [...GRAIN_BIN_ICON_CLASSES]],
+          ],
           ["==", ["get", "confirmed"], true],
           // The SELECTED silo's label lives in the DOM selection overlay
           // (it pops with the icon instead of being covered by it).
@@ -958,7 +896,7 @@
       // grain colour (from the same standard palette, legacy keys mapped) is
       // their only colour, and they render in "original" mode so the global
       // marker style / default-colour mode can never affect them.
-      const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
+      const isSilo = isGrainBinIcon(marker.iconClass)
       // A marker without its own colour (or set to Default) uses the
       // selected style's default colour. The pin keeps its original look
       // unless given an explicit colour.
@@ -1031,21 +969,21 @@
           hasNotes: !!marker.notes,
           // Silo fill gauge — level + grain colour derived from the marker.
           barImage:
-            marker.iconClass === GRAIN_BIN_ICON_CLASS
+            isGrainBinIcon(marker.iconClass)
               ? `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
                   marker.siloFill,
                 )}`
               : null,
-          barOffset: marker.iconClass === GRAIN_BIN_ICON_CLASS ? [0, 56] : null,
+          barOffset: isGrainBinIcon(marker.iconClass) ? [0, 56] : null,
           // Silo contents label shown on the map (like the note labels),
           // truncated to 20 chars so long contents don't sprawl.
           grainLabel:
-            marker.iconClass === GRAIN_BIN_ICON_CLASS
+            isGrainBinIcon(marker.iconClass)
               ? truncateContents(marker.grainType)
               : null,
           // Push the grain label higher when the silo also has a note label.
           grainOffset:
-            marker.iconClass === GRAIN_BIN_ICON_CLASS
+            isGrainBinIcon(marker.iconClass)
               ? marker.notes
                 ? [0, -3.2]
                 : [0, -1.6]
@@ -1064,14 +1002,14 @@
     for (const f of features) {
       expanded.push(f)
       const p = f.properties
-      if (p.iconClass === GRAIN_BIN_ICON_CLASS) {
+      if (isGrainBinIcon(p.iconClass)) {
         expanded.push({
           type: "Feature",
           geometry: f.geometry,
           properties: {
             id: p.id,
             isBar: true,
-            iconClass: GRAIN_BIN_ICON_CLASS,
+            iconClass: p.iconClass,
             // Emit the bar for SELECTED silos too (selected=true → hidden by
             // the layer filter). Otherwise a refresh while selected (e.g.
             // commitSiloMove during a move) DROPS the bar feature and
@@ -1256,7 +1194,7 @@
 
     data.features = data.features.map((f) => {
       const isTarget = f.properties.id === markerId
-      const isSilo = f.properties.iconClass === GRAIN_BIN_ICON_CLASS
+      const isSilo = isGrainBinIcon(f.properties.iconClass)
       return {
         ...f,
         properties: {
@@ -1290,7 +1228,7 @@
     const marker = ($confirmedMarkersStore || []).find(
       (/** @type {any} */ m) => m.id === markerId,
     )
-    if (!marker || marker.iconClass !== GRAIN_BIN_ICON_CLASS) return
+    if (!marker || !isGrainBinIcon(marker.iconClass)) return
     const source = map.getSource("markers")
     const data = source._data
     data.features = data.features.map((/** @type {any} */ f) =>
@@ -1377,7 +1315,7 @@
   function effectiveColorForMarker(marker) {
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = !marker.iconClass || marker.iconClass === "default"
-    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
+    const isSilo = isGrainBinIcon(marker.iconClass)
     let colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1436,7 +1374,7 @@
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
-    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
+    const isSilo = isGrainBinIcon(marker.iconClass)
     const colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1521,7 +1459,7 @@
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
-    const isSilo = marker.iconClass === GRAIN_BIN_ICON_CLASS
+    const isSilo = isGrainBinIcon(marker.iconClass)
     const colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1848,7 +1786,7 @@
     // symbol-layer bar is hidden for the selected silo), so compute its
     // fill + grain colour here — it pops with the icon, never covered. The
     // bar mirrors the symbol-layer gauge (light→dark gradient).
-    const isSilo = effectiveMarker.iconClass === GRAIN_BIN_ICON_CLASS
+    const isSilo = isGrainBinIcon(effectiveMarker.iconClass)
     const siloInfo = isSilo
       ? (() => {
           const def = markerColor(
@@ -2575,7 +2513,7 @@
     ? $confirmedMarkersStore.find((m) => m.id === $selectedMarkerStore.id) ||
       null
     : null
-  $: selectedIsSilo = (selectedMarker?.iconClass || "") === GRAIN_BIN_ICON_CLASS
+  $: selectedIsSilo = isGrainBinIcon(selectedMarker?.iconClass)
   // The new on-map overlay marker menu (MarkerOverlayPanel) applies to all
   // non-silo markers when the user setting is enabled; otherwise markers use
   // the classic MarkerEditPanel. Silos always use SiloMarkerPanel.

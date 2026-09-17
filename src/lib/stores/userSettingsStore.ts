@@ -16,7 +16,6 @@ const defaultSettings = {
     autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
     overlayMarkerMenuEnabled: true, // Marker menu style: on-map panel by default
     overlayPlacementMenuEnabled: true, // Placement menu style: on-map panel by default
-    showBinsAlways: false, // Show offscreen tracking circles for all silo bins (default off)
     showVehiclesAlways: true, // Show offscreen tracking dots for recently-active vehicles (default on)
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys

@@ -10,6 +10,7 @@
   import {
     userVehicleStore,
     userVehicleTrailing,
+    otherVehiclesStore,
   } from "$lib/stores/vehicleStore"
 
   import {
@@ -38,6 +39,8 @@
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
   import { operatorStore } from "$lib/stores/operatorStore"
   import { operatorApi } from "$lib/api/operatorApi"
+  import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
+  import { parseVehicleCoords } from "$lib/utils/vehicleCoords"
   import SprayRecordConfirm from "./SprayRecordConfirm.svelte"
   import OperatorPicker from "./OperatorPicker.svelte"
   import {
@@ -326,7 +329,7 @@
 
       userVehicleTrailing.set(true)
 
-      toast.success("Trail recording started", {
+      toast.success("Started trailing", {
         description: `${result.trail.trail_width}m ${result.trail.trail_color.toLowerCase()} trail`,
       })
     } catch (error) {
@@ -682,7 +685,7 @@
             ? `Syncing ${pendingCoords.length} points and closing trail...`
             : "Closing trail...",
         success: (result) => {
-          return `Trail saved (${result.pointCount} points)`
+          return `Finished a trail (${result.pointCount} points saved)`
         },
         error: (error) => {
           if (error.message === "QUEUED") {
@@ -1352,6 +1355,9 @@
       `🟢 [TRAIL-RT] New trail detected: ${trailData.id?.slice(0, 8)} from vehicle ${trailData.vehicle_id?.slice(0, 8)}`,
     )
 
+    // Let the team know a vehicle started trailing (with its icon).
+    announceTrailActivity("start", trailData)
+
     if (!$otherActiveTrailStore?.length) {
       otherActiveTrailStore.set([])
     }
@@ -1386,6 +1392,13 @@
     }
 
     console.log(`🟡 [TRAIL-RT] Trail closed: ${trailData.id?.slice(0, 8)}`)
+
+    // Team announcement — deduped because metrics backfill can re-fire the
+    // update with end_time still set.
+    if (!announcedTrailCloses.has(trailData.id)) {
+      announcedTrailCloses.add(trailData.id)
+      announceTrailActivity("end", trailData)
+    }
 
     fetchTrailAsGeoJSON(trailData.id)
       .then((geoJsonPath) => {
@@ -1443,6 +1456,74 @@
     return pathData
   }
 
+  // ── Remote trail activity announcements ────────────────────────────────
+  // Toast the team when another vehicle starts/finishes trailing. House
+  // format: title = the operator's name, subtitle = what happened
+  // ("Started trailing", "Ended the trail - 5 hours"), left icon = their
+  // vehicle + a Route glyph, with a Locate action when we know where the
+  // machine is.
+  const announcedTrailCloses = new Set()
+
+  function vehicleCoordsFor(vehicleId) {
+    const vehicle = $otherVehiclesStore?.find(
+      (v) => v.vehicle_id === vehicleId,
+    )
+    const parsed = parseVehicleCoords(vehicle?.coordinates)
+    return parsed ? [parsed.longitude, parsed.latitude] : null
+  }
+
+  // "45 min", "5 hours" — duration detail for the "Ended the trail" toast.
+  function formatTrailDuration(startTime, endTime) {
+    const start = startTime ? new Date(startTime).getTime() : NaN
+    const end = endTime ? new Date(endTime).getTime() : NaN
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      return null
+    }
+    const minutes = Math.max(1, Math.round((end - start) / 60000))
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.round(((end - start) / 3600000) * 10) / 10
+    return `${hours} hour${hours === 1 ? "" : "s"}`
+  }
+
+  // phase: "start" | "end" — the subtitle carries the action + details.
+  function announceTrailActivity(phase, trailData) {
+    if (!trailData?.vehicle_id) return
+    const profile = $mapActivityStore?.connected_profiles?.find(
+      (p) => p.id === trailData.vehicle_id,
+    )
+    const name = profile?.full_name || trailData.operator_name || "A vehicle"
+    const coords = vehicleCoordsFor(trailData.vehicle_id)
+
+    let subtitle = "Started trailing"
+    if (phase === "end") {
+      const duration = formatTrailDuration(
+        trailData.start_time,
+        trailData.end_time,
+      )
+      subtitle = duration ? `Ended the trail - ${duration}` : "Ended the trail"
+    }
+
+    toast.custom(MapActivityToast, {
+      id: `trail-activity-${trailData.id}`,
+      class: "toast-dark-heavy-border",
+      style: "width: var(--width, 356px);",
+      componentProps: {
+        title: name,
+        subtitle,
+        kind: "trail",
+        vehicleType: trailData.vehicle_marker?.type || null,
+        bodyColor:
+          trailData.vehicle_marker?.bodyColor ||
+          trailData.vehicle_marker?.color ||
+          null,
+        actionLabel: coords ? "Locate" : null,
+        onAction: coords
+          ? () => map?.flyTo?.({ center: coords, zoom: 15, duration: 1000 })
+          : null,
+      },
+    })
+  }
+
   function handleTrailDelete(payload, currentVehicleId) {
     if (!payload.old) return
 
@@ -1452,8 +1533,36 @@
 
     console.log(`🔴 [TRAIL-RT] Trail deleted: ${trailData.id?.slice(0, 8)}`)
 
-    toast.info(`Trail deleted by another user`, {
-      description: `${trailData.trail_width}m ${trailData.trail_color.toLowerCase()} trail`,
+    // No "deleted_by" on the row — the trail's own operator fronts the toast
+    // (their vehicle is the left-slot icon); details = the trail's style.
+    const profile = $mapActivityStore?.connected_profiles?.find(
+      (p) => p.id === trailData.vehicle_id,
+    )
+    const name =
+      profile?.full_name || trailData.operator_name || "Another user"
+    const trailStyle = [
+      trailData.trail_width ? `${trailData.trail_width}m` : null,
+      (trailData.trail_color || "").toLowerCase() || null,
+    ]
+      .filter(Boolean)
+      .join(" ")
+
+    toast.custom(MapActivityToast, {
+      id: `trail-deleted-${trailData.id}`,
+      class: "toast-dark-heavy-border",
+      style: "width: var(--width, 356px);",
+      componentProps: {
+        title: name,
+        subtitle: trailStyle
+          ? `Deleted a trail - ${trailStyle}`
+          : "Deleted a trail",
+        kind: "trail",
+        vehicleType: trailData.vehicle_marker?.type || null,
+        bodyColor:
+          trailData.vehicle_marker?.bodyColor ||
+          trailData.vehicle_marker?.color ||
+          null,
+      },
     })
 
     if ($otherActiveTrailStore?.length) {

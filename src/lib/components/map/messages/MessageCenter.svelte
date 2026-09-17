@@ -4,6 +4,8 @@
   import { onMount, onDestroy } from "svelte"
   import { get } from "svelte/store"
   import { MessageSquare, Reply, X } from "lucide-svelte"
+  import { App } from "@capacitor/app"
+  import { Capacitor } from "@capacitor/core"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import {
@@ -11,6 +13,7 @@
     messageBumpUnread,
     messageSetUnread,
     messageBumpTick,
+    messageIncomingStore,
     openMessagePanel,
   } from "$lib/stores/messageStore"
   import { fetchUnreadBySender } from "$lib/api/messagesApi"
@@ -21,6 +24,9 @@
   /** @type {{ key: number, senderId: string, name: string, body: string }[]} */
   let popups = []
   let popupSeq = 0
+  // Messages that arrived while the app/tab was hidden — shown on return.
+  let pendingPopups = []
+  let appStateListener = null
 
   $: me = $profileStore?.id || null
   $: mapId = $profileStore?.master_map_id || null
@@ -33,8 +39,27 @@
     panelUnsub = messagePanelStore.subscribe((panel) => {
       if (!panel) return
       popups = popups.filter((p) => p.senderId !== panel.id)
+      pendingPopups = pendingPopups.filter((p) => p.sender_id !== panel.id)
     })
-    return () => panelUnsub?.()
+
+    // Coming back to the tab/edge → show previews held while we were away.
+    const onVisibility = () => {
+      if (!document.hidden) flushPendingPopups()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    if (Capacitor.isNativePlatform()) {
+      App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) flushPendingPopups()
+      }).then((listener) => {
+        appStateListener = listener
+      })
+    }
+
+    return () => {
+      panelUnsub?.()
+      document.removeEventListener("visibilitychange", onVisibility)
+      appStateListener?.remove?.()
+    }
   })
 
   $: if (me && mapId) {
@@ -69,18 +94,36 @@
           if (msg.recipient_id !== myId) return
 
           messageBumpTick()
+          // Let the panel seed its cache from this row before anything else.
+          messageIncomingStore.set(msg)
           const panel = get(messagePanelStore)
           if (panel && (panel.id === msg.sender_id || panel.view === "inbox")) {
             return // already looking at messages
           }
 
           messageBumpUnread(msg.sender_id)
-          // No point popping in-app while the app is hidden (backgrounded).
-          if (typeof document !== "undefined" && document.hidden) return
+          // App/tab hidden — hold the preview and show it when they return.
+          if (typeof document !== "undefined" && document.hidden) {
+            pendingPopups = [...pendingPopups.slice(-2), msg]
+            return
+          }
           addPopup(msg)
         },
       )
       .subscribe()
+  }
+
+  function flushPendingPopups() {
+    if (!pendingPopups.length) return
+    const queued = pendingPopups
+    pendingPopups = []
+    const panel = get(messagePanelStore)
+    for (const msg of queued.slice(-3)) {
+      if (panel && (panel.id === msg.sender_id || panel.view === "inbox")) {
+        continue // already reading that conversation
+      }
+      addPopup(msg)
+    }
   }
 
   function addPopup(msg) {
@@ -91,14 +134,107 @@
         key,
         senderId: msg.sender_id,
         name: msg.sender_name || "Team member",
-        body: msg.body,
+        body: msg.body || "",
+        attachmentLabel: msg.attachment
+          ? msg.attachment.label || "Shared a location"
+          : null,
       },
     ]
-    setTimeout(() => dismissPopup(key), 30000)
+    // Popups stay until dismissed with the X (no auto-hide).
   }
 
   function dismissPopup(key) {
     popups = popups.filter((p) => p.key !== key)
+  }
+
+  // ── Swipe to dismiss ──
+  let dragKey = null
+  let dragStartX = 0
+  let dragStartY = 0
+  let dragDx = 0
+  let swiping = false
+  let suppressClick = false
+  let flyingKey = null
+  let flyDx = 0
+
+  // A swipe ends with a click — consume it so the popup doesn't open.
+  function consumeIfSwiped() {
+    if (!suppressClick) return false
+    suppressClick = false
+    return true
+  }
+
+  function popupStyle(popup) {
+    if (dragKey === popup.key) {
+      return `transform: translateX(${dragDx}px); transition: none; opacity: ${Math.max(0.35, 1 - Math.abs(dragDx) / 260)};`
+    }
+    if (flyingKey === popup.key) {
+      return `transform: translateX(${flyDx}px); opacity: 0; transition: transform 0.16s ease-out, opacity 0.16s ease-out;`
+    }
+    return ""
+  }
+
+  function onSwipeStart(event, popup) {
+    if (event.pointerType === "mouse" && event.button !== 0) return
+    suppressClick = false
+    swiping = false
+    dragKey = popup.key
+    dragStartX = event.clientX
+    dragStartY = event.clientY
+    dragDx = 0
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // capture unsupported — move/up still track over the card
+    }
+  }
+
+  function onSwipeMove(event) {
+    if (dragKey === null) return
+    const dx = event.clientX - dragStartX
+    const dy = event.clientY - dragStartY
+    if (!swiping) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+      // Vertical movement wins → let the stack scroll, don't swipe.
+      if (Math.abs(dy) > Math.abs(dx)) {
+        releaseSwipe()
+        return
+      }
+      swiping = true
+    }
+    dragDx = dx
+  }
+
+  function releaseSwipe() {
+    dragKey = null
+    dragDx = 0
+    swiping = false
+  }
+
+  function onSwipeEnd() {
+    if (dragKey === null) return
+    const key = dragKey
+    const dx = dragDx
+    const moved = swiping
+    dragKey = null
+    dragDx = 0
+    swiping = false
+    if (!moved) return
+    // Don't let the trailing click open/dismiss anything.
+    suppressClick = true
+    if (Math.abs(dx) > 90) {
+      flyingKey = key
+      flyDx = dx > 0 ? 170 : -170
+      setTimeout(() => {
+        dismissPopup(key)
+        if (flyingKey === key) flyingKey = null
+      }, 170)
+    }
+    // Under the threshold → the base CSS transition springs it back.
+  }
+
+  function onSwipeCancel() {
+    releaseSwipe()
   }
 
   function replyTo(popup) {
@@ -118,8 +254,15 @@
         class="msg-popup"
         role="button"
         tabindex="0"
-        on:click={() => replyTo(popup)}
+        style={popupStyle(popup)}
+        on:click={() => {
+          if (!consumeIfSwiped()) replyTo(popup)
+        }}
         on:keydown={(e) => e.key === "Enter" && replyTo(popup)}
+        on:pointerdown={(event) => onSwipeStart(event, popup)}
+        on:pointermove={onSwipeMove}
+        on:pointerup={onSwipeEnd}
+        on:pointercancel={onSwipeCancel}
       >
         <div class="flex items-start gap-2.5">
           <span class="msg-popup-icon">
@@ -127,22 +270,30 @@
           </span>
           <div class="min-w-0 flex-1">
             <p class="msg-popup-name">{popup.name}</p>
-            <p class="msg-popup-body">{popup.body}</p>
+            {#if popup.attachmentLabel}
+              <p class="msg-popup-attachment">📍 {popup.attachmentLabel}</p>
+            {/if}
+            {#if popup.body}
+              <p class="msg-popup-body">{popup.body}</p>
+            {/if}
           </div>
           <button
             class="msg-popup-close"
-            on:click|stopPropagation={() => dismissPopup(popup.key)}
+            on:click|stopPropagation={() => {
+              if (!consumeIfSwiped()) dismissPopup(popup.key)
+            }}
             aria-label="Dismiss"
             title="Dismiss"
           >
             <X size={16} />
           </button>
         </div>
-        <div class="mt-1.5 flex items-center justify-between">
-          <span class="msg-popup-hint">Tap to open</span>
+        <div class="mt-1.5 flex items-center justify-end">
           <button
             class="msg-popup-reply"
-            on:click|stopPropagation={() => replyTo(popup)}
+            on:click|stopPropagation={() => {
+              if (!consumeIfSwiped()) replyTo(popup)
+            }}
           >
             <Reply size={12} /> Reply
           </button>
@@ -215,6 +366,16 @@
     overflow: hidden;
   }
 
+  .msg-popup-attachment {
+    margin-top: 1px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #7dd3fc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .msg-popup-close {
     display: flex;
     height: 22px;
@@ -248,9 +409,16 @@
     background: rgba(56, 189, 248, 0.26);
   }
 
-  /* Whole card is tappable — opens the conversation. */
+  /* Whole card is tappable — opens the conversation. Swipe horizontally to
+     dismiss; vertical panning still scrolls the stack. */
   .msg-popup {
     cursor: pointer;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+      transform 0.16s ease-out,
+      opacity 0.16s ease-out;
   }
 
   .msg-popup:active {
@@ -265,8 +433,4 @@
     border-radius: 10px;
   }
 
-  .msg-popup-hint {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.35);
-  }
 </style>

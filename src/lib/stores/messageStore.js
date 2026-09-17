@@ -27,6 +27,13 @@ export const messageUnreadStore = writable({})
 /** Bumped whenever a message arrives; open panels refetch on change. */
 export const messageTickStore = writable(0)
 
+/**
+ * The raw row of the latest incoming message (for myself). MessagePanel uses
+ * it to seed its conversation cache immediately, so opening the chat from a
+ * popup paints instantly instead of cold-loading.
+ */
+export const messageIncomingStore = writable(null)
+
 export function openMessagePanel(recipient) {
   closeMapPanels()
   messagePanelStore.set({

@@ -13,6 +13,7 @@
     RotateCcw,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
+  import { Capacitor } from "@capacitor/core"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { supabase } from "$lib/stores/sessionStore"
 
@@ -45,9 +46,11 @@
   let sentTextTo = ""
 
   onMount(() => {
-    // Contacts Picker API — Chrome/Android only; button hides elsewhere.
+    // Native app → Capacitor contacts plugin (the system contact picker).
+    // Web → Chrome's Contacts Picker API. Hidden elsewhere.
     canPickContact =
-      typeof navigator !== "undefined" && !!navigator.contacts?.select
+      Capacitor.isNativePlatform() ||
+      (typeof navigator !== "undefined" && !!navigator.contacts?.select)
   })
 
   function toggleChannel(channel) {
@@ -55,6 +58,26 @@
   }
 
   async function pickContact() {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Contacts } = await import("@capacitor-community/contacts")
+        const perm = await Contacts.requestPermissions()
+        if (perm.contacts !== "granted" && perm.contacts !== "limited") {
+          toast.warning("Contacts permission needed", {
+            description: "Allow contacts access to pick someone to invite.",
+          })
+          return
+        }
+        const { contact } = await Contacts.pickContact({
+          projection: { name: true, phones: true },
+        })
+        const number = contact?.phones?.find((entry) => entry?.number)?.number
+        if (number) phone = number.replace(/[^\d+]/g, "")
+      } catch (error) {
+        // Picker cancelled — nothing to do.
+      }
+      return
+    }
     try {
       const contacts = await navigator.contacts.select(["tel"], {
         multiple: false,
@@ -432,16 +455,6 @@
                   class="invite-input min-w-0 flex-1"
                   autocomplete="tel"
                 />
-                {#if canPickContact}
-                  <button
-                    class="invite-icon-btn"
-                    on:click={pickContact}
-                    title="Choose from contacts"
-                    aria-label="Choose from contacts"
-                  >
-                    <Contact size={14} />
-                  </button>
-                {/if}
                 <button
                   class="invite-send-btn"
                   class:muted={!phone.trim()}
@@ -456,6 +469,16 @@
                   {/if}
                 </button>
               </div>
+              {#if canPickContact}
+                <button
+                  class="invite-contacts-btn"
+                  on:click={pickContact}
+                  title="Pick someone from your contacts"
+                >
+                  <Contact size={13} />
+                  Invite from contacts
+                </button>
+              {/if}
             {/if}
           {/if}
         </div>
@@ -498,6 +521,27 @@
 
   .invite-icon-btn:hover {
     background: rgba(255, 255, 255, 0.16);
+  }
+
+  .invite-contacts-btn {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px dashed rgba(96, 165, 250, 0.45);
+    background: rgba(96, 165, 250, 0.1);
+    padding: 7px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #93c5fd;
+    transition: background-color 0.15s ease;
+  }
+
+  .invite-contacts-btn:hover {
+    background: rgba(96, 165, 250, 0.2);
   }
 
   .invite-chip {

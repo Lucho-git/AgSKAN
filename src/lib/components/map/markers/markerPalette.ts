@@ -229,11 +229,28 @@ export function siloColorKey(key?: string | null): string {
     return LEGACY_SILO_COLOR_KEYS[k] || k
 }
 
-// The marker icon class that carries the special grain-bin functionality
+// The marker icon classes that carry the special grain-bin functionality
 // (the on-map fill gauge + Add/Take grain editor, "what's stored" + bin
-// size). This used to be the Silo (custom-svg-silo2) — the Silo is a normal
-// marker again, and the Fiverr "Field Bin" icon now owns the machinery.
+// size + rail shortcut). This used to be the Silo (custom-svg-silo2) — the
+// Silo is a normal marker again, and the Field Bin + Mother Bin icons now
+// own the machinery. ALWAYS test via isGrainBinIcon() so both icons behave
+// identically.
 export const GRAIN_BIN_ICON_CLASS = "custom-svg-fiver_field_bin_v4"
+export const MOTHER_BIN_ICON_CLASS = "custom-svg-fiver2_mother_bin"
+export const GRAIN_BIN_ICON_CLASSES = [
+  GRAIN_BIN_ICON_CLASS,
+  MOTHER_BIN_ICON_CLASS,
+]
+
+/** True for every marker icon that carries the grain-bin functionality. */
+export function isGrainBinIcon(iconClass?: string | null): boolean {
+  return !!iconClass && GRAIN_BIN_ICON_CLASSES.includes(iconClass)
+}
+
+/** Default display name for a bin marker (when it has no note of its own). */
+export function grainBinName(iconClass?: string | null): string {
+  return iconClass === MOTHER_BIN_ICON_CLASS ? "Mother Bin" : "Field Bin"
+}
 
 // Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,
 // tree, wheat, kangaroo sign). Every OTHER custom SVG marker tints fully

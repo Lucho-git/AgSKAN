@@ -737,6 +737,16 @@
     border-color: rgba(255, 255, 255, 0.3) !important;
   }
 
+  /* Custom toasts (data-styled="false"): sonner locks every toast box to the
+     height it measured at mount and only re-measures when a title/description
+     prop changes — which never happens for component toasts. Their content
+     can grow later (text wrapping to a second line on in-place updates, icon
+     images finishing load), so let them size to content instead of spilling
+     outside a stale fixed height. */
+  :global([data-sonner-toast][data-styled="false"].toast-dark-heavy-border) {
+    height: auto !important;
+  }
+
   /* Text styles */
   :global([data-sonner-toast].toast-dark-heavy-border [data-title]) {
     color: #ffffff !important;

@@ -19,12 +19,15 @@
   import { vehicleDataLoaded } from "$lib/stores/loadedStore"
   import { page } from "$app/stores"
   import { toast } from "svelte-sonner"
+  import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
+  import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { App } from "@capacitor/app"
   import { Capacitor } from "@capacitor/core"
 
   let channel = null
   let appStateListener = null
   let unsubscribe
+  let unsubscribeOtherVehicles
   let lastDatabaseUpdate = 0
   let previousVehicleData = null
   let lastBroadcastFlashState = null // Track last broadcast flash state
@@ -63,6 +66,117 @@
 
   function isConnectedUser(profileMap, vehicleId) {
     return vehicleId && profileMap.has(vehicleId)
+  }
+
+  // ── "Joined the map" announcements ─────────────────────────────────────
+  // Presence is the live roster of who has the map open. We remember the
+  // previous snapshot and announce every user who APPEARS after the initial
+  // settle — a first-ever join or someone coming back after leaving (incl.
+  // app resume). Mirrors the map log's "joined the map" entries. The first
+  // seconds count as the initial roster (presence snapshots arrive staggered
+  // right after subscribing — no toasting the whole team on startup).
+  let presenceInitialized = false
+  let presenceSettledAt = 0
+  let knownPresence = new Set()
+
+  function announcePresenceJoins(ids) {
+    if (!presenceInitialized) {
+      presenceInitialized = true
+      presenceSettledAt = Date.now()
+      knownPresence = new Set(ids)
+      return
+    }
+    if (Date.now() - presenceSettledAt < 5000) {
+      knownPresence = new Set(ids)
+      return
+    }
+    const profileMap = getConnectedProfileMap()
+    for (const id of ids) {
+      // $profileStore.id, not the onMount-local userId (that scope isn't
+      // visible here — referencing it threw a ReferenceError and killed the
+      // join toast before it could render).
+      if (id === $profileStore.id || knownPresence.has(id)) continue
+      const profile = profileMap.get(id)
+      const name = profile?.full_name || "Someone"
+      // Their machine's icon (in its body colour) when it's on the map —
+      // falls back to a text-only line when we don't have the vehicle yet.
+      const vehicle = $serverOtherVehiclesData.find(
+        (v) => v.vehicle_id === id,
+      )
+      toast.custom(MapActivityToast, {
+        id: `join-${id}`,
+        class: "toast-dark-heavy-border",
+        style: "width: var(--width, 356px);",
+        // Joins are worth watching (and tapping Locate on later), so give
+        // them twice the default on-screen time.
+        duration: 10000,
+        componentProps: {
+          title: name,
+          subtitle:
+            profile?.map_role === "viewer"
+              ? "Joined the map - view only"
+              : "Joined the map",
+          kind: "vehicle",
+          vehicleType: vehicle?.vehicle_marker?.type || null,
+          bodyColor:
+            vehicle?.vehicle_marker?.bodyColor ||
+            vehicle?.vehicle_marker?.color ||
+            null,
+        },
+      })
+    }
+    knownPresence = new Set(ids)
+  }
+
+  // ── "Changed vehicle" announcements ─────────────────────────────────────
+  // People can swap their machine while they're on the map. Remember the
+  // last known type + colour per vehicle and toast when the TYPE changes —
+  // first sighting per vehicle is silent (the join toast covers arrivals),
+  // and colour/size-only tweaks stay quiet. Old → new vehicle icons render
+  // in the toast's action slot.
+  let knownVehicleTypes = new Map()
+
+  function announceVehicleTypeChanges(vehicles) {
+    const seen = new Set()
+    for (const vehicle of vehicles || []) {
+      const id = vehicle.vehicle_id
+      const marker = vehicle.vehicle_marker || {}
+      const type = marker.type || null
+      if (!id || !type) continue
+      seen.add(id)
+
+      const prev = knownVehicleTypes.get(id)
+      knownVehicleTypes.set(id, {
+        type,
+        bodyColor: marker.bodyColor || null,
+      })
+      if (!prev || prev.type === type) continue
+
+      const name = vehicle.full_name || "Someone"
+      const oldName = getVehicleDisplayName({
+        vehicle_marker: { type: prev.type },
+      })
+      const newName = getVehicleDisplayName({ vehicle_marker: { type } })
+      toast.custom(MapActivityToast, {
+        id: `vehicle-change-${id}`,
+        class: "toast-dark-heavy-border",
+        style: "width: var(--width, 356px);",
+        componentProps: {
+          title: name,
+          subtitle: `Changed vehicle - ${oldName} → ${newName}`,
+          kind: "vehicle",
+          vehicleType: prev.type,
+          bodyColor: prev.bodyColor,
+          secondaryVehicleType: type,
+          secondaryBodyColor: marker.bodyColor || null,
+        },
+      })
+    }
+    // Forget vehicles that left the map — a future return is an arrival,
+    // not a type change.
+    for (const id of [...knownVehicleTypes.keys()]) {
+      if (!seen.has(id)) knownVehicleTypes.delete(id)
+    }
   }
 
   // Merge a changed profile into connected_profiles so isConnectedUser()
@@ -621,7 +735,10 @@
       .on("presence", { event: "sync" }, () => {
         // Who has the app open right now (used by messaging: online → popup,
         // offline → phone notification).
-        mapPresenceStore.set(new Set(Object.keys(channel.presenceState())))
+        const presenceIds = new Set(Object.keys(channel.presenceState()))
+        mapPresenceStore.set(presenceIds)
+        // Let the team know when someone joins / returns to the map.
+        announcePresenceJoins(presenceIds)
       })
       .on("broadcast", { event: "vehicle_update" }, (payload) => {
         const profileMap = getConnectedProfileMap()
@@ -836,6 +953,11 @@
       await updateDatabaseVehicleState(vehicleData)
     })
 
+    // Watch the other machines for vehicle-type swaps ("Changed vehicle").
+    unsubscribeOtherVehicles = otherVehiclesStore.subscribe(
+      announceVehicleTypeChanges,
+    )
+
     vehicleDataLoaded.set(true)
   })
 
@@ -854,6 +976,10 @@
     }
     if (unsubscribe) {
       unsubscribe()
+    }
+    if (unsubscribeOtherVehicles) {
+      unsubscribeOtherVehicles()
+      unsubscribeOtherVehicles = null
     }
   })
 </script>

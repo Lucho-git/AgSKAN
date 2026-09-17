@@ -76,7 +76,7 @@ export const MARKER_DEFINITIONS = [
 
   // ── Storage & grain ──
   { id: "fiver_field_bin_v4", class: "custom-svg", name: "Field Bin", active: true, special: true },
-  { id: "fiver2_mother_bin", class: "custom-svg", name: "Mother Bin", active: true },
+  { id: "fiver2_mother_bin", class: "custom-svg", name: "Mother Bin", active: true, special: true },
   { id: "fiver2_hay_stack", class: "custom-svg", name: "Hay Stack", active: true },
   { id: "fiver2_grain_bag", class: "custom-svg", name: "Grain Bag", active: true },
 

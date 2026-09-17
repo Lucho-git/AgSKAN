@@ -22,6 +22,8 @@
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { debounce } from "lodash-es"
+  import { findMarkerByIconClass } from "$lib/data/markerDefinitions"
+  import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
   import {
     MARKER_COLOR_DEFAULT,
     TINT_MODE_DEFAULT,
@@ -89,11 +91,19 @@
           )
             return
 
+          // Snapshot the marker's previously-known state BEFORE the change
+          // is applied, so the notification can describe what actually
+          // changed (moved / new icon / new colour) instead of guessing.
+          const changedId = payload.new?.id || payload.old?.id
+          const prevState = changedId
+            ? lastKnownState.get(changedId) || null
+            : null
+
           // Handle the change immediately using payload data
           handleRealtimeMarkerChange(payload)
 
           // Show notification ONLY for other users' changes
-          await showChangeNotification(payload)
+          await showChangeNotification(payload, prevState)
         },
       )
       .subscribe()
@@ -192,6 +202,10 @@
         capacityTonnes: newData.marker_data?.properties?.capacity_tonnes ?? 200,
         fieldBinConfigured:
           newData.marker_data?.properties?.field_bin_configured === true,
+        // Per-bin "Show bins always" — whether this bin gets a rail shortcut
+        // above the people menu. Missing in old rows = on by default.
+        binShowAlways:
+          newData.marker_data?.properties?.bin_show_always !== false,
         created_at: newData.last_confirmed || newData.created_at,
         updated_at: newData.updated_at,
       }
@@ -239,6 +253,7 @@
         tintMode: processedMarker.tintMode,
         capacityTonnes: processedMarker.capacityTonnes,
         fieldBinConfigured: processedMarker.fieldBinConfigured,
+        binShowAlways: processedMarker.binShowAlways,
         created_at: processedMarker.created_at,
       })
 
@@ -314,7 +329,8 @@
         lastKnown.markerColor !== marker.markerColor ||
         lastKnown.tintMode !== marker.tintMode ||
         lastKnown.capacityTonnes !== marker.capacityTonnes ||
-        lastKnown.fieldBinConfigured !== marker.fieldBinConfigured
+        lastKnown.fieldBinConfigured !== marker.fieldBinConfigured ||
+        lastKnown.binShowAlways !== marker.binShowAlways
       ) {
         pendingChanges.add(id)
         persistPendingMarkerChange(marker)
@@ -352,6 +368,7 @@
         tintMode: marker.tintMode,
         capacityTonnes: marker.capacityTonnes,
         fieldBinConfigured: marker.fieldBinConfigured,
+        binShowAlways: marker.binShowAlways,
       })
     })
     pendingChanges.clear()
@@ -550,6 +567,8 @@
               marker.marker_data?.properties?.capacity_tonnes ?? 200,
             fieldBinConfigured:
               marker.marker_data?.properties?.field_bin_configured === true,
+            binShowAlways:
+              marker.marker_data?.properties?.bin_show_always !== false,
             photos: marker.marker_data?.properties?.photos || [],
             created_at:
               marker.last_confirmed ||
@@ -662,6 +681,7 @@
               tint_mode: marker.tintMode || TINT_MODE_DEFAULT,
               capacity_tonnes: marker.capacityTonnes ?? 200,
               field_bin_configured: !!marker.fieldBinConfigured,
+              bin_show_always: marker.binShowAlways !== false,
               photos: marker.photos || [],
             },
           },
@@ -708,11 +728,26 @@
     )
   }
 
-  async function showChangeNotification(payload) {
-    const changeType = payload.eventType
-    const iconClass = payload.new?.marker_data?.properties?.icon || "unknown"
+  // Toast house format: title = WHO (username), subtitle = WHAT + details
+  // ("Changed the marker icon - Silo 3"), left icon = the marker's image.
+  // Action phrases mirror the map log's concise phrases — "Placed a marker",
+  // "Moved a marker", "Changed the marker icon/colour", "Deleted a marker"
+  // — with the marker's READABLE name (its note or icon name), never the raw
+  // iconClass. Changes the log deliberately ignores (silo fill,
+  // notes, photos, sync churn) stay silent here too, so a busy map doesn't
+  // drown in notifications. Repeat edits to one marker reuse a single toast
+  // id, so bursts update in place instead of stacking up.
+  async function showChangeNotification(payload, prevState = null) {
+    const markerId = payload.new?.id || payload.old?.id
+    const props = payload.new?.marker_data?.properties || {}
     const coordinates = payload.new?.marker_data?.geometry?.coordinates
-    const isDeleted = payload.new?.deleted === true
+    const isDeleted =
+      payload.eventType === "DELETE" || payload.new?.deleted === true
+
+    // What to call this marker: its own note first, then the icon's name.
+    const iconDef = findMarkerByIconClass(props.icon)
+    const readableName =
+      (payload.new?.notes || "").trim() || iconDef?.name || "Marker"
 
     let username = "Another user"
     const connectedUser = $mapActivityStore.connected_profiles?.find(
@@ -732,39 +767,70 @@
         username = user.full_name
       }
     }
-    // Show appropriate notification
-    let title, description
-    switch (changeType) {
-      case "INSERT":
-        title = "Marker Added"
-        description = `${username} added a ${iconClass} marker`
-        break
-      case "UPDATE":
-        if (isDeleted) {
-          title = "Marker Removed"
-          description = `${username} removed a ${iconClass} marker`
-        } else {
-          title = "Marker Updated"
-          description = `${username} updated a marker to ${iconClass}`
-        }
-        break
+
+    // WHAT happened — becomes the subtitle; the title is always the person.
+    let action = null
+    // The action icon slot: the marker's image — OLD first, NEW second when
+    // the icon changed.
+    let iconClass = props.icon || null
+    let secondaryIconClass = null
+
+    if (isDeleted) {
+      action = "Deleted a marker"
+    } else if (payload.eventType === "INSERT") {
+      action = "Placed a marker"
+    } else if (!prevState) {
+      // Unknown previous state (e.g. this client never saw the marker) —
+      // report a generic edit rather than guessing the change.
+      action = "Edited a marker"
+    } else {
+      const prevCoords = prevState.coordinates
+      const moved =
+        !!coordinates &&
+        !!prevCoords &&
+        (Math.abs(coordinates[0] - prevCoords[0]) > 0.000001 ||
+          Math.abs(coordinates[1] - prevCoords[1]) > 0.000001)
+      const prevIcon = prevState.iconClass || "default"
+      const newIcon = props.icon || "default"
+      const colourChanged =
+        (prevState.markerColor || MARKER_COLOR_DEFAULT) !==
+          (props.marker_color || MARKER_COLOR_DEFAULT) ||
+        (prevState.tintMode || TINT_MODE_DEFAULT) !==
+          (props.tint_mode || TINT_MODE_DEFAULT)
+
+      if (newIcon !== prevIcon) {
+        action = "Changed the marker icon"
+        iconClass = prevIcon
+        secondaryIconClass = newIcon
+      } else if (moved) {
+        action = "Moved a marker"
+      } else if (colourChanged) {
+        action = "Changed the marker colour"
+      } else {
+        // Fill / notes / photos / sync churn — quiet, exactly like the log.
+        return
+      }
     }
 
-    toast.info(title, {
-      description,
-      action:
-        coordinates && !isDeleted
-          ? {
-              label: "Locate",
-              onClick: () => {
-                map?.flyTo({
-                  center: coordinates,
-                  zoom: 15,
-                  duration: 1000,
-                })
-              },
-            }
-          : undefined,
+    const locatable = coordinates && !isDeleted
+    toast.custom(MapActivityToast, {
+      id: `marker-change-${markerId}`,
+      class: "toast-dark-heavy-border",
+      style: "width: var(--width, 356px);",
+      componentProps: {
+        title: username,
+        subtitle:
+          readableName && readableName !== "Marker"
+            ? `${action} - ${readableName}`
+            : action,
+        kind: "marker",
+        iconClass,
+        secondaryIconClass,
+        actionLabel: locatable ? "Locate" : null,
+        onAction: locatable
+          ? () => map?.flyTo({ center: coordinates, zoom: 15, duration: 1000 })
+          : null,
+      },
     })
   }
 

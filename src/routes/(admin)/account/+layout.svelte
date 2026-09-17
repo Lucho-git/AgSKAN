@@ -209,7 +209,6 @@
             user_settings.overlay_marker_menu_enabled ?? true,
           overlayPlacementMenuEnabled:
             user_settings.overlay_placement_menu_enabled ?? true,
-          showBinsAlways: user_settings.show_bins_always ?? false,
           showVehiclesAlways: user_settings.show_vehicles_always ?? true,
           satelliteDropdownEnabled:
             user_settings.satellite_dropdown_enabled ?? false,
@@ -260,7 +259,6 @@
           autoConfirmMarkers: false,
           overlayMarkerMenuEnabled: true,
           overlayPlacementMenuEnabled: true,
-          showBinsAlways: false,
           showVehiclesAlways: true,
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],

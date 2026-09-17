@@ -66,6 +66,7 @@
   import MessageCenter from "$lib/components/map/messages/MessageCenter.svelte"
   import MessagePanel from "$lib/components/map/messages/MessagePanel.svelte"
   import MapFocusFlyer from "$lib/components/map/MapFocusFlyer.svelte"
+  import MapQuickActions from "$lib/components/map/quickactions/MapQuickActions.svelte"
   import DevModeJoystick from "$lib/components/map/dev/DevModeJoystick.svelte"
   import BackgroundSimPanel from "$lib/components/map/dev/BackgroundSimPanel.svelte"
   import {
@@ -1783,26 +1784,15 @@
       case "locate-home":
         handleLocateHome()
         break
+      // The remaining tool actions are handled by their own components —
+      // their old debug toasts were removed as noise.
       case "place-marker":
-        toast.info("Marker placement mode activated")
-        break
       case "drawing-mode":
-        toast.info("Drawing mode activated")
-        break
       case "vehicle-controls":
-        toast.info("Vehicle controls opened")
-        break
       case "trail-recording":
-        toast.info("Trail recording toggled")
-        break
       case "measurement":
-        toast.info("Measurement tools opened")
-        break
       case "map-sync":
-        toast.info("Map sync initiated")
-        break
       case "settings":
-        toast.info("Settings opened")
         break
       default:
         console.warn("Unknown tool action:", type)
@@ -2183,6 +2173,7 @@
     <MapFocusFlyer {map} />
     <MessageCenter />
     <MessagePanel />
+    <MapQuickActions {map} {markerManagerRef} {mapEventManagerRef} />
 
     <DrawingHectares {map} />
     {#if !viewerMode}

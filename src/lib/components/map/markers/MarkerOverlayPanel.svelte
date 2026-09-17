@@ -57,7 +57,7 @@
     styleDefaultColor,
     randomColorForId,
     RANDOM_COLOR_KEY,
-    GRAIN_BIN_ICON_CLASS,
+    isGrainBinIcon,
   } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { blockForViewer } from "$lib/utils/guestMode"
@@ -503,12 +503,11 @@
     )
     // Commit to the confirmed store too so MarkerManager re-renders the
     // marker with its colour/style applied on the map BEFORE Save is pressed
-    // (the selection overlay reads confirmedMarkersStore). EXCEPT the silo:
-    // committing iconClass=GRAIN_BIN_ICON_CLASS here would flip
-    // selectedIsSilo and switch the menu to the special panel mid-preview.
-    // The conversion only happens on Save (confirmIcon commits it, then the
-    // special panel opens).
-    if (newIconClass !== GRAIN_BIN_ICON_CLASS) {
+    // (the selection overlay reads confirmedMarkersStore). EXCEPT the grain
+    // bins: committing a bin iconClass here would flip selectedIsSilo and
+    // switch the menu to the special panel mid-preview. The conversion only
+    // happens on Save (confirmIcon commits it, then the special panel opens).
+    if (!isGrainBinIcon(newIconClass)) {
       confirmedMarkersStore.update((/** @type {any[]} */ markers) =>
         markers.map((/** @type {any} */ m) =>
           m.id === marker.id
@@ -551,7 +550,12 @@
       )
 
       if (newIconClass) {
-        const oldDef = findMarkerByIconClass(marker.iconClass)
+        // The preview already committed the new icon to the store, so
+        // `marker` holds the NEW class by now — use the class captured when
+        // the edit began so the ripple reads "Old → New" (it used to show
+        // "New → New").
+        const oldClass = originalIconClass || marker.iconClass
+        const oldDef = findMarkerByIconClass(oldClass)
         const newDef = findMarkerByIconClass(newIconClass)
         const labelText = `${oldDef?.name || "Marker"} → ${newDef?.name || "Marker"}`
         if (marker.coordinates) showEditRipple(marker.coordinates, labelText)
@@ -570,10 +574,10 @@
     }
 
     resetIconEdit()
-    // Update confirms the change. Converting a marker INTO the special
+    // Update confirms the change. Converting a marker INTO a special
     // grain bin keeps it selected so its edit panel opens; everything else
     // closes the menu.
-    if (newIconClass !== GRAIN_BIN_ICON_CLASS) {
+    if (!isGrainBinIcon(newIconClass)) {
       deselectMarker()
     }
   }

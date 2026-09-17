@@ -20,6 +20,7 @@
     Settings,
     MoreVertical,
     MessageSquare,
+    NotebookText,
     MapPin,
     Trash2,
     History,
@@ -1516,6 +1517,15 @@
         >{onlineCount}</span
       >
     {/if}
+    {#if totalUnread > 0}
+      <span
+        class="absolute -left-1 -top-1 flex h-5 items-center justify-center gap-0.5 rounded-full bg-sky-500 px-1.5 text-[10px] font-bold text-white shadow"
+        title="{totalUnread} unread message{totalUnread === 1 ? '' : 's'}"
+      >
+        <MessageSquare size={10} />
+        {totalUnread > 99 ? "99+" : totalUnread}
+      </span>
+    {/if}
   </button>
 {/if}
 
@@ -1529,21 +1539,32 @@
     <div class="flex-shrink-0 border-b border-white/20">
       <div class="flex items-center gap-1 px-2 pb-0 pt-2">
         <button
-          class="vehicle-tab {activeTab === 'vehicles' ? 'active' : ''}"
+          class="vehicle-tab {activeTab === 'vehicles' ? 'active' : ''} whitespace-nowrap"
           on:click={() => selectTab("vehicles")}
           aria-label="Vehicles tab"
         >
           <Users size={13} />
           <span>Vehicles</span>
           <span class="tab-count">{sortedVehicles.length}</span>
+          {#if totalUnread > 0}
+            <span
+              class="tab-msg-badge"
+              title="{totalUnread} unread message{totalUnread === 1
+                ? ''
+                : 's'}"
+            >
+              <MessageSquare size={10} />
+              {totalUnread > 99 ? "99+" : totalUnread}
+            </span>
+          {/if}
         </button>
         <button
-          class="vehicle-tab {activeTab === 'log' ? 'active' : ''}"
+          class="vehicle-tab {activeTab === 'log' ? 'active' : ''} whitespace-nowrap"
           on:click={() => selectTab("log")}
-          aria-label="Map log tab"
+          aria-label="Log tab"
         >
-          <Activity size={13} />
-          <span>Map Log</span>
+          <NotebookText size={13} />
+          <span>Log</span>
           {#if unreadCount > 0}
             <span class="tab-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
           {/if}
@@ -2076,6 +2097,15 @@
           >{onlineCount}</span
         >
       {/if}
+      {#if totalUnread > 0}
+        <span
+          class="absolute -left-1 -top-1 flex h-4 items-center justify-center gap-0.5 rounded-full bg-sky-500 px-1 text-[9px] font-bold text-white shadow"
+          title="{totalUnread} unread message{totalUnread === 1 ? '' : 's'}"
+        >
+          <MessageSquare size={8} />
+          {totalUnread > 99 ? "99+" : totalUnread}
+        </span>
+      {/if}
     </button>
 
     <!-- Separator -->
@@ -2441,6 +2471,19 @@
 
   .tab-badge {
     background: #ef4444;
+    border-radius: 9999px;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    color: #fff;
+  }
+
+  .tab-msg-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #0ea5e9;
     border-radius: 9999px;
     padding: 0 6px;
     font-size: 10px;

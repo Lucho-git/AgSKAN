@@ -731,9 +731,10 @@
       label: result.label || "Dropped pin",
       refType: result.refType,
       refId: result.refId,
-      // A real target already has its selection highlight — only empty-space
-      // picks get their own pin so the dropped point is visible.
-      noPin: !!result.refType,
+      // Markers / vehicles already have their selection highlight on the map;
+      // fields still get a pin (the dropped point IS the shared location)
+      // and empty-space picks need one to be visible at all.
+      noPin: result.refType === "marker" || result.refType === "vehicle",
       fly: false,
     })
     completeLocationPick(result)

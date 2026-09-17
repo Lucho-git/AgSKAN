@@ -196,7 +196,7 @@
     if ($trailClosingStore || $trailStartingStore) return
     if ($userVehicleTrailing) {
       commands.trail.stop()
-      toast.success("Trail recording stopped")
+      toast.success("Finished a trail")
     }
     showTrailInfo = false
     dispatch("closeTrailInfo")

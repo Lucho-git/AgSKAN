@@ -885,6 +885,22 @@
     return null
   }
 
+  // First-person toasts live here ONCE — shared by the compass/HUD toggle
+  // and the vehicle menu's "Track vehicle and rotation" option (the same
+  // toast + disable action used to be duplicated in both functions).
+  function disableFirstPersonMode() {
+    isFirstPersonMode = false
+    map.easeTo({ bearing: 0, duration: 1000 })
+    toast.info("First-person mode disabled")
+  }
+
+  function showFirstPersonEnabledToast() {
+    toast.success("First-person mode enabled", {
+      description: "Camera will rotate with vehicle heading",
+      action: { label: "Disable", onClick: disableFirstPersonMode },
+    })
+  }
+
   function toggleFirstPersonMode() {
     isFirstPersonMode = !isFirstPersonMode
     lastTrackedHeading = null
@@ -900,20 +916,7 @@
     }
 
     if (isFirstPersonMode) {
-      toast.success("First-person mode enabled", {
-        description: "Camera will rotate with vehicle heading",
-        action: {
-          label: "Disable",
-          onClick: () => {
-            isFirstPersonMode = false
-            map.easeTo({
-              bearing: 0,
-              duration: 1000,
-            })
-            toast.info("First-person mode disabled")
-          },
-        },
-      })
+      showFirstPersonEnabledToast()
 
       if (isTrackingVehicle) {
         const vehicle = getVehicleById(trackedVehicleId)
@@ -930,11 +933,7 @@
         }
       }
     } else {
-      toast.info("First-person mode disabled")
-      map.easeTo({
-        bearing: 0,
-        duration: 1000,
-      })
+      disableFirstPersonMode()
     }
   }
 
@@ -1057,13 +1056,6 @@
       zoom: 15,
       duration: 1500,
     })
-
-    const vehicleDisplayName = getVehicleDisplayName(vehicle)
-    const vehicleInfo = vehicle.isCurrentUser
-      ? "your location"
-      : `${vehicle.full_name}'s ${vehicleDisplayName}`
-
-    toast.success(`Zooming to ${vehicleInfo}`)
   }
 
   function centerCameraOnVehicle(vehicle) {
@@ -1077,12 +1069,6 @@
       center: [parsedCoords.longitude, parsedCoords.latitude],
       duration: 1000,
     })
-
-    const vehicleInfo = vehicle.isCurrentUser
-      ? "your location"
-      : `${vehicle.full_name}'s location`
-
-    toast.success(`Centered on ${vehicleInfo}`)
   }
 
   function detectPlatform() {
@@ -1252,10 +1238,6 @@
         console.log(
           `[BG-DIAG] Background session: ${jsCount} JS locations + native HTTP sync active`,
         )
-        toast.info("Background trail sync active", {
-          description: `Trail points were saved directly to the server while the app was in background`,
-          duration: 5000,
-        })
       }
 
       // ── Merge background-synced trail_stream points into currentTrailStore ──
@@ -1340,15 +1322,7 @@
     if (!isMobileApp) return
 
     try {
-      const backgroundPermissionGranted = await backgroundService.init()
-
-      if (backgroundPermissionGranted) {
-        toast.success("Map location tracking is enabled", {
-          description:
-            "Tracking can continue while this map is open, even if the app is backgrounded",
-          duration: 5000,
-        })
-      }
+      await backgroundService.init()
 
       // Register the native sync configurator as a pre-start hook so it runs
       // BEFORE BackgroundGeolocation.start() triggers an HTTP flush of queued locations.
@@ -1433,18 +1407,6 @@
 
             // Fetch any trail points that were saved natively while JS was frozen
             handleForegroundCatchup(data)
-
-            if (data.duration && data.locationUpdateCount >= 2) {
-              toast.info(`App returned to foreground`, {
-                description: `Recorded ${data.locationUpdateCount} location updates in ${data.duration.formatted}`,
-                duration: 5000,
-              })
-            } else if (data.duration) {
-              toast.info(`App returned to foreground`, {
-                description: `${data.duration.formatted} in background, ${data.locationUpdateCount} location update(s)`,
-                duration: 5000,
-              })
-            }
           } else if (event === "location") {
             // Handle native plugin locations both in background AND foreground on mobile.
             // We intentionally process these on native builds so transistorsoft
@@ -2402,27 +2364,6 @@
         if (index !== -1) {
           const oldVehicle = vehicles[index]
 
-          if (
-            update_types.includes("trailing_status_changed") &&
-            !update_types.includes("new_vehicle")
-          ) {
-            toast.info(`Trailing Status Changed`, {
-              description: `${full_name}'s ${vehicle_marker.type} has ${is_trailing ? "started" : "stopped"} trailing`,
-              action: hasFix
-                ? {
-                    label: "Locate",
-                    onClick: () => {
-                      map.flyTo({
-                        center: [longitude, latitude],
-                        zoom: 15,
-                        duration: 1000,
-                      })
-                    },
-                  }
-                : undefined,
-            })
-          }
-
           vehicles[index] = { ...oldVehicle, ...change, speed }
         } else {
           vehicles.push({ ...change, speed })
@@ -3373,17 +3314,7 @@
       }
     }
 
-    toast.success("First-person mode enabled", {
-      description: "Camera will rotate with vehicle heading",
-      action: {
-        label: "Disable",
-        onClick: () => {
-          isFirstPersonMode = false
-          map.easeTo({ bearing: 0, duration: 1000 })
-          toast.info("First-person mode disabled")
-        },
-      },
-    })
+    showFirstPersonEnabledToast()
   }
 
   // Build vehicle list for the HUD vehicle picker

@@ -466,7 +466,8 @@
       <div class="header-content">
         {#if !activePanel}
           <h3>Toolbox</h3>
-          {#if $operationStore.length > 0}
+          <!-- Guests are read-only and don't switch operations. -->
+          {#if $operationStore.length > 0 && !viewerMode}
             <div class="operation-selector">
               <button
                 class="operation-toggle op-toggle-floating"

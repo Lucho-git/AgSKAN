@@ -18,7 +18,6 @@
     MapPin,
     Magnet,
     Palette,
-    Warehouse,
   } from "lucide-svelte"
   import MarkerStylePreviewModal from "./MarkerStylePreviewModal.svelte"
   import MarkerDefaultColorModal from "./MarkerDefaultColorModal.svelte"
@@ -62,7 +61,6 @@
 
   // ── Store reactives ──
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
-  $: showBinsAlways = $userSettingsStore.showBinsAlways ?? false
   $: showVehiclesAlways = $userSettingsStore.showVehiclesAlways ?? true
   $: markerStyle = $userSettingsStore.markerStyle ?? TINT_MODE_DEFAULT
   $: activeStyleGroup = markerStyleGroupFor(markerStyle).key
@@ -198,26 +196,6 @@
         ...s,
         overlayPlacementMenuEnabled: !value,
       }))
-    } finally {
-      saving = null
-    }
-  }
-
-  async function toggleShowBinsAlways(value) {
-    saving = "showBinsAlways"
-    try {
-      const result = await userSettingsApi.updateShowBinsAlways(value)
-      if (result?.success) {
-        toast.success(
-          value ? "Bin edge tracking: on" : "Bin edge tracking: off",
-        )
-      } else {
-        toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({ ...s, showBinsAlways: !value }))
-      }
-    } catch (e) {
-      toast.error(e?.message || "Error saving setting")
-      userSettingsStore.update((s) => ({ ...s, showBinsAlways: !value }))
     } finally {
       saving = null
     }
@@ -614,27 +592,6 @@
       </div>
     </div>
   {:else}
-    <!-- Show bins always (offscreen tracking) -->
-    <label class="setting-row">
-      <div class="setting-icon marker-icon">
-        <Warehouse size={16} />
-      </div>
-      <div class="setting-label">
-        <span class="setting-name">Show bins always</span>
-        <span class="setting-desc">Track all silo bins at the map edge</span>
-      </div>
-      <input
-        type="checkbox"
-        class="setting-toggle-input"
-        checked={showBinsAlways}
-        disabled={saving === "showBinsAlways"}
-        on:change={() => toggleShowBinsAlways(!showBinsAlways)}
-      />
-      <span class="setting-toggle-track"
-        ><span class="setting-toggle-thumb"></span></span
-      >
-    </label>
-
     <!-- Show vehicles always (offscreen tracking) -->
     <label class="setting-row">
       <div class="setting-icon marker-icon">

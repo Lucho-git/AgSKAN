@@ -10,12 +10,11 @@
     MARKER_COLOR_DEFAULT,
     markerColor,
     SILO_COLOR_DEFAULT,
+    grainBinName,
     siloColorKey,
   } from "./markerPalette"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
-  import { userSettingsStore } from "$lib/stores/userSettingsStore"
-  import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { profileStore } from "$lib/stores/profileStore"
   import { blockForViewer, showGuestTip } from "$lib/utils/guestMode"
 
@@ -73,25 +72,24 @@
   let lastMarkerId = null
 
   $: grainColorDef = markerColor(siloColorKey(grainColor))
-  // Per-user "show bins always" — offscreen tracking circles for every bin.
-  $: showBinsAlways = $userSettingsStore?.showBinsAlways ?? false
+  // Per-bin "show bins always" — keeps this bin's shortcut button on the
+  // quick-action rail above the people menu. Stored on the marker itself;
+  // on by default (a missing property means shown).
+  $: showBinsAlways = marker?.binShowAlways !== false
 
-  // Toggle the per-user show-bins-always setting (persisted to the DB).
-  async function toggleShowBinsAlways(event) {
+  // Toggle this bin's rail shortcut (team-shared, like fill/colour).
+  function toggleShowBinsAlways(event) {
     if (blockForViewer(event, isViewer)) {
       if (event?.currentTarget) event.currentTarget.checked = showBinsAlways
       return
     }
+    if (!marker) return
     const next = !showBinsAlways
-    userSettingsStore.update((s) => ({ ...s, showBinsAlways: next }))
-    try {
-      const result = await userSettingsApi.updateShowBinsAlways(next)
-      if (!result?.success) {
-        userSettingsStore.update((s) => ({ ...s, showBinsAlways: !next }))
-      }
-    } catch {
-      userSettingsStore.update((s) => ({ ...s, showBinsAlways: !next }))
-    }
+    confirmedMarkersStore.update((markers) =>
+      markers.map((m) =>
+        m.id === marker.id ? { ...m, binShowAlways: next } : m,
+      ),
+    )
   }
   // True while the panel opens upward; flips to downward near the top of the
   // screen so the whole panel stays on screen in every state.
@@ -129,7 +127,7 @@
   let dragRafId = null
   let lastDragFrame = 0
 
-  $: markerName = marker?.notes?.trim() || "Field Bin"
+  $: markerName = marker?.notes?.trim() || grainBinName(marker?.iconClass)
   $: currentTonnes = capacityTonnes > 0 ? (capacityTonnes * fill) / 100 : 0
 
   // Sync local state when the marker changes (NOT while dragging — that's
@@ -603,7 +601,12 @@
   >
     <div class="silo-pop-head">
       <div class="silo-pop-icon" style="background: {grainColorDef.dark}26;">
-        <IconSVG icon="fiver_field_bin_v4" size="26px" />
+        <IconSVG
+          icon={marker?.iconClass === "custom-svg-fiver2_mother_bin"
+            ? "fiver2_mother_bin"
+            : "fiver_field_bin_v4"}
+          size="26px"
+        />
       </div>
       <span
         class="silo-pop-title"
@@ -791,7 +794,7 @@
           <span class="silo-pop-toggle-text">
             <span class="silo-pop-label">Show bins always</span>
             <span class="silo-pop-note">
-              Track off-screen bins at the map edge
+              Keep a shortcut above the people menu
             </span>
           </span>
           <input

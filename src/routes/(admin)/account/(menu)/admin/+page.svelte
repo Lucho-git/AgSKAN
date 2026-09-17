@@ -35,7 +35,6 @@
     autoConfirmMarkers: false,
     overlayMarkerMenuEnabled: true,
     overlayPlacementMenuEnabled: true,
-    showBinsAlways: false,
     showVehiclesAlways: true,
     zoomToLocationMarkers: false,
     zoomToPlacedMarkers: false,
@@ -239,7 +238,6 @@
       col: "overlayPlacementMenuEnabled",
       label: "Placement menu style (on-map panel)",
     },
-    { col: "showBinsAlways", label: "Show bins always (offscreen tracking)" },
     {
       col: "showVehiclesAlways",
       label: "Show vehicles always (offscreen tracking)",

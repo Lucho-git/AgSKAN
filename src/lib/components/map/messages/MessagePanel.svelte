@@ -13,6 +13,7 @@
   import {
     messagePanelStore,
     messageTickStore,
+    messageIncomingStore,
     openMessagePanel,
     openMessageInbox,
     closeMessagePanel,
@@ -47,6 +48,17 @@
   let convos = []
   let loading = false
   let loadingList = false
+  let inboxLoaded = false
+  let showSpinner = false
+  let spinnerTimer = null
+  let lastRefreshId = null
+  // Last-seen conversation contents — instant paint when re-opening a chat.
+  const convCache = new Map()
+  // Cache entries seeded from a single live message still need a full load.
+  const seededIds = new Set()
+  // Background warm-up of recent conversations so first taps don't flicker.
+  let eagerLoading = false
+  const prefetching = new Set()
   let sending = false
   let draft = ""
   let resolvedName = ""
@@ -57,6 +69,7 @@
   let pendingAttachment = null
   let reviewAttachment = null
   let mini = false
+  let miniRevealed = false
   let panelEl = null
   let dragging = false
   let dragStartY = 0
@@ -142,15 +155,23 @@
           recipient = { id: p.id, name: p.name || "" }
           resolvedName = p.name || vehicleName(p.id) || ""
           draft = ""
+          // Instant paint from cache (no spinner flash) while the fresh copy
+          // loads; a cold open shows a delayed spinner instead of a flicker.
+          messages = convCache.get(p.id) || []
           refresh(true)
         }
       }),
     )
-    // A new message arrived (any conversation) — refresh what's open.
+    // A new message arrived — if the panel is closed, still refresh the inbox
+    // metadata and warm the conversation cache so tapping a popup opens the
+    // conversation instantly.
     unsubs.push(
       messageTickStore.subscribe(() => {
         const p = get(messagePanelStore)
-        if (!p) return
+        if (!p) {
+          void refreshInbox()
+          return
+        }
         if (p.view === "inbox") refreshInbox()
         else refresh(false)
       }),
@@ -164,6 +185,25 @@
         if (pickState.active || pickState.captured) reviewAttachment = pick
         else pendingAttachment = toAttachment(pick)
         pickedLocationStore.set(null)
+      }),
+    )
+    // Incoming message — extend/seed the cache right away so opening the
+    // chat from a popup has content on screen from the first frame.
+    unsubs.push(
+      messageIncomingStore.subscribe((msg) => {
+        if (!msg?.sender_id) return
+        const id = msg.sender_id
+        const cached = convCache.get(id)
+        if (cached) {
+          if (!cached.some((m) => m.id === msg.id)) {
+            convCache.set(id, [...cached, msg])
+          }
+        } else {
+          // Cold conversation — seed with just this message; the background
+          // prefetch (and the open refresh) fill in the full history.
+          convCache.set(id, [msg])
+          seededIds.add(id)
+        }
       }),
     )
     void loadMarkerIconPaths()
@@ -278,6 +318,41 @@
       console.warn("Conversation list load failed:", error)
     } finally {
       loadingList = false
+      inboxLoaded = true
+      void prefetchRecentConversations()
+    }
+  }
+
+  // Warm the cache for the most recent conversations so the first tap into
+  // one paints instantly instead of flashing a spinner. Best-effort, runs
+  // sequentially in the background and skips open / in-flight / cached chats.
+  async function prefetchRecentConversations() {
+    if (eagerLoading || !me || !mapId) return
+    eagerLoading = true
+    try {
+      // Need the conversation list to know what to warm.
+      if (!convos.length) await refreshInbox()
+      for (const convo of convos.slice(0, 6)) {
+        const id = convo.contactId
+        if (!id || id === recipient?.id) continue
+        if (prefetching.has(id)) continue
+        // Seeded entries only hold one message — still worth a full load.
+        if (convCache.has(id) && !seededIds.has(id)) continue
+        prefetching.add(id)
+        try {
+          const rows = await fetchConversation(mapId, me, id)
+          if (recipient?.id !== id) {
+            convCache.set(id, rows)
+            seededIds.delete(id)
+          }
+        } catch {
+          // Best-effort — the normal open path still loads it.
+        } finally {
+          prefetching.delete(id)
+        }
+      }
+    } finally {
+      eagerLoading = false
     }
   }
 
@@ -351,6 +426,7 @@
   function onDragStart(event) {
     if (dragging) return
     dragging = true
+    miniRevealed = false
     dragStartY = event.clientY
     dragDy = 0
     dragVelocity = 0
@@ -381,6 +457,16 @@
     if (!dragging) return
     const now = performance.now()
     dragDy = event.clientY - dragStartY
+    // Pulling up off the mini bar → reveal the conversation immediately
+    // instead of waiting for the release.
+    if (mini && dragDy < -24) {
+      mini = false
+      miniRevealed = true
+      // Revealing un-hides the list whose scroll position was lost — pin it
+      // straight back to the newest messages so every drag position shows
+      // the bottom of the conversation.
+      pinListToBottom()
+    }
     const dt = now - lastDragT
     if (dt > 0) {
       const instant = (event.clientY - lastDragY) / dt // px per ms
@@ -400,12 +486,17 @@
     const flingDown = dragVelocity > 0.5
     if (
       (flingDown && dragDy > 40) ||
-      (finalH < vh * 0.25 && finalH < dragStartH - 24)
+      (finalH < vh * 0.18 && finalH < dragStartH - 24)
     ) {
       closeMessagePanel()
     } else {
       if (mini && finalH > 120) mini = false
       sheetH = finalH
+      // Keep it pinned while the sheet settles after a mini-bar reveal.
+      if (miniRevealed) {
+        miniRevealed = false
+        pinListToBottom()
+      }
     }
     dragDy = 0
     dragVelocity = 0
@@ -418,12 +509,29 @@
   async function refresh(markRead) {
     const target = recipient
     if (!target || !me || !mapId) return
+    // Opening a conversation always lands at the bottom; refreshes of the
+    // open conversation keep position unless we were already at the bottom.
+    const switched = lastRefreshId !== target.id
+    lastRefreshId = target.id
+    const stickToBottom =
+      switched || !listEl || messages.length === 0
+        ? true
+        : listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 120
     loading = true
+    // Delay the spinner briefly so fast loads never flash "Loading…".
+    if (messages.length === 0) {
+      clearTimeout(spinnerTimer)
+      spinnerTimer = setTimeout(() => {
+        showSpinner = true
+      }, 180)
+    }
     try {
       const rows = await fetchConversation(mapId, me, target.id)
       // Ignore results if the panel moved on to someone else mid-flight.
       if (recipient?.id !== target.id) return
       messages = rows
+      convCache.set(target.id, rows)
+      seededIds.delete(target.id)
       if (!resolvedName) {
         resolvedName =
           vehicleName(target.id) ||
@@ -435,12 +543,33 @@
         messageClearUnread(target.id)
       }
       await tick()
-      if (listEl) listEl.scrollTop = listEl.scrollHeight
+      if (listEl && stickToBottom) listEl.scrollTop = listEl.scrollHeight
     } catch (error) {
       console.warn("Conversation load failed:", error)
     } finally {
+      clearTimeout(spinnerTimer)
+      showSpinner = false
       loading = false
     }
+    // Warm the other recent chats while this one settles.
+    void prefetchRecentConversations()
+  }
+
+  // Land on the latest messages whenever the list (re)mounts — covers
+  // switching conversations and returning from the location picker.
+  function pinToBottom(node) {
+    requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight
+    })
+  }
+
+  // Pin the conversation to the newest message after visibility/height
+  // changes — the list's scroll position is lost while it's display:none'd
+  // (mini bar), so it must be re-pinned the moment it reappears.
+  function pinListToBottom() {
+    tick().then(() => {
+      if (listEl) listEl.scrollTop = listEl.scrollHeight
+    })
   }
 
   function initials(name) {
@@ -672,7 +801,7 @@
     {#if view === "inbox"}
       <!-- Inbox: everyone I've exchanged messages with -->
       <div class="msg-panel-list">
-        {#if newMessagePeople.length > 0}
+        {#if inboxLoaded && newMessagePeople.length > 0}
           <!-- New message: pick any person on the map -->
           <div class="msg-new-section">
             <p class="msg-new-title">New message</p>
@@ -746,8 +875,13 @@
       </div>
     {:else}
       <!-- Conversation -->
-      <div class="msg-panel-list" bind:this={listEl}>
-      {#if loading && messages.length === 0}
+      {#key recipient?.id}
+        <div
+          class="msg-panel-list msg-list-fade"
+          bind:this={listEl}
+          use:pinToBottom
+        >
+      {#if showSpinner && messages.length === 0}
         <div class="flex items-center justify-center gap-2 py-8 text-white/50">
           <Loader2 size={14} class="animate-spin" />
           <span class="text-[11px]">Loading…</span>
@@ -794,7 +928,8 @@
           </div>
         {/each}
       {/if}
-    </div>
+        </div>
+      {/key}
 
     <!-- Composer -->
     {#if !recipientOnline}
@@ -935,6 +1070,20 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  /* Soft fade when a conversation (re)mounts — keeps switches feeling calm. */
+  .msg-list-fade {
+    animation: msg-list-in 0.16s ease-out;
+  }
+
+  @keyframes msg-list-in {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .msg-row {

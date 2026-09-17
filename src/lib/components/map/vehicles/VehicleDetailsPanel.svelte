@@ -391,10 +391,8 @@
   function handleInfoClick() {
     showInfoPanel = !showInfoPanel
     isExpanded = showInfoPanel
-    if (isTrailing) {
-      if (showInfoPanel) addTrailHighlight()
-      else removeTrailHighlight()
-    }
+    // The trail highlight is maintained by the reactive below, which also
+    // rebuilds it with the right colour when another vehicle is selected.
   }
 
   function handleStartTracking() {
@@ -606,7 +604,13 @@
     } catch {}
   }
 
-  // Live-update highlight source as trail grows.
+  // Which trail the highlight currently represents (vehicle + colour). When
+  // the user selects another trailing vehicle this changes, so the layers
+  // are rebuilt with that trail's colour instead of keeping the first's.
+  let hlKey = null
+
+  // Maintain the highlight: rebuild whenever the highlighted trail (or its
+  // colour) changes, otherwise just update the geometry as the trail grows.
   // Watching the raw stores directly (rather than the derived activeTrailData)
   // ensures Svelte picks up every path mutation pushed by the realtime sync.
   $: if (showInfoPanel && isTrailing && currentVehicle) {
@@ -614,8 +618,14 @@
       ? $currentTrailStore
       : $otherActiveTrailStore?.find((t) => t.vehicle_id === currentVehicle.id)
     if (trail?.path?.length >= 2) {
+      const key = `${
+        currentVehicle.isCurrentUser ? "me" : trail.id || currentVehicle.id
+      }:${trail.trail_color || ""}`
       const src = map?.getSource(HL_SOURCE)
-      if (src) {
+      if (key !== hlKey || !src) {
+        hlKey = key
+        addTrailHighlight()
+      } else {
         const coords = trail.path.map(normCoord).filter(Boolean)
         if (coords.length >= 2)
           src.setData({
@@ -624,11 +634,16 @@
             properties: {},
           })
       }
+    } else if (hlKey) {
+      // Trail data vanished while highlighted — drop the highlight.
+      hlKey = null
+      removeTrailHighlight()
     }
+  } else if (hlKey !== null) {
+    // Panel closed, vehicle no longer trailing, or nothing selected.
+    hlKey = null
+    removeTrailHighlight()
   }
-
-  // Remove highlight when trailing stops
-  $: if (!isTrailing) removeTrailHighlight()
 
   onDestroy(() => removeTrailHighlight())
 

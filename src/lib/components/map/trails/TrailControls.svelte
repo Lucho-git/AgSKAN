@@ -3,7 +3,6 @@
   import { createEventDispatcher } from "svelte"
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
   import { userVehicleTrailing } from "$lib/stores/vehicleStore"
-  import { toast } from "svelte-sonner"
 
   import { commands } from "$lib/stores/commandStore"
   import {
@@ -22,7 +21,6 @@
     const wasTrailing = $userVehicleTrailing
     commands.trail.toggle()
     if (!wasTrailing) {
-      toast.info("Initiating trail recording...")
       dispatch("close")
     }
   }

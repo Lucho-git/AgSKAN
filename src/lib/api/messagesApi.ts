@@ -146,7 +146,7 @@ export async function fetchMyConversations(
       convo = {
         contactId,
         name: fromMe ? null : row.sender_name,
-        lastBody: row.body || (row.attachment ? "📍 Shared a location" : ""),
+        lastBody: row.body || (row.attachment ? `📍 ${row.attachment.label || "Shared a location"}` : ""),
         lastAt: row.created_at,
         lastFromMe: fromMe,
         unread: 0,
