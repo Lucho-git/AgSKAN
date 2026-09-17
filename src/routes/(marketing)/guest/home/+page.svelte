@@ -10,8 +10,8 @@
     Sparkles,
     UserPlus,
   } from "lucide-svelte"
-  import { toast } from "svelte-sonner"
   import { supabase } from "$lib/stores/sessionStore"
+  import { goToGuestSignup } from "$lib/utils/guestUpgrade"
 
   let loading = true
   let guestName = ""
@@ -103,13 +103,6 @@
   onDestroy(() => {
     if (tickTimer) clearInterval(tickTimer)
   })
-
-  function createAccount() {
-    toast.info("Account upgrades are coming soon", {
-      description: "Your guest access keeps working in the meantime.",
-      duration: 5000,
-    })
-  }
 </script>
 
 <svelte:head>
@@ -178,17 +171,22 @@
           class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
         >
           <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
-            <Sparkles size={15} class="text-primary" /> Keep your access
+            <Sparkles size={15} class="text-amber-500" /> Keep your access
           </p>
           <p class="mt-1 text-xs text-base-content/60">
             Create a free account to keep viewing this map beyond your guest
             window, save your name and settings, and get your own maps.
           </p>
           <button
-            class="btn btn-outline btn-primary mt-3 w-full"
-            on:click={createAccount}
+            class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+            on:click={goToGuestSignup}
           >
-            <UserPlus size={15} /> Create an account
+            <UserPlus size={15} />
+            Create an account
+            <ArrowRight
+              size={16}
+              class="transition-transform group-hover:translate-x-1"
+            />
           </button>
         </div>
 

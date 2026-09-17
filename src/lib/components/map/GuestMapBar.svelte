@@ -2,7 +2,6 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
-  import { toast } from "svelte-sonner"
   import {
     ChevronDown,
     DoorOpen,
@@ -13,6 +12,7 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
+  import { goToGuestSignup } from "$lib/utils/guestUpgrade"
 
   let menuOpen = false
 
@@ -54,10 +54,7 @@
 
   function createAccount() {
     closeMenu()
-    toast.info("Account upgrades are coming soon", {
-      description: "Your guest access keeps working in the meantime.",
-      duration: 5000,
-    })
+    goToGuestSignup()
   }
 
   // Leave map = head back to the guest home. Deliberately does NOT
