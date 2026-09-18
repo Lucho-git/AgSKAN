@@ -58,8 +58,13 @@
     }
   })
 
-  // Check if already connected to a map
-  $: hasConnectedMap = $connectedMapStore?.id || connectedMap
+  // Check if already connected to a map. The map stores are module-level
+  // singletons — after an account switch in the same tab they can still
+  // hold the previous account's map, so only trust the store when THIS
+  // profile is actually connected (or the user joined on this page just now).
+  $: hasConnectedMap =
+    connectedMap ||
+    ($profileStore?.master_map_id ? $connectedMapStore?.id : null)
 
   // Computed property for form validation
   $: isFormValid =

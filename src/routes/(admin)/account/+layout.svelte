@@ -289,8 +289,13 @@
         layerVisibilityStore.reset()
       }
 
-      // If user has no map connected, we're done
+      // If user has no map connected, we're done. Clear the map-scoped
+      // stores first: they are module-level singletons, so after an account
+      // switch in the same tab (guest signs up, sign out then sign in as
+      // someone else) they still hold the PREVIOUS account's map — which
+      // made onboarding "join" flows silently attach the new account to it.
       if (!profile?.master_map_id) {
+        resetMapStores()
         return { profile, subscription, connected_map: null, user_settings }
       }
 

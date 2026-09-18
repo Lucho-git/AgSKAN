@@ -21,8 +21,9 @@
     MailCheck,
     Sparkles,
   } from "lucide-svelte"
-  import { supabase } from "$lib/stores/sessionStore"
+  import { supabase, clearPendingMapId } from "$lib/stores/sessionStore"
   import { mapApi } from "$lib/api/mapApi"
+  import { resetMapStores } from "$lib/stores/resetMapStores"
   import { updateOrCreateProfile } from "$lib/helpers/authHelpers"
 
   let step: "loading" | "form" | "saving" | "confirm" | "done" | "error" =
@@ -169,6 +170,12 @@
   // setup).
   async function signUpFresh(uid: string) {
     await retireSelfFromMap(uid)
+    // Drop the guest's map from the module-level stores too: the new account
+    // lives in the SAME tab memory, and the onboarding "join map" step would
+    // otherwise treat the guest's map as "already connected" and attach the
+    // new account to it (this was the "still connected after signup" bug).
+    resetMapStores()
+    clearPendingMapId()
     try {
       await supabase.auth.signOut({ scope: "local" })
     } catch (error) {
