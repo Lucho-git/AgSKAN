@@ -302,6 +302,46 @@
     savingMemberName = false
   }
 
+  // Account type (manager / operator / viewer) editing from the members table.
+  let savingMemberRoleId: string | null = null
+
+  async function handleMemberRoleChange(
+    mapId: string,
+    member: { id: string; full_name: string | null; role?: string | null },
+    newRole: string,
+  ) {
+    if (!newRole || newRole === member.role) return
+    const label = newRole.charAt(0).toUpperCase() + newRole.slice(1)
+    if (
+      !confirm(
+        `Change ${member.full_name || "this member"}'s account type to ${label}?`,
+      )
+    ) {
+      // The select already moved in the DOM — re-render to snap it back.
+      entries = [...entries]
+      return
+    }
+    savingMemberRoleId = member.id
+    const result = await adminApi.updateMemberRole(member.id, newRole)
+    if (result.success) {
+      entries = entries.map((e) =>
+        e.master_map_id === mapId
+          ? {
+              ...e,
+              members: e.members.map((m) =>
+                m.id === member.id ? { ...m, role: newRole } : m,
+              ),
+            }
+          : e,
+      )
+      toast.success(`${member.full_name || "Member"} is now ${label}`)
+    } else {
+      toast.error(result.error || "Failed to update account type")
+      entries = [...entries]
+    }
+    savingMemberRoleId = null
+  }
+
   async function handleTransferOwnership(
     mapId: string,
     memberId: string,
@@ -1351,7 +1391,8 @@
                                 <th>Email</th>
                                 <th>Last Sign-In</th>
                                 <th>Last Location</th>
-                                <th>Role</th>
+                                <th>Map Role</th>
+                                <th>Account Type</th>
                                 <th class="w-16">Settings</th>
                               </tr>
                             </thead>
@@ -1422,7 +1463,9 @@
                                         class="inline-flex items-center gap-2"
                                       >
                                         <span class="badge badge-ghost badge-xs"
-                                          >Member</span
+                                          >{member.map_role === "viewer"
+                                            ? "Viewer"
+                                            : "Member"}</span
                                         >
                                         <button
                                           type="button"
@@ -1438,6 +1481,25 @@
                                         </button>
                                       </span>
                                     {/if}
+                                  </td>
+                                  <td>
+                                    <select
+                                      class="select select-xs select-bordered w-24 text-xs"
+                                      value={member.role || ""}
+                                      disabled={savingMemberRoleId === member.id}
+                                      on:change={(e) =>
+                                        handleMemberRoleChange(
+                                          entry.master_map_id,
+                                          member,
+                                          e.currentTarget.value,
+                                        )}
+                                      title="Account type"
+                                    >
+                                      <option value="" disabled>—</option>
+                                      <option value="manager">Manager</option>
+                                      <option value="operator">Operator</option>
+                                      <option value="viewer">Viewer</option>
+                                    </select>
                                   </td>
                                   <td>
                                     <button

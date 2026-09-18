@@ -42,6 +42,8 @@ export interface AdminMapEntry {
         last_sign_in: string | null;
         last_location_update: string | null;
         is_owner: boolean;
+        role: string | null;
+        map_role: string | null;
     }[];
 }
 
@@ -138,6 +140,27 @@ export const adminApi = {
 
             if (error) {
                 console.error('Update member name error:', error)
+                return { success: false, error: error.message }
+            }
+
+            return { success: true }
+        } catch (error: any) {
+            return { success: false, error: error.message || 'Unexpected error' }
+        }
+    },
+
+    async updateMemberRole(
+        profileId: string,
+        newRole: string,
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ role: newRole, updated_at: new Date().toISOString() })
+                .eq('id', profileId)
+
+            if (error) {
+                console.error('Update member role error:', error)
                 return { success: false, error: error.message }
             }
 

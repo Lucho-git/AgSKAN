@@ -6,9 +6,11 @@
                    profile + map membership carry over) and make the access
                    permanent.
        - unticked → the guest STAYS on the map while filling the form; only
-                   on SUBMIT are they removed (map disconnect + session end)
-                   and a fresh account is created (signUp), heading toward the
-                   usual /account setup. -->
+                   on SUBMIT (after validation passes) are they fully retired
+                   from the map (retire_self_from_map: pointer row deleted,
+                   map unlinked — same as "Remove guest access") and a fresh
+                   account is created (signUp), heading toward the usual
+                   /account setup. -->
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
@@ -26,7 +28,6 @@
   let step: "loading" | "form" | "saving" | "confirm" | "done" | "error" =
     "loading"
   let mapName = "the map"
-  let fullName = ""
   let email = ""
   let password = ""
   let keepAccess = true
@@ -38,18 +39,28 @@
         data: { session },
       } = await supabase.auth.getSession()
       const uid = session?.user?.id
-      // Only anonymous guests qualify — a real account (or signed-out
-      // visitor) goes back to the guest home.
-      if (!uid || session?.user?.email) {
+      if (!uid) {
         goto("/guest/home")
         return
       }
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, master_map_id, retain_after_signup")
+        .select("master_map_id, retain_after_signup")
         .eq("id", uid)
         .single()
+
+      // Already a real account (email set, or an anonymous session that was
+      // upgraded / has a pending confirmation) — there is nothing to sign up
+      // for. Send them to their app instead of looping the guest home (this
+      // was the "create account just refreshes the page" bug).
+      const su = session.user
+      const isAccount =
+        su.is_anonymous === false || !!su.email || !!su.new_email
+      if (isAccount) {
+        goto(profile?.master_map_id ? "/account/mapviewer" : "/account")
+        return
+      }
 
       // No map → nothing to sign up for.
       if (!profile?.master_map_id) {
@@ -59,14 +70,11 @@
 
       // Ticked invite → the new account keeps the map access (upgrade this
       // session in place). Unticked → fresh signup: the guest STAYS on the
-      // map until they submit the form, then the guest session + map
-      // attachment are cleared and a brand-new account is created.
+      // map until they submit a valid form, then they are fully retired
+      // (pointer row deleted + map unlinked) and a brand-new account is
+      // created. Their name is handled by the usual signup flow.
       keepAccess = !!profile.retain_after_signup
 
-      fullName =
-        profile.full_name && profile.full_name !== "Visitor"
-          ? profile.full_name
-          : ""
       try {
         mapName = localStorage.getItem("guest_map_name") || mapName
       } catch {
@@ -79,13 +87,25 @@
     }
   })
 
+  // Validate BEFORE touching anything — submitting without a valid email
+  // used to retire the guest from the map first and only then bounce off
+  // Supabase's "invalid email" error, leaving them kicked out with no
+  // account.
+  function validateForm() {
+    const cleanEmail = email.trim()
+    if (!cleanEmail) return "Enter your email address."
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
+      return "That email doesn't look right - check for typos."
+    if (!password) return "Choose a password."
+    if (password.length < 6)
+      return "Your password needs at least 6 characters."
+    return ""
+  }
+
   async function createAccount() {
-    if (!email.trim() || !password) {
-      errorMessage = "Enter your email and a password."
-      return
-    }
-    if (password.length < 6) {
-      errorMessage = "Your password needs at least 6 characters."
+    const problem = validateForm()
+    if (problem) {
+      errorMessage = problem
       return
     }
     errorMessage = ""
@@ -104,7 +124,7 @@
       if (keepAccess) {
         await upgradeInPlace(uid)
       } else {
-        await signUpFresh()
+        await signUpFresh(uid)
       }
     } catch (error: any) {
       errorMessage = error?.message || "Could not create your account."
@@ -123,11 +143,10 @@
 
     // This path exists because the invite ticked "keep their access after
     // signup" — make the map access permanent (no guest window expiring).
-    const patch: Record<string, unknown> = { access_expires_at: null }
-    if (fullName.trim()) patch.full_name = fullName.trim()
+    // Their name is handled by the usual signup flow.
     const { error: profileError } = await supabase
       .from("profiles")
-      .update(patch)
+      .update({ access_expires_at: null })
       .eq("id", uid)
     if (profileError) {
       console.warn("Could not make map access permanent:", profileError.message)
@@ -142,19 +161,14 @@
     }
   }
 
-  // Unticked invite: the guest does NOT keep the map. Only NOW — after they
-  // submitted the form — do we take them off the map (people list) and end
-  // the anonymous session, then create a fresh account that goes through the
-  // usual signup outcome (/account setup).
-  async function signUpFresh() {
-    try {
-      const result = await mapApi.disconnectFromMap()
-      if (!result.success) {
-        console.warn("Guest disconnect before signup failed:", result.message)
-      }
-    } catch (error) {
-      console.warn("Guest disconnect before signup failed:", error)
-    }
+  // Unticked invite: the guest does NOT keep the map. Only NOW — after the
+  // form validated — do we retire them (pointer row dropped + map unlinked,
+  // the same retirement as "Remove guest access", so every member's map
+  // loses them right away) and end the anonymous session, then create a
+  // fresh account that goes through the usual signup outcome (/account
+  // setup).
+  async function signUpFresh(uid: string) {
+    await retireSelfFromMap(uid)
     try {
       await supabase.auth.signOut({ scope: "local" })
     } catch (error) {
@@ -164,7 +178,6 @@
     const options: Record<string, unknown> = {
       emailRedirectTo: `${window.location.origin}/auth/callback?next=/account`,
     }
-    if (fullName.trim()) options.data = { full_name: fullName.trim() }
 
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
@@ -196,6 +209,38 @@
       // Confirmation email sent — its link finishes setup and lands on
       // /account.
       step = "confirm"
+    }
+  }
+
+  // Full stop: drop their pointer row and unlink the map server-side (the
+  // same retirement the member-side "Remove guest access" button and the
+  // expiry cron use) so every other member's map loses them right away. The
+  // old client-side disconnect left the pointer row behind, so the team's
+  // map kept showing them until the next 60s poll.
+  async function retireSelfFromMap(uid: string) {
+    try {
+      const { error } = await supabase.rpc("retire_self_from_map")
+      if (error) throw error
+      return
+    } catch (error: any) {
+      console.warn(
+        "retire_self_from_map unavailable, falling back to disconnect:",
+        error?.message || error,
+      )
+    }
+    // Fallback for deployments without this migration.
+    try {
+      const result = await mapApi.disconnectFromMap()
+      if (!result.success) {
+        console.warn("Guest disconnect before signup failed:", result.message)
+      }
+    } catch (error) {
+      console.warn("Guest disconnect before signup failed:", error)
+    }
+    try {
+      await supabase.from("vehicle_state").delete().eq("vehicle_id", uid)
+    } catch (error) {
+      console.warn("Guest pointer cleanup failed:", error)
     }
   }
 
@@ -255,27 +300,13 @@
         <div class="mt-4 w-full text-left">
           <label
             class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
-            for="guest-account-name">Your name</label
-          >
-          <input
-            id="guest-account-name"
-            type="text"
-            bind:value={fullName}
-            placeholder="Your name"
-            maxlength="60"
-            class="input input-bordered w-full"
-          />
-        </div>
-
-        <div class="mt-4 w-full text-left">
-          <label
-            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
             for="guest-account-email">Email</label
           >
           <input
             id="guest-account-email"
             type="email"
             bind:value={email}
+            on:input={() => (errorMessage = "")}
             placeholder="you@example.com"
             autocomplete="email"
             class="input input-bordered w-full"
@@ -291,6 +322,7 @@
             id="guest-account-password"
             type="password"
             bind:value={password}
+            on:input={() => (errorMessage = "")}
             placeholder="At least 6 characters"
             autocomplete="new-password"
             class="input input-bordered w-full"

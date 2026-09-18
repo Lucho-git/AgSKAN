@@ -20,6 +20,8 @@
   let hasMap = false
   // Invite flag: does creating an account keep this map's access?
   let keepAccess = false
+  // Real account (email / upgraded guest) — guest options don't apply.
+  let isAccount = false
 
   let now = Date.now()
   let tickTimer: ReturnType<typeof setInterval> | null = null
@@ -66,6 +68,12 @@
         goto("/")
         return
       }
+
+      // A real account (email set, or an anonymous session already upgraded /
+      // with a pending confirmation) — the guest options don't apply to them.
+      const su = session.user
+      isAccount =
+        su.is_anonymous === false || !!su.email || !!su.new_email
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -133,7 +141,7 @@
           <MapPin size={26} class="text-amber-500" />
         </div>
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
-          Guest access
+          {isAccount ? "Signed in" : "Guest access"}
         </p>
         <h1 class="text-xl font-bold text-base-content">{mapName}</h1>
         {#if guestName}
@@ -173,35 +181,62 @@
           </button>
         {/if}
 
-        <div
-          class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
-        >
-          <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
-            <Sparkles size={15} class="text-amber-500" />
-            {keepAccess ? "Keep your access" : "Create your own account"}
-          </p>
-          <p class="mt-1 text-xs text-base-content/60">
-            {#if keepAccess}
-              Create a free account to keep viewing this map beyond your guest
-              window, save your name and settings, and get your own maps.
-            {:else}
-              This guest invite doesn't carry over after signup. Creating an
-              account takes you off {mapName} and sets you up with your own
-              AgSKAN account.
-            {/if}
-          </p>
-          <button
-            class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
-            on:click={goToGuestSignup}
+        {#if isAccount}
+          <div
+            class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
           >
-            <UserPlus size={15} />
-            Create an account
-            <ArrowRight
-              size={16}
-              class="transition-transform group-hover:translate-x-1"
-            />
-          </button>
-        </div>
+            <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
+              <Sparkles size={15} class="text-amber-500" /> You're signed in
+            </p>
+            <p class="mt-1 text-xs text-base-content/60">
+              {guestName ? `Signed in as ${guestName}. ` : ""}The guest options
+              don't apply to your account — you can open your map or dashboard
+              any time.
+            </p>
+            {#if !hasMap}
+              <button
+                class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+                on:click={() => goto("/account")}
+              >
+                Open your dashboard
+                <ArrowRight
+                  size={16}
+                  class="transition-transform group-hover:translate-x-1"
+                />
+              </button>
+            {/if}
+          </div>
+        {:else}
+          <div
+            class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
+          >
+            <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
+              <Sparkles size={15} class="text-amber-500" />
+              {keepAccess ? "Keep your access" : "Create your own account"}
+            </p>
+            <p class="mt-1 text-xs text-base-content/60">
+              {#if keepAccess}
+                Create a free account to keep viewing this map beyond your guest
+                window, save your name and settings, and get your own maps.
+              {:else}
+                This guest invite doesn't carry over after signup. Creating an
+                account takes you off {mapName} and sets you up with your own
+                AgSKAN account.
+              {/if}
+            </p>
+            <button
+              class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+              on:click={goToGuestSignup}
+            >
+              <UserPlus size={15} />
+              Create an account
+              <ArrowRight
+                size={16}
+                class="transition-transform group-hover:translate-x-1"
+              />
+            </button>
+          </div>
+        {/if}
 
         {#if !hasMap || expired}
           <p class="mt-3 text-xs text-base-content/50">

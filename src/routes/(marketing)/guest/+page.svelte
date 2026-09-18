@@ -32,6 +32,7 @@
     | "ready"
     | "joining"
     | "rejoin"
+    | "account"
     | "details"
     | "saving"
     | "done"
@@ -95,17 +96,21 @@
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("map_role, master_map_id, full_name, access_expires_at")
+        .select("map_role, master_map_id, full_name, access_expires_at, role")
         .eq("id", uid)
         .single()
       if (!profile || !profile.master_map_id || profile.master_map_id !== mapId)
         return
 
+      // Full accounts always keep access — only anonymous viewers have a
+      // guest window.
+      const isAccount = !!profile.role && profile.role !== "viewer"
       const accessOk =
         !profile.access_expires_at ||
         new Date(profile.access_expires_at).getTime() > Date.now()
-      const isMember = profile.map_role === "member"
-      const isActiveViewer = profile.map_role === "viewer" && accessOk
+      const isMember = profile.map_role === "member" || isAccount
+      const isActiveViewer =
+        profile.map_role === "viewer" && !isAccount && accessOk
       if (!isMember && !isActiveViewer) return
 
       if (profile.full_name) {
@@ -144,6 +149,14 @@
       mapId = row.map_id
       mapName = row.map_name || mapName
 
+      // Guest links never apply to signed-in accounts — the server left
+      // their profile untouched (guest_applied = false). Show them a
+      // "you're already signed in" step instead of the guest details form.
+      if (row.guest_applied === false) {
+        step = "account"
+        return
+      }
+
       // Members who happen to open a guest link skip the guest details step.
       const {
         data: { session: current },
@@ -152,10 +165,11 @@
       if (uid) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("map_role")
+          .select("map_role, role")
           .eq("id", uid)
           .single()
-        if (profile?.map_role && profile.map_role !== "viewer") {
+        const isAccount = !!profile?.role && profile.role !== "viewer"
+        if (isAccount || (profile?.map_role && profile.map_role !== "viewer")) {
           step = "done"
           goto("/account/mapviewer")
           return
@@ -307,6 +321,27 @@
           on:click={() => goto("/account/mapviewer")}
         >
           Go to the map <ArrowRight size={16} />
+        </button>
+      </div>
+    {:else if step === "account"}
+      <div class="flex flex-col items-center gap-2 text-center">
+        <div
+          class="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
+        >
+          <Users size={26} class="text-amber-500" />
+        </div>
+        <h1 class="text-xl font-bold text-base-content">
+          You're already signed in
+        </h1>
+        <p class="mt-1 text-sm text-base-content/60">
+          This invite is a guest link — it doesn't change your account or your
+          map. Open your app to keep working.
+        </p>
+        <button
+          class="btn btn-primary mt-5 w-full"
+          on:click={() => goto("/account")}
+        >
+          Open the app <ArrowRight size={16} />
         </button>
       </div>
     {:else if step === "details" || step === "saving" || step === "done"}

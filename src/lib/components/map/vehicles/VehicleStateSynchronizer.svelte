@@ -90,42 +90,91 @@
       knownPresence = new Set(ids)
       return
     }
-    const profileMap = getConnectedProfileMap()
+    const joined = []
     for (const id of ids) {
       // $profileStore.id, not the onMount-local userId (that scope isn't
       // visible here — referencing it threw a ReferenceError and killed the
       // join toast before it could render).
       if (id === $profileStore.id || knownPresence.has(id)) continue
-      const profile = profileMap.get(id)
-      const name = profile?.full_name || "Someone"
-      // Their machine's icon (in its body colour) when it's on the map —
-      // falls back to a text-only line when we don't have the vehicle yet.
-      const vehicle = $serverOtherVehiclesData.find(
-        (v) => v.vehicle_id === id,
-      )
-      toast.custom(MapActivityToast, {
-        id: `join-${id}`,
-        class: "toast-dark-heavy-border",
-        style: "width: var(--width, 356px);",
-        // Joins are worth watching (and tapping Locate on later), so give
-        // them twice the default on-screen time.
-        duration: 10000,
-        componentProps: {
-          title: name,
-          subtitle:
-            profile?.map_role === "viewer"
-              ? "Joined the map - view only"
-              : "Joined the map",
-          kind: "vehicle",
-          vehicleType: vehicle?.vehicle_marker?.type || null,
-          bodyColor:
-            vehicle?.vehicle_marker?.bodyColor ||
-            vehicle?.vehicle_marker?.color ||
-            null,
-        },
-      })
+      joined.push(id)
     }
+    // Mark everyone as known right away so a staggered presence sync can't
+    // double-announce while the data lookups below are in flight.
     knownPresence = new Set(ids)
+    for (const id of joined) void announceJoin(id)
+  }
+
+  // Say hello to someone who just opened the map. Their profile + machine
+  // normally arrive via realtime a beat after the presence event — pull both
+  // directly when our caches don't have them yet. This is what used to show
+  // "Someone joined" with no vehicle icon, and it seeds the people menu +
+  // map markers immediately instead of on the next 60s poll.
+  async function announceJoin(id) {
+    let profile = getConnectedProfileMap().get(id)
+    let vehicle = $serverOtherVehiclesData.find((v) => v.vehicle_id === id)
+    try {
+      if (!profile?.full_name) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(
+            "id, full_name, map_role, selected_operation_id, master_map_id",
+          )
+          .eq("id", id)
+          .maybeSingle()
+        if (!error && data) {
+          // Already retired (removed / signed up out of guest mode) by the
+          // time we looked — nobody to announce.
+          if (!data.master_map_id) return
+          mergeConnectedProfile(data)
+          profile = getConnectedProfileMap().get(id) || data
+        }
+      }
+      if (!vehicle) {
+        const { data, error } = await supabase
+          .from("vehicle_state")
+          .select("*")
+          .eq("vehicle_id", id)
+          .maybeSingle()
+        if (!error && data) {
+          const profileMap = getConnectedProfileMap()
+          serverOtherVehiclesData.update((vehicles) =>
+            vehicles.some((v) => v.vehicle_id === id)
+              ? vehicles
+              : [...vehicles, enrichWithProfile(data, profileMap)],
+          )
+          const changes = compareData(
+            $serverOtherVehiclesData,
+            $otherVehiclesStore,
+          )
+          otherVehiclesDataChanges.set(changes)
+          vehicle = data
+        }
+      }
+    } catch (e) {
+      console.warn("Join lookup failed (announcing anyway):", e)
+    }
+
+    toast.custom(MapActivityToast, {
+      id: `join-${id}`,
+      class: "toast-dark-heavy-border",
+      style: "width: var(--width, 356px);",
+      // Joins are worth watching (and tapping Locate on later), so give
+      // them twice the default on-screen time.
+      duration: 10000,
+      componentProps: {
+        title: profile?.full_name || "Someone",
+        subtitle:
+          profile?.map_role === "viewer"
+            ? "Joined the map - view only"
+            : "Joined the map",
+        kind: "vehicle",
+        vehicleType: vehicle?.vehicle_marker?.type || null,
+        bodyColor:
+          vehicle?.vehicle_marker?.bodyColor ||
+          vehicle?.vehicle_marker?.color ||
+          null,
+      },
+    })
   }
 
   // ── "Changed vehicle" announcements ─────────────────────────────────────
@@ -828,6 +877,19 @@
           if (payload.eventType === "DELETE") {
             const removedId = payload.old?.vehicle_id
             if (removedId && removedId !== userId) {
+              // Their vehicle row was removed outright (guest signed up and
+              // left / removed by a team member / expiry cron) — drop them
+              // from the live roster too, so they vanish from the people
+              // menu and markers now, not once the 60s poll catches up.
+              const profiles = $mapActivityStore.connected_profiles || []
+              if (profiles.some((p) => p.id === removedId)) {
+                mapActivityStore.update((state) => ({
+                  ...state,
+                  connected_profiles: (state.connected_profiles || []).filter(
+                    (p) => p.id !== removedId,
+                  ),
+                }))
+              }
               serverOtherVehiclesData.update((vehicles) =>
                 vehicles.filter((v) => v.vehicle_id !== removedId),
               )
