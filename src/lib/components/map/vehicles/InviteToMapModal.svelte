@@ -299,8 +299,8 @@
       {:else}
         <p class="mt-3 text-xs leading-relaxed text-white/60">
           Anyone with this link can join your map and view it — no account
-          needed. Guest access lasts a limited time, unless you tick the box
-          below and they create an account.
+          needed. Guest access lasts a limited time — tick the box below to
+          let them upgrade to a full operator when they create an account.
         </p>
 
         <!-- Invite link + duration -->
@@ -354,10 +354,11 @@
             />
             <span class="min-w-0">
               <span class="block text-[11px] font-medium text-white/80">
-                Keep their access after signup
+                Upgrade them to an operator after signup
               </span>
               <span class="block text-[10px] leading-snug text-white/45">
-                They stay on this map if they create an account.
+                If they create an account, they join this map as a full
+                operator — no guest window.
               </span>
             </span>
           </label>

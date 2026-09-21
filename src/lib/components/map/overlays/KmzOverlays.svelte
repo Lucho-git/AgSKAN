@@ -136,11 +136,17 @@
   // the style is ready (e.g. on rejoin while the map is still initialising).
   // That used to crash the reactive render and freeze the map at the first
   // screen, so we defer instead.
+  //
+  // Check this ONCE per render batch (renderAll), never per overlay inside the
+  // loop: in mapbox-gl v1 both `map.loaded()` and `map.isStyleLoaded()` report
+  // false while a style batch is pending, and every addSource/setData marks
+  // the style "changed" until the next frame. Re-checking per overlay meant
+  // overlay #1's addSource()/setData() made the check fail for overlay #2,
+  // which deferred — on every pass, forever (livelock). That surfaced as
+  // "roads uploaded in a follow-up file never render".
   function isMapStyleReady() {
     return !!(
       map &&
-      typeof map.loaded === "function" &&
-      map.loaded() &&
       typeof map.isStyleLoaded === "function" &&
       map.isStyleLoaded()
     )
@@ -158,12 +164,10 @@
     map.once("idle", handleRenderRetry)
   }
 
+  // Adds/updates one overlay's source + layers. Only call this once the style
+  // is confirmed ready (see isMapStyleReady) — it must not defer per overlay.
   function addOrUpdateOverlay(overlay) {
     if (!map || isDestroyed) return
-    if (!isMapStyleReady()) {
-      scheduleRender()
-      return
-    }
     const sourceId = sourceIdFor(overlay)
     const data = enrichFeatures(overlay)
 

@@ -212,12 +212,12 @@
           >
             <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
               <Sparkles size={15} class="text-amber-500" />
-              {keepAccess ? "Keep your access" : "Create your own account"}
+              {keepAccess ? "Become an operator" : "Create your own account"}
             </p>
             <p class="mt-1 text-xs text-base-content/60">
               {#if keepAccess}
-                Create a free account to keep viewing this map beyond your guest
-                window, save your name and settings, and get your own maps.
+                Create an account to join {mapName} as a full operator —
+                you'll keep your name and machine, with no guest time limit.
               {:else}
                 This guest invite doesn't carry over after signup. Creating an
                 account takes you off {mapName} and sets you up with your own

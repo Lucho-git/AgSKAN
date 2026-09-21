@@ -1,10 +1,10 @@
 <!-- src/routes/(marketing)/guest/upgrade/+page.svelte -->
 <!-- Guest signup page — adapts to the invite's "Keep their access after
      signup" checkbox (profiles.retain_after_signup):
-       - ticked  → upgrade the anonymous guest session into a real account in
-                   place (auth.updateUser keeps the same user id, so the
-                   profile + map membership carry over) and make the access
-                   permanent.
+       - ticked  → upgrade the anonymous guest session into a real OPERATOR
+                   account in place (auth.updateUser keeps the same user id;
+                   upgrade_guest_account flips role → operator and map_role →
+                   member so they're a full team member, access permanent).
        - unticked → the guest STAYS on the map while filling the form; only
                    on SUBMIT (after validation passes) are they fully retired
                    from the map (retire_self_from_map: pointer row deleted,
@@ -24,7 +24,7 @@
   import { supabase, clearPendingMapId } from "$lib/stores/sessionStore"
   import { mapApi } from "$lib/api/mapApi"
   import { resetMapStores } from "$lib/stores/resetMapStores"
-  import { updateOrCreateProfile } from "$lib/helpers/authHelpers"
+  import { updateOrCreateProfile, createSubscriptionIfNeeded, createUserSettingsIfNeeded } from "$lib/helpers/authHelpers"
 
   let step: "loading" | "form" | "saving" | "confirm" | "done" | "error" =
     "loading"
@@ -134,7 +134,9 @@
   }
 
   // Ticked invite: upgrade THIS anonymous session into a real account. Same
-  // user id, so the guest profile (and their place on this map) carries over.
+  // user id, so the guest profile (and their place on this map) carries
+  // over — and they come out as a full OPERATOR on the map (not a permanent
+  // viewer), because the invite ticked the upgrade box.
   async function upgradeInPlace(uid: string) {
     const { data, error } = await supabase.auth.updateUser({
       email: email.trim(),
@@ -142,15 +144,19 @@
     })
     if (error) throw friendlyAuthError(error)
 
-    // This path exists because the invite ticked "keep their access after
-    // signup" — make the map access permanent (no guest window expiring).
-    // Their name is handled by the usual signup flow.
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ access_expires_at: null })
-      .eq("id", uid)
-    if (profileError) {
-      console.warn("Could not make map access permanent:", profileError.message)
+    // Same user id — flip the guest into a full operator member of the map
+    // (role + map role, permanent access) and give them the same rows every
+    // normal signup gets.
+    await upgradeGuestAccount(uid)
+    try {
+      await createSubscriptionIfNeeded(uid)
+    } catch (error) {
+      console.warn("Subscription provisioning failed:", error)
+    }
+    try {
+      await createUserSettingsIfNeeded(uid)
+    } catch (error) {
+      console.warn("User settings provisioning failed:", error)
     }
 
     // With email confirmation enabled the new email stays pending until the
@@ -159,6 +165,36 @@
     step = pendingConfirmation ? "confirm" : "done"
     if (!pendingConfirmation) {
       setTimeout(() => goto("/account/mapviewer"), 1400)
+    }
+  }
+
+  // Server-side flip from guest → operator on the map they were viewing.
+  // Nothing is deleted — their name, pointer vehicle and map link all carry
+  // over; only the role and the guest window change.
+  async function upgradeGuestAccount(uid: string) {
+    try {
+      const { error } = await supabase.rpc("upgrade_guest_account")
+      if (error) throw error
+      return
+    } catch (error: any) {
+      console.warn(
+        "upgrade_guest_account unavailable, falling back to a direct update:",
+        error?.message || error,
+      )
+    }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        role: "operator",
+        map_role: "member",
+        access_expires_at: null,
+        retain_after_signup: false,
+        email: email.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", uid)
+    if (profileError) {
+      console.warn("Guest → operator upgrade failed:", profileError.message)
     }
   }
 
@@ -288,15 +324,15 @@
         </p>
         <h1 class="text-xl font-bold text-base-content">
           {#if keepAccess}
-            Keep your access to {mapName}
+            Become an operator on {mapName}
           {:else}
             Create your AgSKAN account
           {/if}
         </h1>
         <p class="mt-1 text-sm text-base-content/60">
           {#if keepAccess}
-            This invite lets you stay on the map after you create an account —
-            your access continues without a guest window.
+            This invite includes full team access — creating your account
+            upgrades you from guest to a full operator on {mapName}.
           {:else}
             Heads up — this guest invite doesn't include post-signup access.
             Creating an account will remove you from {mapName} as a guest and
@@ -377,7 +413,7 @@
         <p class="text-sm text-base-content/60">
           We've sent a confirmation link to <strong>{email}</strong>.
           {#if keepAccess}
-            Your map access keeps working while you confirm.
+            Your operator access keeps working while you confirm.
           {:else}
             Click it to finish setting up your account.
           {/if}
@@ -403,8 +439,8 @@
         <h1 class="text-xl font-bold text-base-content">You're all set</h1>
         <p class="text-sm text-base-content/60">
           {#if keepAccess}
-            Your account is created and you're staying on {mapName}. Taking
-            you to the map…
+            Your account is ready — you're now an operator on {mapName}.
+            Taking you to the map…
           {:else}
             Your account is ready. Taking you through account setup…
           {/if}
