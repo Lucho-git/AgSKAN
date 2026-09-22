@@ -29,6 +29,7 @@
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { toast } from "svelte-sonner"
+  import { RadioTower } from "lucide-svelte"
   import "$lib/../styles/global.css"
   import { Capacitor } from "@capacitor/core"
   import backgroundService from "$lib/services/backgroundService"
@@ -2562,7 +2563,6 @@
         isFlashing: flashState.is_flashing || false,
         flashReason: flashState.flash_reason || null,
         flashColor: flashState.flash_color || null,
-        isOwnVehicle: !!isUserVehicle,
       },
     })
 
@@ -3142,8 +3142,10 @@
       return Number.isFinite(ts) && now - ts < VEHICLE_TRACK_ACTIVE_MS
     }
 
-    // Register a vehicle's edge dot (upsert by id).
-    const register = (id, coords, vehicleMarker, heading, label) => {
+    // Register a vehicle's edge badge (upsert by id). `broadcast` switches
+    // the badge to the broadcast signal icon + colour instead of the vehicle
+    // icon, so broadcasting vehicles read as a live signal wherever they are.
+    const register = (id, coords, vehicleMarker, heading, label, broadcast) => {
       const parsed = parseCoordinates(coords)
       if (!parsed) return
       wanted.add(id)
@@ -3154,21 +3156,66 @@
       mapAttentionStore.add({
         id,
         coordinates: [parsed.longitude, parsed.latitude],
-        color: VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
+        color: broadcast
+          ? broadcast.color
+          : VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
         label,
-        heading: heading ?? 0,
-        component: SVGComponents[type] || SVGComponents.SimpleTractor,
-        componentProps: {
-          bodyColor,
-          size: `${Math.max(16, Math.min(30, Math.round(size * 0.55)))}px`,
-          swath,
-        },
+        heading: broadcast ? undefined : heading ?? 0,
+        ...(broadcast
+          ? { icon: RadioTower, component: null, componentProps: null }
+          : {
+              icon: null,
+              component: SVGComponents[type] || SVGComponents.SimpleTractor,
+              componentProps: {
+                bodyColor,
+                size: `${Math.max(16, Math.min(30, Math.round(size * 0.55)))}px`,
+                swath,
+              },
+            }),
       })
     }
 
+    // Broadcast style for a broadcasting vehicle (label + colour, with legacy
+    // id fallbacks for older senders).
+    const broadcastInfo = (v) => {
+      const reason = String(v.flash_reason || "Broadcast").toUpperCase()
+      const legacyColors = {
+        FULL: "#f59e0b",
+        EMPTY: "#8b5cf6",
+        HELP: "#ef4444",
+      }
+      return { color: v.flash_color || legacyColors[reason] || "#f59e0b", reason }
+    }
+
+    // Broadcasting vehicles always get an edge indicator in the broadcast
+    // colour — independent of the "show vehicles always" setting.
+    if (userVehicle?.is_flashing) {
+      const b = broadcastInfo(userVehicle)
+      register(
+        `vehicle-track-${userVehicle.vehicle_id || "me"}`,
+        userVehicle.coordinates,
+        userVehicle.vehicle_marker,
+        userVehicle.heading,
+        `You — broadcasting ${b.reason}`,
+        b,
+      )
+    }
+    for (const v of otherVehicles || []) {
+      if (!v.is_flashing) continue
+      const b = broadcastInfo(v)
+      register(
+        `vehicle-track-${v.vehicle_id}`,
+        v.coordinates,
+        v.vehicle_marker,
+        v.heading,
+        `${v.full_name || getVehicleDisplayName(v)} — broadcasting ${b.reason}`,
+        b,
+      )
+    }
+
     if (enabled && vehiclesVisible) {
-      // The user's own vehicle.
-      if (isActive(userVehicle?.last_update)) {
+      // The user's own vehicle (skipped while broadcasting — registered above).
+      if (isActive(userVehicle?.last_update) && !userVehicle?.is_flashing) {
         register(
           `vehicle-track-${userVehicle.vehicle_id || "me"}`,
           userVehicle.coordinates,
@@ -3179,7 +3226,7 @@
       }
       // All other vehicles with recent movement.
       for (const v of otherVehicles || []) {
-        if (!isActive(v.last_update)) continue
+        if (!isActive(v.last_update) || v.is_flashing) continue
         register(
           `vehicle-track-${v.vehicle_id}`,
           v.coordinates,
