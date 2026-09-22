@@ -24,9 +24,11 @@
   import VehicleControls from "./VehicleControls.svelte"
   import VehicleCompassButton from "./VehicleCompassButton.svelte"
   import NorthResetToast from "./NorthResetToast.svelte"
+  import BroadcastToast from "./BroadcastToast.svelte"
   import NativeGeolocationAdapter from "../controls/NativeGeolocationAdapter.js"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
+  import { broadcastSilenceRequest } from "$lib/stores/broadcastSilenceStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { toast } from "svelte-sonner"
   import { RadioTower } from "lucide-svelte"
@@ -443,6 +445,46 @@
     }
 
     updateAllVehicleSelectionStates()
+
+    // Just selected a teammate's vehicle that is broadcasting? Offer to
+    // silence it — silencing stops the broadcast for everyone.
+    if (vehicleId && selectedVehicleId === vehicleId) {
+      const other = ($otherVehiclesStore || []).find(
+        (v) => v.vehicle_id === vehicleId,
+      )
+      if (other?.is_flashing) showSilenceOption(other)
+    }
+  }
+
+  // Toast offering to silence a teammate's active broadcast.
+  function showSilenceOption(vehicle) {
+    const legacyLabels = { full: "Full", empty: "Empty", help: "Help" }
+    const raw = String(vehicle.flash_reason || "Broadcast")
+    const label = legacyLabels[raw.toLowerCase()] || raw
+    toast.info(
+      `${vehicle.full_name || "Vehicle"} is broadcasting ${label}`,
+      {
+        description: "Silence stops this broadcast for everyone.",
+        duration: 9000,
+        style: `border-left: 4px solid ${vehicle.flash_color || "#f59e0b"};`,
+        action: {
+          label: "Silence",
+          onClick: () => silenceBroadcast(vehicle),
+        },
+      },
+    )
+  }
+
+  // Ask the synchronizer to broadcast the silence signal + clear the row.
+  function silenceBroadcast(vehicle) {
+    if (!vehicle?.vehicle_id) return
+    broadcastSilenceRequest.set({
+      vehicleId: vehicle.vehicle_id,
+      at: Date.now(),
+    })
+    toast.success("Broadcast silenced", {
+      description: `${vehicle.full_name ? `${vehicle.full_name}'s` : "Their"} broadcast was stopped.`,
+    })
   }
 
   // Highlight a vehicle (the same styling a normal tap-selection uses)
@@ -3335,6 +3377,8 @@
   suppress={isFirstPersonMode}
   onTrueNorth={handleResetNorth}
 />
+
+<BroadcastToast />
 
 {#if !$locationPickStore.active && !$locationPickStore.captured}
   <VehicleDetailsPanel

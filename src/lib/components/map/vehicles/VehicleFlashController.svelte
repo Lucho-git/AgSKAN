@@ -1,37 +1,12 @@
 <!-- src/lib/components/map/vehicles/VehicleFlashController.svelte -->
-
-<!-- Module-level: shared across all instances, survives destroy/recreate -->
-<script context="module">
-  import { toast } from "svelte-sonner"
-  import { get } from "svelte/store"
-
-  const FLASH_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-  const FLASH_TOAST_ID = "flash-toast"
-
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let autoStopTimeoutId = null
-  /** @type {ReturnType<typeof setInterval> | null} */
-  let toastIntervalId = null
-  let flashToastActive = false
-
-  function clearAllFlashTimers() {
-    flashToastActive = false
-    if (toastIntervalId) {
-      clearInterval(toastIntervalId)
-      toastIntervalId = null
-    }
-    if (autoStopTimeoutId) {
-      clearTimeout(autoStopTimeoutId)
-      autoStopTimeoutId = null
-    }
-    toast.dismiss(FLASH_TOAST_ID)
-  }
-</script>
-
+<!-- The broadcast panel: pick a broadcast (Full / Help / custom) and start or
+     stop it. The countdown toast + 5 minute auto-stop live in BroadcastToast
+     (always mounted), so they survive panel close and app refresh. -->
 <script>
   import { createEventDispatcher } from "svelte"
   import { userVehicleStore } from "$lib/stores/vehicleStore"
-  import { onMount, onDestroy } from "svelte"
+  import { onMount } from "svelte"
+  import { toast } from "svelte-sonner"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { listMapBroadcasts, createMapBroadcast } from "$lib/api/broadcastApi"
@@ -71,12 +46,6 @@
   $: selectedBroadcast =
     broadcasts.find((b) => b.id === selectedId) || broadcasts[0]
 
-  function formatTime(seconds) {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
-
   // Friendly label for a wire reason value (id or label).
   function broadcastLabelFor(reason) {
     if (!reason) return "Broadcast"
@@ -86,45 +55,6 @@
         b.id.toLowerCase() === key || b.label.toLowerCase() === key,
     )
     return match ? match.label : String(reason)
-  }
-
-  function getRemainingSeconds() {
-    const store = get(userVehicleStore)
-    if (!store.flash_started_at) return 0
-    const startTime = new Date(store.flash_started_at).getTime()
-    const elapsed = Date.now() - startTime
-    return Math.max(0, Math.ceil((FLASH_DURATION_MS - elapsed) / 1000))
-  }
-
-  function showFlashToast() {
-    // Kill any existing toast/interval first
-    clearAllFlashTimers()
-
-    const store = get(userVehicleStore)
-    const reasonLabel = broadcastLabelFor(store.flash_reason)
-    const reasonColor = store.flash_color || "#f59e0b"
-
-    flashToastActive = true
-
-    const updateToast = () => {
-      // Guard: don't re-create toast if flashing was stopped
-      if (!flashToastActive) return
-
-      const remaining = getRemainingSeconds()
-      toast.info(`Broadcasting: ${reasonLabel}`, {
-        id: FLASH_TOAST_ID,
-        description: `Time remaining: ${formatTime(remaining)}`,
-        duration: Infinity,
-        style: `border-left: 4px solid ${reasonColor};`,
-        action: {
-          label: "Stop",
-          onClick: () => stopFlashing(false),
-        },
-      })
-    }
-
-    updateToast()
-    toastIntervalId = setInterval(updateToast, 1000)
   }
 
   async function loadCustomBroadcasts() {
@@ -180,31 +110,22 @@
   }
 
   async function startFlashing() {
-    const now = new Date().toISOString()
-
+    // Just flip the state — BroadcastToast shows the countdown + stop action
+    // and schedules the 5 minute auto-stop.
     userVehicleStore.update((vehicle) => ({
       ...vehicle,
       is_flashing: true,
-      flash_started_at: now,
+      flash_started_at: new Date().toISOString(),
       flash_reason: selectedBroadcast?.default
         ? selectedBroadcast.id
         : selectedBroadcast?.label || "full",
       flash_color: selectedBroadcast?.color || "#f59e0b",
     }))
 
-    clearAllFlashTimers()
-    autoStopTimeoutId = setTimeout(() => {
-      stopFlashing(true)
-    }, FLASH_DURATION_MS)
-
-    showFlashToast()
     dispatch("closeToolbox")
   }
 
-  async function stopFlashing(autoStopped = false) {
-    // Clear ALL timers first, before any store update or toast call
-    clearAllFlashTimers()
-
+  async function stopFlashing() {
     userVehicleStore.update((vehicle) => ({
       ...vehicle,
       is_flashing: false,
@@ -212,48 +133,11 @@
       flash_reason: null,
       flash_color: null,
     }))
-
-    if (autoStopped) {
-      toast.info("Broadcast ended", {
-        description: "5 minute broadcast period finished",
-      })
-    }
   }
 
   onMount(() => {
     loadCustomBroadcasts()
-
-    if ($userVehicleStore.is_flashing && $userVehicleStore.flash_started_at) {
-      const startTime = new Date($userVehicleStore.flash_started_at).getTime()
-      const elapsed = Date.now() - startTime
-
-      if (elapsed >= FLASH_DURATION_MS) {
-        stopFlashing(true)
-      } else {
-        const remaining = FLASH_DURATION_MS - elapsed
-
-        if (autoStopTimeoutId) clearTimeout(autoStopTimeoutId)
-        autoStopTimeoutId = setTimeout(() => {
-          stopFlashing(true)
-        }, remaining)
-
-        // Only start toast updates if one isn't already running
-        if (!flashToastActive) {
-          showFlashToast()
-        }
-      }
-    }
   })
-
-  onDestroy(() => {
-    // Timers are module-level — they survive component destroy intentionally.
-    // stopFlashing() and the reactive block handle cleanup.
-  })
-
-  // ── React to flash-stop from any source ──
-  $: if (!isFlashing && flashToastActive) {
-    clearAllFlashTimers()
-  }
 </script>
 
 <div class="flash-controller">
