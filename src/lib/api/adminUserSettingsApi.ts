@@ -22,8 +22,6 @@ export interface UserSettingsRow {
     show_gps_rejected_popups: boolean
     layer_visibility: Record<string, boolean>
     auto_confirm_markers: boolean
-    overlay_marker_menu_enabled: boolean
-    overlay_placement_menu_enabled: boolean
     show_vehicles_always: boolean
     spray_confirm_enabled: boolean
     road_overlays_enabled: boolean
@@ -51,8 +49,6 @@ const FIELD_MAP: Record<string, string> = {
     showGpsRejectedPopups: "show_gps_rejected_popups",
     layerVisibility: "layer_visibility",
     autoConfirmMarkers: "auto_confirm_markers",
-    overlayMarkerMenuEnabled: "overlay_marker_menu_enabled",
-    overlayPlacementMenuEnabled: "overlay_placement_menu_enabled",
     showVehiclesAlways: "show_vehicles_always",
     sprayConfirmEnabled: "spray_confirm_enabled",
     roadOverlaysEnabled: "road_overlays_enabled",

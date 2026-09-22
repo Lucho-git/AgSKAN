@@ -205,10 +205,6 @@
             user_settings.zoom_to_location_markers ?? false,
           zoomToPlacedMarkers: user_settings.zoom_to_placed_markers ?? false,
           autoConfirmMarkers: user_settings.auto_confirm_markers ?? false,
-          overlayMarkerMenuEnabled:
-            user_settings.overlay_marker_menu_enabled ?? true,
-          overlayPlacementMenuEnabled:
-            user_settings.overlay_placement_menu_enabled ?? true,
           showVehiclesAlways: user_settings.show_vehicles_always ?? true,
           satelliteDropdownEnabled:
             user_settings.satellite_dropdown_enabled ?? false,
@@ -257,8 +253,6 @@
           zoomToLocationMarkers: false,
           zoomToPlacedMarkers: false,
           autoConfirmMarkers: false,
-          overlayMarkerMenuEnabled: true,
-          overlayPlacementMenuEnabled: true,
           showVehiclesAlways: true,
           satelliteDropdownEnabled: false,
           enabledImageryProviders: [],

@@ -3,10 +3,14 @@
   import { onMount, onDestroy } from "svelte"
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import * as turf from "@turf/turf"
-  import { Ruler, Plus, X, Undo } from "lucide-svelte"
+  import { Ruler, Plus, X, Undo, Square } from "lucide-svelte"
 
   export let map
   let area = { hectares: 0, squareMeters: 0 }
+  let distance = { km: 0, meters: 0 }
+  // Measurement mode — "area" (polygon, default) or "line" (path distance).
+  // Switching modes keeps the placed dots.
+  let measureMode = "area"
   let currentPoints = []
   let sourceId = "drawing-hectares-source"
   let layerIds = {
@@ -16,6 +20,7 @@
   }
 
   $: canUndo = currentPoints.length > 0
+  $: minPoints = measureMode === "area" ? 3 : 2
 
   function formatArea(areaInSquareMeters) {
     return {
@@ -121,7 +126,36 @@
         })
       })
 
-      if (currentPoints.length === 2) {
+      if (measureMode === "line") {
+        // Line measurement — connect every placed dot and measure the total
+        // path length (dots carry over from area mode and vice versa).
+        if (currentPoints.length >= 2) {
+          features.push({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: currentPoints,
+            },
+            properties: {},
+          })
+
+          try {
+            const km = turf.length(turf.lineString(currentPoints), {
+              units: "kilometers",
+            })
+            distance = {
+              km: Math.round(km * 100) / 100,
+              meters: Math.round(km * 1000),
+            }
+          } catch (error) {
+            console.error("Error calculating distance:", error)
+            distance = { km: 0, meters: 0 }
+          }
+        } else {
+          distance = { km: 0, meters: 0 }
+        }
+        area = { hectares: 0, squareMeters: 0 }
+      } else if (currentPoints.length === 2) {
         // Show line between first two points
         features.push({
           type: "Feature",
@@ -166,6 +200,14 @@
     }
   }
 
+  // Switch measurement mode — keeps the placed dots and just recalculates
+  // the drawn shape + readout for the new mode.
+  function setMeasureMode(next) {
+    if (measureMode === next) return
+    measureMode = next
+    updateMapDisplay()
+  }
+
   function addPoint() {
     if (!map || !$drawingModeEnabled) return
 
@@ -199,6 +241,7 @@
   function resetDrawing() {
     currentPoints = [] // Reassignment instead of mutation
     area = { hectares: 0, squareMeters: 0 }
+    distance = { km: 0, meters: 0 }
     updateMapDisplay()
   }
 
@@ -257,7 +300,8 @@
 
   $: if (map && $drawingModeEnabled !== undefined) {
     if ($drawingModeEnabled) {
-      // Reset state when enabling drawing mode
+      // Reset state when enabling drawing mode — always start in area mode
+      measureMode = "area"
       resetDrawing()
 
       // Initialize layers when ready
@@ -296,31 +340,70 @@
     </div>
   </div>
 
-  <!-- Mobile-first status display -->
-  {#if currentPoints.length >= 3}
-    <div class="area-display">
-      <div class="area-value">
-        {area.hectares}<span class="area-unit">ha</span>
-      </div>
-      <div class="area-detail">
-        {area.squareMeters.toLocaleString()} m² • {currentPoints.length} points
-      </div>
+  <!-- Mode tabs + live readout (top centre) -->
+  <div class="top-stack">
+    <div class="measure-tabs" role="tablist" aria-label="Measurement mode">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={measureMode === "area"}
+        class="tab"
+        class:active={measureMode === "area"}
+        on:click={() => setMeasureMode("area")}
+      >
+        <Square size={14} />
+        <span>Area</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={measureMode === "line"}
+        class="tab"
+        class:active={measureMode === "line"}
+        on:click={() => setMeasureMode("line")}
+      >
+        <Ruler size={14} />
+        <span>Line</span>
+      </button>
     </div>
-  {:else}
-    <div class="progress-indicator">
-      <div class="progress-dots">
-        {#each Array(3) as _, i}
-          <div
-            class="progress-dot"
-            class:active={i < currentPoints.length}
-          ></div>
-        {/each}
+
+    {#if measureMode === "line" && currentPoints.length >= 2}
+      <div class="area-display">
+        <div class="area-value">
+          {distance.km >= 1 ? distance.km : distance.meters}<span
+            class="area-unit">{distance.km >= 1 ? "km" : "m"}</span
+          >
+        </div>
+        <div class="area-detail">
+          {distance.meters.toLocaleString()} m • {currentPoints.length} points
+        </div>
       </div>
-      <div class="progress-text">
-        {currentPoints.length}/3 points • {3 - currentPoints.length} more needed
+    {:else if measureMode === "area" && currentPoints.length >= 3}
+      <div class="area-display">
+        <div class="area-value">
+          {area.hectares}<span class="area-unit">ha</span>
+        </div>
+        <div class="area-detail">
+          {area.squareMeters.toLocaleString()} m² • {currentPoints.length} points
+        </div>
       </div>
-    </div>
-  {/if}
+    {:else}
+      <div class="progress-indicator">
+        <div class="progress-dots">
+          {#each Array(minPoints) as _, i}
+            <div
+              class="progress-dot"
+              class:active={i < currentPoints.length}
+            ></div>
+          {/each}
+        </div>
+        <div class="progress-text">
+          {currentPoints.length}/{minPoints} points • {minPoints -
+            currentPoints.length} more needed
+        </div>
+      </div>
+    {/if}
+  </div>
 
   <!-- Control buttons - bottom center -->
   <div class="button-container">
@@ -412,18 +495,63 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
-  /* Mobile-first area display */
-  .area-display {
+  /* Mode tabs + readout — fixed stack at the top centre. The stack itself
+     ignores pointer events so the map stays usable between the pills. */
+  .top-stack {
     position: fixed;
     top: 1rem;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .top-stack > * {
+    pointer-events: auto;
+  }
+
+  .measure-tabs {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+  }
+  .measure-tabs .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .measure-tabs .tab:hover {
+    color: #fff;
+  }
+  .measure-tabs .tab.active {
+    background: rgba(14, 165, 233, 0.9);
+    color: #fff;
+  }
+
+  /* Live readout (area in ha / line distance) */
+  .area-display {
     background: rgba(0, 0, 0, 0.85);
     color: white;
     padding: 12px 20px;
     border-radius: 16px;
     text-align: center;
-    z-index: 10;
     backdrop-filter: blur(8px);
   }
 
@@ -448,16 +576,11 @@
 
   /* Progress indicator for initial points */
   .progress-indicator {
-    position: fixed;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.8);
     color: white;
     padding: 10px 16px;
     border-radius: 16px;
     text-align: center;
-    z-index: 10;
     backdrop-filter: blur(8px);
   }
 

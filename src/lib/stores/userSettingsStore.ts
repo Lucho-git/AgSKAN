@@ -14,8 +14,6 @@ const defaultSettings = {
     zoomToLocationMarkers: false, // Auto-zoom on quick-drop markers (default off)
     zoomToPlacedMarkers: false, // Camera find on touch hold — no auto-zoom (default off)
     autoConfirmMarkers: false, // Skip marker edit panel — confirm immediately
-    overlayMarkerMenuEnabled: true, // Marker menu style: on-map panel by default
-    overlayPlacementMenuEnabled: true, // Placement menu style: on-map panel by default
     showVehiclesAlways: true, // Show offscreen tracking dots for recently-active vehicles (default on)
     satelliteDropdownEnabled: false, // Satellite imagery dropdown (replaces NDVI)
     enabledImageryProviders: [], // Array of enabled imagery provider keys

@@ -68,10 +68,6 @@
   $: iconGlassOpacityPct = Math.round(iconGlassOpacity * 100)
   $: isGlassStyle =
     markerStyle === "icon-dark-glass" || markerStyle === "icon-light-glass"
-  $: overlayMarkerMenuEnabled =
-    $userSettingsStore.overlayMarkerMenuEnabled ?? true
-  $: overlayPlacementMenuEnabled =
-    $userSettingsStore.overlayPlacementMenuEnabled ?? true
   $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? false
 
@@ -141,61 +137,6 @@
     } catch (e) {
       toast.error(e?.message || "Error saving setting")
       userSettingsStore.update((s) => ({ ...s, zoomToPlacedMarkers: !value }))
-    } finally {
-      saving = null
-    }
-  }
-
-  async function toggleOverlayMarkerMenu(value) {
-    saving = "overlayMarkerMenuEnabled"
-    try {
-      const result = await userSettingsApi.updateOverlayMarkerMenuEnabled(value)
-      if (result?.success) {
-        toast.success(
-          value ? "Marker menu: on-map panel" : "Marker menu: bottom panel",
-        )
-      } else {
-        toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({
-          ...s,
-          overlayMarkerMenuEnabled: !value,
-        }))
-      }
-    } catch (e) {
-      toast.error(e?.message || "Error saving setting")
-      userSettingsStore.update((s) => ({
-        ...s,
-        overlayMarkerMenuEnabled: !value,
-      }))
-    } finally {
-      saving = null
-    }
-  }
-
-  async function toggleOverlayPlacementMenu(value) {
-    saving = "overlayPlacementMenuEnabled"
-    try {
-      const result =
-        await userSettingsApi.updateOverlayPlacementMenuEnabled(value)
-      if (result?.success) {
-        toast.success(
-          value
-            ? "Placement menu: on-map panel"
-            : "Placement menu: bottom panel",
-        )
-      } else {
-        toast.error(result?.message || "Failed to update setting")
-        userSettingsStore.update((s) => ({
-          ...s,
-          overlayPlacementMenuEnabled: !value,
-        }))
-      }
-    } catch (e) {
-      toast.error(e?.message || "Error saving setting")
-      userSettingsStore.update((s) => ({
-        ...s,
-        overlayPlacementMenuEnabled: !value,
-      }))
     } finally {
       saving = null
     }
@@ -446,65 +387,6 @@
       </button>
     </div>
   {:else if markerSettingsGroup === "behaviour"}
-    <!-- Marker menu style -->
-    <div class="setting-row setting-row-col">
-      <div class="setting-row-top">
-        <div class="setting-icon marker-icon">
-          <Magnet size={16} />
-        </div>
-        <div class="setting-label">
-          <span class="setting-name">Marker menu style</span>
-          <span class="setting-desc"
-            >How marker menus open when a marker is selected</span
-          >
-        </div>
-      </div>
-      <div class="style-seg">
-        <button
-          type="button"
-          class:active={overlayMarkerMenuEnabled}
-          disabled={saving === "overlayMarkerMenuEnabled"}
-          on:click={() => toggleOverlayMarkerMenu(true)}>On Map Panel</button
-        >
-        <button
-          type="button"
-          class:active={!overlayMarkerMenuEnabled}
-          disabled={saving === "overlayMarkerMenuEnabled"}
-          on:click={() => toggleOverlayMarkerMenu(false)}>Bottom Panel</button
-        >
-      </div>
-    </div>
-
-    <!-- Placement menu style (for NEW markers) -->
-    <div class="setting-row setting-row-col">
-      <div class="setting-row-top">
-        <div class="setting-icon marker-icon">
-          <Magnet size={16} />
-        </div>
-        <div class="setting-label">
-          <span class="setting-name">Placement menu style</span>
-          <span class="setting-desc"
-            >How the icon menu opens when placing a new marker</span
-          >
-        </div>
-      </div>
-      <div class="style-seg">
-        <button
-          type="button"
-          class:active={overlayPlacementMenuEnabled}
-          disabled={saving === "overlayPlacementMenuEnabled"}
-          on:click={() => toggleOverlayPlacementMenu(true)}>On Map Panel</button
-        >
-        <button
-          type="button"
-          class:active={!overlayPlacementMenuEnabled}
-          disabled={saving === "overlayPlacementMenuEnabled"}
-          on:click={() => toggleOverlayPlacementMenu(false)}
-          >Bottom Panel</button
-        >
-      </div>
-    </div>
-
     <!-- Camera find on quick drop -->
     <div class="setting-row setting-row-col">
       <div class="setting-row-top">
@@ -798,7 +680,7 @@
     opacity: 0.5;
   }
 
-  /* Marker menu style — segmented picker row */
+  /* Column setting rows — label block on top, segmented picker below */
   .setting-row-col {
     flex-direction: column;
     align-items: stretch;

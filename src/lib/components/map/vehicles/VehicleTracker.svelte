@@ -8,7 +8,6 @@
     userVehicleTrailing,
     otherVehiclesStore,
     otherVehiclesDataChanges,
-    broadcastMessageEvent,
   } from "$lib/stores/vehicleStore"
   import {
     coordinateBufferStore,
@@ -72,7 +71,7 @@
   let userMarkerData = null
   let userInitialsMarker = null
   let lastRecordedTime = 0
-  let lastBroadcastTime = 0
+  let lastVehicleDataUpdateTime = 0
   /** @type {Array<{ marker: any, component: any, vehicleId: any, initialsMarker: any }>} */
   let otherVehicleMarkers = []
   let currentSpeed = 0
@@ -101,10 +100,6 @@
   let selectedVehicleId = null
 
   let mapBearing = 0
-
-  let userBroadcastMarker = null
-  let broadcastDismissTimer = null
-  let otherBroadcastMarkers = {} // { vehicleId: { marker, timer } }
 
   let contextCheckInterval = null
 
@@ -137,7 +132,7 @@
   let previousVisibility = { vehicles: true, vehicleLabels: true }
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
-  const MINIMUM_BROADCAST_INTERVAL = 15000 // 15 seconds
+  const MIN_VEHICLE_DATA_UPDATE_INTERVAL = 15000 // 15s heartbeat — force an update even when stationary
   // UI update throttle for native high-rate fixes (ms)
   const USER_UI_UPDATE_INTERVAL_MS = 1000 // show marker updates every 1s (align with native 1Hz)
   const NATIVE_SYNC_AUTH_REQUIRED_KEY = "agskan_native_sync_auth_required"
@@ -293,7 +288,6 @@
   let userVehicleUnsubscribe
   let userSettingsUnsubscribe
   let unsubscribeOtherVehiclesDataChanges
-  let unsubscribeBroadcastMessages
   let lastClientCoordinates = null
   let lastClientHeading = null
   let full1HzIntervalId = null
@@ -1725,10 +1719,6 @@
     unsubscribeOtherVehiclesDataChanges =
       otherVehiclesDataChanges.subscribe(processChanges)
 
-    unsubscribeBroadcastMessages = broadcastMessageEvent.subscribe((evt) => {
-      if (evt) showOtherVehicleBroadcast(evt)
-    })
-
     // Subscribe to user settings to:
     // 1. Always start the foreground GPS service on native (using slider interval)
     // 2. Optionally enable the 1Hz interval timer when enableFull1Hz is on
@@ -1993,23 +1983,11 @@
       userInitialsMarker = null
     }
 
-    if (userBroadcastMarker) {
-      userBroadcastMarker.remove()
-      userBroadcastMarker = null
-    }
-    if (broadcastDismissTimer) {
-      clearTimeout(broadcastDismissTimer)
-      broadcastDismissTimer = null
-    }
-
     if (userVehicleUnsubscribe) {
       userVehicleUnsubscribe()
     }
     if (unsubscribeOtherVehiclesDataChanges) {
       unsubscribeOtherVehiclesDataChanges()
-    }
-    if (unsubscribeBroadcastMessages) {
-      unsubscribeBroadcastMessages()
     }
     if (userSettingsUnsubscribe) {
       userSettingsUnsubscribe()
@@ -2028,13 +2006,6 @@
       clearInterval(debugOverlayTickId)
       debugOverlayTickId = null
     }
-
-    // Clean up other vehicle broadcast bubbles
-    Object.values(otherBroadcastMarkers).forEach(({ marker, timer }) => {
-      if (timer) clearTimeout(timer)
-      if (marker) marker.remove()
-    })
-    otherBroadcastMarkers = {}
 
     if (!isMobileApp && typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
@@ -2282,14 +2253,6 @@
                 last_update,
                 speed,
               )
-          }
-
-          // Move broadcast bubble if one exists for this vehicle
-          if (otherBroadcastMarkers[vehicle_id]?.marker) {
-            otherBroadcastMarkers[vehicle_id].marker.setLngLat([
-              longitude,
-              latitude,
-            ])
           }
         }
 
@@ -2936,9 +2899,9 @@
 
       const headingChanged = lastClientHeading !== updatedHeading
 
-      // ✅ Check if 15 seconds have elapsed since last broadcast
+      // ✅ Check if the update heartbeat elapsed
       const timeElapsed =
-        currentTime - lastBroadcastTime >= MINIMUM_BROADCAST_INTERVAL
+        currentTime - lastVehicleDataUpdateTime >= MIN_VEHICLE_DATA_UPDATE_INTERVAL
 
       // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
       if (coordinatesChanged || headingChanged || timeElapsed) {
@@ -2987,11 +2950,6 @@
                   )
               }
             }
-
-            // Keep broadcast bubble following the user
-            if (userBroadcastMarker) {
-              userBroadcastMarker.setLngLat([longitude, latitude])
-            }
           } else {
             // Marker was created without coordinates (new user, first visit).
             // Now that geolocation has provided coordinates, place it on the map.
@@ -3038,7 +2996,7 @@
         lastClientCoordinates = { latitude, longitude }
         lastClientHeading = updatedHeading
         lastRecordedTime = currentTime
-        lastBroadcastTime = currentTime
+        lastVehicleDataUpdateTime = currentTime
       }
     }
   }
@@ -3074,222 +3032,6 @@
 
   function handleOpenFlashPanel() {
     if (onOpenFlashPanel) onOpenFlashPanel()
-  }
-
-  function createBroadcastBubbleElement(message, onClose) {
-    const el = document.createElement("div")
-    el.style.cssText = `
-      pointer-events: auto;
-      user-select: none;
-      animation: broadcastFadeIn 0.3s ease-out;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    `
-
-    const wrapper = document.createElement("div")
-    wrapper.style.cssText = `position: relative;`
-
-    const bubble = document.createElement("div")
-    bubble.style.cssText = `
-      background: rgba(255, 255, 255, 0.95);
-      color: #1a1a1a;
-      font-size: 13px;
-      font-weight: 600;
-      font-style: italic;
-      padding: 8px 14px;
-      border-radius: 14px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-      white-space: nowrap;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      text-align: center;
-    `
-    bubble.textContent = `\u201c${message}\u201d`
-
-    const closeBtn = document.createElement("button")
-    closeBtn.textContent = "\u00d7"
-    closeBtn.style.cssText = `
-      position: absolute;
-      top: -10px;
-      right: -10px;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.6);
-      border: 2px solid rgba(255, 255, 255, 0.8);
-      color: #fff;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      line-height: 24px;
-      padding: 0;
-      text-align: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      z-index: 10;
-    `
-    closeBtn.addEventListener("click", onClose)
-    closeBtn.addEventListener("touchend", (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
-    })
-
-    wrapper.appendChild(bubble)
-    wrapper.appendChild(closeBtn)
-
-    const tail = document.createElement("div")
-    tail.style.cssText = `
-      width: 0;
-      height: 0;
-      border-left: 8px solid transparent;
-      border-right: 8px solid transparent;
-      border-bottom: 10px solid rgba(255, 255, 255, 0.95);
-      position: absolute;
-      top: -10px;
-      left: 50%;
-      transform: translateX(-50%);
-    `
-    el.appendChild(tail)
-    el.appendChild(wrapper)
-
-    // Add fade-in keyframe globally (once)
-    if (!document.getElementById("broadcast-anim-style")) {
-      const styleSheet = document.createElement("style")
-      styleSheet.id = "broadcast-anim-style"
-      styleSheet.textContent = `@keyframes broadcastFadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`
-      document.head.appendChild(styleSheet)
-    }
-
-    return el
-  }
-
-  function showOtherVehicleBroadcast({ sender_id, sender_name, message }) {
-    // Find the marker for this vehicle
-    const vehicleData = otherVehicleMarkers.find(
-      (v) => v.vehicleId === sender_id,
-    )
-    if (!vehicleData) return
-
-    const lngLat = vehicleData.marker.getLngLat()
-    if (!lngLat) return
-
-    // Remove existing broadcast bubble for this vehicle
-    if (otherBroadcastMarkers[sender_id]) {
-      if (otherBroadcastMarkers[sender_id].timer) {
-        clearTimeout(otherBroadcastMarkers[sender_id].timer)
-      }
-      if (otherBroadcastMarkers[sender_id].marker) {
-        otherBroadcastMarkers[sender_id].marker.remove()
-      }
-      delete otherBroadcastMarkers[sender_id]
-    }
-
-    const el = createBroadcastBubbleElement(message, () => {
-      if (otherBroadcastMarkers[sender_id]) {
-        if (otherBroadcastMarkers[sender_id].timer) {
-          clearTimeout(otherBroadcastMarkers[sender_id].timer)
-        }
-        otherBroadcastMarkers[sender_id].marker.remove()
-        delete otherBroadcastMarkers[sender_id]
-      }
-    })
-
-    const broadcastMarker = new mapboxgl.Marker({
-      element: el,
-      anchor: "top",
-      offset: [0, 24],
-    })
-      .setLngLat(lngLat)
-      .addTo(map)
-
-    // Auto-dismiss after 5 minutes
-    const timer = setTimeout(() => {
-      if (otherBroadcastMarkers[sender_id]) {
-        el.style.transition = "opacity 0.5s ease-out"
-        el.style.opacity = "0"
-        setTimeout(() => {
-          if (otherBroadcastMarkers[sender_id]) {
-            otherBroadcastMarkers[sender_id].marker.remove()
-            delete otherBroadcastMarkers[sender_id]
-          }
-        }, 500)
-      }
-    }, 300000)
-
-    otherBroadcastMarkers[sender_id] = { marker: broadcastMarker, timer }
-  }
-
-  function handleBroadcast(message) {
-    if (!userMarkerData?.marker) return
-    const lngLat = userMarkerData.marker.getLngLat()
-    if (!lngLat) return
-
-    // Remove existing broadcast bubble if present
-    if (userBroadcastMarker) {
-      userBroadcastMarker.remove()
-      userBroadcastMarker = null
-    }
-    if (broadcastDismissTimer) {
-      clearTimeout(broadcastDismissTimer)
-      broadcastDismissTimer = null
-    }
-
-    const el = createBroadcastBubbleElement(message, () => {
-      if (broadcastDismissTimer) {
-        clearTimeout(broadcastDismissTimer)
-        broadcastDismissTimer = null
-      }
-      if (userBroadcastMarker) {
-        userBroadcastMarker.remove()
-        userBroadcastMarker = null
-      }
-    })
-
-    userBroadcastMarker = new mapboxgl.Marker({
-      element: el,
-      anchor: "top",
-      offset: [0, 24],
-    })
-      .setLngLat(lngLat)
-      .addTo(map)
-
-    // Auto-dismiss after 5 minutes
-    broadcastDismissTimer = setTimeout(() => {
-      if (userBroadcastMarker) {
-        el.style.transition = "opacity 0.5s ease-out"
-        el.style.opacity = "0"
-        setTimeout(() => {
-          if (userBroadcastMarker) {
-            userBroadcastMarker.remove()
-            userBroadcastMarker = null
-          }
-        }, 500)
-      }
-      broadcastDismissTimer = null
-    }, 300000)
-
-    // Broadcast to other users via realtime channel
-    try {
-      const masterMapId = $profileStore?.master_map_id
-      if (masterMapId) {
-        const broadcastChannel = supabase.channel(
-          `vehicle_updates_${masterMapId}`,
-        )
-        broadcastChannel.send({
-          type: "broadcast",
-          event: "broadcast_message",
-          payload: {
-            sender_name: $profileStore?.full_name || "Someone",
-            message: message,
-            sender_id: $profileStore?.id,
-          },
-        })
-      }
-    } catch (err) {
-      console.error("Failed to broadcast message:", err)
-    }
   }
 
   function handleFirstPersonVehicle(vehicleId) {
@@ -3537,10 +3279,8 @@
     {currentSpeed}
     {mapBearing}
     vehicles={vehicleList}
-    onTrueNorth={handleResetNorth}
     onFirstPersonVehicle={handleFirstPersonVehicle}
     onFlashMe={handleOpenFlashPanel}
-    onBroadcast={handleBroadcast}
   />
 {/if}
 

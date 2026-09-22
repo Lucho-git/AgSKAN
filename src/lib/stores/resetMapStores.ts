@@ -9,7 +9,6 @@ import {
     otherVehiclesStore,
     serverOtherVehiclesData,
     otherVehiclesDataChanges,
-    broadcastMessageEvent,
 } from "./vehicleStore"
 import { connectedMapStore } from "./connectedMapStore"
 import { mapActivityStore } from "./mapActivityStore"
@@ -34,7 +33,6 @@ export function resetMapStores() {
     otherVehiclesStore.set([])
     serverOtherVehiclesData.set([])
     otherVehiclesDataChanges.set([])
-    broadcastMessageEvent.set(null)
 
     // Map metadata
     connectedMapStore.set({

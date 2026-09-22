@@ -36,14 +36,10 @@
   export let currentSpeed = 0
   /** Callback to open vehicle controls in the toolbox */
   export let onOpenVehicleControls = null
-  /** Callback to reset map bearing to true north */
-  export let onTrueNorth = null
   /** Callback to enter first person mode on a specific vehicle */
   export let onFirstPersonVehicle = null
   /** Callback to open flash signal panel */
   export let onFlashMe = null
-  /** Callback to broadcast a message */
-  export let onBroadcast = null
   /** List of vehicles for the first person picker */
   export let vehicles = []
   /** Current map bearing in degrees (0 = north) */
@@ -209,35 +205,17 @@
   let menuOpen = false
   let showStatsModal = false
   let vehiclePickerOpen = false
-  let broadcastPickerOpen = false
   let purging = false
-
-  const broadcastMessages = [
-    "Gone for lunch",
-    "Filling up",
-    "Taking a break",
-    "Heading home",
-    "Stuck, need help",
-    "On my way",
-    "Finished this paddock",
-    "Waiting at gate",
-  ]
 
   const actions = [
     { label: "Edit Vehicle" },
     { label: "First Person View" },
-    { label: "Broadcast Message" },
     { label: "Flash Signal" },
-    { label: "Align North" },
   ]
 
   function handleMainClick() {
     if (vehiclePickerOpen) {
       vehiclePickerOpen = false
-      return
-    }
-    if (broadcastPickerOpen) {
-      broadcastPickerOpen = false
       return
     }
     menuOpen = !menuOpen
@@ -256,23 +234,12 @@
       case "Flash Signal":
         if (onFlashMe) onFlashMe()
         break
-      case "Align North":
-        if (onTrueNorth) onTrueNorth()
-        break
-      case "Broadcast Message":
-        broadcastPickerOpen = true
-        break
     }
   }
 
   function handleVehiclePick(vehicleId) {
     vehiclePickerOpen = false
     if (onFirstPersonVehicle) onFirstPersonVehicle(vehicleId)
-  }
-
-  function handleBroadcastPick(message) {
-    broadcastPickerOpen = false
-    if (onBroadcast) onBroadcast(message)
   }
 
   function handleLongPress() {
@@ -350,7 +317,7 @@
 <div class="fixed bottom-4 left-4 z-50" style="width: 110px; height: 110px;">
   <!-- ── Operation Name Badge (top-left above hub) ── -->
 
-  {#if !vehiclePickerOpen && !broadcastPickerOpen}
+  {#if !vehiclePickerOpen}
     {#each actions as action, i}
       <button
         class="hub-action absolute flex items-center gap-3 rounded-full border border-white/20 bg-black/85 shadow-lg backdrop-blur transition-all duration-300 ease-out"
@@ -421,30 +388,6 @@
       >
         <span class="text-sm text-white/40">No vehicles online</span>
       </div>
-    {/each}
-  {/if}
-
-  <!-- ── Broadcast Message Picker (bubble buttons, one per message) ── -->
-  {#if broadcastPickerOpen}
-    {#each broadcastMessages as msg, i}
-      <button
-        class="hub-action hub-action-open absolute flex items-center rounded-full border border-white/20 bg-black/85 shadow-lg backdrop-blur transition-all duration-300 ease-out"
-        style="
-          height: 44px;
-          padding: 0 18px;
-          white-space: nowrap;
-          left: 120px;
-          bottom: 35px;
-          transform: translateY(-{i * 52}px) scale(1);
-          opacity: 1;
-          transition-delay: {i * 50}ms;
-          pointer-events: auto;
-        "
-        on:click|stopPropagation={() => handleBroadcastPick(msg)}
-        title={msg}
-      >
-        <span class="text-sm font-medium text-white/90">“{msg}”</span>
-      </button>
     {/each}
   {/if}
 
@@ -575,11 +518,11 @@
     </button>
   </div>
 
-  <!-- ── Operation Name Badge (bottom-right, under speed) ── -->
+  <!-- ── Operation Name Badge (lower-right of the hub) ── -->
   {#if operationName && operationName !== "No operation"}
     <div
       class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 shadow-lg backdrop-blur"
-      style="bottom: 6px; left: 73px; max-width: 150px;"
+      style="bottom: 22px; left: 82px; max-width: 150px;"
       title="Current operation: {operationName}"
     >
       <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400"
@@ -590,19 +533,10 @@
     </div>
   {/if}
 
-  <!-- ── Speed Badge (bottom-right, above operation) ── -->
-  <div
-    class="absolute flex items-center gap-1 rounded-full border border-white/20 bg-black/85 px-2 py-1 font-mono text-xs font-bold text-white shadow-lg backdrop-blur"
-    style="top: 44px; left: 82px; min-width: 54px; justify-content: center;"
-  >
-    <span style="color: {arcColor};">{speed.toFixed(1)}</span>
-    <span class="text-[10px] text-white/50">km/h</span>
-  </div>
-
-  <!-- ── Wifi Signal Badge (top-right) — clickable to open stats modal ── -->
+  <!-- ── Wifi Signal Badge (upper-right of the hub) — clickable for stats ── -->
   <button
     class="absolute flex items-center gap-1.5 rounded-full border bg-black/85 px-2 py-1 shadow-lg backdrop-blur transition-all hover:scale-105"
-    style="top: 6px; left: 73px; min-width: 44px; justify-content: center; border-color: {wifiBorderColor};"
+    style="top: 22px; left: 82px; min-width: 44px; justify-content: center; border-color: {wifiBorderColor};"
     on:click|stopPropagation={openStatsModal}
     title="Signal: {signalBars}/3 bars — Tap for stats"
   >
@@ -625,7 +559,7 @@
   </button>
 
   <!-- ── Backdrop to close menu ── -->
-  {#if menuOpen || vehiclePickerOpen || broadcastPickerOpen}
+  {#if menuOpen || vehiclePickerOpen}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
@@ -633,7 +567,6 @@
       on:click={() => {
         menuOpen = false
         vehiclePickerOpen = false
-        broadcastPickerOpen = false
       }}
     />
   {/if}

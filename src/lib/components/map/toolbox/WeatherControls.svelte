@@ -652,6 +652,7 @@
 
   .loc-row {
     display: flex;
+    flex-direction: column;
     gap: 8px;
   }
   .loc-row button {
@@ -669,6 +670,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
   }
   .loc-row button:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
@@ -685,7 +687,7 @@
   }
 
   .farm-select {
-    flex: 1;
+    width: 100%;
     min-width: 0;
     padding: 8px 10px;
     border-radius: 8px;
@@ -719,6 +721,12 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
+  }
+  .station-toggle > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .station-toggle:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);

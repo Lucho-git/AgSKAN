@@ -22,7 +22,6 @@
   import { onMount, onDestroy, getContext } from "svelte"
   import { v4 as uuidv4 } from "uuid"
   import * as mapboxgl from "mapbox-gl"
-  import MarkerEditPanel from "./MarkerEditPanel.svelte"
   import MarkerPlacementPanel from "./MarkerPlacementPanel.svelte"
   import SiloMarkerPanel from "./SiloMarkerPanel.svelte"
   import MarkerOverlayPanel from "./MarkerOverlayPanel.svelte"
@@ -407,16 +406,6 @@
     } catch (error) {
       console.error("Error updating marker layer visibility:", error)
     }
-  }
-
-  // Fixed: Center camera without zooming
-  function centerCameraOnMarker(coordinates) {
-    if (!map || !coordinates || coordinates.length !== 2) return
-
-    map.flyTo({
-      center: coordinates,
-      duration: 1000,
-    })
   }
 
   // Quick camera center for new marker placement — respects user setting
@@ -2514,17 +2503,9 @@
       null
     : null
   $: selectedIsSilo = isGrainBinIcon(selectedMarker?.iconClass)
-  // The new on-map overlay marker menu (MarkerOverlayPanel) applies to all
-  // non-silo markers when the user setting is enabled; otherwise markers use
-  // the classic MarkerEditPanel. Silos always use SiloMarkerPanel.
-  $: useOverlayMarkerMenu =
-    $userSettingsStore?.overlayMarkerMenuEnabled ?? false
-  // New-marker placement uses the overlay-style floating panel when enabled;
-  // otherwise the classic bottom MarkerEditPanel placement menu.
-  $: useOverlayPlacementMenu =
-    $userSettingsStore?.overlayPlacementMenuEnabled ?? false
-  // Newly placed (unconfirmed) markers always open the classic bottom edit
-  // panel so the icon selection menu works, regardless of the menu style.
+  // All non-silo markers use the on-map overlay menu (MarkerOverlayPanel);
+  // new (unconfirmed) markers use the floating placement menu instead.
+  // Silos always use SiloMarkerPanel.
   $: isNewMarker = $selectedMarkerStore && !selectedMarker
 
   // Deselect the current marker (closes the silo panel / marker menu).
@@ -2554,33 +2535,17 @@
       {deselectMarker}
     />
   {:else if isNewMarker}
-    {#if useOverlayPlacementMenu}
-      <MarkerPlacementPanel
-        {map}
-        {confirmedMarkersStore}
-        {selectedMarkerStore}
-        {getCurrentIconClass}
-        {getIconImageName}
-        previewTintName={resolvePreviewTintName}
-        {showPlacementRipple}
-        {deselectMarker}
-      />
-    {:else}
-      <MarkerEditPanel
-        {map}
-        {getCurrentIconClass}
-        {removeMarker}
-        {centerCameraOnMarker}
-        {confirmedMarkersStore}
-        {selectedMarkerStore}
-        {getIconImageName}
-        previewTintName={resolvePreviewTintName}
-        {updateMarkerNoteLabel}
-        {showPlacementRipple}
-        {showEditRipple}
-      />
-    {/if}
-  {:else if useOverlayMarkerMenu}
+    <MarkerPlacementPanel
+      {map}
+      {confirmedMarkersStore}
+      {selectedMarkerStore}
+      {getCurrentIconClass}
+      {getIconImageName}
+      previewTintName={resolvePreviewTintName}
+      {showPlacementRipple}
+      {deselectMarker}
+    />
+  {:else}
     <MarkerOverlayPanel
       {map}
       marker={selectedMarker}
@@ -2596,20 +2561,6 @@
       {showMoveRipple}
       {showEditRipple}
       {showPlacementRipple}
-    />
-  {:else}
-    <MarkerEditPanel
-      {map}
-      {getCurrentIconClass}
-      {removeMarker}
-      {centerCameraOnMarker}
-      {confirmedMarkersStore}
-      {selectedMarkerStore}
-      {getIconImageName}
-      previewTintName={resolvePreviewTintName}
-      {updateMarkerNoteLabel}
-      {showPlacementRipple}
-      {showEditRipple}
     />
   {/if}
 {/if}

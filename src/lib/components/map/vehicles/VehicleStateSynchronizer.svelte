@@ -9,7 +9,6 @@
     serverOtherVehiclesData,
     otherVehiclesDataChanges,
     userVehicleTrailing,
-    broadcastMessageEvent,
   } from "$lib/stores/vehicleStore"
   import { vehiclePresetStore } from "$lib/stores/vehiclePresetStore"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
@@ -846,23 +845,6 @@
             $otherVehiclesStore,
           )
           otherVehiclesDataChanges.set(changes)
-        }
-      })
-      .on("broadcast", { event: "broadcast_message" }, (payload) => {
-        if (payload.payload.sender_id !== userId) {
-          toast.info(
-            `${payload.payload.sender_name} says: \u201c${payload.payload.message}\u201d`,
-            {
-              duration: 10000,
-            },
-          )
-          // Pass to VehicleTracker via store so it can show bubble on map
-          broadcastMessageEvent.set({
-            sender_id: payload.payload.sender_id,
-            sender_name: payload.payload.sender_name,
-            message: payload.payload.message,
-            timestamp: Date.now(),
-          })
         }
       })
       .on(

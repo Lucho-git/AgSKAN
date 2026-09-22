@@ -1,8 +1,7 @@
 <!-- src/lib/components/map/markers/MarkerPlacementPanel.svelte -->
 <!-- Overlay-style placement menu for NEW (unconfirmed) markers, modelled on
      the on-map MarkerOverlayPanel (same .marker-pop look): a floating panel
-     anchored to the marker with the icon grid + colour box + a Place button.
-     Used when the "Placement menu style" setting is set to "On Map Panel". -->
+     anchored to the marker with the icon grid + colour box + a Place button. -->
 <script>
   import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"

@@ -1,6 +1,6 @@
 <!-- src/lib/components/map/vehicles/VehicleControls.svelte -->
 <script>
-  import { createEventDispatcher, onDestroy } from "svelte"
+  import { createEventDispatcher, onDestroy, onMount } from "svelte"
   import {
     userVehicleStore,
     userVehicleTrailing,
@@ -194,9 +194,11 @@
     unreadCount = Math.max(0, count)
   }
 
-  function markLogSeen() {
+  // `iso` = server time of the newest entry we actually served, so the badge
+  // stays precise even when this device's clock drifts. Falls back to "now".
+  function markLogSeen(iso) {
     const profileId = $profileStore?.id
-    if (profileId) setMapLogLastSeen(profileId)
+    if (profileId) setMapLogLastSeen(profileId, iso)
     unreadCount = 0
   }
 
@@ -469,7 +471,11 @@
       if (fresh.length > 0) {
         logEntries = [...fresh, ...logEntries]
       }
-      markLogSeen()
+      // Only rewrite "last seen" when there's something to note — quiet polls
+      // shouldn't write to storage every tick.
+      if (fresh.length > 0 || unreadCount > 0) {
+        markLogSeen(page[0]?.occurred_at)
+      }
     } catch (error) {
       console.warn("Failed to refresh map log:", error)
     }
@@ -487,34 +493,43 @@
         pollLogFeed()
       } else if (!logLoading) {
         const ok = await loadLogPage()
-        if (ok) markLogSeen()
+        if (ok) markLogSeen(logEntries[0]?.occurred_at)
       }
       // If a prefetch is already in flight, its completion marks it seen
       // (see startUnreadPolling) — the tab has already switched.
     }
   }
 
+  // Feed poll cadence while the menu is open. The log tab polls at the fast
+  // tick; the tab badge refreshes every 3rd tick (~30s) to stay light.
+  const LOG_FEED_POLL_MS = 10000
+  const LOG_BADGE_TICKS = 3
+
   function startUnreadPolling() {
     stopUnreadPolling()
     refreshUnreadCount()
     // Preload the feed so switching to the Map Log tab shows content
-    // immediately instead of a loading flash.
+    // immediately instead of a loading flash — and when the menu reopens
+    // straight onto the log tab, merge anything new right away so a fresh
+    // join/removal isn't hidden until the next tick.
     if (logEntries.length === 0) {
       loadLogPage().then((ok) => {
-        if (ok && activeTab === "log") markLogSeen()
+        if (ok && activeTab === "log") markLogSeen(logEntries[0]?.occurred_at)
       })
+    } else if (activeTab === "log") {
+      pollLogFeed()
     }
+    let tick = 0
     unreadInterval = setInterval(async () => {
+      tick++
       if (activeTab === "log") {
-        if (unreadCount > 0) {
-          await pollLogFeed()
-        } else {
-          await refreshUnreadCount()
-        }
-      } else {
+        // Live feed while the tab is open — pollLogFeed merges new activity
+        // and keeps "seen" pinned to what's on screen.
+        await pollLogFeed()
+      } else if (tick % LOG_BADGE_TICKS === 0) {
         await refreshUnreadCount()
       }
-    }, 30000)
+    }, LOG_FEED_POLL_MS)
   }
 
   function stopUnreadPolling() {
@@ -525,6 +540,23 @@
   }
 
   onDestroy(() => stopUnreadPolling())
+
+  // Menu open + the app/browser tab becomes visible again ("tab back in") →
+  // refresh immediately instead of waiting for the next poll tick.
+  onMount(() => {
+    const refreshOnReturn = () => {
+      if (document.visibilityState === "hidden") return
+      if (!showUnifiedMenu) return
+      refreshUnreadCount()
+      if (activeTab === "log") pollLogFeed()
+    }
+    document.addEventListener("visibilitychange", refreshOnReturn)
+    window.addEventListener("focus", refreshOnReturn)
+    return () => {
+      document.removeEventListener("visibilitychange", refreshOnReturn)
+      window.removeEventListener("focus", refreshOnReturn)
+    }
+  })
 
   // Poll the feed while the menu is open; reset transient UI when it closes.
   $: handleMenuVisibility(showUnifiedMenu)
@@ -765,6 +797,16 @@
 
   function isTrailAction(action) {
     return typeof action === "string" && action.startsWith("trail.")
+  }
+
+  // Team join / remove / leave entries (guest joins, guest removals,
+  // self-leaves) — rendered as the person's machine + a people +/- stamp.
+  function isTeamAction(action) {
+    return (
+      action === "team.joined" ||
+      action === "team.removed" ||
+      action === "team.left"
+    )
   }
 
   function getActionIcon(action) {
@@ -1909,6 +1951,24 @@
                         this={vehicleIcon}
                         bodyColor={entry.details?.vehicle_body_color || "red"}
                         size={fromVehicleIcon ? "22px" : "28px"}
+                      />
+                    {:else if isTeamAction(entry.action)}
+                      {#if vehicleIcon}
+                        <svelte:component
+                          this={vehicleIcon}
+                          bodyColor={entry.details?.vehicle_body_color ||
+                            "red"}
+                          size="26px"
+                        />
+                      {/if}
+                      <svelte:component
+                        this={entry.action === "team.joined"
+                          ? UserPlus
+                          : UserMinus}
+                        size={15}
+                        class="flex-shrink-0 {entry.action === 'team.joined'
+                          ? 'text-emerald-300'
+                          : 'text-red-300'}"
                       />
                     {:else if isTrailAction(entry.action)}
                       <span class="log-chip">

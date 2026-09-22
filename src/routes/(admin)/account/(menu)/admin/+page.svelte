@@ -33,8 +33,6 @@
   const SETTING_DEFAULTS: Record<string, any> = {
     devToolsEnabled: false,
     autoConfirmMarkers: false,
-    overlayMarkerMenuEnabled: true,
-    overlayPlacementMenuEnabled: true,
     showVehiclesAlways: true,
     zoomToLocationMarkers: false,
     zoomToPlacedMarkers: false,
@@ -230,14 +228,6 @@
 
   // Marker-related settings
   const MARKER_BOOL_FIELDS = [
-    {
-      col: "overlayMarkerMenuEnabled",
-      label: "Marker menu style (on-map panel)",
-    },
-    {
-      col: "overlayPlacementMenuEnabled",
-      label: "Placement menu style (on-map panel)",
-    },
     {
       col: "showVehiclesAlways",
       label: "Show vehicles always (offscreen tracking)",

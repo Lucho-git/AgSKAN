@@ -1,7 +1,7 @@
 // Shared runtime marker tinting logic.
 //
-// Used by BOTH MarkerManager (on-map markers) and MarkerEditPanel (new-marker
-// preview grid in test mode) so the previews always match the real map.
+// Used by MarkerManager (on-map markers) and the marker preview/survey tooling
+// so previews always match the real map.
 // Extracted from MarkerManager.tintMarkerCanvas.
 
 /**

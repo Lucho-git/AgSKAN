@@ -185,12 +185,6 @@
   <div class="profile-section">
     <div class="section-header-row">
       <h5 class="section-title">Quick Settings</h5>
-      <div class="account-badge">
-        <div class="account-badge-avatar">
-          <User size={12} />
-        </div>
-        <span>{$profileStore?.full_name || "Account"}</span>
-      </div>
     </div>
 
     <!-- Record Confirmation -->
@@ -516,45 +510,13 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
-  /* Section header row with account badge */
+  /* Section header row */
   .section-header-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 6px;
-  }
-
-  .account-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 8px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    font-size: 10px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
-    max-width: 140px;
-  }
-
-  .account-badge span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-badge-avatar {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(96, 165, 250, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(96, 165, 250, 0.6);
-    flex-shrink: 0;
   }
 
   /* Settings section */
@@ -829,117 +791,6 @@
     opacity: 0.5;
   }
 
-  /* Marker menu style — segmented picker row */
-  .setting-row-col {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .setting-row-top {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  /* "?" help button on the Marker style row — opens the style preview modal */
-  .ms-help-btn {
-    margin-left: auto;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    background: rgba(255, 255, 255, 0.05);
-    color: #94a3b8;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1;
-    cursor: pointer;
-    transition:
-      background 0.15s ease,
-      color 0.15s ease,
-      border-color 0.15s ease;
-  }
-  .ms-help-btn:hover {
-    background: rgba(96, 165, 250, 0.18);
-    border-color: rgba(96, 165, 250, 0.55);
-    color: #93c5fd;
-  }
-  .style-seg {
-    display: flex;
-    gap: 3px;
-    padding: 3px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 9px;
-  }
-  .style-seg button {
-    flex: 1;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 11px;
-    font-weight: 600;
-    padding: 6px 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  .style-seg button:hover {
-    color: rgba(255, 255, 255, 0.85);
-  }
-  .style-seg button.active {
-    background: rgba(96, 165, 250, 0.28);
-    color: #93c5fd;
-  }
-  .style-seg button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Marker style — wraps so all 4 styles fit on one/two rows */
-  .marker-style-seg {
-    flex-wrap: wrap;
-  }
-  .marker-style-seg button {
-    flex: 1 1 auto;
-    min-width: 84px;
-  }
-  /* Sub-variant row (White/Black, Dark/Light) under the active style */
-  .marker-sub-seg {
-    margin-top: 6px;
-  }
-
-  /* "Choose colours" button — opens the MarkerDefaultColorModal */
-  .sdc-choose-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.5);
-    background: rgba(245, 158, 11, 0.14);
-    color: #fcd34d;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 9px 14px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition:
-      background 0.15s ease,
-      border-color 0.15s ease;
-  }
-  .sdc-choose-btn:hover:not(:disabled) {
-    background: rgba(245, 158, 11, 0.26);
-    border-color: rgba(245, 158, 11, 0.75);
-  }
-  .sdc-choose-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-
   /* Icon-only glass strength — slider shown for the icon-only styles */
   .glass-opacity-row {
     display: flex;
@@ -966,17 +817,26 @@
     color: #93c5fd;
   }
 
-  /* GPS select */
+  /* GPS select — matches the weather menu dropdown style so the option
+     list is readable (dark bg, white text) and the closed value is clear. */
   .gps-select {
-    padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    flex-shrink: 0;
+    padding: 8px 10px;
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 12px;
     outline: none;
     cursor: pointer;
-    flex-shrink: 0;
+  }
+  .gps-select option {
+    background: #1e293b;
+    color: #fff;
+  }
+  .gps-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .gps-icon {
