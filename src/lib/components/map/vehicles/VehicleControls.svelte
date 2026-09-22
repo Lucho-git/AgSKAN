@@ -627,19 +627,30 @@
   }
 
   function handleWindowClick(event) {
-    closeRowMenu()
-    showSettings = false
-    showDateMenu = false
-    showLogTeamMenu = false
-    // Clicking anywhere outside the expanded menu closes it (same pattern as
-    // the row / settings popups). Its own trigger buttons are exempt so
-    // toggling them keeps working.
-    if (event?.type === "click" && showUnifiedMenu) {
+    // Popovers close on a real click (their own buttons stop propagation) and
+    // on resize (their fixed positions go stale).
+    if (event?.type === "click" || event?.type === "resize") {
+      closeRowMenu()
+      showSettings = false
+      showDateMenu = false
+      showLogTeamMenu = false
+    }
+    // Clicking / tapping anywhere outside the expanded menu closes it (same
+    // pattern as the row / settings popups). Its own trigger buttons, the
+    // floating popovers and the invite modal are exempt so interacting with
+    // them never dismisses the menu. Touch needs `pointerdown` because the
+    // map canvas swallows `click` on a tap (mapbox preventDefaults it).
+    const closesMenu =
+      event?.type === "click" ||
+      (event?.type === "pointerdown" && event?.pointerType === "touch")
+    if (closesMenu && showUnifiedMenu) {
       const target = event.target
       if (
         !(target instanceof Element) ||
         (!target.closest(".menu-expanded") &&
-          !target.closest("[data-vehicle-menu-trigger]"))
+          !target.closest("[data-vehicle-menu-trigger]") &&
+          !target.closest(".row-options-menu") &&
+          !target.closest("[data-invite-modal]"))
       ) {
         closeUnifiedMenu()
       }
@@ -2428,6 +2439,7 @@
 
 <svelte:window
   on:click={handleWindowClick}
+  on:pointerdown={handleWindowClick}
   on:keydown={handleWindowKeydown}
   on:resize={handleWindowClick}
 />

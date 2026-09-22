@@ -6,6 +6,7 @@
     Copy,
     Mail,
     MessageSquare,
+    QrCode,
     UserPlus,
     Loader2,
     Contact,
@@ -134,6 +135,39 @@
   $: inviteLink = inviteToken
     ? `https://www.skanfarming.com.au/guest?invite=${inviteToken}`
     : ""
+
+  // Scannable QR of the invite link (same service the welcome + team invite
+  // screens use; ecc=L keeps long tokens readable). The nonce lets the retry
+  // button bypass the image cache after a failed fetch.
+  let qrNonce = 0
+  $: inviteQrUrl = inviteLink
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=L&data=${encodeURIComponent(inviteLink)}${qrNonce ? `&r=${qrNonce}` : ""}`
+    : ""
+
+  // Skeleton stays up until the QR image has actually painted; re-key on the
+  // URL so a new link (or a retry) puts the skeleton back.
+  let qrLoaded = false
+  let qrFailed = false
+  let qrShownUrl = ""
+  $: if (inviteQrUrl !== qrShownUrl) {
+    qrShownUrl = inviteQrUrl
+    qrLoaded = false
+    qrFailed = false
+  }
+
+  function handleQrLoad() {
+    qrLoaded = true
+  }
+
+  function handleQrError() {
+    qrFailed = true
+  }
+
+  function retryQr() {
+    qrLoaded = false
+    qrFailed = false
+    qrNonce += 1
+  }
 
   async function generateInvite() {
     generating = true
@@ -265,6 +299,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div
     class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+    data-invite-modal
     on:click={close}
   >
     <div
@@ -308,31 +343,61 @@
           <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
             Invite link
           </div>
-          <div class="flex gap-1.5">
-            {#if generating && !inviteToken}
-              <div
-                class="invite-input flex min-w-0 flex-1 items-center gap-2 text-white/50"
+          {#if openChannel === "qr"}
+            <div class="invite-qr-frame">
+              {#if inviteQrUrl}
+                <img
+                  src={inviteQrUrl}
+                  alt="QR code for the invite link"
+                  class="invite-qr-img {!qrLoaded
+                    ? 'invite-qr-img-loading'
+                    : ''}"
+                  on:load={handleQrLoad}
+                  on:error={handleQrError}
+                />
+              {/if}
+              {#if !qrLoaded && !qrFailed}
+                <div class="invite-qr-skeleton" aria-hidden="true"></div>
+              {:else if qrFailed}
+                <div class="invite-qr-failed">
+                  <button
+                    class="invite-qr-retry"
+                    on:click={retryQr}
+                    title="Retry loading the QR code"
+                    aria-label="Retry loading the QR code"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <div class="flex gap-1.5">
+              {#if generating && !inviteToken}
+                <div
+                  class="invite-input flex min-w-0 flex-1 items-center gap-2 text-white/50"
+                >
+                  <Loader2 size={12} class="animate-spin" /> Creating link…
+                </div>
+              {:else}
+                <input
+                  type="text"
+                  readonly
+                  value={inviteLink}
+                  class="invite-input min-w-0 flex-1"
+                />
+              {/if}
+              <button
+                class="invite-icon-btn"
+                on:click={copyLink}
+                title="Copy link"
+                disabled={!inviteLink}
+                class:opacity-50={!inviteLink}
               >
-                <Loader2 size={12} class="animate-spin" /> Creating link…
-              </div>
-            {:else}
-              <input
-                type="text"
-                readonly
-                value={inviteLink}
-                class="invite-input min-w-0 flex-1"
-              />
-            {/if}
-            <button
-              class="invite-icon-btn"
-              on:click={copyLink}
-              title="Copy link"
-              disabled={!inviteLink}
-              class:opacity-50={!inviteLink}
-            >
-              <Copy size={14} />
-            </button>
-          </div>
+                <Copy size={14} />
+              </button>
+            </div>
+          {/if}
           <div class="mt-2 flex items-center justify-between gap-2">
             <span class="text-[10px] text-white/45">Link valid for</span>
             <div class="flex gap-1">
@@ -388,6 +453,12 @@
               on:click={() => toggleChannel("email")}
             >
               <Mail size={13} /> Email
+            </button>
+            <button
+              class="invite-channel-btn {openChannel === 'qr' ? 'active' : ''}"
+              on:click={() => toggleChannel("qr")}
+            >
+              <QrCode size={13} /> QR
             </button>
           </div>
 
@@ -543,6 +614,85 @@
 
   .invite-contacts-btn:hover {
     background: rgba(96, 165, 250, 0.2);
+  }
+
+  /* QR option — replaces the link field. White frame keeps the code
+     scannable on the dark UI; a skeleton covers it while the image loads. */
+  .invite-qr-frame {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .invite-qr-img {
+    display: block;
+    width: 180px;
+    height: 180px;
+    margin: 10px;
+  }
+
+  .invite-qr-img-loading {
+    visibility: hidden;
+  }
+
+  .invite-qr-skeleton {
+    position: absolute;
+    inset: 0;
+    background: #1e293b;
+  }
+
+  .invite-qr-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.12) 50%,
+      transparent 75%
+    );
+    background-size: 220% 100%;
+    animation: invite-qr-shimmer 1.2s linear infinite;
+  }
+
+  @keyframes invite-qr-shimmer {
+    from {
+      background-position: 160% 0;
+    }
+    to {
+      background-position: -60% 0;
+    }
+  }
+
+  .invite-qr-failed {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1e293b;
+  }
+
+  .invite-qr-retry {
+    display: flex;
+    height: 34px;
+    width: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
+    transition: background-color 0.15s ease;
+  }
+
+  .invite-qr-retry:hover {
+    background: rgba(255, 255, 255, 0.16);
   }
 
   .invite-chip {
