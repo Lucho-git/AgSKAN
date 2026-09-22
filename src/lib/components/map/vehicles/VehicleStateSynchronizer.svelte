@@ -14,7 +14,10 @@
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { mapPresenceStore } from "$lib/stores/mapPresenceStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { broadcastSilenceRequest } from "$lib/stores/broadcastSilenceStore"
+  import {
+    mutedBroadcastsStore,
+    unmuteBroadcast,
+  } from "$lib/stores/broadcastMuteStore"
   import { selectedOperationStore } from "$lib/stores/operationStore"
   import { vehicleDataLoaded } from "$lib/stores/loadedStore"
   import { page } from "$app/stores"
@@ -28,7 +31,6 @@
   let appStateListener = null
   let unsubscribe
   let unsubscribeOtherVehicles
-  let unsubscribeSilenceRequest
   let lastDatabaseUpdate = 0
   let previousVehicleData = null
   let lastBroadcastFlashState = null // Track last broadcast flash state
@@ -389,6 +391,9 @@
         (item) => item.vehicle_id === serverItem.vehicle_id,
       )
 
+      // Locally silenced broadcasts stay hidden from every diff/update path.
+      const source = applyBroadcastMute(serverItem)
+
       const change = {
         vehicle_id: serverItem.vehicle_id,
         coordinates: serverItem.coordinates,
@@ -397,10 +402,10 @@
         is_trailing: serverItem.is_trailing,
         last_update: serverItem.last_update,
         speed: serverItem.speed,
-        is_flashing: serverItem.is_flashing || false,
-        flash_started_at: serverItem.flash_started_at || null,
-        flash_reason: serverItem.flash_reason || null,
-        flash_color: serverItem.flash_color || null,
+        is_flashing: source.is_flashing || false,
+        flash_started_at: source.flash_started_at || null,
+        flash_reason: source.flash_reason || null,
+        flash_color: source.flash_color || null,
         full_name: serverItem.full_name || clientItem?.full_name,
         map_role: serverItem.map_role || clientItem?.map_role || null,
         selected_operation_id:
@@ -433,9 +438,9 @@
           serverItem.operation_name !== clientItem.operation_name
         const speedChanged = serverItem.speed !== clientItem.speed
         const flashChanged =
-          serverItem.is_flashing !== clientItem.is_flashing ||
-          serverItem.flash_reason !== clientItem.flash_reason ||
-          serverItem.flash_color !== clientItem.flash_color
+          source.is_flashing !== clientItem.is_flashing ||
+          source.flash_reason !== clientItem.flash_reason ||
+          source.flash_color !== clientItem.flash_color
 
         if (vehicleMarkerChanged)
           change.update_types.push("vehicle_marker_changed")
@@ -553,15 +558,37 @@
     }
   }
 
-  // Clear a vehicle's broadcast state in every local list (used when a
-  // teammate silences someone's broadcast).
-  function clearVehicleBroadcast(vehicleId) {
-    const clear = (v) =>
-      v.vehicle_id === vehicleId
-        ? { ...v, is_flashing: false, flash_reason: null, flash_color: null }
-        : v
-    otherVehiclesStore.update((list) => (list || []).map(clear))
-    serverOtherVehiclesData.update((list) => (list || []).map(clear))
+  // Local "silence": hides a muted vehicle's broadcast from every diff and
+  // update path. Clears itself once the broadcast ends, or when a newer
+  // broadcast starts (so a fresh broadcast always shows again).
+  function applyBroadcastMute(vehicle) {
+    if (!vehicle?.vehicle_id) return vehicle
+    const muted = $mutedBroadcastsStore
+    if (!(vehicle.vehicle_id in muted)) return vehicle
+
+    // Broadcast ended → drop the mute.
+    if (!vehicle.is_flashing) {
+      unmuteBroadcast(vehicle.vehicle_id)
+      return vehicle
+    }
+
+    // A different (newer) broadcast → no longer muted.
+    const mutedMs = muted[vehicle.vehicle_id]
+    const startMs = vehicle.flash_started_at
+      ? new Date(vehicle.flash_started_at).getTime()
+      : NaN
+    if (mutedMs && Number.isFinite(startMs) && mutedMs !== startMs) {
+      unmuteBroadcast(vehicle.vehicle_id)
+      return vehicle
+    }
+
+    return {
+      ...vehicle,
+      is_flashing: false,
+      flash_started_at: null,
+      flash_reason: null,
+      flash_color: null,
+    }
   }
 
   async function broadcastVehicleState(vehicleData) {
@@ -873,28 +900,6 @@
           otherVehiclesDataChanges.set(changes)
         }
       })
-      .on("broadcast", { event: "broadcast_silence" }, (payload) => {
-        const targetId = payload.payload?.vehicle_id
-        if (!targetId) return
-
-        // It's MY broadcast — stop it locally so my client stops re-asserting
-        // the flashing state on its next vehicle-state write, and tell me
-        // who did it.
-        if (targetId === userId) {
-          userVehicleStore.update((vehicle) => ({
-            ...vehicle,
-            is_flashing: false,
-            flash_started_at: null,
-            flash_reason: null,
-            flash_color: null,
-          }))
-          toast.info("Broadcast silenced", {
-            description: `${payload.payload?.by_name || "A teammate"} stopped your broadcast.`,
-          })
-        }
-
-        clearVehicleBroadcast(targetId)
-      })
       .on(
         "postgres_changes",
         {
@@ -1051,38 +1056,6 @@
       announceVehicleTypeChanges,
     )
 
-    // Silence requests raised from the UI (tapping a broadcasting teammate
-    // vehicle). Relay the signal to every connected client AND clear the
-    // vehicle's row so the silence sticks for anyone offline too.
-    unsubscribeSilenceRequest = broadcastSilenceRequest.subscribe(
-      async (request) => {
-        if (!request?.vehicleId || !channel) return
-        const payload = {
-          vehicle_id: request.vehicleId,
-          by_id: userId,
-          by_name: $profileStore.full_name || "A teammate",
-        }
-        channel
-          .send({ type: "broadcast", event: "broadcast_silence", payload })
-          .catch((error) => {
-            console.warn("Could not send broadcast silence:", error)
-          })
-        const { error } = await supabase
-          .from("vehicle_state")
-          .update({
-            is_flashing: false,
-            flash_reason: null,
-            flash_color: null,
-          })
-          .eq("vehicle_id", request.vehicleId)
-        if (error) {
-          console.warn("Could not clear silenced broadcast row:", error)
-        }
-        clearVehicleBroadcast(request.vehicleId)
-        broadcastSilenceRequest.set(null)
-      },
-    )
-
     vehicleDataLoaded.set(true)
   })
 
@@ -1105,10 +1078,6 @@
     if (unsubscribeOtherVehicles) {
       unsubscribeOtherVehicles()
       unsubscribeOtherVehicles = null
-    }
-    if (unsubscribeSilenceRequest) {
-      unsubscribeSilenceRequest()
-      unsubscribeSilenceRequest = null
     }
   })
 </script>

@@ -28,7 +28,7 @@
   import NativeGeolocationAdapter from "../controls/NativeGeolocationAdapter.js"
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
-  import { broadcastSilenceRequest } from "$lib/stores/broadcastSilenceStore"
+  import { muteBroadcast } from "$lib/stores/broadcastMuteStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { toast } from "svelte-sonner"
   import { RadioTower } from "lucide-svelte"
@@ -457,14 +457,16 @@
   }
 
   // Toast offering to silence a teammate's active broadcast.
+  /** @param {any} vehicle */
   function showSilenceOption(vehicle) {
+    /** @type {Record<string, string>} */
     const legacyLabels = { full: "Full", empty: "Empty", help: "Help" }
     const raw = String(vehicle.flash_reason || "Broadcast")
     const label = legacyLabels[raw.toLowerCase()] || raw
     toast.info(
       `${vehicle.full_name || "Vehicle"} is broadcasting ${label}`,
       {
-        description: "Silence stops this broadcast for everyone.",
+        description: "Silence hides this broadcast on your device only.",
         duration: 9000,
         style: `border-left: 4px solid ${vehicle.flash_color || "#f59e0b"};`,
         action: {
@@ -475,15 +477,40 @@
     )
   }
 
-  // Ask the synchronizer to broadcast the silence signal + clear the row.
+  // Silence hides the broadcast on THIS device only — the broadcaster and
+  // everyone else keep seeing it. The mute holds until their broadcast ends
+  // (or they start a new one).
+  /** @param {any} vehicle */
   function silenceBroadcast(vehicle) {
     if (!vehicle?.vehicle_id) return
-    broadcastSilenceRequest.set({
-      vehicleId: vehicle.vehicle_id,
-      at: Date.now(),
-    })
+    muteBroadcast(vehicle.vehicle_id, vehicle.flash_started_at)
+
+    // Clear it here and now: store entry, live marker and edge indicator.
+    otherVehiclesStore.update((/** @type {any[]} */ list) =>
+      (list || []).map((v) =>
+        v.vehicle_id === vehicle.vehicle_id
+          ? {
+              ...v,
+              is_flashing: false,
+              flash_reason: null,
+              flash_color: null,
+            }
+          : v,
+      ),
+    )
+    const item = otherVehicleMarkers.find(
+      (x) => x.vehicleId === vehicle.vehicle_id,
+    )
+    if (item?.component) {
+      item.component.$set({
+        isFlashing: false,
+        flashReason: null,
+        flashColor: null,
+      })
+    }
+
     toast.success("Broadcast silenced", {
-      description: `${vehicle.full_name ? `${vehicle.full_name}'s` : "Their"} broadcast was stopped.`,
+      description: `${vehicle.full_name ? `${vehicle.full_name}'s` : "Their"} broadcast is hidden on your device.`,
     })
   }
 
