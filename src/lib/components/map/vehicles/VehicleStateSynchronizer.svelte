@@ -398,6 +398,7 @@
         is_flashing: serverItem.is_flashing || false,
         flash_started_at: serverItem.flash_started_at || null,
         flash_reason: serverItem.flash_reason || null,
+        flash_color: serverItem.flash_color || null,
         full_name: serverItem.full_name || clientItem?.full_name,
         map_role: serverItem.map_role || clientItem?.map_role || null,
         selected_operation_id:
@@ -431,7 +432,8 @@
         const speedChanged = serverItem.speed !== clientItem.speed
         const flashChanged =
           serverItem.is_flashing !== clientItem.is_flashing ||
-          serverItem.flash_reason !== clientItem.flash_reason
+          serverItem.flash_reason !== clientItem.flash_reason ||
+          serverItem.flash_color !== clientItem.flash_color
 
         if (vehicleMarkerChanged)
           change.update_types.push("vehicle_marker_changed")
@@ -562,6 +564,7 @@
       is_flashing,
       flash_started_at,
       flash_reason,
+      flash_color,
     } = vehicleData
 
     if (!coordinates) {
@@ -589,12 +592,14 @@
     const currentFlashState = {
       is_flashing: is_flashing || false,
       flash_reason: flash_reason || null,
+      flash_color: flash_color || null,
     }
 
     const flashStateChanged =
       !lastBroadcastFlashState ||
       lastBroadcastFlashState.is_flashing !== currentFlashState.is_flashing ||
-      lastBroadcastFlashState.flash_reason !== currentFlashState.flash_reason
+      lastBroadcastFlashState.flash_reason !== currentFlashState.flash_reason ||
+      lastBroadcastFlashState.flash_color !== currentFlashState.flash_color
 
     if (flashStateChanged) {
       vehicleStateData.is_flashing = currentFlashState.is_flashing
@@ -602,6 +607,7 @@
         ? new Date(flash_started_at).toISOString()
         : null
       vehicleStateData.flash_reason = currentFlashState.flash_reason
+      vehicleStateData.flash_color = currentFlashState.flash_color
 
       console.log("⚡ Flash state changed, broadcasting:", {
         vehicle_id: userId,
@@ -636,6 +642,7 @@
       is_flashing,
       flash_started_at,
       flash_reason,
+      flash_color,
     } = vehicleData
 
     if (!coordinates) {
@@ -649,7 +656,8 @@
         JSON.stringify(previousVehicleData.vehicle_marker) ||
         vehicleData.is_trailing !== previousVehicleData.is_trailing ||
         vehicleData.is_flashing !== previousVehicleData.is_flashing ||
-        vehicleData.flash_reason !== previousVehicleData.flash_reason)
+        vehicleData.flash_reason !== previousVehicleData.flash_reason ||
+        vehicleData.flash_color !== previousVehicleData.flash_color)
 
     const currentTime = Date.now()
     const shouldUpdate =
@@ -676,6 +684,7 @@
         ? new Date(flash_started_at).toISOString()
         : null,
       flash_reason: flash_reason || null,
+      flash_color: flash_color || null,
     }
 
     const { data, error } = await supabase
@@ -720,6 +729,7 @@
       lastBroadcastFlashState = {
         is_flashing: userVehicle.is_flashing || false,
         flash_reason: userVehicle.flash_reason || null,
+        flash_color: userVehicle.flash_color || null,
       }
     } else {
       vehicleData = {
@@ -732,6 +742,7 @@
         is_flashing: false,
         flash_started_at: null,
         flash_reason: null,
+        flash_color: null,
         vehicle_marker: {
           type: "Pointer",
           bodyColor: "Yellow",
@@ -744,6 +755,7 @@
       lastBroadcastFlashState = {
         is_flashing: false,
         flash_reason: null,
+        flash_color: null,
       }
     }
 
@@ -830,6 +842,7 @@
                   payload.payload.flash_started_at || null
                 updatedVehicle.flash_reason =
                   payload.payload.flash_reason || null
+                updatedVehicle.flash_color = payload.payload.flash_color || null
               }
 
               pruned[existingVehicleIndex] = updatedVehicle
@@ -921,6 +934,7 @@
                   is_flashing: payload.new.is_flashing || false,
                   flash_started_at: payload.new.flash_started_at || null,
                   flash_reason: payload.new.flash_reason || null,
+                  flash_color: payload.new.flash_color || null,
                 }
               } else {
                 console.log("pushing new vehicle", payload.new)

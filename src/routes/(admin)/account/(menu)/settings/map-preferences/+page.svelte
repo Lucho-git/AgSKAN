@@ -14,7 +14,7 @@
   ]
 
   // Derived from store — same pattern as app-information (no flash)
-  $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? true
+  $: zoomToLocationMarkers = $userSettingsStore.zoomToLocationMarkers ?? false
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"

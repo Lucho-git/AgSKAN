@@ -82,7 +82,11 @@
         value,
       )
       if (result?.success) {
-        toast.success("Auto-confirm " + (value ? "enabled" : "disabled"))
+        toast.success(
+          value
+            ? "Touch and hold drops your default marker"
+            : "Touch and hold opens the placement menu",
+        )
       } else {
         toast.error(result?.message || "Failed to update setting")
         userSettingsStore.update((s) => ({ ...s, autoConfirmMarkers: !value }))
@@ -445,31 +449,31 @@
       </div>
     </div>
 
-    <!-- Marker icon selection -->
+    <!-- Marker placement — touch and hold behaviour -->
     <div class="setting-row setting-row-col">
       <div class="setting-row-top">
         <div class="setting-icon marker-icon">
           <Magnet size={16} />
         </div>
         <div class="setting-label">
-          <span class="setting-name">Marker icon selection</span>
+          <span class="setting-name">Marker placement</span>
           <span class="setting-desc"
-            >Skip the edit panel and use the default icon when placing</span
+            >One touch and hold drops your default marker</span
           >
         </div>
       </div>
       <div class="style-seg">
         <button
           type="button"
-          class:active={!autoConfirmMarkers}
+          class:active={autoConfirmMarkers}
           disabled={saving === "autoConfirmMarkers"}
-          on:click={() => toggleAutoConfirm(false)}>Selection menu</button
+          on:click={() => toggleAutoConfirm(true)}>Touch and hold</button
         >
         <button
           type="button"
-          class:active={autoConfirmMarkers}
+          class:active={!autoConfirmMarkers}
           disabled={saving === "autoConfirmMarkers"}
-          on:click={() => toggleAutoConfirm(true)}>Use default</button
+          on:click={() => toggleAutoConfirm(false)}>Choose marker placement</button
         >
       </div>
     </div>
@@ -737,7 +741,8 @@
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.15s ease;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.2;
   }
   .style-seg button:hover {
     color: rgba(255, 255, 255, 0.85);

@@ -2,6 +2,7 @@
 <script>
   import { userVehicleStore } from "$lib/stores/vehicleStore"
   import SVGComponents from "$lib/vehicles/index.js"
+  import { RadioTower } from "lucide-svelte"
 
   export let pulseColor = "rgba(172, 172, 230, 0.8)"
   export let pulseSize = "40px"
@@ -13,27 +14,30 @@
   export let isSelected = false
   export let isFlashing = false
   export let flashReason = null
+  export let flashColor = null
   export let isInactive = false
+  export let isOwnVehicle = false
 
   $: vehicle = SVGComponents[userVehicle] || SVGComponents.tractor
 
-  // Flash colors and labels based on reason - HELP is RED, EMPTY is PURPLE
-  $: flashColor =
-    {
-      full: "#f59e0b", // amber
-      empty: "#8b5cf6", // purple (swapped from red)
-      help: "#ef4444", // red (swapped from purple)
-    }[flashReason] || "#f59e0b"
+  // Broadcast label + colour come straight from the state (custom broadcasts
+  // send their own label + colour). Legacy values (full/empty/help ids from
+  // older builds) fall back to their default colours.
+  const LEGACY_FLASH_COLORS = {
+    full: "#f59e0b",
+    empty: "#8b5cf6",
+    help: "#ef4444",
+  }
 
-  $: flashLabel =
-    {
-      full: "FULL",
-      empty: "EMPTY",
-      help: "HELP",
-    }[flashReason] || "FLASHING"
+  $: resolvedFlashColor =
+    flashColor ||
+    LEGACY_FLASH_COLORS[String(flashReason || "").toLowerCase()] ||
+    "#f59e0b"
 
-  // Determine if this is a help signal (keeps big size)
-  $: isHelpSignal = flashReason === "help"
+  $: flashLabel = String(flashReason || "Broadcast").toUpperCase()
+
+  // Determine if this is a help broadcast (keeps big size)
+  $: isHelpSignal = String(flashReason || "").toLowerCase() === "help"
 </script>
 
 <div
@@ -42,7 +46,7 @@
   class:fm-vehicle-flashing={isFlashing}
   class:fm-vehicle-flashing-help={isFlashing && isHelpSignal}
   class:fm-vehicle-inactive={isInactive && !isFlashing}
-  style="--flash-color: {flashColor}"
+  style="--flash-color: {resolvedFlashColor}"
 >
   <div
     class="fm-user-marker"
@@ -78,9 +82,19 @@
     <div
       class="fm-flash-label"
       class:fm-flash-label-help={isHelpSignal}
-      style="--flash-color: {flashColor}"
+      style="--flash-color: {resolvedFlashColor}"
     >
       {flashLabel}
+    </div>
+  {/if}
+
+  {#if isFlashing && isOwnVehicle}
+    <!-- Own broadcast indicator — intense signal pulse in the broadcast
+         colour so the broadcaster can see their own signal on screen. -->
+    <div class="fm-signal-badge" style="--flash-color: {resolvedFlashColor}">
+      <span class="fm-signal-ripple"></span>
+      <span class="fm-signal-ripple fm-signal-ripple-delay"></span>
+      <RadioTower size={16} />
     </div>
   {/if}
 </div>
@@ -188,6 +202,60 @@
         0 0 35px var(--flash-color),
         0 0 60px var(--flash-color),
         0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  /* ── Own broadcast signal badge ──
+     Shown on the broadcaster's own screen only. Louder than the other-vehicle
+     treatment: the badge pops with a strong colour-matched glow while two
+     ripple rings radiate outwards in the broadcast colour. */
+  .fm-signal-badge {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--flash-color);
+    color: #fff;
+    box-shadow:
+      0 0 14px var(--flash-color),
+      0 0 30px var(--flash-color);
+    z-index: 12;
+    animation: fmSignalPulse 0.9s ease-in-out infinite;
+  }
+  .fm-signal-ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--flash-color);
+    pointer-events: none;
+    animation: fmSignalRipple 1.6s ease-out infinite;
+  }
+  .fm-signal-ripple-delay {
+    animation-delay: 0.5s;
+  }
+  @keyframes fmSignalPulse {
+    0%,
+    100% {
+      transform: translateX(-50%) scale(1);
+    }
+    50% {
+      transform: translateX(-50%) scale(1.22);
+    }
+  }
+  @keyframes fmSignalRipple {
+    0% {
+      transform: scale(1);
+      opacity: 0.95;
+    }
+    100% {
+      transform: scale(2.8);
+      opacity: 0;
     }
   }
 

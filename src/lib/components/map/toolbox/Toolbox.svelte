@@ -8,7 +8,7 @@
     Ruler,
     Satellite,
     Layers,
-    Zap,
+    RadioTower,
     Gamepad2,
     Magnet,
     Radio,
@@ -501,7 +501,7 @@
                     : activePanel === "layers"
                       ? "Map Layers"
                       : activePanel === "flash"
-                        ? "Flash Signals"
+                        ? "Broadcasts"
                         : activePanel === "collection"
                           ? "Collection Mode"
                           : activePanel === "fields"
@@ -721,8 +721,8 @@
               class:tool-active={isFlashing}
               on:click={showFlashPanel}
             >
-              <Zap size={26} class={isFlashing ? "flashing-icon" : ""} />
-              <span>{isFlashing ? "Flashing..." : "Flash Signal"}</span>
+              <RadioTower size={26} class={isFlashing ? "flashing-icon" : ""} />
+              <span>{isFlashing ? "Broadcasting..." : "Broadcast"}</span>
             </button>
           {/if}
 

@@ -36,7 +36,7 @@ const defaultSettings = {
     roadOverlaysEnabled: false, // Show Road Overlays (KMZ) menu in map toolbox (default off)
     satelliteMenuEnabled: true, // Show Satellite menu in map toolbox (default on)
     measureMenuEnabled: true, // Show Measure menu in map toolbox (default on)
-    flashMenuEnabled: true, // Show Flash Signal menu in map toolbox (default on)
+    flashMenuEnabled: true, // Show Broadcast menu in map toolbox (default on)
     rockPickingMenuEnabled: true, // Show Rock Picking menu in map toolbox (default on)
     weatherMenuEnabled: true, // Show Weather menu in map toolbox (default on)
     weatherSource: null as { mode: "farm" | "my"; farmId: string; lat: number | null; lng: number | null } | null, // saved weather location

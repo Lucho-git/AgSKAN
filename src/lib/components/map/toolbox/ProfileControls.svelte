@@ -9,7 +9,7 @@
     Clock,
     Satellite,
     Ruler,
-    Zap,
+    RadioTower,
     Magnet,
     CloudSun,
     ChevronDown,
@@ -330,15 +330,15 @@
       >
     </label>
 
-    <!-- Flash Signal menu -->
+    <!-- Broadcast menu -->
     <label class="setting-row">
       <div class="setting-icon flash-icon">
-        <Zap size={16} />
+        <RadioTower size={16} />
       </div>
       <div class="setting-label">
-        <span class="setting-name">Flash signal menu</span>
+        <span class="setting-name">Broadcast menu</span>
         <span class="setting-desc"
-          >Show the Flash Signal tool in the toolbox</span
+          >Show the Broadcast tool in the toolbox</span
         >
       </div>
       <input
@@ -347,7 +347,7 @@
         checked={flashMenuEnabled}
         disabled={saving === "flashMenuEnabled"}
         on:change={() =>
-          toggleMenu("flashMenuEnabled", "Flash signal", !flashMenuEnabled)}
+          toggleMenu("flashMenuEnabled", "Broadcast", !flashMenuEnabled)}
       />
       <span class="setting-toggle-track"
         ><span class="setting-toggle-thumb"></span></span

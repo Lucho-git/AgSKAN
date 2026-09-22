@@ -38,7 +38,7 @@
   export let onOpenVehicleControls = null
   /** Callback to enter first person mode on a specific vehicle */
   export let onFirstPersonVehicle = null
-  /** Callback to open flash signal panel */
+  /** Callback to open the broadcast panel */
   export let onFlashMe = null
   /** List of vehicles for the first person picker */
   export let vehicles = []
@@ -210,7 +210,7 @@
   const actions = [
     { label: "Edit Vehicle" },
     { label: "First Person View" },
-    { label: "Flash Signal" },
+    { label: "Broadcast" },
   ]
 
   function handleMainClick() {
@@ -231,7 +231,7 @@
         // Open vehicle picker instead of toggling directly
         vehiclePickerOpen = true
         break
-      case "Flash Signal":
+      case "Broadcast":
         if (onFlashMe) onFlashMe()
         break
     }

@@ -20,6 +20,7 @@ function createUserVehicleStore() {
     is_flashing: false,
     flash_started_at: null,
     flash_reason: null,
+    flash_color: null,
     master_map_id: null,
     active_preset_id: null,
     selected_operation_id: null,

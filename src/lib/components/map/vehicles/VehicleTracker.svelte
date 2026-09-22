@@ -867,6 +867,7 @@
         is_flashing: $userVehicleStore.is_flashing,
         flash_started_at: $userVehicleStore.flash_started_at,
         flash_reason: $userVehicleStore.flash_reason,
+        flash_color: $userVehicleStore.flash_color,
       }
     }
 
@@ -2052,6 +2053,7 @@
         is_flashing,
         flash_started_at,
         flash_reason,
+        flash_color,
         last_update,
       } = change
 
@@ -2105,27 +2107,17 @@
           (v) => v.vehicle_id === vehicle_id,
         )
 
-        // Flash just started
+        // Broadcast just started
         if (is_flashing && existingVehicle && !existingVehicle.is_flashing) {
-          const reasonLabels = {
-            full: "FULL",
-            empty: "EMPTY",
-            help: "HELP",
-          }
-          const reasonColors = {
-            full: "#f59e0b",
-            empty: "#8b5cf6",
-            help: "#ef4444",
-          }
-
-          const reasonLabel = reasonLabels[flash_reason] || "FLASHING"
-          const reasonColor = reasonColors[flash_reason] || "#f59e0b"
-          const isHelpSignal = flash_reason === "help"
+          const reasonLabel = String(flash_reason || "Broadcast").toUpperCase()
+          const reasonColor = flash_color || "#f59e0b"
+          const isHelpSignal =
+            String(flash_reason || "").toLowerCase() === "help"
 
           const toastOptions = {
             description: isHelpSignal
               ? `${full_name} needs assistance!`
-              : `${full_name} is signaling ${reasonLabel}`,
+              : `${full_name} is broadcasting ${reasonLabel}`,
             duration: isHelpSignal ? 45000 : 8000,
             action: hasFix
               ? {
@@ -2143,14 +2135,12 @@
           }
 
           if (isHelpSignal) {
-            toast.error(`🆘 ${reasonLabel} Signal`, toastOptions)
-          } else if (flash_reason === "empty") {
-            toast.info(`🟣 ${reasonLabel} Signal`, toastOptions)
+            toast.error(`🆘 ${reasonLabel} Broadcast`, toastOptions)
           } else {
-            toast.warning(`🟠 ${reasonLabel} Signal`, toastOptions)
+            toast.warning(`📢 ${reasonLabel} Broadcast`, toastOptions)
           }
 
-          console.log(`⚡ Flash started for ${full_name}:`, flash_reason)
+          console.log(`📢 Broadcast started for ${full_name}:`, flash_reason)
         }
         // Flash just stopped
         else if (
@@ -2158,7 +2148,7 @@
           existingVehicle &&
           existingVehicle.is_flashing
         ) {
-          console.log(`⚡ Flash stopped for ${full_name}`)
+          console.log(`📢 Broadcast stopped for ${full_name}`)
         }
       }
 
@@ -2206,6 +2196,7 @@
             vehicleSwath: vehicle_marker.swath,
             isFlashing: is_flashing || false,
             flashReason: flash_reason || null,
+            flashColor: flash_color || null,
             isInactive: inactive,
           })
 
@@ -2267,7 +2258,7 @@
           vehicle_marker,
           false,
           vehicle_id,
-          { is_flashing, flash_started_at, flash_reason },
+          { is_flashing, flash_started_at, flash_reason, flash_color },
         )
 
         const marker = new mapboxgl.Marker({
@@ -2425,7 +2416,8 @@
 
         const flashChanged =
           $userVehicleStore.is_flashing !== previousVehicleMarker.is_flashing ||
-          $userVehicleStore.flash_reason !== previousVehicleMarker.flash_reason
+          $userVehicleStore.flash_reason !== previousVehicleMarker.flash_reason ||
+          $userVehicleStore.flash_color !== previousVehicleMarker.flash_color
 
         if (propsChanged || flashChanged) {
           console.log(
@@ -2441,6 +2433,7 @@
             vehicleSwath: vehicleMarker.swath,
             isFlashing: $userVehicleStore.is_flashing || false,
             flashReason: $userVehicleStore.flash_reason || null,
+            flashColor: $userVehicleStore.flash_color || null,
           })
 
           if (userInitialsMarker) {
@@ -2454,6 +2447,7 @@
             ...vehicleMarker,
             is_flashing: $userVehicleStore.is_flashing,
             flash_reason: $userVehicleStore.flash_reason,
+            flash_color: $userVehicleStore.flash_color,
           }
         }
         return
@@ -2479,6 +2473,7 @@
         is_flashing: $userVehicleStore.is_flashing,
         flash_started_at: $userVehicleStore.flash_started_at,
         flash_reason: $userVehicleStore.flash_reason,
+        flash_color: $userVehicleStore.flash_color,
       },
     )
 
@@ -2535,6 +2530,7 @@
       ...vehicleMarker,
       is_flashing: $userVehicleStore.is_flashing,
       flash_reason: $userVehicleStore.flash_reason,
+      flash_color: $userVehicleStore.flash_color,
     }
   }
 
@@ -2546,6 +2542,7 @@
       is_flashing: false,
       flash_started_at: null,
       flash_reason: null,
+      flash_color: null,
     },
   ) {
     const el = document.createElement("div")
@@ -2564,6 +2561,8 @@
         isSelected: false,
         isFlashing: flashState.is_flashing || false,
         flashReason: flashState.flash_reason || null,
+        flashColor: flashState.flash_color || null,
+        isOwnVehicle: !!isUserVehicle,
       },
     })
 

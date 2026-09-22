@@ -52,11 +52,6 @@
     allMarkerIcons[0] ||
     DEFAULT_MARKER_PREFERENCE
 
-  // Marker interaction settings
-  $: zoomToLocation = $userSettingsStore?.zoomToLocationMarkers ?? true
-  $: zoomToPlaced = $userSettingsStore?.zoomToPlacedMarkers ?? false
-  $: autoConfirm = $userSettingsStore?.autoConfirmMarkers ?? false
-
   // The marker style + per-type default colour for each type's colour dot
   // (reacts to the profile's default-colour changes, so the toolbox menu
   // stays in sync with the map).
