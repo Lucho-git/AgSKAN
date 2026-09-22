@@ -14,13 +14,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
-  import {
-    ArrowRight,
-    Check,
-    Loader2,
-    MailCheck,
-    Sparkles,
-  } from "lucide-svelte"
+  import { ArrowRight, Loader2 } from "lucide-svelte"
   import { supabase, clearPendingMapId } from "$lib/stores/sessionStore"
   import { mapApi } from "$lib/api/mapApi"
   import { resetMapStores } from "$lib/stores/resetMapStores"
@@ -315,11 +309,6 @@
       </div>
     {:else if step === "form" || step === "saving"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <div
-          class="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
-        >
-          <Sparkles size={26} class="text-amber-500" />
-        </div>
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
           Create your account
         </p>
@@ -380,7 +369,7 @@
         {/if}
 
         <button
-          class="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90 disabled:cursor-not-allowed disabled:opacity-60"
+          class="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-60"
           on:click={createAccount}
           disabled={step === "saving"}
         >
@@ -405,11 +394,6 @@
       </div>
     {:else if step === "confirm"}
       <div class="flex flex-col items-center gap-3 py-2 text-center">
-        <div
-          class="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
-        >
-          <MailCheck size={26} class="text-amber-500" />
-        </div>
         <h1 class="text-xl font-bold text-contrast-content">Confirm your email</h1>
         <p class="text-sm text-contrast-content/60">
           We've sent a confirmation link to <strong>{email}</strong>.
@@ -420,7 +404,7 @@
           {/if}
         </p>
         <button
-          class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+          class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
           on:click={() => goto(keepAccess ? "/account/welcome" : "/login")}
         >
           {keepAccess ? "Continue" : "Go to sign in"}
@@ -432,11 +416,6 @@
       </div>
     {:else if step === "done"}
       <div class="flex flex-col items-center gap-3 py-2 text-center">
-        <div
-          class="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15"
-        >
-          <Check size={26} class="text-emerald-500" />
-        </div>
         <h1 class="text-xl font-bold text-contrast-content">You're all set</h1>
         <p class="text-sm text-contrast-content/60">
           {#if keepAccess}
@@ -455,7 +434,7 @@
         </h1>
         <p class="text-sm text-contrast-content/60">{errorMessage}</p>
         <button
-          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
           on:click={() => goto("/guest/home")}
         >
           Back to your guest home

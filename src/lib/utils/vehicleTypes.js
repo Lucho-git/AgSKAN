@@ -30,35 +30,40 @@ export const VEHICLE_COLOR_HEX = {
   HotPink: "#ff69b4",
 }
 
-/** Machine types with their default marker size + swath. */
+/** Machine types with their default marker size + swath.
+ *  Same order as the map's vehicle choice menus (VehicleSelectionMenu /
+ *  VehicleControls_lib). */
 export const VEHICLE_TYPES = [
-  { type: "Tractor", bodyColor: "green", size: 45, swath: 4 },
   { type: "FourWheelDriveTractor", bodyColor: "green", size: 35, swath: 4 },
-  { type: "CombineHarvester", bodyColor: "yellow", size: 60, swath: 12 },
-  { type: "TowBehindSeeder", bodyColor: "red", size: 80, swath: 12 },
   { type: "TowBetweenSeeder", bodyColor: "red", size: 80, swath: 12 },
+  { type: "TowBehindSeeder", bodyColor: "red", size: 80, swath: 12 },
   { type: "TowBehindSeederTracks", bodyColor: "red", size: 80, swath: 12 },
   { type: "TowBehindBoomspray", bodyColor: "red", size: 80, swath: 36 },
   { type: "SelfPropelledBoomspray", bodyColor: "red", size: 45, swath: 36 },
   { type: "ThreePointBoomspray", bodyColor: "red", size: 45, swath: 36 },
+  { type: "FarmUte", bodyColor: "red", size: 40, swath: 4 },
+  { type: "FrontWheelChaserBin", bodyColor: "red", size: 70, swath: 12 },
+  { type: "FourWheelDriveChaserBin", bodyColor: "red", size: 70, swath: 12 },
   { type: "HeaderDuals", bodyColor: "red", size: 50, swath: 12 },
   { type: "HeaderSingles", bodyColor: "red", size: 50, swath: 12 },
   { type: "HeaderTracks", bodyColor: "red", size: 50, swath: 12 },
   { type: "SelfPropelledSwather", bodyColor: "red", size: 50, swath: 12 },
-  { type: "Baler", bodyColor: "red", size: 80, swath: 12 },
-  { type: "FarmUte", bodyColor: "red", size: 40, swath: 4 },
+  { type: "Spreader", bodyColor: "red", size: 80, swath: 12 },
   { type: "Truck", bodyColor: "red", size: 60, swath: 4 },
   { type: "CabOverTruck", bodyColor: "red", size: 60, swath: 4 },
-  { type: "WorkCar", bodyColor: "red", size: 45, swath: 4 },
-  { type: "FrontWheelChaserBin", bodyColor: "red", size: 70, swath: 12 },
-  { type: "FourWheelDriveChaserBin", bodyColor: "red", size: 70, swath: 12 },
-  { type: "Spreader", bodyColor: "red", size: 80, swath: 12 },
+  { type: "CabOverRoadTrain", bodyColor: "red", size: 100, swath: 4 },
+  { type: "Baler", bodyColor: "red", size: 80, swath: 12 },
   { type: "Mower", bodyColor: "red", size: 60, swath: 12 },
   { type: "SelfPropelledMower", bodyColor: "red", size: 60, swath: 12 },
   { type: "Telehandler", bodyColor: "red", size: 70, swath: 12 },
   { type: "Loader", bodyColor: "red", size: 50, swath: 4 },
-  { type: "WheelLoader", bodyColor: "yellow", size: 60, swath: 4 },
+  { type: "SimpleTractor", bodyColor: "red", size: 45, swath: 4 },
+  { type: "Pointer", bodyColor: "green", size: 45, swath: 4 },
+  { type: "CombineHarvester", bodyColor: "yellow", size: 60, swath: 12 },
   { type: "Excavator", bodyColor: "orange", size: 70, swath: 4 },
+  { type: "Tractor", bodyColor: "green", size: 45, swath: 4 },
+  { type: "WheelLoader", bodyColor: "yellow", size: 60, swath: 4 },
+  { type: "WorkCar", bodyColor: "red", size: 45, swath: 4 },
   { type: "Airplane", bodyColor: "blue", size: 85, swath: 50 },
 ]
 

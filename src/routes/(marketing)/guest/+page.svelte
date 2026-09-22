@@ -4,7 +4,6 @@
   import { goto } from "$app/navigation"
   import { Loader2, Users, ArrowRight } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
-  import SVGComponents from "$lib/vehicles/index.js"
 
   const COLORS = [
     { key: "Red", value: "#ff0000" },
@@ -278,11 +277,6 @@
       </div>
     {:else if step === "ready" || step === "joining"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <div
-          class="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10"
-        >
-          <Users size={26} class="text-primary" />
-        </div>
         <h1 class="text-xl font-bold text-contrast-content">
           You're invited to<br />{mapName}
         </h1>
@@ -304,11 +298,6 @@
       </div>
     {:else if step === "rejoin"}
       <div class="flex flex-col items-center gap-3 py-2 text-center">
-        <div
-          class="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10"
-        >
-          <Users size={26} class="text-primary" />
-        </div>
         <h1 class="text-xl font-bold text-contrast-content">
           Welcome back{guestName ? `, ${guestName}` : ""}
         </h1>
@@ -325,11 +314,6 @@
       </div>
     {:else if step === "account"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <div
-          class="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
-        >
-          <Users size={26} class="text-amber-500" />
-        </div>
         <h1 class="text-xl font-bold text-contrast-content">
           You're already signed in
         </h1>
@@ -371,21 +355,10 @@
             class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             >Icon colour</span
           >
-          <div class="flex flex-wrap items-center gap-2">
-            <div
-              class="mr-1 flex h-10 w-10 items-center justify-center rounded-lg bg-base-200"
-            >
-              {#if SVGComponents.Pointer}
-                <svelte:component
-                  this={SVGComponents.Pointer}
-                  bodyColor={guestColor}
-                  size="28px"
-                />
-              {/if}
-            </div>
+          <div class="flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1">
             {#each COLORS as color (color.key)}
               <button
-                class="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 {guestColor ===
+                class="h-6 w-6 flex-shrink-0 rounded-full border-2 transition-transform hover:scale-110 sm:h-7 sm:w-7 {guestColor ===
                 color.key
                   ? 'border-contrast-content'
                   : 'border-transparent'}"

@@ -6,7 +6,9 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
-  import { ArrowRight, Loader2, Sparkles } from "lucide-svelte"
+  import { ArrowRight, Loader2, Smartphone } from "lucide-svelte"
+  import { Capacitor } from "@capacitor/core"
+  import Icon from "@iconify/svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import SVGComponents from "$lib/vehicles/index.js"
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
@@ -17,8 +19,19 @@
     findVehicleType,
   } from "$lib/utils/vehicleTypes"
 
-  let step: "loading" | "form" | "saving" | "error" = "loading"
+  let step: "loading" | "form" | "saving" | "app" | "error" = "loading"
   let errorMessage = ""
+
+  // App download / hand-off step (skipped inside the native app itself).
+  const APP_STORE_URL = "https://apps.apple.com/app/agskan/id6746783538"
+  const PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=com.skanfarming"
+  const BASE_URL = "https://www.skanfarming.com.au"
+  let isNative = false
+  let isIOS = false
+  let isAndroid = false
+  let isMobile = false
+  let qrCodeUrl = ""
 
   let mapName = "the map"
   let ownerName = ""
@@ -35,6 +48,12 @@
     : "No machine"
 
   onMount(async () => {
+    isNative = Capacitor.isNativePlatform()
+    const ua = navigator.userAgent
+    isIOS = /iPad|iPhone|iPod/.test(ua)
+    isAndroid = /Android/.test(ua)
+    isMobile = isIOS || isAndroid
+
     try {
       const {
         data: { session },
@@ -166,10 +185,47 @@
         if (error) throw error
       }
 
-      goto("/account/mapviewer")
+      // Native app: they're already in it — straight to the map.
+      if (isNative) {
+        goto("/account/mapviewer")
+        return
+      }
+
+      // Web: offer the download / open-in-app hand-off before the map.
+      await prepareAppStep()
+      step = "app"
     } catch (e: any) {
       errorMessage = e?.message || "Could not save your setup."
       step = "form"
+    }
+  }
+
+  // Desktop gets a QR that signs the app in as them (refresh-token hand-off).
+  async function prepareAppStep() {
+    if (isMobile) return
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.refresh_token) return
+      const authLink = `${BASE_URL}/app-redirect?refresh_token=${encodeURIComponent(session.refresh_token)}&source=qr`
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=L&data=${encodeURIComponent(authLink)}`
+    } catch (e) {
+      console.warn("QR code generation skipped:", e)
+    }
+  }
+
+  // Mobile browser: bounce through /app-redirect, which deep-links into the
+  // app with the refresh token (they come out signed in on this map).
+  async function openInApp() {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.refresh_token) return
+      window.location.href = `${BASE_URL}/app-redirect?refresh_token=${encodeURIComponent(session.refresh_token)}&source=mobile`
+    } catch (e) {
+      console.warn("Open-in-app hand-off failed:", e)
     }
   }
 </script>
@@ -197,7 +253,7 @@
         </h1>
         <p class="text-sm text-contrast-content/60">{errorMessage}</p>
         <button
-          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
           on:click={() => goto("/account")}
         >
           Back to your dashboard
@@ -207,13 +263,95 @@
           />
         </button>
       </div>
+    {:else if step === "app"}
+      <div class="flex flex-col items-center gap-2 text-center">
+        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
+          One more thing
+        </p>
+        <h1 class="text-xl font-bold text-contrast-content">
+          Take {mapName} with you
+        </h1>
+        <p class="mt-1 text-sm text-contrast-content/60">
+          The app keeps trailing and tracking in the background — grab it, or
+          continue in your browser.
+        </p>
+
+        <div class="mt-4 w-full space-y-2">
+          {#if !isMobile || isIOS}
+            <a href={APP_STORE_URL} class="block">
+              <div
+                class="flex items-center rounded-xl bg-black p-3 text-white transition-transform hover:scale-[1.02]"
+              >
+                <Icon
+                  icon="simple-icons:apple"
+                  width="30"
+                  height="30"
+                  class="mr-3 flex-shrink-0"
+                />
+                <div class="min-w-0 text-left">
+                  <div class="text-xs opacity-90">Download on the</div>
+                  <div class="text-base font-semibold">App Store</div>
+                </div>
+              </div>
+            </a>
+          {/if}
+          {#if !isMobile || isAndroid}
+            <a href={PLAY_STORE_URL} class="block">
+              <div
+                class="flex items-center rounded-xl bg-black p-3 text-white transition-transform hover:scale-[1.02]"
+              >
+                <Icon
+                  icon="simple-icons:googleplay"
+                  width="30"
+                  height="30"
+                  class="mr-3 flex-shrink-0"
+                />
+                <div class="min-w-0 text-left">
+                  <div class="text-xs opacity-90">Get it on</div>
+                  <div class="text-base font-semibold">Google Play</div>
+                </div>
+              </div>
+            </a>
+          {/if}
+
+          {#if isMobile}
+            <button
+              class="flex w-full items-center justify-center gap-2 rounded-xl border border-base-300 px-4 py-2.5 text-sm font-medium text-contrast-content transition-colors hover:bg-base-200"
+              on:click={openInApp}
+            >
+              <Smartphone size={16} />
+              Open the app
+            </button>
+            <p class="text-xs text-contrast-content/50">
+              Opens AgSKAN if it's already installed
+            </p>
+          {:else if qrCodeUrl}
+            <div class="pt-1">
+              <p class="mb-2 text-xs text-contrast-content/60">
+                Or scan this with your phone to sign in there:
+              </p>
+              <img
+                src={qrCodeUrl}
+                alt="Scan to open AgSKAN on your phone"
+                class="mx-auto h-36 w-36 rounded-lg bg-white p-1"
+              />
+            </div>
+          {/if}
+        </div>
+
+        <button
+          class="group mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
+          on:click={() => goto("/account/mapviewer")}
+        >
+          Continue to the map
+          <ArrowRight
+            size={16}
+            class="transition-transform group-hover:translate-x-1"
+          />
+        </button>
+      </div>
     {:else}
       <div class="flex flex-col items-center gap-2 text-center">
-        <div
-          class="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
-        >
-          <Sparkles size={26} class="text-amber-500" />
-        </div>
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
           You're on the team
         </p>
@@ -306,10 +444,10 @@
           </div>
 
           <!-- Colour picker -->
-          <div class="mt-3 flex flex-wrap items-center gap-2">
+          <div class="mt-3 flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1">
             {#each VEHICLE_COLORS as color (color)}
               <button
-                class="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 {selectedColor ===
+                class="h-6 w-6 flex-shrink-0 rounded-full border-2 transition-transform hover:scale-110 sm:h-7 sm:w-7 {selectedColor ===
                 color
                   ? 'border-contrast-content'
                   : 'border-transparent'}"
@@ -329,7 +467,7 @@
         {/if}
 
         <button
-          class="group mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90 disabled:cursor-not-allowed disabled:opacity-60"
+          class="group mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90 disabled:cursor-not-allowed disabled:opacity-60"
           on:click={handleContinue}
           disabled={step === "saving"}
         >

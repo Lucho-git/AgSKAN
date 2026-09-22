@@ -6,7 +6,6 @@
     ArrowRight,
     Clock,
     Loader2,
-    MapPin,
     Sparkles,
     UserPlus,
   } from "lucide-svelte"
@@ -135,11 +134,6 @@
       </div>
     {:else}
       <div class="flex flex-col items-center gap-2 text-center">
-        <div
-          class="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15"
-        >
-          <MapPin size={26} class="text-amber-500" />
-        </div>
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
           {isAccount ? "Signed in" : "Guest access"}
         </p>
@@ -195,7 +189,7 @@
             </p>
             {#if !hasMap}
               <button
-                class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+                class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
                 on:click={() => goto("/account")}
               >
                 Open your dashboard
@@ -225,7 +219,7 @@
               {/if}
             </p>
             <button
-              class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+              class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 shadow-lg transition-all duration-300 hover:bg-base-content/90"
               on:click={goToGuestSignup}
             >
               <UserPlus size={15} />
