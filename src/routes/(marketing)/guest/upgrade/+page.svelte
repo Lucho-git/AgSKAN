@@ -164,7 +164,8 @@
     const pendingConfirmation = !!data?.user?.new_email
     step = pendingConfirmation ? "confirm" : "done"
     if (!pendingConfirmation) {
-      setTimeout(() => goto("/account/mapviewer"), 1400)
+      // Land on the team welcome screen — name + machine setup, then the map.
+      setTimeout(() => goto("/account/welcome"), 1400)
     }
   }
 
@@ -308,7 +309,7 @@
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if step === "loading"}
-      <div class="flex flex-col items-center gap-3 py-8 text-base-content/60">
+      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Checking your guest access…</p>
       </div>
@@ -322,14 +323,14 @@
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
           Create your account
         </p>
-        <h1 class="text-xl font-bold text-base-content">
+        <h1 class="text-xl font-bold text-contrast-content">
           {#if keepAccess}
             Become an operator on {mapName}
           {:else}
             Create your AgSKAN account
           {/if}
         </h1>
-        <p class="mt-1 text-sm text-base-content/60">
+        <p class="mt-1 text-sm text-contrast-content/60">
           {#if keepAccess}
             This invite includes full team access — creating your account
             upgrades you from guest to a full operator on {mapName}.
@@ -342,7 +343,7 @@
 
         <div class="mt-4 w-full text-left">
           <label
-            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
+            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             for="guest-account-email">Email</label
           >
           <input
@@ -352,13 +353,13 @@
             on:input={() => (errorMessage = "")}
             placeholder="you@example.com"
             autocomplete="email"
-            class="input input-bordered w-full"
+            class="input input-bordered w-full text-contrast-content placeholder:text-contrast-content/40"
           />
         </div>
 
         <div class="mt-4 w-full text-left">
           <label
-            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
+            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             for="guest-account-password">Password</label
           >
           <input
@@ -368,7 +369,7 @@
             on:input={() => (errorMessage = "")}
             placeholder="At least 6 characters"
             autocomplete="new-password"
-            class="input input-bordered w-full"
+            class="input input-bordered w-full text-contrast-content placeholder:text-contrast-content/40"
           />
         </div>
 
@@ -379,7 +380,7 @@
         {/if}
 
         <button
-          class="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90 disabled:cursor-not-allowed disabled:opacity-60"
+          class="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90 disabled:cursor-not-allowed disabled:opacity-60"
           on:click={createAccount}
           disabled={step === "saving"}
         >
@@ -394,7 +395,7 @@
           {/if}
         </button>
 
-        <p class="mt-3 text-xs text-base-content/50">
+        <p class="mt-3 text-xs text-contrast-content/50">
           By creating an account you agree to AgSKAN's
           <a href="/terms-of-service" class="hover:underline">Terms of Service</a
           >
@@ -409,8 +410,8 @@
         >
           <MailCheck size={26} class="text-amber-500" />
         </div>
-        <h1 class="text-xl font-bold text-base-content">Confirm your email</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-xl font-bold text-contrast-content">Confirm your email</h1>
+        <p class="text-sm text-contrast-content/60">
           We've sent a confirmation link to <strong>{email}</strong>.
           {#if keepAccess}
             Your operator access keeps working while you confirm.
@@ -419,10 +420,10 @@
           {/if}
         </p>
         <button
-          class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
-          on:click={() => goto(keepAccess ? "/account/mapviewer" : "/login")}
+          class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+          on:click={() => goto(keepAccess ? "/account/welcome" : "/login")}
         >
-          {keepAccess ? "Continue to the map" : "Go to sign in"}
+          {keepAccess ? "Continue" : "Go to sign in"}
           <ArrowRight
             size={16}
             class="transition-transform group-hover:translate-x-1"
@@ -436,25 +437,25 @@
         >
           <Check size={26} class="text-emerald-500" />
         </div>
-        <h1 class="text-xl font-bold text-base-content">You're all set</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-xl font-bold text-contrast-content">You're all set</h1>
+        <p class="text-sm text-contrast-content/60">
           {#if keepAccess}
             Your account is ready — you're now an operator on {mapName}.
-            Taking you to the map…
+            Getting your welcome ready…
           {:else}
             Your account is ready. Taking you through account setup…
           {/if}
         </p>
-        <Loader2 size={18} class="animate-spin text-base-content/50" />
+        <Loader2 size={18} class="animate-spin text-contrast-content/50" />
       </div>
     {:else}
       <div class="flex flex-col items-center gap-3 py-2 text-center">
-        <h1 class="text-lg font-semibold text-base-content">
+        <h1 class="text-lg font-semibold text-contrast-content">
           Something went wrong
         </h1>
-        <p class="text-sm text-base-content/60">{errorMessage}</p>
+        <p class="text-sm text-contrast-content/60">{errorMessage}</p>
         <button
-          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+          class="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
           on:click={() => goto("/guest/home")}
         >
           Back to your guest home

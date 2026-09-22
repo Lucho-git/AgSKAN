@@ -129,7 +129,7 @@
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if loading}
-      <div class="flex flex-col items-center gap-3 py-8 text-base-content/60">
+      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Loading your guest access…</p>
       </div>
@@ -143,16 +143,16 @@
         <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
           {isAccount ? "Signed in" : "Guest access"}
         </p>
-        <h1 class="text-xl font-bold text-base-content">{mapName}</h1>
+        <h1 class="text-xl font-bold text-contrast-content">{mapName}</h1>
         {#if guestName}
-          <p class="text-sm text-base-content/60">Joined as {guestName}</p>
+          <p class="text-sm text-contrast-content/60">Joined as {guestName}</p>
         {/if}
 
         <div
           class="mt-4 w-full rounded-xl border border-base-300 bg-base-200 p-4 text-left"
         >
-          <div class="flex items-center gap-2 text-sm font-medium text-base-content">
-            <Clock size={15} class="flex-shrink-0 text-base-content/60" />
+          <div class="flex items-center gap-2 text-sm font-medium text-contrast-content">
+            <Clock size={15} class="flex-shrink-0 text-contrast-content/60" />
             <span>
               {#if !hasMap}
                 Your access to this map has ended.
@@ -166,7 +166,7 @@
             </span>
           </div>
           {#if hasMap && accessExpiresAt && !expired}
-            <p class="mt-1.5 pl-6 text-xs text-base-content/50">
+            <p class="mt-1.5 pl-6 text-xs text-contrast-content/50">
               Ends {formatEndDate(accessExpiresAt)}
             </p>
           {/if}
@@ -185,17 +185,17 @@
           <div
             class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
           >
-            <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
+            <p class="flex items-center gap-2 text-sm font-semibold text-contrast-content">
               <Sparkles size={15} class="text-amber-500" /> You're signed in
             </p>
-            <p class="mt-1 text-xs text-base-content/60">
+            <p class="mt-1 text-xs text-contrast-content/60">
               {guestName ? `Signed in as ${guestName}. ` : ""}The guest options
               don't apply to your account — you can open your map or dashboard
               any time.
             </p>
             {#if !hasMap}
               <button
-                class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+                class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
                 on:click={() => goto("/account")}
               >
                 Open your dashboard
@@ -210,11 +210,11 @@
           <div
             class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
           >
-            <p class="flex items-center gap-2 text-sm font-semibold text-base-content">
+            <p class="flex items-center gap-2 text-sm font-semibold text-contrast-content">
               <Sparkles size={15} class="text-amber-500" />
               {keepAccess ? "Become an operator" : "Create your own account"}
             </p>
-            <p class="mt-1 text-xs text-base-content/60">
+            <p class="mt-1 text-xs text-contrast-content/60">
               {#if keepAccess}
                 Create an account to join {mapName} as a full operator —
                 you'll keep your name and machine, with no guest time limit.
@@ -225,7 +225,7 @@
               {/if}
             </p>
             <button
-              class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-base-content shadow-lg transition-all duration-300 hover:bg-hover/90"
+              class="group mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-hover px-4 py-2.5 text-sm font-medium text-hover-content shadow-lg transition-all duration-300 hover:bg-hover/90"
               on:click={goToGuestSignup}
             >
               <UserPlus size={15} />
@@ -239,7 +239,7 @@
         {/if}
 
         {#if !hasMap || expired}
-          <p class="mt-3 text-xs text-base-content/50">
+          <p class="mt-3 text-xs text-contrast-content/50">
             Ask the person who invited you for a fresh invite link to rejoin.
           </p>
         {/if}

@@ -257,7 +257,7 @@
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if step === "loading"}
-      <div class="flex flex-col items-center gap-3 py-8 text-base-content/60">
+      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Checking your invite…</p>
       </div>
@@ -268,11 +268,11 @@
         >
           <Users size={22} class="text-error" />
         </div>
-        <h1 class="text-lg font-semibold text-base-content">Invite unavailable</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-lg font-semibold text-contrast-content">Invite unavailable</h1>
+        <p class="text-sm text-contrast-content/60">
           {REASON_LABELS[reason] || "This invite link can't be used."}
         </p>
-        <p class="mt-1 text-xs text-base-content/50">
+        <p class="mt-1 text-xs text-contrast-content/50">
           Ask the person who invited you for a fresh link.
         </p>
       </div>
@@ -283,10 +283,10 @@
         >
           <Users size={26} class="text-primary" />
         </div>
-        <h1 class="text-xl font-bold text-base-content">
+        <h1 class="text-xl font-bold text-contrast-content">
           You're invited to<br />{mapName}
         </h1>
-        <p class="mt-1 text-sm text-base-content/60">
+        <p class="mt-1 text-sm text-contrast-content/60">
           Take a look at the map — no account needed. Guest access is
           view-only and lasts a limited time.
         </p>
@@ -309,13 +309,13 @@
         >
           <Users size={26} class="text-primary" />
         </div>
-        <h1 class="text-xl font-bold text-base-content">
+        <h1 class="text-xl font-bold text-contrast-content">
           Welcome back{guestName ? `, ${guestName}` : ""}
         </h1>
-        <p class="text-sm text-base-content/60">
+        <p class="text-sm text-contrast-content/60">
           Rejoining {mapName} with your guest access…
         </p>
-        <Loader2 size={18} class="animate-spin text-base-content/50" />
+        <Loader2 size={18} class="animate-spin text-contrast-content/50" />
         <button
           class="btn btn-primary mt-3 w-full"
           on:click={() => goto("/account/mapviewer")}
@@ -330,10 +330,10 @@
         >
           <Users size={26} class="text-amber-500" />
         </div>
-        <h1 class="text-xl font-bold text-base-content">
+        <h1 class="text-xl font-bold text-contrast-content">
           You're already signed in
         </h1>
-        <p class="mt-1 text-sm text-base-content/60">
+        <p class="mt-1 text-sm text-contrast-content/60">
           This invite is a guest link — it doesn't change your account or your
           map. Open your app to keep working.
         </p>
@@ -346,14 +346,14 @@
       </div>
     {:else if step === "details" || step === "saving" || step === "done"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <h1 class="text-xl font-bold text-base-content">You're in</h1>
-        <p class="text-sm text-base-content/60">
+        <h1 class="text-xl font-bold text-contrast-content">You're in</h1>
+        <p class="text-sm text-contrast-content/60">
           How should you appear on {mapName}?
         </p>
 
         <div class="mt-4 w-full text-left">
           <label
-            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
+            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             for="guest-name">Your name</label
           >
           <input
@@ -362,13 +362,13 @@
             bind:value={guestName}
             placeholder="Visitor"
             maxlength="30"
-            class="input input-bordered w-full"
+            class="input input-bordered w-full text-contrast-content placeholder:text-contrast-content/40"
           />
         </div>
 
         <div class="mt-4 w-full text-left">
           <span
-            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-base-content/50"
+            class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             >Icon colour</span
           >
           <div class="flex flex-wrap items-center gap-2">
@@ -387,7 +387,7 @@
               <button
                 class="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 {guestColor ===
                 color.key
-                  ? 'border-base-content'
+                  ? 'border-contrast-content'
                   : 'border-transparent'}"
                 style="background-color: {color.value};"
                 title={color.key}
@@ -413,8 +413,8 @@
       </div>
     {:else if step === "error"}
       <div class="flex flex-col items-center gap-2 py-6 text-center">
-        <h1 class="text-lg font-semibold text-base-content">Something went wrong</h1>
-        <p class="text-sm text-base-content/60">{errorMessage}</p>
+        <h1 class="text-lg font-semibold text-contrast-content">Something went wrong</h1>
+        <p class="text-sm text-contrast-content/60">{errorMessage}</p>
         {#if token}
           <button class="btn btn-outline mt-4" on:click={join}>Try again</button>
         {/if}

@@ -20,14 +20,10 @@
   $: focusRequest = $kmzOverlaysStore.focusRequest
 
   // KMZ overlay layer ids are dynamic (kmz-overlay-<uuid>), so they can't
-  // match the exact-id LAYER_ORDER registry in MapViewer. Instead, anchor below
-  // the field outlines/labels so roads render above field fills but below
-  // outlines, labels, and markers (same approach as EmOverlays).
+  // match the exact-id LAYER_ORDER registry in MapViewer. Anchor them directly
+  // below the marker layers instead, so the road network renders above every
+  // fields layer (fills, outlines, and labels) and below markers/toolbox pins.
   const ANCHOR_LAYER_IDS = [
-    "fields-outline",
-    "fields-outline-selected",
-    "fields-labels-area",
-    "fields-labels",
     "markers-layer",
     "markers-selection-circle",
     "markers-selected-layer",
@@ -54,6 +50,52 @@
     } catch (error) {
       console.error(`Error adding KMZ overlay layer ${layerConfig.id}:`, error)
       return false
+    }
+  }
+
+  // Roads must stay above the fields layers, but MapFields can (re)build its
+  // decoration layers after the roads are placed — and because the kmz layer
+  // ids aren't in MapViewer's LAYER_ORDER registry, those inserts can fall
+  // back to the top of the style and end up above the roads. Re-assert the
+  // road position whenever the style changes; moveLayer() only runs when a
+  // layer is actually misplaced, so this settles after one pass.
+  function isFieldsLayerId(layerId) {
+    return typeof layerId === "string" && layerId.startsWith("field")
+  }
+
+  function ensureLayerOrder() {
+    if (!map || isDestroyed || !isMapStyleReady()) return
+
+    const beforeId = getBeforeLayerId()
+    const roadLayerIds = []
+    for (const overlay of overlays) {
+      roadLayerIds.push(...lineLayerIdsFor(overlay), labelLayerIdFor(overlay))
+    }
+
+    for (const layerId of roadLayerIds) {
+      if (!map.getLayer(layerId)) continue
+
+      const layers = map.getStyle().layers
+      const index = layers.findIndex((l) => l.id === layerId)
+      const anchorIndex = beforeId
+        ? layers.findIndex((l) => l.id === beforeId)
+        : -1
+
+      // Already directly below the marker anchor? Moving it again would only
+      // trigger another style update, so leave it alone.
+      if (anchorIndex !== -1 && index === anchorIndex - 1) continue
+
+      const fieldsAbove = layers.some(
+        (l, i) => i > index && isFieldsLayerId(l.id),
+      )
+      const aboveAnchor = anchorIndex !== -1 && index > anchorIndex
+      if (!fieldsAbove && !aboveAnchor) continue
+
+      try {
+        map.moveLayer(layerId, beforeId)
+      } catch (error) {
+        // ignore — layer may be mid-teardown
+      }
     }
   }
 
@@ -328,6 +370,7 @@
     for (const overlay of overlays) {
       addOrUpdateOverlay(overlay)
     }
+    ensureLayerOrder()
   }
 
   // Re-render when overlays change (added/edited/removed)
@@ -429,6 +472,7 @@
 
     map.off("click", handleMapClick)
     map.off("style.load", handleStyleReload)
+    map.off("styledata", handleStyleData)
     map.off("idle", handleRenderRetry)
     renderPending = false
 
@@ -458,10 +502,16 @@
     updateFeatureStates()
   }
 
+  // Keep the roads above the fields when other components (re)build layers.
+  function handleStyleData() {
+    ensureLayerOrder()
+  }
+
   onMount(async () => {
     if (!map) return
 
     map.on("style.load", handleStyleReload)
+    map.on("styledata", handleStyleData)
 
     // Load overlays for the user's map so they render without opening the toolbox
     if (!loadedOnce) {
