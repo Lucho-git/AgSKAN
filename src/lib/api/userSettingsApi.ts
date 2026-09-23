@@ -1255,6 +1255,39 @@ export const userSettingsApi = {
     },
 
     /**
+     * Toggle the experimental auto trail mode — records one trail per field
+     * the vehicle drives into (requires an operator + field boundaries).
+     */
+    async updateAutoTrailEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save auto trail setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, auto_trail_enabled: enabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving auto trail setting:", error);
+                return { success: false, message: "Failed to save auto trail setting", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, autoTrailEnabled: enabled }));
+
+            return { success: true, message: "Auto trail setting updated" };
+        } catch (error) {
+            console.error("Error in updateAutoTrailEnabled:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Toggle spray record confirmation popup on trail close
      */
     async updateSprayConfirmEnabled(sprayConfirmEnabled: boolean) {

@@ -3380,6 +3380,8 @@
   {trackedVehicleId}
   {isTrackingVehicle}
   {isFirstPersonMode}
+  {onOpenVehicleControls}
+  onOpenFlashPanel={handleOpenFlashPanel}
   on:startTracking={handleStartTracking}
   on:stopTracking={handleStopTracking}
   on:toggleFirstPerson={handleToggleFirstPerson}

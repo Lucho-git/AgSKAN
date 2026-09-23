@@ -227,6 +227,7 @@
             user_settings.show_gps_rejected_popups ?? false,
           layerVisibility: user_settings.layer_visibility ?? {},
           sprayConfirmEnabled: user_settings.spray_confirm_enabled ?? true,
+          autoTrailEnabled: user_settings.auto_trail_enabled ?? false,
           roadOverlaysEnabled: user_settings.road_overlays_enabled ?? false,
           satelliteMenuEnabled: user_settings.satellite_menu_enabled ?? true,
           measureMenuEnabled: user_settings.measure_menu_enabled ?? true,
@@ -316,7 +317,8 @@
                 operations!inner(master_map_id)
               `,
               )
-              .eq("operations.master_map_id", profile.master_map_id),
+              .eq("operations.master_map_id", profile.master_map_id)
+              .neq("source", "auto_travel"),
             // 🆕 NEW: Detailed trail metadata (excluding heavy geometry)
             supabase
               .from("trails")
@@ -344,6 +346,7 @@
               `,
               )
               .eq("operations.master_map_id", profile.master_map_id)
+              .neq("source", "auto_travel")
               .order("start_time", { ascending: false }), // Most recent first
             // Field boundaries count
             supabase

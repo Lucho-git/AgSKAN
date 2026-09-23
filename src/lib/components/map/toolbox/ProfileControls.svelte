@@ -10,6 +10,7 @@
     Satellite,
     Ruler,
     RadioTower,
+    Route,
     Magnet,
     CloudSun,
     ChevronDown,
@@ -20,6 +21,7 @@
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { operatorStore } from "$lib/stores/operatorStore"
   import { operatorApi } from "$lib/api/operatorApi"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import OperatorPicker from "$lib/components/map/trails/OperatorPicker.svelte"
   import MarkerSettingsPanel from "./MarkerSettingsPanel.svelte"
 
@@ -48,7 +50,29 @@
     }
   }
 
+  async function toggleAutoTrail(value: boolean) {
+    saving = "autoTrailEnabled"
+    try {
+      const result = await userSettingsApi.updateAutoTrailEnabled(value)
+      if (result?.success) {
+        toast.success(`Auto trail ${value ? "enabled" : "disabled"}`)
+      } else {
+        toast.error(result?.message || "Failed to update setting")
+        userSettingsStore.update((s) => ({ ...s, autoTrailEnabled: !value }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error saving setting")
+      userSettingsStore.update((s) => ({ ...s, autoTrailEnabled: !value }))
+    } finally {
+      saving = null
+    }
+  }
+
   $: sprayConfirmEnabled = $userSettingsStore.sprayConfirmEnabled ?? false
+  $: autoTrailEnabled = $userSettingsStore.autoTrailEnabled ?? false
+  // Auto trail needs field boundaries to detect paddocks — disabled on maps
+  // without any fields.
+  $: mapHasFields = ($mapFieldsStore?.length ?? 0) > 0
   $: gpsIntervalSeconds = $userSettingsStore.gpsIntervalSeconds ?? 2
   $: gpsIntervalStr = String(gpsIntervalSeconds)
   $: roadOverlaysEnabled = $userSettingsStore.roadOverlaysEnabled ?? false
@@ -229,6 +253,31 @@
         <option value="5">5s</option>
         <option value="10">10s</option>
       </select>
+    </label>
+
+    <!-- Auto trail (experimental) -->
+    <label class="setting-row">
+      <div class="setting-icon auto-trail-icon">
+        <Route size={16} />
+      </div>
+      <div class="setting-label">
+        <span class="setting-name">Auto trail (experimental)</span>
+        <span class="setting-desc">
+          {mapHasFields
+            ? "Record a trail for each paddock you drive into"
+            : "Unavailable — no field boundaries on this map"}
+        </span>
+      </div>
+      <input
+        type="checkbox"
+        class="setting-toggle-input"
+        checked={autoTrailEnabled}
+        disabled={saving === "autoTrailEnabled" || !mapHasFields}
+        on:change={() => toggleAutoTrail(!autoTrailEnabled)}
+      />
+      <span class="setting-toggle-track"
+        ><span class="setting-toggle-thumb"></span></span
+      >
     </label>
   </div>
 
@@ -700,6 +749,11 @@
   .gps-icon {
     background: rgba(251, 191, 36, 0.15);
     color: #fbbf24;
+  }
+
+  .auto-trail-icon {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
   }
 
   .zoom-icon {

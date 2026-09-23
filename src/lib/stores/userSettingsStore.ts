@@ -33,6 +33,7 @@ const defaultSettings = {
     showGpsRejectedPopups: false, // Show "GPS Rejected" popups
     layerVisibility: {} as Record<string, boolean>,
     sprayConfirmEnabled: true, // Show spray record confirmation popup on trail close (default on)
+    autoTrailEnabled: false, // Experimental: auto-record a trail per paddock visit (default off; needs field boundaries)
     roadOverlaysEnabled: false, // Show Road Overlays (KMZ) menu in map toolbox (default off)
     satelliteMenuEnabled: true, // Show Satellite menu in map toolbox (default on)
     measureMenuEnabled: true, // Show Measure menu in map toolbox (default on)

@@ -132,7 +132,8 @@ export const mapApi = {
                         trail_hectares,
                         operations!inner(master_map_id)
                     `)
-                    .eq("operations.master_map_id", resolvedMapId),
+                    .eq("operations.master_map_id", resolvedMapId)
+                    .neq("source", "auto_travel"),
 
                 // 🆕 Detailed trail metadata (excluding heavy geometry)
                 supabase
@@ -159,6 +160,7 @@ export const mapApi = {
                         )
                     `)
                     .eq("operations.master_map_id", resolvedMapId)
+                    .neq("source", "auto_travel")
                     .order("start_time", { ascending: false }),
 
                 // 🆕 Field boundaries count

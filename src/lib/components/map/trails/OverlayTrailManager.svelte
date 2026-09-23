@@ -65,6 +65,7 @@
         )
         .eq("operation_id", operationId)
         .not("end_time", "is", null)
+        .neq("source", "auto_travel")
         .order("start_time", { ascending: true })
 
       if (error) throw error
@@ -107,6 +108,7 @@
         )
         .eq("operation_id", operationId)
         .is("end_time", null)
+        .neq("source", "auto_travel")
         .order("start_time", { ascending: false })
 
       if (trailsError) throw trailsError

@@ -20,6 +20,9 @@
   import { onMount } from "svelte"
   import { ArrowRight, MapPin, Users } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
+  import TintedIconPreview from "$lib/components/map/markers/TintedIconPreview.svelte"
+  import { MARKER_COLOR_DEFAULT } from "$lib/components/map/markers/markerPalette"
+  import { isSvgRenderedIcon } from "$lib/components/map/markers/markerSvgRenderer"
 
   /** Bold first line — the PERSON doing it ("Lachie McDonald"). */
   export let title = ""
@@ -35,6 +38,9 @@
   /** Marker icon classes — the second renders "old → new". */
   export let iconClass = null
   export let secondaryIconClass = null
+  /** Marker colour keys — the thumbnails render in the marker's real colour. */
+  export let markerColor = null
+  export let secondaryMarkerColor = null
   /** Optional action button (e.g. "Locate"). */
   export let actionLabel = null
   export let onAction = null
@@ -62,12 +68,26 @@
   $: SecondaryVehicleIcon = secondaryVehicleType
     ? SVGComponents[secondaryVehicleType] || SVGComponents.SimpleTractor
     : null
-  $: primaryUrl =
-    iconClass && iconPaths?.[iconClass] ? `/${iconPaths[iconClass]}` : null
-  $: secondaryUrl =
-    secondaryIconClass && iconPaths?.[secondaryIconClass]
-      ? `/${iconPaths[secondaryIconClass]}`
-      : null
+  /** Icon class ("custom-svg-rock") → the { id, class } definition shape
+      TintedIconPreview resolves. */
+  function defForIconClass(iconClass) {
+    if (!iconClass) return null
+    if (iconClass === "default") return { id: "default", class: "default" }
+    if (iconClass.startsWith("custom-svg-"))
+      return { id: iconClass.slice(11), class: "custom-svg" }
+    if (iconClass.startsWith("ionic-"))
+      return { id: iconClass.slice(6), class: iconClass }
+    return { id: iconClass, class: iconClass }
+  }
+
+  $: primaryDef = defForIconClass(iconClass)
+  $: secondaryDef = defForIconClass(secondaryIconClass)
+  // Renderable = has SVG glyphs, or (pin / mapbox variants) a baked PNG.
+  $: primaryRenderable =
+    !!iconClass && (isSvgRenderedIcon(iconClass) || !!iconPaths?.[iconClass])
+  $: secondaryRenderable =
+    !!secondaryIconClass &&
+    (isSvgRenderedIcon(secondaryIconClass) || !!iconPaths?.[secondaryIconClass])
 
   // A toast with an action (e.g. Locate) is one big hit area: tapping
   // anywhere triggers it. The inner button keeps the visual affordance;
@@ -123,8 +143,16 @@
         bodyColor={bodyColor || "red"}
         size="26px"
       />
-    {:else if kind === "marker" && primaryUrl}
-      <img src={primaryUrl} alt="" />
+    {:else if kind === "marker" && primaryDef && primaryRenderable}
+      {#key iconPaths}
+        <span class="mat-marker">
+          <TintedIconPreview
+            icon={primaryDef}
+            colorKey={markerColor || MARKER_COLOR_DEFAULT}
+            size={25}
+          />
+        </span>
+      {/key}
     {:else if kind === "marker"}
       <span class="mat-fallback"><MapPin size={17} /></span>
     {:else}
@@ -132,8 +160,16 @@
     {/if}
     {#if secondaryIconClass}
       <ArrowRight size={11} class="mat-arrow" />
-      {#if secondaryUrl}
-        <img src={secondaryUrl} alt="" />
+      {#if secondaryDef && secondaryRenderable}
+        {#key iconPaths}
+          <span class="mat-marker">
+            <TintedIconPreview
+              icon={secondaryDef}
+              colorKey={secondaryMarkerColor || MARKER_COLOR_DEFAULT}
+              size={25}
+            />
+          </span>
+        {/key}
       {:else}
         <span class="mat-fallback"><MapPin size={17} /></span>
       {/if}
@@ -180,14 +216,15 @@
     gap: 4px;
     flex-shrink: 0;
   }
-  .mat-icon :global(img) {
-    width: 25px;
-    height: 25px;
-    object-fit: contain;
-    display: block;
-  }
   .mat-icon :global(svg) {
     display: block;
+  }
+  .mat-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
   }
   .mat-fallback {
     display: flex;

@@ -872,8 +872,12 @@ export const trailsApi = {
 
     /**
      * Create a new trail
+     *
+     * `meta` (optional): auto trail support —
+     *   fieldId: the field this trail belongs to (null for manual/travel)
+     *   source:  'manual' (default) | 'auto' (in-field) | 'auto_travel'
      */
-    async openNewTrail(vehicleId: string, operationId: string, vehicleInfo: any, operatorInfo?: { id: string; name: string } | null) {
+    async openNewTrail(vehicleId: string, operationId: string, vehicleInfo: any, operatorInfo?: { id: string; name: string } | null, meta?: { fieldId?: string | null; source?: string } | null) {
         try {
             console.log(`Creating new trail for vehicle ${vehicleId} in operation ${operationId}`);
 
@@ -898,6 +902,8 @@ export const trailsApi = {
                 vehicle_marker: vehicleInfo.vehicle_marker || null,
                 operator_name: operatorInfo?.name || null,
                 operator_id: operatorInfo?.id || null,
+                field_id: meta?.fieldId || null,
+                source: meta?.source || "manual",
             };
 
             const { data, error } = await supabase

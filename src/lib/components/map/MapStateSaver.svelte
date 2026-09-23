@@ -771,9 +771,12 @@
     // WHAT happened — becomes the subtitle; the title is always the person.
     let action = null
     // The action icon slot: the marker's image — OLD first, NEW second when
-    // the icon changed.
+    // the icon changed. The colours ride along so the thumbnails render in
+    // the marker's real colour (same as the map and the log).
     let iconClass = props.icon || null
     let secondaryIconClass = null
+    let markerColor = props.marker_color || null
+    let secondaryMarkerColor = null
 
     if (isDeleted) {
       action = "Deleted a marker"
@@ -802,6 +805,8 @@
         action = "Changed the marker icon"
         iconClass = prevIcon
         secondaryIconClass = newIcon
+        markerColor = prevState.markerColor || null
+        secondaryMarkerColor = props.marker_color || null
       } else if (moved) {
         action = "Moved a marker"
       } else if (colourChanged) {
@@ -826,6 +831,8 @@
         kind: "marker",
         iconClass,
         secondaryIconClass,
+        markerColor,
+        secondaryMarkerColor,
         actionLabel: locatable ? "Locate" : null,
         onAction: locatable
           ? () => map?.flyTo({ center: coordinates, zoom: 15, duration: 1000 })

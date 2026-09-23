@@ -39,8 +39,10 @@
   import { commandStore, COMMANDS } from "$lib/stores/commandStore"
   import { operatorStore } from "$lib/stores/operatorStore"
   import { operatorApi } from "$lib/api/operatorApi"
+  import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
   import { parseVehicleCoords } from "$lib/utils/vehicleCoords"
+  import { buildFieldIndex, fieldAtPoint } from "$lib/utils/autoTrailFields"
   import SprayRecordConfirm from "./SprayRecordConfirm.svelte"
   import OperatorPicker from "./OperatorPicker.svelte"
   import {
@@ -478,9 +480,11 @@
 
     // Check for insufficient data
     if (pathData.length < 2) {
-      toast.info(
-        `Deleting trail with insufficient data (${pathData.length} points)`,
-      )
+      if (!autoCloseInProgress) {
+        toast.info(
+          `Deleting trail with insufficient data (${pathData.length} points)`,
+        )
+      }
 
       try {
         // Disable native sync BEFORE deleting the trail.
@@ -502,11 +506,12 @@
         }
 
         resetTrailState()
-        toast.success("Empty trail deleted")
+        if (!autoCloseInProgress) toast.success("Empty trail deleted")
       } catch (error) {
         console.error("Error deleting trail:", error)
         resetTrailState()
-        toast.error("Failed to delete trail, but state reset")
+        if (!autoCloseInProgress)
+          toast.error("Failed to delete trail, but state reset")
       }
       return
     }
@@ -676,28 +681,33 @@
       }
     })()
 
-    // Show toast promise
-    toast.promise(
-      closurePromise,
-      {
-        loading:
-          pendingCoords.length > 0
-            ? `Syncing ${pendingCoords.length} points and closing trail...`
-            : "Closing trail...",
-        success: (result) => {
-          return `Finished a trail (${result.pointCount} points saved)`
+    // Show toast promise — auto closes keep the same flow but stay quiet
+    // (a toast per paddock exit would be noise in the cab).
+    if (autoCloseInProgress) {
+      closurePromise.catch(() => {})
+    } else {
+      toast.promise(
+        closurePromise,
+        {
+          loading:
+            pendingCoords.length > 0
+              ? `Syncing ${pendingCoords.length} points and closing trail...`
+              : "Closing trail...",
+          success: (result) => {
+            return `Finished a trail (${result.pointCount} points saved)`
+          },
+          error: (error) => {
+            if (error.message === "QUEUED") {
+              return `Trail queued for sync (${pathData.length} points) - will save when connection improves`
+            }
+            return `Failed to save trail: ${error.message}`
+          },
         },
-        error: (error) => {
-          if (error.message === "QUEUED") {
-            return `Trail queued for sync (${pathData.length} points) - will save when connection improves`
-          }
-          return `Failed to save trail: ${error.message}`
+        {
+          duration: (error) => (error?.message === "QUEUED" ? 5000 : 4000),
         },
-      },
-      {
-        duration: (error) => (error?.message === "QUEUED" ? 5000 : 4000),
-      },
-    )
+      )
+    }
   }
 
   function resetTrailState() {
@@ -707,6 +717,312 @@
     trailPausedStore.set(false)
     trailPausePointStore.set(null)
     trailClosingStore.set(false)
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // AUTO TRAIL (experimental) — one trail per paddock visit
+  // ═══════════════════════════════════════════════════════════════════════
+  // Watches the vehicle position and records one trail per field visit:
+  //   * sustained entry into a field  -> open a trail (source 'auto')
+  //   * sustained exit from the field -> close it
+  //   * between fields                -> 'auto_travel' segments (stored for
+  //     debugging; hidden from every team-facing view)
+  // Manual trailing always wins: any manual interference suppresses auto
+  // until the vehicle leaves a field cleanly and re-enters. Needs an
+  // operator + selected operation, same as the manual trail button.
+  const AUTO_EXIT_DWELL_MS = 45 * 1000 // sustained outside → confirm exit
+  const AUTO_ENTER_DWELL_MS = 10 * 1000 // sustained inside  → confirm entry
+  const AUTO_TRAVEL_RECORDING = true // record between-field segments
+
+  let autoState = "idle" // 'idle' | 'field' | 'travel' | 'suppressed'
+  let autoFieldId = null // field of the trail currently being recorded
+  let autoOwnedTrail = false // the active trail was started by auto
+  let autoClosing = false // one of our closes is in flight
+  let autoCloseInProgress = false // suppress close toasts for auto closes
+  let autoPendingTarget = null // { kind: 'field', fieldId, name } | { kind: 'travel' }
+  let autoFieldIndex = []
+  let autoFieldIndexSource = null
+  let autoOutsideSince = null
+  let autoEnterSince = null
+  let autoEnterCandidateId = null
+  let autoGateWarnedAt = 0
+
+  // Rebuild the point-in-polygon index whenever the map's fields change.
+  $: if ($mapFieldsStore !== autoFieldIndexSource) {
+    autoFieldIndexSource = $mapFieldsStore
+    autoFieldIndex = buildFieldIndex($mapFieldsStore || [])
+  }
+
+  // Position-driven state machine. Svelte 4 note: every dependency must be
+  // passed explicitly — reads inside the function body are not tracked.
+  $: autoTrailTick(
+    $userVehicleStore,
+    $userSettingsStore?.autoTrailEnabled ?? false,
+    autoFieldIndex,
+    $userVehicleTrailing,
+    $trailPausedStore,
+    get(trailClosingStore),
+    get(trailStartingStore),
+  )
+
+  function autoResetState() {
+    autoState = "idle"
+    autoFieldId = null
+    autoOwnedTrail = false
+    autoClosing = false
+    autoPendingTarget = null
+    autoOutsideSince = null
+    autoEnterSince = null
+    autoEnterCandidateId = null
+  }
+
+  function autoTrailTick(
+    vehicle,
+    enabled,
+    fieldIndex,
+    isTrailing,
+    isPaused,
+    closing,
+    starting,
+  ) {
+    // Off — or the map has no field boundaries — never record; if one of our
+    // trails is somehow still open, close it.
+    if (!enabled || !fieldIndex?.length) {
+      if (autoOwnedTrail && isTrailing && !closing && !starting) {
+        autoCloseActiveTrail("auto-off")
+      }
+      if (autoState !== "idle" || autoPendingTarget || autoFieldId) {
+        autoResetState()
+      }
+      return
+    }
+
+    // Our close is still finishing — wait for the trail to actually end.
+    if (autoClosing) {
+      if (isTrailing) return
+      autoClosing = false
+      autoOwnedTrail = false
+    }
+
+    // Open the next segment as soon as the runway is clear (closing takes a
+    // few seconds — native sync flush + the close_trail_fast RPC).
+    if (autoPendingTarget) {
+      if (isTrailing || closing || starting || isPaused) return
+      const target = autoPendingTarget
+      const parsedNow = parseVehicleCoords(vehicle?.coordinates)
+      const hitNow = parsedNow
+        ? fieldAtPoint(fieldIndex, parsedNow.longitude, parsedNow.latitude)
+        : null
+
+      // The vehicle may have moved on while the close finished — re-target
+      // instead of recording a stale segment.
+      if (target.kind === "field") {
+        if (!hitNow) {
+          // Slipped back outside — switch to (or skip) the travel segment.
+          autoState = "idle"
+          autoFieldId = null
+          autoPendingTarget = AUTO_TRAVEL_RECORDING
+            ? { kind: "travel" }
+            : null
+          return
+        }
+        if (hitNow.fieldId !== target.fieldId) {
+          // Switched paddocks — follow the current one.
+          autoPendingTarget = {
+            kind: "field",
+            fieldId: hitNow.fieldId,
+            name: hitNow.name,
+          }
+          return
+        }
+      } else if (hitNow) {
+        // Travel segment is no longer needed — already back in a paddock.
+        autoPendingTarget = {
+          kind: "field",
+          fieldId: hitNow.fieldId,
+          name: hitNow.name,
+        }
+        return
+      }
+
+      autoPendingTarget = null
+      autoStartTrail(
+        target.kind === "field" ? target.fieldId : null,
+        target.kind === "field" ? "auto" : "auto_travel",
+        target.kind === "field" ? target.name : null,
+      ).then((started) => {
+        if (started) {
+          autoOwnedTrail = true
+          autoState = target.kind === "field" ? "field" : "travel"
+          autoFieldId = target.kind === "field" ? target.fieldId : null
+        } else {
+          autoOwnedTrail = false
+          autoState = "idle"
+          autoFieldId = null
+        }
+      })
+      return
+    }
+
+    // Someone else owns the recording (manual button, resumed trail).
+    if (isTrailing && !autoOwnedTrail) {
+      autoState = "suppressed"
+      autoFieldId = null
+      return
+    }
+
+    // Our trail ended without us — user tapped stop, stale-close, etc.
+    // Suppress auto until the vehicle leaves a field cleanly and re-enters.
+    if (!isTrailing && autoOwnedTrail) {
+      autoOwnedTrail = false
+      autoState = "suppressed"
+      autoFieldId = null
+      autoOutsideSince = null
+      autoEnterSince = null
+      autoEnterCandidateId = null
+      return
+    }
+
+    if (isPaused) return
+
+    const parsed = parseVehicleCoords(vehicle?.coordinates)
+    if (!parsed) return
+    const hit = fieldAtPoint(fieldIndex, parsed.longitude, parsed.latitude)
+    const now = Date.now()
+    const currentFieldId = autoState === "field" ? autoFieldId : null
+
+    // Still inside the field we are recording.
+    if (hit && hit.fieldId === currentFieldId) {
+      autoOutsideSince = null
+      autoEnterSince = null
+      autoEnterCandidateId = null
+      return
+    }
+
+    if (!hit) {
+      autoEnterSince = null
+      autoEnterCandidateId = null
+      if (autoState === "field" || autoState === "suppressed") {
+        if (!autoOutsideSince) {
+          autoOutsideSince = now
+          return
+        }
+        if (now - autoOutsideSince < AUTO_EXIT_DWELL_MS) return
+        autoOutsideSince = null
+        if (autoState === "field") {
+          // Confirmed exit — close the paddock trail and (optionally) start
+          // recording the between-field segment.
+          autoCloseActiveTrail("field-exit")
+          if (AUTO_TRAVEL_RECORDING) {
+            autoPendingTarget = { kind: "travel" }
+          } else {
+            autoState = "idle"
+            autoFieldId = null
+          }
+        } else {
+          // Left cleanly — auto may engage again on the next entry.
+          autoState = "idle"
+        }
+        return
+      }
+      autoOutsideSince = null
+      return
+    }
+
+    // Inside a field: entering, or switching between fields.
+    if (autoState === "suppressed") return // clean exit required first
+    autoOutsideSince = null
+    if (autoEnterCandidateId !== hit.fieldId) {
+      autoEnterCandidateId = hit.fieldId
+      autoEnterSince = now
+      return
+    }
+    if (!autoEnterSince || now - autoEnterSince < AUTO_ENTER_DWELL_MS) return
+
+    // Confirmed entry/switch.
+    autoEnterSince = null
+    autoEnterCandidateId = null
+    if (autoState === "field" || autoState === "travel") {
+      autoCloseActiveTrail(
+        autoState === "field" ? "field-switch" : "travel-end",
+      )
+      if (!AUTO_TRAVEL_RECORDING) {
+        autoState = "idle"
+        autoFieldId = null
+      }
+    }
+    autoPendingTarget = { kind: "field", fieldId: hit.fieldId, name: hit.name }
+  }
+
+  /** Close the active (auto) trail without any user-facing toasts. */
+  async function autoCloseActiveTrail(reason) {
+    if (!$userVehicleTrailing || !$currentTrailStore) return
+    if (get(trailClosingStore) || get(trailStartingStore)) return
+    console.log(`🤖 [AUTO-TRAIL] Closing trail (${reason})`)
+    autoClosing = true
+    autoCloseInProgress = true
+    try {
+      await stopTrail()
+    } finally {
+      // stopTrail resolves once its close flow is set up; its toasts are
+      // created synchronously before that, so the flag has done its job.
+      setTimeout(() => {
+        autoCloseInProgress = false
+      }, 250)
+    }
+  }
+
+  /** Open an auto segment ('auto' in-field / 'auto_travel' between fields). */
+  async function autoStartTrail(fieldId, source, fieldName) {
+    const operator = $operatorStore?.operator
+    if (!operator || !selectedOperation?.id) {
+      const now = Date.now()
+      if (now - autoGateWarnedAt > 5 * 60 * 1000) {
+        autoGateWarnedAt = now
+        toast.info("Auto trail needs an operator", {
+          description:
+            "Pick an operator — auto trail will then record each paddock.",
+        })
+      }
+      return false
+    }
+
+    trailStartingStore.set(true)
+    try {
+      const vehicleId = $userVehicleStore.vehicle_id
+      const result = await trailsApi.openNewTrail(
+        vehicleId,
+        selectedOperation.id,
+        $userVehicleStore,
+        { id: operator.id, name: operator.name },
+        { fieldId, source },
+      )
+      if (result.error) {
+        throw new Error(result.message || "Failed to create trail")
+      }
+
+      currentTrailStore.set({
+        ...result.trail,
+        start_time: result.trail.start_time,
+        trail_color: result.trail.trail_color,
+        trail_width: result.trail.trail_width,
+        path: [],
+      })
+      userVehicleTrailing.set(true)
+
+      if (source === "auto") {
+        toast.info(`Auto trail — ${fieldName || "field"}`, {
+          description: "Recording this paddock",
+          duration: 2500,
+        })
+      }
+      return true
+    } catch (error) {
+      console.warn("🤖 [AUTO-TRAIL] Could not start trail:", error)
+      return false
+    } finally {
+      trailStartingStore.set(false)
+    }
   }
 
   // ============================================
@@ -1229,6 +1545,7 @@
         )
         .eq("operation_id", opId)
         .is("end_time", null)
+        .neq("source", "auto_travel")
         .neq("vehicle_id", currentVehicleId)
 
       if (trailsErr) {
@@ -1351,12 +1668,16 @@
 
     if (trailData.vehicle_id === currentVehicleId) return
 
+    // Auto-travel segments are plumbing — never shown in the team view.
+    if (trailData.source === "auto_travel") return
+
     console.log(
       `🟢 [TRAIL-RT] New trail detected: ${trailData.id?.slice(0, 8)} from vehicle ${trailData.vehicle_id?.slice(0, 8)}`,
     )
 
-    // Let the team know a vehicle started trailing (with its icon).
-    announceTrailActivity("start", trailData)
+    // Let the team know a vehicle started trailing (with its icon) — but not
+    // for per-paddock auto trails, which would toast on every field entry.
+    if (trailData.source !== "auto") announceTrailActivity("start", trailData)
 
     if (!$otherActiveTrailStore?.length) {
       otherActiveTrailStore.set([])
@@ -1387,6 +1708,9 @@
       return
     }
 
+    // Auto-travel segments are plumbing — never shown in the team view.
+    if (trailData.source === "auto_travel") return
+
     if (!trailData.end_time || !trailData.path) {
       return
     }
@@ -1394,10 +1718,10 @@
     console.log(`🟡 [TRAIL-RT] Trail closed: ${trailData.id?.slice(0, 8)}`)
 
     // Team announcement — deduped because metrics backfill can re-fire the
-    // update with end_time still set.
+    // update with end_time still set. Auto trails stay silent (per-field).
     if (!announcedTrailCloses.has(trailData.id)) {
       announcedTrailCloses.add(trailData.id)
-      announceTrailActivity("end", trailData)
+      if (trailData.source !== "auto") announceTrailActivity("end", trailData)
     }
 
     fetchTrailAsGeoJSON(trailData.id)
@@ -1665,6 +1989,7 @@
         .select("*")
         .eq("operation_id", operation_id)
         .not("end_time", "is", null)
+        .neq("source", "auto_travel")
         .order("start_time", { ascending: true })
 
       if (trailsError) {

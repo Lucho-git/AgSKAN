@@ -24,6 +24,7 @@
     MapPin,
     Trash2,
     History,
+    RadioTower,
     ArrowRight,
     User,
     UserPlus,
@@ -72,6 +73,12 @@
   export let trackedVehicleId = null
   export let isTrackingVehicle = false
   export let isFirstPersonMode = false
+  /** Toolbox actions for the "You" row's options menu (same destinations
+      as the HUD compass menu's Edit Vehicle / Broadcast). */
+  /** @type {(() => void) | null} */
+  export let onOpenVehicleControls = null
+  /** @type {(() => void) | null} */
+  export let onOpenFlashPanel = null
 
   const dispatch = createEventDispatcher()
 
@@ -729,6 +736,20 @@
     closeRowMenu()
     if (!vehicle?.id || vehicle.isCurrentUser) return
     openMessagePanel({ id: vehicle.id, name: getSafeVehicleName(vehicle) })
+  }
+
+  // "You" row quick actions — open the vehicle settings / broadcast panels in
+  // the toolbox, then get out of the way.
+  function menuOpenVehicleSettings() {
+    closeRowMenu()
+    closeUnifiedMenu()
+    if (onOpenVehicleControls) onOpenVehicleControls()
+  }
+
+  function menuOpenBroadcast() {
+    closeRowMenu()
+    closeUnifiedMenu()
+    if (onOpenFlashPanel) onOpenFlashPanel()
   }
 
   // Footer "Messages" — opens the conversation inbox and closes this menu.
@@ -1908,7 +1929,6 @@
                         <TintedIconPreview
                           icon={fromDef}
                           colorKey={getMarkerColorKey(entry.details?.from_marker_color)}
-                          mode={entry.details?.from_tint_mode || "original"}
                           size={22}
                         />
                       </span>
@@ -1916,7 +1936,6 @@
                       <TintedIconPreview
                         icon={toDef}
                         colorKey={getMarkerColorKey(entry.details?.marker_color)}
-                        mode={entry.details?.tint_mode || "original"}
                         size={22}
                       />
                     {:else if isMarkerAction(entry.action) && toDef}
@@ -1924,7 +1943,6 @@
                         <TintedIconPreview
                           icon={toDef}
                           colorKey={getMarkerColorKey(entry.details?.marker_color)}
-                          mode={entry.details?.tint_mode || "original"}
                           size={28}
                         />
                       </span>
@@ -2278,6 +2296,19 @@
         <Navigation2 size={15} class="text-white/70" />
         <span>Track vehicle and rotation</span>
       </button>
+    {/if}
+    {#if openMenuVehicle.isCurrentUser}
+      <div class="row-option-divider"></div>
+      <button class="row-option" on:click={menuOpenVehicleSettings}>
+        <Settings size={15} class="text-white/70" />
+        <span>Vehicle settings</span>
+      </button>
+      {#if $profileStore?.user_type !== "viewer"}
+        <button class="row-option" on:click={menuOpenBroadcast}>
+          <RadioTower size={15} class="text-amber-300" />
+          <span>Broadcast</span>
+        </button>
+      {/if}
     {/if}
     {#if !openMenuVehicle.isCurrentUser}
       <div class="row-option-divider"></div>
