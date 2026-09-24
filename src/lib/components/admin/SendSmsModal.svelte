@@ -12,8 +12,19 @@
   let sent = false
   let error = ""
 
-  const SMS_FUNCTION =
-    "https://hmxxqacnzxqpcheoeidn.supabase.co/functions/v1/send-sms"
+  // Text via the ClickSend-backed edge function — same `functions.invoke`
+  // path the mapviewer invite modal uses (it attaches the session JWT and the
+  // apikey header for us, and the function returns CORS headers).
+  async function describeFunctionError(err: any, fallback: string) {
+    let detail = err?.message || fallback
+    try {
+      const body = await err?.context?.json?.()
+      if (body?.error) detail = body.error
+    } catch {
+      /* response body unavailable */
+    }
+    return detail
+  }
 
   async function handleSend() {
     if (!message.trim()) return
@@ -21,37 +32,29 @@
     error = ""
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
-        error = "Not authenticated"
-        sending = false
+      const { data, error: fnError } = await supabase.functions.invoke(
+        "send-sms",
+        { body: { phone, message: message.trim() } },
+      )
+
+      if (fnError) {
+        error = await describeFunctionError(fnError, "Could not send the text")
         return
       }
 
-      const res = await fetch(SMS_FUNCTION, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ phone, message: message.trim() }),
-      })
-
-      const body = await res.json()
-      if (!res.ok) {
-        error = body.error || `Error ${res.status}`
-      } else {
-        sent = true
-        setTimeout(() => {
-          message = ""
-          sent = false
-          onClose()
-        }, 2000)
+      if (data?.error) {
+        error = data.error
+        return
       }
+
+      sent = true
+      setTimeout(() => {
+        message = ""
+        sent = false
+        onClose()
+      }, 2000)
     } catch (err: any) {
-      error = err.message || "Failed to send"
+      error = err?.message || "Failed to send"
     } finally {
       sending = false
     }

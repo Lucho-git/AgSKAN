@@ -6,6 +6,7 @@
     adminApi,
     type AdminMapEntry,
     type AdminMapActivity,
+    type AdminMapNote,
     type MapDailyRow,
   } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -83,6 +84,11 @@
   let smsModalShow = false
   let smsPhone = ""
   let smsOwnerName = ""
+
+  // Admin map notes, keyed by master_map_id
+  let mapNotes: Record<string, AdminMapNote> = {}
+  let noteDrafts: Record<string, string> = {}
+  let savingNoteId: string | null = null
 
   // Limits modal state
   let showLimitsModal = false
@@ -190,6 +196,30 @@
     smsPhone = phone
     smsOwnerName = name
     smsModalShow = true
+  }
+
+  // ── Admin map notes ─────────────────────────────────────────────────────────
+  function noteIsDirty(mapId: string): boolean {
+    return (noteDrafts[mapId] ?? "") !== (mapNotes[mapId]?.note ?? "")
+  }
+
+  async function saveMapNote(mapId: string) {
+    savingNoteId = mapId
+    const note = noteDrafts[mapId] ?? ""
+    const result = await adminApi.saveMapNote(mapId, note)
+    if (result.success) {
+      mapNotes = {
+        ...mapNotes,
+        [mapId]: {
+          note,
+          updated_at: result.data?.updated_at ?? new Date().toISOString(),
+        },
+      }
+      toast.success(note.trim() ? "Note saved" : "Note cleared")
+    } else {
+      toast.error(result.error || "Failed to save note")
+    }
+    savingNoteId = null
   }
 
   function getSettingVal(col: string, def: any): any {
@@ -474,6 +504,15 @@
       if (activityResult.success) {
         activityMap = new Map(
           activityResult.data.map((a) => [a.master_map_id, a]),
+        )
+      }
+
+      // Notes load separately — a failure here shouldn't blank the dashboard.
+      const notesResult = await adminApi.fetchMapNotes()
+      if (notesResult.success) {
+        mapNotes = notesResult.data
+        noteDrafts = Object.fromEntries(
+          Object.entries(notesResult.data).map(([id, n]) => [id, n.note]),
         )
       }
     } else {
@@ -937,6 +976,21 @@
                     {entry.company_name}
                   </div>
                 {/if}
+                {#if mapNotes[entry.master_map_id]?.note}
+                  <div
+                    class="mt-0.5 flex items-center gap-1 text-[10px] text-accent"
+                    title={mapNotes[entry.master_map_id]?.note}
+                  >
+                    <Icon
+                      icon="solar:document-text-bold-duotone"
+                      width="11"
+                      height="11"
+                    />
+                    <span class="max-w-[18rem] truncate"
+                      >{mapNotes[entry.master_map_id]?.note}</span
+                    >
+                  </div>
+                {/if}
               </td>
               <td class="border-r border-base-300">
                 <span class="badge badge-xs {subBadge(entry.subscription)}">
@@ -1311,6 +1365,63 @@
                               {/if}
                             {/if}
                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Admin note -->
+                    <div class="mt-3 rounded-lg bg-base-200/30 p-3">
+                      <div
+                        class="mb-2 flex items-center justify-between gap-2"
+                      >
+                        <h4
+                          class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+                        >
+                          <Icon
+                            icon="solar:document-text-bold-duotone"
+                            width="12"
+                            height="12"
+                          />
+                          Notes
+                        </h4>
+                        {#if mapNotes[entry.master_map_id]?.updated_at}
+                          <span class="text-[10px] text-contrast-content/40">
+                            Last saved
+                            {timeAgo(mapNotes[entry.master_map_id]?.updated_at)}
+                          </span>
+                        {/if}
+                      </div>
+                      <textarea
+                        class="textarea textarea-bordered h-24 w-full resize-y bg-base-100 text-xs leading-relaxed text-contrast-content"
+                        placeholder="Add a note about this farm — anything you want to remember next time you look at it..."
+                        maxlength={4000}
+                        bind:value={noteDrafts[entry.master_map_id]}
+                      ></textarea>
+                      <div class="mt-2 flex items-center justify-between gap-2">
+                        <span class="text-[10px] text-contrast-content/40">
+                          {(noteDrafts[entry.master_map_id] ?? "").length}/4000
+                        </span>
+                        <div class="flex items-center gap-2">
+                          {#if noteIsDirty(entry.master_map_id)}
+                            <span class="text-[10px] text-warning"
+                              >Unsaved changes</span
+                            >
+                          {/if}
+                          <button
+                            type="button"
+                            class="btn btn-primary btn-xs"
+                            disabled={savingNoteId === entry.master_map_id ||
+                              !noteIsDirty(entry.master_map_id)}
+                            on:click={() => saveMapNote(entry.master_map_id)}
+                          >
+                            {#if savingNoteId === entry.master_map_id}
+                              <span
+                                class="loading loading-spinner loading-xs"
+                              ></span>
+                            {:else}
+                              Save note
+                            {/if}
+                          </button>
                         </div>
                       </div>
                     </div>

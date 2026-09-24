@@ -13,8 +13,10 @@
   import { onMount, onDestroy } from "svelte"
   import { Shuffle } from "lucide-svelte"
   // mapbox-gl ships no types; the rest of the app imports it untyped too.
+  // Default import (not `import * as`) — a module namespace object is
+  // read-only, so `mapboxgl.accessToken = ...` is illegal.
   // @ts-ignore
-  import * as mapboxgl from "mapbox-gl"
+  import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import { supabase } from "$lib/supabaseClient"
@@ -374,9 +376,9 @@
       style: SATELLITE_STYLE,
       center: CENTER,
       zoom: INITIAL_ZOOM,
-      // Pass the token explicitly — with `import * as mapboxgl` on the CJS
-      // bundle the namespace assignment above doesn't reach the internal
-      // exports that the Map constructor reads.
+      // Pass the token explicitly as well — belt-and-braces alongside the
+      // assignment above, which now reaches the CJS bundle's internals
+      // because `mapboxgl` is a default import rather than a namespace.
       accessToken: PUBLIC_MAPBOX_ACCESS_TOKEN,
       attributionControl: true,
       doubleClickZoom: true,

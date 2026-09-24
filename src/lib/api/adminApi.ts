@@ -59,6 +59,12 @@ export interface MapDailyRow {
     profile_count: number;
 }
 
+/** Admin-only free-text note about a map (farm). Keyed by map id when fetched. */
+export interface AdminMapNote {
+    note: string;
+    updated_at: string | null;
+}
+
 export const adminApi = {
     async fetchDashboardData(): Promise<{ success: boolean; data: AdminMapEntry[]; error?: string }> {
         try {
@@ -125,6 +131,55 @@ export const adminApi = {
         } catch (error: any) {
             console.error('Daily activity fetch error:', error)
             return { success: false, data: [], error: error.message || 'Unexpected error' }
+        }
+    },
+
+    // ── Admin map notes ──────────────────────────────────────────────────────
+
+    /** All non-empty notes, keyed by master_map_id. */
+    async fetchMapNotes(): Promise<{
+        success: boolean;
+        data: Record<string, AdminMapNote>;
+        error?: string;
+    }> {
+        try {
+            const { data, error } = await supabase.rpc('admin_map_notes_query');
+
+            if (error) {
+                console.error('Admin map notes RPC error:', error);
+                return { success: false, data: {}, error: error.message };
+            }
+
+            return { success: true, data: (data as Record<string, AdminMapNote>) || {} };
+        } catch (error: any) {
+            console.error('Admin map notes fetch error:', error);
+            return { success: false, data: {}, error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /** Create/update the note for one map. An empty note clears it. */
+    async saveMapNote(
+        mapId: string,
+        note: string,
+    ): Promise<{ success: boolean; data?: AdminMapNote; error?: string }> {
+        try {
+            const { data, error } = await supabase.rpc('admin_set_map_note', {
+                p_master_map_id: mapId,
+                p_note: note,
+            });
+
+            if (error) {
+                console.error('Save map note error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return {
+                success: true,
+                data: (data as AdminMapNote) || { note, updated_at: null },
+            };
+        } catch (error: any) {
+            console.error('Save map note error:', error);
+            return { success: false, error: error.message || 'Unexpected error' };
         }
     },
 

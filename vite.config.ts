@@ -53,7 +53,7 @@ export default defineConfig({
         include: [
             '@supabase/supabase-js',
             '@supabase/postgrest-js',
-            '@supabase/gotrue-js',
+            '@supabase/auth-js',
             'mapbox-gl',
             'fast-deep-equal',
             '@turf/line-overlap',
