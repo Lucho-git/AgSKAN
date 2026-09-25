@@ -35,6 +35,13 @@ export function createFieldBinsQuickAction({ openBin }) {
           const tonnes = capacity > 0 ? (capacity * fill) / 100 : 0
           const name = m.notes?.trim() || grainBinName(m.iconClass)
           const contents = (m.grainType || "").trim()
+          // Tonnes currently stored, shown as a number on the rail button
+          // (whole tonnes once past 10; one decimal below that so small
+          // testing amounts stay readable). Null when no bin size is set.
+          const tonnesLabel =
+            capacity > 0
+              ? `${tonnes >= 10 ? Math.round(tonnes) : tonnes.toFixed(1)} t`
+              : null
           return {
             id: `grain-bin-${m.id}`,
             label: `Bin shortcut: ${name}`,
@@ -46,6 +53,8 @@ export function createFieldBinsQuickAction({ openBin }) {
             accent: def.dark,
             bg: def.light,
             fill,
+            // Stored tonnes — rendered as a number badge on the disc.
+            tonnes: tonnesLabel,
             iconSvg: grainBinGlyphSvg(m.iconClass, "#111827", 30, glyph),
             // Side tag: what the bin is storing (empty = no tag shown).
             text: contents || null,

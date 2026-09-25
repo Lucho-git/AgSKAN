@@ -15,6 +15,7 @@ export interface UserSettingsRow {
     default_marker: { id: string; class: string; name: string } | null
     extra_markers: { id: string; class: string; name: string }[] | null
     dev_tools_enabled: boolean
+    is_admin: boolean
     enable_full_1hz: boolean
     show_gps_popups: boolean
     gps_interval_seconds: number
@@ -42,6 +43,7 @@ const FIELD_MAP: Record<string, string> = {
     defaultMarker: "default_marker",
     extraMarkers: "extra_markers",
     devToolsEnabled: "dev_tools_enabled",
+    isAdmin: "is_admin",
     enableFull1Hz: "enable_full_1hz",
     showGpsPopups: "show_gps_popups",
     gpsIntervalSeconds: "gps_interval_seconds",

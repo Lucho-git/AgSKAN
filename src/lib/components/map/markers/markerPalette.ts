@@ -252,6 +252,25 @@ export function grainBinName(iconClass?: string | null): string {
     return iconClass === MOTHER_BIN_ICON_CLASS ? "Mother Bin" : "Field Bin"
 }
 
+// Standard bin size (tonnes) per bin type — used whenever a bin has no
+// capacity stored (a freshly placed bin, or a row saved before sizes were
+// set). Field Bin: 100 t, Mother Bin: 300 t. Non-bin icons keep the legacy
+// 200 t fallback (the property is written for every marker; bins are its
+// only readers).
+export const GRAIN_BIN_DEFAULT_CAPACITY: Record<string, number> = {
+    [GRAIN_BIN_ICON_CLASS]: 100,
+    [MOTHER_BIN_ICON_CLASS]: 300,
+}
+
+/**
+ * Default capacity (tonnes) for a bin icon class.
+ * @param {string | null | undefined} iconClass
+ * @returns {number}
+ */
+export function grainBinDefaultCapacity(iconClass?: string | null): number {
+    return GRAIN_BIN_DEFAULT_CAPACITY[iconClass ?? ""] ?? 200
+}
+
 // Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,
 // tree, wheat, kangaroo sign). Every OTHER custom SVG marker tints fully
 // with the chosen colour (like atlas/ionic icons). The water tank tints its

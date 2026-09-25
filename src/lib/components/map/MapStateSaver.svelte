@@ -28,6 +28,7 @@
     MARKER_COLOR_DEFAULT,
     TINT_MODE_DEFAULT,
     SILO_COLOR_DEFAULT,
+    grainBinDefaultCapacity,
   } from "./markers/markerPalette"
   import {
     persistPendingMarkerChange,
@@ -199,7 +200,8 @@
           newData.marker_data?.properties?.marker_color ?? MARKER_COLOR_DEFAULT,
         tintMode:
           newData.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
-        capacityTonnes: newData.marker_data?.properties?.capacity_tonnes ?? 200,
+        capacityTonnes: newData.marker_data?.properties?.capacity_tonnes ??
+          grainBinDefaultCapacity(iconClass),
         fieldBinConfigured:
           newData.marker_data?.properties?.field_bin_configured === true,
         // Per-bin "Show bins always" — whether this bin gets a rail shortcut
@@ -564,7 +566,8 @@
             tintMode:
               marker.marker_data?.properties?.tint_mode ?? TINT_MODE_DEFAULT,
             capacityTonnes:
-              marker.marker_data?.properties?.capacity_tonnes ?? 200,
+              marker.marker_data?.properties?.capacity_tonnes ??
+              grainBinDefaultCapacity(iconClass),
             fieldBinConfigured:
               marker.marker_data?.properties?.field_bin_configured === true,
             binShowAlways:
@@ -679,7 +682,9 @@
               grain_color: marker.grainColor || SILO_COLOR_DEFAULT,
               marker_color: marker.markerColor || MARKER_COLOR_DEFAULT,
               tint_mode: marker.tintMode || TINT_MODE_DEFAULT,
-              capacity_tonnes: marker.capacityTonnes ?? 200,
+              capacity_tonnes:
+                marker.capacityTonnes ??
+                grainBinDefaultCapacity(marker.iconClass),
               field_bin_configured: !!marker.fieldBinConfigured,
               bin_show_always: marker.binShowAlways !== false,
               photos: marker.photos || [],

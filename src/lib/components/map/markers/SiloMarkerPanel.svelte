@@ -11,6 +11,7 @@
     markerColor,
     SILO_COLOR_DEFAULT,
     grainBinName,
+    grainBinDefaultCapacity,
     siloColorKey,
   } from "./markerPalette"
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
@@ -59,7 +60,7 @@
   let visible = false
   let fill = 0
   let contents = ""
-  let capacityTonnes = 200 // bin size in tonnes (default 200T for new silos)
+  let capacityTonnes = 100 // bin size in tonnes — placeholder; the marker sync below applies the per-type default (Field Bin 100 t, Mother Bin 300 t)
   let capacityInput = "" // text for the bin-size number field
   let contentsInput = null // the "Storing" text field
   let tonnesDeltaInput = null // the Add/Take number field
@@ -138,7 +139,7 @@
       lastMarkerId = id
       fill = marker?.siloFill ?? 0
       contents = marker?.grainType || ""
-      capacityTonnes = marker?.capacityTonnes ?? 200
+      capacityTonnes = marker?.capacityTonnes ?? grainBinDefaultCapacity(marker?.iconClass)
       capacityInput = capacityTonnes ? String(capacityTonnes) : ""
       tonnesDelta = ""
       grainColor = siloColorKey(marker?.grainColor)
@@ -675,11 +676,16 @@
               aria-label="Field bin fill level"
               style="--silo-thumb: {grainColorDef.dark}; background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
             />
-            <span class="silo-pop-pct">{Math.round(fill)}%</span>
+            <span
+              class="silo-pop-pct"
+              style="color: {grainColorDef.dark};"
+            >
+              {Math.round(fill)}%
+            </span>
           </div>
           {#if capacityTonnes > 0}
             <span class="silo-pop-tonnes">
-              {currentTonnes.toFixed(1)} / {capacityTonnes} t
+              <b>{currentTonnes.toFixed(1)}</b> / {capacityTonnes} t
             </span>
           {/if}
         </div>
@@ -1013,16 +1019,25 @@
     cursor: grab;
   }
   .silo-pop-pct {
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 800;
+    line-height: 1.1;
     color: #fbbf24;
-    min-width: 44px;
+    min-width: 58px;
     text-align: right;
   }
   .silo-pop-tonnes {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.6);
+  }
+  /* Stored tonnes is the glance figure — bigger + white, capacity stays
+     secondary. */
+  .silo-pop-tonnes b {
+    font-size: 19px;
+    font-weight: 800;
+    color: #fff;
+    margin-right: 1px;
   }
   .silo-pop-delta {
     display: flex;

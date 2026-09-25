@@ -7,7 +7,7 @@
 <script>
   import { fly } from "svelte/transition"
 
-  /** @type {Array<{id: string, label: string, title?: string, accent?: string, bg?: string, iconSvg?: string, icon?: any, fill?: number|null, text?: string|null, onActivate?: () => void}>} */
+  /** @type {Array<{id: string, label: string, title?: string, accent?: string, bg?: string, iconSvg?: string, icon?: any, fill?: number|null, tonnes?: string|null, text?: string|null, onActivate?: () => void}>} */
   export let items = []
 
   /** Distance of the rail's bottom edge from the viewport bottom (px).
@@ -52,8 +52,15 @@
             </span>
           {/if}
         </span>
-        {#if item.text}
-          <span class="qa-tag">{item.text}</span>
+        {#if item.text || item.tonnes}
+          <span class="qa-tags">
+            {#if item.text}
+              <span class="qa-tag">{item.text}</span>
+            {/if}
+            {#if item.tonnes}
+              <span class="qa-tag qa-tonnes-tag">{item.tonnes}</span>
+            {/if}
+          </span>
         {/if}
       </button>
     {/each}
@@ -138,6 +145,17 @@
     color: inherit;
   }
 
+  /* Tag column — the bin's contents pill with its stored-tonnes pill stacked
+     underneath (name first, tonnage below). Sits inside the button so tapping
+     either pill opens the bin too. */
+  .qa-tags {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+  }
+
   /* Side tag — short text from the item (e.g. what a bin is storing).
      Sits inside the button so tapping the text opens the item too. */
   .qa-tag {
@@ -156,6 +174,15 @@
     backdrop-filter: blur(4px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     pointer-events: none;
+  }
+
+  /* Stored tonnes pill — the glance figure, so a touch bolder and brighter
+     than the contents pill above it. */
+  .qa-tag.qa-tonnes-tag {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.01em;
   }
 
   /* Mini fill gauge, mirroring the level bar the bins show on the map.

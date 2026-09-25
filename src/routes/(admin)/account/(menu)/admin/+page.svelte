@@ -36,6 +36,7 @@
 
   // Default settings values (mirrors userSettingsStore defaults + DB defaults)
   const SETTING_DEFAULTS: Record<string, any> = {
+    isAdmin: false,
     devToolsEnabled: false,
     autoConfirmMarkers: false,
     showVehiclesAlways: true,
@@ -255,6 +256,7 @@
 
   // Simple boolean toggle fields (miscellaneous)
   const MISC_BOOL_FIELDS = [
+    { col: "isAdmin", label: "Admin (records tools)" },
     { col: "devToolsEnabled", label: "Dev tools" },
     { col: "satelliteDropdownEnabled", label: "Satellite dropdown" },
     { col: "sprayConfirmEnabled", label: "Record confirm popup" },

@@ -13,6 +13,7 @@
     MARKER_COLOR_DEFAULT,
     PICKABLE_MARKER_COLORS,
     SILO_COLOR_DEFAULT,
+    grainBinDefaultCapacity,
     grainBinName,
     markerColor,
     siloColorKey,
@@ -46,7 +47,7 @@
   let tab = "fill" // 'fill' | 'settings'
   let fill = 0
   let contents = ""
-  let capacityTonnes = 200 // bin size in tonnes
+  let capacityTonnes = 100 // bin size in tonnes — placeholder; per-type default set on open
   let capacityInput = ""
   let grainColor = SILO_COLOR_DEFAULT // palette key of the bin colour
   let tonnesDelta = ""
@@ -63,7 +64,7 @@
     tab = "fill"
     fill = Math.max(0, Math.min(100, Number(marker?.siloFill) || 0))
     contents = marker?.grainType || ""
-    capacityTonnes = marker?.capacityTonnes ?? 200
+    capacityTonnes = marker?.capacityTonnes ?? grainBinDefaultCapacity(marker?.iconClass)
     capacityInput = capacityTonnes ? String(capacityTonnes) : ""
     grainColor = siloColorKey(marker?.grainColor)
     tonnesDelta = ""
@@ -252,15 +253,17 @@
             style="--qb-thumb: {colorDef.dark}; background: linear-gradient(to right, {colorDef.dark} 0%, {colorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
           />
           <span
-            class="min-w-[44px] text-right text-base font-extrabold"
+            class="min-w-[62px] text-right text-2xl font-extrabold leading-none"
             style="color: {colorDef.dark};"
           >
             {Math.round(fill)}%
           </span>
         </div>
         {#if capacityTonnes > 0}
-          <span class="mt-1 block text-[10.5px] font-bold text-white/55">
-            {currentTonnes.toFixed(1)} / {capacityTonnes} t
+          <span class="mt-1.5 block text-sm font-bold text-white/60">
+            <b class="text-lg font-extrabold text-white"
+              >{currentTonnes.toFixed(1)}</b
+            > / {capacityTonnes} t
           </span>
         {/if}
       </div>

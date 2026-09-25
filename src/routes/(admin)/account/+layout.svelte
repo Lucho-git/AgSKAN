@@ -217,6 +217,7 @@
             resolveDefaultMarkerPreference(currentSettings.defaultMarker),
           extraMarkers: user_settings.extra_markers ?? [],
           devToolsEnabled: user_settings.dev_tools_enabled ?? false,
+          isAdmin: user_settings.is_admin ?? false,
           // New GPS settings
           enableFull1Hz: user_settings.enable_full_1hz ?? false,
           showGpsPopups: user_settings.show_gps_popups ?? false,
@@ -265,6 +266,7 @@
           },
           extraMarkers: [],
           devToolsEnabled: false,
+          isAdmin: false,
           // New GPS defaults
           enableFull1Hz: false,
           showGpsPopups: false,
