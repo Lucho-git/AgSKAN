@@ -75,7 +75,7 @@
 
 {#if show}
   <div class="modal modal-open" on:click={handleClose}>
-    <div class="modal-box max-w-md" on:click|stopPropagation>
+    <div class="modal-box max-w-md font-inter" on:click|stopPropagation>
       <div class="mb-4 flex items-center justify-between">
         <h3 class="flex items-center gap-2 text-lg font-semibold">
           <MessageCircle class="h-5 w-5 text-primary" />

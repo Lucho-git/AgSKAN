@@ -43,6 +43,12 @@ export function subBadge(sub: string): string {
   return "badge-primary"
 }
 
+// "PAID" | "FREE" → "Paid" | "Free" for chip labels.
+export function subscriptionLabel(sub: string): string {
+  if (!sub) return "—"
+  return sub.charAt(0) + sub.slice(1).toLowerCase()
+}
+
 export function notePreview(
   mapId: string,
   notes: Record<string, AdminMapNote>,

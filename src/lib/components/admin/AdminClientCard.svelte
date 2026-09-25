@@ -17,7 +17,7 @@
     fieldSizeLabel,
     markerCountValue,
     notePreview,
-    subBadge,
+    subscriptionLabel,
     timeAgo,
     trailCountValue,
   } from "$lib/utils/adminFormat"
@@ -34,7 +34,7 @@
 
 <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
 <article
-  class="cursor-pointer rounded-xl border bg-base-100 p-3.5 transition-colors hover:bg-base-200/40 {selected
+  class="cursor-pointer rounded-xl border bg-base-100 p-3 transition-colors hover:bg-base-200/40 {selected
     ? 'border-primary/60 ring-1 ring-primary/30'
     : 'border-base-300 hover:border-base-content/20'}"
   on:click={() => onOpen(entry)}
@@ -45,22 +45,23 @@
         <h3 class="truncate text-base font-semibold text-contrast-content">
           {entry.map_name || "Unnamed"}
         </h3>
-        <span class="badge badge-sm {subBadge(entry.subscription)}"
-          >{entry.subscription}</span
-        >
+        <AdminStatBadge
+          value={subscriptionLabel(entry.subscription)}
+          tone={entry.subscription === "FREE" ? "muted" : "neutral"}
+        />
         {#if entry.founder}
-          <span class="badge badge-secondary badge-sm">Founder</span>
+          <AdminStatBadge value="Founder" tone="secondary" />
         {/if}
         {#if !entry.owner_connected}
-          <span class="badge badge-info badge-sm">Headless</span>
+          <AdminStatBadge value="Headless" tone="info" />
         {/if}
         {#if entry.seat_status === "EXCEEDING"}
-          <span class="badge badge-error badge-sm">Over seats</span>
+          <AdminStatBadge value="Over seats" tone="error" />
         {:else if entry.seat_status === "AT_LIMIT"}
-          <span class="badge badge-warning badge-sm">At limit</span>
+          <AdminStatBadge value="At limit" tone="warning" />
         {/if}
       </div>
-      <p class="mt-1 truncate text-sm text-contrast-content/60">
+      <p class="mt-1 truncate text-xs text-contrast-content/60">
         {entry.owner_name || "Unknown owner"}{#if entry.owner_email}<span
             class="text-contrast-content/35"> · </span
           >{entry.owner_email}{/if}
@@ -94,7 +95,9 @@
         title="Open details"
         on:click|stopPropagation={() => onOpen(entry)}
       >
-        <ChevronRight class="h-4 w-4" />
+        <ChevronRight
+          class="h-4 w-4 transition-transform {selected ? 'rotate-90' : ''}"
+        />
       </button>
     </div>
   </div>
@@ -103,6 +106,9 @@
     <span class="flex items-center gap-1">
       <AdminStatBadge
         value={fieldSizeLabel(entry.master_map_id, contentStatsMap)}
+        tone={fieldSizeLabel(entry.master_map_id, contentStatsMap) === "No mapping"
+          ? "muted"
+          : "neutral"}
         title="Combined mapped area"
       />
       <AdminStatBadge
@@ -121,16 +127,16 @@
         title="Markers placed"
       />
     </span>
-    <span class="text-xs text-contrast-content/50"
+    <span class="text-xs text-contrast-content/60"
       >Last GPS {timeAgo(entry.latest_vehicle_update)}</span
     >
-    <span class="text-xs text-contrast-content/50"
+    <span class="text-xs text-contrast-content/60"
       >{entry.vehicles_active_24h} active 24h</span
     >
-    <span class="text-xs text-contrast-content/50"
+    <span class="text-xs text-contrast-content/60"
       >{entry.connected_vehicles}/{entry.allowed_seats} seats</span
     >
-    <span class="text-xs text-contrast-content/50"
+    <span class="text-xs text-contrast-content/60"
       >{entry.total_members} users</span
     >
   </div>

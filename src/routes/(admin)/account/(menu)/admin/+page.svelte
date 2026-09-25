@@ -17,7 +17,7 @@
   } from "$lib/api/adminUserSettingsApi"
   import { goto } from "$app/navigation"
   import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
-  import AdminClientCard from "$lib/components/admin/AdminClientCard.svelte"
+  import AdminClientTable from "$lib/components/admin/AdminClientTable.svelte"
   import AdminClientDetail from "$lib/components/admin/AdminClientDetail.svelte"
   import { NotepadText, X } from "lucide-svelte"
   import { noteIsDirty, timeAgo } from "$lib/utils/adminFormat"
@@ -186,6 +186,12 @@
     smsPhone = phone
     smsOwnerName = name
     smsModalShow = true
+  }
+
+  // Row / card click toggles the inline detail expansion.
+  function toggleEntry(entry: AdminMapEntry) {
+    selectedMapId =
+      selectedMapId === entry.master_map_id ? null : entry.master_map_id
   }
 
   function openNoteModal(entry: AdminMapEntry) {
@@ -395,9 +401,6 @@
     .map((e) => activityMap.get(e.master_map_id)?.active_profiles ?? 0)
     .reduce((a, b) => a + b, 0)
 
-  $: selectedEntry =
-    entries.find((e) => e.master_map_id === selectedMapId) ?? null
-
   // ── Data loading ──────────────────────────────────────────────────────────
   async function loadData() {
     loading = true
@@ -456,7 +459,7 @@
 
 <!-- Header -->
 <div
-  class="flex items-center justify-between border-b border-base-300 bg-base-100 p-5"
+  class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 font-inter lg:p-5"
 >
   <h2
     class="flex items-center gap-2 text-xl font-semibold text-contrast-content"
@@ -501,7 +504,7 @@
   </div>
 </div>
 
-<div class="space-y-5 p-6">
+<div class="space-y-4 p-3 font-inter sm:p-4 lg:space-y-5 lg:p-6">
   {#if loading && entries.length === 0}
     <!-- Loading skeleton -->
     <div class="flex items-center justify-center py-20">
@@ -527,55 +530,70 @@
       </button>
     </div>
   {:else}
-    <!-- KPI strip -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Clients</p>
-        <p
-          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content"
-        >
-          {totalMaps}
+    <!-- KPI strip — slim single-bar layout -->
+    <div
+      class="flex flex-wrap items-start gap-x-10 gap-y-3 rounded-xl border border-base-300 bg-base-200/30 px-4 py-3 lg:px-5"
+    >
+      <div>
+        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
+          Clients
         </p>
-        <p class="text-[11px] text-contrast-content/40">
-          {activeToday} active 24h
-        </p>
-      </div>
-      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Users</p>
-        <p
-          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content"
-        >
-          {totalUsers}
-        </p>
-        <p class="text-[11px] text-contrast-content/40">
-          {activeUsers30d} active 30d
+        <p class="mt-1 flex items-baseline gap-2">
+          <span class="text-xl font-semibold leading-none tabular-nums text-contrast-content"
+            >{totalMaps}</span
+          >
+          <span class="text-xs text-contrast-content/60"
+            >{activeToday} active 24h</span
+          >
         </p>
       </div>
-      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Paid plans</p>
-        <p class="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
-          {proCount}
+      <div>
+        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
+          Users
         </p>
-        <p class="text-[11px] text-contrast-content/40">{paidSeats} seats</p>
-      </div>
-      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Free plans</p>
-        <p
-          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content/70"
-        >
-          {freeCount}
-        </p>
-        <p class="text-[11px] text-contrast-content/40">
-          {headlessCount} headless
+        <p class="mt-1 flex items-baseline gap-2">
+          <span class="text-xl font-semibold leading-none tabular-nums text-contrast-content"
+            >{totalUsers}</span
+          >
+          <span class="text-xs text-contrast-content/60"
+            >{activeUsers30d} active 30d</span
+          >
         </p>
       </div>
-      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Over seats</p>
-        <p class="mt-0.5 text-2xl font-semibold tabular-nums text-error">
-          {exceedingCount}
+      <div>
+        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
+          Paid plans
         </p>
-        <p class="text-[11px] text-contrast-content/40">
-          seat limit warnings
+        <p class="mt-1 flex items-baseline gap-2">
+          <span class="text-xl font-semibold leading-none tabular-nums text-primary"
+            >{proCount}</span
+          >
+          <span class="text-xs text-contrast-content/60">{paidSeats} seats</span>
+        </p>
+      </div>
+      <div>
+        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
+          Free plans
+        </p>
+        <p class="mt-1 flex items-baseline gap-2">
+          <span
+            class="text-xl font-semibold leading-none tabular-nums text-contrast-content/70"
+            >{freeCount}</span
+          >
+          <span class="text-xs text-contrast-content/60"
+            >{headlessCount} headless</span
+          >
+        </p>
+      </div>
+      <div>
+        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
+          Over seats
+        </p>
+        <p class="mt-1 flex items-baseline gap-2">
+          <span class="text-xl font-semibold leading-none tabular-nums text-error"
+            >{exceedingCount}</span
+          >
+          <span class="text-xs text-contrast-content/60">seat limit warnings</span>
         </p>
       </div>
     </div>
@@ -583,7 +601,7 @@
     <!-- Attention queue -->
     <div class="flex flex-wrap items-center gap-2">
       <span
-        class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40"
+        class="text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
         >Attention</span
       >
       <button
@@ -677,63 +695,63 @@
           <option value="latest">Latest activity</option>
           <option value="default">Default order</option>
         </select>
+        <div class="h-4 w-px bg-base-300"></div>
+        <span class="text-xs text-contrast-content/60">
+          {filteredEntries.length} of {totalMaps} clients
+        </span>
+        {#if lastRefreshed}
+          <span
+            class="hidden text-xs text-contrast-content/40 lg:inline"
+            title="Last refreshed {lastRefreshed.toLocaleTimeString()}"
+            >refreshed {lastRefreshed.toLocaleTimeString()}</span
+          >
+        {/if}
       </div>
     </div>
 
-    <div
-      class="flex items-center justify-between text-xs text-contrast-content/50"
-    >
-      <span>{filteredEntries.length} of {totalMaps} clients</span>
-      {#if lastRefreshed}
-        <span>Last refreshed: {lastRefreshed.toLocaleTimeString()}</span>
-      {/if}
-    </div>
-
-    <!-- Client list -->
-    <div class="space-y-2">
-      {#each filteredEntries as entry (entry.master_map_id)}
-        <AdminClientCard
-          {entry}
-          {contentStatsMap}
-          {mapNotes}
-          selected={selectedMapId === entry.master_map_id}
-          onOpen={(e) => (selectedMapId = e.master_map_id)}
-          onOpenSms={openSmsModal}
-          onOpenNote={openNoteModal}
-        />
-      {:else}
-        <div
-          class="rounded-xl border border-base-300 bg-base-200/20 p-10 text-center"
-        >
-          <p class="text-sm text-contrast-content/50">
-            No clients match your filters.
-          </p>
-          <button class="btn btn-outline btn-xs mt-3" on:click={clearFilters}>
-            Clear filters
-          </button>
-        </div>
-      {/each}
-    </div>
+    <!-- Client list — responsive table (columns collapse on smaller screens) -->
+    {#if filteredEntries.length === 0}
+      <div
+        class="rounded-xl border border-base-300 bg-base-200/20 p-10 text-center"
+      >
+        <p class="text-sm text-contrast-content/60">
+          No clients match your filters.
+        </p>
+        <button class="btn btn-outline btn-xs mt-3" on:click={clearFilters}>
+          Clear filters
+        </button>
+      </div>
+    {:else}
+      <AdminClientTable
+        entries={filteredEntries}
+        {contentStatsMap}
+        {mapNotes}
+        {selectedMapId}
+        statsLoaded={contentStatsLoaded}
+        onOpen={toggleEntry}
+        onOpenSms={openSmsModal}
+        onOpenNote={openNoteModal}
+      >
+        <svelte:fragment slot="rowDetail" let:entry>
+          <AdminClientDetail
+            {entry}
+            {contentStatsMap}
+            {activityMap}
+            {mapNotes}
+            {noteDrafts}
+            {savingNoteId}
+            onClose={() => (selectedMapId = null)}
+            onSaveNote={saveMapNote}
+            onOpenSms={openSmsModal}
+            onOpenUserSettings={openUserSettingsModal}
+            onEntryUpdated={() => (entries = [...entries])}
+            onReload={loadData}
+          />
+        </svelte:fragment>
+      </AdminClientTable>
+    {/if}
   {/if}
 </div>
-
-<!-- Client detail drawer (right panel on desktop, full-screen on mobile) -->
-{#if selectedEntry}
-  <AdminClientDetail
-    entry={selectedEntry}
-    {contentStatsMap}
-    {activityMap}
-    {mapNotes}
-    {noteDrafts}
-    {savingNoteId}
-    onClose={() => (selectedMapId = null)}
-    onSaveNote={saveMapNote}
-    onOpenSms={openSmsModal}
-    onOpenUserSettings={openUserSettingsModal}
-    onEntryUpdated={() => (entries = [...entries])}
-    onReload={loadData}
-  />
-{/if}
 
 <!-- Limits modal -->
 <dialog
@@ -741,7 +759,7 @@
   class="modal modal-middle"
   on:close={() => (showLimitsModal = false)}
 >
-  <div class="modal-box w-full max-w-lg">
+  <div class="modal-box w-full max-w-lg font-inter">
     <div
       class="mb-4 flex items-center justify-between border-b border-base-300 pb-3"
     >
@@ -850,7 +868,7 @@
   class="modal modal-middle"
   on:close={() => (showUserSettingsModal = false)}
 >
-  <div class="modal-box w-full max-w-lg">
+  <div class="modal-box w-full max-w-lg font-inter">
     <div
       class="mb-4 flex items-center justify-between border-b border-base-300 pb-3"
     >
@@ -1199,7 +1217,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="modal modal-open" on:click={() => (noteModalEntry = null)}>
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="modal-box max-w-md" on:click|stopPropagation>
+    <div class="modal-box max-w-md font-inter" on:click|stopPropagation>
       <div class="mb-1 flex items-center justify-between">
         <h3 class="flex items-center gap-2 text-lg font-semibold">
           <NotepadText class="h-5 w-5 text-primary" />

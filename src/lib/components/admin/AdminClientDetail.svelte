@@ -1,7 +1,7 @@
 <!-- src/lib/components/admin/AdminClientDetail.svelte -->
 <!-- Client detail drawer: right-side panel on desktop, full-screen on mobile. -->
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte"
+  import { onMount } from "svelte"
   import Icon from "@iconify/svelte"
   import { toast } from "svelte-sonner"
   import { MapPin, MessageSquare, Route, X } from "lucide-svelte"
@@ -18,12 +18,12 @@
     formatDate,
     markerCountLabel,
     noteIsDirty,
-    seatStatusBadge,
     seatStatusLabel,
-    subBadge,
+    subscriptionLabel,
     timeAgo,
     trailCountLabel,
   } from "$lib/utils/adminFormat"
+  import AdminStatBadge from "./AdminStatBadge.svelte"
 
   export let entry: AdminMapEntry
   export let contentStatsMap: Map<string, AdminMapContentStats>
@@ -250,84 +250,31 @@
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
-  let prevBodyOverflow = ""
   onMount(() => {
     loadHeatmap(entry.master_map_id)
-    prevBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-  })
-
-  onDestroy(() => {
-    document.body.style.overflow = prevBodyOverflow
   })
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") onClose()
   }
+
+  function seatTone(status: string): "error" | "warning" | "success" {
+    if (status === "EXCEEDING") return "error"
+    if (status === "AT_LIMIT") return "warning"
+    return "success"
+  }
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<!-- Backdrop -->
-<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-<div class="fixed inset-0 z-40 bg-black/50" on:click={onClose}></div>
-
-<!-- Drawer / full-screen panel -->
-<aside
-  class="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-base-300 bg-base-100 shadow-2xl sm:max-w-[620px]"
-  role="dialog"
-  aria-modal="true"
-  aria-label="Client details"
->
-  <!-- Header -->
-  <header
-    class="flex items-start justify-between gap-3 border-b border-base-300 bg-base-100 p-4"
-  >
-    <div class="min-w-0">
-      <h2 class="truncate text-lg font-semibold text-contrast-content">
-        {entry.map_name || "Unnamed map"}
-      </h2>
-      <p class="truncate text-sm text-contrast-content/60">
-        {entry.owner_name || "Unknown owner"}{#if entry.company_name}<span
-            class="text-contrast-content/35"> · </span
-          >{entry.company_name}{/if}
-      </p>
-      <div class="mt-1.5 flex flex-wrap items-center gap-1">
-        <span class="badge badge-sm {subBadge(entry.subscription)}"
-          >{entry.subscription}</span
-        >
-        <span class="badge badge-outline badge-sm"
-          >{entry.subscription_status}</span
-        >
-        {#if entry.founder}
-          <span class="badge badge-secondary badge-sm">Founder</span>
-        {/if}
-        {#if !entry.owner_connected}
-          <span class="badge badge-info badge-sm">Headless</span>
-        {/if}
-        <span class="badge badge-sm {seatStatusBadge(entry.seat_status)}"
-          >{seatStatusLabel(entry.seat_status)}</span
-        >
-      </div>
-    </div>
-    <button
-      type="button"
-      class="btn btn-circle btn-ghost btn-sm flex-shrink-0"
-      aria-label="Close details"
-      title="Close"
-      on:click={onClose}
-    >
-      <X class="h-4 w-4" />
-    </button>
-  </header>
-
-  <!-- Scrollable content -->
-  <div class="flex-1 space-y-3 overflow-y-auto p-4">
-    <!-- Map ID -->
+<!-- Inline expansion panel (rendered inside the expanded table row / under the tapped card) -->
+<div class="font-inter">
+  <div class="px-3 pb-3 pt-2.5 lg:px-4 lg:pb-4 lg:pt-3">
+    <!-- Map ID row -->
     <div
-      class="flex items-center gap-2 rounded-lg border border-base-300/60 bg-base-200/30 px-3 py-1.5"
+      class="mb-3 flex items-center gap-2 rounded bg-base-200/40 px-3 py-1.5"
     >
-      <span class="text-xs font-medium text-contrast-content/50">Map ID</span>
+      <span class="text-xs font-medium text-contrast-content/50">Map ID:</span>
       <code
         class="min-w-0 flex-1 select-all truncate font-mono text-xs text-contrast-content/70"
       >
@@ -335,148 +282,172 @@
       </code>
       <button
         type="button"
-        class="btn btn-ghost btn-xs"
+        class="btn btn-ghost btn-xs px-1"
         on:click={copyMapId}
         title="Copy Map ID"
       >
         <Icon icon="solar:copy-bold-duotone" width="14" height="14" />
       </button>
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs px-1 text-contrast-content/50"
+        aria-label="Close details"
+        title="Close"
+        on:click={onClose}
+      >
+        <X class="h-3.5 w-3.5" />
+      </button>
     </div>
 
-    <!-- Map & Plan -->
-    <section class="rounded-xl border border-base-300/60 bg-base-200/20 p-3.5">
-      <h4
-        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-      >
-        <Icon icon="solar:map-bold-duotone" width="12" height="12" />
-        Map & Plan
-      </h4>
-      <p class="text-sm font-medium text-contrast-content">
-        {entry.map_name || "Unnamed"}
-      </p>
-      <p class="text-xs text-contrast-content/50">
-        Created: {formatDate(entry.map_created_at)}
-      </p>
-      <p class="mt-1 text-xs text-contrast-content/60">
-        {fieldAreaLabel(entry.master_map_id, contentStatsMap)}
-      </p>
-      <div
-        class="mt-1 flex flex-wrap items-center gap-3 text-xs text-contrast-content/60"
-      >
-        <span class="flex items-center gap-1">
-          <Route class="h-3 w-3" />
-          {trailCountLabel(entry.master_map_id, contentStatsMap)}
-        </span>
-        <span class="flex items-center gap-1">
-          <MapPin class="h-3 w-3" />
-          {markerCountLabel(entry.master_map_id, contentStatsMap)}
-        </span>
-      </div>
-      <div class="mt-2 flex flex-wrap items-center gap-1">
-        <span class="badge badge-sm {subBadge(entry.subscription)}"
-          >{entry.subscription}</span
+    <!-- Detail grid -->
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <!-- Owner Card -->
+      <div class="rounded-lg bg-base-200/30 p-3">
+        <h4
+          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
         >
-        <span class="badge badge-outline badge-sm"
-          >{entry.subscription_status}</span
-        >
-        {#if entry.payment_interval}
-          <span class="badge badge-ghost badge-sm">{entry.payment_interval}</span>
-        {/if}
-        {#if entry.founder}
-          <span class="badge badge-secondary badge-sm">Founder</span>
-        {/if}
-      </div>
-      {#if entry.next_billing_date}
-        <p class="mt-1 text-xs text-contrast-content/50">
-          Next billing: {formatDate(entry.next_billing_date)}
+          <Icon icon="solar:user-bold-duotone" width="12" height="12" />
+          Owner
+        </h4>
+        <p class="text-sm font-medium text-contrast-content">
+          {entry.owner_name || "—"}
         </p>
-      {/if}
+        <p class="truncate text-xs text-contrast-content/60">
+          {entry.owner_email || "—"}
+        </p>
+        {#if entry.owner_phone}
+          <p class="text-xs text-contrast-content/50">{entry.owner_phone}</p>
+        {/if}
+        {#if entry.company_name}
+          <p class="text-xs text-contrast-content/50">{entry.company_name}</p>
+        {/if}
+        {#if entry.owner_phone}
+          <button
+            type="button"
+            class="btn btn-outline btn-xs mt-2 gap-1"
+            on:click={() =>
+              onOpenSms(entry.owner_phone || "", entry.owner_name || "")}
+          >
+            <MessageSquare class="h-3 w-3" /> SMS
+          </button>
+        {/if}
+        <div class="mt-2 space-y-0.5 text-xs text-contrast-content/50">
+          <p>Last sign-in: {timeAgo(entry.owner_last_sign_in)}</p>
+          <p>Joined: {formatDate(entry.owner_created_at)}</p>
+        </div>
+      </div>
 
-      <!-- Seat usage -->
-      <div class="mt-3">
-        <div class="mb-1 flex items-center justify-between text-xs">
-          <span class="text-contrast-content/60">
-            Seat Usage: {entry.connected_vehicles} / {entry.allowed_seats}
-            {#if entry.seats_over_limit > 0}
-              <span class="text-error">(+{entry.seats_over_limit} over)</span>
-            {/if}
+      <!-- Map & Plan Card -->
+      <div class="rounded-lg bg-base-200/30 p-3">
+        <h4
+          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+        >
+          <Icon icon="solar:map-bold-duotone" width="12" height="12" />
+          Map & Plan
+        </h4>
+        <p class="text-sm font-medium text-contrast-content">
+          {entry.map_name || "Unnamed"}
+        </p>
+        <p class="text-xs text-contrast-content/50">
+          Created: {formatDate(entry.map_created_at)}
+        </p>
+        <p class="text-xs text-contrast-content/50">
+          {fieldAreaLabel(entry.master_map_id, contentStatsMap)}
+        </p>
+        <div
+          class="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-contrast-content/50"
+        >
+          <span class="flex items-center gap-1">
+            <Route class="h-3 w-3" />
+            {trailCountLabel(entry.master_map_id, contentStatsMap)}
           </span>
-          <span class="badge badge-xs {seatStatusBadge(entry.seat_status)}"
-            >{seatStatusLabel(entry.seat_status)}</span
-          >
+          <span class="flex items-center gap-1">
+            <MapPin class="h-3 w-3" />
+            {markerCountLabel(entry.master_map_id, contentStatsMap)}
+          </span>
         </div>
-        <div class="h-2 w-full overflow-hidden rounded-full bg-base-300">
+        <div class="mt-2 flex flex-wrap items-center gap-1">
+          <AdminStatBadge
+            value={subscriptionLabel(entry.subscription)}
+            tone={entry.subscription === "FREE" ? "muted" : "neutral"}
+          />
+          {#if entry.subscription_status}
+            <AdminStatBadge value={entry.subscription_status} tone="muted" />
+          {/if}
+          {#if entry.payment_interval}
+            <AdminStatBadge value={entry.payment_interval} tone="muted" />
+          {/if}
+          {#if entry.founder}
+            <AdminStatBadge value="Founder" tone="secondary" />
+          {/if}
+        </div>
+        {#if entry.next_billing_date}
+          <p class="mt-1 text-xs text-contrast-content/50">
+            Next billing: {formatDate(entry.next_billing_date)}
+          </p>
+        {/if}
+      </div>
+
+      <!-- Activity Card -->
+      <div class="rounded-lg bg-base-200/30 p-3">
+        <h4
+          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
+        >
+          <Icon icon="solar:chart-bold-duotone" width="12" height="12" />
+          Activity
+        </h4>
+        <div class="flex flex-col gap-3 lg:flex-row">
+          <!-- Stats -->
+          <div class="min-w-0 space-y-0.5 text-xs lg:w-48 lg:flex-shrink-0">
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Vehicles 24h</span>
+              <span class="font-medium tabular-nums text-contrast-content"
+                >{entry.vehicles_active_24h}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Vehicles 7d</span>
+              <span class="font-medium tabular-nums text-contrast-content"
+                >{entry.vehicles_active_7d}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Vehicles 30d</span>
+              <span class="font-medium tabular-nums text-contrast-content"
+                >{entry.vehicles_active_30d}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Members 7d</span>
+              <span class="font-medium tabular-nums text-contrast-content"
+                >{entry.members_active_7d}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Members 30d</span>
+              <span class="font-medium tabular-nums text-contrast-content"
+                >{entry.members_active_30d}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Active profiles</span>
+              <span class="font-medium tabular-nums text-accent"
+                >{activityMap.get(entry.master_map_id)?.active_profiles ?? 0}</span
+              >
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-contrast-content/60">Active days</span>
+              <span class="font-medium tabular-nums text-accent"
+                >{activityMap.get(entry.master_map_id)?.active_days ?? 0}</span
+              >
+            </div>
+          </div>
+
+          <!-- Divider + Heatmap -->
+          <div class="hidden border-l border-base-300 lg:block"></div>
           <div
-            class="h-full rounded-full transition-all {entry.seat_status ===
-            'EXCEEDING'
-              ? 'bg-error'
-              : entry.seat_status === 'AT_LIMIT'
-                ? 'bg-warning'
-                : 'bg-success'}"
-            style="width: {Math.min(
-              (entry.connected_vehicles / Math.max(entry.allowed_seats, 1)) * 100,
-              100,
-            )}%"
-          ></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Activity -->
-    <section class="rounded-xl border border-base-300/60 bg-base-200/20 p-3.5">
-      <h4
-        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-      >
-        <Icon icon="solar:chart-bold-duotone" width="12" height="12" />
-        Activity
-      </h4>
-      <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Vehicles 24h</span>
-          <span class="font-medium tabular-nums text-contrast-content"
-            >{entry.vehicles_active_24h}</span
+            class="min-w-0 flex-1 border-t border-base-300 pt-3 lg:border-t-0 lg:pt-0"
           >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Vehicles 7d</span>
-          <span class="font-medium tabular-nums text-contrast-content"
-            >{entry.vehicles_active_7d}</span
-          >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Vehicles 30d</span>
-          <span class="font-medium tabular-nums text-contrast-content"
-            >{entry.vehicles_active_30d}</span
-          >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Members 7d</span>
-          <span class="font-medium tabular-nums text-contrast-content"
-            >{entry.members_active_7d}</span
-          >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Members 30d</span>
-          <span class="font-medium tabular-nums text-contrast-content"
-            >{entry.members_active_30d}</span
-          >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Active profiles</span>
-          <span class="font-medium tabular-nums text-accent"
-            >{activityMap.get(entry.master_map_id)?.active_profiles ?? 0}</span
-          >
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-contrast-content/60">Active days</span>
-          <span class="font-medium tabular-nums text-accent"
-            >{activityMap.get(entry.master_map_id)?.active_days ?? 0}</span
-          >
-        </div>
-      </div>
-
-      <!-- Heatmap -->
-      <div class="mt-3">
         {#if heatmapLoading}
           <div class="flex items-center justify-center py-4">
             <span class="loading loading-spinner loading-sm"></span>
@@ -522,7 +493,7 @@
 
           {#if heatmapCalendarCells.length > 0}
             <div>
-              <div class="mb-1 ml-6 flex text-[9px] text-contrast-content/40">
+              <div class="mb-1 ml-6 flex text-[10px] text-contrast-content/50">
                 {#each heatmapMonthLabels as ml}
                   <span class="block">{ml.label}</span>
                 {/each}
@@ -531,7 +502,7 @@
                 <div class="mr-1 flex flex-col" style="gap: 3px">
                   {#each ["M", "", "W", "", "F", "", ""] as lbl}
                     <span
-                      class="flex h-3 w-5 items-center text-[9px] text-contrast-content/40"
+                      class="flex h-3 w-5 items-center text-[10px] text-contrast-content/50"
                       >{lbl}</span
                     >
                   {/each}
@@ -556,7 +527,7 @@
                 </div>
               </div>
               <div
-                class="mt-2 flex items-center gap-2 text-[10px] text-contrast-content/50"
+                class="mt-2 flex items-center gap-2 text-[11px] text-contrast-content/55"
               >
                 <span>Less</span>
                 <div class="h-2.5 w-2.5 rounded-sm bg-base-300"></div>
@@ -569,51 +540,13 @@
             </div>
           {/if}
         {/if}
-      </div>
-    </section>
-
-    <!-- Owner -->
-    <section class="rounded-xl border border-base-300/60 bg-base-200/20 p-3.5">
-      <h4
-        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-      >
-        <Icon icon="solar:user-bold-duotone" width="12" height="12" />
-        Owner
-      </h4>
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-contrast-content">
-            {entry.owner_name || "—"}
-          </p>
-          <p class="truncate text-xs text-contrast-content/60">
-            {entry.owner_email || "—"}
-          </p>
-          {#if entry.owner_phone}
-            <p class="text-xs text-contrast-content/50">{entry.owner_phone}</p>
-          {/if}
-          {#if entry.company_name}
-            <p class="text-xs text-contrast-content/50">{entry.company_name}</p>
-          {/if}
+          </div>
         </div>
-        {#if entry.owner_phone}
-          <button
-            type="button"
-            class="btn btn-outline btn-xs flex-shrink-0 gap-1"
-            on:click={() =>
-              onOpenSms(entry.owner_phone || "", entry.owner_name || "")}
-          >
-            <MessageSquare class="h-3 w-3" /> SMS
-          </button>
-        {/if}
       </div>
-      <div class="mt-2 space-y-0.5 text-xs text-contrast-content/50">
-        <p>Last sign-in: {timeAgo(entry.owner_last_sign_in)}</p>
-        <p>Joined: {formatDate(entry.owner_created_at)}</p>
-      </div>
-    </section>
+    </div>
 
-    <!-- Notes -->
-    <section class="rounded-xl border border-base-300/60 bg-base-200/20 p-3.5">
+    <!-- Admin note -->
+    <div class="mt-3 rounded-lg bg-base-200/30 p-3">
       <div class="mb-2 flex items-center justify-between gap-2">
         <h4
           class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
@@ -622,24 +555,24 @@
           Notes
         </h4>
         {#if mapNotes[entry.master_map_id]?.updated_at}
-          <span class="text-[10px] text-contrast-content/40">
+          <span class="text-[11px] text-contrast-content/55">
             Last saved {timeAgo(mapNotes[entry.master_map_id]?.updated_at)}
           </span>
         {/if}
       </div>
       <textarea
-        class="textarea textarea-bordered h-28 w-full resize-y bg-base-100 text-xs leading-relaxed text-contrast-content"
+        class="textarea textarea-bordered h-24 w-full resize-y bg-base-100 text-xs leading-relaxed text-contrast-content"
         placeholder="Add a note about this farm — anything you want to remember next time you look at it..."
         maxlength={4000}
         bind:value={noteDrafts[entry.master_map_id]}
       ></textarea>
       <div class="mt-2 flex items-center justify-between gap-2">
-        <span class="text-[10px] text-contrast-content/40">
+        <span class="text-[11px] text-contrast-content/55">
           {(noteDrafts[entry.master_map_id] ?? "").length}/4000
         </span>
         <div class="flex items-center gap-2">
           {#if noteIsDirty(entry.master_map_id, noteDrafts, mapNotes)}
-            <span class="text-[10px] text-warning">Unsaved changes</span>
+            <span class="text-[11px] text-warning">Unsaved changes</span>
           {/if}
           <button
             type="button"
@@ -656,129 +589,179 @@
           </button>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Members -->
-    <section class="rounded-xl border border-base-300/60 bg-base-200/20 p-3.5">
-      <h4
-        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-      >
-        <Icon
-          icon="solar:users-group-rounded-bold-duotone"
-          width="12"
-          height="12"
+    <!-- Seat usage bar -->
+    <div class="mt-3">
+      <div class="mb-1 flex items-center justify-between text-xs">
+        <span class="text-contrast-content/60">
+          Seat Usage: {entry.connected_vehicles} / {entry.allowed_seats}
+          {#if entry.seats_over_limit > 0}
+            <span class="text-error">(+{entry.seats_over_limit} over)</span>
+          {/if}
+        </span>
+        <AdminStatBadge
+          value={seatStatusLabel(entry.seat_status)}
+          tone={seatTone(entry.seat_status)}
         />
-        Members ({entry.members.length})
-      </h4>
-      {#if entry.members && entry.members.length > 0}
+      </div>
+      <div class="h-2 w-full overflow-hidden rounded-full bg-base-300">
         <div
-          class="divide-y divide-base-300/60 overflow-hidden rounded-lg border border-base-300/60"
+          class="h-full rounded-full transition-all {entry.seat_status ===
+          'EXCEEDING'
+            ? 'bg-error'
+            : entry.seat_status === 'AT_LIMIT'
+              ? 'bg-warning'
+              : 'bg-success'}"
+          style="width: {Math.min(
+            (entry.connected_vehicles / Math.max(entry.allowed_seats, 1)) * 100,
+            100,
+          )}%"
+        ></div>
+      </div>
+    </div>
+
+    <!-- Members list -->
+    {#if entry.members && entry.members.length > 0}
+      <div class="mt-4">
+        <h4
+          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
         >
-          {#each entry.members as member (member.id)}
-            <div class="bg-base-100/60 p-3">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                  {#if editingMemberId === member.id}
-                    <div class="flex items-center gap-1">
-                      <input
-                        type="text"
-                        bind:value={editingName}
-                        use:autofocus
-                        on:keydown={(e) =>
-                          e.key === "Enter" && saveMemberName(member)}
-                        on:keydown={(e) =>
-                          e.key === "Escape" && cancelEditMember()}
-                        class="w-36 rounded border border-base-300 bg-base-100 px-2 py-1 text-xs text-contrast-content"
-                      />
-                      <button
-                        class="rounded bg-base-content px-2 py-1 text-[10px] font-medium text-base-100 hover:bg-base-content/90 disabled:opacity-50"
-                        disabled={savingMemberName}
-                        on:click={() => saveMemberName(member)}>Save</button
-                      >
-                      <button
-                        class="rounded border border-base-300 px-2 py-1 text-[10px] text-contrast-content/60 hover:bg-base-200"
-                        on:click={cancelEditMember}>Cancel</button
-                      >
-                    </div>
-                  {:else}
-                    <span class="inline-flex items-center gap-2">
-                      <span class="truncate text-sm font-medium text-contrast-content"
-                        >{member.full_name || "—"}</span
-                      >
-                      <button
-                        type="button"
-                        class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-base-300 hover:text-contrast-content"
-                        on:click={() => startEditMember(member)}
-                      >
-                        Edit
-                      </button>
-                    </span>
-                  {/if}
-                  <p class="mt-0.5 truncate text-xs text-contrast-content/50">
-                    {member.email || "—"}
-                  </p>
-                </div>
-                <div class="flex flex-shrink-0 items-center gap-1">
-                  {#if member.is_owner}
-                    <span class="badge badge-primary badge-sm">Owner</span>
-                  {:else}
-                    <span class="badge badge-ghost badge-sm"
-                      >{member.map_role === "viewer" ? "Viewer" : "Member"}</span
-                    >
-                  {/if}
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs"
-                    on:click={() => onOpenUserSettings(member)}
-                    title="View/edit user settings"
-                  >
-                    <Icon
-                      icon="solar:settings-bold-duotone"
-                      width="13"
-                      height="13"
-                    />
-                  </button>
-                </div>
-              </div>
-              <div
-                class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-contrast-content/50"
+          <Icon
+            icon="solar:users-group-rounded-bold-duotone"
+            width="12"
+            height="12"
+          />
+          Connected Members ({entry.members.length})
+        </h4>
+        <div class="overflow-x-auto rounded border border-base-300">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr
+                class="border-b border-base-300 bg-base-200/30 text-contrast-content/50"
               >
-                <span>Sign-in {timeAgo(member.last_sign_in)}</span>
-                <span>Location {timeAgo(member.last_location_update)}</span>
-              </div>
-              {#if !member.is_owner}
-                <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <span class="text-xs text-contrast-content/50">Account</span>
-                  <select
-                    class="select select-bordered select-xs w-24 text-xs"
-                    value={member.role || ""}
-                    disabled={savingMemberRoleId === member.id}
-                    on:change={(e) =>
-                      handleMemberRoleChange(member, e.currentTarget.value)}
-                    title="Account type"
+                <th class="px-3 py-1.5 font-medium">Name</th>
+                <th class="px-3 py-1.5 font-medium">Email</th>
+                <th class="px-3 py-1.5 font-medium">Last Sign-In</th>
+                <th class="px-3 py-1.5 font-medium">Last Location</th>
+                <th class="px-3 py-1.5 font-medium">Map Role</th>
+                <th class="px-3 py-1.5 font-medium">Account Type</th>
+                <th class="w-16 px-3 py-1.5 font-medium">Settings</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-base-300/60">
+              {#each entry.members as member (member.id)}
+                <tr>
+                  <td class="px-3 py-1.5 text-contrast-content">
+                    {#if editingMemberId === member.id}
+                      <div class="flex items-center gap-1">
+                        <input
+                          type="text"
+                          bind:value={editingName}
+                          use:autofocus
+                          on:keydown={(e) =>
+                            e.key === "Enter" && saveMemberName(member)}
+                          on:keydown={(e) =>
+                            e.key === "Escape" && cancelEditMember()}
+                          class="w-36 rounded border border-base-300 bg-base-100 px-2 py-1 text-xs text-contrast-content"
+                        />
+                        <button
+                          class="rounded bg-base-content px-2 py-1 text-[11px] font-medium text-base-100 hover:bg-base-content/90 disabled:opacity-50"
+                          disabled={savingMemberName}
+                          on:click={() => saveMemberName(member)}>Save</button
+                        >
+                        <button
+                          class="rounded border border-base-300 px-2 py-1 text-[11px] text-contrast-content/60 hover:bg-base-200"
+                          on:click={cancelEditMember}>Cancel</button
+                        >
+                      </div>
+                    {:else}
+                      <span class="inline-flex items-center gap-2">
+                        <span class="whitespace-nowrap"
+                          >{member.full_name || "—"}</span
+                        >
+                        <button
+                          type="button"
+                          class="rounded border border-base-300 px-1.5 py-0.5 text-[11px] text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-contrast-content"
+                          on:click={() => startEditMember(member)}
+                        >
+                          Edit
+                        </button>
+                      </span>
+                    {/if}
+                  </td>
+                  <td class="px-3 py-1.5 text-contrast-content/60">
+                    {member.email || "—"}
+                  </td>
+                  <td
+                    class="whitespace-nowrap px-3 py-1.5 text-contrast-content/60"
                   >
-                    <option value="" disabled>—</option>
-                    <option value="manager">Manager</option>
-                    <option value="operator">Operator</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-warning/10 hover:text-warning"
-                    on:click={() => handleTransferOwnership(member)}
+                    {timeAgo(member.last_sign_in)}
+                  </td>
+                  <td
+                    class="whitespace-nowrap px-3 py-1.5 text-contrast-content/60"
                   >
-                    Make Owner
-                  </button>
-                </div>
-              {/if}
-            </div>
-          {/each}
+                    {timeAgo(member.last_location_update)}
+                  </td>
+                  <td class="px-3 py-1.5">
+                    {#if member.is_owner}
+                      <span class="badge badge-primary badge-sm">Owner</span>
+                    {:else}
+                      <span class="inline-flex items-center gap-2">
+                        <span class="badge badge-ghost badge-sm"
+                          >{member.map_role === "viewer"
+                            ? "Viewer"
+                            : "Member"}</span
+                        >
+                        <button
+                          type="button"
+                          class="rounded border border-base-300 px-1.5 py-0.5 text-[11px] text-contrast-content/60 transition-colors hover:bg-warning/10 hover:text-warning"
+                          on:click={() => handleTransferOwnership(member)}
+                        >
+                          Make Owner
+                        </button>
+                      </span>
+                    {/if}
+                  </td>
+                  <td class="px-3 py-1.5">
+                    <select
+                      class="select select-bordered select-xs w-24 text-xs"
+                      value={member.role || ""}
+                      disabled={savingMemberRoleId === member.id}
+                      on:change={(e) =>
+                        handleMemberRoleChange(member, e.currentTarget.value)}
+                      title="Account type"
+                    >
+                      <option value="" disabled>—</option>
+                      <option value="manager">Manager</option>
+                      <option value="operator">Operator</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  </td>
+                  <td class="px-3 py-1.5">
+                    <button
+                      type="button"
+                      class="rounded border border-base-300 px-1.5 py-0.5 text-contrast-content/60 transition-colors hover:bg-base-300 hover:text-contrast-content"
+                      on:click={() => onOpenUserSettings(member)}
+                      title="View/edit user settings"
+                    >
+                      <Icon
+                        icon="solar:settings-bold-duotone"
+                        width="13"
+                        height="13"
+                      />
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
         </div>
-      {:else}
-        <p class="text-xs text-contrast-content/40">
-          No members connected to this map.
-        </p>
-      {/if}
-    </section>
+      </div>
+    {:else}
+      <p class="mt-3 text-xs text-contrast-content/60">
+        No members connected to this map.
+      </p>
+    {/if}
   </div>
-</aside>
+</div>
