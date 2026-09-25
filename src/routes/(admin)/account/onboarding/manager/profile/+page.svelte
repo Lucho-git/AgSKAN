@@ -13,10 +13,14 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
   import { onMount } from "svelte"
+  import { pushDataLayerEvent } from "$lib/utils/analytics"
 
   let formError: string | null = null
   let loading = false
   let dataLoaded = false
+  // Whether the profile was already complete when the page loaded — used to
+  // fire the manager signup conversion only once.
+  let wasComplete = false
 
   // Form data
   let formData = {
@@ -50,6 +54,9 @@
         mobileNumber: $profileStore.mobile || "",
         agreeToContact: $profileStore.contactable !== false, // Default to true if null/undefined
       }
+      wasComplete =
+        !!($profileStore.full_name || "").trim() &&
+        !!($profileStore.mobile || "").trim()
       dataLoaded = true
     } else {
       // If profile store is empty, try to fetch from database
@@ -68,6 +75,9 @@
             mobileNumber: profile.mobile || "",
             agreeToContact: profile.contactable !== false,
           }
+          wasComplete =
+            !!(profile.full_name || "").trim() &&
+            !!(profile.mobile || "").trim()
         }
       } catch (error) {
         console.error("Error loading profile data:", error)
@@ -132,6 +142,13 @@
         contactable: formData.agreeToContact,
         user_type: "manager",
       }))
+
+      // Google Ads conversion — fires once when a manager first completes
+      // their details (the same moment the Brevo CRM sync trigger runs).
+      if (!wasComplete) {
+        wasComplete = true
+        pushDataLayerEvent("manager_signup")
+      }
 
       toast.success("Farm details saved successfully!")
       goto("/account/onboarding/manager/survey")

@@ -14,6 +14,7 @@
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { toast } from "svelte-sonner"
+  import { pushDataLayerEvent } from "$lib/utils/analytics"
 
   let formError: string | null = null
   let loading = false
@@ -88,6 +89,12 @@
     formError = null
 
     try {
+      // Was the profile already complete before this submission? (Fires the
+      // signup conversion only on the first completion.)
+      const wasComplete =
+        !!($profileStore?.full_name || "").trim() &&
+        !!($profileStore?.mobile || "").trim()
+
       // Update the profile with the manager's details
       const { error: updateError } = await supabase
         .from("profiles")
@@ -116,6 +123,12 @@
         company_name: formData.companyName,
         user_type: "manager",
       }))
+
+      // Google Ads conversion — fires once when a manager first completes
+      // their details (the same moment the Brevo CRM sync trigger runs).
+      if (!wasComplete) {
+        pushDataLayerEvent("manager_signup")
+      }
 
       toast.success("Farm details saved successfully!")
       goto("/account/user_survey")
