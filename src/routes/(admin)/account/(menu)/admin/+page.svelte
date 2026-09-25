@@ -8,7 +8,6 @@
     type AdminMapActivity,
     type AdminMapContentStats,
     type AdminMapNote,
-    type MapDailyRow,
   } from "$lib/api/adminApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { mapSettingsApi } from "$lib/api/mapSettingsApi"
@@ -18,7 +17,10 @@
   } from "$lib/api/adminUserSettingsApi"
   import { goto } from "$app/navigation"
   import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
-  import { MapPin, NotepadText, Route, X } from "lucide-svelte"
+  import AdminClientCard from "$lib/components/admin/AdminClientCard.svelte"
+  import AdminClientDetail from "$lib/components/admin/AdminClientDetail.svelte"
+  import { NotepadText, X } from "lucide-svelte"
+  import { noteIsDirty, timeAgo } from "$lib/utils/adminFormat"
 
   // Imagery sources (mirrors SatelliteControls.svelte)
   const IMAGERY_SOURCES: Record<
@@ -57,38 +59,19 @@
   let activityMap: Map<string, AdminMapActivity> = new Map()
   let contentStatsMap: Map<string, AdminMapContentStats> = new Map()
   let errorMessage = ""
-  let expandedMapId: string | null = null
-  let heatmapMapId: string | null = null
+  let selectedMapId: string | null = null
   let searchQuery = ""
-  let filterStatus: "all" | "exceeding" | "at_limit" | "ok" = "all"
+  let quickFilter: "all" | "exceeding" | "no_mapping" | "dormant" = "all"
   let filterPlan: "all" | "paid" | "free" = "all"
   let sortBy: "default" | "latest" = "latest"
   let lastRefreshed: Date | null = null
-
-  // Heatmap state
-  let heatmapData: MapDailyRow[] = []
-  let heatmapLoading = false
-  let heatmapProfiles: string[] = []
-  let heatmapProfileIndex = -1 // -1 = all, 0+ = specific profile
-  let heatmapCalendarCells: { date: string; dayOfWeek: number }[] = []
-  let heatmapMonthLabels: { label: string; col: number }[] = []
-
-  $: heatmapActiveProfile =
-    heatmapProfileIndex < 0
-      ? "all"
-      : (heatmapProfiles[heatmapProfileIndex] ?? "all")
-
-  // Member management state
-  let editingMember: { mapId: string; memberId: string } | null = null
-  let editingName = ""
-  let savingMemberName = false
 
   // SMS state
   let smsModalShow = false
   let smsPhone = ""
   let smsOwnerName = ""
 
-  // Note editor modal — opened from the notepad next to each Send SMS button
+  // Note editor modal — opened from the notepad on each client card
   let noteModalEntry: AdminMapEntry | null = null
 
   // Admin map notes, keyed by master_map_id
@@ -198,20 +181,11 @@
     settingsSaving = null
   }
 
-  // ── Note quick-access (notepad beside Send SMS) ─────────────────────────────────────
+  // ── SMS + notes ───────────────────────────────────────────────────────────
   function openSmsModal(phone: string, name: string) {
     smsPhone = phone
     smsOwnerName = name
     smsModalShow = true
-  }
-
-  function notePreview(
-    mapId: string,
-    notes: Record<string, AdminMapNote>,
-  ): string {
-    return (
-      (notes[mapId]?.note || "").trim() || "No note yet — click to add one"
-    )
   }
 
   function openNoteModal(entry: AdminMapEntry) {
@@ -223,18 +197,6 @@
     if (await saveMapNote(noteModalEntry.master_map_id)) {
       noteModalEntry = null
     }
-  }
-
-  // ── Admin map notes ─────────────────────────────────────────────────────────
-  // NOTE: deps are passed in as args — a bare noteIsDirty(mapId) call in the
-  // template never re-evaluates (function-body reads aren't tracked by the
-  // compiler), which left the Save button stuck disabled.
-  function noteIsDirty(
-    mapId: string,
-    drafts: Record<string, string>,
-    notes: Record<string, AdminMapNote>,
-  ): boolean {
-    return (drafts[mapId] ?? "") !== (notes[mapId]?.note ?? "")
   }
 
   async function saveMapNote(mapId: string) {
@@ -257,6 +219,7 @@
     return result.success
   }
 
+  // ── User settings helpers ─────────────────────────────────────────────────
   function getSettingVal(col: string, def: any): any {
     return (settingsData as any)?.[col] ?? def
   }
@@ -310,113 +273,6 @@
     { col: "showGpsRejectedPopups", label: "GPS rejected popups" },
   ]
 
-  function autofocus(node: HTMLInputElement) {
-    node.focus()
-    node.select()
-  }
-
-  async function startEditMember(
-    mapId: string,
-    member: { id: string; full_name: string | null },
-  ) {
-    editingMember = { mapId, memberId: member.id }
-    editingName = member.full_name || ""
-  }
-
-  function cancelEditMember() {
-    editingMember = null
-    editingName = ""
-  }
-
-  async function saveMemberName() {
-    if (!editingMember || !editingName.trim()) return
-    savingMemberName = true
-    const result = await adminApi.updateMemberName(
-      editingMember.memberId,
-      editingName.trim(),
-    )
-    if (result.success) {
-      entries = entries.map((e) =>
-        e.master_map_id === editingMember!.mapId
-          ? {
-              ...e,
-              members: e.members.map((m) =>
-                m.id === editingMember!.memberId
-                  ? { ...m, full_name: editingName.trim() }
-                  : m,
-              ),
-            }
-          : e,
-      )
-      toast.success("Name updated")
-    } else {
-      toast.error(result.error || "Failed to update name")
-    }
-    editingMember = null
-    editingName = ""
-    savingMemberName = false
-  }
-
-  // Account type (manager / operator / viewer) editing from the members table.
-  let savingMemberRoleId: string | null = null
-
-  async function handleMemberRoleChange(
-    mapId: string,
-    member: { id: string; full_name: string | null; role?: string | null },
-    newRole: string,
-  ) {
-    if (!newRole || newRole === member.role) return
-    const label = newRole.charAt(0).toUpperCase() + newRole.slice(1)
-    if (
-      !confirm(
-        `Change ${member.full_name || "this member"}'s account type to ${label}?`,
-      )
-    ) {
-      // The select already moved in the DOM — re-render to snap it back.
-      entries = [...entries]
-      return
-    }
-    savingMemberRoleId = member.id
-    const result = await adminApi.updateMemberRole(member.id, newRole)
-    if (result.success) {
-      entries = entries.map((e) =>
-        e.master_map_id === mapId
-          ? {
-              ...e,
-              members: e.members.map((m) =>
-                m.id === member.id ? { ...m, role: newRole } : m,
-              ),
-            }
-          : e,
-      )
-      toast.success(`${member.full_name || "Member"} is now ${label}`)
-    } else {
-      toast.error(result.error || "Failed to update account type")
-      entries = [...entries]
-    }
-    savingMemberRoleId = null
-  }
-
-  async function handleTransferOwnership(
-    mapId: string,
-    memberId: string,
-    memberName: string,
-  ) {
-    if (
-      !confirm(
-        `Transfer ownership of this map to "${memberName}"? This cannot be undone from the dashboard.`,
-      )
-    )
-      return
-    const result = await adminApi.transferOwnership(mapId, memberId)
-    if (result.success) {
-      toast.success(`Ownership transferred to ${memberName}`)
-      loadData()
-    } else {
-      toast.error(result.error || "Failed to transfer ownership")
-    }
-  }
-
   // Guard: redirect if not dev mode
   $: if (!$userSettingsStore.devToolsEnabled) {
     goto("/account")
@@ -439,12 +295,28 @@
     return ts > 0 ? Date.now() - ts : Infinity
   }
 
+  // ── Attention queue ───────────────────────────────────────────────────────
+  $: contentStatsLoaded = contentStatsMap.size > 0
+
+  $: noMappingCount = entries.filter((e) => {
+    const s = contentStatsMap.get(e.master_map_id)
+    return !!s && s.field_count === 0
+  }).length
+
+  $: dormantCount = entries.filter(
+    (e) => e.vehicles_active_30d === 0 && e.members_active_30d === 0,
+  ).length
+
   // Filtered & searched entries
   $: filteredEntries = entries
     .filter((e) => {
-      if (filterStatus === "exceeding") return e.seat_status === "EXCEEDING"
-      if (filterStatus === "at_limit") return e.seat_status === "AT_LIMIT"
-      if (filterStatus === "ok") return e.seat_status === "OK"
+      if (quickFilter === "exceeding") return e.seat_status === "EXCEEDING"
+      if (quickFilter === "no_mapping") {
+        const s = contentStatsMap.get(e.master_map_id)
+        return !!s && s.field_count === 0
+      }
+      if (quickFilter === "dormant")
+        return e.vehicles_active_30d === 0 && e.members_active_30d === 0
       return true
     })
     .filter((e) => {
@@ -499,7 +371,7 @@
       return b.total_members - a.total_members
     })
 
-  // Stats
+  // ── Summary stats ─────────────────────────────────────────────────────────
   $: totalMaps = entries.length
   $: totalUsers = entries.reduce((sum, e) => sum + e.total_members, 0)
   $: exceedingCount = entries.filter(
@@ -523,68 +395,10 @@
     .map((e) => activityMap.get(e.master_map_id)?.active_profiles ?? 0)
     .reduce((a, b) => a + b, 0)
 
-  function getActivityFor(mapId: string): AdminMapActivity | undefined {
-    return activityMap.get(mapId)
-  }
+  $: selectedEntry =
+    entries.find((e) => e.master_map_id === selectedMapId) ?? null
 
-  // Combined hectarage of every field (paddock) on the farm's map, e.g.
-  // "Mapping: 8413 ha · 24 fields"; maps with no fields read "No mapping".
-  function fieldAreaLabel(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): string {
-    const s = stats.get(mapId)
-    if (!s || !s.field_count) return "No mapping"
-    const ha = Number(s.field_hectares) || 0
-    const fieldWord = s.field_count === 1 ? "field" : "fields"
-    return `Mapping: ${ha.toLocaleString("en-AU", { maximumFractionDigits: 0 })} ha · ${s.field_count} ${fieldWord}`
-  }
-
-  // Compact size-only version for the table-row badge (just the hectares).
-  function fieldSizeLabel(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): string {
-    const s = stats.get(mapId)
-    if (!s || !s.field_count) return "No mapping"
-    const ha = Number(s.field_hectares) || 0
-    return `${ha.toLocaleString("en-AU", { maximumFractionDigits: 0 })} ha`
-  }
-
-  // Trails recorded on the farm (auto travel segments excluded, matching the
-  // map's own trail lists).
-  function trailCountLabel(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): string {
-    const n = stats.get(mapId)?.trail_count ?? 0
-    return `${n.toLocaleString("en-AU")} trail${n === 1 ? "" : "s"}`
-  }
-
-  // Markers placed on the farm (soft-deleted markers excluded).
-  function markerCountLabel(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): string {
-    const n = stats.get(mapId)?.marker_count ?? 0
-    return `${n.toLocaleString("en-AU")} marker${n === 1 ? "" : "s"}`
-  }
-
-  // Raw counts for the compact table-row badges (icon + number only).
-  function trailCountValue(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): number {
-    return stats.get(mapId)?.trail_count ?? 0
-  }
-
-  function markerCountValue(
-    mapId: string,
-    stats: Map<string, AdminMapContentStats>,
-  ): number {
-    return stats.get(mapId)?.marker_count ?? 0
-  }
-
+  // ── Data loading ──────────────────────────────────────────────────────────
   async function loadData() {
     loading = true
     errorMessage = ""
@@ -624,163 +438,16 @@
     loading = false
   }
 
-  function toggleExpand(mapId: string) {
-    if (expandedMapId === mapId) {
-      expandedMapId = null
-      return
-    }
-    expandedMapId = mapId
-    loadHeatmap(mapId)
-  }
-
-  async function loadHeatmap(mapId: string) {
-    if (heatmapMapId === mapId) return
-    heatmapMapId = mapId
-    heatmapLoading = true
-    heatmapProfileIndex = -1
-    heatmapCalendarCells = generateCalendarDays(30)
-    heatmapMonthLabels = calendarMonthLabels(heatmapCalendarCells)
-    const result = await adminApi.fetchDailyActivity(mapId)
-    if (result.success) {
-      heatmapData = result.data
-      heatmapProfiles = [...new Set(result.data.map((r) => r.profile_id))]
-    } else {
-      heatmapData = []
-      heatmapProfiles = []
-    }
-    heatmapLoading = false
-  }
-
-  function getProfileName(profileId: string, mapEntry: AdminMapEntry): string {
-    const member = mapEntry.members?.find((m) => m.id === profileId)
-    return member?.full_name || profileId.slice(0, 8)
-  }
-
-  function generateCalendarDays(
-    daysBack: number,
-  ): { date: string; dayOfWeek: number }[] {
-    const cells: { date: string; dayOfWeek: number }[] = []
-    const today = new Date()
-    const start = new Date(today)
-    start.setDate(start.getDate() - daysBack)
-    while (start.getDay() !== 1) start.setDate(start.getDate() - 1)
-    while (start <= today) {
-      cells.push({
-        date: start.toISOString().slice(0, 10),
-        dayOfWeek: start.getDay() === 0 ? 6 : start.getDay() - 1,
-      })
-      start.setDate(start.getDate() + 1)
-    }
-    return cells
-  }
-
-  function calendarMonthLabels(
-    cells: { date: string }[],
-  ): { label: string; col: number }[] {
-    const labels: { label: string; col: number }[] = []
-    let lastMonth = ""
-    cells.forEach((c, i) => {
-      const m = c.date.slice(5, 7)
-      if (m !== lastMonth) {
-        const monthNames = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ]
-        labels.push({
-          label: monthNames[parseInt(m) - 1],
-          col: Math.floor(i / 7),
-        })
-        lastMonth = m
-      }
-    })
-    return labels
-  }
-
-  function getHeatmapColor(count: number): string {
-    if (count === 0) return "bg-base-300"
-    if (count <= 1) return "bg-green-400"
-    if (count <= 3) return "bg-green-500"
-    if (count <= 6) return "bg-green-600"
-    return "bg-green-700"
-  }
-
-  function getDayActivity(date: string, profileId: string | "all"): number {
-    if (profileId === "all") {
-      return heatmapData
-        .filter((r) => r.activity_date === date)
-        .reduce((sum, r) => sum + r.profile_count, 0)
-    }
-    const row = heatmapData.find(
-      (r) => r.activity_date === date && r.profile_id === profileId,
-    )
-    return row?.profile_count ?? 0
-  }
-
-  function timeAgo(dateStr: string | null): string {
-    if (!dateStr) return "Never"
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 5) return "Just now"
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    if (days < 30) return `${days}d ago`
-    const months = Math.floor(days / 30)
-    return `${months}mo ago`
-  }
-
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "—"
-    return new Date(dateStr).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    })
-  }
-
-  function seatStatusBadge(status: string): string {
-    if (status === "EXCEEDING") return "badge-error"
-    if (status === "AT_LIMIT") return "badge-warning"
-    return "badge-success"
-  }
-
-  function seatStatusLabel(status: string): string {
-    if (status === "EXCEEDING") return "Exceeding"
-    if (status === "AT_LIMIT") return "At Limit"
-    return "OK"
-  }
-
-  function subBadge(sub: string): string {
-    if (sub === "FREE") return "badge-ghost"
-    return "badge-primary"
+  function clearFilters() {
+    searchQuery = ""
+    quickFilter = "all"
+    filterPlan = "all"
   }
 
   // Load on mount
   onMount(() => {
     loadData()
   })
-
-  function copyToClipboard(text: string) {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        toast.success("Copied to clipboard")
-      })
-      .catch(() => {
-        toast.error("Failed to copy")
-      })
-  }
 </script>
 
 <svelte:head>
@@ -834,7 +501,7 @@
   </div>
 </div>
 
-<div class="space-y-6 p-6">
+<div class="space-y-5 p-6">
   {#if loading && entries.length === 0}
     <!-- Loading skeleton -->
     <div class="flex items-center justify-center py-20">
@@ -860,50 +527,111 @@
       </button>
     </div>
   {:else}
-    <!-- Summary Stats -->
-    <div
-      class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9"
-    >
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Total Maps</p>
-        <p class="text-2xl font-bold text-contrast-content">{totalMaps}</p>
+    <!-- KPI strip -->
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Clients</p>
+        <p
+          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content"
+        >
+          {totalMaps}
+        </p>
+        <p class="text-[11px] text-contrast-content/40">
+          {activeToday} active 24h
+        </p>
       </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Total Users</p>
-        <p class="text-2xl font-bold text-contrast-content">{totalUsers}</p>
+      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Users</p>
+        <p
+          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content"
+        >
+          {totalUsers}
+        </p>
+        <p class="text-[11px] text-contrast-content/40">
+          {activeUsers30d} active 30d
+        </p>
       </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Active Today</p>
-        <p class="text-2xl font-bold text-success">{activeToday}</p>
+      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Paid plans</p>
+        <p class="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
+          {proCount}
+        </p>
+        <p class="text-[11px] text-contrast-content/40">{paidSeats} seats</p>
       </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Exceeding</p>
-        <p class="text-2xl font-bold text-error">{exceedingCount}</p>
+      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Free plans</p>
+        <p
+          class="mt-0.5 text-2xl font-semibold tabular-nums text-contrast-content/70"
+        >
+          {freeCount}
+        </p>
+        <p class="text-[11px] text-contrast-content/40">
+          {headlessCount} headless
+        </p>
       </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Pro Plans</p>
-        <p class="text-2xl font-bold text-primary">{proCount}</p>
-      </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Paid Seats</p>
-        <p class="text-2xl font-bold text-primary">{paidSeats}</p>
-      </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Free Plans</p>
-        <p class="text-2xl font-bold text-contrast-content/60">{freeCount}</p>
-      </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Headless</p>
-        <p class="text-2xl font-bold text-info">{headlessCount}</p>
-      </div>
-      <div class="rounded-lg border border-base-300 bg-base-200/30 p-3">
-        <p class="text-xs text-contrast-content/60">Active Users 30d</p>
-        <p class="text-2xl font-bold text-accent">{activeUsers30d}</p>
+      <div class="rounded-xl border border-base-300 bg-base-200/30 p-3">
+        <p class="text-xs text-contrast-content/60">Over seats</p>
+        <p class="mt-0.5 text-2xl font-semibold tabular-nums text-error">
+          {exceedingCount}
+        </p>
+        <p class="text-[11px] text-contrast-content/40">
+          seat limit warnings
+        </p>
       </div>
     </div>
 
-    <!-- Search & Filter Bar -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <!-- Attention queue -->
+    <div class="flex flex-wrap items-center gap-2">
+      <span
+        class="text-xs font-semibold uppercase tracking-wider text-contrast-content/40"
+        >Attention</span
+      >
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {quickFilter ===
+        'exceeding'
+          ? 'border-error/40 bg-error/15 text-error'
+          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
+        title="Clients over their seat limit"
+        on:click={() =>
+          (quickFilter = quickFilter === "exceeding" ? "all" : "exceeding")}
+      >
+        <Icon icon="solar:shield-warning-bold-duotone" width="13" height="13" />
+        {exceedingCount} over seats
+      </button>
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 {quickFilter ===
+        'no_mapping'
+          ? 'border-warning/40 bg-warning/15 text-warning'
+          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
+        title={contentStatsLoaded
+          ? "Clients with no fields mapped yet"
+          : "Mapping stats unavailable"}
+        disabled={!contentStatsLoaded}
+        on:click={() =>
+          (quickFilter = quickFilter === "no_mapping" ? "all" : "no_mapping")}
+      >
+        <Icon icon="solar:map-bold-duotone" width="13" height="13" />
+        {noMappingCount} no mapping
+      </button>
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {quickFilter ===
+        'dormant'
+          ? 'border-info/40 bg-info/15 text-info'
+          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
+        title="No vehicle or member activity in the last 30 days"
+        on:click={() =>
+          (quickFilter = quickFilter === "dormant" ? "all" : "dormant")}
+      >
+        <Icon icon="solar:clock-circle-bold-duotone" width="13" height="13" />
+        {dormantCount} dormant
+      </button>
+    </div>
+
+    <!-- Search & filters -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div class="relative flex-1">
         <Icon
           icon="solar:magnifer-bold-duotone"
@@ -918,7 +646,7 @@
           bind:value={searchQuery}
         />
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <!-- Plan filter -->
         <div class="flex gap-0.5 rounded-lg bg-base-200/50 p-0.5">
           <button
@@ -941,867 +669,71 @@
           >
         </div>
         <div class="h-4 w-px bg-base-300"></div>
-        <!-- Status filter -->
-        <div class="flex gap-1">
-          <button
-            class="btn btn-xs {filterStatus === 'all'
-              ? 'btn-neutral'
-              : 'btn-ghost'}"
-            on:click={() => (filterStatus = "all")}
-          >
-            All
-          </button>
-          <button
-            class="btn btn-xs {filterStatus === 'exceeding'
-              ? 'btn-error'
-              : 'btn-ghost'}"
-            on:click={() => (filterStatus = "exceeding")}
-          >
-            Exceeding
-          </button>
-          <button
-            class="btn btn-xs {filterStatus === 'at_limit'
-              ? 'btn-warning'
-              : 'btn-ghost'}"
-            on:click={() => (filterStatus = "at_limit")}
-          >
-            At Limit
-          </button>
-          <button
-            class="btn btn-xs {filterStatus === 'ok'
-              ? 'btn-success'
-              : 'btn-ghost'}"
-            on:click={() => (filterStatus = "ok")}
-          >
-            OK
-          </button>
-        </div>
-        <div class="h-4 w-px bg-base-300"></div>
         <!-- Sort -->
         <select
           bind:value={sortBy}
-          class="select select-bordered select-xs w-28"
+          class="select select-bordered select-xs w-32"
         >
-          <option value="default">Default</option>
-          <option value="latest">Latest Activity</option>
+          <option value="latest">Latest activity</option>
+          <option value="default">Default order</option>
         </select>
       </div>
     </div>
+
     <div
       class="flex items-center justify-between text-xs text-contrast-content/50"
     >
-      <span>{filteredEntries.length} of {totalMaps} maps</span>
+      <span>{filteredEntries.length} of {totalMaps} clients</span>
       {#if lastRefreshed}
         <span>Last refreshed: {lastRefreshed.toLocaleTimeString()}</span>
       {/if}
     </div>
 
-    <!-- Table -->
-    <div class="overflow-x-auto rounded-lg border border-base-300">
-      <table class="table w-full text-xs">
-        <thead>
-          <tr
-            class="border-b-2 border-base-300 bg-base-200/60 text-contrast-content/60"
-          >
-            <th class="w-8 border-r border-base-300"></th>
-            <th class="border-r border-base-300">Owner</th>
-            <th class="border-r border-base-300">Map</th>
-            <th class="border-r border-base-300">Plan</th>
-            <th class="border-r border-base-300 text-center">Users</th>
-            <th class="border-r border-base-300 text-center">Active 24h</th>
-            <th class="border-r border-base-300">Last GPS</th>
-            <th class="border-r border-base-300">Last Sign-In</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each filteredEntries as entry, i (entry.master_map_id)}
-            <tr
-              class="cursor-pointer border-b border-base-300 transition-colors hover:bg-base-content/5
-                {entry.seat_status === 'EXCEEDING' ? 'bg-error/5' : ''}
-                {entry.seat_status === 'AT_LIMIT' ? 'bg-warning/5' : ''}"
-              on:click={() => toggleExpand(entry.master_map_id)}
-            >
-              <td class="w-8 border-r border-base-300">
-                <Icon
-                  icon={expandedMapId === entry.master_map_id
-                    ? "solar:alt-arrow-down-bold"
-                    : "solar:alt-arrow-right-bold"}
-                  width="12"
-                  height="12"
-                  class="text-contrast-content/40"
-                />
-              </td>
-              <td class="border-r border-base-300">
-                <div class="font-medium text-contrast-content">
-                  {entry.owner_name || "Unknown"}
-                </div>
-                <div class="text-contrast-content/50">
-                  {entry.owner_email || "—"}
-                </div>
-                <div class="flex items-center gap-1 text-contrast-content/40">
-                  {#if entry.owner_phone}
-                    {entry.owner_phone}
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs text-primary hover:bg-primary/10"
-                      title="Send SMS"
-                      on:click|stopPropagation={() =>
-                        openSmsModal(
-                          entry.owner_phone || "",
-                          entry.owner_name || "",
-                        )}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        ><path
-                          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                        /></svg
-                      >
-                    </button>
-                  {/if}
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs text-contrast-content/50 hover:bg-base-content/10"
-                    title={notePreview(entry.master_map_id, mapNotes)}
-                    aria-label="Edit note"
-                    on:click|stopPropagation={() => openNoteModal(entry)}
-                  >
-                    <NotepadText class="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </td>
-              <td class="border-r border-base-300">
-                <div
-                  class="flex flex-wrap items-center gap-1.5 text-contrast-content"
-                >
-                  <span>{entry.map_name || "Unnamed"}</span>
-                  <span class="badge badge-ghost badge-sm border border-black">
-                    {fieldSizeLabel(entry.master_map_id, contentStatsMap)}
-                  </span>
-                  <span
-                    class="badge badge-ghost badge-sm gap-1 border border-black"
-                    title="Trails recorded"
-                  >
-                    <Route class="h-3 w-3" />
-                    {trailCountValue(
-                      entry.master_map_id,
-                      contentStatsMap,
-                    ).toLocaleString("en-AU")}
-                  </span>
-                  <span
-                    class="badge badge-ghost badge-sm gap-1 border border-black"
-                    title="Markers placed"
-                  >
-                    <MapPin class="h-3 w-3" />
-                    {markerCountValue(
-                      entry.master_map_id,
-                      contentStatsMap,
-                    ).toLocaleString("en-AU")}
-                  </span>
-                </div>
-                {#if entry.company_name}
-                  <div class="text-contrast-content/50">
-                    {entry.company_name}
-                  </div>
-                {/if}
-                {#if mapNotes[entry.master_map_id]?.note}
-                  <div
-                    class="mt-0.5 flex items-center gap-1 text-[10px] text-accent"
-                    title={mapNotes[entry.master_map_id]?.note}
-                  >
-                    <Icon
-                      icon="solar:document-text-bold-duotone"
-                      width="11"
-                      height="11"
-                    />
-                    <span class="max-w-[18rem] truncate"
-                      >{mapNotes[entry.master_map_id]?.note}</span
-                    >
-                  </div>
-                {/if}
-              </td>
-              <td class="border-r border-base-300">
-                <span class="badge badge-xs {subBadge(entry.subscription)}">
-                  {entry.subscription}
-                </span>
-                {#if entry.founder}
-                  <span class="badge badge-secondary badge-xs ml-0.5">F</span>
-                {/if}
-                {#if !entry.owner_connected}
-                  <span class="badge badge-info badge-xs ml-0.5">Headless</span>
-                {/if}
-              </td>
-              <td class="border-r border-base-300 text-center">
-                <span
-                  class="font-semibold"
-                  class:text-error={entry.seat_status === "EXCEEDING"}
-                  class:text-warning={entry.seat_status === "AT_LIMIT"}
-                >
-                  {entry.connected_vehicles}/{entry.allowed_seats}
-                </span>
-              </td>
-              <td class="border-r border-base-300 text-center">
-                <span class="text-contrast-content/70">
-                  {entry.vehicles_active_24h}
-                </span>
-              </td>
-              <td class="border-r border-base-300">
-                <span class="text-contrast-content/70">
-                  {timeAgo(entry.latest_vehicle_update)}
-                </span>
-              </td>
-              <td class="border-r border-base-300">
-                <span class="text-contrast-content/70">
-                  {timeAgo(entry.latest_member_sign_in)}
-                </span>
-              </td>
-              <td>
-                <span
-                  class="badge badge-xs {seatStatusBadge(entry.seat_status)}"
-                >
-                  {seatStatusLabel(entry.seat_status)}
-                </span>
-              </td>
-            </tr>
-
-            <!-- Expanded detail row -->
-            {#if expandedMapId === entry.master_map_id}
-              <tr>
-                <td colspan="9" class="bg-base-200/10 p-0">
-                  <div class="px-4 pb-4 pt-3">
-                    <!-- Map ID row -->
-                    <div
-                      class="mb-3 flex items-center gap-2 rounded bg-base-200/40 px-3 py-1.5"
-                    >
-                      <span class="text-xs font-medium text-contrast-content/50"
-                        >Map ID:</span
-                      >
-                      <code
-                        class="flex-1 select-all truncate font-mono text-xs text-contrast-content/70"
-                      >
-                        {entry.master_map_id}
-                      </code>
-                      <button
-                        class="btn btn-ghost btn-xs"
-                        on:click|stopPropagation={() =>
-                          copyToClipboard(entry.master_map_id)}
-                        title="Copy Map ID"
-                      >
-                        <Icon
-                          icon="solar:copy-bold-duotone"
-                          width="14"
-                          height="14"
-                        />
-                      </button>
-                    </div>
-
-                    <!-- Detail grid -->
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <!-- Owner Card -->
-                      <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4
-                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:user-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
-                          Owner
-                        </h4>
-                        <p class="text-sm font-medium text-contrast-content">
-                          {entry.owner_name || "—"}
-                        </p>
-                        <p class="text-xs text-contrast-content/60">
-                          {entry.owner_email || "—"}
-                        </p>
-                        {#if entry.owner_phone}
-                          <p class="text-xs text-contrast-content/50">
-                            {entry.owner_phone}
-                          </p>
-                        {/if}
-                        {#if entry.company_name}
-                          <p class="text-xs text-contrast-content/50">
-                            {entry.company_name}
-                          </p>
-                        {/if}
-                        <div
-                          class="mt-2 space-y-0.5 text-xs text-contrast-content/50"
-                        >
-                          <p>
-                            Last sign-in: {timeAgo(entry.owner_last_sign_in)}
-                          </p>
-                          <p>Joined: {formatDate(entry.owner_created_at)}</p>
-                        </div>
-                      </div>
-
-                      <!-- Map & Subscription Card -->
-                      <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4
-                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:map-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
-                          Map & Plan
-                        </h4>
-                        <p class="text-sm font-medium text-contrast-content">
-                          {entry.map_name || "Unnamed"}
-                        </p>
-                        <p class="text-xs text-contrast-content/50">
-                          Created: {formatDate(entry.map_created_at)}
-                        </p>
-                        <p class="text-xs text-contrast-content/50">
-                          {fieldAreaLabel(entry.master_map_id, contentStatsMap)}
-                        </p>
-                        <div
-                          class="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-contrast-content/50"
-                        >
-                          <span class="flex items-center gap-1">
-                            <Route class="h-3 w-3" />
-                            {trailCountLabel(entry.master_map_id, contentStatsMap)}
-                          </span>
-                          <span class="flex items-center gap-1">
-                            <MapPin class="h-3 w-3" />
-                            {markerCountLabel(entry.master_map_id, contentStatsMap)}
-                          </span>
-                        </div>
-                        <div class="mt-2 flex flex-wrap items-center gap-1">
-                          <span
-                            class="badge badge-sm {subBadge(
-                              entry.subscription,
-                            )}">{entry.subscription}</span
-                          >
-                          <span class="badge badge-outline badge-sm"
-                            >{entry.subscription_status}</span
-                          >
-                          {#if entry.payment_interval}
-                            <span class="badge badge-ghost badge-sm"
-                              >{entry.payment_interval}</span
-                            >
-                          {/if}
-                          {#if entry.founder}
-                            <span class="badge badge-secondary badge-sm"
-                              >Founder</span
-                            >
-                          {/if}
-                        </div>
-                        {#if entry.next_billing_date}
-                          <p class="mt-1 text-xs text-contrast-content/50">
-                            Next billing: {formatDate(entry.next_billing_date)}
-                          </p>
-                        {/if}
-                      </div>
-
-                      <!-- Activity Card -->
-                      <div class="rounded-lg bg-base-200/30 p-3">
-                        <h4
-                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:chart-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
-                          Activity
-                        </h4>
-                        <div class="flex flex-col gap-3 lg:flex-row">
-                          <!-- Stats -->
-                          <div
-                            class="min-w-0 space-y-0.5 text-xs lg:w-52 lg:flex-shrink-0"
-                          >
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Vehicles 24h</span
-                              >
-                              <span class="font-medium text-contrast-content"
-                                >{entry.vehicles_active_24h}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Vehicles 7d</span
-                              >
-                              <span class="font-medium text-contrast-content"
-                                >{entry.vehicles_active_7d}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Vehicles 30d</span
-                              >
-                              <span class="font-medium text-contrast-content"
-                                >{entry.vehicles_active_30d}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Members 7d</span
-                              >
-                              <span class="font-medium text-contrast-content"
-                                >{entry.members_active_7d}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Members 30d</span
-                              >
-                              <span class="font-medium text-contrast-content"
-                                >{entry.members_active_30d}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Active profiles</span
-                              >
-                              <span class="font-medium text-accent"
-                                >{getActivityFor(entry.master_map_id)
-                                  ?.active_profiles ?? 0}</span
-                              >
-                            </div>
-                            <div class="flex justify-between gap-2">
-                              <span class="text-contrast-content/60"
-                                >Active days</span
-                              >
-                              <span class="font-medium text-accent"
-                                >{getActivityFor(entry.master_map_id)
-                                  ?.active_days ?? 0}</span
-                              >
-                            </div>
-                          </div>
-
-                          <!-- Divider + Heatmap -->
-                          <div
-                            class="hidden border-l border-base-300 lg:block"
-                          ></div>
-                          <div
-                            class="min-w-0 flex-1 border-t border-base-300 pt-3 lg:border-t-0 lg:pt-0"
-                          >
-                            {#if heatmapLoading && heatmapMapId === entry.master_map_id}
-                              <div
-                                class="flex items-center justify-center py-4"
-                              >
-                                <span class="loading loading-spinner loading-sm"
-                                ></span>
-                              </div>
-                            {:else}
-                              {#if heatmapProfiles.length > 1 && heatmapMapId === entry.master_map_id}
-                                <div
-                                  class="mb-2 flex items-center justify-center gap-1"
-                                >
-                                  <button
-                                    type="button"
-                                    class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-contrast-content/40 hover:bg-base-300 hover:text-contrast-content disabled:opacity-20"
-                                    disabled={heatmapProfileIndex <= -1}
-                                    on:click={() =>
-                                      (heatmapProfileIndex =
-                                        heatmapProfileIndex - 1)}
-                                  >
-                                    <Icon
-                                      icon="solar:alt-arrow-left-bold-duotone"
-                                      width="12"
-                                      height="12"
-                                    />
-                                  </button>
-                                  <select
-                                    bind:value={heatmapProfileIndex}
-                                    class="w-36 rounded border border-base-300 bg-base-100 px-2 py-0.5 text-center text-xs text-contrast-content"
-                                  >
-                                    <option value={-1}>All profiles</option>
-                                    {#each heatmapProfiles as pid, i}
-                                      <option value={i}
-                                        >{getProfileName(pid, entry)}</option
-                                      >
-                                    {/each}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-contrast-content/40 hover:bg-base-300 hover:text-contrast-content disabled:opacity-20"
-                                    disabled={heatmapProfileIndex >=
-                                      heatmapProfiles.length - 1}
-                                    on:click={() =>
-                                      (heatmapProfileIndex =
-                                        heatmapProfileIndex + 1)}
-                                  >
-                                    <Icon
-                                      icon="solar:alt-arrow-right-bold-duotone"
-                                      width="12"
-                                      height="12"
-                                    />
-                                  </button>
-                                </div>
-                              {/if}
-
-                              {#if heatmapCalendarCells.length > 0}
-                                <div>
-                                  <div
-                                    class="mb-1 ml-6 flex text-[9px] text-contrast-content/40"
-                                  >
-                                    {#each heatmapMonthLabels as ml}
-                                      <span class="block">{ml.label}</span>
-                                    {/each}
-                                  </div>
-                                  <div class="flex">
-                                    <div
-                                      class="mr-1 flex flex-col"
-                                      style="gap: 3px"
-                                    >
-                                      {#each ["M", "", "W", "", "F", "", ""] as lbl}
-                                        <span
-                                          class="flex h-3 w-5 items-center text-[9px] text-contrast-content/40"
-                                          >{lbl}</span
-                                        >
-                                      {/each}
-                                    </div>
-                                    <div
-                                      class="grid"
-                                      style="gap: 3px; grid-template-columns: repeat({Math.ceil(
-                                        heatmapCalendarCells.length / 7,
-                                      )}, 12px); grid-template-rows: repeat(7, 12px); grid-auto-flow: column;"
-                                    >
-                                      {#each heatmapCalendarCells as cell}
-                                        <div
-                                          class="rounded-sm {getHeatmapColor(
-                                            getDayActivity(
-                                              cell.date,
-                                              heatmapActiveProfile,
-                                            ),
-                                          )}"
-                                          title="{cell.date}: {getDayActivity(
-                                            cell.date,
-                                            heatmapActiveProfile,
-                                          )} events"
-                                        ></div>
-                                      {/each}
-                                    </div>
-                                  </div>
-                                  <div
-                                    class="mt-2 flex items-center gap-2 text-[10px] text-contrast-content/50"
-                                  >
-                                    <span>Less</span>
-                                    <div
-                                      class="h-2.5 w-2.5 rounded-sm bg-base-300"
-                                    ></div>
-                                    <div
-                                      class="h-2.5 w-2.5 rounded-sm bg-green-400"
-                                    ></div>
-                                    <div
-                                      class="h-2.5 w-2.5 rounded-sm bg-green-500"
-                                    ></div>
-                                    <div
-                                      class="h-2.5 w-2.5 rounded-sm bg-green-600"
-                                    ></div>
-                                    <div
-                                      class="h-2.5 w-2.5 rounded-sm bg-green-700"
-                                    ></div>
-                                    <span>More</span>
-                                  </div>
-                                </div>
-                              {:else}
-                                <div
-                                  class="py-2 text-center text-xs text-contrast-content/50"
-                                >
-                                  Expand row to load activity calendar
-                                </div>
-                              {/if}
-                            {/if}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Admin note -->
-                    <div class="mt-3 rounded-lg bg-base-200/30 p-3">
-                      <div
-                        class="mb-2 flex items-center justify-between gap-2"
-                      >
-                        <h4
-                          class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:document-text-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
-                          Notes
-                        </h4>
-                        {#if mapNotes[entry.master_map_id]?.updated_at}
-                          <span class="text-[10px] text-contrast-content/40">
-                            Last saved
-                            {timeAgo(mapNotes[entry.master_map_id]?.updated_at)}
-                          </span>
-                        {/if}
-                      </div>
-                      <textarea
-                        class="textarea textarea-bordered h-24 w-full resize-y bg-base-100 text-xs leading-relaxed text-contrast-content"
-                        placeholder="Add a note about this farm — anything you want to remember next time you look at it..."
-                        maxlength={4000}
-                        bind:value={noteDrafts[entry.master_map_id]}
-                      ></textarea>
-                      <div class="mt-2 flex items-center justify-between gap-2">
-                        <span class="text-[10px] text-contrast-content/40">
-                          {(noteDrafts[entry.master_map_id] ?? "").length}/4000
-                        </span>
-                        <div class="flex items-center gap-2">
-                          {#if noteIsDirty(entry.master_map_id, noteDrafts, mapNotes)}
-                            <span class="text-[10px] text-warning"
-                              >Unsaved changes</span
-                            >
-                          {/if}
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-xs"
-                            disabled={savingNoteId === entry.master_map_id ||
-                              !noteIsDirty(
-                                entry.master_map_id,
-                                noteDrafts,
-                                mapNotes,
-                              )}
-                            on:click={() => saveMapNote(entry.master_map_id)}
-                          >
-                            {#if savingNoteId === entry.master_map_id}
-                              <span
-                                class="loading loading-spinner loading-xs"
-                              ></span>
-                            {:else}
-                              Save note
-                            {/if}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Seat usage bar -->
-                    <div class="mt-3">
-                      <div
-                        class="mb-1 flex items-center justify-between text-xs"
-                      >
-                        <span class="text-contrast-content/60">
-                          Seat Usage: {entry.connected_vehicles} / {entry.allowed_seats}
-                          {#if entry.seats_over_limit > 0}
-                            <span class="text-error"
-                              >(+{entry.seats_over_limit} over)</span
-                            >
-                          {/if}
-                        </span>
-                        <span
-                          class="badge badge-xs {seatStatusBadge(
-                            entry.seat_status,
-                          )}"
-                        >
-                          {seatStatusLabel(entry.seat_status)}
-                        </span>
-                      </div>
-                      <div
-                        class="h-2 w-full overflow-hidden rounded-full bg-base-300"
-                      >
-                        <div
-                          class="h-full rounded-full transition-all {entry.seat_status ===
-                          'EXCEEDING'
-                            ? 'bg-error'
-                            : entry.seat_status === 'AT_LIMIT'
-                              ? 'bg-warning'
-                              : 'bg-success'}"
-                          style="width: {Math.min(
-                            (entry.connected_vehicles /
-                              Math.max(entry.allowed_seats, 1)) *
-                              100,
-                            100,
-                          )}%"
-                        ></div>
-                      </div>
-                    </div>
-
-                    <!-- Members list -->
-                    {#if entry.members && entry.members.length > 0}
-                      <div class="mt-4">
-                        <h4
-                          class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-                        >
-                          <Icon
-                            icon="solar:users-group-rounded-bold-duotone"
-                            width="12"
-                            height="12"
-                          />
-                          Connected Members ({entry.members.length})
-                        </h4>
-                        <div
-                          class="overflow-x-auto rounded border border-base-300"
-                        >
-                          <table class="table-compact table w-full text-xs">
-                            <thead>
-                              <tr
-                                class="bg-base-200/30 text-contrast-content/50"
-                              >
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Last Sign-In</th>
-                                <th>Last Location</th>
-                                <th>Map Role</th>
-                                <th>Account Type</th>
-                                <th class="w-16">Settings</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {#each entry.members as member}
-                                <tr>
-                                  <td class="text-contrast-content">
-                                    {#if editingMember?.mapId === entry.master_map_id && editingMember?.memberId === member.id}
-                                      <div class="flex items-center gap-1">
-                                        <input
-                                          type="text"
-                                          bind:value={editingName}
-                                          use:autofocus
-                                          on:keydown={(e) =>
-                                            e.key === "Enter" &&
-                                            saveMemberName()}
-                                          on:keydown={(e) =>
-                                            e.key === "Escape" &&
-                                            cancelEditMember()}
-                                          class="w-32 rounded border border-base-300 bg-base-100 px-2 py-1 text-xs text-contrast-content"
-                                        />
-                                        <button
-                                          class="rounded bg-base-content px-2 py-1 text-[10px] font-medium text-base-100 hover:bg-base-content/90 disabled:opacity-50"
-                                          disabled={savingMemberName}
-                                          on:click={saveMemberName}>Save</button
-                                        >
-                                        <button
-                                          class="rounded border border-base-300 px-2 py-1 text-[10px] text-contrast-content/60 hover:bg-base-200"
-                                          on:click={cancelEditMember}
-                                          >Cancel</button
-                                        >
-                                      </div>
-                                    {:else}
-                                      <span
-                                        class="inline-flex items-center gap-2"
-                                      >
-                                        {member.full_name || "\u2014"}
-                                        <button
-                                          type="button"
-                                          class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-base-300 hover:text-contrast-content"
-                                          on:click={() =>
-                                            startEditMember(
-                                              entry.master_map_id,
-                                              member,
-                                            )}
-                                        >
-                                          Edit
-                                        </button>
-                                      </span>
-                                    {/if}
-                                  </td>
-                                  <td class="text-contrast-content/60"
-                                    >{member.email || "—"}</td
-                                  >
-                                  <td class="text-contrast-content/60"
-                                    >{timeAgo(member.last_sign_in)}</td
-                                  >
-                                  <td class="text-contrast-content/60"
-                                    >{timeAgo(member.last_location_update)}</td
-                                  >
-                                  <td>
-                                    {#if member.is_owner}
-                                      <span class="badge badge-primary badge-xs"
-                                        >Owner</span
-                                      >
-                                    {:else}
-                                      <span
-                                        class="inline-flex items-center gap-2"
-                                      >
-                                        <span class="badge badge-ghost badge-xs"
-                                          >{member.map_role === "viewer"
-                                            ? "Viewer"
-                                            : "Member"}</span
-                                        >
-                                        <button
-                                          type="button"
-                                          class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-warning/10 hover:text-warning"
-                                          on:click={() =>
-                                            handleTransferOwnership(
-                                              entry.master_map_id,
-                                              member.id,
-                                              member.full_name || "Member",
-                                            )}
-                                        >
-                                          Make Owner
-                                        </button>
-                                      </span>
-                                    {/if}
-                                  </td>
-                                  <td>
-                                    <select
-                                      class="select select-xs select-bordered w-24 text-xs"
-                                      value={member.role || ""}
-                                      disabled={savingMemberRoleId === member.id}
-                                      on:change={(e) =>
-                                        handleMemberRoleChange(
-                                          entry.master_map_id,
-                                          member,
-                                          e.currentTarget.value,
-                                        )}
-                                      title="Account type"
-                                    >
-                                      <option value="" disabled>—</option>
-                                      <option value="manager">Manager</option>
-                                      <option value="operator">Operator</option>
-                                      <option value="viewer">Viewer</option>
-                                    </select>
-                                  </td>
-                                  <td>
-                                    <button
-                                      type="button"
-                                      class="rounded border border-base-300 px-1.5 py-0.5 text-[10px] text-contrast-content/50 transition-colors hover:bg-base-300 hover:text-contrast-content"
-                                      on:click={() =>
-                                        openUserSettingsModal(member)}
-                                      title="View/edit user settings"
-                                    >
-                                      <Icon
-                                        icon="solar:settings-bold-duotone"
-                                        width="12"
-                                        height="12"
-                                      />
-                                    </button>
-                                  </td>
-                                </tr>
-                              {/each}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    {:else}
-                      <p class="mt-3 text-xs text-contrast-content/40">
-                        No members connected to this map.
-                      </p>
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-            {/if}
-          {:else}
-            <tr>
-              <td
-                colspan="9"
-                class="py-8 text-center text-sm text-contrast-content/50"
-              >
-                No maps match your search criteria.
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <!-- Client list -->
+    <div class="space-y-2">
+      {#each filteredEntries as entry (entry.master_map_id)}
+        <AdminClientCard
+          {entry}
+          {contentStatsMap}
+          {mapNotes}
+          selected={selectedMapId === entry.master_map_id}
+          onOpen={(e) => (selectedMapId = e.master_map_id)}
+          onOpenSms={openSmsModal}
+          onOpenNote={openNoteModal}
+        />
+      {:else}
+        <div
+          class="rounded-xl border border-base-300 bg-base-200/20 p-10 text-center"
+        >
+          <p class="text-sm text-contrast-content/50">
+            No clients match your filters.
+          </p>
+          <button class="btn btn-outline btn-xs mt-3" on:click={clearFilters}>
+            Clear filters
+          </button>
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
+
+<!-- Client detail drawer (right panel on desktop, full-screen on mobile) -->
+{#if selectedEntry}
+  <AdminClientDetail
+    entry={selectedEntry}
+    {contentStatsMap}
+    {activityMap}
+    {mapNotes}
+    {noteDrafts}
+    {savingNoteId}
+    onClose={() => (selectedMapId = null)}
+    onSaveNote={saveMapNote}
+    onOpenSms={openSmsModal}
+    onOpenUserSettings={openUserSettingsModal}
+    onEntryUpdated={() => (entries = [...entries])}
+    onReload={loadData}
+  />
+{/if}
 
 <!-- Limits modal -->
 <dialog
@@ -1970,7 +902,8 @@
           {#if diffCount > 0}
             <span class="font-semibold text-warning">{diffCount}</span>
             <span class="text-contrast-content/60">
-              of {Object.keys(SETTING_DEFAULTS).length} settings differ from defaults</span
+              of {Object.keys(SETTING_DEFAULTS).length} settings differ from
+              defaults</span
             >
           {:else}
             <span class="text-contrast-content/60"
@@ -2054,10 +987,10 @@
             class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30"
           >
             <span class="text-xs text-contrast-content">
-              {diffDot("extraMarkers")}Extra markers ({(
-                (s.extraMarkers ?? []) ||
+              {diffDot("extraMarkers")}Extra markers ({((
+                s.extraMarkers ??
                 []
-              ).length})
+              ) || []).length})
             </span>
             <button
               type="button"
@@ -2199,40 +1132,39 @@
             Layer Visibility
           </h5>
           {#if true}
-            {@const lv = s.layerVisibility ?? {}}
-            <div
-              class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30"
+          {@const lv = s.layerVisibility ?? {}}
+          <div
+            class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-base-200/30"
+          >
+            <span class="text-xs text-contrast-content">
+              {diffDot("layerVisibility")}Custom visibility ({Object.keys(lv || {})
+                .length} layers)
+            </span>
+            <button
+              type="button"
+              class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {Object.keys(
+                lv || {},
+              ).length > 0
+                ? 'bg-primary'
+                : 'bg-base-300'}"
+              disabled={settingsSaving === "layerVisibility"}
+              on:click={() =>
+                toggleUserSetting(
+                  "layerVisibility",
+                  Object.keys(lv || {}).length > 0
+                    ? {}
+                    : { historicalTrails: false },
+                )}
             >
-              <span class="text-xs text-contrast-content">
-                {diffDot("layerVisibility")}Custom visibility ({Object.keys(
-                  lv || {},
-                ).length} layers)
-              </span>
-              <button
-                type="button"
-                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 {Object.keys(
+              <span
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {Object.keys(
                   lv || {},
                 ).length > 0
-                  ? 'bg-primary'
-                  : 'bg-base-300'}"
-                disabled={settingsSaving === "layerVisibility"}
-                on:click={() =>
-                  toggleUserSetting(
-                    "layerVisibility",
-                    Object.keys(lv || {}).length > 0
-                      ? {}
-                      : { historicalTrails: false },
-                  )}
-              >
-                <span
-                  class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {Object.keys(
-                    lv || {},
-                  ).length > 0
-                    ? 'translate-x-4'
-                    : 'translate-x-0.5'}"
-                ></span>
-              </button>
-            </div>
+                  ? 'translate-x-4'
+                  : 'translate-x-0.5'}"
+              ></span>
+            </button>
+          </div>
           {/if}
         </div>
       </div>
@@ -2318,11 +1250,7 @@
             type="button"
             class="btn btn-primary btn-sm"
             disabled={savingNoteId === noteModalEntry.master_map_id ||
-              !noteIsDirty(
-                noteModalEntry.master_map_id,
-                noteDrafts,
-                mapNotes,
-              )}
+              !noteIsDirty(noteModalEntry.master_map_id, noteDrafts, mapNotes)}
             on:click={saveNoteFromModal}
           >
             {#if savingNoteId === noteModalEntry.master_map_id}

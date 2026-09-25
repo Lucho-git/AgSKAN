@@ -9,7 +9,10 @@
   import { goto } from "$app/navigation"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
-  import { userVehicleStore, otherVehiclesStore } from "$lib/stores/vehicleStore"
+  import {
+    userVehicleStore,
+    otherVehiclesStore,
+  } from "$lib/stores/vehicleStore"
   import {
     messagePanelStore,
     messageTickStore,
@@ -276,8 +279,8 @@
     if (refId === null || refId === undefined || !browser) return null
     try {
       return (
-        document.querySelector(`[data-vehicle-id="${refId}"] svg`)
-          ?.outerHTML || null
+        document.querySelector(`[data-vehicle-id="${refId}"] svg`)?.outerHTML ||
+        null
       )
     } catch {
       return null
@@ -737,278 +740,276 @@
         </div>
       </div>
     {:else}
-    <!-- Drag handle (mobile bottom sheet). pointermove/up live on the panel
+      <!-- Drag handle (mobile bottom sheet). pointermove/up live on the panel
          root so a drag keeps tracking even when the finger leaves the handle. -->
-    <div
-      class="msg-drag-handle"
-      on:pointerdown={onDragStart}
-      role="separator"
-      aria-label="Drag to resize"
-    >
-      <span></span>
-    </div>
-    <!-- Header — the whole bar starts a sheet drag (buttons stay clickable) -->
-    <div class="msg-panel-head" on:pointerdown={onHeaderDragStart}>
-      {#if view === "conversation"}
-        <button
-          class="msg-panel-back"
-          on:click={openMessageInbox}
-          aria-label="All messages"
-          title="All messages"
-        >
-          <ArrowLeft size={18} />
-        </button>
-      {/if}
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-xs font-bold text-white">{displayName}</p>
-        {#if mini}
-          <p class="mt-0.5 text-[10px] text-white/40">
-            Drag up to reopen — showing location on map
-          </p>
-        {:else}
-          <p class="mt-0.5 flex items-center gap-1.5 text-[10px]">
-            {#if view === "conversation"}
-              <span
-                class="inline-block h-1.5 w-1.5 rounded-full {recipientOnline
-                  ? 'bg-emerald-400'
-                  : 'bg-white/30'}"
-              ></span>
-              <span
-                class={recipientOnline ? "text-emerald-300" : "text-white/40"}
-              >
-                {recipientOnline ? "Online" : "Offline"}
-              </span>
-            {:else}
-              <span class="text-white/40">
-                {convos.length === 1
-                  ? "1 conversation"
-                  : `${convos.length} conversations`}
-              </span>
-            {/if}
-          </p>
-        {/if}
-      </div>
-      <button
-        class="msg-panel-close"
-        on:click={closeMessagePanel}
-        aria-label="Close messages"
-        title="Close"
+      <div
+        class="msg-drag-handle"
+        on:pointerdown={onDragStart}
+        role="separator"
+        aria-label="Drag to resize"
       >
-        <X size={18} />
-      </button>
-    </div>
-
-    {#if view === "inbox"}
-      <!-- Inbox: everyone I've exchanged messages with -->
-      <div class="msg-panel-list">
-        {#if inboxLoaded && newMessagePeople.length > 0}
-          <!-- New message: pick any person on the map -->
-          <div class="msg-new-section">
-            <p class="msg-new-title">New message</p>
-            <div class="msg-new-strip">
-              {#each newMessagePeople as person (person.id)}
-                <button
-                  class="msg-new-person"
-                  on:click={() =>
-                    openMessagePanel({ id: person.id, name: person.name })}
-                  title={person.name}
-                >
-                  <span
-                    class="msg-avatar"
-                    style="background: {avatarColor(person.id)}"
-                  >
-                    {initials(person.name)}
-                    {#if $mapPresenceStore.has(person.id)}
-                      <span class="msg-avatar-online"></span>
-                    {/if}
-                  </span>
-                  <span class="msg-new-name">{person.first}</span>
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
-        {#if loadingList && convos.length === 0}
-          <div
-            class="flex items-center justify-center gap-2 py-8 text-white/50"
-          >
-            <Loader2 size={14} class="animate-spin" />
-            <span class="text-[11px]">Loading…</span>
-          </div>
-        {:else if convos.length === 0}
-          <p class="py-8 text-center text-[11px] text-white/45">
-            No conversations yet.<br />Pick someone above to start one.
-          </p>
-        {:else}
-          {#each convos as convo (convo.contactId)}
-            {@const online = $mapPresenceStore.has(convo.contactId)}
-            <button
-              class="msg-convo"
-              on:click={() =>
-                openMessagePanel({
-                  id: convo.contactId,
-                  name: convo.name || vehicleName(convo.contactId),
-                })}
-            >
-              <span
-                class="msg-avatar"
-                style="background: {avatarColor(convo.contactId)}"
-              >
-                {initials(convoName(convo))}
-                {#if online}<span class="msg-avatar-online"></span>{/if}
-              </span>
-              <span class="min-w-0 flex-1 text-left">
-                <span class="msg-convo-top">
-                  <span class="msg-convo-name">{convoName(convo)}</span>
-                  <span class="msg-convo-time">{shortTime(convo.lastAt)}</span>
-                </span>
-                <span class="msg-convo-preview">
-                  {convo.lastFromMe ? "You: " : ""}{convo.lastBody}
-                </span>
-              </span>
-              {#if convo.unread > 0}
-                <span class="msg-convo-badge">{convo.unread}</span>
-              {/if}
-            </button>
-          {/each}
-        {/if}
+        <span></span>
       </div>
-    {:else}
-      <!-- Conversation -->
-      {#key recipient?.id}
-        <div
-          class="msg-panel-list msg-list-fade"
-          bind:this={listEl}
-          use:pinToBottom
-        >
-      {#if showSpinner && messages.length === 0}
-        <div class="flex items-center justify-center gap-2 py-8 text-white/50">
-          <Loader2 size={14} class="animate-spin" />
-          <span class="text-[11px]">Loading…</span>
-        </div>
-      {:else if messages.length === 0}
-        <p class="py-8 text-center text-[11px] text-white/45">
-          No messages yet — say g'day 👋
-        </p>
-      {:else}
-        {#each messages as msg (msg.id)}
-          {@const mine = msg.sender_id === me}
-          <div class="msg-row {mine ? 'mine' : ''}">
-            {#if msg.attachment}
-              <button
-                class="msg-loc-chip"
-                on:click={() => openLocation(msg.attachment)}
-                title="Show on map"
-              >
-                {#if markerIconPathsReady &&
-                msg.attachment.refType === "marker" &&
-                markerIconUrl(msg.attachment.refId)}
-                  <img src={markerIconUrl(msg.attachment.refId)} alt="" />
-                {:else if msg.attachment.refType === "field" &&
-                fieldShape(msg.attachment.refId)}
-                  {#key fieldShape(msg.attachment.refId)}
-                    <FieldIcon
-                      geojson={fieldShape(msg.attachment.refId)}
-                      size={14}
-                    />
-                  {/key}
-                {:else if msg.attachment.refType === "vehicle" &&
-                vehicleIconHtml(msg.attachment.refId)}
-                  {@html vehicleIconHtml(msg.attachment.refId)}
-                {:else}
-                  <MapPin size={12} />
-                {/if}
-                <span>{msg.attachment.label || "Dropped pin"}</span>
-              </button>
-            {/if}
-            {#if msg.body}
-              <div class="msg-bubble {mine ? 'mine' : ''}">{msg.body}</div>
-            {/if}
-            <span class="msg-time">{formatTime(msg.created_at)}</span>
-          </div>
-        {/each}
-      {/if}
-        </div>
-      {/key}
-
-    <!-- Composer -->
-    {#if !recipientOnline}
-      <p class="msg-offline-hint">
-        They're offline — your message will also send as a phone notification.
-      </p>
-    {/if}
-      {#if pendingAttachment}
-        <div class="msg-pending-attach">
-          {#if pendingAttachment.iconUrl}
-            <img src={pendingAttachment.iconUrl} alt="" />
-          {:else if pendingAttachment.iconHtml}
-            {@html pendingAttachment.iconHtml}
-          {:else if pendingAttachment.geo}
-            {#key pendingAttachment.refId}
-              <FieldIcon geojson={pendingAttachment.geo} size={18} />
-            {/key}
-          {:else if markerIconPathsReady &&
-          pendingAttachment.refType === "marker" &&
-          markerIconUrl(pendingAttachment.refId)}
-            <img src={markerIconUrl(pendingAttachment.refId)} alt="" />
-          {:else if pendingAttachment.refType === "field" &&
-          fieldShape(pendingAttachment.refId)}
-            {#key fieldShape(pendingAttachment.refId)}
-              <FieldIcon
-                geojson={fieldShape(pendingAttachment.refId)}
-                size={18}
-              />
-            {/key}
-          {:else if pendingAttachment.refType === "vehicle" &&
-          vehicleIconHtml(pendingAttachment.refId)}
-            {@html vehicleIconHtml(pendingAttachment.refId)}
-          {:else}
-            <MapPin size={12} />
-          {/if}
-          <span class="min-w-0 flex-1 truncate">
-            {pendingAttachment.label ||
-              `${pendingAttachment.lat.toFixed(5)}, ${pendingAttachment.lng.toFixed(5)}`}
-          </span>
+      <!-- Header — the whole bar starts a sheet drag (buttons stay clickable) -->
+      <div class="msg-panel-head" on:pointerdown={onHeaderDragStart}>
+        {#if view === "conversation"}
           <button
-            on:click={() => (pendingAttachment = null)}
-            aria-label="Remove location"
-            title="Remove location"
+            class="msg-panel-back"
+            on:click={openMessageInbox}
+            aria-label="All messages"
+            title="All messages"
           >
-            <X size={12} />
+            <ArrowLeft size={18} />
+          </button>
+        {/if}
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-xs font-bold text-white">{displayName}</p>
+          {#if mini}
+            <p class="mt-0.5 text-[10px] text-white/40">
+              Drag up to reopen — showing location on map
+            </p>
+          {:else}
+            <p class="mt-0.5 flex items-center gap-1.5 text-[10px]">
+              {#if view === "conversation"}
+                <span
+                  class="inline-block h-1.5 w-1.5 rounded-full {recipientOnline
+                    ? 'bg-emerald-400'
+                    : 'bg-white/30'}"
+                ></span>
+                <span
+                  class={recipientOnline ? "text-emerald-300" : "text-white/40"}
+                >
+                  {recipientOnline ? "Online" : "Offline"}
+                </span>
+              {:else}
+                <span class="text-white/40">
+                  {convos.length === 1
+                    ? "1 conversation"
+                    : `${convos.length} conversations`}
+                </span>
+              {/if}
+            </p>
+          {/if}
+        </div>
+        <button
+          class="msg-panel-close"
+          on:click={closeMessagePanel}
+          aria-label="Close messages"
+          title="Close"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      {#if view === "inbox"}
+        <!-- Inbox: everyone I've exchanged messages with -->
+        <div class="msg-panel-list">
+          {#if inboxLoaded && newMessagePeople.length > 0}
+            <!-- New message: pick any person on the map -->
+            <div class="msg-new-section">
+              <p class="msg-new-title">New message</p>
+              <div class="msg-new-strip">
+                {#each newMessagePeople as person (person.id)}
+                  <button
+                    class="msg-new-person"
+                    on:click={() =>
+                      openMessagePanel({ id: person.id, name: person.name })}
+                    title={person.name}
+                  >
+                    <span
+                      class="msg-avatar"
+                      style="background: {avatarColor(person.id)}"
+                    >
+                      {initials(person.name)}
+                      {#if $mapPresenceStore.has(person.id)}
+                        <span class="msg-avatar-online"></span>
+                      {/if}
+                    </span>
+                    <span class="msg-new-name">{person.first}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          {#if loadingList && convos.length === 0}
+            <div
+              class="flex items-center justify-center gap-2 py-8 text-white/50"
+            >
+              <Loader2 size={14} class="animate-spin" />
+              <span class="text-[11px]">Loading…</span>
+            </div>
+          {:else if convos.length === 0}
+            <p class="py-8 text-center text-[11px] text-white/45">
+              No conversations yet.<br />Pick someone above to start one.
+            </p>
+          {:else}
+            {#each convos as convo (convo.contactId)}
+              {@const online = $mapPresenceStore.has(convo.contactId)}
+              <button
+                class="msg-convo"
+                on:click={() =>
+                  openMessagePanel({
+                    id: convo.contactId,
+                    name: convo.name || vehicleName(convo.contactId),
+                  })}
+              >
+                <span
+                  class="msg-avatar"
+                  style="background: {avatarColor(convo.contactId)}"
+                >
+                  {initials(convoName(convo))}
+                  {#if online}<span class="msg-avatar-online"></span>{/if}
+                </span>
+                <span class="min-w-0 flex-1 text-left">
+                  <span class="msg-convo-top">
+                    <span class="msg-convo-name">{convoName(convo)}</span>
+                    <span class="msg-convo-time">{shortTime(convo.lastAt)}</span
+                    >
+                  </span>
+                  <span class="msg-convo-preview">
+                    {convo.lastFromMe ? "You: " : ""}{convo.lastBody}
+                  </span>
+                </span>
+                {#if convo.unread > 0}
+                  <span class="msg-convo-badge">{convo.unread}</span>
+                {/if}
+              </button>
+            {/each}
+          {/if}
+        </div>
+      {:else}
+        <!-- Conversation -->
+        {#key recipient?.id}
+          <div
+            class="msg-panel-list msg-list-fade"
+            bind:this={listEl}
+            use:pinToBottom
+          >
+            {#if showSpinner && messages.length === 0}
+              <div
+                class="flex items-center justify-center gap-2 py-8 text-white/50"
+              >
+                <Loader2 size={14} class="animate-spin" />
+                <span class="text-[11px]">Loading…</span>
+              </div>
+            {:else if messages.length === 0}
+              <p class="py-8 text-center text-[11px] text-white/45">
+                No messages yet — say g'day 👋
+              </p>
+            {:else}
+              {#each messages as msg (msg.id)}
+                {@const mine = msg.sender_id === me}
+                <div class="msg-row {mine ? 'mine' : ''}">
+                  {#if msg.attachment}
+                    <button
+                      class="msg-loc-chip"
+                      on:click={() => openLocation(msg.attachment)}
+                      title="Show on map"
+                    >
+                      {#if markerIconPathsReady && msg.attachment.refType === "marker" && markerIconUrl(msg.attachment.refId)}
+                        <img src={markerIconUrl(msg.attachment.refId)} alt="" />
+                      {:else if msg.attachment.refType === "field" && fieldShape(msg.attachment.refId)}
+                        {#key fieldShape(msg.attachment.refId)}
+                          <FieldIcon
+                            geojson={fieldShape(msg.attachment.refId)}
+                            size={14}
+                          />
+                        {/key}
+                      {:else if msg.attachment.refType === "vehicle" && vehicleIconHtml(msg.attachment.refId)}
+                        {@html vehicleIconHtml(msg.attachment.refId)}
+                      {:else}
+                        <MapPin size={12} />
+                      {/if}
+                      <span>{msg.attachment.label || "Dropped pin"}</span>
+                    </button>
+                  {/if}
+                  {#if msg.body}
+                    <div class="msg-bubble {mine ? 'mine' : ''}">
+                      {msg.body}
+                    </div>
+                  {/if}
+                  <span class="msg-time">{formatTime(msg.created_at)}</span>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        {/key}
+
+        <!-- Composer -->
+        {#if !recipientOnline}
+          <p class="msg-offline-hint">
+            They're offline — your message will also send as a phone
+            notification.
+          </p>
+        {/if}
+        {#if pendingAttachment}
+          <div class="msg-pending-attach">
+            {#if pendingAttachment.iconUrl}
+              <img src={pendingAttachment.iconUrl} alt="" />
+            {:else if pendingAttachment.iconHtml}
+              {@html pendingAttachment.iconHtml}
+            {:else if pendingAttachment.geo}
+              {#key pendingAttachment.refId}
+                <FieldIcon geojson={pendingAttachment.geo} size={18} />
+              {/key}
+            {:else if markerIconPathsReady && pendingAttachment.refType === "marker" && markerIconUrl(pendingAttachment.refId)}
+              <img src={markerIconUrl(pendingAttachment.refId)} alt="" />
+            {:else if pendingAttachment.refType === "field" && fieldShape(pendingAttachment.refId)}
+              {#key fieldShape(pendingAttachment.refId)}
+                <FieldIcon
+                  geojson={fieldShape(pendingAttachment.refId)}
+                  size={18}
+                />
+              {/key}
+            {:else if pendingAttachment.refType === "vehicle" && vehicleIconHtml(pendingAttachment.refId)}
+              {@html vehicleIconHtml(pendingAttachment.refId)}
+            {:else}
+              <MapPin size={12} />
+            {/if}
+            <span class="min-w-0 flex-1 truncate">
+              {pendingAttachment.label ||
+                `${pendingAttachment.lat.toFixed(5)}, ${pendingAttachment.lng.toFixed(5)}`}
+            </span>
+            <button
+              on:click={() => (pendingAttachment = null)}
+              aria-label="Remove location"
+              title="Remove location"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        {/if}
+        <div class="msg-panel-input">
+          <button
+            class="msg-attach-btn"
+            on:click={handleAttachLocation}
+            aria-label="Attach location"
+            title="Attach location"
+          >
+            <MapPin size={16} />
+          </button>
+          <textarea
+            rows="1"
+            placeholder={shortName ? `Message ${shortName}…` : "Message…"}
+            bind:value={draft}
+            on:keydown={onKeydown}
+            maxlength="500"
+          ></textarea>
+          <button
+            class="msg-send-btn"
+            on:click={send}
+            disabled={sending || (!draft.trim() && !pendingAttachment)}
+            aria-label="Send message"
+            title="Send"
+          >
+            {#if sending}
+              <Loader2 size={14} class="animate-spin" />
+            {:else}
+              <Send size={14} />
+            {/if}
           </button>
         </div>
       {/if}
-      <div class="msg-panel-input">
-        <button
-          class="msg-attach-btn"
-          on:click={handleAttachLocation}
-          aria-label="Attach location"
-          title="Attach location"
-        >
-          <MapPin size={16} />
-        </button>
-        <textarea
-          rows="1"
-          placeholder={shortName ? `Message ${shortName}…` : "Message…"}
-          bind:value={draft}
-          on:keydown={onKeydown}
-          maxlength="500"
-        ></textarea>
-        <button
-          class="msg-send-btn"
-          on:click={send}
-          disabled={sending || (!draft.trim() && !pendingAttachment)}
-          aria-label="Send message"
-          title="Send"
-        >
-          {#if sending}
-            <Loader2 size={14} class="animate-spin" />
-          {:else}
-            <Send size={14} />
-          {/if}
-        </button>
-      </div>
-    {/if}
     {/if}
   </div>
 {/if}

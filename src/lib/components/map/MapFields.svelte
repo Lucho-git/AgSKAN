@@ -940,10 +940,7 @@
     selectedFieldId !== null ? $mapFieldsStore[selectedFieldId] : null
 </script>
 
-{#if selectedFieldId !== null &&
-  selectedField &&
-  !$locationPickStore.active &&
-  !$locationPickStore.captured}
+{#if selectedFieldId !== null && selectedField && !$locationPickStore.active && !$locationPickStore.captured}
   <InfoPanel
     {selectedField}
     {selectedFieldId}

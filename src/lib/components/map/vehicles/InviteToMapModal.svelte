@@ -107,7 +107,8 @@
   $: mapName = $connectedMapStore?.map_name || "our farm map"
 
   $: expiry =
-    EXPIRY_OPTIONS.find((option) => option.key === expiryKey) || EXPIRY_OPTIONS[1]
+    EXPIRY_OPTIONS.find((option) => option.key === expiryKey) ||
+    EXPIRY_OPTIONS[1]
 
   // Mint a real invite (token + expiry live server-side). Falls back to a
   // local stub token if the RPC isn't available yet, so the modal keeps
@@ -334,13 +335,15 @@
       {:else}
         <p class="mt-3 text-xs leading-relaxed text-white/60">
           Anyone with this link can join your map and view it — no account
-          needed. Guest access lasts a limited time — tick the box below to
-          let them upgrade to a full operator when they create an account.
+          needed. Guest access lasts a limited time — tick the box below to let
+          them upgrade to a full operator when they create an account.
         </p>
 
         <!-- Invite link + duration -->
         <div class="mt-4">
-          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+          <div
+            class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40"
+          >
             Invite link
           </div>
           {#if openChannel === "qr"}
@@ -411,7 +414,9 @@
               {/each}
             </div>
           </div>
-          <label class="invite-retain mt-2 flex cursor-pointer items-start gap-2">
+          <label
+            class="invite-retain mt-2 flex cursor-pointer items-start gap-2"
+          >
             <input
               type="checkbox"
               class="mt-0.5"
@@ -422,8 +427,8 @@
                 Upgrade them to an operator after signup
               </span>
               <span class="block text-[10px] leading-snug text-white/45">
-                If they create an account, they join this map as a full
-                operator — no guest window.
+                If they create an account, they join this map as a full operator
+                — no guest window.
               </span>
             </span>
           </label>
@@ -434,7 +439,9 @@
 
         <!-- Send -->
         <div class="mt-4">
-          <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+          <div
+            class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40"
+          >
             Send invite
           </div>
           <div class="flex gap-1.5">

@@ -51,8 +51,7 @@
     if (!reason) return "Broadcast"
     const key = String(reason).toLowerCase()
     const match = broadcasts.find(
-      (b) =>
-        b.id.toLowerCase() === key || b.label.toLowerCase() === key,
+      (b) => b.id.toLowerCase() === key || b.label.toLowerCase() === key,
     )
     return match ? match.label : String(reason)
   }

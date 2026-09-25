@@ -18,7 +18,11 @@
   import { supabase, clearPendingMapId } from "$lib/stores/sessionStore"
   import { mapApi } from "$lib/api/mapApi"
   import { resetMapStores } from "$lib/stores/resetMapStores"
-  import { updateOrCreateProfile, createSubscriptionIfNeeded, createUserSettingsIfNeeded } from "$lib/helpers/authHelpers"
+  import {
+    updateOrCreateProfile,
+    createSubscriptionIfNeeded,
+    createUserSettingsIfNeeded,
+  } from "$lib/helpers/authHelpers"
 
   let step: "loading" | "form" | "saving" | "confirm" | "done" | "error" =
     "loading"
@@ -92,8 +96,7 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
       return "That email doesn't look right - check for typos."
     if (!password) return "Choose a password."
-    if (password.length < 6)
-      return "Your password needs at least 6 characters."
+    if (password.length < 6) return "Your password needs at least 6 characters."
     return ""
   }
 
@@ -303,13 +306,17 @@
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if step === "loading"}
-      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
+      <div
+        class="flex flex-col items-center gap-3 py-8 text-contrast-content/60"
+      >
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Checking your guest access…</p>
       </div>
     {:else if step === "form" || step === "saving"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-amber-600"
+        >
           Create your account
         </p>
         <h1 class="text-xl font-bold text-contrast-content">
@@ -325,8 +332,8 @@
             upgrades you from guest to a full operator on {mapName}.
           {:else}
             Heads up — this guest invite doesn't include post-signup access.
-            Creating an account will remove you from {mapName} as a guest and
-            set you up with your own account.
+            Creating an account will remove you from {mapName} as a guest and set
+            you up with your own account.
           {/if}
         </p>
 
@@ -386,7 +393,8 @@
 
         <p class="mt-3 text-xs text-contrast-content/50">
           By creating an account you agree to AgSKAN's
-          <a href="/terms-of-service" class="hover:underline">Terms of Service</a
+          <a href="/terms-of-service" class="hover:underline"
+            >Terms of Service</a
           >
           and
           <a href="/privacy-policy" class="hover:underline">Privacy Policy</a>.
@@ -394,7 +402,9 @@
       </div>
     {:else if step === "confirm"}
       <div class="flex flex-col items-center gap-3 py-2 text-center">
-        <h1 class="text-xl font-bold text-contrast-content">Confirm your email</h1>
+        <h1 class="text-xl font-bold text-contrast-content">
+          Confirm your email
+        </h1>
         <p class="text-sm text-contrast-content/60">
           We've sent a confirmation link to <strong>{email}</strong>.
           {#if keepAccess}
@@ -419,8 +429,8 @@
         <h1 class="text-xl font-bold text-contrast-content">You're all set</h1>
         <p class="text-sm text-contrast-content/60">
           {#if keepAccess}
-            Your account is ready — you're now an operator on {mapName}.
-            Getting your welcome ready…
+            Your account is ready — you're now an operator on {mapName}. Getting
+            your welcome ready…
           {:else}
             Your account is ready. Taking you through account setup…
           {/if}

@@ -2,13 +2,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte"
   import { goto } from "$app/navigation"
-  import {
-    ArrowRight,
-    Clock,
-    Loader2,
-    Sparkles,
-    UserPlus,
-  } from "lucide-svelte"
+  import { ArrowRight, Clock, Loader2, Sparkles, UserPlus } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import { goToGuestSignup } from "$lib/utils/guestUpgrade"
 
@@ -71,8 +65,7 @@
       // A real account (email set, or an anonymous session already upgraded /
       // with a pending confirmation) — the guest options don't apply to them.
       const su = session.user
-      isAccount =
-        su.is_anonymous === false || !!su.email || !!su.new_email
+      isAccount = su.is_anonymous === false || !!su.email || !!su.new_email
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -128,13 +121,17 @@
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if loading}
-      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
+      <div
+        class="flex flex-col items-center gap-3 py-8 text-contrast-content/60"
+      >
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Loading your guest access…</p>
       </div>
     {:else}
       <div class="flex flex-col items-center gap-2 text-center">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-amber-600"
+        >
           {isAccount ? "Signed in" : "Guest access"}
         </p>
         <h1 class="text-xl font-bold text-contrast-content">{mapName}</h1>
@@ -145,7 +142,9 @@
         <div
           class="mt-4 w-full rounded-xl border border-base-300 bg-base-200 p-4 text-left"
         >
-          <div class="flex items-center gap-2 text-sm font-medium text-contrast-content">
+          <div
+            class="flex items-center gap-2 text-sm font-medium text-contrast-content"
+          >
             <Clock size={15} class="flex-shrink-0 text-contrast-content/60" />
             <span>
               {#if !hasMap}
@@ -179,7 +178,9 @@
           <div
             class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
           >
-            <p class="flex items-center gap-2 text-sm font-semibold text-contrast-content">
+            <p
+              class="flex items-center gap-2 text-sm font-semibold text-contrast-content"
+            >
               <Sparkles size={15} class="text-amber-500" /> You're signed in
             </p>
             <p class="mt-1 text-xs text-contrast-content/60">
@@ -204,18 +205,20 @@
           <div
             class="mt-5 w-full rounded-xl border border-dashed border-base-300 p-4 text-left"
           >
-            <p class="flex items-center gap-2 text-sm font-semibold text-contrast-content">
+            <p
+              class="flex items-center gap-2 text-sm font-semibold text-contrast-content"
+            >
               <Sparkles size={15} class="text-amber-500" />
               {keepAccess ? "Become an operator" : "Create your own account"}
             </p>
             <p class="mt-1 text-xs text-contrast-content/60">
               {#if keepAccess}
-                Create an account to join {mapName} as a full operator —
-                you'll keep your name and machine, with no guest time limit.
+                Create an account to join {mapName} as a full operator — you'll keep
+                your name and machine, with no guest time limit.
               {:else}
                 This guest invite doesn't carry over after signup. Creating an
-                account takes you off {mapName} and sets you up with your own
-                AgSKAN account.
+                account takes you off {mapName} and sets you up with your own AgSKAN
+                account.
               {/if}
             </p>
             <button

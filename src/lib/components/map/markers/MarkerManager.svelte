@@ -957,26 +957,23 @@
           // Store full notes for reference (not displayed directly)
           hasNotes: !!marker.notes,
           // Silo fill gauge — level + grain colour derived from the marker.
-          barImage:
-            isGrainBinIcon(marker.iconClass)
-              ? `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
-                  marker.siloFill,
-                )}`
-              : null,
+          barImage: isGrainBinIcon(marker.iconClass)
+            ? `silo-bar-${siloColorKey(marker.grainColor)}-${siloBarLevel(
+                marker.siloFill,
+              )}`
+            : null,
           barOffset: isGrainBinIcon(marker.iconClass) ? [0, 56] : null,
           // Silo contents label shown on the map (like the note labels),
           // truncated to 20 chars so long contents don't sprawl.
-          grainLabel:
-            isGrainBinIcon(marker.iconClass)
-              ? truncateContents(marker.grainType)
-              : null,
+          grainLabel: isGrainBinIcon(marker.iconClass)
+            ? truncateContents(marker.grainType)
+            : null,
           // Push the grain label higher when the silo also has a note label.
-          grainOffset:
-            isGrainBinIcon(marker.iconClass)
-              ? marker.notes
-                ? [0, -3.2]
-                : [0, -1.6]
-              : null,
+          grainOffset: isGrainBinIcon(marker.iconClass)
+            ? marker.notes
+              ? [0, -3.2]
+              : [0, -1.6]
+            : null,
         },
       }
     })

@@ -191,7 +191,9 @@
       } = await supabase.auth.getSession()
       const uid = session?.user?.id
       if (!uid)
-        throw new Error("Your session was lost — please open the invite link again.")
+        throw new Error(
+          "Your session was lost — please open the invite link again.",
+        )
 
       const fullName = guestName.trim() || "Visitor"
 
@@ -249,14 +251,14 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<div
-  class="flex min-h-[70vh] items-center justify-center px-4 py-10"
->
+<div class="flex min-h-[70vh] items-center justify-center px-4 py-10">
   <div
     class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-xl sm:p-8"
   >
     {#if step === "loading"}
-      <div class="flex flex-col items-center gap-3 py-8 text-contrast-content/60">
+      <div
+        class="flex flex-col items-center gap-3 py-8 text-contrast-content/60"
+      >
         <Loader2 size={24} class="animate-spin" />
         <p class="text-sm">Checking your invite…</p>
       </div>
@@ -267,7 +269,9 @@
         >
           <Users size={22} class="text-error" />
         </div>
-        <h1 class="text-lg font-semibold text-contrast-content">Invite unavailable</h1>
+        <h1 class="text-lg font-semibold text-contrast-content">
+          Invite unavailable
+        </h1>
         <p class="text-sm text-contrast-content/60">
           {REASON_LABELS[reason] || "This invite link can't be used."}
         </p>
@@ -281,8 +285,8 @@
           You're invited to<br />{mapName}
         </h1>
         <p class="mt-1 text-sm text-contrast-content/60">
-          Take a look at the map — no account needed. Guest access is
-          view-only and lasts a limited time.
+          Take a look at the map — no account needed. Guest access is view-only
+          and lasts a limited time.
         </p>
         <button
           class="btn btn-primary mt-5 w-full"
@@ -355,7 +359,9 @@
             class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-contrast-content/50"
             >Icon colour</span
           >
-          <div class="flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1">
+          <div
+            class="flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1"
+          >
             {#each COLORS as color (color.key)}
               <button
                 class="h-6 w-6 flex-shrink-0 rounded-full border-2 transition-transform hover:scale-110 sm:h-7 sm:w-7 {guestColor ===
@@ -386,10 +392,13 @@
       </div>
     {:else if step === "error"}
       <div class="flex flex-col items-center gap-2 py-6 text-center">
-        <h1 class="text-lg font-semibold text-contrast-content">Something went wrong</h1>
+        <h1 class="text-lg font-semibold text-contrast-content">
+          Something went wrong
+        </h1>
         <p class="text-sm text-contrast-content/60">{errorMessage}</p>
         {#if token}
-          <button class="btn btn-outline mt-4" on:click={join}>Try again</button>
+          <button class="btn btn-outline mt-4" on:click={join}>Try again</button
+          >
         {/if}
       </div>
     {/if}

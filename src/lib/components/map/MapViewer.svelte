@@ -2126,7 +2126,7 @@
     />
 
     {#if !viewerMode}
-    <CrosshairMarkerPlacement {map} {markerManagerRef} />
+      <CrosshairMarkerPlacement {map} {markerManagerRef} />
     {/if}
 
     <MapStateSaver {map} />
@@ -2164,7 +2164,7 @@
     <KmzOverlays {map} />
     <PowerLinesOverlay {map} />
     {#if !viewerMode}
-    <KmzRoadEditor {map} />
+      <KmzRoadEditor {map} />
     {/if}
     <MarkerDrawings {map} currentMarkerId={$selectedMarkerStore?.id} />
 
@@ -2177,8 +2177,8 @@
 
     <DrawingHectares {map} />
     {#if !viewerMode}
-    <CollectionRoutePlanner {map} />
-    <BulkDeleteOverlay {map} />
+      <CollectionRoutePlanner {map} />
+      <BulkDeleteOverlay {map} />
     {/if}
 
     <TrailView bind:this={trailHighlighter} {map} />
@@ -2195,15 +2195,15 @@
     {/if}
 
     {#if !viewerMode}
-    <!-- Drawing Components (Always Present) — these persist marker drawings,
+      <!-- Drawing Components (Always Present) — these persist marker drawings,
          so guests never get them. Measure for guests is handled by
          DrawingHectares (mounted below). -->
-    <DrawingTool {map} />
-    <DrawingModePanel
-      {map}
-      onComplete={handleDrawingComplete}
-      onCancel={handleDrawingCancel}
-    />
+      <DrawingTool {map} />
+      <DrawingModePanel
+        {map}
+        onComplete={handleDrawingComplete}
+        onCancel={handleDrawingCancel}
+      />
     {/if}
 
     {#if addFieldFarm}

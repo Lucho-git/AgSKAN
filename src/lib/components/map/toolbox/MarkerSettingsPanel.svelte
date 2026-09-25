@@ -473,7 +473,8 @@
           type="button"
           class:active={!autoConfirmMarkers}
           disabled={saving === "autoConfirmMarkers"}
-          on:click={() => toggleAutoConfirm(false)}>Choose marker placement</button
+          on:click={() => toggleAutoConfirm(false)}
+          >Choose marker placement</button
         >
       </div>
     </div>

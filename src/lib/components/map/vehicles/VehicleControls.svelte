@@ -143,11 +143,14 @@
   // the later entry — hide the start so each trail appears once.
   $: supersededTrailIds = new Set(
     logEntries
-      .filter((e) => e.action === "trail.closed" || e.action === "trail.deleted")
+      .filter(
+        (e) => e.action === "trail.closed" || e.action === "trail.deleted",
+      )
       .map((e) => e.entity_id),
   )
   $: visibleLogEntries = logEntries.filter(
-    (e) => !(e.action === "trail.started" && supersededTrailIds.has(e.entity_id)),
+    (e) =>
+      !(e.action === "trail.started" && supersededTrailIds.has(e.entity_id)),
   )
   $: startedTrailEntries = new Map(
     logEntries
@@ -355,7 +358,8 @@
     if (!calMonth) return
     const next = new Date(
       calMonth.getFullYear(),
-      calMonth.getMonth() + delta, 1,
+      calMonth.getMonth() + delta,
+      1,
     )
     const now = new Date()
     const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -906,7 +910,8 @@
     const d = entry.details || {}
     const rows = []
     const trailClosed = entry.action === "trail.closed"
-    const trailCompleted = entry.action === "trail.started" && d.completed === true
+    const trailCompleted =
+      entry.action === "trail.started" && d.completed === true
 
     if (trailClosed || trailCompleted) {
       // Start → finish → duration, grouped right at the top.
@@ -974,7 +979,9 @@
       if (d.vehicle_type) {
         rows.push({
           label: "Vehicle",
-          value: getVehicleDisplayName({ vehicle_marker: { type: d.vehicle_type } }),
+          value: getVehicleDisplayName({
+            vehicle_marker: { type: d.vehicle_type },
+          }),
         })
       }
       if (d.vehicle_swath != null)
@@ -1005,7 +1012,10 @@
         })
       }
       if (d.trail_hectares != null) {
-        rows.push({ label: "Area", value: `${Number(d.trail_hectares).toFixed(1)} ha` })
+        rows.push({
+          label: "Area",
+          value: `${Number(d.trail_hectares).toFixed(1)} ha`,
+        })
       }
       if (d.trail_percentage_overlap != null) {
         rows.push({ label: "Overlap", value: `${d.trail_percentage_overlap}%` })
@@ -1020,7 +1030,9 @@
           label: typeChanged ? "Vehicle changed" : "Vehicle",
           value: typeChanged
             ? `${getVehicleDisplayName({ vehicle_marker: { type: d.from_vehicle_type } })} → ${getVehicleDisplayName({ vehicle_marker: { type: d.vehicle_type } })}`
-            : getVehicleDisplayName({ vehicle_marker: { type: d.vehicle_type } }),
+            : getVehicleDisplayName({
+                vehicle_marker: { type: d.vehicle_type },
+              }),
         })
       }
       const colorChanged =
@@ -1058,7 +1070,8 @@
       })
     }
 
-    if (entry.source === "system") rows.push({ label: "Source", value: "Automatic" })
+    if (entry.source === "system")
+      rows.push({ label: "Source", value: "Automatic" })
     return rows
   }
 
@@ -1619,7 +1632,9 @@
     <div class="flex-shrink-0 border-b border-white/20">
       <div class="flex items-center gap-1 px-2 pb-0 pt-2">
         <button
-          class="vehicle-tab {activeTab === 'vehicles' ? 'active' : ''} whitespace-nowrap"
+          class="vehicle-tab {activeTab === 'vehicles'
+            ? 'active'
+            : ''} whitespace-nowrap"
           on:click={() => selectTab("vehicles")}
           aria-label="Vehicles tab"
         >
@@ -1629,9 +1644,7 @@
           {#if totalUnread > 0}
             <span
               class="tab-msg-badge"
-              title="{totalUnread} unread message{totalUnread === 1
-                ? ''
-                : 's'}"
+              title="{totalUnread} unread message{totalUnread === 1 ? '' : 's'}"
             >
               <MessageSquare size={10} />
               {totalUnread > 99 ? "99+" : totalUnread}
@@ -1639,14 +1652,18 @@
           {/if}
         </button>
         <button
-          class="vehicle-tab {activeTab === 'log' ? 'active' : ''} whitespace-nowrap"
+          class="vehicle-tab {activeTab === 'log'
+            ? 'active'
+            : ''} whitespace-nowrap"
           on:click={() => selectTab("log")}
           aria-label="Log tab"
         >
           <NotebookText size={13} />
           <span>Log</span>
           {#if unreadCount > 0}
-            <span class="tab-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+            <span class="tab-badge"
+              >{unreadCount > 99 ? "99+" : unreadCount}</span
+            >
           {/if}
         </button>
         <div class="flex-1"></div>
@@ -1672,172 +1689,172 @@
     <!-- Tab content -->
     <div class="min-h-0 flex-1 overflow-y-auto" on:scroll={handlePanelScroll}>
       {#if activeTab === "vehicles"}
-      {#if sortedVehicles.length === 0}
-        <div
-          class="flex flex-col items-center justify-center p-6 text-white/70"
-        >
-          <Users size={32} class="mb-2 opacity-50" />
-          <p class="text-sm">No vehicles on map</p>
-        </div>
-      {:else}
-        <div class="divide-y divide-white/10">
-          {#each sortedVehicles as vehicle (vehicle.id)}
-            {@const online = isVehicleOnline(vehicle)}
-            {@const trailing = Boolean(vehicle.is_trailing)}
-            {@const isYou = Boolean(vehicle.isCurrentUser)}
-            {@const isTracked = vehicle.id === trackedVehicleId}
-            {@const speed = getEffectiveSpeed(vehicle)}
-            {@const opName =
-              vehicle.operation_name &&
-              vehicle.operation_name !== "No operation"
-                ? vehicle.operation_name
-                : null}
-            {@const offlineLabel = getOfflineLabel(vehicle)}
-            {@const hasFix = parseCoordinates(vehicle.coordinates) !== null}
+        {#if sortedVehicles.length === 0}
+          <div
+            class="flex flex-col items-center justify-center p-6 text-white/70"
+          >
+            <Users size={32} class="mb-2 opacity-50" />
+            <p class="text-sm">No vehicles on map</p>
+          </div>
+        {:else}
+          <div class="divide-y divide-white/10">
+            {#each sortedVehicles as vehicle (vehicle.id)}
+              {@const online = isVehicleOnline(vehicle)}
+              {@const trailing = Boolean(vehicle.is_trailing)}
+              {@const isYou = Boolean(vehicle.isCurrentUser)}
+              {@const isTracked = vehicle.id === trackedVehicleId}
+              {@const speed = getEffectiveSpeed(vehicle)}
+              {@const opName =
+                vehicle.operation_name &&
+                vehicle.operation_name !== "No operation"
+                  ? vehicle.operation_name
+                  : null}
+              {@const offlineLabel = getOfflineLabel(vehicle)}
+              {@const hasFix = parseCoordinates(vehicle.coordinates) !== null}
 
-            <div class="flex items-stretch">
-              <button
-                class="min-w-0 flex-1 p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
-                on:click={() => zoomToVehicle(vehicle)}
-              >
-                <div class="flex items-center gap-3">
-                  <!-- Vehicle icon -->
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 p-1"
-                  >
-                    {#if getVehicleIcon(vehicle)}
-                      <svelte:component
-                        this={getVehicleIcon(vehicle)}
-                        bodyColor={getVehicleColor(vehicle)}
-                        size="24px"
-                      />
-                    {:else}
-                      <div class="h-4 w-4 rounded bg-white/40"></div>
-                    {/if}
-                  </div>
-
-                  <!-- Name + type -->
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-1.5">
-                      <p
-                        class="truncate text-sm font-medium text-white"
-                        title={vehicle.full_name}
-                      >
-                        {truncateName(vehicle.full_name)}
-                      </p>
-                      {#if isTracked}
-                        <span
-                          class="flex-shrink-0 rounded bg-green-500/20 px-1 text-[10px] font-medium text-green-300"
-                          >Tracking</span
-                        >
-                      {/if}
-                      {#if vehicle.map_role === "viewer"}
-                        <span
-                          class="flex-shrink-0 rounded bg-amber-500/20 px-1 text-[10px] font-medium text-amber-300"
-                          >Guest</span
-                        >
+              <div class="flex items-stretch">
+                <button
+                  class="min-w-0 flex-1 p-3 text-left transition-colors hover:bg-white/10 active:bg-white/20"
+                  on:click={() => zoomToVehicle(vehicle)}
+                >
+                  <div class="flex items-center gap-3">
+                    <!-- Vehicle icon -->
+                    <div
+                      class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 p-1"
+                    >
+                      {#if getVehicleIcon(vehicle)}
+                        <svelte:component
+                          this={getVehicleIcon(vehicle)}
+                          bodyColor={getVehicleColor(vehicle)}
+                          size="24px"
+                        />
+                      {:else}
+                        <div class="h-4 w-4 rounded bg-white/40"></div>
                       {/if}
                     </div>
-                    <div class="flex items-center gap-2">
-                      <p class="truncate text-xs text-white/70">
-                        {getVehicleDisplayName(vehicle)}
-                      </p>
-                      <div
-                        class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30"
-                        style="background-color: {getVehicleColor(vehicle)}"
-                        title="Vehicle color"
-                      ></div>
-                    </div>
-                  </div>
 
-                  <!-- Right column: speed + unified status -->
-                  <div
-                    class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center"
-                  >
-                    <div class="flex items-center gap-1.5">
-                      {#if speed > 0}
-                        <span
-                          class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90"
+                    <!-- Name + type -->
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5">
+                        <p
+                          class="truncate text-sm font-medium text-white"
+                          title={vehicle.full_name}
                         >
-                          {speed.toFixed(1)} km/h
-                        </span>
-                      {/if}
-                      <div class="relative flex-shrink-0">
-                        <div
-                          class="h-2 w-2 rounded-full {!hasFix
-                            ? 'bg-amber-400'
-                            : isYou
-                              ? 'bg-blue-400'
-                              : trailing && online
-                                ? 'bg-green-400'
-                                : online
-                                  ? 'bg-blue-400'
-                                  : 'bg-white/40'}"
-                        ></div>
-                        {#if hasFix && (isYou || (trailing && online))}
-                          <div
-                            class="absolute -inset-1 animate-ping rounded-full {isYou
-                              ? 'bg-blue-400'
-                              : 'bg-green-400'} opacity-30"
-                          ></div>
+                          {truncateName(vehicle.full_name)}
+                        </p>
+                        {#if isTracked}
+                          <span
+                            class="flex-shrink-0 rounded bg-green-500/20 px-1 text-[10px] font-medium text-green-300"
+                            >Tracking</span
+                          >
+                        {/if}
+                        {#if vehicle.map_role === "viewer"}
+                          <span
+                            class="flex-shrink-0 rounded bg-amber-500/20 px-1 text-[10px] font-medium text-amber-300"
+                            >Guest</span
+                          >
                         {/if}
                       </div>
-                      <span
-                        class="text-[10px] font-medium {!hasFix
-                          ? 'text-amber-300'
-                          : isYou
-                            ? 'text-blue-300'
-                            : trailing && online
-                              ? 'text-green-300'
-                              : online
-                                ? 'text-blue-300'
-                                : 'text-white/40'}"
-                      >
-                        {!hasFix
-                          ? isYou
-                            ? "You · No GPS"
-                            : "No GPS yet"
-                          : isYou
-                            ? "You"
-                            : trailing && online
-                              ? "Trailing"
-                              : online
-                                ? "Online"
-                                : `Offline ${offlineLabel}`}
-                      </span>
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-xs text-white/70">
+                          {getVehicleDisplayName(vehicle)}
+                        </p>
+                        <div
+                          class="h-2 w-2 flex-shrink-0 rounded-full border border-white/30"
+                          style="background-color: {getVehicleColor(vehicle)}"
+                          title="Vehicle color"
+                        ></div>
+                      </div>
                     </div>
-                    {#if opName}
-                      <span
-                        class="max-w-[100px] truncate text-right text-[10px] text-white/50"
-                        >{opName}</span
-                      >
-                    {/if}
-                  </div>
-                </div>
-              </button>
 
-              <!-- Options: track / track + rotation / message -->
-              <button
-                class="relative flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked
-                  ? 'bg-green-500/20'
-                  : ''}"
-                on:click|stopPropagation={(event) =>
-                  toggleRowMenu(event, vehicle.id)}
-                aria-label="Vehicle options"
-                title="Vehicle options"
-              >
-                <MoreVertical
-                  size={16}
-                  class={isTracked ? "text-green-300" : "text-white/60"}
-                />
-                {#if $messageUnreadStore[vehicle.id]}
-                  <span class="unread-dot"></span>
-                {/if}
-              </button>
-            </div>
-          {/each}
-        </div>
-      {/if}
+                    <!-- Right column: speed + unified status -->
+                    <div
+                      class="flex flex-shrink-0 flex-col items-end gap-0.5 self-center"
+                    >
+                      <div class="flex items-center gap-1.5">
+                        {#if speed > 0}
+                          <span
+                            class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/90"
+                          >
+                            {speed.toFixed(1)} km/h
+                          </span>
+                        {/if}
+                        <div class="relative flex-shrink-0">
+                          <div
+                            class="h-2 w-2 rounded-full {!hasFix
+                              ? 'bg-amber-400'
+                              : isYou
+                                ? 'bg-blue-400'
+                                : trailing && online
+                                  ? 'bg-green-400'
+                                  : online
+                                    ? 'bg-blue-400'
+                                    : 'bg-white/40'}"
+                          ></div>
+                          {#if hasFix && (isYou || (trailing && online))}
+                            <div
+                              class="absolute -inset-1 animate-ping rounded-full {isYou
+                                ? 'bg-blue-400'
+                                : 'bg-green-400'} opacity-30"
+                            ></div>
+                          {/if}
+                        </div>
+                        <span
+                          class="text-[10px] font-medium {!hasFix
+                            ? 'text-amber-300'
+                            : isYou
+                              ? 'text-blue-300'
+                              : trailing && online
+                                ? 'text-green-300'
+                                : online
+                                  ? 'text-blue-300'
+                                  : 'text-white/40'}"
+                        >
+                          {!hasFix
+                            ? isYou
+                              ? "You · No GPS"
+                              : "No GPS yet"
+                            : isYou
+                              ? "You"
+                              : trailing && online
+                                ? "Trailing"
+                                : online
+                                  ? "Online"
+                                  : `Offline ${offlineLabel}`}
+                        </span>
+                      </div>
+                      {#if opName}
+                        <span
+                          class="max-w-[100px] truncate text-right text-[10px] text-white/50"
+                          >{opName}</span
+                        >
+                      {/if}
+                    </div>
+                  </div>
+                </button>
+
+                <!-- Options: track / track + rotation / message -->
+                <button
+                  class="relative flex h-auto w-12 flex-shrink-0 items-center justify-center border-l border-white/10 transition-colors hover:bg-white/10 active:bg-white/20 {isTracked
+                    ? 'bg-green-500/20'
+                    : ''}"
+                  on:click|stopPropagation={(event) =>
+                    toggleRowMenu(event, vehicle.id)}
+                  aria-label="Vehicle options"
+                  title="Vehicle options"
+                >
+                  <MoreVertical
+                    size={16}
+                    class={isTracked ? "text-green-300" : "text-white/60"}
+                  />
+                  {#if $messageUnreadStore[vehicle.id]}
+                    <span class="unread-dot"></span>
+                  {/if}
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
       {:else}
         <!-- Filters: category chips + vehicle/account dropdowns + start-from -->
         <div class="log-filter-bar">
@@ -1871,253 +1888,279 @@
         </div>
 
         <div class="log-list {logRefreshing ? 'refreshing' : ''}">
-        {#if logLoading && logEntries.length === 0}
-          <div class="flex items-center justify-center gap-2 p-6 text-white/60">
-            <Loader2 size={16} class="animate-spin" />
-            <span class="text-xs">Loading activity…</span>
-          </div>
-        {:else if logEntries.length === 0}
-          <div class="flex flex-col items-center justify-center p-6 text-white/70">
-            <Activity size={32} class="mb-2 opacity-50" />
-            <p class="text-sm">No activity here</p>
-            <p class="mt-1 text-center text-xs text-white/50">
-              {logStartKey !== "now"
-                ? "Nothing matched these filters."
-                : "Marker, trail and vehicle activity will appear here as it happens."}
-            </p>
-            {#if logStartKey !== "now" || logCategory !== "all"}
-              <button class="log-show-all-btn" on:click={resetLogFilters}>
-                Show everything
-              </button>
-            {/if}
-          </div>
-        {:else}
-          <div class="divide-y divide-white/10">
-            {#each visibleLogEntries as entry (entry.id)}
-              {@const expanded = expandedLogId === entry.id}
-              {@const toDef = getMarkerIconDef(entry.details?.icon)}
-              {@const fromDef = getMarkerIconDef(entry.details?.from_icon)}
-              {@const vehicleIcon = getLogVehicleIcon(entry)}
-              {@const fromVehicleIcon = getVehicleIconByType(
-                entry.details?.from_vehicle_type,
-              )}
-              {@const entryPos = getEntryPosition(entry)}
-              <!-- svelte-ignore a11y-no-static-element-interactions -->
-              <div
-                class="block w-full cursor-pointer text-left transition-colors hover:bg-white/5"
-                role="button"
-                tabindex="0"
-                on:click={() => toggleLogEntry(entry.id)}
-                on:keydown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    toggleLogEntry(entry.id)
-                  }
-                }}
-                aria-expanded={expanded}
-              >
-                <div class="flex items-start gap-2.5 px-3 py-2.5">
-                  <!-- Leading visual: marker art, before→after, vehicle or trail -->
-                  <div
-                    class="flex w-[64px] flex-shrink-0 flex-col items-center gap-1 pt-0.5"
-                  >
-                    <div
-                      class="flex min-h-[28px] items-center justify-center gap-0.5"
-                    >
-                    {#if entry.action === "marker.edited" && fromDef && toDef}
-                      <span class="opacity-80">
-                        <TintedIconPreview
-                          icon={fromDef}
-                          colorKey={getMarkerColorKey(entry.details?.from_marker_color)}
-                          size={22}
-                        />
-                      </span>
-                      <ArrowRight size={10} class="flex-shrink-0 text-white/40" />
-                      <TintedIconPreview
-                        icon={toDef}
-                        colorKey={getMarkerColorKey(entry.details?.marker_color)}
-                        size={22}
-                      />
-                    {:else if isMarkerAction(entry.action) && toDef}
-                      <span class={entry.action === "marker.deleted" ? "opacity-50" : ""}>
-                        <TintedIconPreview
-                          icon={toDef}
-                          colorKey={getMarkerColorKey(entry.details?.marker_color)}
-                          size={28}
-                        />
-                      </span>
-                    {:else if (entry.action === "trail.started" || entry.action === "trail.closed") && vehicleIcon}
-                      <svelte:component
-                        this={vehicleIcon}
-                        bodyColor={entry.details?.vehicle_body_color || "red"}
-                        size="28px"
-                      />
-                      <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 32 32"
-                        fill="currentColor"
-                        class="flex-shrink-0 {getActionTint(entry.action)}"
-                      >
-                        <path d={TRAIL_ICON_PATH} />
-                      </svg>
-                    {:else if entry.action === "vehicle.changed" && vehicleIcon}
-                      {#if fromVehicleIcon}
-                        <span class="opacity-80">
-                          <svelte:component
-                            this={fromVehicleIcon}
-                            bodyColor={entry.details?.from_vehicle_body_color ||
-                              "grey"}
-                            size="22px"
-                          />
-                        </span>
-                        <ArrowRight
-                          size={10}
-                          class="flex-shrink-0 text-white/40"
-                        />
-                      {/if}
-                      <svelte:component
-                        this={vehicleIcon}
-                        bodyColor={entry.details?.vehicle_body_color || "red"}
-                        size={fromVehicleIcon ? "22px" : "28px"}
-                      />
-                    {:else if isTeamAction(entry.action)}
-                      {#if vehicleIcon}
-                        <svelte:component
-                          this={vehicleIcon}
-                          bodyColor={entry.details?.vehicle_body_color ||
-                            "red"}
-                          size="26px"
-                        />
-                      {/if}
-                      <svelte:component
-                        this={entry.action === "team.joined"
-                          ? UserPlus
-                          : UserMinus}
-                        size={15}
-                        class="flex-shrink-0 {entry.action === 'team.joined'
-                          ? 'text-emerald-300'
-                          : 'text-red-300'}"
-                      />
-                    {:else if isTrailAction(entry.action)}
-                      <span class="log-chip">
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 32 32"
-                          fill="currentColor"
-                          class={getActionTint(entry.action)}
-                        >
-                          <path d={TRAIL_ICON_PATH} />
-                        </svg>
-                      </span>
-                    {:else}
-                      <span class="log-chip">
-                        <svelte:component
-                          this={getActionIcon(entry.action)}
-                          size={13}
-                          class={getActionTint(entry.action)}
-                        />
-                      </span>
-                    {/if}
-                    </div>
-                    {#if entry.details?.operator_name}
-                      <span
-                        class="log-operator-tag"
-                        title={entry.details.operator_name}
-                      >
-                        <User size={9} />
-                        <span>{entry.details.operator_name}</span>
-                      </span>
-                    {/if}
-                  </div>
-
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-baseline justify-between gap-2">
-                      <span class="truncate text-xs font-semibold text-white"
-                        >{entry.actor_name}</span
-                      >
-                      <span
-                        class="flex flex-shrink-0 items-center gap-1 text-[10px] text-white/40"
-                      >
-                        {formatLogTime(entry.occurred_at)}
-                        <ChevronDown
-                          size={11}
-                          class="transition-transform {expanded ? 'rotate-180' : ''}"
-                        />
-                      </span>
-                    </div>
-                    <p class="mt-0.5 text-xs leading-snug text-white/75">
-                      {entry.summary}
-                      {#if entry.details?.completed}
-                        <span
-                          class="log-state-pill"
-                          class:auto={entry.details?.auto_closed}
-                        >
-                          {#if entry.details?.auto_closed}<Clock size={9} />{:else}<Check size={9} />{/if}
-                          {entry.details?.auto_closed ? "Auto-closed" : "Completed"}
-                        </span>
-                      {/if}
-                    </p>
-                    {#if expanded}
-                      <div class="log-actions-row">
-                        {#if entryPos}
-                          <button
-                            class="log-action-btn go"
-                            title="Zoom to this marker's position"
-                            on:click|stopPropagation={() =>
-                              locateLogPosition(entryPos)}
-                          >
-                            <Crosshair size={11} />
-                            Go to marker location
-                          </button>
-                        {/if}
-                        {#if isTrailAction(entry.action) && entry.details?.vehicle_id}
-                          <button
-                            class="log-action-btn go"
-                            title="Zoom to this vehicle's current position"
-                            on:click|stopPropagation={() =>
-                              locateTrailVehicle(entry)}
-                          >
-                            <Crosshair size={11} />
-                            Locate vehicle
-                          </button>
-                        {/if}
-                        {#if canShowTrail(entry)}
-                          <button
-                            class="log-action-btn trail"
-                            on:click|stopPropagation={() => handleShowTrail(entry)}
-                          >
-                            <Play size={11} />
-                            Show trail
-                          </button>
-                        {/if}
-                      </div>
-                      <div class="log-details">
-                        {#each getLogDetailRows(entry) as row (row.label)}
-                          <span class="log-detail-label">{row.label}</span>
-                          <span class="log-detail-value">{row.value}</span>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-          {#if logHasMore}
-            <div class="log-load-more" use:infiniteScroll>
-              {#if logLoadingMore}
-                <Loader2 size={12} class="animate-spin" />
-                <span>Loading older activity…</span>
-              {:else}
-                <span>Scroll for older activity</span>
+          {#if logLoading && logEntries.length === 0}
+            <div
+              class="flex items-center justify-center gap-2 p-6 text-white/60"
+            >
+              <Loader2 size={16} class="animate-spin" />
+              <span class="text-xs">Loading activity…</span>
+            </div>
+          {:else if logEntries.length === 0}
+            <div
+              class="flex flex-col items-center justify-center p-6 text-white/70"
+            >
+              <Activity size={32} class="mb-2 opacity-50" />
+              <p class="text-sm">No activity here</p>
+              <p class="mt-1 text-center text-xs text-white/50">
+                {logStartKey !== "now"
+                  ? "Nothing matched these filters."
+                  : "Marker, trail and vehicle activity will appear here as it happens."}
+              </p>
+              {#if logStartKey !== "now" || logCategory !== "all"}
+                <button class="log-show-all-btn" on:click={resetLogFilters}>
+                  Show everything
+                </button>
               {/if}
             </div>
           {:else}
-            <div class="log-end">Start of activity in this view</div>
+            <div class="divide-y divide-white/10">
+              {#each visibleLogEntries as entry (entry.id)}
+                {@const expanded = expandedLogId === entry.id}
+                {@const toDef = getMarkerIconDef(entry.details?.icon)}
+                {@const fromDef = getMarkerIconDef(entry.details?.from_icon)}
+                {@const vehicleIcon = getLogVehicleIcon(entry)}
+                {@const fromVehicleIcon = getVehicleIconByType(
+                  entry.details?.from_vehicle_type,
+                )}
+                {@const entryPos = getEntryPosition(entry)}
+                <!-- svelte-ignore a11y-no-static-element-interactions -->
+                <div
+                  class="block w-full cursor-pointer text-left transition-colors hover:bg-white/5"
+                  role="button"
+                  tabindex="0"
+                  on:click={() => toggleLogEntry(entry.id)}
+                  on:keydown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      toggleLogEntry(entry.id)
+                    }
+                  }}
+                  aria-expanded={expanded}
+                >
+                  <div class="flex items-start gap-2.5 px-3 py-2.5">
+                    <!-- Leading visual: marker art, before→after, vehicle or trail -->
+                    <div
+                      class="flex w-[64px] flex-shrink-0 flex-col items-center gap-1 pt-0.5"
+                    >
+                      <div
+                        class="flex min-h-[28px] items-center justify-center gap-0.5"
+                      >
+                        {#if entry.action === "marker.edited" && fromDef && toDef}
+                          <span class="opacity-80">
+                            <TintedIconPreview
+                              icon={fromDef}
+                              colorKey={getMarkerColorKey(
+                                entry.details?.from_marker_color,
+                              )}
+                              size={22}
+                            />
+                          </span>
+                          <ArrowRight
+                            size={10}
+                            class="flex-shrink-0 text-white/40"
+                          />
+                          <TintedIconPreview
+                            icon={toDef}
+                            colorKey={getMarkerColorKey(
+                              entry.details?.marker_color,
+                            )}
+                            size={22}
+                          />
+                        {:else if isMarkerAction(entry.action) && toDef}
+                          <span
+                            class={entry.action === "marker.deleted"
+                              ? "opacity-50"
+                              : ""}
+                          >
+                            <TintedIconPreview
+                              icon={toDef}
+                              colorKey={getMarkerColorKey(
+                                entry.details?.marker_color,
+                              )}
+                              size={28}
+                            />
+                          </span>
+                        {:else if (entry.action === "trail.started" || entry.action === "trail.closed") && vehicleIcon}
+                          <svelte:component
+                            this={vehicleIcon}
+                            bodyColor={entry.details?.vehicle_body_color ||
+                              "red"}
+                            size="28px"
+                          />
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 32 32"
+                            fill="currentColor"
+                            class="flex-shrink-0 {getActionTint(entry.action)}"
+                          >
+                            <path d={TRAIL_ICON_PATH} />
+                          </svg>
+                        {:else if entry.action === "vehicle.changed" && vehicleIcon}
+                          {#if fromVehicleIcon}
+                            <span class="opacity-80">
+                              <svelte:component
+                                this={fromVehicleIcon}
+                                bodyColor={entry.details
+                                  ?.from_vehicle_body_color || "grey"}
+                                size="22px"
+                              />
+                            </span>
+                            <ArrowRight
+                              size={10}
+                              class="flex-shrink-0 text-white/40"
+                            />
+                          {/if}
+                          <svelte:component
+                            this={vehicleIcon}
+                            bodyColor={entry.details?.vehicle_body_color ||
+                              "red"}
+                            size={fromVehicleIcon ? "22px" : "28px"}
+                          />
+                        {:else if isTeamAction(entry.action)}
+                          {#if vehicleIcon}
+                            <svelte:component
+                              this={vehicleIcon}
+                              bodyColor={entry.details?.vehicle_body_color ||
+                                "red"}
+                              size="26px"
+                            />
+                          {/if}
+                          <svelte:component
+                            this={entry.action === "team.joined"
+                              ? UserPlus
+                              : UserMinus}
+                            size={15}
+                            class="flex-shrink-0 {entry.action === 'team.joined'
+                              ? 'text-emerald-300'
+                              : 'text-red-300'}"
+                          />
+                        {:else if isTrailAction(entry.action)}
+                          <span class="log-chip">
+                            <svg
+                              width="15"
+                              height="15"
+                              viewBox="0 0 32 32"
+                              fill="currentColor"
+                              class={getActionTint(entry.action)}
+                            >
+                              <path d={TRAIL_ICON_PATH} />
+                            </svg>
+                          </span>
+                        {:else}
+                          <span class="log-chip">
+                            <svelte:component
+                              this={getActionIcon(entry.action)}
+                              size={13}
+                              class={getActionTint(entry.action)}
+                            />
+                          </span>
+                        {/if}
+                      </div>
+                      {#if entry.details?.operator_name}
+                        <span
+                          class="log-operator-tag"
+                          title={entry.details.operator_name}
+                        >
+                          <User size={9} />
+                          <span>{entry.details.operator_name}</span>
+                        </span>
+                      {/if}
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-baseline justify-between gap-2">
+                        <span class="truncate text-xs font-semibold text-white"
+                          >{entry.actor_name}</span
+                        >
+                        <span
+                          class="flex flex-shrink-0 items-center gap-1 text-[10px] text-white/40"
+                        >
+                          {formatLogTime(entry.occurred_at)}
+                          <ChevronDown
+                            size={11}
+                            class="transition-transform {expanded
+                              ? 'rotate-180'
+                              : ''}"
+                          />
+                        </span>
+                      </div>
+                      <p class="mt-0.5 text-xs leading-snug text-white/75">
+                        {entry.summary}
+                        {#if entry.details?.completed}
+                          <span
+                            class="log-state-pill"
+                            class:auto={entry.details?.auto_closed}
+                          >
+                            {#if entry.details?.auto_closed}<Clock
+                                size={9}
+                              />{:else}<Check size={9} />{/if}
+                            {entry.details?.auto_closed
+                              ? "Auto-closed"
+                              : "Completed"}
+                          </span>
+                        {/if}
+                      </p>
+                      {#if expanded}
+                        <div class="log-actions-row">
+                          {#if entryPos}
+                            <button
+                              class="log-action-btn go"
+                              title="Zoom to this marker's position"
+                              on:click|stopPropagation={() =>
+                                locateLogPosition(entryPos)}
+                            >
+                              <Crosshair size={11} />
+                              Go to marker location
+                            </button>
+                          {/if}
+                          {#if isTrailAction(entry.action) && entry.details?.vehicle_id}
+                            <button
+                              class="log-action-btn go"
+                              title="Zoom to this vehicle's current position"
+                              on:click|stopPropagation={() =>
+                                locateTrailVehicle(entry)}
+                            >
+                              <Crosshair size={11} />
+                              Locate vehicle
+                            </button>
+                          {/if}
+                          {#if canShowTrail(entry)}
+                            <button
+                              class="log-action-btn trail"
+                              on:click|stopPropagation={() =>
+                                handleShowTrail(entry)}
+                            >
+                              <Play size={11} />
+                              Show trail
+                            </button>
+                          {/if}
+                        </div>
+                        <div class="log-details">
+                          {#each getLogDetailRows(entry) as row (row.label)}
+                            <span class="log-detail-label">{row.label}</span>
+                            <span class="log-detail-value">{row.value}</span>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+            {#if logHasMore}
+              <div class="log-load-more" use:infiniteScroll>
+                {#if logLoadingMore}
+                  <Loader2 size={12} class="animate-spin" />
+                  <span>Loading older activity…</span>
+                {:else}
+                  <span>Scroll for older activity</span>
+                {/if}
+              </div>
+            {:else}
+              <div class="log-end">Start of activity in this view</div>
+            {/if}
           {/if}
-        {/if}
         </div>
       {/if}
     </div>
@@ -2402,7 +2445,9 @@
         {/each}
       </div>
       <div class="log-cal-footer">
-        <button class="log-cal-reset" on:click={clearLogDate}>Back to Now</button>
+        <button class="log-cal-reset" on:click={clearLogDate}
+          >Back to Now</button
+        >
       </div>
     </div>
   </div>
@@ -2421,7 +2466,9 @@
       Team
     </div>
     {#if logTeamOptionsFetching && !logTeamOptions}
-      <div class="flex items-center justify-center gap-2 px-3 py-3 text-[10px] text-white/50">
+      <div
+        class="flex items-center justify-center gap-2 px-3 py-3 text-[10px] text-white/50"
+      >
         <Loader2 size={12} class="animate-spin" /> Loading…
       </div>
     {:else if !logTeamOptions || logTeamOptions.length === 0}
@@ -2454,7 +2501,9 @@
           {/if}
           <span class="row-option-label">{option.name}</span>
           {#if option.lastSeenAt}
-            <span class="row-option-soon">{formatLogTime(option.lastSeenAt)}</span>
+            <span class="row-option-soon"
+              >{formatLogTime(option.lastSeenAt)}</span
+            >
           {/if}
         </button>
       {/each}

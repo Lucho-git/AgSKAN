@@ -279,7 +279,8 @@
   async function loadPrevVehicles() {
     const mapId = $profileStore?.master_map_id
     if (!mapId) return
-    if (prevVehicles.length && Date.now() - prevVehiclesLoadedAt < 60_000) return
+    if (prevVehicles.length && Date.now() - prevVehiclesLoadedAt < 60_000)
+      return
     prevVehiclesLoading = true
     try {
       prevVehicles = await fetchMapLogVehicleOptions(mapId, 40)

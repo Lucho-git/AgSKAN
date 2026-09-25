@@ -40,8 +40,12 @@
   // Machine selection — seeded from their current marker (the guest pointer).
   let selectedType = "Pointer"
   let selectedColor = "Yellow"
-  let currentMarker: { type?: string; bodyColor?: string; swath?: number; size?: number } | null =
-    null
+  let currentMarker: {
+    type?: string
+    bodyColor?: string
+    swath?: number
+    size?: number
+  } | null = null
 
   $: selectedTypeName = selectedType
     ? getVehicleDisplayName({ vehicle_marker: { type: selectedType } })
@@ -108,7 +112,8 @@
       if (currentMarker?.bodyColor) {
         // Presets can store lowercase colours — normalise to the swatch key.
         const canonical = VEHICLE_COLORS.find(
-          (c) => c.toLowerCase() === String(currentMarker?.bodyColor).toLowerCase(),
+          (c) =>
+            c.toLowerCase() === String(currentMarker?.bodyColor).toLowerCase(),
         )
         selectedColor = canonical || selectedColor
       }
@@ -172,16 +177,14 @@
               ? preset.size
               : (currentMarker?.size ?? preset?.size ?? 45),
         }
-        const { error } = await supabase
-          .from("vehicle_state")
-          .upsert(
-            {
-              vehicle_id: uid,
-              master_map_id: mapId,
-              vehicle_marker: marker,
-            },
-            { onConflict: "vehicle_id" },
-          )
+        const { error } = await supabase.from("vehicle_state").upsert(
+          {
+            vehicle_id: uid,
+            master_map_id: mapId,
+            vehicle_marker: marker,
+          },
+          { onConflict: "vehicle_id" },
+        )
         if (error) throw error
       }
 
@@ -265,7 +268,9 @@
       </div>
     {:else if step === "app"}
       <div class="flex flex-col items-center gap-2 text-center">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-amber-600"
+        >
           One more thing
         </p>
         <h1 class="text-xl font-bold text-contrast-content">
@@ -352,7 +357,9 @@
       </div>
     {:else}
       <div class="flex flex-col items-center gap-2 text-center">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-amber-600"
+        >
           You're on the team
         </p>
         <h1 class="text-xl font-bold text-contrast-content">
@@ -361,8 +368,8 @@
             : `Welcome to ${mapName}`}
         </h1>
         <p class="mt-1 text-sm text-contrast-content/60">
-          You're now an operator on {mapName}. Set how you'll appear to the
-          team — you can change this anytime.
+          You're now an operator on {mapName}. Set how you'll appear to the team
+          — you can change this anytime.
         </p>
 
         <div class="mt-4 w-full text-left">
@@ -390,7 +397,9 @@
           <div
             class="mb-2 flex items-center gap-3 rounded-xl border border-base-300 bg-base-200 px-3 py-2.5"
           >
-            <div class="flex h-10 w-12 flex-shrink-0 items-center justify-center">
+            <div
+              class="flex h-10 w-12 flex-shrink-0 items-center justify-center"
+            >
               {#if SVGComponents[selectedType]}
                 <svelte:component
                   this={SVGComponents[selectedType]}
@@ -408,7 +417,9 @@
           </div>
 
           <!-- Machine picker -->
-          <div class="max-h-56 overflow-y-auto rounded-xl border border-base-300 p-2">
+          <div
+            class="max-h-56 overflow-y-auto rounded-xl border border-base-300 p-2"
+          >
             <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
               {#each VEHICLE_TYPES as vehicle (vehicle.type)}
                 <button
@@ -444,7 +455,9 @@
           </div>
 
           <!-- Colour picker -->
-          <div class="mt-3 flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1">
+          <div
+            class="mt-3 flex flex-nowrap items-center justify-between gap-0.5 sm:gap-1"
+          >
             {#each VEHICLE_COLORS as color (color)}
               <button
                 class="h-6 w-6 flex-shrink-0 rounded-full border-2 transition-transform hover:scale-110 sm:h-7 sm:w-7 {selectedColor ===

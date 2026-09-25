@@ -2,12 +2,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
-  import {
-    ChevronDown,
-    DoorOpen,
-    MapPin,
-    UserPlus,
-  } from "lucide-svelte"
+  import { ChevronDown, DoorOpen, MapPin, UserPlus } from "lucide-svelte"
   import { supabase } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"

@@ -29,7 +29,9 @@
   // gets upscaled by the browser on high-DPI screens (phones, retina), which
   // is what made the little log marker icons look pixelated.
   const dpr =
-    typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 3) : 1
+    typeof window !== "undefined"
+      ? Math.min(window.devicePixelRatio || 1, 3)
+      : 1
   $: renderSize = Math.round(size * dpr)
 
   /** @type {HTMLCanvasElement} */
@@ -85,7 +87,12 @@
   // Re-run when the canvas element binds (the first invocation happens
   // before mount) and whenever the icon / colour / user style settings
   // change — same re-render trigger as the live map.
-  $: canvasEl, renderSize, icon, colorKey, $userSettingsStore, draw(icon, colorKey)
+  $: (canvasEl,
+    renderSize,
+    icon,
+    colorKey,
+    $userSettingsStore,
+    draw(icon, colorKey))
 
   /**
    * @param {{ id: string, class: string } | null | undefined} def

@@ -18,5 +18,5 @@
 import { goto } from "$app/navigation"
 
 export function goToGuestSignup() {
-  goto("/guest/upgrade")
+    goto("/guest/upgrade")
 }

@@ -463,18 +463,15 @@
     const legacyLabels = { full: "Full", empty: "Empty", help: "Help" }
     const raw = String(vehicle.flash_reason || "Broadcast")
     const label = legacyLabels[raw.toLowerCase()] || raw
-    toast.info(
-      `${vehicle.full_name || "Vehicle"} is broadcasting ${label}`,
-      {
-        description: "Silence hides this broadcast on your device only.",
-        duration: 9000,
-        style: `border-left: 4px solid ${vehicle.flash_color || "#f59e0b"};`,
-        action: {
-          label: "Silence",
-          onClick: () => silenceBroadcast(vehicle),
-        },
+    toast.info(`${vehicle.full_name || "Vehicle"} is broadcasting ${label}`, {
+      description: "Silence hides this broadcast on your device only.",
+      duration: 9000,
+      style: `border-left: 4px solid ${vehicle.flash_color || "#f59e0b"};`,
+      action: {
+        label: "Silence",
+        onClick: () => silenceBroadcast(vehicle),
       },
-    )
+    })
   }
 
   // Silence hides the broadcast on THIS device only — the broadcaster and
@@ -2486,7 +2483,8 @@
 
         const flashChanged =
           $userVehicleStore.is_flashing !== previousVehicleMarker.is_flashing ||
-          $userVehicleStore.flash_reason !== previousVehicleMarker.flash_reason ||
+          $userVehicleStore.flash_reason !==
+            previousVehicleMarker.flash_reason ||
           $userVehicleStore.flash_color !== previousVehicleMarker.flash_color
 
         if (propsChanged || flashChanged) {
@@ -2969,7 +2967,8 @@
 
       // ✅ Check if the update heartbeat elapsed
       const timeElapsed =
-        currentTime - lastVehicleDataUpdateTime >= MIN_VEHICLE_DATA_UPDATE_INTERVAL
+        currentTime - lastVehicleDataUpdateTime >=
+        MIN_VEHICLE_DATA_UPDATE_INTERVAL
 
       // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
       if (coordinatesChanged || headingChanged || timeElapsed) {
@@ -3036,7 +3035,10 @@
             }
 
             // Create initials marker if it doesn't exist yet
-            if (!userInitialsMarker && ($profileStore?.full_name || isSelfGuest())) {
+            if (
+              !userInitialsMarker &&
+              ($profileStore?.full_name || isSelfGuest())
+            ) {
               const initials = isSelfGuest()
                 ? getGuestTagLabel($profileStore?.full_name)
                 : getUserInitials($profileStore.full_name)
@@ -3229,7 +3231,7 @@
           ? broadcast.color
           : VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
         label,
-        heading: broadcast ? undefined : heading ?? 0,
+        heading: broadcast ? undefined : (heading ?? 0),
         ...(broadcast
           ? { icon: RadioTower, component: null, componentProps: null }
           : {
@@ -3253,7 +3255,10 @@
         EMPTY: "#8b5cf6",
         HELP: "#ef4444",
       }
-      return { color: v.flash_color || legacyColors[reason] || "#f59e0b", reason }
+      return {
+        color: v.flash_color || legacyColors[reason] || "#f59e0b",
+        reason,
+      }
     }
 
     // Broadcasting vehicles always get an edge indicator in the broadcast

@@ -175,10 +175,7 @@
 
     // Fetch closed trails AND other users' active trails in parallel
     // so all trail data is ready before the loading toast dismisses
-    await Promise.all([
-      checkOtherActiveTrails(),
-      fetchOperationTrails(),
-    ])
+    await Promise.all([checkOtherActiveTrails(), fetchOperationTrails()])
 
     // Instant coordinate sending
     cleanup.coordinateBufferUnsubscribe = coordinateBufferStore.subscribe(
@@ -278,7 +275,9 @@
     }
 
     if (get(trailStartingStore)) {
-      console.log("⏸️ Trail start already in progress, ignoring duplicate click")
+      console.log(
+        "⏸️ Trail start already in progress, ignoring duplicate click",
+      )
       return
     }
 
@@ -299,7 +298,9 @@
 
     // Re-verify if we haven't just selected an operator from the picker
     if (!operatorJustSelected && $profileStore?.master_map_id) {
-      const check = await operatorApi.checkOperatorStatus($profileStore.master_map_id)
+      const check = await operatorApi.checkOperatorStatus(
+        $profileStore.master_map_id,
+      )
       if (!check.operator) {
         showOperatorPicker = true
         return
@@ -652,8 +653,12 @@
         ) {
           pendingSprayRecords = sprayRecords
           pendingSprayTrailId = trailId
-          pendingSprayOperatorName = $operatorStore?.operator?.name || sprayRecords[0]?.operator_name || ""
-          pendingSprayOperatorId = $operatorStore?.operator?.id || $userVehicleStore?.vehicle_id || ""
+          pendingSprayOperatorName =
+            $operatorStore?.operator?.name ||
+            sprayRecords[0]?.operator_name ||
+            ""
+          pendingSprayOperatorId =
+            $operatorStore?.operator?.id || $userVehicleStore?.vehicle_id || ""
           showSprayConfirm = true
           console.log(
             `📋 Showing spray record confirmation (${sprayRecords.length} fields)`,
@@ -835,9 +840,7 @@
           // Slipped back outside — switch to (or skip) the travel segment.
           autoState = "idle"
           autoFieldId = null
-          autoPendingTarget = AUTO_TRAVEL_RECORDING
-            ? { kind: "travel" }
-            : null
+          autoPendingTarget = AUTO_TRAVEL_RECORDING ? { kind: "travel" } : null
           return
         }
         if (hitNow.fieldId !== target.fieldId) {
@@ -1802,9 +1805,7 @@
   const announcedTrailCloses = new Set()
 
   function vehicleCoordsFor(vehicleId) {
-    const vehicle = $otherVehiclesStore?.find(
-      (v) => v.vehicle_id === vehicleId,
-    )
+    const vehicle = $otherVehiclesStore?.find((v) => v.vehicle_id === vehicleId)
     const parsed = parseVehicleCoords(vehicle?.coordinates)
     return parsed ? [parsed.longitude, parsed.latitude] : null
   }
@@ -1875,8 +1876,7 @@
     const profile = $mapActivityStore?.connected_profiles?.find(
       (p) => p.id === trailData.vehicle_id,
     )
-    const name =
-      profile?.full_name || trailData.operator_name || "Another user"
+    const name = profile?.full_name || trailData.operator_name || "Another user"
     const trailStyle = [
       trailData.trail_width ? `${trailData.trail_width}m` : null,
       (trailData.trail_color || "").toLowerCase() || null,

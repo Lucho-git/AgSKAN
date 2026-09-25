@@ -29,8 +29,7 @@
       <MapPin size={16} />
     </span>
     <p class="pick-captured-text">
-      <strong>{capturedLabel}</strong> selected — check it on the map, then
-      continue.
+      <strong>{capturedLabel}</strong> selected — check it on the map, then continue.
     </p>
     <button
       class="pick-change"

@@ -238,18 +238,18 @@ export function siloColorKey(key?: string | null): string {
 export const GRAIN_BIN_ICON_CLASS = "custom-svg-fiver_field_bin_v4"
 export const MOTHER_BIN_ICON_CLASS = "custom-svg-fiver2_mother_bin"
 export const GRAIN_BIN_ICON_CLASSES = [
-  GRAIN_BIN_ICON_CLASS,
-  MOTHER_BIN_ICON_CLASS,
+    GRAIN_BIN_ICON_CLASS,
+    MOTHER_BIN_ICON_CLASS,
 ]
 
 /** True for every marker icon that carries the grain-bin functionality. */
 export function isGrainBinIcon(iconClass?: string | null): boolean {
-  return !!iconClass && GRAIN_BIN_ICON_CLASSES.includes(iconClass)
+    return !!iconClass && GRAIN_BIN_ICON_CLASSES.includes(iconClass)
 }
 
 /** Default display name for a bin marker (when it has no note of its own). */
 export function grainBinName(iconClass?: string | null): string {
-  return iconClass === MOTHER_BIN_ICON_CLASS ? "Mother Bin" : "Field Bin"
+    return iconClass === MOTHER_BIN_ICON_CLASS ? "Mother Bin" : "Field Bin"
 }
 
 // Custom SVG icons that KEEP their baked-in glyph colours (rock, rock pile,

@@ -3,7 +3,16 @@
   // @ts-nocheck — plain-JS component; typed helpers live in $lib/utils/weather.ts
   import { onMount } from "svelte"
   import { toast } from "svelte-sonner"
-  import { MapPin, Loader2, Wind, Droplets, CloudRain, Umbrella, Thermometer, Radio } from "lucide-svelte"
+  import {
+    MapPin,
+    Loader2,
+    Wind,
+    Droplets,
+    CloudRain,
+    Umbrella,
+    Thermometer,
+    Radio,
+  } from "lucide-svelte"
   import { profileStore } from "$lib/stores/profileStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -255,9 +264,9 @@
       <div class="hero-main">
         <div class="hero-icon">{@html forecastIcon(c.weather_code)}</div>
         <div class="hero-text">
-          <div class="hero-temp"
-            >{c.temperature_2m != null ? Math.round(c.temperature_2m) : "-"}°</div
-          >
+          <div class="hero-temp">
+            {c.temperature_2m != null ? Math.round(c.temperature_2m) : "-"}°
+          </div>
           <div class="hero-cond">{wmoDesc(c.weather_code ?? 3)}</div>
           <div class="hero-loc">{activeLabel}</div>
         </div>
@@ -267,24 +276,32 @@
         <div class="metric" class:windy>
           <span class="m-ico"><Wind size={15} /></span>
           <span class="m-val"
-            >{c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : "-"}{c.wind_direction_10m != null ? " " + windDir(c.wind_direction_10m) : ""}</span
+            >{c.wind_speed_10m != null
+              ? Math.round(c.wind_speed_10m)
+              : "-"}{c.wind_direction_10m != null
+              ? " " + windDir(c.wind_direction_10m)
+              : ""}</span
           >
           <span class="m-lab">wind</span>
         </div>
         <div class="metric">
           <span class="m-ico"><Droplets size={15} /></span>
           <span class="m-val"
-            >{c.relative_humidity_2m != null ? Math.round(c.relative_humidity_2m) + "%" : "-"}</span
+            >{c.relative_humidity_2m != null
+              ? Math.round(c.relative_humidity_2m) + "%"
+              : "-"}</span
           >
           <span class="m-lab">humidity</span>
         </div>
-        <div class="metric m-rain" class:rainy={rainy}>
+        <div class="metric m-rain" class:rainy>
           <span class="m-icos">
             <span class="m-ico"><CloudRain size={15} /></span>
             <span class="m-ico"><Umbrella size={15} /></span>
           </span>
           <span class="m-val"
-            >{todayRain != null ? todayRain.toFixed(1) + "mm" : "-"}{rainChance != null ? " · " + rainChance + "%" : ""}</span
+            >{todayRain != null
+              ? todayRain.toFixed(1) + "mm"
+              : "-"}{rainChance != null ? " · " + rainChance + "%" : ""}</span
           >
           <span class="m-lab">rain · chance</span>
         </div>
@@ -295,8 +312,12 @@
           title={isNaN(dt)
             ? "Delta T"
             : dtWarn
-              ? "Delta T " + dt.toFixed(1) + "° — outside the ideal 2–8° spray window"
-              : "Delta T " + dt.toFixed(1) + "° — in the ideal 2–8° spray window"}
+              ? "Delta T " +
+                dt.toFixed(1) +
+                "° — outside the ideal 2–8° spray window"
+              : "Delta T " +
+                dt.toFixed(1) +
+                "° — in the ideal 2–8° spray window"}
         >
           <span class="m-ico"><Thermometer size={15} /></span>
           <span class="m-val">{isNaN(dt) ? "-" : dt.toFixed(1)}°</span>
@@ -324,7 +345,11 @@
               >{d.min != null ? Math.round(d.min) : "-"}°</span
             ></span
           >
-          <span class="day-rain">{@html WX_DROPLET}{d.rain != null ? Number(d.rain).toFixed(1) + "mm" : "-"} · {d.prob != null ? d.prob + "%" : "-"}</span>
+          <span class="day-rain"
+            >{@html WX_DROPLET}{d.rain != null
+              ? Number(d.rain).toFixed(1) + "mm"
+              : "-"} · {d.prob != null ? d.prob + "%" : "-"}</span
+          >
         </div>
       {/each}
     </div>
@@ -380,7 +405,11 @@
       {:else}
         <Radio size={14} />
       {/if}
-      <span>{sourceStation ? `Station: ${sourceStation.name}` : "Use a weather station"}</span>
+      <span
+        >{sourceStation
+          ? `Station: ${sourceStation.name}`
+          : "Use a weather station"}</span
+      >
     </button>
 
     {#if stationOpen}
@@ -840,5 +869,3 @@
     }
   }
 </style>
-
-

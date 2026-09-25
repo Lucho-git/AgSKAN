@@ -4,11 +4,11 @@ import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching"
 
 const CACHE_VERSION = version || 1
 const FTW_PMTILES_URL =
-  "https://data.source.coop/ftw/global-data/predictions/vectors/alpha/global.pmtiles"
+    "https://data.source.coop/ftw/global-data/predictions/vectors/alpha/global.pmtiles"
 const FTW_CLIENT_TILE_PATH = /^\/ftw-client-pmtiles\/(\d+)\/(\d+)\/(\d+)\.mvt$/
 const ftwArchives = new Map<string, PMTiles>()
 const isCapacitorLocalOrigin =
-  self.location.protocol === "https:" && self.location.hostname === "localhost"
+    self.location.protocol === "https:" && self.location.hostname === "localhost"
 
 // Heavy marketing media is deliberately NOT precached: /images/ + /content/
 // (~90 MB) would otherwise be downloaded to every device on first visit.
@@ -17,108 +17,108 @@ const isCapacitorLocalOrigin =
 // so the app works offline after the first online visit.
 const NON_PRECACHE_PREFIXES = ['images/', 'content/', 'mobiledisplay']
 const isPrecached = (s) => {
-  const p = s.startsWith('/') ? s.slice(1) : s
-  return !NON_PRECACHE_PREFIXES.some((prefix) => p.startsWith(prefix))
+    const p = s.startsWith('/') ? s.slice(1) : s
+    return !NON_PRECACHE_PREFIXES.some((prefix) => p.startsWith(prefix))
 }
 
 const precache_list = [...build, ...files, ...prerendered]
-  .filter((s) => isPrecached(s))
-  .map((s) => ({
-    url: s,
-    revision: CACHE_VERSION,
-  }))
+    .filter((s) => isPrecached(s))
+    .map((s) => ({
+        url: s,
+        revision: CACHE_VERSION,
+    }))
 
 if (!isCapacitorLocalOrigin) {
-  precacheAndRoute(precache_list)
+    precacheAndRoute(precache_list)
 }
 
 function getFtwArchive(archiveUrl: string) {
-  let archive = ftwArchives.get(archiveUrl)
-  if (!archive) {
-    archive = new PMTiles(archiveUrl)
-    ftwArchives.set(archiveUrl, archive)
-  }
-  return archive
+    let archive = ftwArchives.get(archiveUrl)
+    if (!archive) {
+        archive = new PMTiles(archiveUrl)
+        ftwArchives.set(archiveUrl, archive)
+    }
+    return archive
 }
 
 function getFtwClientTileResponse(request: Request) {
-  const url = new URL(request.url)
-  const match = url.pathname.match(FTW_CLIENT_TILE_PATH)
-  if (!match) return null
+    const url = new URL(request.url)
+    const match = url.pathname.match(FTW_CLIENT_TILE_PATH)
+    if (!match) return null
 
-  return (async () => {
-    const archiveUrl = url.searchParams.get("archive") || FTW_PMTILES_URL
-    if (!/^https:\/\/.+\.pmtiles(?:[?#].*)?$/i.test(archiveUrl)) {
-      return new Response("Invalid PMTiles archive URL", { status: 400 })
-    }
+    return (async () => {
+        const archiveUrl = url.searchParams.get("archive") || FTW_PMTILES_URL
+        if (!/^https:\/\/.+\.pmtiles(?:[?#].*)?$/i.test(archiveUrl)) {
+            return new Response("Invalid PMTiles archive URL", { status: 400 })
+        }
 
-    try {
-      const z = Number(match[1])
-      const x = Number(match[2])
-      const y = Number(match[3])
-      const archive = getFtwArchive(archiveUrl)
-      const tile = await archive.getZxy(z, x, y, request.signal)
-      const headers = new Headers({
-        "Content-Type": "application/vnd.mapbox-vector-tile",
-        "Cache-Control": tile?.cacheControl || "public, max-age=86400",
-      })
+        try {
+            const z = Number(match[1])
+            const x = Number(match[2])
+            const y = Number(match[3])
+            const archive = getFtwArchive(archiveUrl)
+            const tile = await archive.getZxy(z, x, y, request.signal)
+            const headers = new Headers({
+                "Content-Type": "application/vnd.mapbox-vector-tile",
+                "Cache-Control": tile?.cacheControl || "public, max-age=86400",
+            })
 
-      if (tile?.expires) headers.set("Expires", tile.expires)
-      if (tile?.etag) headers.set("ETag", tile.etag)
+            if (tile?.expires) headers.set("Expires", tile.expires)
+            if (tile?.etag) headers.set("ETag", tile.etag)
 
-      return new Response(tile?.data || new Uint8Array(), {
-        status: 200,
-        headers,
-      })
-    } catch (error) {
-      console.warn("[FTW PMTiles] Client tile request failed", error)
-      return new Response("FTW PMTiles tile request failed", { status: 502 })
-    }
-  })()
+            return new Response(tile?.data || new Uint8Array(), {
+                status: 200,
+                headers,
+            })
+        } catch (error) {
+            console.warn("[FTW PMTiles] Client tile request failed", error)
+            return new Response("FTW PMTiles tile request failed", { status: 502 })
+        }
+    })()
 }
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return
-  const tileResponse = getFtwClientTileResponse(event.request)
-  if (tileResponse) event.respondWith(tileResponse)
+    if (event.request.method !== "GET") return
+    const tileResponse = getFtwClientTileResponse(event.request)
+    if (tileResponse) event.respondWith(tileResponse)
 })
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting()
+    self.skipWaiting()
 })
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    Promise.all([
-      clients.claim(),
-      caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_VERSION) {
-              return caches.delete(cacheName)
-            }
-          }),
-        )
-      }),
-    ]),
-  )
+    event.waitUntil(
+        Promise.all([
+            clients.claim(),
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (cacheName !== CACHE_VERSION) {
+                            return caches.delete(cacheName)
+                        }
+                    }),
+                )
+            }),
+        ]),
+    )
 })
 
 self.addEventListener("push", function (event) {
-  const data = event.data.json()
-  const options = {
-    body: data.body,
-    icon: "/favicon.png",
-    badge: "/badge.png",
-    data: { url: data.url || undefined },
-  }
+    const data = event.data.json()
+    const options = {
+        body: data.body,
+        icon: "/favicon.png",
+        badge: "/badge.png",
+        data: { url: data.url || undefined },
+    }
 
-  event.waitUntil(self.registration.showNotification(data.title, options))
+    event.waitUntil(self.registration.showNotification(data.title, options))
 })
 
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close()
-  const target =
-    event.notification.data?.url || "https://www.skanfarming.com.au/account"
-  event.waitUntil(clients.openWindow(target))
+    event.notification.close()
+    const target =
+        event.notification.data?.url || "https://www.skanfarming.com.au/account"
+    event.waitUntil(clients.openWindow(target))
 })

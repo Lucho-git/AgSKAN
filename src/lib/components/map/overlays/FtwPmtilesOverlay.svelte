@@ -164,7 +164,11 @@
     })
   }
 
-  function showSelectFieldsErrorToast(message, sourceConfig = null, details = "") {
+  function showSelectFieldsErrorToast(
+    message,
+    sourceConfig = null,
+    details = "",
+  ) {
     const description = getServiceWorkerDiagnostics(sourceConfig, details)
     const errorKey = `${message}|${description}`
     if (errorKey === lastSelectFieldsErrorKey && !selectFieldsLoadToastActive) {
@@ -413,7 +417,15 @@
     return null
   }
 
-  function rejectSelection({ reason, areaHa, limitHa, stage, lngLat, point, source }) {
+  function rejectSelection({
+    reason,
+    areaHa,
+    limitHa,
+    stage,
+    lngLat,
+    point,
+    source,
+  }) {
     dispatch("reject", {
       reason,
       areaHa,
@@ -1129,7 +1141,10 @@
     map?.triggerRepaint?.()
   }
 
-  function clearSelectionLoading(token = selectionLoadingToken, targetMap = map) {
+  function clearSelectionLoading(
+    token = selectionLoadingToken,
+    targetMap = map,
+  ) {
     const currentMap = targetMap
     if (token !== selectionLoadingToken || !currentMap?.getSource) return
     try {
@@ -1186,7 +1201,8 @@
 
         if (!worker || !seedFeature) {
           console.warn("[FTW PMTiles] Boundary resolver worker unavailable")
-          const fallbackFeature = seedFeature || getPlainFeature(feature) || feature
+          const fallbackFeature =
+            seedFeature || getPlainFeature(feature) || feature
           handleResolvedSelection(
             { feature: fallbackFeature, features: [fallbackFeature] },
             { lngLat, point, source },
@@ -1343,7 +1359,10 @@
     const message = getErrorMessage(event?.error || event)
     const errorSourceId = event?.sourceId || event?.source?.id || ""
     const tileUrl =
-      event?.tile?.request?.url || event?.tile?.url || event?.resource?.url || ""
+      event?.tile?.request?.url ||
+      event?.tile?.url ||
+      event?.resource?.url ||
+      ""
     const isFtwError =
       errorSourceId === sourceId ||
       String(tileUrl).includes(clientPmtilesTilePath) ||

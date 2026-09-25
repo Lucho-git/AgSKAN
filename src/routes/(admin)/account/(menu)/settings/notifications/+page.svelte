@@ -4,7 +4,10 @@
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
   import { supabase } from "$lib/supabaseClient"
-  import { getNativePushState, requestNativePushPermission } from "$lib/nativePush"
+  import {
+    getNativePushState,
+    requestNativePushPermission,
+  } from "$lib/nativePush"
 
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
@@ -199,7 +202,7 @@
           class="flex flex-col gap-3 rounded-lg border border-base-300 bg-base-200/30 p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+            <div class="flex-shrink-0 rounded-lg bg-base-content/10 p-2">
               <Icon
                 icon="solar:shield-check-bold-duotone"
                 width="18"
@@ -220,7 +223,7 @@
             </div>
           </div>
           <button
-            class="btn btn-outline btn-sm gap-2 w-full sm:w-auto"
+            class="btn btn-outline btn-sm w-full gap-2 sm:w-auto"
             disabled={requesting || loadingState}
             on:click={handleEnable}
           >
@@ -228,11 +231,7 @@
               <span class="loading loading-spinner loading-xs"></span>
               Enabling…
             {:else}
-              <Icon
-                icon="solar:bell-bold-duotone"
-                width="16"
-                height="16"
-              />
+              <Icon icon="solar:bell-bold-duotone" width="16" height="16" />
               {pushState.permission ? "Re-check / Fix" : "Enable Notifications"}
             {/if}
           </button>
@@ -262,9 +261,7 @@
             </div>
           </div>
           {#if pushState.subscriptionId && pushState.optedIn}
-            <span class="badge badge-success badge-outline text-xs"
-              >Ready</span
-            >
+            <span class="badge badge-success badge-outline text-xs">Ready</span>
           {:else if !loadingState}
             <span class="badge badge-ghost text-xs">Waiting</span>
           {/if}
@@ -288,7 +285,7 @@
               <p class="text-sm text-contrast-content/60">
                 The signed-in account this device is registered to
               </p>
-              <p class="text-xs break-all text-contrast-content/40">
+              <p class="break-all text-xs text-contrast-content/40">
                 {loadingState
                   ? "Checking…"
                   : pushState.externalId
@@ -321,7 +318,7 @@
         class="flex flex-col gap-3 rounded-lg border border-base-300 bg-base-200/30 p-4 sm:flex-row sm:items-center sm:justify-between"
       >
         <div class="flex items-center gap-3">
-          <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <div class="flex-shrink-0 rounded-lg bg-base-content/10 p-2">
             <Icon
               icon="solar:bell-bing-bold-duotone"
               width="18"
@@ -340,7 +337,7 @@
           </div>
         </div>
         <button
-          class="btn btn-primary btn-sm gap-2 w-full sm:w-auto"
+          class="btn btn-primary btn-sm w-full gap-2 sm:w-auto"
           disabled={sending || loadingState}
           on:click={handleSendTest}
         >
@@ -373,7 +370,7 @@
 
       <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
         <div class="flex items-start gap-3">
-          <div class="rounded-lg bg-base-content/10 p-2 flex-shrink-0">
+          <div class="flex-shrink-0 rounded-lg bg-base-content/10 p-2">
             <Icon
               icon="solar:smartphone-2-bold-duotone"
               width="18"

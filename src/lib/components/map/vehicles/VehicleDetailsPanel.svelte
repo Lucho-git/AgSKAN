@@ -427,7 +427,10 @@
     trailStatsLoading = true
     try {
       const currentUserId = $profileStore?.id
-      if (!currentUserId) { trailStatsLoading = false; return }
+      if (!currentUserId) {
+        trailStatsLoading = false
+        return
+      }
       const data = await trailsApi.checkOtherActiveTrails(opId, currentUserId)
       if (data.activeTrails?.length) {
         const formatted = data.activeTrails.map((trail) => ({
@@ -436,15 +439,18 @@
           operation_id: trail.operation_id,
           trail_color: trail.trail_color,
           trail_width: trail.trail_width,
-          path: (trail.trailData || []).map((coord) => ({
-            coordinates: {
-              latitude: coord.coordinates?.latitude ?? coord.latitude,
-              longitude: coord.coordinates?.longitude ?? coord.longitude,
-            },
-            timestamp: typeof coord.timestamp === "string"
-              ? new Date(coord.timestamp).getTime()
-              : coord.timestamp,
-          })).sort((a, b) => a.timestamp - b.timestamp),
+          path: (trail.trailData || [])
+            .map((coord) => ({
+              coordinates: {
+                latitude: coord.coordinates?.latitude ?? coord.latitude,
+                longitude: coord.coordinates?.longitude ?? coord.longitude,
+              },
+              timestamp:
+                typeof coord.timestamp === "string"
+                  ? new Date(coord.timestamp).getTime()
+                  : coord.timestamp,
+            }))
+            .sort((a, b) => a.timestamp - b.timestamp),
         }))
         otherActiveTrailStore.update((trails) => {
           const existing = new Map(trails.map((t) => [t.vehicle_id, t]))
@@ -864,8 +870,16 @@
         {#if isTrailing && isDifferentOperation}
           {#if trailStatsLoading}
             <button class="trail-badge-animated trail-badge-loading" disabled>
-              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              <svg
+                class="tbadge-trail-svg"
+                viewBox="0 0 32 32"
+                width="18"
+                height="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                />
               </svg>
               <span class="tbadge-loading-text">Loading trails...</span>
             </button>
@@ -875,20 +889,45 @@
               on:click={toggleViewOperation}
               title="View trails on {diffOpName}"
             >
-              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+              <svg
+                class="tbadge-trail-svg"
+                viewBox="0 0 32 32"
+                width="18"
+                height="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                />
               </svg>
               <Eye size={17} class="tbadge-v2-eye" />
             </button>
           {:else}
-            <button class="trail-badge-animated" class:active={showInfoPanel && isExpanded} on:click={handleInfoClick} title="Vehicle details">
-              <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+            <button
+              class="trail-badge-animated"
+              class:active={showInfoPanel && isExpanded}
+              on:click={handleInfoClick}
+              title="Vehicle details"
+            >
+              <svg
+                class="tbadge-trail-svg"
+                viewBox="0 0 32 32"
+                width="18"
+                height="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+                />
               </svg>
               <span class="tbadge-time">{trailHMM ?? trailDur}</span>
             </button>
           {/if}
-          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+          <button
+            class="control-btn track-btn"
+            on:click={handleStartTracking}
+            title="Track"><Navigation size={20} /></button
+          >
         {:else if isTrailing}
           <button
             class="trail-badge-animated"
@@ -896,14 +935,30 @@
             on:click={handleInfoClick}
             title="Vehicle details"
           >
-            <svg class="tbadge-trail-svg" viewBox="0 0 32 32" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
-              <path d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z" />
+            <svg
+              class="tbadge-trail-svg"
+              viewBox="0 0 32 32"
+              width="18"
+              height="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+              />
             </svg>
             <span class="tbadge-time">{trailHMM ?? trailDur}</span>
           </button>
-          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+          <button
+            class="control-btn track-btn"
+            on:click={handleStartTracking}
+            title="Track"><Navigation size={20} /></button
+          >
         {:else}
-          <button class="control-btn track-btn" on:click={handleStartTracking} title="Track"><Navigation size={20} /></button>
+          <button
+            class="control-btn track-btn"
+            on:click={handleStartTracking}
+            title="Track"><Navigation size={20} /></button
+          >
         {/if}
       </div>
     </div>

@@ -126,8 +126,6 @@
   const dispatch = createEventDispatcher()
 
   onMount(async () => {
-
-
     setTimeout(() => {
       isExpanded = true
     }, 200)
@@ -593,7 +591,8 @@
                     pulseBadge("record")
                   }
                 }}
-                disabled={!isViewer && ($trailClosingStore || $trailStartingStore)}
+                disabled={!isViewer &&
+                  ($trailClosingStore || $trailStartingStore)}
               >
                 {#if $userVehicleTrailing}
                   <!-- Animated trail icon - plays while trailing, pauses when paused -->
@@ -1142,7 +1141,8 @@
     stroke-width: 1;
     fill: currentColor;
     stroke-dasharray: 105;
-    animation: agskan-draw 10s linear infinite,
+    animation:
+      agskan-draw 10s linear infinite,
       fillUnfill 3s linear infinite;
   }
 

@@ -660,7 +660,10 @@
             {/if}
           </button>
 
-          <button class="tool-button guest-allow" on:click={handleTrailControls}>
+          <button
+            class="tool-button guest-allow"
+            on:click={handleTrailControls}
+          >
             <Route size={26} />
             <span>Trails</span>
             {#if $trailsLoadingStore}
@@ -704,7 +707,10 @@
           {/if}
 
           {#if $userSettingsStore.satelliteMenuEnabled}
-            <button class="tool-button guest-allow" on:click={showSatellitePanel}>
+            <button
+              class="tool-button guest-allow"
+              on:click={showSatellitePanel}
+            >
               <Satellite size={26} />
               <span>Satellite</span>
             </button>

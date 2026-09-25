@@ -120,10 +120,7 @@
     capacityTonnes = parsed
     capacityInput = parsed ? String(parsed) : ""
     if (parsed > 0 && prevCap > 0) {
-      fill = Math.min(
-        100,
-        Math.max(0, Math.round((prevTonnes / parsed) * 100)),
-      )
+      fill = Math.min(100, Math.max(0, Math.round((prevTonnes / parsed) * 100)))
       markerManagerRef?.updateSiloBarLive?.(marker.id, fill, grainColor)
     }
     commit()
@@ -239,85 +236,85 @@
     {#if tab === "fill"}
       <!-- Fill slider (the slider itself is the level indicator) -->
       <div class="mt-3">
-      <span class="qb-label">Fill level</span>
-      <div class="flex items-center gap-2.5">
-        <input
-          type="range"
-          class="qb-range"
-          min="0"
-          max="100"
-          step="1"
-          bind:value={fill}
-          disabled={isViewer}
-          on:input={onFillInput}
-          on:change={commit}
-          aria-label="Field bin fill level"
-          style="--qb-thumb: {colorDef.dark}; background: linear-gradient(to right, {colorDef.dark} 0%, {colorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
-        />
-        <span
-          class="min-w-[44px] text-right text-base font-extrabold"
-          style="color: {colorDef.dark};"
-        >
-          {Math.round(fill)}%
-        </span>
+        <span class="qb-label">Fill level</span>
+        <div class="flex items-center gap-2.5">
+          <input
+            type="range"
+            class="qb-range"
+            min="0"
+            max="100"
+            step="1"
+            bind:value={fill}
+            disabled={isViewer}
+            on:input={onFillInput}
+            on:change={commit}
+            aria-label="Field bin fill level"
+            style="--qb-thumb: {colorDef.dark}; background: linear-gradient(to right, {colorDef.dark} 0%, {colorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
+          />
+          <span
+            class="min-w-[44px] text-right text-base font-extrabold"
+            style="color: {colorDef.dark};"
+          >
+            {Math.round(fill)}%
+          </span>
+        </div>
+        {#if capacityTonnes > 0}
+          <span class="mt-1 block text-[10.5px] font-bold text-white/55">
+            {currentTonnes.toFixed(1)} / {capacityTonnes} t
+          </span>
+        {/if}
       </div>
-      {#if capacityTonnes > 0}
-        <span class="mt-1 block text-[10.5px] font-bold text-white/55">
-          {currentTonnes.toFixed(1)} / {capacityTonnes} t
-        </span>
-      {/if}
-    </div>
 
-    <!-- Add / take tonnes -->
-    <div class="mt-3">
-      <span class="qb-label">Add / take (t)</span>
-      <div class="flex items-center gap-1.5">
-        <input
-          type="number"
-          class="qb-num"
-          min="0"
-          step="1"
-          bind:value={tonnesDelta}
-          placeholder="t"
-          disabled={isViewer || capacityTonnes <= 0}
-          on:keydown={(e) => {
-            if (e.key === "Enter") applyTonnesDelta(1)
-          }}
-        />
-        <button
-          class="qb-delta add"
-          disabled={isViewer || capacityTonnes <= 0}
-          on:click={() => applyTonnesDelta(1)}
-          title="Enter tonnes to add"
-          aria-label="Add tonnes"
-        >
-          <Plus size={14} />
-          <span>Add</span>
-        </button>
-        <button
-          class="qb-delta take"
-          disabled={isViewer || capacityTonnes <= 0}
-          on:click={() => applyTonnesDelta(-1)}
-          title="Enter tonnes to take"
-          aria-label="Take tonnes"
-        >
-          <Minus size={14} />
-          <span>Take</span>
-        </button>
+      <!-- Add / take tonnes -->
+      <div class="mt-3">
+        <span class="qb-label">Add / take (t)</span>
+        <div class="flex items-center gap-1.5">
+          <input
+            type="number"
+            class="qb-num"
+            min="0"
+            step="1"
+            bind:value={tonnesDelta}
+            placeholder="t"
+            disabled={isViewer || capacityTonnes <= 0}
+            on:keydown={(e) => {
+              if (e.key === "Enter") applyTonnesDelta(1)
+            }}
+          />
+          <button
+            class="qb-delta add"
+            disabled={isViewer || capacityTonnes <= 0}
+            on:click={() => applyTonnesDelta(1)}
+            title="Enter tonnes to add"
+            aria-label="Add tonnes"
+          >
+            <Plus size={14} />
+            <span>Add</span>
+          </button>
+          <button
+            class="qb-delta take"
+            disabled={isViewer || capacityTonnes <= 0}
+            on:click={() => applyTonnesDelta(-1)}
+            title="Enter tonnes to take"
+            aria-label="Take tonnes"
+          >
+            <Minus size={14} />
+            <span>Take</span>
+          </button>
+        </div>
+        {#if capacityTonnes <= 0}
+          <span class="mt-1 block text-[10.5px] italic text-white/40">
+            Set a bin size to use tonnes
+          </span>
+        {:else if deltaHint}
+          <span
+            class="mt-1 block text-[10.5px] font-bold"
+            style="color: {colorDef.dark};"
+          >
+            Enter a value first
+          </span>
+        {/if}
       </div>
-      {#if capacityTonnes <= 0}
-        <span class="mt-1 block text-[10.5px] italic text-white/40">
-          Set a bin size to use tonnes
-        </span>
-      {:else if deltaHint}
-        <span
-          class="mt-1 block text-[10.5px] font-bold"
-          style="color: {colorDef.dark};"
-        >
-          Enter a value first
-        </span>
-      {/if}
-    </div>
     {:else}
       <!-- Settings tab — mirrors the on-map bin panel's settings. -->
       <div class="mt-3">
@@ -378,7 +375,9 @@
       <label class="qb-toggle-row mt-3">
         <span class="qb-toggle-text">
           <span class="qb-label">Show bins always</span>
-          <span class="qb-toggle-note">Keep a shortcut above the people menu</span>
+          <span class="qb-toggle-note"
+            >Keep a shortcut above the people menu</span
+          >
         </span>
         <input
           type="checkbox"

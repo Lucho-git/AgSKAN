@@ -386,9 +386,7 @@
       </div>
       <div class="setting-label">
         <span class="setting-name">Broadcast menu</span>
-        <span class="setting-desc"
-          >Show the Broadcast tool in the toolbox</span
-        >
+        <span class="setting-desc">Show the Broadcast tool in the toolbox</span>
       </div>
       <input
         type="checkbox"

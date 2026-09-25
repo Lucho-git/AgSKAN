@@ -12,7 +12,10 @@
   import { controlStore } from "$lib/stores/controlStore"
   import { kmzOverlaysStore } from "$lib/stores/kmzOverlaysStore"
   import { pendingDrawingSelection } from "$lib/stores/markerDrawingSelectionStore"
-  import { userVehicleStore, otherVehiclesStore } from "$lib/stores/vehicleStore"
+  import {
+    userVehicleStore,
+    otherVehiclesStore,
+  } from "$lib/stores/vehicleStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import {
     locationPickStore,
@@ -656,16 +659,8 @@
             ? marker.coordinates
             : null
           result = {
-            lng: storeCoords
-              ? storeCoords[0]
-              : coords
-                ? coords[0]
-                : point.lng,
-            lat: storeCoords
-              ? storeCoords[1]
-              : coords
-                ? coords[1]
-                : point.lat,
+            lng: storeCoords ? storeCoords[0] : coords ? coords[0] : point.lng,
+            lat: storeCoords ? storeCoords[1] : coords ? coords[1] : point.lat,
             label: marker?.noteLabel || "Marker",
             refType: "marker",
             refId: markerId,

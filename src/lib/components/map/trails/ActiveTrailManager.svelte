@@ -135,8 +135,7 @@
           ...($currentTrailStore ? [$currentTrailStore] : []),
           ...$otherActiveTrailStore,
         ].filter(
-          (trail) =>
-            trail && trail.path && trail.source !== "auto_travel",
+          (trail) => trail && trail.path && trail.source !== "auto_travel",
         )
 
         if (allActiveTrails.length > 0) {
@@ -196,9 +195,7 @@
     const allActiveTrails = [
       ...($currentTrailStore ? [$currentTrailStore] : []),
       ...$otherActiveTrailStore,
-    ].filter(
-      (trail) => trail && trail.path && trail.source !== "auto_travel",
-    )
+    ].filter((trail) => trail && trail.path && trail.source !== "auto_travel")
 
     if (allActiveTrails.length === 0) return
 
@@ -338,9 +335,7 @@
     const allActiveTrails = [
       ...($currentTrailStore ? [$currentTrailStore] : []),
       ...$otherActiveTrailStore,
-    ].filter(
-      (trail) => trail && trail.path && trail.source !== "auto_travel",
-    )
+    ].filter((trail) => trail && trail.path && trail.source !== "auto_travel")
 
     console.log(
       `🔨 ATM rebuildCombinedActiveTrails: ${allActiveTrails.length} trails, paths: [${allActiveTrails.map((t) => (Array.isArray(t.path) ? t.path.length : "geojson")).join(", ")}]`,
