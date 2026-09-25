@@ -6,6 +6,7 @@
     adminApi,
     type AdminMapEntry,
     type AdminMapActivity,
+    type AdminMapContentStats,
     type AdminMapNote,
     type MapDailyRow,
   } from "$lib/api/adminApi"
@@ -17,6 +18,7 @@
   } from "$lib/api/adminUserSettingsApi"
   import { goto } from "$app/navigation"
   import SendSmsModal from "$lib/components/admin/SendSmsModal.svelte"
+  import { MapPin, NotepadText, Route, X } from "lucide-svelte"
 
   // Imagery sources (mirrors SatelliteControls.svelte)
   const IMAGERY_SOURCES: Record<
@@ -53,6 +55,7 @@
   let loading = false
   let entries: AdminMapEntry[] = []
   let activityMap: Map<string, AdminMapActivity> = new Map()
+  let contentStatsMap: Map<string, AdminMapContentStats> = new Map()
   let errorMessage = ""
   let expandedMapId: string | null = null
   let heatmapMapId: string | null = null
@@ -84,6 +87,9 @@
   let smsModalShow = false
   let smsPhone = ""
   let smsOwnerName = ""
+
+  // Note editor modal — opened from the notepad next to each Send SMS button
+  let noteModalEntry: AdminMapEntry | null = null
 
   // Admin map notes, keyed by master_map_id
   let mapNotes: Record<string, AdminMapNote> = {}
@@ -192,15 +198,43 @@
     settingsSaving = null
   }
 
+  // ── Note quick-access (notepad beside Send SMS) ─────────────────────────────────────
   function openSmsModal(phone: string, name: string) {
     smsPhone = phone
     smsOwnerName = name
     smsModalShow = true
   }
 
+  function notePreview(
+    mapId: string,
+    notes: Record<string, AdminMapNote>,
+  ): string {
+    return (
+      (notes[mapId]?.note || "").trim() || "No note yet — click to add one"
+    )
+  }
+
+  function openNoteModal(entry: AdminMapEntry) {
+    noteModalEntry = entry
+  }
+
+  async function saveNoteFromModal() {
+    if (!noteModalEntry) return
+    if (await saveMapNote(noteModalEntry.master_map_id)) {
+      noteModalEntry = null
+    }
+  }
+
   // ── Admin map notes ─────────────────────────────────────────────────────────
-  function noteIsDirty(mapId: string): boolean {
-    return (noteDrafts[mapId] ?? "") !== (mapNotes[mapId]?.note ?? "")
+  // NOTE: deps are passed in as args — a bare noteIsDirty(mapId) call in the
+  // template never re-evaluates (function-body reads aren't tracked by the
+  // compiler), which left the Save button stuck disabled.
+  function noteIsDirty(
+    mapId: string,
+    drafts: Record<string, string>,
+    notes: Record<string, AdminMapNote>,
+  ): boolean {
+    return (drafts[mapId] ?? "") !== (notes[mapId]?.note ?? "")
   }
 
   async function saveMapNote(mapId: string) {
@@ -220,6 +254,7 @@
       toast.error(result.error || "Failed to save note")
     }
     savingNoteId = null
+    return result.success
   }
 
   function getSettingVal(col: string, def: any): any {
@@ -492,6 +527,64 @@
     return activityMap.get(mapId)
   }
 
+  // Combined hectarage of every field (paddock) on the farm's map, e.g.
+  // "Mapping: 8413 ha · 24 fields"; maps with no fields read "No mapping".
+  function fieldAreaLabel(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): string {
+    const s = stats.get(mapId)
+    if (!s || !s.field_count) return "No mapping"
+    const ha = Number(s.field_hectares) || 0
+    const fieldWord = s.field_count === 1 ? "field" : "fields"
+    return `Mapping: ${ha.toLocaleString("en-AU", { maximumFractionDigits: 0 })} ha · ${s.field_count} ${fieldWord}`
+  }
+
+  // Compact size-only version for the table-row badge (just the hectares).
+  function fieldSizeLabel(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): string {
+    const s = stats.get(mapId)
+    if (!s || !s.field_count) return "No mapping"
+    const ha = Number(s.field_hectares) || 0
+    return `${ha.toLocaleString("en-AU", { maximumFractionDigits: 0 })} ha`
+  }
+
+  // Trails recorded on the farm (auto travel segments excluded, matching the
+  // map's own trail lists).
+  function trailCountLabel(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): string {
+    const n = stats.get(mapId)?.trail_count ?? 0
+    return `${n.toLocaleString("en-AU")} trail${n === 1 ? "" : "s"}`
+  }
+
+  // Markers placed on the farm (soft-deleted markers excluded).
+  function markerCountLabel(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): string {
+    const n = stats.get(mapId)?.marker_count ?? 0
+    return `${n.toLocaleString("en-AU")} marker${n === 1 ? "" : "s"}`
+  }
+
+  // Raw counts for the compact table-row badges (icon + number only).
+  function trailCountValue(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): number {
+    return stats.get(mapId)?.trail_count ?? 0
+  }
+
+  function markerCountValue(
+    mapId: string,
+    stats: Map<string, AdminMapContentStats>,
+  ): number {
+    return stats.get(mapId)?.marker_count ?? 0
+  }
+
   async function loadData() {
     loading = true
     errorMessage = ""
@@ -504,6 +597,15 @@
       if (activityResult.success) {
         activityMap = new Map(
           activityResult.data.map((a) => [a.master_map_id, a]),
+        )
+      }
+
+      // Per-farm content stats — mapped hectarage, trails recorded, markers
+      // placed — a failure here shouldn't blank the dashboard either.
+      const contentStatsResult = await adminApi.fetchContentStats()
+      if (contentStatsResult.success) {
+        contentStatsMap = new Map(
+          contentStatsResult.data.map((c) => [c.master_map_id, c]),
         )
       }
 
@@ -937,8 +1039,8 @@
                 <div class="text-contrast-content/50">
                   {entry.owner_email || "—"}
                 </div>
-                {#if entry.owner_phone}
-                  <div class="flex items-center gap-1 text-contrast-content/40">
+                <div class="flex items-center gap-1 text-contrast-content/40">
+                  {#if entry.owner_phone}
                     {entry.owner_phone}
                     <button
                       type="button"
@@ -964,12 +1066,46 @@
                         /></svg
                       >
                     </button>
-                  </div>
-                {/if}
+                  {/if}
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs text-contrast-content/50 hover:bg-base-content/10"
+                    title={notePreview(entry.master_map_id, mapNotes)}
+                    aria-label="Edit note"
+                    on:click|stopPropagation={() => openNoteModal(entry)}
+                  >
+                    <NotepadText class="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </td>
               <td class="border-r border-base-300">
-                <div class="text-contrast-content">
-                  {entry.map_name || "Unnamed"}
+                <div
+                  class="flex flex-wrap items-center gap-1.5 text-contrast-content"
+                >
+                  <span>{entry.map_name || "Unnamed"}</span>
+                  <span class="badge badge-ghost badge-sm border border-black">
+                    {fieldSizeLabel(entry.master_map_id, contentStatsMap)}
+                  </span>
+                  <span
+                    class="badge badge-ghost badge-sm gap-1 border border-black"
+                    title="Trails recorded"
+                  >
+                    <Route class="h-3 w-3" />
+                    {trailCountValue(
+                      entry.master_map_id,
+                      contentStatsMap,
+                    ).toLocaleString("en-AU")}
+                  </span>
+                  <span
+                    class="badge badge-ghost badge-sm gap-1 border border-black"
+                    title="Markers placed"
+                  >
+                    <MapPin class="h-3 w-3" />
+                    {markerCountValue(
+                      entry.master_map_id,
+                      contentStatsMap,
+                    ).toLocaleString("en-AU")}
+                  </span>
                 </div>
                 {#if entry.company_name}
                   <div class="text-contrast-content/50">
@@ -1125,6 +1261,21 @@
                         <p class="text-xs text-contrast-content/50">
                           Created: {formatDate(entry.map_created_at)}
                         </p>
+                        <p class="text-xs text-contrast-content/50">
+                          {fieldAreaLabel(entry.master_map_id, contentStatsMap)}
+                        </p>
+                        <div
+                          class="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-contrast-content/50"
+                        >
+                          <span class="flex items-center gap-1">
+                            <Route class="h-3 w-3" />
+                            {trailCountLabel(entry.master_map_id, contentStatsMap)}
+                          </span>
+                          <span class="flex items-center gap-1">
+                            <MapPin class="h-3 w-3" />
+                            {markerCountLabel(entry.master_map_id, contentStatsMap)}
+                          </span>
+                        </div>
                         <div class="mt-2 flex flex-wrap items-center gap-1">
                           <span
                             class="badge badge-sm {subBadge(
@@ -1402,7 +1553,7 @@
                           {(noteDrafts[entry.master_map_id] ?? "").length}/4000
                         </span>
                         <div class="flex items-center gap-2">
-                          {#if noteIsDirty(entry.master_map_id)}
+                          {#if noteIsDirty(entry.master_map_id, noteDrafts, mapNotes)}
                             <span class="text-[10px] text-warning"
                               >Unsaved changes</span
                             >
@@ -1411,7 +1562,11 @@
                             type="button"
                             class="btn btn-primary btn-xs"
                             disabled={savingNoteId === entry.master_map_id ||
-                              !noteIsDirty(entry.master_map_id)}
+                              !noteIsDirty(
+                                entry.master_map_id,
+                                noteDrafts,
+                                mapNotes,
+                              )}
                             on:click={() => saveMapNote(entry.master_map_id)}
                           >
                             {#if savingNoteId === entry.master_map_id}
@@ -2107,3 +2262,77 @@
   ownerName={smsOwnerName}
   onClose={() => (smsModalShow = false)}
 />
+
+{#if noteModalEntry}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="modal modal-open" on:click={() => (noteModalEntry = null)}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="modal-box max-w-md" on:click|stopPropagation>
+      <div class="mb-1 flex items-center justify-between">
+        <h3 class="flex items-center gap-2 text-lg font-semibold">
+          <NotepadText class="h-5 w-5 text-primary" />
+          Note
+        </h3>
+        <button
+          type="button"
+          class="btn btn-circle btn-ghost btn-sm"
+          on:click={() => (noteModalEntry = null)}
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+
+      <p class="mb-3 text-xs text-contrast-content/60">
+        {noteModalEntry.owner_name || "Unknown owner"} · {noteModalEntry.map_name ||
+          "Unnamed map"}
+        {#if mapNotes[noteModalEntry.master_map_id]?.updated_at}
+          · last saved
+          {timeAgo(mapNotes[noteModalEntry.master_map_id]?.updated_at)}
+        {/if}
+      </p>
+
+      <textarea
+        class="textarea textarea-bordered h-40 w-full resize-y bg-base-100 text-sm leading-relaxed text-contrast-content"
+        placeholder="Add a note about this farm — anything you want to remember next time you look at it..."
+        maxlength={4000}
+        bind:value={noteDrafts[noteModalEntry.master_map_id]}
+      ></textarea>
+
+      <div class="mt-2 flex items-center justify-between gap-2">
+        <span class="text-[10px] text-contrast-content/40">
+          {(noteDrafts[noteModalEntry.master_map_id] ?? "").length}/4000
+        </span>
+        <span class="flex items-center gap-2">
+          {#if noteIsDirty(noteModalEntry.master_map_id, noteDrafts, mapNotes)}
+            <span class="text-[10px] text-warning">Unsaved changes</span>
+          {/if}
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            disabled={savingNoteId === noteModalEntry.master_map_id}
+            on:click={() => (noteModalEntry = null)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            disabled={savingNoteId === noteModalEntry.master_map_id ||
+              !noteIsDirty(
+                noteModalEntry.master_map_id,
+                noteDrafts,
+                mapNotes,
+              )}
+            on:click={saveNoteFromModal}
+          >
+            {#if savingNoteId === noteModalEntry.master_map_id}
+              <span class="loading loading-spinner loading-xs"></span>
+            {:else}
+              Save note
+            {/if}
+          </button>
+        </span>
+      </div>
+    </div>
+  </div>
+{/if}

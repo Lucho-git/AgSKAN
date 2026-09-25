@@ -53,6 +53,14 @@ export interface AdminMapActivity {
     active_days: number;
 }
 
+export interface AdminMapContentStats {
+    master_map_id: string;
+    field_count: number;
+    field_hectares: number;
+    trail_count: number;
+    marker_count: number;
+}
+
 export interface MapDailyRow {
     activity_date: string;
     profile_id: string;
@@ -106,6 +114,23 @@ export const adminApi = {
             return { success: true, data: data || [] };
         } catch (error: any) {
             console.error('Admin activity stats fetch error:', error);
+            return { success: false, data: [], error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /** Per-map content stats: fields + hectares, trails recorded, markers placed (admin_map_content_stats). */
+    async fetchContentStats(): Promise<{ success: boolean; data: AdminMapContentStats[]; error?: string }> {
+        try {
+            const { data, error } = await supabase.rpc('admin_map_content_stats');
+
+            if (error) {
+                console.error('Admin content stats RPC error:', error);
+                return { success: false, data: [], error: error.message };
+            }
+
+            return { success: true, data: data || [] };
+        } catch (error: any) {
+            console.error('Admin content stats fetch error:', error);
             return { success: false, data: [], error: error.message || 'Unexpected error' };
         }
     },

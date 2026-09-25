@@ -640,9 +640,16 @@
         trailPausePointStore.set(null)
         removePauseMarker()
 
-        // Show spray record confirmation popup if records were generated AND setting is enabled
+        // Show spray record confirmation popup if records were generated AND
+        // the setting is enabled — BUT never for auto trail closes: the popup
+        // is reserved for manual stops. Auto segments close silently (the
+        // records themselves are still created by close_trail_fast).
         const sprayRecords = result.sprayRecords || []
-        if (sprayRecords.length > 0 && $userSettingsStore?.sprayConfirmEnabled) {
+        if (
+          sprayRecords.length > 0 &&
+          $userSettingsStore?.sprayConfirmEnabled &&
+          !autoCloseInProgress
+        ) {
           pendingSprayRecords = sprayRecords
           pendingSprayTrailId = trailId
           pendingSprayOperatorName = $operatorStore?.operator?.name || sprayRecords[0]?.operator_name || ""
@@ -652,7 +659,8 @@
             `📋 Showing spray record confirmation (${sprayRecords.length} fields)`,
           )
         } else {
-          // No spray records (trail didn't intersect any fields) — just close
+          // No spray records (trail didn't intersect any fields) or an auto
+          // close — just finish.
           trailClosingStore.set(false)
         }
 
@@ -708,6 +716,12 @@
         },
       )
     }
+
+    // Return the full close cycle so callers that need to (the auto trail
+    // controller) can wait until the trail row is closed — including the
+    // spray-popup decision — BEFORE opening the next segment. Never rejects;
+    // failures queue themselves for retry internally.
+    return closurePromise.catch(() => {})
   }
 
   function resetTrailState() {
@@ -964,11 +978,10 @@
     try {
       await stopTrail()
     } finally {
-      // stopTrail resolves once its close flow is set up; its toasts are
-      // created synchronously before that, so the flag has done its job.
-      setTimeout(() => {
-        autoCloseInProgress = false
-      }, 250)
+      // stopTrail resolves after the FULL close cycle (native flush +
+      // close_trail_fast + the spray-popup decision), so the flag stays true
+      // long enough to suppress both the close toasts and the spray popup.
+      autoCloseInProgress = false
     }
   }
 
