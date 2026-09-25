@@ -449,7 +449,7 @@
         </div>
       </div>
       <div class="header-right">
-        {#if $userSettingsStore?.isAdmin}
+        {#if $userSettingsStore?.isAdmin || $userSettingsStore?.devToolsEnabled}
           <div class="backfill-section">
             <input
               type="number"
