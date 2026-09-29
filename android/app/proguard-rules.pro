@@ -1,21 +1,33 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# ─────────────────────────────────────────────────────────────────────
+# AgSKAN — ProGuard / R8 rules
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Enabled 2026-09-29: Play Console flagged "DEX code optimisation"
+# (obfuscation was 2% because release builds shipped with
+# minifyEnabled false). Capacitor's own consumer rules already keep
+# plugin classes — the rules below cover the WebView bridge, our
+# custom native plugins and readable crash reports.
+# ─────────────────────────────────────────────────────────────────────
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# WebView ⇄ JS bridge (Capacitor Bridge, @JavascriptInterface methods)
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor plugins are loaded reflectively via capacitor.plugins.json
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * {
+    @com.getcapacitor.PluginMethod public <methods>;
+}
+-keep public class * extends com.getcapacitor.Plugin { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Our native code — custom plugins (RawGps, MockLocation), GNSS/mock
+# services and MainActivity. Kept as one block so reflective lookups and
+# logcat/crash-report class names stay stable.
+-keep class com.skanfarming.** { *; }
+
+# Attributes needed by reflection-based libraries (Gson etc. used by the
+# background-geolocation / OneSignal stacks)
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+
+# Keep source file + line numbers so Play/Studio can de-obfuscate traces
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

@@ -27,8 +27,8 @@ android {
         applicationId "com.skanfarming"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 288
-        versionName "2.88"
+        versionCode 289
+        versionName "2.89"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -52,7 +52,11 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             }
-            minifyEnabled false
+            // R8 — required to satisfy Play Console "DEX code optimisation"
+            // thresholds (obfuscation was 2% with minifyEnabled false).
+            // Keep rules live in app/proguard-rules.pro.
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             // [background-geolocation] Proguard-rules
             proguardFiles "${background_geolocation.projectDir}/proguard-rules.pro"
