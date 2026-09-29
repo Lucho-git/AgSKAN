@@ -34,6 +34,7 @@ export const MARKER_DEFINITIONS = [
   { id: "fiver2_crossing", class: "custom-svg", name: "Crossing", active: true },
   { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
   { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
+  { id: "branch", class: "custom-svg", name: "Branch", active: true },
   { id: "workshop_icon", class: "custom-svg", name: "Workshop", active: true },
   { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
   { id: "home", class: "ionic-home", name: "Home", active: true },

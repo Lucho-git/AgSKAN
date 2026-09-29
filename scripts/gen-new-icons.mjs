@@ -1,4 +1,5 @@
-// Converts the new marker SVGs in icon-art/new/ into high-DPI (3x) PNGs
+// Converts the new marker SVGs in static/icons/new-icons/ (the current drop
+// folder; older batch still lives in icon-art/new/) into high-DPI (3x) PNGs
 // in static/icons/, using the same rendering as scripts/generateIcons.js
 // (35px display @ 3x = 105px canvas, light-grey disc + shadow, icon at 0.85
 // scale, viewBox fitted + centered).
@@ -7,17 +8,23 @@
 // <symbol> blocks for src/lib/components/general/IconSprite.svelte (rock_pile's
 // class-based fills are inlined so rendering never depends on a <style>).
 //
+// Drop new icons as a CLEANED svg: no <defs>/clipPath (the glyph pipeline
+// strips them, leaving dangling clip refs), no explicit black fills (let the
+// shape inherit the marker tint) and a tight viewBox around the artwork.
+//
 // Run: node scripts/gen-new-icons.mjs
 import { createCanvas, loadImage } from 'canvas'
-import { readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SRC = path.join(__dirname, '../icon-art/new')
+const SRC = path.join(__dirname, '../static/icons/new-icons')
+const LEGACY_SRC = path.join(__dirname, '../icon-art/new')
 const OUT = path.join(__dirname, '../static/icons')
 
 const ICONS = [
+  { file: 'branch.svg', id: 'branch' },
   { file: 'fuel_refill.svg', id: 'fuel_refill' },
   { file: 'liquid_tank.svg', id: 'liquid_tank' },
   { file: 'rock_pile.svg', id: 'rock_pile' },
@@ -93,7 +100,10 @@ async function main() {
   const symbols = []
 
   for (const icon of ICONS) {
-    const raw = readFileSync(path.join(SRC, icon.file), 'utf-8')
+    const filePath = existsSync(path.join(SRC, icon.file))
+      ? path.join(SRC, icon.file)
+      : path.join(LEGACY_SRC, icon.file)
+    const raw = readFileSync(filePath, 'utf-8')
     const { viewBox, inner: rawInner } = extractSvg(raw)
     const inner =
       icon.id === 'rock_pile' ? transformRockPile(rawInner) : rawInner
@@ -142,16 +152,17 @@ async function main() {
   writeFileSync(symbolsPath, symbols.join('\n\n') + '\n')
   console.log('✅ Symbols written to', symbolsPath)
 
-  // Insert or UPDATE the <symbol> blocks in IconSVG.svelte (before the final
-  // render <svg>) so the marker pickers' thumbnails render them. Existing
-  // symbols are replaced (so regenerated SVGs like rock_pile update), missing
-  // ones are inserted — idempotent.
+  // Insert or UPDATE the <symbol> blocks in IconSprite.svelte (before the
+  // sprite's closing </svg>) so the marker pickers' thumbnails render them.
+  // Existing symbols are replaced (so regenerated SVGs like rock_pile
+  // update), missing ones are inserted — idempotent.
   const iconSvgPath = path.join(__dirname, '../src/lib/components/general/IconSprite.svelte')
   let iconSvg = readFileSync(iconSvgPath, 'utf-8')
-  const marker = '<svg width={size} height={size} fill={color}>'
-  const insertAt = iconSvg.indexOf(marker)
+  // NOTE: the render <svg> lives in IconSVG.svelte now — IconSprite.svelte is
+  // the symbol library, so insert before its LAST closing </svg>.
+  const insertAt = iconSvg.lastIndexOf('</svg>')
   if (insertAt === -1) {
-    throw new Error('Could not find the IconSVG render <svg> to insert symbols')
+    throw new Error('Could not find the closing </svg> in IconSprite.svelte')
   }
   for (const block of symbols) {
     const idMatch = block.match(/<symbol id="([^"]+)"/)

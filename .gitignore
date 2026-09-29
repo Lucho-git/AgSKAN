@@ -30,6 +30,7 @@ vite.config.ts.timestamp-*
 /android/.gradle/
 /android/gradle/wrapper/gradle-wrapper.jar # Some prefer to version this, others ignore
 /android/local.properties
+/android/keystore.properties # release signing credentials — never commit
 /android/.idea/
 /android/**/*.iml
 /android/captures/

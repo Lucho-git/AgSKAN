@@ -191,9 +191,11 @@ await check('rock-dg', 'custom-svg-rock', 'icon-dark-glass', (px) => { const c =
   for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
   console.log(white > 200 ? '✅' : '❌', `gate circle-fill: white glyph pixels present (${white})`)
 }
-// 11. KANGAROO (keep, multi-colour): original mode keeps its own non-grey art on the light disc
+// 11. KEEP-GLYPH (multi-colour): original mode keeps its own non-grey art on
+// the light disc. (Was kangaroo — that icon left the glyph payload in the
+// 9c75b2cd marker-menu refactor and renders via the PNG path now.)
 {
-  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-kangaroo'], colorDefs.blue, 'original', 0.3)
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-tree13'], colorDefs.blue, 'original', 0.3)
   const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
   let colourful = 0 // non-grey, non-disc-light pixels (kangaroo's own hues)
   for (let i = 0; i < data.length; i += 4) {
@@ -203,7 +205,7 @@ await check('rock-dg', 'custom-svg-rock', 'icon-dark-glass', (px) => { const c =
       if (dev > 40) colourful++
     }
   }
-  console.log(colourful > 200 ? '✅' : '❌', `kangaroo original: multi-colour art kept (${colourful} chroma px)`)
+  console.log(colourful > 200 ? '✅' : '❌', `tree13 original: multi-colour art kept (${colourful} chroma px)`)
 }
 // 12. AT-GASOLINE (stroke-based atlas): circle-fill → blue disc + WHITE
 // outline glyph (stroke:currentColor via <g color> resolves to the glyph
@@ -315,4 +317,13 @@ await check('rock-dg', 'custom-svg-rock', 'icon-dark-glass', (px) => { const c =
   let white = 0
   for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
   console.log(white > 200 ? '✅' : '❌', `tractor circle-fill: white tinted glyph (${white} px)`)
+}
+// 21. BRANCH (new 2026-09): fully-tinted custom silhouette — circle-fill
+// paints the whole glyph white over the blue disc.
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-branch'], colorDefs.blue, 'circle-fill', 0.3)
+  const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  let white = 0
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
+  console.log(white > 300 ? '✅' : '❌', `branch circle-fill: white tinted glyph (${white} px)`)
 }

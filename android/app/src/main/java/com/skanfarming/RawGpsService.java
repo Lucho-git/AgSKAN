@@ -21,6 +21,8 @@ import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
+import java.util.Locale;
+
 /**
  * Foreground service that reads raw GPS fixes from LocationManager.GPS_PROVIDER.
  *
@@ -92,7 +94,7 @@ public class RawGpsService extends Service {
                 return START_NOT_STICKY;
             }
 
-            startForeground(NOTIFICATION_ID, buildNotification("GPS active — 1Hz mode"));
+            startForeground(NOTIFICATION_ID, buildNotification(buildTrackingText(intervalMs)));
 
             boolean started = startLocationUpdates(intervalMs, minDistanceM);
             if (started) {
@@ -216,10 +218,26 @@ public class RawGpsService extends Service {
                     "Raw GPS Tracking",
                     NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Provides continuous 1Hz GPS updates");
+            channel.setDescription("Provides continuous GPS tracking updates");
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) nm.createNotificationChannel(channel);
         }
+    }
+
+    /**
+     * Notification text for the running service. Reports the ACTUAL update
+     * interval the service was started with — the raw GPS service runs for
+     * the whole mobile map session at the user's GPS interval setting, NOT
+     * only while the app's "Full 1Hz GPS" toggle is on, so the old hardcoded
+     * "1Hz mode" text was misleading.
+     */
+    private String buildTrackingText(long intervalMs) {
+        if (intervalMs <= 0) return "Tracking active";
+        float seconds = intervalMs / 1000f;
+        String secs = (seconds == Math.round(seconds))
+                ? String.valueOf((int) seconds)
+                : String.format(Locale.US, "%.1f", seconds);
+        return "Tracking active — every " + secs + "s";
     }
 
     private Notification buildNotification(String text) {

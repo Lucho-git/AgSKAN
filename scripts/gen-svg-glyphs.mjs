@@ -36,7 +36,7 @@ const CUSTOM_ICONS = [
   'rock', 'rock_pile', 'tree13', 'wheat2', 'watertank2',
   'water_tower2', 'liquid_tank', 'recharge_icon',
   'machine_pump', 'electric_tower', 'gate', 'repair_shop', 'tractor',
-  'silo2', 'tree_stump', 'workshop_icon',
+  'silo2', 'tree_stump', 'workshop_icon', 'branch',
   // FIVER_ICONS_START
   'fiver_field_bin_v4',
   'fiver_bulldozer',

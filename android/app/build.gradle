@@ -3,6 +3,23 @@ apply plugin: 'com.android.application'
 Project background_geolocation = project(':transistorsoft-capacitor-background-geolocation')
 apply from: "${background_geolocation.projectDir}/app.gradle"
 
+// ── Release signing ─────────────────────────────────────────────────────
+// Optional: create android/keystore.properties (NOT committed — see root
+// .gitignore) so `gradlew bundleRelease` / `assembleRelease` emit a
+// Play-ready SIGNED build without the Android Studio wizard:
+//
+//   storeFile=C:/Users/<you>/Downloads/keystore.jks   (absolute, or relative to android/app)
+//   storePassword=…
+//   keyAlias=…
+//   keyPassword=…
+//
+// Without the file the release build stays unsigned and still succeeds.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.skanfarming"
     compileSdk rootProject.ext.compileSdkVersion
@@ -10,8 +27,8 @@ android {
         applicationId "com.skanfarming"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 286
-        versionName "2.86"
+        versionCode 288
+        versionName "2.88"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -19,8 +36,22 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            // Signed with android/keystore.properties when present (see top).
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             // [background-geolocation] Proguard-rules

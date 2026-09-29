@@ -43,6 +43,7 @@ export const SVG_RENDERED_ICONS = new Set([
   "at-users",
   "at-wheat-harvest",
   "at-xmark-circle",
+  "custom-svg-branch",
   "custom-svg-electric_tower",
   "custom-svg-fiver2_berries",
   "custom-svg-fiver2_cow_mob",
