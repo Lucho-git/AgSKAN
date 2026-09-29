@@ -103,5 +103,7 @@
 	<string>AgSKAN requires microphone access to record audio with videos for sharing in chat conversations and support communications.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>AgSKAN needs photo library access to allow users to select and share existing photos and videos in chat conversations and support communications.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>AgSKAN lets you invite team members to your farm map by text message. To send an invite, AgSKAN can open your contacts so you can pick a person — only the name and phone number of the contact you choose are used to prefill the invite, and they are never uploaded or shared for any other purpose.</string>
 </dict>
 </plist>
