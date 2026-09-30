@@ -24,11 +24,22 @@ const LEGACY_SRC = path.join(__dirname, '../icon-art/new')
 const OUT = path.join(__dirname, '../static/icons')
 
 const ICONS = [
-  { file: 'branch.svg', id: 'branch' },
+  // 2026-09-30: the branch ART was replaced with the old 'Stick' svg (the
+  // retired branch.svg) — same id/class so existing markers follow along.
+  { file: 'Stick.svg', id: 'branch' },
   { file: 'fuel_refill.svg', id: 'fuel_refill' },
   { file: 'liquid_tank.svg', id: 'liquid_tank' },
   { file: 'rock_pile.svg', id: 'rock_pile' },
   { file: 'water_tower2.svg', id: 'water_tower2' },
+  // 2026-09-30 batch — Gate Closed/Open, Twine. 'gate' RE-USES the legacy id
+  // on purpose: its symbol + gate-3x.png are REPLACED with the new CLOSED
+  // gate art, so every existing marker (stored as custom-svg-gate) shows the
+  // new icon with no DB change. 'gate_open' is the toggled-open glyph used
+  // when a gate's gate_open property is true. (Stick.svg now supplies the
+  // BRANCH art above; the 'stick' id was retired.)
+  { file: 'Gate Closed.svg', id: 'gate' },
+  { file: 'Gate Open.svg', id: 'gate_open' },
+  { file: 'Twine.svg', id: 'twine' },
 ]
 
 // rock_pile uses class-based fills — inline them so the rendered PNG (and
@@ -158,15 +169,11 @@ async function main() {
   // update), missing ones are inserted — idempotent.
   const iconSvgPath = path.join(__dirname, '../src/lib/components/general/IconSprite.svelte')
   let iconSvg = readFileSync(iconSvgPath, 'utf-8')
-  // NOTE: the render <svg> lives in IconSVG.svelte now — IconSprite.svelte is
-  // the symbol library, so insert before its LAST closing </svg>.
-  const insertAt = iconSvg.lastIndexOf('</svg>')
-  if (insertAt === -1) {
-    throw new Error('Could not find the closing </svg> in IconSprite.svelte')
-  }
+  // Pass 1: UPDATE existing symbols in place (the render <svg> lives in
+  // IconSVG.svelte now — IconSprite.svelte is the symbol library).
+  const toInsert = []
   for (const block of symbols) {
-    const idMatch = block.match(/<symbol id="([^"]+)"/)
-    const id = idMatch ? idMatch[1] : null
+    const id = (block.match(/<symbol id="([^"]+)"/) || [])[1] || null
     if (id && new RegExp(`<symbol id="${id}"[\\s\\S]*?<\\/symbol>`).test(iconSvg)) {
       iconSvg = iconSvg.replace(
         new RegExp(`<symbol id="${id}"[\\s\\S]*?<\\/symbol>`),
@@ -174,8 +181,25 @@ async function main() {
       )
       console.log('✅ Updated symbol', id)
     } else {
-      iconSvg = iconSvg.slice(0, insertAt) + block + '\n\n' + iconSvg.slice(insertAt)
-      console.log('✅ Inserted symbol', id || '?')
+      toInsert.push(block)
+    }
+  }
+  // Pass 2: insert ALL new symbols in ONE splice before the sprite's closing
+  // </svg>. The index MUST be computed AFTER the updates above — a replaced
+  // block changes the file length, and an index captured before them lands
+  // inside previously inserted blocks, splitting them (2026-09-30 gate_open).
+  if (toInsert.length) {
+    const insertAt = iconSvg.lastIndexOf('</svg>')
+    if (insertAt === -1) {
+      throw new Error('Could not find the closing </svg> in IconSprite.svelte')
+    }
+    iconSvg =
+      iconSvg.slice(0, insertAt) +
+      toInsert.join('\n\n') +
+      '\n' +
+      iconSvg.slice(insertAt)
+    for (const block of toInsert) {
+      console.log('✅ Inserted symbol', (block.match(/<symbol id="([^"]+)"/) || [])[1] || '?')
     }
   }
   writeFileSync(iconSvgPath, iconSvg)

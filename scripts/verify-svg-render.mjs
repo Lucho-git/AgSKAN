@@ -318,8 +318,33 @@ await check('rock-dg', 'custom-svg-rock', 'icon-dark-glass', (px) => { const c =
   for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
   console.log(white > 200 ? '✅' : '❌', `tractor circle-fill: white tinted glyph (${white} px)`)
 }
-// 21. BRANCH (new 2026-09): fully-tinted custom silhouette — circle-fill
-// paints the whole glyph white over the blue disc.
+// 21. GATE — the legacy custom-svg-gate class now renders the NEW closed
+// gate (art replaced 2026-09-30), and gate_open renders DIFFERENT art for
+// the toggled-open state. Both tint fully (white glyph in circle-fill).
+{
+  const closed = buildSvg(MARKER_SVG_GLYPHS['custom-svg-gate'], colorDefs.blue, 'circle-fill', 0.3)
+  const open = buildSvg(MARKER_SVG_GLYPHS['custom-svg-gate_open'], colorDefs.blue, 'circle-fill', 0.3)
+  const [closedPng, openPng] = await Promise.all([
+    sharp(Buffer.from(closed)).png().toBuffer(),
+    sharp(Buffer.from(open)).png().toBuffer(),
+  ])
+  const { data } = await sharp(closedPng).raw().toBuffer({ resolveWithObject: true })
+  let white = 0
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
+  console.log(white > 200 ? '✅' : '❌', `gate closed: white tinted glyph (${white} px)`)
+  console.log(!closedPng.equals(openPng) ? '✅' : '❌', 'gate closed vs gate open: different art (toggle switches the glyph)')
+}
+// 22. TWINE — new picker icon: circle-fill → white tinted glyph
+{
+  const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-twine'], colorDefs.blue, 'circle-fill', 0.3)
+  const { data } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })
+  let white = 0
+  for (let i = 0; i < data.length; i += 4) { if (data[i + 3] > 200) { const r = data[i], g = data[i + 1], b = data[i + 2]; if (r > 235 && g > 235 && b > 235) white++ } }
+  console.log(white > 200 ? '✅' : '❌', `twine circle-fill: white tinted glyph (${white} px)`)
+}
+// 23. BRANCH (art replaced 2026-09-30 with the former Stick.svg; the old
+// branch.svg is retired): fully-tinted silhouette — circle-fill paints the
+// whole glyph white over the blue disc.
 {
   const svg = buildSvg(MARKER_SVG_GLYPHS['custom-svg-branch'], colorDefs.blue, 'circle-fill', 0.3)
   const { data, info } = await sharp(Buffer.from(svg)).raw().toBuffer({ resolveWithObject: true })

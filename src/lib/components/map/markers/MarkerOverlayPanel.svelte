@@ -58,6 +58,9 @@
     randomColorForId,
     RANDOM_COLOR_KEY,
     isGrainBinIcon,
+    isGateIcon,
+    isRockIcon,
+    gateDisplayIconClass,
   } from "./markerPalette"
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { blockForViewer } from "$lib/utils/guestMode"
@@ -258,7 +261,13 @@
   $: markerName = marker
     ? findMarkerByIconClass(marker.iconClass)?.name || "Marker"
     : "Marker"
-  $: displayIconClass = previewIconClass || getCurrentIconClass(marker?.id)
+  $: displayIconClass =
+    previewIconClass ||
+    gateDisplayIconClass(getCurrentIconClass(marker?.id), marker?.gateOpen)
+  // Gate markers (special): open/closed toggle lives in the main view.
+  $: isGate = isGateIcon(marker?.iconClass)
+  // Rock markers (special): "picked" toggle lives in the main view.
+  $: isRock = isRockIcon(marker?.iconClass)
 
   // The colour shown in the header badge + colour-menu tag: the marker's
   // explicit colour, or if it's set to Default, the colour the "Marker
@@ -673,6 +682,57 @@
       noteSavedTimer = setTimeout(() => (noteSavedFlash = false), 1600)
     } catch (error) {
       console.error("Error saving notes:", error)
+    }
+  }
+
+  // ── Gate open/closed (special gate markers) ──
+  // Writes `gateOpen` straight onto the marker in the store — MapStateSaver
+  // persists it as properties.gate_open and the map re-renders immediately
+  // (MarkerManager resolves the glyph via gateDisplayIconClass).
+  function setGateOpen(open, event) {
+    if (blockForViewer(event, isViewer)) return
+    if (!marker || !isGate) return
+    const next = open === true
+    if ((marker.gateOpen === true) === next) return
+    confirmedMarkersStore.update((markers) =>
+      markers.map((m) =>
+        m.id === marker.id
+          ? { ...m, gateOpen: next, updated_at: new Date().toISOString() }
+          : m,
+      ),
+    )
+    selectedMarkerStore.update((m) =>
+      m?.id === marker.id ? { ...m, gateOpen: next } : m,
+    )
+    if (marker.coordinates) {
+      showEditRipple(marker.coordinates, `Gate → ${next ? "Open" : "Closed"}`)
+    }
+  }
+
+  // ── Rock "picked" (special rock / rock-pile markers) ──
+  // Instant toggle like the gate — persisted as properties.rock_picked and
+  // rendered as a stamped green tick baked into the marker's cached image
+  // (markerSvgRenderer buildSvg `picked`) so there is no per-rock DOM cost.
+  function setRockPicked(picked, event) {
+    if (blockForViewer(event, isViewer)) return
+    if (!marker || !isRock) return
+    const next = picked === true
+    if ((marker.rockPicked === true) === next) return
+    confirmedMarkersStore.update((markers) =>
+      markers.map((m) =>
+        m.id === marker.id
+          ? { ...m, rockPicked: next, updated_at: new Date().toISOString() }
+          : m,
+      ),
+    )
+    selectedMarkerStore.update((m) =>
+      m?.id === marker.id ? { ...m, rockPicked: next } : m,
+    )
+    if (marker.coordinates) {
+      showEditRipple(
+        marker.coordinates,
+        `Rock → ${next ? "Picked" : "Not picked"}`,
+      )
     }
   }
 
@@ -1429,6 +1489,101 @@
       {:else}
         <div class="marker-pop-body">
           <div class="mp-main">
+            {#if isGate}
+              <div class="mp-section">
+                <div class="mp-section-head">
+                  <span class="mp-section-title">
+                    <IconSVG
+                      icon={marker?.gateOpen ? "gate_open" : "gate"}
+                      size="12px"
+                    />
+                    <span>Gate</span>
+                  </span>
+                  <span class="mp-state-label">
+                    {marker?.gateOpen ? "Open" : "Closed"}
+                  </span>
+                </div>
+                <div
+                  class="mp-state-toggle"
+                  role="group"
+                  aria-label="Gate state"
+                >
+                  <button
+                    type="button"
+                    class="mp-state-btn"
+                    class:active={!marker?.gateOpen}
+                    class:guest-disabled={isViewer}
+                    on:click={(e) => setGateOpen(false, e)}
+                    title="Mark this gate as closed"
+                  >
+                    <IconSVG icon="gate" size="20px" />
+                    <span>Closed</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="mp-state-btn"
+                    class:active={marker?.gateOpen === true}
+                    class:guest-disabled={isViewer}
+                    on:click={(e) => setGateOpen(true, e)}
+                    title="Mark this gate as open"
+                  >
+                    <IconSVG icon="gate_open" size="20px" />
+                    <span>Open</span>
+                  </button>
+                </div>
+              </div>
+            {/if}
+            {#if isRock}
+              <div class="mp-section">
+                <div class="mp-section-head">
+                  <span class="mp-section-title">
+                    <IconSVG
+                      icon={marker?.iconClass === "custom-svg-rock_pile"
+                        ? "rock_pile"
+                        : "rock"}
+                      size="12px"
+                    />
+                    <span>Rock</span>
+                  </span>
+                  <span class="mp-state-label">
+                    {marker?.rockPicked ? "Picked" : "Not picked"}
+                  </span>
+                </div>
+                <div
+                  class="mp-state-toggle"
+                  role="group"
+                  aria-label="Rock picked state"
+                >
+                  <button
+                    type="button"
+                    class="mp-state-btn"
+                    class:active={!marker?.rockPicked}
+                    class:guest-disabled={isViewer}
+                    on:click={(e) => setRockPicked(false, e)}
+                    title="Rock still to be picked"
+                  >
+                    <IconSVG
+                      icon={marker?.iconClass === "custom-svg-rock_pile"
+                        ? "rock_pile"
+                        : "rock"}
+                      size="20px"
+                    />
+                    <span>Not picked</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="mp-state-btn"
+                    class:active={marker?.rockPicked === true}
+                    class:guest-disabled={isViewer}
+                    on:click={(e) => setRockPicked(true, e)}
+                    title="Rock has been picked"
+                  >
+                    <Check size={18} />
+                    <span>Picked</span>
+                  </button>
+                </div>
+              </div>
+            {/if}
             <div class="mp-section">
               <div class="mp-section-head">
                 <span class="mp-section-title">
@@ -1890,6 +2045,45 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.55);
+  }
+
+  /* Special-state segmented toggle (gate open/closed, rock picked). */
+  .mp-state-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(147, 197, 253, 0.9);
+  }
+  .mp-state-toggle {
+    display: flex;
+    gap: 6px;
+  }
+  .mp-state-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mp-state-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .mp-state-btn.active {
+    border-color: rgba(96, 165, 250, 0.8);
+    background: rgba(96, 165, 250, 0.18);
+    color: #bfdbfe;
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4);
   }
 
   .mp-notes-input {

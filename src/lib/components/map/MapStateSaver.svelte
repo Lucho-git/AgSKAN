@@ -29,6 +29,9 @@
     TINT_MODE_DEFAULT,
     SILO_COLOR_DEFAULT,
     grainBinDefaultCapacity,
+    GATE_ICON_CLASS,
+    GATE_OPEN_ICON_CLASS,
+    isRockIcon,
   } from "./markers/markerPalette"
   import {
     persistPendingMarkerChange,
@@ -204,6 +207,11 @@
           grainBinDefaultCapacity(iconClass),
         fieldBinConfigured:
           newData.marker_data?.properties?.field_bin_configured === true,
+        // Gate open/closed — absent on rows written before the gate toggle
+        // existed (and by old app versions) ⇒ closed.
+        gateOpen: newData.marker_data?.properties?.gate_open === true,
+        // Rock "picked" — absent on old rows ⇒ not picked.
+        rockPicked: newData.marker_data?.properties?.rock_picked === true,
         // Per-bin "Show bins always" — whether this bin gets a rail shortcut
         // above the people menu. Missing in old rows = on by default.
         binShowAlways:
@@ -255,6 +263,8 @@
         tintMode: processedMarker.tintMode,
         capacityTonnes: processedMarker.capacityTonnes,
         fieldBinConfigured: processedMarker.fieldBinConfigured,
+        gateOpen: processedMarker.gateOpen,
+        rockPicked: processedMarker.rockPicked,
         binShowAlways: processedMarker.binShowAlways,
         created_at: processedMarker.created_at,
       })
@@ -332,6 +342,8 @@
         lastKnown.tintMode !== marker.tintMode ||
         lastKnown.capacityTonnes !== marker.capacityTonnes ||
         lastKnown.fieldBinConfigured !== marker.fieldBinConfigured ||
+        lastKnown.gateOpen !== marker.gateOpen ||
+        lastKnown.rockPicked !== marker.rockPicked ||
         lastKnown.binShowAlways !== marker.binShowAlways
       ) {
         pendingChanges.add(id)
@@ -370,6 +382,8 @@
         tintMode: marker.tintMode,
         capacityTonnes: marker.capacityTonnes,
         fieldBinConfigured: marker.fieldBinConfigured,
+        gateOpen: marker.gateOpen,
+        rockPicked: marker.rockPicked,
         binShowAlways: marker.binShowAlways,
       })
     })
@@ -570,6 +584,11 @@
               grainBinDefaultCapacity(iconClass),
             fieldBinConfigured:
               marker.marker_data?.properties?.field_bin_configured === true,
+            // Gate open/closed — absent on rows written before the gate
+            // toggle existed ⇒ closed (shows the new closed gate art).
+            gateOpen: marker.marker_data?.properties?.gate_open === true,
+            // Rock picked — absent on old rows ⇒ not picked.
+            rockPicked: marker.marker_data?.properties?.rock_picked === true,
             binShowAlways:
               marker.marker_data?.properties?.bin_show_always !== false,
             photos: marker.marker_data?.properties?.photos || [],
@@ -687,6 +706,8 @@
                 grainBinDefaultCapacity(marker.iconClass),
               field_bin_configured: !!marker.fieldBinConfigured,
               bin_show_always: marker.binShowAlways !== false,
+              gate_open: marker.gateOpen === true,
+              rock_picked: marker.rockPicked === true,
               photos: marker.photos || [],
             },
           },
@@ -816,6 +837,25 @@
         action = "Moved a marker"
       } else if (colourChanged) {
         action = "Changed the marker colour"
+      } else if (
+        props.icon === GATE_ICON_CLASS &&
+        (prevState.gateOpen === true) !== (props.gate_open === true)
+      ) {
+        // Gate open/closed toggle — the icon class itself never changes, so
+        // this needs its own branch (otherwise it would be silenced below).
+        const openNow = props.gate_open === true
+        action = openNow ? "Opened a gate" : "Closed a gate"
+        iconClass = openNow ? GATE_ICON_CLASS : GATE_OPEN_ICON_CLASS
+        secondaryIconClass = openNow ? GATE_OPEN_ICON_CLASS : GATE_ICON_CLASS
+        markerColor = props.marker_color || null
+        secondaryMarkerColor = props.marker_color || null
+      } else if (
+        isRockIcon(props.icon) &&
+        (prevState.rockPicked === true) !== (props.rock_picked === true)
+      ) {
+        // Rock "picked" toggle — the icon class itself never changes.
+        action =
+          props.rock_picked === true ? "Picked a rock" : "Un-picked a rock"
       } else {
         // Fill / notes / photos / sync churn — quiet, exactly like the log.
         return

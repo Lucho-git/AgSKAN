@@ -247,6 +247,55 @@ export function isGrainBinIcon(iconClass?: string | null): boolean {
     return !!iconClass && GRAIN_BIN_ICON_CLASSES.includes(iconClass)
 }
 
+// ── Gates ──
+// Gates are SPECIAL markers (like grain bins): every gate — old or new — is
+// stored as the single class `custom-svg-gate` (backwards compatible with
+// old app versions and the ~600 live gate markers, no DB migration), whose
+// artwork is now the new CLOSED gate. The per-marker `gateOpen` flag
+// (`marker_data.properties.gate_open`) swaps the rendered glyph to the
+// `custom-svg-gate_open` variant. Missing flag ⇒ closed.
+export const GATE_ICON_CLASS = "custom-svg-gate"
+export const GATE_OPEN_ICON_CLASS = "custom-svg-gate_open"
+
+export function isGateIcon(iconClass?: string | null): boolean {
+    return iconClass === GATE_ICON_CLASS || iconClass === GATE_OPEN_ICON_CLASS
+}
+
+/**
+ * The icon class to actually RENDER for a marker: gates show their open
+ * glyph when `gateOpen` is true; everything else renders its stored class
+ * unchanged.
+ */
+export function gateDisplayIconClass(
+    iconClass?: string | null,
+    gateOpen?: boolean | null,
+): string {
+    if (iconClass === GATE_ICON_CLASS) {
+        return gateOpen ? GATE_OPEN_ICON_CLASS : GATE_ICON_CLASS
+    }
+    return iconClass || "default"
+}
+
+// ── Rocks ──
+// Rock markers carry a "Picked" toggle (`rockPicked` ⇄
+// marker_data.properties.rock_picked). Picked rocks render a stamped green
+// tick baked into their cached marker image (see markerSvgRenderer
+// buildSvg `picked`) — shared by every picked rock, so there is no
+// per-marker DOM/draw cost even with hundreds of rocks on the map.
+export const ROCK_ICON_CLASSES = ["custom-svg-rock", "custom-svg-rock_pile"]
+
+export function isRockIcon(iconClass?: string | null): boolean {
+    return !!iconClass && ROCK_ICON_CLASSES.includes(iconClass)
+}
+
+/** True when a rock / rock-pile marker renders its "picked" stamp. */
+export function isRockPicked(
+    iconClass?: string | null,
+    rockPicked?: boolean | null,
+): boolean {
+    return rockPicked === true && isRockIcon(iconClass)
+}
+
 /** Default display name for a bin marker (when it has no note of its own). */
 export function grainBinName(iconClass?: string | null): string {
     return iconClass === MOTHER_BIN_ICON_CLASS ? "Mother Bin" : "Field Bin"

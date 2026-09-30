@@ -26,6 +26,8 @@ const customSvgIcons = [
   "rock_pile",
   "water_tower2",
   "branch",
+  "gate_open",
+  "twine",
   // Legacy core kangaroo (removed from the picker, but ~427 markers still
   // use custom-svg-kangaroo on live maps) — keep generating its PNG.
   "kangaroo",

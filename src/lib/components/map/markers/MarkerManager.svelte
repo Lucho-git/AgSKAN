@@ -42,6 +42,8 @@
     siloColorKey,
     GRAIN_BIN_ICON_CLASSES,
     isGrainBinIcon,
+    gateDisplayIconClass,
+    isRockPicked,
     isNoBackgroundIcon,
     paletteVariantSuffix,
   } from "./markerPalette"
@@ -49,6 +51,7 @@
     isSvgRenderedIcon,
     renderSvgMarkerCanvas,
     renderSvgMarkerImageData,
+    MARKER_ICON_PIXEL_RATIO,
   } from "./markerSvgRenderer"
   import {
     loadPngToCanvas,
@@ -478,6 +481,8 @@
    *   baked-in colours; only the circle/disc follows the mode.
    * @param {number} [glassAlpha] 0-1 opacity for the icon-only glass disc
    *   (baked into the registered image key so the slider re-tints).
+   * @param {boolean} [picked] Rock "picked" stamp — baked into the composed
+   *   image and keyed into the tinted image name ("-pk").
    */
   async function ensureTintedMarkerIcon(
     iconKey,
@@ -485,6 +490,7 @@
     mode,
     keepGlyphOriginal = false,
     glassAlpha = 0.3,
+    picked = false,
     skipRefresh = false,
   ) {
     if (!map || !iconPaths) return
@@ -494,7 +500,7 @@
         : ""
     const tintedKey = `${iconKey}-${colorKey}-${mode}${
       keepGlyphOriginal ? "-g" : ""
-    }${alphaSuffix}${paletteVariantSuffix(mode)}`
+    }${alphaSuffix}${paletteVariantSuffix(mode)}${picked ? "-pk" : ""}`
     if (map.hasImage(tintedKey) || tintedIconCache.has(tintedKey)) return
     tintedIconCache.add(tintedKey)
     const colorDef = markerColor(colorKey, mode)
@@ -509,8 +515,12 @@
           colorKey,
           mode,
           glassAlpha,
+          picked,
         )
-        if (!map.hasImage(tintedKey)) map.addImage(tintedKey, image)
+        if (!map.hasImage(tintedKey))
+          map.addImage(tintedKey, image, {
+            pixelRatio: MARKER_ICON_PIXEL_RATIO,
+          })
       } else {
         const path = iconPaths[iconKey]
         if (!path) return
@@ -866,7 +876,10 @@
     )
 
     const features = visibleMarkers.map((marker) => {
-      const baseIcon = getIconImageName(marker.iconClass)
+      // Gates swap to the open glyph when their gate_open flag is set.
+      const baseIcon = getIconImageName(
+        gateDisplayIconClass(marker.iconClass, marker.gateOpen),
+      )
       // The global marker style (chosen in Profile → Marker Settings) is
       // applied to every tintable marker — even ones without their own
       // colour (they resolve to the style's default colour, e.g. circle-fill
@@ -881,6 +894,9 @@
       // follows the selected style so they match the rest of the map.
       // Atlas + Ionic icons tint fully with the chosen colour.
       const isCustomIcon = isCustomSvgIcon(marker.iconClass)
+      // Rock markers can be "picked" — the stamped tick is baked into the
+      // tinted image and keyed into its name so both states coexist.
+      const picked = isRockPicked(marker.iconClass, marker.rockPicked)
       // Silos are NOT part of the standard marker colouring system — their
       // grain colour (from the same standard palette, legacy keys mapped) is
       // their only colour, and they render in "original" mode so the global
@@ -924,7 +940,7 @@
       // slider re-tints; the palette variant suffix so switching palettes
       // re-tints instead of reusing the previous variant's icons.
       const icon = useTint
-        ? `${baseIcon}-${colorKeyResolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}`
+        ? `${baseIcon}-${colorKeyResolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}${picked ? "-pk" : ""}`
         : baseIcon
       if (useTint)
         ensureTintedMarkerIcon(
@@ -933,6 +949,7 @@
           mode,
           isCustomIcon,
           $userSettingsStore?.iconGlassOpacity ?? 0.3,
+          picked,
         )
 
       return {
@@ -1159,7 +1176,9 @@
     try {
       const marker = $confirmedMarkersStore.find((m) => m.id === markerId)
       if (!marker || !iconPaths) return null
-      const baseIcon = getIconImageName(marker.iconClass)
+      const baseIcon = getIconImageName(
+        gateDisplayIconClass(marker.iconClass, marker.gateOpen),
+      )
       const path = iconPaths[baseIcon]
       return path ? `/${path}` : null
     } catch {
@@ -1356,11 +1375,14 @@
   // resolution as refreshMapMarkers) — used to cache + key DOM data URLs.
   /** @param {any} marker @returns {string} */
   function markerIconImageName(marker) {
-    const baseIcon = getIconImageName(marker.iconClass)
+    const baseIcon = getIconImageName(
+      gateDisplayIconClass(marker.iconClass, marker.gateOpen),
+    )
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
     const isSilo = isGrainBinIcon(marker.iconClass)
+    const picked = isRockPicked(marker.iconClass, marker.rockPicked)
     const colorKey = isSilo
       ? siloColorKey(marker.grainColor)
       : isDefaultPin
@@ -1383,7 +1405,7 @@
           ? "icon-only"
           : globalStyle
     return useTint
-      ? `${baseIcon}-${colorKeyResolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}`
+      ? `${baseIcon}-${colorKeyResolved}-${mode}${isCustomIcon ? "-g" : ""}${glassAlphaSuffix(mode)}${paletteVariantSuffix(mode)}${picked ? "-pk" : ""}`
       : baseIcon
   }
 
@@ -1428,6 +1450,7 @@
         mode,
         isCustomIcon,
         $userSettingsStore?.iconGlassOpacity ?? 0.3,
+        false,
         true,
       )
     }
@@ -1441,7 +1464,13 @@
     const imageName = markerIconImageName(marker)
     const cached = iconDataUrlCache.get(imageName)
     if (cached) return Promise.resolve(cached)
-    const baseIcon = getIconImageName(marker.iconClass)
+    const displayIconClass = gateDisplayIconClass(
+      marker.iconClass,
+      marker.gateOpen,
+    )
+    const baseIcon = getIconImageName(displayIconClass)
+    // Rock markers marked "picked" preview/select with the stamped variant.
+    const picked = isRockPicked(marker.iconClass, marker.rockPicked)
     const globalStyle = $userSettingsStore?.markerStyle || TINT_MODE_DEFAULT
     const isDefaultPin = baseIcon === "default"
     const isCustomIcon = isCustomSvgIcon(marker.iconClass)
@@ -1469,16 +1498,22 @@
           : globalStyle
     // Proof of concept: SVG-rendered icons compose the same image the symbol
     // layer shows (no pixel tinting), so the selection overlay matches.
-    if (isSvgRenderedIcon(marker.iconClass)) {
+    if (isSvgRenderedIcon(displayIconClass)) {
       return renderSvgMarkerCanvas(
-        marker.iconClass,
+        displayIconClass,
         colorKeyResolved,
         mode,
         $userSettingsStore?.iconGlassOpacity ?? 0.3,
+        picked,
       ).then((canvas) => {
         const info = {
           url: canvas.toDataURL(),
-          px: Math.max(20, Math.round(canvas.height * 0.35)),
+          // CSS px stays 36.75 regardless of the raster density — the
+          // overlay must match the marker's on-screen size.
+          px: Math.max(
+            20,
+            Math.round((canvas.height / MARKER_ICON_PIXEL_RATIO) * 0.35),
+          ),
         }
         iconDataUrlCache.set(imageName, info)
         return info
@@ -1790,7 +1825,9 @@
 
     // Key: rebuild (restarting the entrance animation) whenever the marker,
     // style or icon image changes; otherwise reuse + move.
-    const baseIcon = getIconImageName(effectiveMarker.iconClass)
+    const baseIcon = getIconImageName(
+      gateDisplayIconClass(effectiveMarker.iconClass, effectiveMarker.gateOpen),
+    )
     const iconKey = `tint-${markerIconImageName(effectiveMarker)}`
     const overlayKey = `${selId}|${visual}|${ringChoice}|${iconKey}`
     if (currentOverlay && currentOverlay.key === overlayKey) {

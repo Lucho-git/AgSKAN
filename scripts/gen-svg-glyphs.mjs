@@ -37,6 +37,11 @@ const CUSTOM_ICONS = [
   'water_tower2', 'liquid_tank', 'recharge_icon',
   'machine_pump', 'electric_tower', 'gate', 'repair_shop', 'tractor',
   'silo2', 'tree_stump', 'workshop_icon', 'branch',
+  // 2026-09-30 gate-toggle batch: the 'gate' art was REPLACED with the new
+  // closed gate (legacy class kept as the storage key); 'gate_open' is the
+  // toggled-open glyph. 'twine' is a standalone picker icon. ('branch' art
+  // now comes from Stick.svg; the old branch.svg + 'stick' class retired.)
+  'gate_open', 'twine',
   // FIVER_ICONS_START
   'fiver_field_bin_v4',
   'fiver_bulldozer',

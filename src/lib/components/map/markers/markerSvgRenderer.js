@@ -14,8 +14,16 @@
 import { markerColor } from './markerPalette'
 import { SVG_RENDERED_ICONS } from './markerSvgGlyphs'
 
-const SIZE = 105 // 3x the 35px display size (matches the baked PNGs)
-const MAX_CACHE = 400 // bounded render cache (each entry is a 105×105 canvas)
+// Composition coordinates (disc r=49.5, centre 52.5, stamp paths, glyph
+// transform) are authored in the 105px LOGICAL space (VIEW). The SVG is
+// rasterised at SIZE = 4× the 35px display size so disc edges stay crisp on
+// high-DPI screens — including the 1.3× selected-marker pop that magnifies
+// the texture. Map registration must pass MARKER_ICON_PIXEL_RATIO so the
+// on-screen size is unchanged (logical 105 × icon-size 0.35 = 36.75px).
+const VIEW = 105 // logical art space
+const SIZE = 140 // 4x the 35px display size (was 3x/105)
+export const MARKER_ICON_PIXEL_RATIO = SIZE / VIEW
+const MAX_CACHE = 400 // bounded render cache (each entry is a SIZE×SIZE canvas)
 
 export function isSvgRenderedIcon(iconClass) {
   return !!iconClass && SVG_RENDERED_ICONS.has(iconClass)
@@ -53,18 +61,20 @@ function svgToCanvas(svg) {
 }
 
 // Fit a glyph's viewBox into a centred box (keeps the glyph inside the disc,
-// like the baked PNGs).
+// like the baked PNGs). Centred in the LOGICAL art space (VIEW) — NOT the
+// raster SIZE: they were equal at 105, but after the 4× bump using SIZE here
+// offset every glyph down-right inside the disc.
 function glyphTransform(viewBox, target) {
   const [x, y, w, h] = viewBox.split(' ').map(Number)
   const scale = target / Math.max(w, h)
-  const tx = SIZE / 2 - (w * scale) / 2 - x * scale
-  const ty = SIZE / 2 - (h * scale) / 2 - y * scale
+  const tx = VIEW / 2 - (w * scale) / 2 - x * scale
+  const ty = VIEW / 2 - (h * scale) / 2 - y * scale
   return `translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${scale.toFixed(4)})`
 }
 
 // Build the composed SVG for one icon × colour × mode. Shade mapping mirrors
 // markerTint.js: bright = dark, deep = icon-fill glyph, light = original disc.
-function buildSvg(glyph, colorDef, mode, glassAlpha) {
+function buildSvg(glyph, colorDef, mode, glassAlpha, picked = false) {
   const { light, dark, deep } = colorDef
   const glassAlphaDark = glassAlpha != null ? glassAlpha : 0.55
   const glassAlphaLight = glassAlpha != null ? glassAlpha : 0.38
@@ -126,20 +136,38 @@ function buildSvg(glyph, colorDef, mode, glassAlpha) {
       ? `<g color="${glyphFill}" fill="${glyphFill}">${glyph.content}</g>`
       : glyph.content
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
+  // "Picked" stamp (rock / rock pile) — a bold green tick with a white
+  // casing, drawn in DISC coordinates so it never scales with the glyph.
+  // Baked into the rasterized image: every picked rock on the map shares
+  // this one cached image — no per-marker DOM or draw cost.
+  const pickedStamp = picked
+    ? `<g stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M22 57 L41 75 L84 27" stroke="#ffffff" stroke-width="14" stroke-opacity="0.9"/>
+    <path d="M22 57 L41 75 L84 27" stroke="#16a34a" stroke-width="8.5"/>
+  </g>`
+    : ''
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${VIEW} ${VIEW}">
   ${disc}
   ${ring}
   <g transform="${glyphTransform(glyph.viewBox, 74)}">${glyphWrap}</g>
+  ${pickedStamp}
 </svg>`
 }
 
-function cacheKey(iconClass, colorKey, mode, glassAlpha) {
-  return `${iconClass}|${colorKey}|${mode}|${glassAlpha ?? ''}`
+function cacheKey(iconClass, colorKey, mode, glassAlpha, picked) {
+  return `${iconClass}|${colorKey}|${mode}|${glassAlpha ?? ''}|${picked ? 'pk' : ''}`
 }
 
-/** Rasterize a marker icon to a 105×105 canvas (cached per key). */
-export function renderSvgMarkerCanvas(iconClass, colorKey, mode, glassAlpha) {
-  const key = cacheKey(iconClass, colorKey, mode, glassAlpha)
+/** Rasterize a marker icon to a SIZE×SIZE canvas (cached per key). */
+export function renderSvgMarkerCanvas(
+  iconClass,
+  colorKey,
+  mode,
+  glassAlpha,
+  picked = false,
+) {
+  const key = cacheKey(iconClass, colorKey, mode, glassAlpha, picked)
   const hit = cache.get(key)
   if (hit) return hit
   const p = (async () => {
@@ -147,7 +175,7 @@ export function renderSvgMarkerCanvas(iconClass, colorKey, mode, glassAlpha) {
     const glyph = glyphs[iconClass]
     if (!glyph) throw new Error(`no glyph for ${iconClass}`)
     const colorDef = markerColor(colorKey, mode)
-    const svg = buildSvg(glyph, colorDef, mode, glassAlpha)
+    const svg = buildSvg(glyph, colorDef, mode, glassAlpha, picked)
     return svgToCanvas(svg)
   })()
   cache.set(key, p)
@@ -167,8 +195,15 @@ export async function renderSvgMarkerImageData(
   colorKey,
   mode,
   glassAlpha,
+  picked = false,
 ) {
-  const canvas = await renderSvgMarkerCanvas(iconClass, colorKey, mode, glassAlpha)
+  const canvas = await renderSvgMarkerCanvas(
+    iconClass,
+    colorKey,
+    mode,
+    glassAlpha,
+    picked,
+  )
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
   return { width: canvas.width, height: canvas.height, data: imageData.data }

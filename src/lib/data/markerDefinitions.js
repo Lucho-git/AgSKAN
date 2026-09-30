@@ -30,11 +30,19 @@ export const MARKER_DEFINITIONS = [
   { id: "thumbs-down", class: "ionic-thumbs-down", name: "Thumbs Down", active: true },
 
   // ── Yards, gates & utilities ──
-  { id: "gate", class: "custom-svg", name: "Gate", active: true },
+  // Gate is a SPECIAL marker: its open/closed state is toggled from its
+  // marker panel (`gateOpen` → marker_data.properties.gate_open). The art is
+  // the new closed gate; an open gate renders custom-svg-gate_open. The
+  // stored class stays `custom-svg-gate` for every gate (old + new) so old
+  // app versions keep rendering them — no DB migration needed.
+  { id: "gate", class: "custom-svg", name: "Gate", active: true, special: true },
   { id: "fiver2_crossing", class: "custom-svg", name: "Crossing", active: true },
   { id: "electric_tower", class: "custom-svg", name: "Power Tower", active: true },
   { id: "tree_stump", class: "custom-svg", name: "Tree Stump", active: true },
+  // 2026-09-30: the Branch art is now the former 'Stick' svg (the old
+  // branch.svg was retired) — same class/id, so existing markers follow.
   { id: "branch", class: "custom-svg", name: "Branch", active: true },
+  { id: "twine", class: "custom-svg", name: "Twine", active: true },
   { id: "workshop_icon", class: "custom-svg", name: "Workshop", active: true },
   { id: "repair_shop", class: "custom-svg", name: "Repair Shop", active: true },
   { id: "home", class: "ionic-home", name: "Home", active: true },

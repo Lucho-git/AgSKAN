@@ -36,6 +36,7 @@
   import {
     isSvgRenderedIcon,
     renderSvgMarkerImageData,
+    MARKER_ICON_PIXEL_RATIO,
   } from "$lib/components/map/markers/markerSvgRenderer"
   import { getActiveMarkers, getAllMarkers } from "$lib/data/markerDefinitions"
 
@@ -203,7 +204,9 @@
               tintMode,
               0.3,
             )
-            map.addImage(name, image)
+            map.addImage(name, image, {
+              pixelRatio: MARKER_ICON_PIXEL_RATIO,
+            })
           }
         }
         images.set(key, name)
