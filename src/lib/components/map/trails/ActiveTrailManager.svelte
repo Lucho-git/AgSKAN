@@ -7,7 +7,7 @@
   import type { Trail } from "$lib/types/trail"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
-  import { currentTrailStore } from "$lib/stores/currentTrailStore"
+  import { currentTrailStore, trailPausesStore } from "$lib/stores/currentTrailStore"
   import {
     TRAIL_CONFIG,
     generateTrailIds,
@@ -16,7 +16,7 @@
     createArrowCenterLineConfig,
     createInitialCombinedActiveTrailsGeoJSON,
     createActiveTrailMarkers,
-    splitTrailIntoSegments,
+    splitPartSegments,
     type TrailCoordinate,
     type ArrowMarker,
     type TrailDistanceState,
@@ -193,7 +193,9 @@
 
   function updateCombinedActiveTrailsIncremental() {
     const allActiveTrails = [
-      ...($currentTrailStore ? [$currentTrailStore] : []),
+      ...($currentTrailStore
+        ? [{ ...$currentTrailStore, pauseWindows: $trailPausesStore }]
+        : []),
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path && trail.source !== "auto_travel")
 
@@ -261,8 +263,9 @@
       const previousCoordCount = lastCoordinateCounts.get(trail.id) || 0
       const lastSegmentIndex = lastSegmentIndices.get(trail.id) || 0
 
-      const allSegments = splitTrailIntoSegments(
+      const allSegments = splitPartSegments(
         trailCoordinates,
+        trail.pauseWindows,
         trail.id,
         trail.trail_color || "#FF0000",
         trail.trail_width || 3,
@@ -333,7 +336,9 @@
 
   function rebuildCombinedActiveTrails() {
     const allActiveTrails = [
-      ...($currentTrailStore ? [$currentTrailStore] : []),
+      ...($currentTrailStore
+        ? [{ ...$currentTrailStore, pauseWindows: $trailPausesStore }]
+        : []),
       ...$otherActiveTrailStore,
     ].filter((trail) => trail && trail.path && trail.source !== "auto_travel")
 

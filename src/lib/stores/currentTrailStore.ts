@@ -19,6 +19,8 @@ export interface Trail {
     operator_name?: string | null
     operator_id?: string | null
     vehicle_marker?: Record<string, any> | null
+    /** Pause windows for live pause-break rendering (own active trail only). */
+    pauseWindows?: { pausedAt: number; resumedAt?: number | null }[]
 }
 
 export interface UnsavedTrail {
@@ -187,3 +189,15 @@ export interface PausePoint {
     timestamp: number
 }
 export const trailPausePointStore = writable<PausePoint | null>(null)
+
+// Pause EVENTS for the trail that is currently being recorded. Each entry is
+// one pause/resume cycle; `resumedAt` is null while still paused. Written on
+// pause/resume in TrailSynchronizer, persisted to `trail_pauses` (best effort)
+// and used to split the geometry into parts at close / during live rendering.
+export interface TrailPauseEvent {
+    pausedAt: number
+    resumedAt: number | null
+    latitude?: number
+    longitude?: number
+}
+export const trailPausesStore = writable<TrailPauseEvent[]>([])

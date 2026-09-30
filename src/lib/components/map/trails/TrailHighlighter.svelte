@@ -193,6 +193,9 @@
         if (trail.path && typeof trail.path === "object") {
           if ("type" in trail.path && trail.path.type === "LineString") {
             coordinates = trail.path.coordinates
+          } else if ("type" in trail.path && trail.path.type === "MultiLineString") {
+            // Pause-broken trail: flatten parts for the replay animation.
+            coordinates = (trail.path.coordinates as [number, number][][]).flat() as [number, number][]
           } else if (Array.isArray(trail.path)) {
             const sortedCoords = [...trail.path].sort(
               (a, b) => a.timestamp - b.timestamp,
@@ -990,6 +993,10 @@ font-size: 12px;
       if (trail.path && typeof trail.path === "object") {
         if ("type" in trail.path && trail.path.type === "LineString") {
           coordinates = trail.path.coordinates
+        } else if ("type" in trail.path && trail.path.type === "MultiLineString") {
+          // Pause-broken trail: flatten parts (start/end markers use the
+          // first and last points, which stay correct).
+          coordinates = (trail.path.coordinates as [number, number][][]).flat() as [number, number][]
         } else if (Array.isArray(trail.path)) {
           const sortedCoords = [...trail.path].sort(
             (a, b) => a.timestamp - b.timestamp,
@@ -1396,7 +1403,10 @@ font-size: 12px;
     if (animationState.isReady && animationState.trailId === trail.id) {
       coordinates = animationState.coordinates
     } else if (trail.path && trail.path.coordinates) {
-      coordinates = trail.path.coordinates
+      coordinates =
+        "type" in trail.path && trail.path.type === "MultiLineString"
+          ? ((trail.path.coordinates as [number, number][][]).flat() as [number, number][])
+          : trail.path.coordinates
     }
 
     if (coordinates.length > 0) {

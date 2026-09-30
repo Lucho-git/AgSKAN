@@ -706,7 +706,8 @@
       })
       if (error) throw error
       if (
-        data?.path_geojson?.type === "LineString" &&
+        (data?.path_geojson?.type === "LineString" ||
+          data?.path_geojson?.type === "MultiLineString") &&
         data.path_geojson.coordinates?.length >= 2
       ) {
         highlightPath = data.path_geojson

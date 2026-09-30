@@ -20,6 +20,7 @@
     pendingClosuresStore,
     trailPausedStore,
     trailPausePointStore,
+    trailPausesStore,
     trailClosingStore,
     trailStartingStore,
   } from "$lib/stores/currentTrailStore"
@@ -42,6 +43,11 @@
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
   import { parseVehicleCoords } from "$lib/utils/vehicleCoords"
+  import {
+    splitPointsAtPauses,
+    buildGeoJsonPath,
+    mergePauseWindows,
+  } from "$lib/utils/trailPauseSplit"
   import { buildFieldIndex, fieldAtPoint } from "$lib/utils/autoTrailFields"
   import SprayRecordConfirm from "./SprayRecordConfirm.svelte"
   import OperatorPicker from "./OperatorPicker.svelte"
@@ -350,12 +356,31 @@
 
     // Record where we paused
     const coords = $userVehicleStore.coordinates
+    const pausedAt = Date.now()
     if (coords?.latitude && coords?.longitude) {
       trailPausePointStore.set({
         latitude: coords.latitude,
         longitude: coords.longitude,
-        timestamp: Date.now(),
+        timestamp: pausedAt,
       })
+    }
+
+    // Record the pause EVENT locally (splits the geometry at close) and
+    // persist it best-effort so the server cron + other viewers can split too.
+    const trailId = $currentTrailStore?.id
+    if (trailId) {
+      trailPausesStore.update((list) => [
+        ...list,
+        {
+          pausedAt,
+          resumedAt: null,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        },
+      ])
+      trailsApi
+        .recordTrailPause(trailId, pausedAt, coords?.latitude, coords?.longitude)
+        .catch(() => {})
     }
 
     trailPausedStore.set(true)
@@ -370,6 +395,18 @@
 
     // Distance check is now handled by the UI layer (ButtonSection)
     // which shows a confirmation modal before dispatching TRAIL_RESUME
+
+    // Close out the pause EVENT (local state + best-effort DB row).
+    const pausePoint = $trailPausePointStore
+    const trailId = $currentTrailStore?.id
+    if (trailId && pausePoint) {
+      trailPausesStore.update((list) =>
+        list.map((p) =>
+          p.pausedAt === pausePoint.timestamp ? { ...p, resumedAt: Date.now() } : p,
+        ),
+      )
+      trailsApi.recordTrailResume(trailId, pausePoint.timestamp).catch(() => {})
+    }
 
     trailPausedStore.set(false)
     trailPausePointStore.set(null)
@@ -471,12 +508,23 @@
       )
     }
 
+    // ── Pause windows: merge local (this session) with persisted rows ──
+    // Local entries cover pauses whose DB write failed (offline); DB rows
+    // cover pauses from earlier sessions/other devices.
+    const localPauses = get(trailPausesStore).map((p) => ({
+      pausedAt: p.pausedAt,
+      resumedAt: p.resumedAt,
+    }))
+    const remotePauses = await trailsApi.fetchTrailPauses(trailId)
+    const closePauses = mergePauseWindows(localPauses, remotePauses)
+
     console.log(
       "🛑 Stopping trail:",
       trailId,
       "with",
       pathData.length,
       "points (after merge)",
+      closePauses.length ? `— ${closePauses.length} pause window(s)` : "",
     )
 
     // Check for insufficient data
@@ -521,6 +569,7 @@
       trail_id: trailId,
       ...trailMeta,
       path: pathData,
+      pauses: closePauses,
     }
 
     // Check if we have pending coordinates for this trail
@@ -616,8 +665,10 @@
           }
         }, 3000)
 
-        // Convert to GeoJSON and add to historical
-        const lineStringPath = {
+        // Convert to GeoJSON and add to historical — split at pause windows so
+        // the fresh trail renders exactly like it will after a reload.
+        const pathParts = splitPointsAtPauses(pathData, closePauses)
+        const lineStringPath = buildGeoJsonPath(pathParts) || {
           type: "LineString",
           coordinates: pathData.map((coord) => [
             coord.longitude,
@@ -639,6 +690,7 @@
         userVehicleTrailing.set(false)
         trailPausedStore.set(false)
         trailPausePointStore.set(null)
+        trailPausesStore.set([])
         removePauseMarker()
 
         // Show spray record confirmation popup if records were generated AND
@@ -735,6 +787,7 @@
     userVehicleTrailing.set(false)
     trailPausedStore.set(false)
     trailPausePointStore.set(null)
+    trailPausesStore.set([])
     trailClosingStore.set(false)
   }
 

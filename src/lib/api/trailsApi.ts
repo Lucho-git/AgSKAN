@@ -1,6 +1,8 @@
 // src/lib/api/trailsApi.ts
 import { supabase } from '$lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
+import { splitPointsAtPauses, buildEwktPath } from '$lib/utils/trailPauseSplit';
+import type { TrailPauseWindow } from '$lib/utils/trailPauseSplit';
 
 const TRAIL_DATA_RETENTION_DAYS = 300; // Same as server-side
 
@@ -103,6 +105,7 @@ async function closeTrailWithPath(
     trail_id: string,
     endTime: string,
     path?: Point[],
+    pauses: TrailPauseWindow[] = [],
 ) {
     if (!path || path.length === 0) {
         // If no path is provided, just update the end time
@@ -116,20 +119,20 @@ async function closeTrailWithPath(
         return { data: result.data, error: result.error };
     }
 
-    // Format the detailed path with timestamps (LINESTRING M format)
-    const detailedLineString = path
-        .map((point) => `${point.longitude} ${point.latitude} ${point.timestamp}`)
-        .join(",");
-    const detailedPathString = `SRID=4326;LINESTRING M(${detailedLineString})`;
+    // Pause breaks: split the ordered points into parts at pause boundaries so
+    // the stored geometry keeps the gap (MULTILINESTRING) instead of stitching
+    // a connector line between the pause point and the resume point.
+    const parts = splitPointsAtPauses(path, pauses);
 
-    // Create a simplified path for display using Douglas-Peucker algorithm
-    const simplifiedPath = simplifyPath(path, 0.000005);
-    const simplifiedLineString = simplifiedPath
-        .map((point) => `${point.longitude} ${point.latitude}`)
-        .join(",");
-    const pathString = `SRID=4326;LINESTRING(${simplifiedLineString})`;
+    // Detailed path (every point + timestamp): LINESTRING M / MULTILINESTRING M
+    const detailedPathString = buildEwktPath(parts, { withM: true });
 
-    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedPath.length.toLocaleString()} simplified (${Math.round((1 - simplifiedPath.length / path.length) * 100)}% reduction)`);
+    // Display path: Douglas-Peucker simplification per part, then re-join
+    const simplifiedParts = parts.map((part) => simplifyPath(part, 0.000005));
+    const pathString = buildEwktPath(simplifiedParts, { withM: false });
+
+    const simplifiedCount = simplifiedParts.reduce((n, p) => n + p.length, 0);
+    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedCount.toLocaleString()} simplified (${Math.round((1 - simplifiedCount / path.length) * 100)}% reduction), ${parts.length} part(s)`);
 
     try {
         console.log(`Closing trail ${trail_id} with fast closure (stores paths, no calculations)...`);
@@ -283,9 +286,11 @@ async function processAndCloseTrail(trail_id: string) {
         timestamp: new Date(point.timestamp).getTime(),
     }));
 
-    // Trail has enough points, close it with the last timestamp and path data
+    // Trail has enough points, close it with the last timestamp and path data.
+    // Pause windows come from trail_pauses (fail-soft: missing rows → []).
     const trailEndTime = trailPoints[trailPoints.length - 1].timestamp;
-    const result = await closeTrailWithPath(trail_id, trailEndTime, pathPoints);
+    const pauses = await fetchTrailPauses(trail_id);
+    const result = await closeTrailWithPath(trail_id, trailEndTime, pathPoints, pauses);
 
     if (result.error) {
         throw new Error(`Failed to close trail: ${result.error.message}`);
@@ -378,6 +383,76 @@ async function handleOpenTrails(
     };
 }
 
+/**
+ * Fetch pause windows for a trail from `trail_pauses`.
+ * Fail-soft: returns [] when the table is missing or the query fails, so a
+ * client can always close a trail even if pause rows were never written.
+ */
+async function fetchTrailPauses(trailId: string): Promise<TrailPauseWindow[]> {
+    try {
+        const { data, error } = await supabase
+            .from("trail_pauses")
+            .select("paused_at, resumed_at")
+            .eq("trail_id", trailId)
+            .order("paused_at", { ascending: true });
+        if (error) throw error;
+        return (data || []).map((row: any) => ({
+            pausedAt: new Date(row.paused_at).getTime(),
+            resumedAt: row.resumed_at ? new Date(row.resumed_at).getTime() : null,
+        }));
+    } catch (error) {
+        console.warn(`⚠️ Could not fetch trail pauses for ${trailId}:`, error?.message || error);
+        return [];
+    }
+}
+
+/**
+ * Persist a pause event (best effort — the close-time split does not depend
+ * on this succeeding; it only feeds the server cron + other viewers).
+ */
+async function recordTrailPause(
+    trailId: string,
+    pausedAt: number,
+    latitude?: number,
+    longitude?: number,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await supabase.from("trail_pauses").insert({
+            trail_id: trailId,
+            paused_at: new Date(pausedAt).toISOString(),
+            latitude: latitude ?? null,
+            longitude: longitude ?? null,
+        });
+        if (error) throw error;
+        return { success: true };
+    } catch (error) {
+        console.warn(`⚠️ Could not persist trail pause (${trailId}):`, error?.message || error);
+        return { success: false, error: error?.message || String(error) };
+    }
+}
+
+/**
+ * Mark a trail's open pause as resumed (best effort).
+ */
+async function recordTrailResume(
+    trailId: string,
+    pausedAt: number,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await supabase
+            .from("trail_pauses")
+            .update({ resumed_at: new Date().toISOString() })
+            .eq("trail_id", trailId)
+            .eq("paused_at", new Date(pausedAt).toISOString())
+            .is("resumed_at", null);
+        if (error) throw error;
+        return { success: true };
+    } catch (error) {
+        console.warn(`⚠️ Could not persist trail resume (${trailId}):`, error?.message || error);
+        return { success: false, error: error?.message || String(error) };
+    }
+}
+
 export const trailsApi = {
     /**
      * Close a trail
@@ -393,6 +468,7 @@ export const trailsApi = {
         }>;
         trail_color: string;
         trail_width: number;
+        pauses?: TrailPauseWindow[];
     }) {
         try {
             console.log(`Closing trail ${trailData.trail_id}`);
@@ -415,7 +491,8 @@ export const trailsApi = {
             const { error: closeError, sprayRecords } = await closeTrailWithPath(
                 trailData.trail_id,
                 new Date().toISOString(),
-                pathForClosing
+                pathForClosing,
+                trailData.pauses || []
             );
 
             if (closeError) {
@@ -455,6 +532,11 @@ export const trailsApi = {
             };
         }
     },
+
+    // Pause windows (trail_pauses) — exposed for TrailSynchronizer.
+    recordTrailPause,
+    recordTrailResume,
+    fetchTrailPauses,
 
     /**
      * Confirm spray records — set operator_confirmed = true

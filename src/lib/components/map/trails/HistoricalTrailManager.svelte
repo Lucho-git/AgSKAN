@@ -16,6 +16,7 @@
     createArrowCenterLineConfig,
     createTrailGeoJSON,
     generateArrowMarkersIncremental,
+    generateArrowMarkersForPathParts,
     type TrailCoordinate,
   } from "$lib/utils/trailGeometry"
 
@@ -316,6 +317,16 @@
     if ("type" in trail.path && trail.path.type === "LineString") {
       coordinates = trail.path.coordinates as [number, number][]
       startTimestamp = 0
+    } else if ("type" in trail.path && trail.path.type === "MultiLineString") {
+      // Pause-broken trail: generate arrows per part (spacing carries
+      // across parts; no arrows land inside the pause gaps).
+      const { markers } = generateArrowMarkersForPathParts(
+        trail.path.coordinates as [number, number][][],
+        trail.id,
+        trail.trail_color || "#FF0000",
+        TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+      )
+      return { markers }
     } else {
       const trailCoords = trail.path as TrailCoordinate[]
       const sorted = [...trailCoords].sort((a, b) => a.timestamp - b.timestamp)

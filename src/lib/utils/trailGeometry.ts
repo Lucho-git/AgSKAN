@@ -1,6 +1,7 @@
 // src/lib/utils/trailGeometry.ts
 
 import type { Trail } from "$lib/types/trail"
+import { splitPointsAtPauses } from "$lib/utils/trailPauseSplit"
 
 // ============================================
 // CONFIGURATION
@@ -375,6 +376,28 @@ export function splitTrailIntoSegments(
     return segments
 }
 
+/**
+ * Pause-break aware segmentation.
+ * Splits the coordinate list into parts at pause windows (no overlap point at
+ * part boundaries → the parts render as separate strokes with no connector
+ * line), then time-segments each part independently.
+ */
+export function splitPartSegments(
+    coordinates: TrailCoordinate[],
+    pauseWindows: { pausedAt: number; resumedAt?: number | null }[] | undefined | null,
+    trailId: string,
+    trailColor: string,
+    trailWidth: number,
+) {
+    if (!pauseWindows || pauseWindows.length === 0) {
+        return splitTrailIntoSegments(coordinates, trailId, trailColor, trailWidth)
+    }
+    const parts = splitPointsAtPauses(coordinates, pauseWindows)
+    return parts.flatMap((part) =>
+        splitTrailIntoSegments(part, trailId, trailColor, trailWidth),
+    )
+}
+
 // ============================================
 // GEOJSON CREATION
 // ============================================
@@ -436,8 +459,9 @@ export function createInitialCombinedActiveTrailsGeoJSON(trails: Trail[]) {
             trailCoordinates = trail.path as TrailCoordinate[]
         }
 
-        const segments = splitTrailIntoSegments(
+        const segments = splitPartSegments(
             trailCoordinates,
+            trail.pauseWindows,
             trail.id,
             trail.trail_color || "#FF0000",
             trail.trail_width || 3,
@@ -462,6 +486,36 @@ export function createInitialCombinedActiveTrailsGeoJSON(trails: Trail[]) {
         segmentCounts,
         coordinateCounts,
     }
+}
+
+/**
+ * Generate arrow markers across a list of path parts (pause-broken trails).
+ * Marker spacing carries across parts, but no markers land inside the gaps.
+ */
+export function generateArrowMarkersForPathParts(
+    parts: [number, number][][],
+    trailId: string,
+    trailColor: string,
+    spacingMeters: number = TRAIL_CONFIG.ARROW_INTERVAL_METERS,
+    startTimestamp: number = 0,
+): { markers: ArrowMarker[]; finalDistance: number } {
+    const allMarkers: ArrowMarker[] = []
+    let carriedDistance = 0
+    for (const part of parts) {
+        if (!part || part.length < 2) continue
+        const { markers, finalDistance } = generateArrowMarkersIncremental(
+            part,
+            0,
+            spacingMeters,
+            trailId,
+            trailColor,
+            startTimestamp,
+            carriedDistance,
+        )
+        allMarkers.push(...markers)
+        carriedDistance = finalDistance
+    }
+    return { markers: allMarkers, finalDistance: carriedDistance }
 }
 
 /**
