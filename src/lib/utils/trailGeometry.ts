@@ -1,7 +1,7 @@
 // src/lib/utils/trailGeometry.ts
 
 import type { Trail } from "$lib/types/trail"
-import { splitPointsAtPauses } from "$lib/utils/trailPauseSplit"
+import { partitionPointsAtPauses, isPauseTimestamp } from "$lib/utils/trailPauseSplit"
 
 // ============================================
 // CONFIGURATION
@@ -388,14 +388,26 @@ export function splitPartSegments(
     trailId: string,
     trailColor: string,
     trailWidth: number,
-) {
-    if (!pauseWindows || pauseWindows.length === 0) {
-        return splitTrailIntoSegments(coordinates, trailId, trailColor, trailWidth)
-    }
-    const parts = splitPointsAtPauses(coordinates, pauseWindows)
-    return parts.flatMap((part) =>
+): {
+    work: ReturnType<typeof splitTrailIntoSegments>
+    pause: ReturnType<typeof splitTrailIntoSegments>
+} {
+    const { workParts, pauseParts } = partitionPointsAtPauses(
+        coordinates,
+        pauseWindows,
+    )
+    const work = workParts.flatMap((part) =>
         splitTrailIntoSegments(part, trailId, trailColor, trailWidth),
     )
+    const pause = pauseParts
+        .flatMap((part) =>
+            splitTrailIntoSegments(part, trailId, trailColor, trailWidth),
+        )
+        .map((f) => ({
+            ...f,
+            properties: { ...f.properties, segment: "pause" },
+        }))
+    return { work, pause }
 }
 
 // ============================================
@@ -466,13 +478,14 @@ export function createInitialCombinedActiveTrailsGeoJSON(trails: Trail[]) {
             trail.trail_color || "#FF0000",
             trail.trail_width || 3,
         )
+        const trailSegments = [...segments.work, ...segments.pause]
 
         console.log(
-            `  📍 Trail ${trail.id}: ${trailCoordinates.length} coords → ${segments.length} segments`,
+            `  📍 Trail ${trail.id}: ${trailCoordinates.length} coords → ${trailSegments.length} segments`,
         )
-        allSegments.push(...segments)
+        allSegments.push(...trailSegments)
 
-        segmentCounts.set(trail.id, segments.length)
+        segmentCounts.set(trail.id, trailSegments.length)
         coordinateCounts.set(trail.id, trailCoordinates.length)
     })
 
@@ -555,9 +568,15 @@ export function createActiveTrailMarkers(
             startTimestamp = 0
         } else {
             const trailCoords = trail.path as TrailCoordinate[]
-            const sorted = [...trailCoords].sort(
+            let sorted = [...trailCoords].sort(
                 (a, b) => a.timestamp - b.timestamp,
             )
+            // Pause points are the transfer ("ant line") stretch — no work arrows.
+            if (trail.pauseWindows?.length) {
+                sorted = sorted.filter(
+                    (c) => !isPauseTimestamp(c.timestamp, trail.pauseWindows),
+                )
+            }
             coordinates = sorted.map((c) => [
                 c.coordinates.longitude,
                 c.coordinates.latitude,

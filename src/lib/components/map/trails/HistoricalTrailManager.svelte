@@ -208,6 +208,13 @@
 
     const geoJsonData = createTrailGeoJSON(trail.path)
 
+    // Paused transfer stretch ("ant line") — dashed connector, no arrows
+    const pauseSourceId = `${sourceId}-pause`
+    const pauseLayerId = `${layerId}-pause`
+    const pauseGeoJsonData = trail.pausePath
+      ? createTrailGeoJSON(trail.pausePath)
+      : null
+
     // Only generate arrow markers if arrows are currently enabled
     // This is the expensive calculation — skip it when arrows are off (the default)
     let markersGeoJSON
@@ -231,6 +238,13 @@
       type: "geojson",
       data: markersGeoJSON,
     })
+
+    if (pauseGeoJsonData) {
+      map.addSource(pauseSourceId, {
+        type: "geojson",
+        data: pauseGeoJsonData,
+      })
+    }
 
     const visibility = $layerVisibilityStore.historicalTrails
       ? "visible"
@@ -259,6 +273,34 @@
       mapContext.addTrailLayerOrdered(mainLayerConfig)
     } else {
       addTrailWithFallback(mainLayerConfig)
+    }
+
+    // Paused transfer stretch — minimal dotted "ant line" connector
+    if (pauseGeoJsonData) {
+      const pauseLayerConfig = {
+        id: pauseLayerId,
+        type: "line",
+        source: pauseSourceId,
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+          visibility: visibility,
+        },
+        paint: {
+          "line-color": trail.trail_color || "#FF0000",
+          "line-width": ["*", zoomDependentWidth, 0.6],
+          "line-opacity": 0.55,
+          "line-dasharray": [0.12, 1.5],
+        },
+      }
+
+      if (mapContext?.addHistoricalTrailLayerOrdered) {
+        mapContext.addHistoricalTrailLayerOrdered(pauseLayerConfig)
+      } else if (mapContext?.addTrailLayerOrdered) {
+        mapContext.addTrailLayerOrdered(pauseLayerConfig)
+      } else {
+        addTrailWithFallback(pauseLayerConfig)
+      }
     }
 
     // Arrow center line layer (thin black line along trail path)
@@ -295,6 +337,9 @@
 
     if (!historicalTrailLayers.includes(layerId)) {
       historicalTrailLayers = [...historicalTrailLayers, layerId]
+    }
+    if (pauseGeoJsonData && !historicalTrailLayers.includes(pauseLayerId)) {
+      historicalTrailLayers = [...historicalTrailLayers, pauseLayerId]
     }
 
     historicalDirectionalLayers = [
@@ -357,10 +402,13 @@
     const markersSourceId = `${sourceId}-markers`
     const markersLayerId = `${layerId}-markers`
     const centerLineLayerId = `${layerId}-centerline`
+    const pauseSourceId = `${sourceId}-pause`
+    const pauseLayerId = `${layerId}-pause`
 
     const layersToRemove = [
       markersLayerId,
       centerLineLayerId,
+      pauseLayerId,
       highlightLayerId,
       highlightBackgroundLayerId,
       layerId,
@@ -389,6 +437,11 @@
     }
     try {
       if (map.getSource(markersSourceId)) map.removeSource(markersSourceId)
+    } catch {
+      /* map may be destroyed */
+    }
+    try {
+      if (map.getSource(pauseSourceId)) map.removeSource(pauseSourceId)
     } catch {
       /* map may be destroyed */
     }

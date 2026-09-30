@@ -136,6 +136,23 @@
 
   const LOCATION_TRACKING_INTERVAL_MIN = 30
   const MIN_VEHICLE_DATA_UPDATE_INTERVAL = 15000 // 15s heartbeat — force an update even when stationary
+  // While paused we record only when the vehicle has moved this far since the
+  // last recorded pause point — keeps the dotted connector light, and lets a
+  // parked vehicle go "idle" for the 4h stale-trail safety net.
+  const PAUSE_POINT_MIN_MOVE_M = 5
+  let lastPauseRecordCoords = null
+
+  /** Cheap haversine (metres) for pause-point thinning */
+  function approxDistanceMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000
+    const toRad = (deg) => (deg * Math.PI) / 180
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
   // UI update throttle for native high-rate fixes (ms)
   const USER_UI_UPDATE_INTERVAL_MS = 1000 // show marker updates every 1s (align with native 1Hz)
   const NATIVE_SYNC_AUTH_REQUIRED_KEY = "agskan_native_sync_auth_required"
@@ -1193,8 +1210,11 @@
         return
       }
 
-      // Determine trailing state — native sync handles both trailing and non-trailing
-      const isTrailing = $userVehicleTrailing && !$trailPausedStore
+      // Determine trailing state — native sync handles both trailing and
+      // non-trailing. Paused still counts as trailing: the transfer drive is
+      // recorded (rendered as a dotted connector), so background sync must
+      // keep writing trail points while paused.
+      const isTrailing = $userVehicleTrailing
       const currentTrail = $currentTrailStore
       const operationId = isTrailing
         ? currentTrail?.operation_id || $userVehicleStore?.operation_id || ""
@@ -2972,11 +2992,35 @@
 
       // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
       if (coordinatesChanged || headingChanged || timeElapsed) {
-        if ($userVehicleTrailing && !$trailPausedStore) {
-          coordinateBufferStore.set({
-            coordinates: { latitude, longitude },
-            timestamp: trailTimestamp || currentTime,
-          })
+        if ($userVehicleTrailing) {
+          // Paused still records — but only genuine movement — the close
+          // partition renders it as a minimal dotted connector, and a parked
+          // vehicle stays idle for the 4h stale-trail safety net.
+          let shouldRecord = !$trailPausedStore
+          if ($trailPausedStore) {
+            const ref = lastPauseRecordCoords
+            if (!ref) {
+              lastPauseRecordCoords = { latitude, longitude }
+            } else if (
+              approxDistanceMeters(
+                ref.latitude,
+                ref.longitude,
+                latitude,
+                longitude,
+              ) >= PAUSE_POINT_MIN_MOVE_M
+            ) {
+              shouldRecord = true
+              lastPauseRecordCoords = { latitude, longitude }
+            }
+          } else {
+            lastPauseRecordCoords = null
+          }
+          if (shouldRecord) {
+            coordinateBufferStore.set({
+              coordinates: { latitude, longitude },
+              timestamp: trailTimestamp || currentTime,
+            })
+          }
         }
 
         userVehicleStore.update((vehicle) => {

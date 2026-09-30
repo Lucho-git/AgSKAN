@@ -20,7 +20,6 @@
     pendingCoordinatesStore,
     pendingClosuresStore,
     trailPausedStore,
-    trailPausePointStore,
     trailClosingStore,
     trailStartingStore,
   } from "$lib/stores/currentTrailStore"
@@ -39,7 +38,6 @@
     Play,
     Square,
     Timer,
-    AlertTriangle,
   } from "lucide-svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { getAllMarkers } from "$lib/data/markerDefinitions"
@@ -209,90 +207,10 @@
     commands.trail.pause()
   }
 
-  // ── Resume confirmation modal state ──
-  const RESUME_DISTANCE_WARNING_METERS = 300
-  let showResumeConfirm = false
-  let resumeDistanceText = ""
-
-  /** Haversine distance in metres between two lat/lng points */
-  function haversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000
-    const toRad = (deg) => (deg * Math.PI) / 180
-    const dLat = toRad(lat2 - lat1)
-    const dLon = toRad(lon2 - lon1)
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }
-
   function resumeTrailing() {
-    const pausePoint = $trailPausePointStore
-    const currentCoords = $userVehicleStore.coordinates
-
-    // Check distance from pause point
-    if (pausePoint && currentCoords?.latitude && currentCoords?.longitude) {
-      const distance = haversineDistance(
-        pausePoint.latitude,
-        pausePoint.longitude,
-        currentCoords.latitude,
-        currentCoords.longitude,
-      )
-
-      if (distance > RESUME_DISTANCE_WARNING_METERS) {
-        // Format distance for display
-        if (distance >= 1000) {
-          resumeDistanceText = `${(distance / 1000).toFixed(1)}km`
-        } else {
-          resumeDistanceText = `${Math.round(distance)}m`
-        }
-        showResumeConfirm = true
-        return
-      }
-    }
-
-    // Distance is fine, resume directly
+    // Pause no longer warns about connector lines: the transfer stretch is
+    // recorded and shown as a dotted "ant line", so resuming just continues.
     commands.trail.resume()
-  }
-
-  function confirmResume() {
-    showResumeConfirm = false
-    commands.trail.resume()
-  }
-
-  async function endAndStartNew() {
-    showResumeConfirm = false
-    // First unpause so stop works cleanly
-    trailPausedStore.set(false)
-    trailPausePointStore.set(null)
-    // Stop current trail
-    commands.trail.stop()
-    // Wait for trailing state to actually clear before starting new
-    await waitForTrailingStop()
-    commands.trail.start()
-  }
-
-  /** Wait for userVehicleTrailing to become false (stop complete) */
-  function waitForTrailingStop(timeoutMs = 10000) {
-    return new Promise((resolve) => {
-      // Already stopped
-      if (!$userVehicleTrailing) {
-        resolve(true)
-        return
-      }
-      const unsub = userVehicleTrailing.subscribe((trailing) => {
-        if (!trailing) {
-          unsub()
-          // Small tick to let everything settle
-          setTimeout(() => resolve(true), 50)
-        }
-      })
-      // Safety timeout so we don't hang forever
-      setTimeout(() => {
-        unsub()
-        resolve(false)
-      }, timeoutMs)
-    })
   }
 
   function stopTrailing() {
@@ -761,56 +679,6 @@
     </div>
   </div>
 </div>
-
-<!-- Resume confirmation modal -->
-{#if showResumeConfirm}
-  <div
-    class="resume-modal-overlay"
-    on:click={() => (showResumeConfirm = false)}
-  >
-    <div class="resume-modal" on:click|stopPropagation>
-      <!-- Header -->
-      <div class="resume-modal-header">
-        <h3 class="text-base font-semibold text-white">Resume trail?</h3>
-      </div>
-
-      <!-- Body -->
-      <div class="resume-modal-body">
-        <div class="flex flex-col items-center gap-4 py-3 text-center">
-          <AlertTriangle size={42} class="text-amber-400" />
-          <div>
-            <p class="mb-2 font-semibold text-white/90">
-              You've moved <strong class="text-amber-300"
-                >{resumeDistanceText}</strong
-              > from your pause point.
-            </p>
-            <p class="text-sm text-white/70">
-              A straight line will connect the gap if you resume.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="resume-modal-footer">
-        <div class="resume-modal-actions">
-          <button class="resume-modal-btn primary" on:click={confirmResume}>
-            Resume Trail
-          </button>
-          <button class="resume-modal-btn danger" on:click={endAndStartNew}>
-            End &amp; Restart
-          </button>
-        </div>
-        <button
-          class="resume-modal-cancel"
-          on:click={() => (showResumeConfirm = false)}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- Guest-mode tooltip -->
 {#if guestTip}
@@ -1339,149 +1207,4 @@
     }
   }
 
-  /* ── Resume confirmation modal ── */
-  .resume-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-    animation: resumeFadeIn 0.2s ease-out;
-  }
-
-  .resume-modal {
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(20px);
-    border-radius: 16px;
-    max-width: 380px;
-    width: 90%;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    animation: resumeSlideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    overflow: hidden;
-  }
-
-  .resume-modal-header {
-    padding: 16px 18px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(
-      135deg,
-      rgba(251, 191, 36, 0.15) 0%,
-      rgba(245, 158, 11, 0.1) 100%
-    );
-  }
-
-  .resume-modal-body {
-    padding: 16px 18px;
-  }
-
-  .resume-modal-footer {
-    padding: 14px 18px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.3);
-  }
-
-  .resume-modal-actions {
-    display: flex;
-    gap: 10px;
-    width: 100%;
-  }
-
-  .resume-modal-btn {
-    flex: 1;
-    padding: 11px 10px;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    white-space: nowrap;
-  }
-
-  .resume-modal-cancel {
-    width: 100%;
-    padding: 8px;
-    border-radius: 8px;
-    font-weight: 500;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
-    text-align: center;
-  }
-
-  .resume-modal-cancel:hover {
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .resume-modal-btn.primary {
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    color: white;
-  }
-
-  .resume-modal-btn.primary:hover {
-    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-    transform: translateY(-1px);
-  }
-
-  .resume-modal-btn.danger {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: white;
-  }
-
-  .resume-modal-btn.danger:hover {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-    transform: translateY(-1px);
-  }
-
-  @keyframes resumeFadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes resumeSlideIn {
-    from {
-      transform: translateY(-20px) scale(0.95);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0) scale(1);
-      opacity: 1;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .resume-modal {
-      width: 95%;
-      max-width: 340px;
-    }
-
-    .resume-modal-btn {
-      font-size: 12px;
-      padding: 10px 8px;
-    }
-  }
 </style>

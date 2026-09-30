@@ -1587,7 +1587,14 @@ font-size: 12px;
         historicalTrailStore.update((trails) =>
           trails.some((t) => t.id === trailId)
             ? trails
-            : [...trails, { ...trailRow, path: pathData }],
+            : [
+                ...trails,
+                {
+                  ...trailRow,
+                  path: pathData.path ?? pathData,
+                  pausePath: pathData.pause_path ?? null,
+                },
+              ],
         )
         index = $historicalTrailStore.findIndex((t) => t.id === trailId)
       } catch (err) {

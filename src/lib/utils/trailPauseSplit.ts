@@ -56,6 +56,71 @@ export function splitPointsAtPauses<T extends { timestamp: number }>(
     return parts
 }
 
+/** True when a point timestamp falls inside any pause window. */
+export function isPauseTimestamp(
+    ts: number,
+    pauses?: TrailPauseWindow[] | null,
+): boolean {
+    if (!pauses?.length) return false
+    return pauses.some(
+        (w) => ts > w.pausedAt && (w.resumedAt == null || ts < w.resumedAt),
+    )
+}
+
+/**
+ * Split points into WORK parts and PAUSE parts at pause boundaries.
+ * Boundaries are every `pausedAt` and `resumedAt`; each resulting part is
+ * classified by its first point (a part never spans a boundary, so this is
+ * exact): first point inside a pause window -> pause part, else work part.
+ *  * work parts  -> the solid trail geometry (`path` / `detailed_path`)
+ *  * pause parts -> the minimal "ant line" connector (`pause_path` /
+ *    `pause_detailed_path`) shown for driving done while paused.
+ */
+export function partitionPointsAtPauses<T extends { timestamp: number }>(
+    points: T[],
+    pauses?: TrailPauseWindow[] | null,
+): { workParts: T[][]; pauseParts: T[][] } {
+    const windows = (pauses ?? []).filter((p) => Number.isFinite(p.pausedAt))
+    if (windows.length === 0 || !points || points.length === 0) {
+        return { workParts: points?.length ? [points.slice()] : [], pauseParts: [] }
+    }
+
+    const boundaries: number[] = []
+    for (const w of windows) {
+        boundaries.push(w.pausedAt)
+        if (w.resumedAt != null && Number.isFinite(w.resumedAt)) {
+            boundaries.push(w.resumedAt)
+        }
+    }
+    boundaries.sort((a, b) => a - b)
+
+    const rawParts: T[][] = []
+    let current: T[] = [points[0]]
+    for (let i = 1; i < points.length; i++) {
+        const prevTs = points[i - 1].timestamp
+        const curTs = points[i].timestamp
+        if (boundaries.some((t) => t > prevTs && t < curTs)) {
+            rawParts.push(current)
+            current = [points[i]]
+        } else {
+            current.push(points[i])
+        }
+    }
+    rawParts.push(current)
+
+    const workParts: T[][] = []
+    const pauseParts: T[][] = []
+    for (const part of rawParts) {
+        if (part.length === 0) continue
+        if (isPauseTimestamp(part[0].timestamp, windows)) {
+            pauseParts.push(part)
+        } else {
+            workParts.push(part)
+        }
+    }
+    return { workParts, pauseParts }
+}
+
 /** Keep only parts that can form a line segment (>= 2 points). */
 export function usableParts<T>(parts: T[][]): T[][] {
     return parts.filter((p) => p.length >= 2)

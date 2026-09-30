@@ -44,7 +44,7 @@
   import MapActivityToast from "$lib/components/map/toasts/MapActivityToast.svelte"
   import { parseVehicleCoords } from "$lib/utils/vehicleCoords"
   import {
-    splitPointsAtPauses,
+    partitionPointsAtPauses,
     buildGeoJsonPath,
     mergePauseWindows,
   } from "$lib/utils/trailPauseSplit"
@@ -385,7 +385,7 @@
 
     trailPausedStore.set(true)
     toast.info("Trail paused", {
-      description: "Recording paused — resume when ready",
+      description: "Recording paused — travel shows as a dotted line",
       duration: 3000,
     })
   }
@@ -665,20 +665,25 @@
           }
         }, 3000)
 
-        // Convert to GeoJSON and add to historical — split at pause windows so
-        // the fresh trail renders exactly like it will after a reload.
-        const pathParts = splitPointsAtPauses(pathData, closePauses)
-        const lineStringPath = buildGeoJsonPath(pathParts) || {
+        // Convert to GeoJSON and add to historical — work parts solid, paused
+        // stretch as the dashed "ant line" connector (same as a reload).
+        const { workParts, pauseParts } = partitionPointsAtPauses(
+          pathData,
+          closePauses,
+        )
+        const lineStringPath = buildGeoJsonPath(workParts) || {
           type: "LineString",
           coordinates: pathData.map((coord) => [
             coord.longitude,
             coord.latitude,
           ]),
         }
+        const pauseGeoJsonPath = buildGeoJsonPath(pauseParts)
 
         const historicalTrail = {
           ...result.trail,
           path: lineStringPath,
+          pausePath: pauseGeoJsonPath,
         }
 
         historicalTrailStore.update((trails) => [...trails, historicalTrail])
@@ -1286,8 +1291,12 @@
             clearPersistedClosure(closure.trailId)
             syncedClosures++
 
-            // Add to historical trails
-            const lineStringPath = {
+            // Add to historical trails — work solid + paused ant line
+            const { workParts, pauseParts } = partitionPointsAtPauses(
+              closure.pathData,
+              closure.trailData?.pauses || [],
+            )
+            const lineStringPath = buildGeoJsonPath(workParts) || {
               type: "LineString",
               coordinates: closure.pathData.map((coord) => [
                 coord.longitude,
@@ -1298,6 +1307,7 @@
             const historicalTrail = {
               ...result.trail,
               path: lineStringPath,
+              pausePath: buildGeoJsonPath(pauseParts),
             }
 
             historicalTrailStore.update((trails) => [
@@ -1794,7 +1804,7 @@
     }
 
     fetchTrailAsGeoJSON(trailData.id)
-      .then((geoJsonPath) => {
+      .then(({ path: geoJsonPath, pausePath }) => {
         if (
           !geoJsonPath ||
           !geoJsonPath.coordinates ||
@@ -1813,6 +1823,7 @@
           trail_color: trailData.trail_color,
           trail_width: trailData.trail_width,
           path: geoJsonPath,
+          pausePath,
           trail_distance: trailData.trail_distance,
           trail_hectares: trailData.trail_hectares,
           trail_hectares_overlap: trailData.trail_hectares_overlap,
@@ -1846,7 +1857,12 @@
       throw new Error("Failed to fetch path")
     }
 
-    return pathData
+    // RPC returns { path, pause_path } (falls back to a raw geometry from an
+    // older deploy of the function).
+    return {
+      path: pathData.path ?? pathData,
+      pausePath: pathData.pause_path ?? null,
+    }
   }
 
   // ── Remote trail activity announcements ────────────────────────────────
@@ -2082,7 +2098,11 @@
               return { ...trail, path: null }
             }
 
-            return { ...trail, path: pathData }
+            return {
+              ...trail,
+              path: pathData.path ?? pathData,
+              pausePath: pathData.pause_path ?? null,
+            }
           } catch (error) {
             console.error(`Error processing path for trail ${trail.id}:`, error)
             return { ...trail, path: null }

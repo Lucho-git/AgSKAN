@@ -50,6 +50,7 @@
   const COMBINED_ACTIVE_MARKERS_SOURCE_ID = "all-active-trails-markers-source"
   const COMBINED_ACTIVE_MARKERS_ID = "all-active-trails-markers"
   const COMBINED_ACTIVE_CENTER_LINE_ID = "all-active-trails-center-line"
+  const COMBINED_ACTIVE_PAUSE_LAYER_ID = "all-active-trails-pause-layer"
 
   // ============================================
   // REACTIVE VISIBILITY UPDATES
@@ -96,6 +97,15 @@
       if (map.getLayer(COMBINED_ACTIVE_LAYER_ID)) {
         map.setLayoutProperty(
           COMBINED_ACTIVE_LAYER_ID,
+          "visibility",
+          visibility,
+        )
+      }
+
+      // Pause (ant line) connector follows trail visibility
+      if (map.getLayer(COMBINED_ACTIVE_PAUSE_LAYER_ID)) {
+        map.setLayoutProperty(
+          COMBINED_ACTIVE_PAUSE_LAYER_ID,
           "visibility",
           visibility,
         )
@@ -263,13 +273,14 @@
       const previousCoordCount = lastCoordinateCounts.get(trail.id) || 0
       const lastSegmentIndex = lastSegmentIndices.get(trail.id) || 0
 
-      const allSegments = splitPartSegments(
+      const partSegments = splitPartSegments(
         trailCoordinates,
         trail.pauseWindows,
         trail.id,
         trail.trail_color || "#FF0000",
         trail.trail_width || 3,
       )
+      const allSegments = [...partSegments.work, ...partSegments.pause]
 
       processedTrailIds.add(trail.id)
 
@@ -350,6 +361,7 @@
       const layersToRemove = [
         COMBINED_ACTIVE_MARKERS_ID,
         COMBINED_ACTIVE_CENTER_LINE_ID,
+        COMBINED_ACTIVE_PAUSE_LAYER_ID,
         COMBINED_ACTIVE_LAYER_ID,
       ]
       layersToRemove.forEach((layerId) => {
@@ -397,6 +409,7 @@
     const layersToRemove = [
       COMBINED_ACTIVE_MARKERS_ID,
       COMBINED_ACTIVE_CENTER_LINE_ID,
+      COMBINED_ACTIVE_PAUSE_LAYER_ID,
       COMBINED_ACTIVE_LAYER_ID,
     ]
     layersToRemove.forEach((layerId) => {
@@ -429,6 +442,7 @@
       id: COMBINED_ACTIVE_LAYER_ID,
       type: "line",
       source: COMBINED_ACTIVE_SOURCE_ID,
+      filter: ["!=", ["get", "segment"], "pause"],
       layout: {
         "line-join": "round",
         "line-cap": "round",
@@ -476,6 +490,8 @@
       visibility,
       $layerVisibilityStore.trailArrows,
     )
+    // Arrow center line is work-only — no direction kit on the ant line
+    centerLineConfig.filter = ["!=", ["get", "segment"], "pause"]
 
     if (mapContext?.addActiveTrailLayerOrdered) {
       mapContext.addActiveTrailLayerOrdered(centerLineConfig)
@@ -483,6 +499,54 @@
       mapContext.addTrailLayerOrdered(centerLineConfig)
     } else {
       addTrailWithFallback(centerLineConfig)
+    }
+
+    // Paused transfer stretch — minimal dotted "ant line" connector.
+    const pauseLayerConfig = {
+      id: COMBINED_ACTIVE_PAUSE_LAYER_ID,
+      type: "line",
+      source: COMBINED_ACTIVE_SOURCE_ID,
+      filter: ["==", ["get", "segment"], "pause"],
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+        visibility: visibility,
+        "line-sort-key": ["get", "sortKey"],
+      },
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": [
+          "interpolate",
+          ["exponential", 2],
+          ["zoom"],
+          TRAIL_CONFIG.MIN_ZOOM,
+          [
+            "*",
+            ["get", "width"],
+            TRAIL_CONFIG.MULTIPLIER,
+            0.6,
+            ["^", 2, TRAIL_CONFIG.MIN_POWER],
+          ],
+          TRAIL_CONFIG.MAX_ZOOM,
+          [
+            "*",
+            ["get", "width"],
+            TRAIL_CONFIG.MULTIPLIER,
+            0.6,
+            ["^", 2, TRAIL_CONFIG.MAX_POWER],
+          ],
+        ],
+        "line-opacity": 0.55,
+        "line-dasharray": [0.12, 1.5],
+      },
+    }
+
+    if (mapContext?.addActiveTrailLayerOrdered) {
+      mapContext.addActiveTrailLayerOrdered(pauseLayerConfig)
+    } else if (mapContext?.addTrailLayerOrdered) {
+      mapContext.addTrailLayerOrdered(pauseLayerConfig)
+    } else {
+      addTrailWithFallback(pauseLayerConfig)
     }
 
     // Arrow markers layer

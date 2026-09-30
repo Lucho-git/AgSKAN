@@ -1,7 +1,7 @@
 // src/lib/api/trailsApi.ts
 import { supabase } from '$lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
-import { splitPointsAtPauses, buildEwktPath } from '$lib/utils/trailPauseSplit';
+import { partitionPointsAtPauses, buildEwktPath } from '$lib/utils/trailPauseSplit';
 import type { TrailPauseWindow } from '$lib/utils/trailPauseSplit';
 
 const TRAIL_DATA_RETENTION_DAYS = 300; // Same as server-side
@@ -119,20 +119,23 @@ async function closeTrailWithPath(
         return { data: result.data, error: result.error };
     }
 
-    // Pause breaks: split the ordered points into parts at pause boundaries so
-    // the stored geometry keeps the gap (MULTILINESTRING) instead of stitching
-    // a connector line between the pause point and the resume point.
-    const parts = splitPointsAtPauses(path, pauses);
+    // Split into WORK parts (solid trail) and PAUSE parts (the dotted "ant
+    // line" connector recorded while paused). No pause points -> a single
+    // work part -> the legacy LINESTRING shape, unchanged.
+    const { workParts, pauseParts } = partitionPointsAtPauses(path, pauses);
 
-    // Detailed path (every point + timestamp): LINESTRING M / MULTILINESTRING M
-    const detailedPathString = buildEwktPath(parts, { withM: true });
+    // Detailed paths (every point + timestamp): LINESTRING M / MULTILINESTRING M
+    const detailedPathString = buildEwktPath(workParts, { withM: true });
+    const pauseDetailedPathString = buildEwktPath(pauseParts, { withM: true });
 
-    // Display path: Douglas-Peucker simplification per part, then re-join
-    const simplifiedParts = parts.map((part) => simplifyPath(part, 0.000005));
+    // Display paths: Douglas-Peucker simplification per part, then re-join
+    const simplifiedParts = workParts.map((part) => simplifyPath(part, 0.000005));
     const pathString = buildEwktPath(simplifiedParts, { withM: false });
+    const simplifiedPauseParts = pauseParts.map((part) => simplifyPath(part, 0.000005));
+    const pausePathString = buildEwktPath(simplifiedPauseParts, { withM: false });
 
     const simplifiedCount = simplifiedParts.reduce((n, p) => n + p.length, 0);
-    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedCount.toLocaleString()} simplified (${Math.round((1 - simplifiedCount / path.length) * 100)}% reduction), ${parts.length} part(s)`);
+    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedCount.toLocaleString()} simplified work points, ${pauseParts.length} pause part(s)`);
 
     try {
         console.log(`Closing trail ${trail_id} with fast closure (stores paths, no calculations)...`);
@@ -142,7 +145,9 @@ async function closeTrailWithPath(
             trail_id_param: trail_id,
             end_time_param: endTime,
             path_param: pathString,
-            detailed_path_param: detailedPathString
+            detailed_path_param: detailedPathString,
+            pause_path_param: pausePathString,
+            pause_detailed_path_param: pauseDetailedPathString
         });
 
         if (error) {
