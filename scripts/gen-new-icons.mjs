@@ -24,9 +24,10 @@ const LEGACY_SRC = path.join(__dirname, '../icon-art/new')
 const OUT = path.join(__dirname, '../static/icons')
 
 const ICONS = [
-  // 2026-09-30: the branch ART was replaced with the old 'Stick' svg (the
-  // retired branch.svg) — same id/class so existing markers follow along.
-  { file: 'Stick.svg', id: 'branch' },
+  // 2026-09-30: the branch ART was replaced with the old 'Stick' svg — now
+  // named branch.svg (the stick filename was retired to kill a Windows
+  // case-collision in the Android asset merge). Same id/class either way.
+  { file: 'branch.svg', id: 'branch' },
   { file: 'fuel_refill.svg', id: 'fuel_refill' },
   { file: 'liquid_tank.svg', id: 'liquid_tank' },
   { file: 'rock_pile.svg', id: 'rock_pile' },
