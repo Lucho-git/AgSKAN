@@ -38,6 +38,8 @@
 
     coordinates: [number, number][]
 
+    parts: AnimationSequencePart[]
+
     currentIndex: number
 
     progress: number
@@ -51,6 +53,12 @@
     isLoading: boolean
 
     isReady: boolean
+  }
+
+  interface AnimationSequencePart {
+    coords: [number, number][]
+
+    isPause: boolean
   }
 
   export let map: Map
@@ -101,6 +109,8 @@
     trailId: "",
 
     coordinates: [],
+
+    parts: [],
 
     currentIndex: 0,
 
@@ -159,6 +169,86 @@
     return currentTrail
   }
 
+  function geoJsonToParts(geo: any): [number, number][][] {
+    if (!geo || typeof geo !== "object") return []
+
+    if (geo.type === "LineString" && Array.isArray(geo.coordinates)) {
+      return geo.coordinates.length >= 2 ? [geo.coordinates] : []
+    }
+
+    if (geo.type === "MultiLineString" && Array.isArray(geo.coordinates)) {
+      return (geo.coordinates as [number, number][][]).filter(
+        (c) => c.length >= 2,
+      )
+    }
+
+    return []
+  }
+
+  // Interleave work and pause parts chronologically. Both producers store the
+  // parts as ordered MULTILINESTRINGs (pause window n always sits between work
+  // parts n and n+1), but very short parts can be dropped, so each pause part
+  // is slotted after the work part whose endpoint is nearest its start.
+  function buildAnimationSequence(trail: Trail): AnimationSequencePart[] {
+    const workParts = geoJsonToParts(trail.path)
+
+    const pauseParts = geoJsonToParts(trail.pausePath)
+
+    if (pauseParts.length === 0) {
+      return workParts.map((c) => ({ coords: c, isPause: false }))
+    }
+
+    if (workParts.length === 0) {
+      return pauseParts.map((c) => ({ coords: c, isPause: true }))
+    }
+
+    const dist2 = (a: [number, number], b: [number, number]) => {
+      const dx = a[0] - b[0]
+
+      const dy = a[1] - b[1]
+
+      return dx * dx + dy * dy
+    }
+
+    const insertions: { after: number; part: [number, number][] }[] = []
+
+    let minWork = 0
+
+    for (const pp of pauseParts) {
+      let best = minWork
+
+      let bestD = dist2(workParts[best][workParts[best].length - 1], pp[0])
+
+      for (let w = minWork; w < workParts.length; w++) {
+        const d = dist2(workParts[w][workParts[w].length - 1], pp[0])
+
+        if (d < bestD) {
+          bestD = d
+
+          best = w
+        }
+      }
+
+      insertions.push({ after: best, part: pp })
+
+      minWork = best
+    }
+
+    const seq: AnimationSequencePart[] = []
+
+    for (let w = 0; w < workParts.length; w++) {
+      seq.push({ coords: workParts[w], isPause: false })
+
+      for (const ins of insertions) {
+        if (ins.after === w) {
+          seq.push({ coords: ins.part, isPause: true })
+        }
+      }
+    }
+
+    return seq
+  }
+
   function initializeTrailAnimation(trail: Trail) {
     stopAnimation()
 
@@ -170,6 +260,8 @@
       trailId: trail.id,
 
       coordinates: [],
+
+      parts: [],
 
       currentIndex: 0,
 
@@ -190,6 +282,8 @@
       try {
         let coordinates: [number, number][] = []
 
+        let parts: AnimationSequencePart[] = []
+
         if (trail.path && typeof trail.path === "object") {
           if ("type" in trail.path && trail.path.type === "LineString") {
             coordinates = trail.path.coordinates
@@ -207,6 +301,15 @@
               coord.coordinates.latitude,
             ])
           }
+
+          // Work + pause parts in chronological order so the replay follows
+          // the recorded track through pauses (dashed) instead of jumping
+          // straight across each gap.
+          parts = buildAnimationSequence(trail)
+
+          if (parts.length > 0) {
+            coordinates = parts.flatMap((p) => p.coords)
+          }
         }
 
         if (coordinates.length === 0) {
@@ -221,6 +324,8 @@
           ...animationState,
 
           coordinates,
+
+          parts: parts.length > 0 ? parts : [{ coords: coordinates, isPause: false }],
 
           isLoading: false,
 
@@ -283,8 +388,16 @@ font-size: 12px;
 
     const animationCenterLineLayerId = `animation-center-line-${trail.id}`
 
+    const animationPauseSourceId = `animation-pause-source-${trail.id}`
+
+    const animationPauseLayerId = `animation-pause-layer-${trail.id}`
+
     // Must remove layers BEFORE sources (Mapbox throws if source has dependent layers)
     try {
+      if (map.getLayer(animationPauseLayerId)) {
+        map.removeLayer(animationPauseLayerId)
+      }
+
       if (map.getLayer(animationCenterLineLayerId)) {
         map.removeLayer(animationCenterLineLayerId)
       }
@@ -299,6 +412,10 @@ font-size: 12px;
 
       if (map.getSource(animationSourceId)) {
         map.removeSource(animationSourceId)
+      }
+
+      if (map.getSource(animationPauseSourceId)) {
+        map.removeSource(animationPauseSourceId)
       }
 
       if (map.getSource(animationBorderSourceId)) {
@@ -321,6 +438,12 @@ font-size: 12px;
     })
 
     map.addSource(animationBorderSourceId, {
+      type: "geojson",
+
+      data: emptyGeoJSON,
+    })
+
+    map.addSource(animationPauseSourceId, {
       type: "geojson",
 
       data: emptyGeoJSON,
@@ -379,6 +502,23 @@ font-size: 12px;
         ),
 
         "line-opacity": 1.0,
+      },
+    })
+
+    // Dashed "ant line" for paused stretches — mirrors the map's pause style
+    map.addLayer({
+      id: animationPauseLayerId,
+      type: "line",
+      source: animationPauseSourceId,
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
+      paint: {
+        "line-color": "#000000",
+        "line-width": calculateZoomDependentWidth(2, 0.6),
+        "line-opacity": 0.6,
+        "line-dasharray": [0.12, 1.5],
       },
     })
 
@@ -587,6 +727,12 @@ font-size: 12px;
       map.setLayoutProperty(layerId, "visibility", "none")
     }
 
+    // Hide the static dashed pause connector too — the animated dashed line
+    // replaces it while replaying.
+    if (map.getLayer(`${layerId}-pause`)) {
+      map.setLayoutProperty(`${layerId}-pause`, "visibility", "none")
+    }
+
     if (tractorMarker) {
       try {
         tractorMarker.remove()
@@ -705,11 +851,59 @@ font-size: 12px;
 
     const animationBorderSourceId = `animation-border-source-${trail.id}`
 
-    const currentCoordinates = animationState.coordinates.slice(
-      0,
+    const currentIndex = animationState.currentIndex
 
-      animationState.currentIndex + 1,
-    )
+    const buildPartialGeoJSON = (partCoords: [number, number][][]) => {
+      if (partCoords.length === 0) {
+        return { type: "FeatureCollection", features: [] }
+      }
+
+      return {
+        type: "Feature",
+
+        properties: {},
+
+        geometry:
+          partCoords.length === 1
+            ? { type: "LineString", coordinates: partCoords[0] }
+            : { type: "MultiLineString", coordinates: partCoords },
+      }
+    }
+
+    // Slice the traversed portion of each chronological part: solid work
+    // stretches feed the main line, paused stretches the dashed line.
+    const seqParts =
+      animationState.parts.length > 0
+        ? animationState.parts
+        : [{ coords: animationState.coordinates, isPause: false }]
+
+    const solidParts: [number, number][][] = []
+
+    const pauseParts: [number, number][][] = []
+
+    let offset = 0
+
+    for (const part of seqParts) {
+      const start = offset
+
+      const end = offset + part.coords.length - 1
+
+      offset = end + 1
+
+      if (currentIndex < start) continue
+
+      const localEnd = Math.min(currentIndex, end)
+
+      const slice = part.coords.slice(0, localEnd - start + 1)
+
+      if (slice.length < 2) continue
+
+      if (part.isPause) {
+        pauseParts.push(slice)
+      } else {
+        solidParts.push(slice)
+      }
+    }
 
     const source = map.getSource(animationSourceId) as mapboxgl.GeoJSONSource
 
@@ -717,24 +911,20 @@ font-size: 12px;
       animationBorderSourceId,
     ) as mapboxgl.GeoJSONSource
 
-    const geoJsonData = {
-      type: "Feature",
-
-      properties: {},
-
-      geometry: {
-        type: "LineString",
-
-        coordinates: currentCoordinates,
-      },
-    }
+    const pauseSource = map.getSource(
+      `animation-pause-source-${trail.id}`,
+    ) as mapboxgl.GeoJSONSource
 
     if (source) {
-      source.setData(geoJsonData)
+      source.setData(buildPartialGeoJSON(solidParts))
     }
 
     if (borderSource) {
-      borderSource.setData(geoJsonData)
+      borderSource.setData(buildPartialGeoJSON(solidParts))
+    }
+
+    if (pauseSource) {
+      pauseSource.setData(buildPartialGeoJSON(pauseParts))
     }
 
     if (
@@ -922,7 +1112,15 @@ font-size: 12px;
 
       const animationCenterLineLayerId = `animation-center-line-${currentTrail.id}`
 
+      const animationPauseSourceId = `animation-pause-source-${currentTrail.id}`
+
+      const animationPauseLayerId = `animation-pause-layer-${currentTrail.id}`
+
       try {
+        if (map.getLayer(animationPauseLayerId)) {
+          map.removeLayer(animationPauseLayerId)
+        }
+
         if (map.getLayer(animationCenterLineLayerId)) {
           map.removeLayer(animationCenterLineLayerId)
         }
@@ -933,6 +1131,10 @@ font-size: 12px;
 
         if (map.getSource(animationSourceId)) {
           map.removeSource(animationSourceId)
+        }
+
+        if (map.getSource(animationPauseSourceId)) {
+          map.removeSource(animationPauseSourceId)
         }
 
         if (map.getLayer(animationBorderLayerId)) {
@@ -947,6 +1149,10 @@ font-size: 12px;
 
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", "visible")
+        }
+
+        if (map.getLayer(`${layerId}-pause`)) {
+          map.setLayoutProperty(`${layerId}-pause`, "visibility", "visible")
         }
       } catch (error) {
         console.warn("Error cleaning up animation layers:", error)
