@@ -180,13 +180,30 @@
       trail.trail_width || 3,
       1,
     )
+    // 0.6x width for the dotted pause connector. Mapbox only allows ["zoom"]
+    // as the top level of a paint expression, so the scale is baked into the
+    // interpolate stops here instead of wrapping the expression in ["*", ...].
+    const pauseZoomDependentWidth = calculateZoomDependentWidth(
+      trail.trail_width || 3,
+      0.6,
+    )
 
     const markersSourceId = `${sourceId}-markers`
     const markersLayerId = `${layerId}-markers`
     const centerLineLayerId = `${layerId}-centerline`
 
+    // Paused transfer stretch ("ant line"). Declared before cleanup so a
+    // partially-applied previous add can be fully removed and retried.
+    const pauseSourceId = `${sourceId}-pause`
+    const pauseLayerId = `${layerId}-pause`
+
     // Remove existing layers
-    const layersToRemove = [markersLayerId, centerLineLayerId, layerId]
+    const layersToRemove = [
+      markersLayerId,
+      centerLineLayerId,
+      layerId,
+      pauseLayerId,
+    ]
     layersToRemove.forEach((layer) => {
       if (map.getLayer(layer)) {
         map.removeLayer(layer)
@@ -205,12 +222,13 @@
     if (map.getSource(markersSourceId)) {
       map.removeSource(markersSourceId)
     }
+    if (map.getSource(pauseSourceId)) {
+      map.removeSource(pauseSourceId)
+    }
 
     const geoJsonData = createTrailGeoJSON(trail.path)
 
     // Paused transfer stretch ("ant line") — dashed connector, no arrows
-    const pauseSourceId = `${sourceId}-pause`
-    const pauseLayerId = `${layerId}-pause`
     const pauseGeoJsonData = trail.pausePath
       ? createTrailGeoJSON(trail.pausePath)
       : null
@@ -288,7 +306,7 @@
         },
         paint: {
           "line-color": trail.trail_color || "#FF0000",
-          "line-width": ["*", zoomDependentWidth, 0.6],
+          "line-width": pauseZoomDependentWidth,
           "line-opacity": 0.55,
           "line-dasharray": [0.12, 1.5],
         },
