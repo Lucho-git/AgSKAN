@@ -1491,18 +1491,6 @@
           <div class="mp-main">
             {#if isGate}
               <div class="mp-section">
-                <div class="mp-section-head">
-                  <span class="mp-section-title">
-                    <IconSVG
-                      icon={marker?.gateOpen ? "gate_open" : "gate"}
-                      size="12px"
-                    />
-                    <span>Gate</span>
-                  </span>
-                  <span class="mp-state-label">
-                    {marker?.gateOpen ? "Open" : "Closed"}
-                  </span>
-                </div>
                 <div
                   class="mp-state-toggle"
                   role="group"
@@ -1535,20 +1523,6 @@
             {/if}
             {#if isRock}
               <div class="mp-section">
-                <div class="mp-section-head">
-                  <span class="mp-section-title">
-                    <IconSVG
-                      icon={marker?.iconClass === "custom-svg-rock_pile"
-                        ? "rock_pile"
-                        : "rock"}
-                      size="12px"
-                    />
-                    <span>Rock</span>
-                  </span>
-                  <span class="mp-state-label">
-                    {marker?.rockPicked ? "Picked" : "Not picked"}
-                  </span>
-                </div>
                 <div
                   class="mp-state-toggle"
                   role="group"
@@ -2048,13 +2022,6 @@
   }
 
   /* Special-state segmented toggle (gate open/closed, rock picked). */
-  .mp-state-label {
-    font-size: 10px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba(147, 197, 253, 0.9);
-  }
   .mp-state-toggle {
     display: flex;
     gap: 6px;
