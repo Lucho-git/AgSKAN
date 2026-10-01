@@ -467,7 +467,7 @@
     font-weight: 500;
     flex-shrink: 0;
   }
-  .op-check {
+  .op-option :global(.op-check) {
     color: #60a5fa;
     flex-shrink: 0;
   }

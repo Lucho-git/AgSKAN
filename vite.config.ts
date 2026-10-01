@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 import svg from '@poppanator/sveltekit-svg';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
     plugins: [
@@ -39,6 +40,13 @@ export default defineConfig({
         )
     },
     server: {
+        // `src/lib/appVersion.ts` imports version.json from the repo root for
+        // the release version display. SvelteKit's dev fs allow-list only
+        // covers src/*, .svelte-kit and node_modules, so `npm run dev` fails
+        // with "outside of Vite serving allow list" without this entry.
+        fs: {
+            allow: [fileURLToPath(new URL('.', import.meta.url))],
+        },
         proxy: {
             '/agworld-v3-proxy/au': { target: 'https://au.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/au/, '') },
             '/agworld-v3-proxy/us': { target: 'https://us.agworld.com', changeOrigin: true, secure: true, rewrite: (p: string) => p.replace(/^\/agworld-v3-proxy\/us/, '') },

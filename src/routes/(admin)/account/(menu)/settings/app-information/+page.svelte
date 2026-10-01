@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation"
   import { Capacitor } from "@capacitor/core"
-  import { App as CapacitorApp } from "@capacitor/app"
   import { APP_VERSION_LABEL } from "$lib/appVersion"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -12,26 +11,10 @@
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
 
-  // Released app version + code baked in at build time from version.json
-  // (repo root, maintained by the release script): Web App shows e.g.
-  // "2.95 (295)". Native overrides with the real installed build below.
+  // Released app version + code baked at build time from version.json (repo
+  // root, maintained by the release script) — shown on web and native alike,
+  // e.g. "2.95 (295)".
   const APP_VERSION = APP_VERSION_LABEL || "unknown"
-
-  // On native, show the REAL installed version straight from the APK
-  // (build.gradle versionName/versionCode via Capacitor App.getInfo) so the
-  // display can never drift from the shipped build.
-  let nativeVersionLabel = ""
-  if (isNativePlatform) {
-    CapacitorApp.getInfo()
-      .then((info) => {
-        nativeVersionLabel =
-          info.version && info.build
-            ? `${info.version} (${info.build})`
-            : info.version || ""
-      })
-      .catch(() => {})
-  }
-  $: versionLabel = nativeVersionLabel || APP_VERSION
 
   // Delete account modal
   let showDeleteConfirm = false
@@ -245,7 +228,7 @@
       </div>
       <div class="flex-1 min-w-0">
         <span class="block text-sm text-contrast-content/60">Version</span>
-        <p class="font-medium text-contrast-content">{versionLabel} <span class="badge badge-outline badge-sm ml-1">{appInfo.platform}</span></p>
+        <p class="font-medium text-contrast-content">{APP_VERSION} <span class="badge badge-outline badge-sm ml-1">{appInfo.platform}</span></p>
       </div>
     </div>
   </div>
