@@ -4,11 +4,16 @@
 //
 // One command for the whole loop:
 //   1. bump the app version (default: patch)
-//   2. write the SAME versionName/versionCode into BOTH
+//   2. write the SAME versionName/versionCode into ALL of
 //        - capacitor.config.ts        (android block — used by cap tooling)
 //        - android/app/build.gradle   (the REAL installed APK version)
+//        - ios/App/App.xcodeproj/project.pbxproj
+//          (MARKETING_VERSION + CURRENT_PROJECT_VERSION — the values Xcode
+//          shows/archives with, so the Mac needs no manual version edits;
+//          just git pull there)
 //      `npx cap sync` only regenerates the assets capacitor.config.json —
-//      it never fixes build.gradle, which is how the two drift apart.
+//      it never fixes build.gradle or the Xcode project, which is how they
+//      drift apart.
 //   3. npm run build          (web assets → build/)
 //   4. npx cap sync android   (copy web assets + plugins into the app)
 //
@@ -37,13 +42,14 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { execSync } from "node:child_process"
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const capPath = resolve(root, "capacitor.config.ts")
 const gradlePath = resolve(root, "android/app/build.gradle")
+const iosPath = resolve(root, "ios/App/App.xcodeproj/project.pbxproj")
 
 // ── args ────────────────────────────────────────────────────────────────
 const rawArgs = process.argv.slice(2)
@@ -93,6 +99,11 @@ const capCode = capAndroid.match(/versionCode:\s*(\d+)/)?.[1]
 const gradleName = gradleSrc.match(/versionName\s+"([^"]+)"/)?.[1]
 const gradleCode = gradleSrc.match(/versionCode\s+(\d+)/)?.[1]
 
+const iosExists = existsSync(iosPath)
+const iosSrc = iosExists ? readFileSync(iosPath, "utf8") : ""
+const iosName = iosSrc.match(/MARKETING_VERSION = ([^;]+);/)?.[1]
+const iosCode = iosSrc.match(/CURRENT_PROJECT_VERSION = (\d+);/)?.[1]
+
 if (!capName || !capCode) {
   console.error(
     "Could not find versionName/versionCode in the capacitor.config.ts android block",
@@ -102,16 +113,37 @@ if (!capName || !capCode) {
 
 const capCodeN = parseInt(capCode, 10)
 const gradleCodeN = gradleCode ? parseInt(gradleCode, 10) : 0
+const iosCodeN = iosCode ? parseInt(iosCode, 10) : 0
 
 // Canonical = whichever file carries the HIGHER versionCode (never move
-// backwards — Play rejects reused/regressed codes), preferring the config
-// on ties (its versionName is the better-formatted one).
-const curName = capCodeN >= gradleCodeN ? capName : gradleName || capName
-const curCode = Math.max(capCodeN, gradleCodeN)
+// backwards — Play/App Store reject reused or regressed build numbers),
+// preferring the config on ties (its versionName is the better-formatted one).
+const curCode = Math.max(capCodeN, gradleCodeN, iosCodeN)
+const curName =
+  capCodeN === curCode
+    ? capName
+    : gradleCodeN === curCode
+      ? gradleName || capName
+      : iosName || capName
 
-if (capName !== gradleName || capCodeN !== gradleCodeN) {
+const drift = []
+if (capName !== curName || capCodeN !== curCode) {
+  drift.push(`    capacitor.config.ts  → ${capName} (${capCodeN})`)
+}
+if (gradleName !== curName || gradleCodeN !== curCode) {
+  drift.push(
+    `    android/app/build.gradle → ${gradleName ?? "?"} (${gradleCodeN})`,
+  )
+}
+if (iosExists && (iosName !== curName || iosCodeN !== curCode)) {
+  drift.push(
+    `    ios/App/App.xcodeproj/project.pbxproj → ${iosName ?? "?"} (${iosCodeN})`,
+  )
+}
+
+if (drift.length > 0) {
   console.log(
-    `⚠ Version drift detected:\n    capacitor.config.ts  → ${capName} (${capCodeN})\n    android/app/build.gradle → ${gradleName ?? "?"} (${gradleCodeN})\n  This run will make both match.`,
+    `⚠ Version mismatch between files:\n${drift.join("\n")}\n  (all are synced to ${curName} (${curCode}) by the next release run)`, 
   )
 }
 
@@ -194,7 +226,26 @@ const newGradleSrc = gradleSrc
   .replace(/versionCode\s+\d+/, () => `versionCode ${nextCode}`)
   .replace(/versionName\s+"[^"]+"/, () => `versionName "${nextName}"`)
 
-if (newCapSrc === capSrc && newGradleSrc === gradleSrc) {
+// Xcode stores the version in the pbxproj as MARKETING_VERSION (="2.9.3")
+// and CURRENT_PROJECT_VERSION (build number = our versionCode); the values
+// appear once per build configuration (Debug/Release), so replace them all.
+const newIosSrc = iosExists
+  ? iosSrc
+      .replace(
+        /CURRENT_PROJECT_VERSION = \d+;/g,
+        () => `CURRENT_PROJECT_VERSION = ${nextCode};`,
+      )
+      .replace(
+        /MARKETING_VERSION = [^;]+;/g,
+        () => `MARKETING_VERSION = ${nextName};`,
+      )
+  : ""
+
+if (
+  newCapSrc === capSrc &&
+  newGradleSrc === gradleSrc &&
+  newIosSrc === iosSrc
+) {
   console.log("✓ Files already up to date — nothing to rewrite.")
 } else {
   if (newCapSrc !== capSrc) {
@@ -203,9 +254,13 @@ if (newCapSrc === capSrc && newGradleSrc === gradleSrc) {
   if (newGradleSrc !== gradleSrc) {
     console.log(`  android/app/build.gradle → versionName "${nextName}", versionCode ${nextCode}`)
   }
+  if (iosExists && newIosSrc !== iosSrc) {
+    console.log(`  ios/App/App.xcodeproj/project.pbxproj → MARKETING_VERSION ${nextName}, CURRENT_PROJECT_VERSION ${nextCode}`)
+  }
   if (!DRY_RUN) {
     writeFileSync(capPath, newCapSrc)
     writeFileSync(gradlePath, newGradleSrc)
+    if (iosExists) writeFileSync(iosPath, newIosSrc)
     console.log("✓ Version files written.")
   }
 }
@@ -233,5 +288,5 @@ if (DRY_RUN) {
 }
 
 console.log(
-  `\n✅ Done — app v${nextName} (versionCode ${nextCode}).\n   Next: cd android; .\\gradlew.bat bundleRelease   (or build from Android Studio)\n`,
+  `\n✅ Done — app v${nextName} (versionCode ${nextCode}).\n   Android: cd android; .\\gradlew.bat bundleRelease   (or build from Android Studio)\n   iOS: git pull on the Mac — Xcode already shows v${nextName} (${nextCode}) from the project file.\n`,
 )
