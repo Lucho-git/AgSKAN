@@ -7,6 +7,7 @@ class PluginViewController: CAPBridgeViewController {
     // Register custom local plugins with the Capacitor bridge
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(RawGpsPlugin())
+        bridge?.registerPluginInstance(SystemBarsThemePlugin())
     }
     
     override open func viewDidLoad() {
@@ -24,7 +25,7 @@ class PluginViewController: CAPBridgeViewController {
         
         DispatchQueue.main.async {
             self.setupWebViewPadding()
-            self.updateAppearance()
+            self.refreshThemeFromWebApp()
         }
     }
     
@@ -33,7 +34,7 @@ class PluginViewController: CAPBridgeViewController {
         
         DispatchQueue.main.async {
             self.setupWebViewPadding()
-            self.updateAppearance()
+            self.refreshThemeFromWebApp()
         }
     }
     
@@ -46,45 +47,49 @@ class PluginViewController: CAPBridgeViewController {
         return currentStatusBarStyle
     }
     
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        
+    /// Applies the APP theme (pushed from the web via SystemBarsThemePlugin).
+    /// The app's data-theme is the single source of truth — the system
+    /// dark/light preference is only ever a seeding fallback on the web side.
+    /// Dark app theme → yellow bars + dark icons; light → dark grey + light icons.
+    func applySystemBarsTheme(darkAppTheme: Bool) {
         if #available(iOS 13.0, *) {
-            if traitCollection.userInterfaceStyle != previousTraitCollection?.userInterfaceStyle {
-                updateAppearance()
+            let backgroundColor = darkAppTheme
+                ? UIColor(red: 249/255, green: 229/255, blue: 138/255, alpha: 1.0) // brand yellow
+                : UIColor(red: 16/255, green: 32/255, blue: 48/255, alpha: 1.0)    // dark grey
+
+            // The web view is inset below the status bar, so the window/view
+            // background is what shows behind it (status + home indicator areas).
+            view.backgroundColor = backgroundColor
+            if let window = view.window {
+                window.backgroundColor = backgroundColor
             }
+
+            currentStatusBarStyle = darkAppTheme ? .darkContent : .lightContent
+            setNeedsStatusBarAppearanceUpdate()
         }
     }
-    
-    private func updateAppearance() {
-        if #available(iOS 13.0, *) {
-            let isDarkMode = traitCollection.userInterfaceStyle == .dark
-            
-            if isDarkMode {
-                // Dark mode: yellow background
-                let yellowColor = UIColor(red: 249/255, green: 229/255, blue: 138/255, alpha: 1.0)
-                view.backgroundColor = yellowColor
-                
-                // Set the window's background - this colors the status bar and home indicator areas
-                if let window = view.window {
-                    window.backgroundColor = yellowColor
-                }
-                
-                currentStatusBarStyle = .darkContent
+
+    /// First paint: read the web app's data-theme (the source of truth).
+    /// Before the web app has set it, fall back to the system trait — matching
+    /// the web side's seeding behaviour.
+    private func refreshThemeFromWebApp() {
+        webView?.evaluateJavaScript(
+            "document.documentElement.getAttribute('data-theme') || ''"
+        ) { [weak self] result, _ in
+            guard let self = self else { return }
+            let theme = (result as? String) ?? ""
+
+            if theme == "skanthemedark" {
+                self.applySystemBarsTheme(darkAppTheme: true)
+            } else if theme == "skantheme" {
+                self.applySystemBarsTheme(darkAppTheme: false)
+            } else if #available(iOS 13.0, *) {
+                self.applySystemBarsTheme(
+                    darkAppTheme: self.traitCollection.userInterfaceStyle == .dark
+                )
             } else {
-                // Light mode: dark gray background
-                let darkGrayColor = UIColor(red: 16/255, green: 32/255, blue: 48/255, alpha: 1.0)
-                view.backgroundColor = darkGrayColor
-                
-                // Set the window's background - this colors the status bar and home indicator areas
-                if let window = view.window {
-                    window.backgroundColor = darkGrayColor
-                }
-                
-                currentStatusBarStyle = .lightContent
+                self.applySystemBarsTheme(darkAppTheme: false)
             }
-            
-            setNeedsStatusBarAppearanceUpdate()
         }
     }
     

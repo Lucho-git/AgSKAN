@@ -121,25 +121,35 @@
     </div>
 
     <script>
+      // Browser chrome colour (meta theme-color) — mirrors the APP theme
+      // (data-theme / localStorage "theme"), not the system preference, so it
+      // stays consistent with the native status bars (see $lib/systemBars).
       function updateThemeColor() {
         const themeColorMeta = document.getElementById("theme-color")
-        if (
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches
-        ) {
-          themeColorMeta.setAttribute("content", "#f9e58a") // Dark mode color
-        } else {
-          themeColorMeta.setAttribute("content", "#102030") // Light mode color
-        }
+        if (!themeColorMeta) return
+
+        const attr = document.documentElement.getAttribute("data-theme")
+        const stored = window.localStorage
+          ? window.localStorage.getItem("theme")
+          : null
+        const isDark = attr
+          ? attr === "skanthemedark"
+          : stored
+            ? stored === "skanthemedark"
+            : !!(window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches)
+
+        themeColorMeta.setAttribute("content", isDark ? "#f9e58a" : "#102030")
       }
 
       // Initial update
       updateThemeColor()
 
-      // Listen for changes in color scheme preference
-      window
-        .matchMedia("(prefers-color-scheme: dark)")
-        .addListener(updateThemeColor)
+      // Re-run whenever the app theme attribute changes
+      new MutationObserver(updateThemeColor).observe(
+        document.documentElement,
+        { attributes: true, attributeFilter: ["data-theme"] },
+      )
     </script>
 
     <!-- SIMPLIFIED: StatusBar fix without scrollbar changes -->

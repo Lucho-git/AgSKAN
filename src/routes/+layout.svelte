@@ -20,7 +20,10 @@
 
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
-  import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar"
+  // --- Screen header (status/navigation bars) ---
+  // All bar + icon styling lives in the shared helper, keyed to the app theme
+  // attribute (see initSystemBars() call further down).
+  import { initSystemBars } from "$lib/systemBars"
   import { SplashScreen } from "@capacitor/splash-screen"
   import { App } from "@capacitor/app"
   import {
@@ -44,10 +47,6 @@
   // HTMLDialogElement.showModal(), which silently breaks every modal (field
   // export, delete, edit, …). Registered here so it runs before any modal.
   import { initDialogPolyfill } from "$lib/dialogPolyfill"
-
-  // --- Theme Colors for System Bars ---
-  const appSystemLightMode_Bars_BackgroundColor = "#102030" // Your Dark Gray
-  const appSystemDarkMode_Bars_BackgroundColor = "#f9e58a" // Your Yellow
 
   // --- Mobile web → native app handoff for "Scan to Join" links ---
   // App store fallbacks when the native app isn't installed.
@@ -259,81 +258,6 @@
     }, delay)
   }
 
-  // --- Function to Apply Native Theme Styles (iOS handled natively, Android via JS) ---
-  async function applyNativeThemeStyles(isSystemDarkMode: boolean) {
-    if (!Capacitor.isNativePlatform()) {
-      console.log("Not a native platform. Skipping native theme styles.")
-      return
-    }
-
-    const platform = Capacitor.getPlatform()
-    console.log(
-      `System is in ${isSystemDarkMode ? "DARK" : "LIGHT"} mode on ${platform}.`,
-    )
-
-    try {
-      // Only handle Android with JavaScript
-      if (platform === "android") {
-        const systemBarsBackgroundColorToSet = isSystemDarkMode
-          ? appSystemDarkMode_Bars_BackgroundColor // System DARK => YELLOW background
-          : appSystemLightMode_Bars_BackgroundColor // System LIGHT => DARK GRAY background
-
-        console.log(
-          `  Setting Android system bars background color (top & bottom) via EdgeToEdge to: ${systemBarsBackgroundColorToSet}`,
-        )
-
-        try {
-          // Dynamically import the EdgeToEdge plugin - only used on Android
-          const { EdgeToEdge } = await import(
-            "@capawesome/capacitor-android-edge-to-edge-support"
-          )
-          // Set background using EdgeToEdge plugin (for both bars)
-          await EdgeToEdge.setBackgroundColor({
-            color: systemBarsBackgroundColorToSet,
-          })
-          console.log("  EdgeToEdge.setBackgroundColor called for Android.")
-        } catch (edgeError) {
-          console.error("EdgeToEdge error (Android only):", edgeError)
-        }
-
-        // Determine and apply desired icon/text styles for Android STATUS BAR
-        let newCapacitorStatusBarStyle: StatusBarStyle
-
-        if (isSystemDarkMode) {
-          // SYSTEM is DARK MODE (App uses YELLOW background #f9e58a)
-          // We want DARK text/icons for the status bar.
-          newCapacitorStatusBarStyle = StatusBarStyle.Dark // Dark = black text/icons
-          console.log("  Applying DARK text/icons theme to Android STATUS BAR.")
-        } else {
-          // SYSTEM is LIGHT MODE (App uses DARK GRAY background #102030)
-          // We want LIGHT text/icons for the status bar.
-          newCapacitorStatusBarStyle = StatusBarStyle.Light // Light = white text/icons
-          console.log(
-            "  Applying LIGHT text/icons theme to Android STATUS BAR.",
-          )
-        }
-
-        // Apply style to the Android status bar
-        await StatusBar.setStyle({ style: newCapacitorStatusBarStyle })
-        console.log(
-          `  Android StatusBar.setStyle called with: ${newCapacitorStatusBarStyle === StatusBarStyle.Light ? "Style.Light" : "Style.Dark"}`,
-        )
-
-        // Ensure status bar remains visible on Android
-        await StatusBar.show()
-        console.log("  Android StatusBar.show() called to ensure visibility.")
-      } else if (platform === "ios") {
-        // iOS is handled entirely by the native PluginViewController
-        console.log(
-          "  iOS detected - status bar styling handled by native PluginViewController.",
-        )
-        console.log("  Skipping JavaScript StatusBar calls for iOS.")
-      }
-    } catch (error) {
-      console.error("Error applying native theme styles:", error)
-    }
-  }
-
   // --- App Update Handling ---
   const AGSKAN_ANDROID_PACKAGE_NAME = "com.skanfarming"
   const AGSKAN_IOS_APP_STORE_ID = "6746783538"
@@ -446,16 +370,7 @@
 
   // --- Component Lifecycle & Native Setup ---
   let unsubscribeSession: (() => void) | undefined
-  let darkModeMediaQuery: MediaQueryList | undefined
   let appUpdateListener: { remove: () => Promise<void> } | undefined
-
-  const handleSystemThemeChange = (event: MediaQueryListEvent) => {
-    console.log(
-      "System theme changed event. New state - is dark mode:",
-      event.matches,
-    )
-    applyNativeThemeStyles(event.matches)
-  }
 
   // Function to conditionally initialize EdgeToEdge only on Android
   async function initializeEdgeToEdge() {
@@ -584,21 +499,10 @@
         // Initialize EdgeToEdge only on Android
         await initializeEdgeToEdge()
 
-        if (window.matchMedia) {
-          darkModeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-          console.log(
-            "Initial system dark mode preference. Is dark mode:",
-            darkModeMediaQuery.matches,
-          )
-          await applyNativeThemeStyles(darkModeMediaQuery.matches)
-          darkModeMediaQuery.addEventListener("change", handleSystemThemeChange)
-          console.log("Added listener for system theme changes.")
-        } else {
-          console.warn(
-            "window.matchMedia is not available. Cannot detect system theme. Applying styles for system light mode as default.",
-          )
-          await applyNativeThemeStyles(false)
-        }
+        // Screen header (status/navigation bars): the shared helper applies
+        // the app-theme colours now and keeps itself in sync via a
+        // MutationObserver — no other place needs to touch the bars.
+        initSystemBars()
       } else {
         console.log("Not a native platform. Skipping native configuration.")
       }
@@ -646,13 +550,6 @@
         console.log("Cleaning up session subscription in root layout.")
         unsubscribeSession()
       }
-      if (Capacitor.isNativePlatform() && darkModeMediaQuery) {
-        darkModeMediaQuery.removeEventListener(
-          "change",
-          handleSystemThemeChange,
-        )
-        console.log("Removed system theme change listener.")
-      }
       appUpdateListener?.remove()
     }
   })
@@ -660,10 +557,6 @@
 
 <!-- Single shared icon sprite (see IconSprite.svelte) — must stay mounted
      exactly once so every <IconSVG> <use> reference resolves. -->
-<IconSprite />
-
-<!-- Single shared icon sprite (see IconSprite.svelte) — mounted exactly once
-     so every <IconSVG> <use> reference resolves. -->
 <IconSprite />
 
 <svelte:head>
