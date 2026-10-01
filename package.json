@@ -16,6 +16,7 @@
     "vercel-build": "node version.js > .env.production.local && npm run build",
     "update-subscriptions": "node scripts/updateUserSubscriptions.js",
     "app:release": "node scripts/app-release.mjs",
+    "app:build": "node scripts/app-release.mjs",
     "app:release:minor": "node scripts/app-release.mjs minor",
     "app:release:major": "node scripts/app-release.mjs major",
     "app:rebuild": "node scripts/app-release.mjs none"

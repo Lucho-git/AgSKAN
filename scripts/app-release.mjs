@@ -18,11 +18,16 @@
 //   npm run app:release:major        major bump + build + sync
 //   npm run app:rebuild              NO bump; enforce matching versions,
 //                                    then build + sync (plain rebuild)
-//   node scripts/app-release.mjs 2.10.0        set an exact version
+//   node scripts/app-release.mjs 2.10.0        set an exact versionName
+//   npm run app:build 293                      set an exact versionCode
+//                                              (name derived: 2.9.3)
 //   node scripts/app-release.mjs patch --dry-run        preview only
 //   node scripts/app-release.mjs none --no-build --no-sync    versions only
 //   ... --force        allow a LOWER versionCode (only when the current one
 //                      was never uploaded to Play, e.g. resetting a mistake)
+//
+// (With the npm aliases, flags that look like npm options need `--`, e.g.
+//  `npm run app:build -- 293 --dry-run`.)
 //
 // Version scheme: versionName is MAJOR.MINOR.PATCH (e.g. 2.9.2).
 // versionCode is the version digits concatenated: 2.9.2 → 292 (matching the
@@ -52,15 +57,22 @@ const FORCE = flags.has("--force")
 
 if (flags.has("--help") || flags.has("-h")) {
   console.log(
-    "Usage: node scripts/app-release.mjs [patch|minor|major|none|X.Y.Z] [--dry-run] [--no-build] [--no-sync] [--force]",
+    "Usage: node scripts/app-release.mjs [patch|minor|major|none|X.Y.Z|<versionCode>] [--dry-run] [--no-build] [--no-sync] [--force]",
   )
   process.exit(0)
 }
 
-const isExactVersion = /^\d+(\.\d+){0,2}$/.test(mode)
-if (!isExactVersion && !["patch", "minor", "major", "none"].includes(mode)) {
+// "2.9.3" / "3.0" = explicit versionName; "293" (bare digits) = explicit
+// versionCode with the matching name derived (293 → 2.9.3)
+const isExactName = /^\d+\.\d+(\.\d+)?$/.test(mode)
+const isExactCode = /^\d+$/.test(mode)
+if (
+  !isExactName &&
+  !isExactCode &&
+  !["patch", "minor", "major", "none"].includes(mode)
+) {
   console.error(
-    `Unknown bump mode "${mode}" — use patch | minor | major | none | X.Y.Z`,
+    `Unknown bump mode "${mode}" — use patch | minor | major | none | X.Y.Z | <versionCode>`,
   )
   process.exit(1)
 }
@@ -109,8 +121,29 @@ function parseV(v) {
   return { maj, min, pat }
 }
 
+// Rebuild the versionName from a bare versionCode by keeping the current
+// major: 293 → 2.9.3, 2100 → 2.10.0 (middle digits become minor, last digit
+// the patch). Ambiguous codes like 2910 (2.9.10 vs 2.91.0) resolve to the
+// larger-minor reading — pass the full X.Y.Z form instead when it matters.
+function nameFromCode(codeStr, cur) {
+  const curMajStr = String(cur.maj)
+  const majStr =
+    codeStr.startsWith(curMajStr) && codeStr.length > curMajStr.length
+      ? curMajStr
+      : codeStr[0]
+  let rest = codeStr.slice(majStr.length)
+  if (rest.length === 0) rest = "0"
+  const pat = rest.length >= 2 ? parseInt(rest.slice(-1), 10) : 0
+  const min = parseInt(rest.length >= 2 ? rest.slice(0, -1) : rest, 10)
+  return { maj: parseInt(majStr, 10), min, pat }
+}
+
 let next
-if (isExactVersion) {
+let modeLabel = mode
+if (isExactCode) {
+  next = nameFromCode(mode, parseV(curName))
+  modeLabel = `code ${mode}`
+} else if (isExactName) {
   next = parseV(mode)
 } else if (mode === "none") {
   next = parseV(curName)
@@ -131,7 +164,15 @@ const nextName = `${next.maj}.${next.min}.${next.pat}`
 const nextCode =
   mode === "none"
     ? curCode
-    : parseInt(`${next.maj}${next.min}${next.pat}`, 10)
+    : isExactCode
+      ? parseInt(mode, 10)
+      : parseInt(`${next.maj}${next.min}${next.pat}`, 10)
+
+if (isExactCode && `${next.maj}${next.min}${next.pat}` !== mode) {
+  console.log(
+    `⚠ versionCode ${mode} does not match the digits of ${nextName} — writing exactly what you asked for.`,
+  )
+}
 
 if (mode !== "none" && nextCode <= curCode && !FORCE) {
   console.error(
@@ -141,7 +182,7 @@ if (mode !== "none" && nextCode <= curCode && !FORCE) {
 }
 
 console.log(
-  `\n📦 App version: ${curName} (${curCode})  →  ${nextName} (${nextCode})  [mode: ${mode}]${DRY_RUN ? "  (dry run)" : ""}\n`,
+  `\n📦 App version: ${curName} (${curCode})  →  ${nextName} (${nextCode})  [mode: ${modeLabel}]${DRY_RUN ? "  (dry run)" : ""}\n`,
 )
 
 // ── file rewrites ───────────────────────────────────────────────────────
