@@ -19,7 +19,12 @@
     "app:build": "node scripts/app-release.mjs",
     "app:release:minor": "node scripts/app-release.mjs minor",
     "app:release:major": "node scripts/app-release.mjs major",
-    "app:rebuild": "node scripts/app-release.mjs none"
+    "app:rebuild": "node scripts/app-release.mjs none",
+    "build:app": "node scripts/app-release.mjs",
+    "build:app:patch": "node scripts/app-release.mjs patch",
+    "build:app:minor": "node scripts/app-release.mjs minor",
+    "build:app:major": "node scripts/app-release.mjs major",
+    "build:app:rebuild": "node scripts/app-release.mjs none"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

@@ -1,44 +1,41 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────
-// app-release.mjs — Android release version bump + web build + cap sync
+// app-release.mjs — ONE app version for both stores (iOS + Android)
 //
-// One command for the whole loop:
-//   1. bump the app version (default: patch)
-//   2. write the SAME versionName/versionCode into ALL of
-//        - capacitor.config.ts        (android block — used by cap tooling)
-//        - android/app/build.gradle   (the REAL installed APK version)
-//        - ios/App/App.xcodeproj/project.pbxproj
-//          (MARKETING_VERSION + CURRENT_PROJECT_VERSION — the values Xcode
-//          shows/archives with, so the Mac needs no manual version edits;
-//          just git pull there)
-//      `npx cap sync` only regenerates the assets capacitor.config.json —
-//      it never fixes build.gradle or the Xcode project, which is how they
-//      drift apart.
-//   3. npm run build          (web assets → build/)
-//   4. npx cap sync android   (copy web assets + plugins into the app)
+//   npm run build:app             patch bump (2.95 → 2.96) + build + sync
+//   npm run build:app 296         set an exact versionCode (name → 2.96)
+//   npm run build:app 2.96        set an exact versionName
+//   npm run build:app:major       3.0
+//   npm run build:app:rebuild     NO bump — re-sync versions, then build
+//   ... --dry-run | --no-build | --no-sync | --force
+//   (With the npm aliases, flags need `--`, e.g. `npm run build:app -- 296 --dry-run`.)
 //
-// Usage (from the repo root):
-//   npm run app:release              patch bump + build + sync
-//   npm run app:release:minor        minor bump + build + sync
-//   npm run app:release:major        major bump + build + sync
-//   npm run app:rebuild              NO bump; enforce matching versions,
-//                                    then build + sync (plain rebuild)
-//   node scripts/app-release.mjs 2.10.0        set an exact versionName
-//   npm run app:build 293                      set an exact versionCode
-//                                              (name derived: 2.9.3)
-//   node scripts/app-release.mjs patch --dry-run        preview only
-//   node scripts/app-release.mjs none --no-build --no-sync    versions only
-//   ... --force        allow a LOWER versionCode (only when the current one
-//                      was never uploaded to Play, e.g. resetting a mistake)
+// version.json is the SINGLE SOURCE OF TRUTH. Every run rewrites all three
+// platform files from it, so they cannot drift apart:
+//     - capacitor.config.ts       (android block — used by cap tooling)
+//     - android/app/build.gradle  (the version actually installed on the APK)
+//     - ios/.../project.pbxproj   (MARKETING_VERSION + CURRENT_PROJECT_VERSION)
 //
-// (With the npm aliases, flags that look like npm options need `--`, e.g.
-//  `npm run app:build -- 293 --dry-run`.)
+// Two-machine flow (Windows build Android, Mac archives iOS):
+//   1. on ONE machine:  npm run build:app 96          ← bump exactly once
+//   2. commit + push the version files
+//   3. on the other:    git pull && npm run build:app:rebuild
+//      (rebuild = no bump. Running a *bump* on both machines is what used to
+//       leave Android and iOS on different versions.)
 //
-// Version scheme: versionName is MAJOR.MINOR.PATCH (e.g. 2.9.2).
-// versionCode is the version digits concatenated: 2.9.2 → 292 (matching the
-// app's historical codes: 2.9.1 was 291, 2.9.0 was 290). Multi-digit parts
-// just extend the number (2.10.0 → 2100) — mind that patch ≥ 10 can outrun
-// the next minor (2.9.10 → 2910 > 2.10.0 → 2100), which the guard will flag.
+// Version scheme — identical to the app's historical versions:
+//     versionName = MAJOR.MINOR            e.g. "2.95"  → CFBundleShortVersionString
+//     versionCode = MAJOR * 100 + MINOR    e.g. 295     → Play versionCode AND
+//                                                        Xcode build number
+//     (history: 287 ↔ "2.87", 291 ↔ "2.91" ✓)
+//
+// ⚠ The App Store rule that rejected the 2.9.4 build (error 90062):
+//   iOS compares CFBundleShortVersionString component-by-component and
+//   NUMERICALLY, so "2.9.4" → (2, 9, 4) sorts BELOW the approved "2.91"
+//   → (2, 91) because 9 < 91. The upload is refused with "must contain a
+//   higher version than that of the previously approved version".
+//   Never use 2.9.x names again. `minVersionName` in version.json is the
+//   floor (the last version Apple approved, +1) and is enforced below.
 // ─────────────────────────────────────────────────────────────────────────
 
 import { execSync } from "node:child_process"
@@ -47,6 +44,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const versionPath = resolve(root, "version.json")
 const capPath = resolve(root, "capacitor.config.ts")
 const gradlePath = resolve(root, "android/app/build.gradle")
 const iosPath = resolve(root, "ios/App/App.xcodeproj/project.pbxproj")
@@ -94,37 +92,93 @@ if (androidIdx === -1) {
 }
 const capAndroid = capSrc.slice(androidIdx)
 const capName = capAndroid.match(/versionName:\s*"([^"]+)"/)?.[1]
-const capCode = capAndroid.match(/versionCode:\s*(\d+)/)?.[1]
+const capCodeN = parseInt(
+  capAndroid.match(/versionCode:\s*(\d+)/)?.[1] ?? "",
+  10,
+)
 
 const gradleName = gradleSrc.match(/versionName\s+"([^"]+)"/)?.[1]
-const gradleCode = gradleSrc.match(/versionCode\s+(\d+)/)?.[1]
+const gradleCodeN = parseInt(
+  gradleSrc.match(/versionCode\s+(\d+)/)?.[1] ?? "",
+  10,
+)
 
 const iosExists = existsSync(iosPath)
 const iosSrc = iosExists ? readFileSync(iosPath, "utf8") : ""
+// MARKETING_VERSION / CURRENT_PROJECT_VERSION appear once per build
+// configuration (Debug/Release) — all of them are rewritten together below.
 const iosName = iosSrc.match(/MARKETING_VERSION = ([^;]+);/)?.[1]
-const iosCode = iosSrc.match(/CURRENT_PROJECT_VERSION = (\d+);/)?.[1]
+const iosCodeN = parseInt(
+  iosSrc.match(/CURRENT_PROJECT_VERSION = (\d+);/)?.[1] ?? "",
+  10,
+)
 
-if (!capName || !capCode) {
+if (!capName || !Number.isFinite(capCodeN)) {
   console.error(
     "Could not find versionName/versionCode in the capacitor.config.ts android block",
   )
   process.exit(1)
 }
 
-const capCodeN = parseInt(capCode, 10)
-const gradleCodeN = gradleCode ? parseInt(gradleCode, 10) : 0
-const iosCodeN = iosCode ? parseInt(iosCode, 10) : 0
+// ── compare dotted names the way the App Store does ─────────────────────
+// Component-by-component, numerically, missing components = 0. So
+// "2.95" > "2.9.4" (95 > 9) while "2.9.1" < "2.91" — which is exactly the
+// trap that got the 2.9.4 upload rejected (error 90062).
+function cmpNames(a, b) {
+  const pa = String(a)
+    .split(".")
+    .map((n) => parseInt(n, 10) || 0)
+  const pb = String(b)
+    .split(".")
+    .map((n) => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x !== y) return x > y ? 1 : -1
+  }
+  return 0
+}
 
-// Canonical = whichever file carries the HIGHER versionCode (never move
-// backwards — Play/App Store reject reused or regressed build numbers),
-// preferring the config on ties (its versionName is the better-formatted one).
-const curCode = Math.max(capCodeN, gradleCodeN, iosCodeN)
-const curName =
-  capCodeN === curCode
-    ? capName
-    : gradleCodeN === curCode
-      ? gradleName || capName
-      : iosName || capName
+// version.json is the single source of truth. First run seeds it from the
+// highest versionCode found in the files (never move backwards).
+if (!existsSync(versionPath)) {
+  const seedCode = Math.max(capCodeN || 0, gradleCodeN || 0, iosCodeN || 0)
+  const seedName =
+    capCodeN === seedCode
+      ? capName
+      : gradleCodeN === seedCode
+        ? gradleName || capName
+        : iosName || capName
+  if (!DRY_RUN) {
+    writeFileSync(
+      versionPath,
+      `${JSON.stringify(
+        {
+          versionName: seedName,
+          versionCode: seedCode,
+          minVersionName: seedName,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  }
+  console.log(
+    `ℹ Seeded version.json from the current files: ${seedName} (${seedCode})`,
+  )
+}
+
+const versionJson = JSON.parse(readFileSync(versionPath, "utf8"))
+const curName = versionJson.versionName
+const curCode = versionJson.versionCode
+// Floor for the iOS marketing version: the last version Apple APPROVED (+1).
+// Anything at or below it is rejected with error 90062.
+const minVersionName = versionJson.minVersionName || curName
+
+if (!curName || !Number.isFinite(curCode)) {
+  console.error("version.json must contain versionName and versionCode")
+  process.exit(1)
+}
 
 const drift = []
 if (capName !== curName || capCodeN !== curCode) {
@@ -148,69 +202,92 @@ if (drift.length > 0) {
 }
 
 // ── compute the next version ────────────────────────────────────────────
-function parseV(v) {
-  const [maj = 0, min = 0, pat = 0] = v.split(".").map((n) => parseInt(n, 10))
-  return { maj, min, pat }
-}
+const majorOf = (name) => parseInt(String(name).split(".")[0], 10) || 0
+const minorOf = (name) => parseInt(String(name).split(".")[1], 10) || 0
 
-// Rebuild the versionName from a bare versionCode by keeping the current
-// major: 293 → 2.9.3, 2100 → 2.10.0 (middle digits become minor, last digit
-// the patch). Ambiguous codes like 2910 (2.9.10 vs 2.91.0) resolve to the
-// larger-minor reading — pass the full X.Y.Z form instead when it matters.
-function nameFromCode(codeStr, cur) {
-  const curMajStr = String(cur.maj)
-  const majStr =
-    codeStr.startsWith(curMajStr) && codeStr.length > curMajStr.length
-      ? curMajStr
-      : codeStr[0]
-  let rest = codeStr.slice(majStr.length)
-  if (rest.length === 0) rest = "0"
-  const pat = rest.length >= 2 ? parseInt(rest.slice(-1), 10) : 0
-  const min = parseInt(rest.length >= 2 ? rest.slice(0, -1) : rest, 10)
-  return { maj: parseInt(majStr, 10), min, pat }
-}
+// versionCode ⇄ versionName: MAJOR * 100 + MINOR  (2.95 → 295).
+// This is the app's historical mapping — 2.87 → 287, 2.91 → 291 — so the
+// build numbers keep climbing from where Play/App Store already are.
+const codeFromName = (name) => majorOf(name) * 100 + minorOf(name)
 
-let next
+let nextName
+let nextCode
 let modeLabel = mode
+
 if (isExactCode) {
-  next = nameFromCode(mode, parseV(curName))
+  // bare digits → set the versionCode, derive the name from the current major
+  nextCode = parseInt(mode, 10)
+  const minor = nextCode - majorOf(curName) * 100
+  if (minor < 0) {
+    console.error(
+      `versionCode ${nextCode} is below ${majorOf(curName)}xx — pass the versionName instead, e.g. \`npm run build:app 3.0\`.`,
+    )
+    process.exit(1)
+  }
+  nextName = `${majorOf(curName)}.${minor}`
   modeLabel = `code ${mode}`
 } else if (isExactName) {
-  next = parseV(mode)
+  nextName = mode
+  nextCode = codeFromName(nextName)
 } else if (mode === "none") {
-  next = parseV(curName)
+  // plain rebuild — re-assert the canonical version, never bump
+  nextName = curName
+  nextCode = curCode
 } else {
-  const c = parseV(curName)
-  if (mode === "major") next = { maj: c.maj + 1, min: 0, pat: 0 }
-  else if (mode === "minor") next = { maj: c.maj, min: c.min + 1, pat: 0 }
-  else next = { maj: c.maj, min: c.min, pat: c.pat + 1 }
+  const maj = majorOf(curName)
+  const min = minorOf(curName)
+  if (mode === "major") {
+    nextName = `${maj + 1}.0`
+  } else {
+    // patch and minor are the same thing while the name is MAJOR.MINOR:
+    // every release advances MINOR by one (2.95 → 2.96)
+    nextName = `${maj}.${min + 1}`
+  }
+  nextCode = codeFromName(nextName)
 }
 
-if (next.min < 0 || next.pat < 0) {
-  console.error("Version components must be non-negative integers.")
-  process.exit(1)
+// ── guards ──────────────────────────────────────────────────────────────
+if (mode !== "none" && !FORCE) {
+  if (cmpNames(nextName, curName) <= 0) {
+    console.error(
+      `Refusing to write versionName ${nextName} — it must be higher than ${curName}.` +
+        (isExactCode ? `\n  (versionCode ${mode} is not above ${curCode}.)` : "") +
+        `\n  Apple compares these component-by-component, so 2.9.x sorts BELOW 2.91 (error 90062).`,
+    )
+    process.exit(1)
+  }
+  if (nextCode <= curCode) {
+    console.error(
+      `Refusing to write versionCode ${nextCode} — it must be greater than the current ${curCode}.\n  (Pass --force only if ${curCode} was never uploaded to Play.)`,
+    )
+    process.exit(1)
+  }
 }
 
-const nextName = `${next.maj}.${next.min}.${next.pat}`
-// "none" writes the current values verbatim (a rebuild must not bump the code)
-const nextCode =
-  mode === "none"
-    ? curCode
-    : isExactCode
-      ? parseInt(mode, 10)
-      : parseInt(`${next.maj}${next.min}${next.pat}`, 10)
-
-if (isExactCode && `${next.maj}${next.min}${next.pat}` !== mode) {
-  console.log(
-    `⚠ versionCode ${mode} does not match the digits of ${nextName} — writing exactly what you asked for.`,
-  )
-}
-
-if (mode !== "none" && nextCode <= curCode && !FORCE) {
+// The iOS marketing version has to beat the last version Apple approved.
+if (cmpNames(nextName, minVersionName) < 0 && !FORCE) {
   console.error(
-    `Refusing to write versionCode ${nextCode} — it must be greater than the current ${curCode}.\n  (Pass --force only if ${curCode} was never uploaded to Play.)`,
+    `Refusing to write versionName ${nextName} — it is below the App Store floor ${minVersionName} (minVersionName in version.json).\n  Apple rejects any CFBundleShortVersionString that is not higher than the approved version (error 90062).`,
   )
   process.exit(1)
+}
+
+// Never move a file backwards: a stale version.json would otherwise silently
+// downgrade a machine that is already carrying the newer version.
+if (!FORCE) {
+  for (const [label, name, code] of [
+    ["capacitor.config.ts", capName, capCodeN],
+    ["android/app/build.gradle", gradleName, gradleCodeN],
+    ["ios/App/App.xcodeproj/project.pbxproj", iosName, iosCodeN],
+  ]) {
+    if (!name || !Number.isFinite(code)) continue
+    if (cmpNames(nextName, name) < 0 || nextCode < code) {
+      console.error(
+        `Refusing to write ${nextName} (${nextCode}) — ${label} already has ${name} (${code}).\n  Run \`git pull\` first, or pass --force if that file is wrong.`,
+      )
+      process.exit(1)
+    }
+  }
 }
 
 console.log(
@@ -265,6 +342,20 @@ if (
   }
 }
 
+// version.json records what we just released, so the next run (on either
+// machine) bumps from here instead of re-deriving from stale files.
+if (!DRY_RUN && (nextName !== curName || nextCode !== curCode)) {
+  writeFileSync(
+    versionPath,
+    `${JSON.stringify(
+      { ...versionJson, versionName: nextName, versionCode: nextCode },
+      null,
+      2,
+    )}\n`,
+  )
+  console.log(`  version.json → ${nextName} (${nextCode})`)
+}
+
 // ── build + sync ────────────────────────────────────────────────────────
 function run(label, cmd) {
   console.log(`\n⏳ ${label}: ${cmd}`)
@@ -281,12 +372,26 @@ if (DRY_RUN) {
   }
 
   if (NO_SYNC) {
-    console.log("(–no-sync: skipping npx cap sync android)")
+    console.log("(–no-sync: skipping npx cap sync)")
   } else {
-    run("Capacitor sync", "npx cap sync android")
+    run("Capacitor sync (android)", "npx cap sync android")
+    // The Mac needs the iOS copy too; CocoaPods only exists on macOS.
+    if (process.platform === "darwin" && iosExists) {
+      run("Capacitor sync (ios)", "npx cap sync ios")
+    }
   }
 }
 
 console.log(
-  `\n✅ Done — app v${nextName} (versionCode ${nextCode}).\n   Android: cd android; .\\gradlew.bat bundleRelease   (or build from Android Studio)\n   iOS: git pull on the Mac — Xcode already shows v${nextName} (${nextCode}) from the project file.\n`,
+  `\n✅ Done — app v${nextName} (versionCode ${nextCode}).
+   Both stores read the same version now:
+     Android  versionName "${nextName}" / versionCode ${nextCode}
+     iOS      MARKETING_VERSION ${nextName} / build ${nextCode}
+   Next steps:
+     1. commit + push the version files (incl. version.json)
+     2. Android: cd android; .\\gradlew.bat bundleRelease   (or Android Studio)
+     3. iOS on the Mac: git pull && npm run build:app:rebuild, then Archive
+        (do NOT run a bump again there — that is what used to leave the two
+         platforms on different versions)
+     4. after Apple approves ${nextName}, raise minVersionName in version.json\n`,
 )
