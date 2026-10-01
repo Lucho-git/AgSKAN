@@ -323,7 +323,7 @@ if (
   newGradleSrc === gradleSrc &&
   newIosSrc === iosSrc
 ) {
-  console.log("✓ Files already up to date — nothing to rewrite.")
+  console.log("✓ All three version files already match — nothing to rewrite.")
 } else {
   if (newCapSrc !== capSrc) {
     console.log(`  capacitor.config.ts  → versionName "${nextName}", versionCode ${nextCode}`)
@@ -341,6 +341,50 @@ if (
     console.log("✓ Version files written.")
   }
 }
+
+// Read the files back: a silent failure here would mean archiving the old
+// version, so fail loudly instead.
+if (!DRY_RUN) {
+  const problems = []
+  const check = (label, path, re, expected) => {
+    const found = [...readFileSync(path, "utf8").matchAll(re)].map((m) => m[1])
+    if (found.length === 0 || found.some((v) => v.trim() !== expected)) {
+      problems.push(
+        `   ${label}: expected ${expected}, found ${found.join(", ") || "nothing"}`,
+      )
+    }
+  }
+  check("capacitor.config.ts versionName", capPath, /versionName:\s*"([^"]+)"/g, nextName)
+  check("capacitor.config.ts versionCode", capPath, /versionCode:\s*(\d+)/g, String(nextCode))
+  check("android/app/build.gradle versionName", gradlePath, /versionName\s+"([^"]+)"/g, nextName)
+  check("android/app/build.gradle versionCode", gradlePath, /versionCode\s+(\d+)/g, String(nextCode))
+  if (iosExists) {
+    check("ios project MARKETING_VERSION", iosPath, /MARKETING_VERSION = ([^;]+);/g, nextName)
+    check(
+      "ios project CURRENT_PROJECT_VERSION",
+      iosPath,
+      /CURRENT_PROJECT_VERSION = (\d+);/g,
+      String(nextCode),
+    )
+  }
+  if (problems.length > 0) {
+    console.error(`\n✗ Version files did not update as expected:\n${problems.join("\n")}\n`)
+    process.exit(1)
+  }
+}
+
+// Always list every file the script owns (with the values now in it), so it
+// is obvious all three are covered even when there was nothing to change.
+console.log(
+  [
+    `   capacitor.config.ts       versionName "${nextName}" / versionCode ${nextCode}`,
+    `   android/app/build.gradle  versionName "${nextName}" / versionCode ${nextCode}`,
+    iosExists
+      ? `   ios project.pbxproj       MARKETING_VERSION ${nextName} / build ${nextCode}`
+      : `   ios project.pbxproj       (not present on this machine — skipped)`,
+    DRY_RUN ? "   (dry run — nothing was written)" : "   ✓ verified on disk",
+  ].join("\n"),
+)
 
 // version.json records what we just released, so the next run (on either
 // machine) bumps from here instead of re-deriving from stale files.
