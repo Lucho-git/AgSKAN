@@ -21,12 +21,14 @@
 //   node scripts/app-release.mjs 2.10.0        set an exact version
 //   node scripts/app-release.mjs patch --dry-run        preview only
 //   node scripts/app-release.mjs none --no-build --no-sync    versions only
+//   ... --force        allow a LOWER versionCode (only when the current one
+//                      was never uploaded to Play, e.g. resetting a mistake)
 //
 // Version scheme: versionName is MAJOR.MINOR.PATCH (e.g. 2.9.2).
-// versionCode is derived Google-style: major*10000 + minor*100 + patch
-// (2.9.2 → 20902) so every versionName bump is automatically a strictly
-// increasing Play versionCode. Legacy codes (291) are smaller, so the
-// first scripted release jumps the code forward — that is safe for Play.
+// versionCode is the version digits concatenated: 2.9.2 → 292 (matching the
+// app's historical codes: 2.9.1 was 291, 2.9.0 was 290). Multi-digit parts
+// just extend the number (2.10.0 → 2100) — mind that patch ≥ 10 can outrun
+// the next minor (2.9.10 → 2910 > 2.10.0 → 2100), which the guard will flag.
 // ─────────────────────────────────────────────────────────────────────────
 
 import { execSync } from "node:child_process"
@@ -46,10 +48,11 @@ const mode = (rawArgs.find((a) => !a.startsWith("--")) || "patch").toLowerCase()
 const DRY_RUN = flags.has("--dry-run")
 const NO_BUILD = flags.has("--no-build")
 const NO_SYNC = flags.has("--no-sync")
+const FORCE = flags.has("--force")
 
 if (flags.has("--help") || flags.has("-h")) {
   console.log(
-    "Usage: node scripts/app-release.mjs [patch|minor|major|none|X.Y.Z] [--dry-run] [--no-build] [--no-sync]",
+    "Usage: node scripts/app-release.mjs [patch|minor|major|none|X.Y.Z] [--dry-run] [--no-build] [--no-sync] [--force]",
   )
   process.exit(0)
 }
@@ -118,21 +121,21 @@ if (isExactVersion) {
   else next = { maj: c.maj, min: c.min, pat: c.pat + 1 }
 }
 
-if (next.min > 99 || next.pat > 99) {
-  console.error(
-    `Version ${next.maj}.${next.min}.${next.pat} does not fit the Google versionCode scheme (minor/patch must be < 100).`,
-  )
+if (next.min < 0 || next.pat < 0) {
+  console.error("Version components must be non-negative integers.")
   process.exit(1)
 }
 
 const nextName = `${next.maj}.${next.min}.${next.pat}`
 // "none" writes the current values verbatim (a rebuild must not bump the code)
 const nextCode =
-  mode === "none" ? curCode : next.maj * 10000 + next.min * 100 + next.pat
+  mode === "none"
+    ? curCode
+    : parseInt(`${next.maj}${next.min}${next.pat}`, 10)
 
-if (mode !== "none" && nextCode <= curCode) {
+if (mode !== "none" && nextCode <= curCode && !FORCE) {
   console.error(
-    `Refusing to write versionCode ${nextCode} — it must be greater than the current ${curCode}.`,
+    `Refusing to write versionCode ${nextCode} — it must be greater than the current ${curCode}.\n  (Pass --force only if ${curCode} was never uploaded to Play.)`,
   )
   process.exit(1)
 }
