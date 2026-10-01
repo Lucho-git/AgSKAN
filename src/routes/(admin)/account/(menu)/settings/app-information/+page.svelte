@@ -2,7 +2,7 @@
   import { goto } from "$app/navigation"
   import { Capacitor } from "@capacitor/core"
   import { App as CapacitorApp } from "@capacitor/app"
-  import { PUBLIC_APP_VERSION } from "$env/static/public"
+  import { APP_VERSION_LABEL } from "$lib/appVersion"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { toast } from "svelte-sonner"
@@ -11,12 +11,15 @@
 
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
-  const APP_VERSION = PUBLIC_APP_VERSION || "unknown"
+
+  // Released app version + code baked in at build time from version.json
+  // (repo root, maintained by the release script): Web App shows e.g.
+  // "2.95 (295)". Native overrides with the real installed build below.
+  const APP_VERSION = APP_VERSION_LABEL || "unknown"
 
   // On native, show the REAL installed version straight from the APK
   // (build.gradle versionName/versionCode via Capacitor App.getInfo) so the
-  // display can never drift from the shipped build — no build-time env can
-  // go stale. Web falls back to the version baked by version.js on Vercel.
+  // display can never drift from the shipped build.
   let nativeVersionLabel = ""
   if (isNativePlatform) {
     CapacitorApp.getInfo()

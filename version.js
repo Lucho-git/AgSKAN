@@ -1,16 +1,25 @@
-import { execSync } from 'child_process';
+// Emits PUBLIC_APP_VERSION for the Vercel build (see the "vercel-build"
+// npm script: `node version.js > .env.production.local`).
+//
+// The value is the RELEASED app version + code — single source of truth is
+// version.json at the repo root, maintained by scripts/app-release.mjs
+// (`npm run build:app`). So the deployed web app displays e.g.
+// "2.95 (295)" everywhere PUBLIC_APP_VERSION is read, matching the native
+// app's Settings → App Information.
+import { readFileSync } from "fs";
 
-// Manual base number - update this when you want to increment the major version
-const BASE_VERSION = 1;
+let version = "unknown";
 
-// Get the number of commits in the current branch
-const commitCount = parseInt(execSync('git rev-list --count HEAD').toString().trim());
-
-// Get the latest short commit hash
-const gitShortHash = execSync('git rev-parse --short HEAD').toString().trim();
-
-// Combine all parts
-const version = `${BASE_VERSION}.${commitCount}.${gitShortHash}`;
+try {
+  const info = JSON.parse(
+    readFileSync(new URL("./version.json", import.meta.url), "utf8"),
+  );
+  if (info.versionName && info.versionCode) {
+    version = `${info.versionName} (${info.versionCode})`;
+  }
+} catch (error) {
+  console.error(`version.js: could not read version.json: ${error.message}`);
+}
 
 console.log(`PUBLIC_APP_VERSION=${version}`);
 
