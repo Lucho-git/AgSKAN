@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation"
   import { Capacitor } from "@capacitor/core"
+  import { App as CapacitorApp } from "@capacitor/app"
   import { PUBLIC_APP_VERSION } from "$env/static/public"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -11,6 +12,23 @@
   // Check if running on native platform
   const isNativePlatform = Capacitor.isNativePlatform()
   const APP_VERSION = PUBLIC_APP_VERSION || "unknown"
+
+  // On native, show the REAL installed version straight from the APK
+  // (build.gradle versionName/versionCode via Capacitor App.getInfo) so the
+  // display can never drift from the shipped build — no build-time env can
+  // go stale. Web falls back to the version baked by version.js on Vercel.
+  let nativeVersionLabel = ""
+  if (isNativePlatform) {
+    CapacitorApp.getInfo()
+      .then((info) => {
+        nativeVersionLabel =
+          info.version && info.build
+            ? `${info.version} (${info.build})`
+            : info.version || ""
+      })
+      .catch(() => {})
+  }
+  $: versionLabel = nativeVersionLabel || APP_VERSION
 
   // Delete account modal
   let showDeleteConfirm = false
@@ -131,7 +149,6 @@
 
   // App information
   const appInfo = {
-    version: APP_VERSION,
     buildDate: new Date("2025-01-15"),
     platform: isNativePlatform ? "Mobile App" : "Web App",
     supportEmail: "support@skanfarming.com.au",
@@ -225,7 +242,7 @@
       </div>
       <div class="flex-1 min-w-0">
         <span class="block text-sm text-contrast-content/60">Version</span>
-        <p class="font-medium text-contrast-content">{appInfo.version} <span class="badge badge-outline badge-sm ml-1">{appInfo.platform}</span></p>
+        <p class="font-medium text-contrast-content">{versionLabel} <span class="badge badge-outline badge-sm ml-1">{appInfo.platform}</span></p>
       </div>
     </div>
   </div>
