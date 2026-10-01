@@ -43,6 +43,8 @@
   // Set context so other components can access global selection state
   setContext("globalSelection", {
     getState: () => globalSelectionState,
+    // One-call clear (used when another panel — e.g. messages — takes over).
+    clear: () => clearGlobalSelection(),
     subscribe: (callback) => {
       const unsubscribe = () => {}
       callback(globalSelectionState)

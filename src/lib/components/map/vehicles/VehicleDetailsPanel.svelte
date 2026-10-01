@@ -10,6 +10,7 @@
     Truck,
     Palette,
     Ruler,
+    MessageSquare,
     User,
   } from "lucide-svelte"
   import { onDestroy } from "svelte"
@@ -30,6 +31,10 @@
   import { profileStore } from "$lib/stores/profileStore"
   import { calculateZoomDependentWidth } from "$lib/utils/trailGeometry"
   import { trailsApi } from "$lib/api/trailsApi"
+  import {
+    openMessagePanel,
+    messageUnreadStore,
+  } from "$lib/stores/messageStore"
 
   export let selectedVehicleId
   export let getVehicleById
@@ -87,6 +92,12 @@
   })()
 
   $: isCurrentUser = currentVehicle?.isCurrentUser || false
+
+  // Unread messages from this person (same id the chat uses as recipient).
+  $: unreadFromVehicle =
+    currentVehicle && !isCurrentUser
+      ? $messageUnreadStore[currentVehicle.id] || 0
+      : 0
 
   // 🆕 Now this will update reactively because currentVehicle updates
   $: currentSpeed = (() => {
@@ -393,6 +404,17 @@
     isExpanded = showInfoPanel
     // The trail highlight is maintained by the reactive below, which also
     // rebuilds it with the right colour when another vehicle is selected.
+  }
+
+  function handleOpenMessage() {
+    if (!currentVehicle || isCurrentUser) return
+    // Same recipient contract as the people/vehicles row-menu "Send message":
+    // the per-user vehicle id is the messaging identity across the app.
+    // Opening the panel also closes the vehicle selection (see VehicleTracker).
+    openMessagePanel({
+      id: currentVehicle.id,
+      name: currentVehicle.full_name || "Team member",
+    })
   }
 
   function handleStartTracking() {
@@ -960,6 +982,21 @@
             title="Track"><Navigation size={20} /></button
           >
         {/if}
+
+        {#if !isCurrentUser}
+          <button
+            class="control-btn msg-btn"
+            on:click={handleOpenMessage}
+            title="Message {displayName}"
+          >
+            <MessageSquare size={20} />
+            {#if unreadFromVehicle > 0}
+              <span class="msg-btn-badge"
+                >{unreadFromVehicle > 99 ? "99+" : unreadFromVehicle}</span
+              >
+            {/if}
+          </button>
+        {/if}
       </div>
     </div>
   </div>
@@ -1464,6 +1501,35 @@
   .track-btn:hover {
     background: rgba(168, 85, 247, 0.3);
     color: white;
+  }
+
+  /* Message button — sky blue, matching the messaging UI accents */
+  .msg-btn {
+    position: relative;
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+  }
+
+  .msg-btn:hover {
+    background: rgba(56, 189, 248, 0.3);
+    color: white;
+  }
+
+  .msg-btn-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #0ea5e9;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.9);
   }
 
   .status-item[data-speed-status="moving"] {
