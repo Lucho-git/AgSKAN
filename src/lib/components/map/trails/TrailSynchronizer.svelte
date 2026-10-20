@@ -1858,9 +1858,11 @@
     }
 
     // RPC returns { path, pause_path } (falls back to a raw geometry from an
-    // older deploy of the function).
+    // older deploy of the function). A trail closed without points has
+    // path = null — keep it null instead of assigning the wrapper object,
+    // which is truthy but not renderable GeoJSON.
     return {
-      path: pathData.path ?? pathData,
+      path: pathData.path ?? (pathData.type ? pathData : null),
       pausePath: pathData.pause_path ?? null,
     }
   }
@@ -2100,8 +2102,8 @@
 
             return {
               ...trail,
-              path: pathData.path ?? pathData,
-              pausePath: pathData.pause_path ?? null,
+              path: pathData?.path ?? (pathData?.type ? pathData : null),
+              pausePath: pathData?.pause_path ?? null,
             }
           } catch (error) {
             console.error(`Error processing path for trail ${trail.id}:`, error)
@@ -2121,21 +2123,23 @@
     trailsLoadingStore.set(true)
     toast.promise(
       (async () => {
-        const trails = await getOperationTrails(selectedOperation.id)
+        try {
+          const trails = await getOperationTrails(selectedOperation.id)
 
-        historicalTrailStore.set([])
-        historicalTrailStore.update((currentTrails) => [
-          ...currentTrails,
-          ...trails,
-        ])
+          historicalTrailStore.set([])
+          historicalTrailStore.update((currentTrails) => [
+            ...currentTrails,
+            ...trails,
+          ])
 
-        areTrailsLoaded = true
-        trailsLoadingStore.set(false)
-        return trails
-      })().catch((err) => {
-        trailsLoadingStore.set(false)
-        throw err
-      }),
+          areTrailsLoaded = true
+          return trails
+        } finally {
+          // Always clear the spinner, even if a subscriber throws while the
+          // store above is being updated.
+          trailsLoadingStore.set(false)
+        }
+      })(),
       {
         loading: `Loading trails from ${selectedOperation.name} (${selectedOperation.year})...`,
         success: (trails) =>

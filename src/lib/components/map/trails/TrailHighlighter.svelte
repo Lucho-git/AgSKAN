@@ -1733,29 +1733,34 @@ font-size: 12px;
 
     currentTrailIndex = trailIndex
 
+    const trail = $historicalTrailStore[currentTrailIndex]
+
+    // Trails closed without recorded points have no geometry to replay.
+    if (!trail || !trail.path) {
+      showReplayPanel = false
+      toast.error("This trail has no recorded path")
+      return
+    }
+
     showReplayPanel = true
 
     showNavigationUI = true
 
     isExpanded = false
 
-    const trail = $historicalTrailStore[currentTrailIndex]
+    flyToTrail(trail)
 
-    if (trail) {
-      flyToTrail(trail)
+    selectTrail(trail)
 
-      selectTrail(trail)
+    const checkReady = setInterval(() => {
+      if (animationState.isReady && animationState.trailId === trail.id) {
+        clearInterval(checkReady)
 
-      const checkReady = setInterval(() => {
-        if (animationState.isReady && animationState.trailId === trail.id) {
-          clearInterval(checkReady)
-
-          setTimeout(() => {
-            animateTrailCreation(trail)
-          }, 300)
-        }
-      }, 50)
-    }
+        setTimeout(() => {
+          animateTrailCreation(trail)
+        }, 300)
+      }
+    }, 50)
   }
 
   // Replay a trail by its id (e.g. from the map log). If the trail isn't in
@@ -1797,8 +1802,8 @@ font-size: 12px;
                 ...trails,
                 {
                   ...trailRow,
-                  path: pathData.path ?? pathData,
-                  pausePath: pathData.pause_path ?? null,
+                  path: pathData?.path ?? (pathData?.type ? pathData : null),
+                  pausePath: pathData?.pause_path ?? null,
                 },
               ],
         )

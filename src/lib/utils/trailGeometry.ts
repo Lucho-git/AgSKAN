@@ -432,18 +432,38 @@ export function convertToLineString(coordinates: TrailCoordinate[]): LineString 
 }
 
 /**
- * Create GeoJSON feature from trail coordinates
+ * Create GeoJSON feature from trail coordinates.
+ *
+ * Trails closed without recorded points have no geometry. Return an empty
+ * FeatureCollection for those instead of throwing — this runs inside Svelte
+ * store notifications, where a throw would poison the global subscriber
+ * queue and freeze every store in the app.
  */
-export function createTrailGeoJSON(coordinates: LineString | TrailCoordinate[]) {
-    const lineString =
-        "type" in coordinates
-            ? coordinates
-            : convertToLineString(coordinates as TrailCoordinate[])
+export function createTrailGeoJSON(
+    coordinates: LineString | TrailCoordinate[] | null | undefined,
+) {
+    if (!coordinates || typeof coordinates !== "object") {
+        return { type: "FeatureCollection", features: [] }
+    }
+
+    if ("type" in coordinates) {
+        return {
+            type: "Feature",
+            properties: {},
+            geometry: coordinates,
+        }
+    }
+
+    // Legacy RPC-wrapper shape ({ path: null, pause_path: null }) and any
+    // other non-array payload has no renderable line.
+    if (!Array.isArray(coordinates)) {
+        return { type: "FeatureCollection", features: [] }
+    }
 
     return {
         type: "Feature",
         properties: {},
-        geometry: lineString,
+        geometry: convertToLineString(coordinates),
     }
 }
 

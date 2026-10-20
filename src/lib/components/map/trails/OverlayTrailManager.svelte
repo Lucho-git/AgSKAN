@@ -81,8 +81,8 @@
             if (pathError) return { ...trail, path: null }
             return {
               ...trail,
-              path: pathData.path ?? pathData,
-              pausePath: pathData.pause_path ?? null,
+              path: pathData?.path ?? (pathData?.type ? pathData : null),
+              pausePath: pathData?.pause_path ?? null,
             }
           } catch {
             return { ...trail, path: null }

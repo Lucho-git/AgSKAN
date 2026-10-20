@@ -579,7 +579,23 @@
           if (newTrails.length > 0) {
             newTrails.forEach((trail) => {
               if (!trail.path) return
-              addTrail(trail)
+              // Never let one bad trail throw out of a store notification:
+              // Svelte's shared subscriber queue is left unflushed, which
+              // silently stops every store in the app from updating.
+              try {
+                addTrail(trail)
+              } catch (error) {
+                console.error(
+                  `Failed to load historical trail ${trail.id}:`,
+                  error,
+                )
+                toast.error(
+                  `Failed to load corrupt trail data. Please try refreshing.`,
+                  {
+                    description: `Trail ${trail.id || "unknown"}`,
+                  },
+                )
+              }
             })
           }
 
