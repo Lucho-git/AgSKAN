@@ -37,6 +37,7 @@
     Clock,
     Move,
     Play,
+    Undo2,
   } from "lucide-svelte"
   import SVGComponents from "$lib/vehicles/index.js"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
@@ -67,6 +68,8 @@
     getMapLogLastSeen,
     setMapLogLastSeen,
   } from "$lib/api/mapLogApi"
+  import { markerApi } from "$lib/api/markerApi"
+  import { restoreMarkerToMap } from "$lib/services/markerRestoreService"
 
   export let map
   export let currentSpeed = 0
@@ -110,6 +113,7 @@
     { key: "all", label: "All" },
     { key: "markers", label: "Markers" },
     { key: "trailing", label: "Trailing" },
+    { key: "deleted", label: "Deleted" },
   ]
   const LOG_ACTION_GROUPS = {
     markers: [
@@ -137,6 +141,17 @@
   let logTeamMenuPos = { left: 0, top: 0 }
   let logTeamOptions = null
   let logTeamOptionsFetching = false
+
+  // ── Deleted markers (undo) ────────────────────────────────────────────
+  // Backed by marker_archive (it keeps the full marker payload and is
+  // RLS-scoped to this map). `deletedMarkerIds` also tells the feed which
+  // "Deleted a marker" rows can still be undone.
+  let deletedMarkers = []
+  let deletedMarkerIds = new Set()
+  let deletedLoading = false
+  let restoringMarkerId = null
+  // Guests on a view-only invite can't restore; the RPC enforces this too.
+  $: canRestoreMarkers = $profileStore?.user_type !== "viewer"
 
   // ── One entry per trail (collapsed lifecycle) ─────────────────────────
   // When a trail closes or is deleted, its "started" row is superseded by
@@ -257,6 +272,11 @@
   function setLogCategory(key) {
     if (logCategory === key) return
     logCategory = key
+    expandedLogId = null
+    if (key === "deleted") {
+      loadDeletedMarkers()
+      return
+    }
     reloadLogWithFilters()
   }
 
@@ -266,6 +286,44 @@
     logDayValue = ""
     logActorId = null
     reloadLogWithFilters()
+  }
+
+  // ── Deleted markers (undo) ────────────────────────────────────────────
+  async function loadDeletedMarkers() {
+    if (deletedLoading) return
+    const mapId = getMasterMapId()
+    if (!mapId) return
+    deletedLoading = true
+    try {
+      const result = await markerApi.fetchDeletedMarkers(mapId)
+      deletedMarkers = result.markers || []
+      deletedMarkerIds = new Set(deletedMarkers.map((m) => m.marker_id))
+    } finally {
+      deletedLoading = false
+    }
+  }
+
+  /** Undo one delete; works from the trash list and from a feed entry. */
+  async function restoreMarkerFromLog(markerId) {
+    if (!markerId || restoringMarkerId) return
+    restoringMarkerId = markerId
+    try {
+      const result = await restoreMarkerToMap(markerId)
+      if (!result.success) {
+        toast.error(result.message || "Failed to restore marker")
+        return
+      }
+      toast.success("Marker restored")
+      deletedMarkers = deletedMarkers.filter((m) => m.marker_id !== markerId)
+      const remaining = new Set(deletedMarkerIds)
+      remaining.delete(markerId)
+      deletedMarkerIds = remaining
+      // Pull the new marker.restored row into the feed without waiting for
+      // the next poll tick.
+      if (logCategory !== "deleted") pollLogFeed()
+    } finally {
+      restoringMarkerId = null
+    }
   }
 
   // Reload page 1 for the current filters. The old list stays visible (dimmed)
@@ -469,6 +527,8 @@
   async function pollLogFeed() {
     const mapId = getMasterMapId()
     if (!mapId) return
+    // The "Deleted" chip reads the archive, not the feed.
+    if (logCategory === "deleted") return
     try {
       const filters = getLogQuery()
       const page = await fetchMapLogPage(mapId, {
@@ -499,6 +559,9 @@
     showLogTeamMenu = false
     closeRowMenu()
     if (tab === "log") {
+      // Keeps the feed's "Restore marker" buttons accurate for this session.
+      loadDeletedMarkers()
+      if (logCategory === "deleted") return
       if (logEntries.length > 0) {
         // Already loaded — merge any new entries silently (no reload flicker).
         pollLogFeed()
@@ -1867,28 +1930,118 @@
                 {chip.label}
               </button>
             {/each}
+            {#if logCategory !== "deleted"}
+              <button
+                class="log-chip-btn dropdown {logActorId ? 'active' : ''}"
+                on:click|stopPropagation={toggleLogTeamMenu}
+                title="Filter by team member"
+              >
+                <span class="chip-label">{getLogTeamChipLabel()}</span>
+                <ChevronDown size={10} />
+              </button>
+            {/if}
+          </div>
+          {#if logCategory !== "deleted"}
             <button
-              class="log-chip-btn dropdown {logActorId ? 'active' : ''}"
-              on:click|stopPropagation={toggleLogTeamMenu}
-              title="Filter by team member"
+              class="log-date-btn"
+              on:click|stopPropagation={openCalendarMenu}
+              title="Pick a date"
             >
-              <span class="chip-label">{getLogTeamChipLabel()}</span>
+              <CalendarDays size={11} />
+              <span>{getLogStartLabel()}</span>
               <ChevronDown size={10} />
             </button>
-          </div>
-          <button
-            class="log-date-btn"
-            on:click|stopPropagation={openCalendarMenu}
-            title="Pick a date"
-          >
-            <CalendarDays size={11} />
-            <span>{getLogStartLabel()}</span>
-            <ChevronDown size={10} />
-          </button>
+          {/if}
         </div>
 
         <div class="log-list {logRefreshing ? 'refreshing' : ''}">
-          {#if logLoading && logEntries.length === 0}
+          {#if logCategory === "deleted"}
+            {#if deletedLoading && deletedMarkers.length === 0}
+              <div
+                class="flex items-center justify-center gap-2 p-6 text-white/60"
+              >
+                <Loader2 size={16} class="animate-spin" />
+                <span class="text-xs">Loading deleted markers…</span>
+              </div>
+            {:else if deletedMarkers.length === 0}
+              <div
+                class="flex flex-col items-center justify-center p-6 text-white/70"
+              >
+                <Trash2 size={32} class="mb-2 opacity-50" />
+                <p class="text-sm">No deleted markers</p>
+                <p class="mt-1 text-center text-xs text-white/50">
+                  Markers you or your team delete will be listed here and can
+                  be restored.
+                </p>
+              </div>
+            {:else}
+              <div class="divide-y divide-white/10">
+                {#each deletedMarkers as marker (marker.marker_id)}
+                  {@const iconDef = getMarkerIconDef(marker.icon_class)}
+                  <div class="flex items-start gap-2.5 px-3 py-2.5">
+                    <div
+                      class="flex w-[64px] flex-shrink-0 flex-col items-center gap-1 pt-0.5"
+                    >
+                      <div
+                        class="flex min-h-[28px] items-center justify-center"
+                      >
+                        {#if iconDef}
+                          <span class="opacity-50">
+                            <TintedIconPreview
+                              icon={iconDef}
+                              colorKey={getMarkerColorKey(
+                                marker.marker_color,
+                              )}
+                              size={28}
+                            />
+                          </span>
+                        {:else}
+                          <span class="log-chip">
+                            <Trash2 size={13} class="text-red-300" />
+                          </span>
+                        {/if}
+                      </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-baseline justify-between gap-2">
+                        <span class="truncate text-xs font-semibold text-white"
+                          >{marker.notes?.trim() ||
+                            iconDef?.name ||
+                            "Marker"}</span
+                        >
+                        <span
+                          class="flex flex-shrink-0 items-center gap-1 text-[10px] text-white/40"
+                        >
+                          {formatLogTime(marker.deleted_at)}
+                        </span>
+                      </div>
+                      <p class="mt-0.5 text-xs leading-snug text-white/60">
+                        Deleted by {marker.deleted_by_name || "Unknown user"}
+                      </p>
+                      {#if canRestoreMarkers}
+                        <div class="log-actions-row">
+                          <button
+                            class="log-action-btn restore"
+                            disabled={restoringMarkerId === marker.marker_id}
+                            on:click|stopPropagation={() =>
+                              restoreMarkerFromLog(marker.marker_id)}
+                          >
+                            {#if restoringMarkerId === marker.marker_id}
+                              <Loader2 size={11} class="animate-spin" />
+                              Restoring…
+                            {:else}
+                              <Undo2 size={11} />
+                              Restore marker
+                            {/if}
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          {:else if logLoading && logEntries.length === 0}
             <div
               class="flex items-center justify-center gap-2 p-6 text-white/60"
             >
@@ -2112,6 +2265,25 @@
                             >
                               <Crosshair size={11} />
                               Go to marker location
+                            </button>
+                          {/if}
+                          {#if entry.action === "marker.deleted" &&
+                          canRestoreMarkers &&
+                          deletedMarkerIds.has(entry.entity_id)}
+                            <button
+                              class="log-action-btn restore"
+                              disabled={restoringMarkerId === entry.entity_id}
+                              title="Undo this delete"
+                              on:click|stopPropagation={() =>
+                                restoreMarkerFromLog(entry.entity_id)}
+                            >
+                              {#if restoringMarkerId === entry.entity_id}
+                                <Loader2 size={11} class="animate-spin" />
+                                Restoring…
+                              {:else}
+                                <Undo2 size={11} />
+                                Restore marker
+                              {/if}
                             </button>
                           {/if}
                           {#if isTrailAction(entry.action) && entry.details?.vehicle_id}
@@ -2839,6 +3011,21 @@
 
   .log-action-btn.trail:hover {
     background: rgba(16, 185, 129, 0.24);
+  }
+
+  .log-action-btn.restore {
+    color: #fcd34d;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+
+  .log-action-btn.restore:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.24);
+  }
+
+  .log-action-btn.restore:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   /* Unread-messages dot on the row options button */

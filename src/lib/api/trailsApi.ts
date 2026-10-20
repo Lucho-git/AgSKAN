@@ -1,7 +1,7 @@
 // src/lib/api/trailsApi.ts
 import { supabase } from '$lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
-import { partitionPointsAtPauses, buildEwktPath } from '$lib/utils/trailPauseSplit';
+import { buildClosePaths } from '$lib/utils/trailPauseSplit';
 import type { TrailPauseWindow } from '$lib/utils/trailPauseSplit';
 
 const TRAIL_DATA_RETENTION_DAYS = 300; // Same as server-side
@@ -122,20 +122,15 @@ async function closeTrailWithPath(
     // Split into WORK parts (solid trail) and PAUSE parts (the dotted "ant
     // line" connector recorded while paused). No pause points -> a single
     // work part -> the legacy LINESTRING shape, unchanged.
-    const { workParts, pauseParts } = partitionPointsAtPauses(path, pauses);
+    const {
+        path: pathString,
+        detailedPath: detailedPathString,
+        pausePath: pausePathString,
+        pauseDetailedPath: pauseDetailedPathString,
+    } = buildClosePaths(path, pauses, simplifyPath);
 
-    // Detailed paths (every point + timestamp): LINESTRING M / MULTILINESTRING M
-    const detailedPathString = buildEwktPath(workParts, { withM: true });
-    const pauseDetailedPathString = buildEwktPath(pauseParts, { withM: true });
-
-    // Display paths: Douglas-Peucker simplification per part, then re-join
-    const simplifiedParts = workParts.map((part) => simplifyPath(part, 0.000005));
-    const pathString = buildEwktPath(simplifiedParts, { withM: false });
-    const simplifiedPauseParts = pauseParts.map((part) => simplifyPath(part, 0.000005));
-    const pausePathString = buildEwktPath(simplifiedPauseParts, { withM: false });
-
-    const simplifiedCount = simplifiedParts.reduce((n, p) => n + p.length, 0);
-    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedCount.toLocaleString()} simplified work points, ${pauseParts.length} pause part(s)`);
+    const simplifiedCount = pathString ? pathString.length : 0;
+    console.log(`Trail ${trail_id}: ${path.length.toLocaleString()} points → ${simplifiedCount.toLocaleString()} path chars, ${pathString ? "solid" : "NO"} geometry`);
 
     try {
         console.log(`Closing trail ${trail_id} with fast closure (stores paths, no calculations)...`);

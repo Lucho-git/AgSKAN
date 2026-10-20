@@ -50,7 +50,7 @@ if (-not $token -or $token.Trim().Length -eq 0) {
 }
 $token = $token.Trim()
 
-$sql = [string](Get-Content $SqlFile -Raw)
+$sql = [System.IO.File]::ReadAllText((Resolve-Path $SqlFile).Path, [System.Text.Encoding]::UTF8)
 
 $body = @{ query = $sql } | ConvertTo-Json -Compress
 $headers = @{

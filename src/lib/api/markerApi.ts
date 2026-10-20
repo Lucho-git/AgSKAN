@@ -250,5 +250,60 @@ export const markerApi = {
                 message: error.message
             };
         }
+    },
+
+    // Undo a soft delete. The RPC re-checks map membership and role, flips
+    // `deleted` back to false and returns the row so the caller can put the
+    // marker straight back on the map (own realtime echoes are filtered out).
+    async restoreMarker(markerId: string) {
+        try {
+            const { data, error } = await supabase.rpc("restore_marker", {
+                p_marker_id: markerId,
+            });
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            return {
+                success: true,
+                message: "Marker restored successfully",
+                marker: data
+            };
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : "Failed to restore marker";
+            console.error("Error restoring marker:", error);
+            return { success: false, error: message, message };
+        }
+    },
+
+    // Every marker still deleted on this map, newest deletion first. Reads the
+    // archive (RLS scopes it to the caller's map) because it keeps the full
+    // marker payload after a hard delete as well as a soft one.
+    async fetchDeletedMarkers(masterMapId: string) {
+        try {
+            const { data, error } = await supabase
+                .from("marker_archive")
+                .select(
+                    "marker_id, notes, icon_class, marker_color, tint_mode, lat, lng, marker_data, deleted_at, deleted_by_name, placed_by_name",
+                )
+                .eq("master_map_id", masterMapId)
+                .not("deleted_at", "is", null)
+                .order("deleted_at", { ascending: false });
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            return { success: true, markers: data ?? [] };
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load deleted markers";
+            console.error("Error loading deleted markers:", error);
+            return { success: false, error: message, message, markers: [] };
+        }
     }
 };

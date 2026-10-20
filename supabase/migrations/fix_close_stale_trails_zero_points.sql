@@ -17,6 +17,11 @@
 -- Also repairs the existing zero-point rows (closed trails with path IS NULL
 -- and start_time = end_time) so they disappear from trail lists.
 --
+-- IMPORTANT: this file only ever removes trails that have NO points. A closed
+-- trail with path IS NULL that still has trail_stream points is NOT empty —
+-- those points are the only copy of its track. Rebuild it with
+-- rebuild_null_path_trails.sql instead of deleting it.
+--
 -- Null-path rows from older bulk closes are left alone: they have no geometry
 -- to rebuild, and the app now skips a null path safely.
 --
@@ -257,6 +262,16 @@ begin
                       from public.trail_stream ts
                      where ts.trail_id = v_trail.id;
                 end if;
+            end if;
+
+            -- If every point fell inside a pause window there is no work
+            -- geometry. Promote the pause geometry so the trail still
+            -- renders instead of being stored with a NULL path.
+            if v_simple is null and v_pause_simple is not null then
+                v_simple := v_pause_simple;
+                v_detailed := v_pause_detailed;
+                v_pause_simple := null;
+                v_pause_detailed := null;
             end if;
 
             v_result := public.close_trail_fast(v_trail.id, v_end, v_simple, v_detailed, v_pause_simple, v_pause_detailed);

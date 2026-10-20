@@ -193,3 +193,55 @@ export function mergePauseWindows(
     }
     return [...byPausedAt.values()].sort((a, b) => a.pausedAt - b.pausedAt)
 }
+
+/**
+ * Build the four close-geometry strings for a finished trail.
+ *
+ * Work parts become the solid trail; pause parts become the dotted connector.
+ * Two degenerate cases would otherwise leave the trail with NO path at all,
+ * which stores `path = NULL` and shows up in Trail History as a 0 km row that
+ * cannot be drawn or replayed:
+ *
+ *   1. every point was recorded while paused -> no work part survives, so the
+ *      pause geometry is promoted to the main path;
+ *   2. every part has a single point -> nothing usable survives, so the whole
+ *      unsplit path is used.
+ */
+export function buildClosePaths<T extends LatLngTimePoint>(
+    points: T[],
+    pauses: TrailPauseWindow[] | null | undefined,
+    simplify: (part: T[], tolerance: number) => T[],
+    tolerance = 0.000005,
+): {
+    path: string | null
+    detailedPath: string | null
+    pausePath: string | null
+    pauseDetailedPath: string | null
+} {
+    const { workParts, pauseParts } = partitionPointsAtPauses(points, pauses)
+
+    let path = buildEwktPath(
+        workParts.map((p) => simplify(p, tolerance)),
+        { withM: false },
+    )
+    let detailedPath = buildEwktPath(workParts, { withM: true })
+    let pausePath = buildEwktPath(
+        pauseParts.map((p) => simplify(p, tolerance)),
+        { withM: false },
+    )
+    let pauseDetailedPath = buildEwktPath(pauseParts, { withM: true })
+
+    if (!path && pausePath) {
+        path = pausePath
+        detailedPath = pauseDetailedPath
+        pausePath = null
+        pauseDetailedPath = null
+    }
+
+    if (!path && points.length >= 2) {
+        path = buildEwktPath([simplify(points, tolerance)], { withM: false })
+        detailedPath = buildEwktPath([points], { withM: true })
+    }
+
+    return { path, detailedPath, pausePath, pauseDetailedPath }
+}

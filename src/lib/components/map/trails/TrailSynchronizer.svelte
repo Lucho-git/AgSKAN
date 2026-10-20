@@ -667,18 +667,30 @@
 
         // Convert to GeoJSON and add to historical — work parts solid, paused
         // stretch as the dashed "ant line" connector (same as a reload).
+        // If every point was recorded while paused there is no work geometry:
+        // promote the pause parts to the main path so the trail still draws,
+        // matching what buildClosePaths stores on the server.
         const { workParts, pauseParts } = partitionPointsAtPauses(
           pathData,
           closePauses,
         )
-        const lineStringPath = buildGeoJsonPath(workParts) || {
-          type: "LineString",
-          coordinates: pathData.map((coord) => [
-            coord.longitude,
-            coord.latitude,
-          ]),
+        let lineStringPath = buildGeoJsonPath(workParts)
+        let pauseGeoJsonPath = buildGeoJsonPath(pauseParts)
+
+        if (!lineStringPath && pauseGeoJsonPath) {
+          lineStringPath = pauseGeoJsonPath
+          pauseGeoJsonPath = null
         }
-        const pauseGeoJsonPath = buildGeoJsonPath(pauseParts)
+
+        if (!lineStringPath) {
+          lineStringPath = {
+            type: "LineString",
+            coordinates: pathData.map((coord) => [
+              coord.longitude,
+              coord.latitude,
+            ]),
+          }
+        }
 
         const historicalTrail = {
           ...result.trail,
