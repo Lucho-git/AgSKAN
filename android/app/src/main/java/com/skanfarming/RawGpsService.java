@@ -148,6 +148,10 @@ public class RawGpsService extends Service {
                 broadcast.putExtra("altitude", location.getAltitude());
                 broadcast.putExtra("speed", location.getSpeed());
                 broadcast.putExtra("heading", location.getBearing());
+                // getBearing() returns 0.0 when the chip has no bearing (or the
+                // fix is too poor to derive one). Send validity alongside it so
+                // the JS layer can tell "due north" from "unknown".
+                broadcast.putExtra("hasBearing", location.hasBearing());
                 broadcast.putExtra("timestamp", location.getTime());
                 broadcast.putExtra("provider", location.getProvider());
 

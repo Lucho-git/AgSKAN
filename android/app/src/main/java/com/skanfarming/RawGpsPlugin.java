@@ -71,6 +71,9 @@ public class RawGpsPlugin extends Plugin {
                     data.put("altitude", intent.getDoubleExtra("altitude", 0));
                     data.put("speed", intent.getFloatExtra("speed", 0));
                     data.put("heading", intent.getFloatExtra("heading", 0));
+                    // Absent on service builds older than the hasBearing
+                    // change — default true so their numeric heading is used.
+                    data.put("hasBearing", intent.getBooleanExtra("hasBearing", true));
                     data.put("timestamp", intent.getLongExtra("timestamp", 0));
                     data.put("provider", intent.getStringExtra("provider"));
                     data.put("satellites", intent.getIntExtra("satellites", -1));

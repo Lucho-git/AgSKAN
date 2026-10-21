@@ -785,7 +785,9 @@ class BackgroundService {
       coords: {
         latitude,
         longitude,
-        heading: heading || 0,
+        // null = no bearing from this fix, so the vehicle holds its last
+        // heading instead of snapping to north.
+        heading: Number.isFinite(heading) ? heading : null,
         speed: speed || 0,
         accuracy: accuracy || null,
       },

@@ -621,7 +621,7 @@
       last_update: new Date(last_update).toISOString(),
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
-      heading: heading !== null ? heading : null,
+      heading: heading ?? null,
       speed: speed !== null && speed !== undefined ? speed : 0,
       selected_operation_id: currentOp?.id ?? null,
       operation_id: currentOp?.id ?? null,
@@ -717,7 +717,7 @@
       last_update: new Date(last_update).toISOString(),
       is_trailing: $userVehicleTrailing,
       vehicle_marker,
-      heading: heading !== null ? heading : null,
+      heading: heading ?? null,
       speed: speed !== null && speed !== undefined ? speed : 0,
       is_flashing: is_flashing || false,
       flash_started_at: flash_started_at

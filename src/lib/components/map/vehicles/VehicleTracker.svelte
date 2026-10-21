@@ -40,6 +40,11 @@
   let _prevEnableFull1Hz = null
   let _prevGpsIntervalSeconds = null
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
+  import {
+    courseOverGround,
+    isValidHeading,
+    smoothHeading,
+  } from "$lib/utils/heading"
   import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
   import {
@@ -132,6 +137,25 @@
   let priorAcceptedCoords = null // The accepted point BEFORE lastAccepted (for snap-back)
   let priorAcceptedTime = null
   let consecutiveRejectionsFromLast = 0 // Track consecutive rejections from current lastAccepted
+
+  // ── Heading ───────────────────────────────────────────────────────────
+  // Two sources, because neither alone is reliable:
+  //   • course-over-ground (COG) from our own accepted fixes — steady, but
+  //     needs a few metres of travel before it means anything
+  //   • the GNSS chip's bearing — responsive on bends, but Doppler-derived
+  //     and effectively noise below a walking pace (and 0 when unavailable)
+  // COG wins whenever we have moved far enough; the chip is the fallback at
+  // speed. If neither is usable we hold the last known heading rather than
+  // snapping to north. See lib/utils/heading.ts for the smoothing maths.
+  const HEADING_COG_MIN_M = 5 // travel needed before COG is trustworthy
+  const HEADING_COG_MIN_GAP_MS = 1000 // ...and a >=1s baseline so noise averages out
+  const HEADING_COG_MAX_M = 40 // stale anchor — chord no longer a real bearing
+  const HEADING_COG_MAX_GAP_MS = 10000 // anchor expiry
+  const HEADING_CHIP_MIN_SPEED_KMH = 4 // trust the chip's bearing above this
+  /** @type {{ latitude: number, longitude: number, timestamp: number } | null} */
+  let headingAnchor = null // anchor for the course-over-ground leg
+  /** @type {number | null} */
+  let lastSmoothedHeading = null // float, for circular smoothing continuity
 
   let previousVisibility = { vehicles: true, vehicleLabels: true }
 
@@ -300,11 +324,8 @@
   const NATIVE_ADAPTER_DEFAULT_EMIT_MS = 1000
   // Low non-zero emit interval to forward native fixes rapidly while in 1Hz UI mode
   const NATIVE_ADAPTER_LOW_EMIT_MS = 250
-  // Heading smoothing (exponential) applied to reduce jitter
-  const HEADING_SMOOTHING_ALPHA = 0.4
 
   let lastUiUpdateTime = 0
-  let lastSmoothedHeading = null
 
   let userVehicleUnsubscribe
   let userSettingsUnsubscribe
@@ -1108,8 +1129,7 @@
 
     const headingChanged =
       isFirstPersonMode &&
-      heading !== null &&
-      heading !== undefined &&
+      isValidHeading(heading) &&
       heading !== lastTrackedHeading
 
     if (!positionChanged && !headingChanged) {
@@ -1125,7 +1145,7 @@
         : (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
     }
 
-    if (isFirstPersonMode && heading !== null && heading !== undefined) {
+    if (isFirstPersonMode && isValidHeading(heading)) {
       cameraOptions.bearing = heading
     }
 
@@ -1311,7 +1331,10 @@
               {
                 latitude: loc.coords.latitude,
                 longitude: loc.coords.longitude,
-                heading: loc.coords.heading || 0,
+                // null = browser had no bearing; don't claim north.
+                heading: Number.isFinite(loc.coords.heading)
+                  ? loc.coords.heading
+                  : null,
                 speed: loc.coords.speed || 0,
                 accuracy: loc.coords.accuracy || null,
               },
@@ -1571,7 +1594,9 @@
                       userVehicleId,
                       data.coords.longitude,
                       data.coords.latitude,
-                      data.coords.heading || 0,
+                      Number.isFinite(data.coords.heading)
+                        ? data.coords.heading
+                        : null,
                     )
                   }
                 } catch (e) {
@@ -2371,7 +2396,10 @@
           rotationAlignment: "map",
         })
 
-        marker.setLngLat([longitude, latitude]).setRotation(heading).addTo(map)
+        marker
+          .setLngLat([longitude, latitude])
+          .setRotation(isValidHeading(heading) ? heading : 0)
+          .addTo(map)
 
         const isSelected = selectedVehicleId === vehicle_id
         component.$set({ isSelected, isInactive: inactive })
@@ -2446,7 +2474,10 @@
 
     const lngDiff = targetLng - currentLngLat.lng
     const latDiff = targetLat - currentLngLat.lat
-    let rotationDiff = targetRotation - currentRotation
+    // No heading known (null/NaN) → keep the icon where it is pointing rather
+    // than rotating it to NaN.
+    const hasRotation = isValidHeading(targetRotation)
+    let rotationDiff = hasRotation ? targetRotation - currentRotation : 0
 
     if (rotationDiff > 180) {
       rotationDiff -= 360
@@ -2472,7 +2503,9 @@
 
       const lng = currentLngLat.lng + lngDiff * progress
       const lat = currentLngLat.lat + latDiff * progress
-      const rotation = currentRotation + rotationDiff * progress
+      const rotation = hasRotation
+        ? currentRotation + rotationDiff * progress
+        : currentRotation
 
       marker.setLngLat([lng, lat]).setRotation(rotation)
 
@@ -2788,6 +2821,74 @@
     return { accepted: true }
   }
 
+  /**
+   * Pick the best heading for this fix and smooth it circularly.
+   *
+   * COG (course over ground) from our own accepted fixes is preferred because
+   * it is immune to the GNSS chip's low-speed bearing noise. The chip's
+   * bearing is used while moving fast enough for Doppler to be meaningful.
+   * With neither available we hold the last heading instead of snapping to
+   * north.
+   *
+   * @param {number} latitude
+   * @param {number} longitude
+   * @param {number | null} chipHeading
+   * @param {number} speedKmh
+   * @param {number} timestamp
+   * @returns {number|null} whole degrees clockwise from north, or null
+   */
+  function resolveHeading(latitude, longitude, chipHeading, speedKmh, timestamp) {
+    const chipValid = isValidHeading(chipHeading)
+
+    let cog = null
+    const anchor = headingAnchor
+    if (anchor) {
+      const distance = approxDistanceMeters(
+        anchor.latitude,
+        anchor.longitude,
+        latitude,
+        longitude,
+      )
+      const gap = timestamp - anchor.timestamp
+
+      if (distance > HEADING_COG_MAX_M || gap > HEADING_COG_MAX_GAP_MS) {
+        // Stale anchor: the chord no longer describes where we are heading.
+        headingAnchor = { latitude, longitude, timestamp }
+      } else if (
+        distance >= HEADING_COG_MIN_M &&
+        gap >= HEADING_COG_MIN_GAP_MS
+      ) {
+        cog = courseOverGround(
+          anchor.latitude,
+          anchor.longitude,
+          latitude,
+          longitude,
+        )
+        headingAnchor = { latitude, longitude, timestamp }
+      }
+      // Otherwise keep the anchor and accumulate a longer baseline.
+    } else {
+      headingAnchor = { latitude, longitude, timestamp }
+    }
+
+    let rawHeading = null
+    if (cog !== null) {
+      rawHeading = cog
+    } else if (chipValid && speedKmh >= HEADING_CHIP_MIN_SPEED_KMH) {
+      rawHeading = chipHeading
+    }
+
+    lastSmoothedHeading = smoothHeading(
+      lastSmoothedHeading,
+      rawHeading,
+      speedKmh,
+    )
+
+    return isValidHeading(lastSmoothedHeading)
+      ? Math.round(lastSmoothedHeading) % 360
+      : null
+  }
+
   function streamMarkerPosition(
     coords,
     forceUpdate = false,
@@ -2902,22 +3003,17 @@
       speed: calculatedSpeed,
     }
 
-    const updatedHeading = heading !== null ? Math.round(heading) : heading
+    const updatedHeading = resolveHeading(
+      latitude,
+      longitude,
+      heading,
+      calculatedSpeed,
+      currentTime,
+    )
 
-    // Simple heading smoothing to reduce jitter on small heading fluctuations
-    let smoothedHeading = updatedHeading
-    if (updatedHeading !== null && updatedHeading !== undefined) {
-      if (lastSmoothedHeading === null) {
-        lastSmoothedHeading = updatedHeading
-      } else {
-        // exponential smoothing
-        lastSmoothedHeading = Math.round(
-          HEADING_SMOOTHING_ALPHA * updatedHeading +
-            (1 - HEADING_SMOOTHING_ALPHA) * lastSmoothedHeading,
-        )
-      }
-      smoothedHeading = lastSmoothedHeading
-    }
+    // `updatedHeading` is already smoothed and normalised (or null when no
+    // heading is known yet) — see resolveHeading above.
+    const smoothedHeading = updatedHeading
 
     // Throttle UI updates so marker/camera updates happen ~every USER_UI_UPDATE_INTERVAL_MS
     // Allow callers (Mapbox geolocate events) to force an immediate update so
@@ -3086,7 +3182,7 @@
             )
             userMarkerData.marker
               .setLngLat([longitude, latitude])
-              .setRotation(updatedHeading || 0)
+              .setRotation(isValidHeading(updatedHeading) ? updatedHeading : 0)
               .addTo(map)
 
             const vehiclesVisible = $layerVisibilityStore.vehicles
@@ -3292,7 +3388,11 @@
           ? broadcast.color
           : VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
         label,
-        heading: broadcast ? undefined : (heading ?? 0),
+        heading: broadcast
+          ? undefined
+          : isValidHeading(heading)
+            ? heading
+            : undefined,
         ...(broadcast
           ? { icon: RadioTower, component: null, componentProps: null }
           : {

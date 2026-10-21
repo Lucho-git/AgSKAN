@@ -55,7 +55,12 @@ class ForegroundGpsService {
           latitude: data.latitude,
           longitude: data.longitude,
           accuracy: data.accuracy,
-          heading: data.heading || 0,
+          // The GNSS chip reports bearing 0 when it has none. Only treat it
+          // as a real bearing when the native side says it is valid.
+          heading:
+            data.hasHeading === false || !Number.isFinite(data.heading)
+              ? null
+              : data.heading,
           speed: data.speed || 0,
           altitude: data.altitude || null,
           provider: data.provider || 'gps',

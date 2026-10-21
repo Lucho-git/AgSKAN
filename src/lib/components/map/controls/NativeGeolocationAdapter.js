@@ -54,7 +54,9 @@ class NativeGeolocationAdapter {
         accuracy: coords.accuracy || null,
         altitude: null,
         altitudeAccuracy: null,
-        heading: coords.heading || null,
+        // 0° is a real bearing (north); only a missing/non-numeric value
+        // means "unknown". Passing 0 here would point parked vehicles north.
+        heading: Number.isFinite(coords.heading) ? coords.heading : null,
         speed: coords.speed || null,
       },
       timestamp: coords.timestamp || Date.now(),

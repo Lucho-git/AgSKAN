@@ -50,14 +50,19 @@
 
   $: vehicleType = $userVehicleStore.vehicle_marker?.type || "SimpleTractor"
   $: vehicleColor = $userVehicleStore.vehicle_marker?.bodyColor || "red"
-  $: rawHeading = $userVehicleStore.heading || 0
   $: VehicleIcon = SVGComponents[vehicleType] || SVGComponents.SimpleTractor
 
   // ── Shortest-path rotation (fix 0° crossing) ──
   let cumulativeRotation = 0
   let prevRawHeading = 0
+  let rawHeading = 0
 
   $: {
+    const incoming = $userVehicleStore.heading
+    // `heading` is null while no bearing is known (parked, poor fix). Hold
+    // the last one instead of swinging the compass to north.
+    rawHeading = Number.isFinite(incoming) ? incoming : prevRawHeading
+
     let delta = rawHeading - prevRawHeading
     if (delta > 180) delta -= 360
     if (delta < -180) delta += 360
