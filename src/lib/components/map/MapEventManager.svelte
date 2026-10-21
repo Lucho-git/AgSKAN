@@ -18,6 +18,10 @@
   } from "$lib/stores/vehicleStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import {
+    messagePanelStore,
+    closeMessagePanel,
+  } from "$lib/stores/messageStore"
+  import {
     locationPickStore,
     completeLocationPick,
     markLocationPickHandled,
@@ -58,7 +62,7 @@
   let longPressStartTime = null
   let longPressJustCompleted = false
   let isDragging = false
-  const longPressThreshold = 850
+  const longPressThreshold = 765
   const longPressMoveThreshold = 5
 
   // Touch handling state
@@ -103,6 +107,11 @@
   // Global selection management functions
   function setGlobalSelection(type, id, componentRef) {
     console.log(`🎯 Setting global selection: ${type}:${id}`)
+
+    // One panel at a time: picking something on the map puts the chat away.
+    // (The reverse — opening chat clears the selection — lives in MapViewer,
+    // which can reach this manager.)
+    if (type && get(messagePanelStore)) closeMessagePanel()
 
     // Clear previous selection first
     clearCurrentSelection()

@@ -3,7 +3,7 @@
 <script>
   import { onMount, onDestroy, tick } from "svelte"
   import { get } from "svelte/store"
-  import { ArrowLeft, Loader2, MapPin, Send, X } from "lucide-svelte"
+  import { ArrowLeft, Check, Loader2, MapPin, Send, X } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
   import { goto } from "$app/navigation"
@@ -27,6 +27,7 @@
   import { confirmedMarkersStore } from "$lib/stores/markerStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
   import { getIconImageName } from "$lib/data/markerDefinitions"
+  import { liveVehicleCoords } from "$lib/utils/vehicleCoords"
   import {
     locationPickStore,
     pickedLocationStore,
@@ -249,28 +250,7 @@
 
   // Live position of a vehicle from the vehicle stores (null when unknown).
   function vehicleLiveCoords(refId) {
-    try {
-      const own = $userVehicleStore
-      const source =
-        own?.vehicle_id && own.vehicle_id === refId
-          ? own
-          : $otherVehiclesStore?.find((v) => v.vehicle_id === refId)
-      const coords = source?.coordinates
-      if (!coords) return null
-      if (typeof coords === "object" && coords.latitude && coords.longitude) {
-        return { lng: Number(coords.longitude), lat: Number(coords.latitude) }
-      }
-      if (typeof coords === "string") {
-        const [lng, lat] = coords.slice(1, -1).split(",").map(parseFloat)
-        if (Number.isFinite(lng) && Number.isFinite(lat)) return { lng, lat }
-      }
-      if (Array.isArray(coords) && coords.length >= 2) {
-        return { lng: Number(coords[0]), lat: Number(coords[1]) }
-      }
-    } catch {
-      // ignore malformed coordinates
-    }
-    return null
+    return liveVehicleCoords(refId, $userVehicleStore, $otherVehiclesStore)
   }
 
   // Live clone of a vehicle's map icon (best effort — the vehicle has to be
@@ -716,7 +696,6 @@
                   ? `${reviewAttachment.lat.toFixed(5)}, ${reviewAttachment.lng.toFixed(5)}`
                   : "Location")}
             </p>
-            <p class="msg-pick-sub">Tap the map to pick something else</p>
           </div>
         {/if}
         <div class="msg-pick-actions">
@@ -726,7 +705,8 @@
               on:click={confirmPickedLocation}
               title="Attach this location"
             >
-              Confirm
+              <Check size={15} />
+              <span>Use location</span>
             </button>
           {/if}
           <button
@@ -972,22 +952,14 @@
             </span>
             <button
               on:click={() => (pendingAttachment = null)}
-              aria-label="Remove location"
+              aria-label="Remove the attached location"
               title="Remove location"
             >
-              <X size={12} />
+              <X size={15} />
             </button>
           </div>
         {/if}
         <div class="msg-panel-input">
-          <button
-            class="msg-attach-btn"
-            on:click={handleAttachLocation}
-            aria-label="Attach location"
-            title="Attach location"
-          >
-            <MapPin size={16} />
-          </button>
           <textarea
             rows="1"
             placeholder={shortName ? `Message ${shortName}…` : "Message…"}
@@ -995,19 +967,32 @@
             on:keydown={onKeydown}
             maxlength="500"
           ></textarea>
-          <button
-            class="msg-send-btn"
-            on:click={send}
-            disabled={sending || (!draft.trim() && !pendingAttachment)}
-            aria-label="Send message"
-            title="Send"
-          >
-            {#if sending}
-              <Loader2 size={14} class="animate-spin" />
-            {:else}
-              <Send size={14} />
-            {/if}
-          </button>
+          <div class="msg-compose-actions">
+            <button
+              class="msg-attach-btn"
+              on:click={handleAttachLocation}
+              aria-label="Attach a location to this message"
+              title="Attach a location — a marker, field, vehicle or any spot"
+            >
+              <MapPin size={16} />
+              <span>Location</span>
+            </button>
+            <button
+              class="msg-send-btn"
+              on:click={send}
+              disabled={sending || (!draft.trim() && !pendingAttachment)}
+              aria-label="Send message"
+              title="Send message"
+            >
+              {#if sending}
+                <Loader2 size={15} class="animate-spin" />
+                <span>Sending…</span>
+              {:else}
+                <Send size={15} />
+                <span>Send</span>
+              {/if}
+            </button>
+          </div>
         </div>
       {/if}
     {/if}
@@ -1019,7 +1004,9 @@
     position: fixed;
     right: 12px;
     bottom: 12px;
-    z-index: 90;
+    /* Above the selection panels (vehicle/field/marker stick at 1000-1001)
+       and the toolbox (1100-1200), so opening chat is never buried. */
+    z-index: 1500;
     display: flex;
     width: min(340px, calc(100vw - 24px));
     max-height: min(65vh, 520px);
@@ -1132,20 +1119,25 @@
 
   .msg-panel-input {
     display: flex;
-    align-items: flex-end;
-    gap: 6px;
+    flex-direction: column;
+    gap: 8px;
     padding: 8px 10px 10px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
+  .msg-compose-actions {
+    display: flex;
+    gap: 8px;
+  }
+
   .msg-panel-input textarea {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
+    min-height: 40px;
     resize: none;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.07);
-    padding: 7px 10px;
+    padding: 9px 10px;
     font-size: 12px;
     color: #fff;
     outline: none;
@@ -1160,26 +1152,73 @@
     border-color: rgba(56, 189, 248, 0.55);
   }
 
+  /* ── Composer actions ──
+     Two full-width, labelled buttons: the primary Send and the secondary
+     Location attach. Big enough to hit with a thumb, and the text makes the
+     icon unambiguous (tooltips are useless on touch). */
+  .msg-attach-btn,
   .msg-send-btn {
     display: flex;
-    height: 32px;
-    width: 32px;
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 44px;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    background: rgba(56, 189, 248, 0.18);
-    color: #7dd3fc;
+    gap: 6px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    box-sizing: border-box;
+    touch-action: manipulation;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      filter 0.15s ease,
+      transform 0.06s ease;
+  }
+
+  .msg-attach-btn > span,
+  .msg-send-btn > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .msg-attach-btn {
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    background: rgba(56, 189, 248, 0.1);
+    color: #bae6fd;
+  }
+
+  .msg-attach-btn:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: rgba(56, 189, 248, 0.7);
+    color: #fff;
+  }
+
+  .msg-send-btn {
+    border: 1px solid rgba(56, 189, 248, 0.6);
+    background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+    color: #04121c;
+    font-weight: 800;
   }
 
   .msg-send-btn:hover:not(:disabled) {
-    background: rgba(56, 189, 248, 0.32);
+    filter: brightness(1.08);
+  }
+
+  .msg-attach-btn:active,
+  .msg-send-btn:active:not(:disabled) {
+    transform: scale(0.98);
   }
 
   .msg-send-btn:disabled {
-    opacity: 0.45;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.4);
     cursor: not-allowed;
+    filter: none;
+    transform: none;
   }
 
   /* Larger, easier-to-press header buttons */
@@ -1374,7 +1413,7 @@
   }
 
   .msg-pick-text {
-    flex: 1;
+    flex: 1 1 130px;
     min-width: 0;
     font-size: 12px;
     line-height: 1.35;
@@ -1382,7 +1421,7 @@
   }
 
   .msg-pick-meta {
-    flex: 1;
+    flex: 1 1 130px;
     min-width: 0;
   }
 
@@ -1395,44 +1434,65 @@
     color: #fff;
   }
 
-  .msg-pick-sub {
-    margin-top: 2px;
-    font-size: 10.5px;
-    color: rgba(255, 255, 255, 0.45);
-  }
-
   .msg-pick-actions {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     gap: 6px;
+    margin-left: auto;
+  }
+
+  /* Very narrow phones: give the location text the full width and drop the
+     actions onto their own row instead of squeezing the label. */
+  @media (max-width: 360px) {
+    .msg-pick-strip {
+      flex-wrap: wrap;
+    }
+
+    .msg-pick-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
   }
 
   .msg-pick-confirm {
-    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
     padding: 0 14px;
-    border-radius: 10px;
-    border: 1px solid rgba(56, 189, 248, 0.45);
-    background: rgba(56, 189, 248, 0.22);
+    border-radius: 11px;
+    border: 1px solid rgba(56, 189, 248, 0.6);
+    background: linear-gradient(180deg, #38bdf8, #0ea5e9);
     font-size: 12px;
-    font-weight: 700;
-    color: #bae6fd;
+    font-weight: 800;
+    color: #04121c;
+    white-space: nowrap;
+    touch-action: manipulation;
+    transition:
+      filter 0.15s ease,
+      transform 0.06s ease;
   }
 
   .msg-pick-confirm:hover {
-    background: rgba(56, 189, 248, 0.34);
-    color: #fff;
+    filter: brightness(1.08);
+  }
+
+  .msg-pick-confirm:active {
+    transform: scale(0.98);
   }
 
   .msg-pick-cancel {
     display: flex;
-    height: 34px;
-    width: 34px;
+    height: 40px;
+    width: 40px;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: rgba(255, 255, 255, 0.6);
+    border-radius: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.7);
+    touch-action: manipulation;
   }
 
   .msg-pick-cancel:hover {
@@ -1518,9 +1578,8 @@
 
     .msg-send-btn,
     .msg-attach-btn {
-      height: 42px;
-      width: 42px;
-      border-radius: 12px;
+      height: 48px;
+      border-radius: 13px;
     }
   }
 
@@ -1559,27 +1618,28 @@
   .msg-pending-attach {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     margin: 0 10px;
     margin-bottom: 6px;
-    min-height: 40px;
+    min-height: 44px;
     border-radius: 10px;
     border: 1px solid rgba(56, 189, 248, 0.3);
     background: rgba(56, 189, 248, 0.12);
-    padding: 8px 10px;
+    padding: 6px 8px 6px 10px;
     font-size: 12px;
     color: #7dd3fc;
   }
 
   .msg-pending-attach button {
     display: flex;
-    height: 20px;
-    width: 20px;
+    height: 32px;
+    width: 32px;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    touch-action: manipulation;
   }
 
   .msg-pending-attach button:hover {
@@ -1601,51 +1661,27 @@
     flex-shrink: 0;
   }
 
-  .msg-attach-btn {
-    display: flex;
-    height: 36px;
-    width: 36px;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    color: rgba(255, 255, 255, 0.75);
-  }
-
-  /* Match the send button sizing (slightly larger than the original). */
-  .msg-send-btn {
-    height: 36px;
-    width: 36px;
-    border-radius: 10px;
-  }
-
-  .msg-attach-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-  }
-
-  /* ── Composer buttons — final sizing ──
-     The attach (pin) and send buttons must always render identical. This
-     block lives last in the stylesheet so it wins over every earlier rule. */
-  .msg-attach-btn,
-  .msg-send-btn {
-    height: 36px;
-    width: 36px;
-    border-radius: 10px;
-    box-sizing: border-box;
-  }
-
-  @media (max-width: 640px) {
+  /* Touch devices (and the phone bottom sheet) get a taller hit area. */
+  @media (max-width: 640px), (pointer: coarse) {
     .msg-attach-btn,
     .msg-send-btn {
-      height: 44px;
-      width: 44px;
-      border-radius: 12px;
+      height: 48px;
+      font-size: 13px;
+      border-radius: 13px;
     }
 
     .msg-panel-input textarea {
       min-height: 44px;
+    }
+
+    .msg-pick-confirm {
+      height: 46px;
+      font-size: 13px;
+    }
+
+    .msg-pick-cancel {
+      height: 46px;
+      width: 46px;
     }
   }
 </style>

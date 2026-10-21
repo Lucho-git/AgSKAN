@@ -16,12 +16,27 @@
     messageIncomingStore,
     openMessagePanel,
   } from "$lib/stores/messageStore"
+  import { focusMapLocation } from "$lib/stores/locationPickStore"
+  import {
+    userVehicleStore,
+    otherVehiclesStore,
+  } from "$lib/stores/vehicleStore"
+  import { liveVehicleCoords } from "$lib/utils/vehicleCoords"
   import { fetchUnreadBySender } from "$lib/api/messagesApi"
 
   let me = null
   let mapId = null
   let channel = null
-  /** @type {{ key: number, senderId: string, name: string, body: string }[]} */
+  /**
+   * @type {{
+   *   key: number,
+   *   senderId: string,
+   *   name: string,
+   *   body: string,
+   *   attachmentLabel: string | null,
+   *   attachment: any,
+   * }[]}
+   */
   let popups = []
   let popupSeq = 0
   // Messages that arrived while the app/tab was hidden — shown on return.
@@ -138,6 +153,7 @@
         attachmentLabel: msg.attachment
           ? msg.attachment.label || "Shared a location"
           : null,
+        attachment: msg.attachment || null,
       },
     ]
     // Popups stay until dismissed with the X (no auto-hide).
@@ -240,6 +256,40 @@
   function replyTo(popup) {
     openMessagePanel({ id: popup.senderId, name: popup.name })
     dismissPopup(popup.key)
+    // A shared location opens the thread AND takes the map there, i.e. the
+    // same thing tapping the attachment in the bubble does.
+    focusSharedLocation(popup.attachment)
+  }
+
+  /** Fly the map to a message's shared location (no-op without one). */
+  function focusSharedLocation(attachment) {
+    if (!attachment) return
+
+    let lng = Number(attachment.lng)
+    let lat = Number(attachment.lat)
+
+    // Vehicles keep moving — use their live position, like the bubble does.
+    if (attachment.refType === "vehicle") {
+      const live = liveVehicleCoords(
+        attachment.refId,
+        $userVehicleStore,
+        $otherVehiclesStore,
+      )
+      if (live) {
+        lng = live.lng
+        lat = live.lat
+      }
+    }
+
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
+
+    focusMapLocation({
+      lng,
+      lat,
+      label: attachment.label || "Shared location",
+      refType: attachment.refType || null,
+      refId: attachment.refId || null,
+    })
   }
 
   onDestroy(() => {
@@ -254,6 +304,9 @@
         class="msg-popup"
         role="button"
         tabindex="0"
+        title={popup.attachment
+          ? `Open chat and go to ${popup.attachmentLabel}`
+          : "Open chat"}
         style={popupStyle(popup)}
         on:click={() => {
           if (!consumeIfSwiped()) replyTo(popup)
@@ -264,6 +317,8 @@
         on:pointerup={onSwipeEnd}
         on:pointercancel={onSwipeCancel}
       >
+        <!-- Unread accent: keeps pulsing until the popup is read/dismissed. -->
+        <span class="msg-popup-accent" aria-hidden="true"></span>
         <div class="flex items-start gap-2.5">
           <span class="msg-popup-icon">
             <MessageSquare size={16} />
@@ -308,7 +363,8 @@
     position: fixed;
     right: 12px;
     bottom: 12px;
-    z-index: 95;
+    /* Keep incoming-message popups above the chat panel itself. */
+    z-index: 1510;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -316,6 +372,8 @@
   }
 
   .msg-popup {
+    position: relative;
+    overflow: hidden;
     border-radius: 12px;
     border: 1px solid rgba(56, 189, 248, 0.28);
     background: rgba(10, 10, 12, 0.92);
@@ -324,6 +382,38 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(10px);
     animation: msg-pop-in 0.18s ease-out;
+  }
+
+  /* Unread highlight: a soft band across the top of the card that breathes
+     until the message is read, replied to, swiped away or closed. */
+  .msg-popup-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #38bdf8, #a78bfa, #38bdf8);
+    animation: msg-accent-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes msg-accent-pulse {
+    0%,
+    100% {
+      opacity: 0.4;
+      box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+    }
+    50% {
+      opacity: 1;
+      box-shadow: 0 0 12px 1px rgba(56, 189, 248, 0.55);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .msg-popup-accent {
+      animation: none;
+      opacity: 0.9;
+      box-shadow: 0 0 10px 1px rgba(56, 189, 248, 0.35);
+    }
   }
 
   @keyframes msg-pop-in {

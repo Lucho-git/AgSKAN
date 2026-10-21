@@ -21,6 +21,21 @@
   let previewFillLayerId = `preview-fill-${drawing.id}`
   let previewLineLayerId = `preview-line-${drawing.id}`
 
+  // Fine adjustments for the sliders — dragging a thumb in a cab with gloves
+  // is fiddly, so each slider also has − / + buttons.
+  /** @param {number} dir */
+  function nudgeFill(dir) {
+    fillOpacity = Math.min(
+      1,
+      Math.max(0, Math.round((fillOpacity + dir * 0.05) * 100) / 100),
+    )
+  }
+
+  /** @param {number} dir */
+  function nudgeWidth(dir) {
+    strokeWidth = Math.min(16, Math.max(1, strokeWidth + dir))
+  }
+
   // Store original layer visibility states
   let originalLayerStates = {
     fill: null,
@@ -321,35 +336,69 @@
     <!-- Opacity Slider (for polygons) -->
     {#if drawing.drawing_type === "polygon"}
       <div class="style-section">
-        <label class="section-label">
+        <label class="section-label" for="fill-opacity-slider">
           Fill Opacity
           <span class="value-display">{Math.round(fillOpacity * 100)}%</span>
         </label>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          bind:value={fillOpacity}
-          class="slider"
-        />
+        <div class="slider-row">
+          <button
+            type="button"
+            class="step-btn"
+            on:click={() => nudgeFill(-1)}
+            aria-label="Decrease fill opacity"
+            >−</button
+          >
+          <input
+            id="fill-opacity-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            bind:value={fillOpacity}
+            class="slider"
+            style="--fill: {Math.round(fillOpacity * 100)}%"
+          />
+          <button
+            type="button"
+            class="step-btn"
+            on:click={() => nudgeFill(1)}
+            aria-label="Increase fill opacity"
+            >+</button
+          >
+        </div>
       </div>
     {/if}
 
     <!-- Stroke Width -->
     <div class="style-section">
-      <label class="section-label">
+      <label class="section-label" for="stroke-width-slider">
         Line Width
         <span class="value-display">{strokeWidth}px</span>
       </label>
-      <input
-        type="range"
-        min="1"
-        max="16"
-        step="1"
-        bind:value={strokeWidth}
-        class="slider"
-      />
+      <div class="slider-row">
+        <button
+          type="button"
+          class="step-btn"
+          on:click={() => nudgeWidth(-1)}
+          aria-label="Decrease line width">−</button
+        >
+        <input
+          id="stroke-width-slider"
+          type="range"
+          min="1"
+          max="16"
+          step="1"
+          bind:value={strokeWidth}
+          class="slider"
+          style="--fill: {((strokeWidth - 1) / 15) * 100}%"
+        />
+        <button
+          type="button"
+          class="step-btn"
+          on:click={() => nudgeWidth(1)}
+          aria-label="Increase line width">+</button
+        >
+      </div>
     </div>
 
     <!-- Stroke Style -->
@@ -388,6 +437,7 @@
     color: white;
     z-index: 1000;
     border-top: 1px solid rgba(168, 85, 247, 0.5);
+    padding-bottom: env(safe-area-inset-bottom);
     animation: agskan-slideUp 0.3s ease-out;
   }
 
@@ -448,38 +498,49 @@
   }
 
   .action-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    border: none;
-    border-radius: 999px;
-    padding: 8px 12px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 12px;
-    font-weight: 600;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    touch-action: manipulation;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.06s ease;
+  }
+
+  .action-btn:active {
+    transform: scale(0.98);
   }
 
   .action-btn.cancel {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(248, 113, 113, 0.75);
+    color: #fecaca;
   }
 
   .action-btn.cancel:hover {
     background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(252, 165, 165, 0.95);
     color: white;
   }
 
   .action-btn.save {
-    background: rgba(34, 197, 94, 0.2);
-    border: 1px solid rgba(34, 197, 94, 0.4);
-    color: #22c55e;
+    background: #16a34a;
+    border: 1px solid #86efac;
+    color: white;
   }
 
   .action-btn.save:hover {
-    background: rgba(34, 197, 94, 0.3);
-    color: white;
+    background: #15803d;
+    border-color: #bbf7d0;
   }
 
   .style-editor-content {
@@ -547,34 +608,106 @@
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
   }
 
+  /* Slider row: − / + buttons either side of the track for precise nudging;
+     the range input itself is a 44px touch target with a fat thumb. */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .step-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.06s ease;
+  }
+
+  .step-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(168, 85, 247, 0.6);
+  }
+
+  .step-btn:active {
+    transform: scale(0.96);
+  }
+
   .slider {
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
-    outline: none;
     -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+    touch-action: pan-y;
+  }
+
+  .slider::-webkit-slider-runnable-track {
+    height: 12px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      #a855f7 0 var(--fill, 0%),
+      rgba(255, 255, 255, 0.14) var(--fill, 0%) 100%
+    );
+  }
+
+  .slider::-moz-range-track {
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .slider::-moz-range-progress {
+    height: 12px;
+    border-radius: 999px;
+    background: #a855f7;
   }
 
   .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 26px;
+    height: 26px;
+    margin-top: -7px;
     border-radius: 50%;
-    background: #a855f7;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(168, 85, 247, 0.5);
+    background: white;
+    border: 3px solid #a855f7;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+    cursor: grab;
   }
 
   .slider::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: #a855f7;
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 2px 6px rgba(168, 85, 247, 0.5);
+    background: white;
+    border: 3px solid #a855f7;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+    cursor: grab;
+  }
+
+  .slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.35);
   }
 
   .style-toggle {
@@ -627,6 +760,9 @@
 
   @media (max-width: 768px) {
     .style-editor-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
       padding: 12px 16px;
     }
 
@@ -639,34 +775,46 @@
       font-size: 16px;
     }
 
-    .btn-text {
-      display: none;
+    .header-actions {
+      gap: 10px;
     }
 
+    /* Full-width, labelled, thumb-sized actions — no more icon-only pills. */
     .action-btn {
-      padding: 10px;
-      width: 44px;
-      height: 44px;
-      justify-content: center;
+      flex: 1;
+      min-height: 52px;
+      padding: 0 14px;
+      font-size: 15px;
+      gap: 8px;
     }
 
     .style-editor-content {
       padding: 12px 16px 14px;
-      max-height: 52vh;
-    }
-
-    .color-grid {
-      grid-template-columns: repeat(6, 32px);
-      gap: 7px;
-    }
-
-    .color-option {
-      width: 32px;
-      height: 32px;
+      max-height: 56vh;
     }
 
     .style-section {
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    .color-grid {
+      grid-template-columns: repeat(6, 40px);
+      gap: 8px;
+    }
+
+    .color-option {
+      width: 40px;
+      height: 40px;
+    }
+
+    .step-btn {
+      width: 48px;
+      height: 48px;
+      font-size: 22px;
+    }
+
+    .section-label {
+      font-size: 13px;
     }
   }
 

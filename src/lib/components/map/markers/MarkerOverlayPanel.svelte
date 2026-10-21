@@ -23,6 +23,7 @@
     Plus,
     MapPin,
     Pencil,
+    ChevronDown,
   } from "lucide-svelte"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
@@ -52,7 +53,6 @@
     MARKER_COLOR_DEFAULT,
     markerColor,
     styleSwatchBg,
-    swatchText,
     markerDefaultColorKey,
     styleDefaultColor,
     randomColorForId,
@@ -65,6 +65,9 @@
   import DrawingPanel from "$lib/components/map/overlays/DrawingPanel.svelte"
   import { blockForViewer } from "$lib/utils/guestMode"
   import PhotoLightbox from "$lib/components/map/markers/PhotoLightbox.svelte"
+  import TintedIconPreview from "$lib/components/map/markers/TintedIconPreview.svelte"
+  import { fetchMapLogPage, fetchVehicleSnapshots } from "$lib/api/mapLogApi"
+  import vehicleComponents from "$lib/vehicles"
 
   export let map
   /** @type {any} */
@@ -89,6 +92,7 @@
 
   // ── Drill-in navigation: main → icon sub-view ──
   let view = "main" // 'main' | 'icon'
+
   // Hidden only while a drawing session is in progress (panel reopens after).
   let panelOpen = true
   let shouldReopenAfterDrawing = false
@@ -264,6 +268,11 @@
   $: displayIconClass =
     previewIconClass ||
     gateDisplayIconClass(getCurrentIconClass(marker?.id), marker?.gateOpen)
+  // Marker definition for the header thumbnail (real map preview).
+  $: headerIconDef =
+    findMarkerByIconClass(displayIconClass) ||
+    findMarkerByIconClass(marker?.iconClass) ||
+    null
   // Gate markers (special): open/closed toggle lives in the main view.
   $: isGate = isGateIcon(marker?.iconClass)
   // Rock markers (special): "picked" toggle lives in the main view.
@@ -365,7 +374,7 @@
       // Menu box dimensions (match the .marker-pop CSS; measured so the flip
       // uses the real rendered height).
       const menuW = 280
-      const menuH = markerPopEl?.offsetHeight || Math.min(360, rect.height - 70)
+      const menuH = markerPopEl?.offsetHeight || Math.min(400, rect.height - 70)
 
       // Keep the on/off-screen tests on the raw marker point.
       visible =
@@ -762,14 +771,115 @@
     }
   }
 
-  // ── Coords + created-date helpers ──
-  $: createdShort = marker?.created_at
-    ? new Date(marker.created_at).toLocaleDateString("en-US", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
+  // ── Provenance: who left the marker, with which machine, and when ──
+  // map_markers records no creator, so the map log is the only source: the
+  // earliest `marker.placed` row is the author, and vehicle_state turns that
+  // actor id into the machine they were running.
+  /** @type {null | { creatorName: string, creatorId: string | null, vehicleType: string | null, vehicleColor: string | null, editedByName: string | null, createdIso: string | null, editedIso: string | null }} */
+  let provenance = null
+  let provenanceFor = null
+
+  $: if (
+    marker?.id &&
+    $profileStore?.master_map_id &&
+    marker.id !== provenanceFor
+  ) {
+    provenanceFor = marker.id
+    provenance = null
+    loadProvenance(marker.id, $profileStore.master_map_id)
+  }
+
+  async function loadProvenance(markerId, masterMapId) {
+    if (!markerId || !masterMapId) return
+    try {
+      const entries = await fetchMapLogPage(masterMapId, {
+        entityId: markerId,
+        limit: 25,
       })
-    : ""
+      if (!entries.length) return
+      // Newest first — the last `marker.placed` is the original creation.
+      const placed = entries.filter((e) => e.action === "marker.placed")
+      const creator = placed.length ? placed[placed.length - 1] : null
+      const latest = entries[0]
+      const editor =
+        latest.action === "marker.placed" || latest.actor_name === creator?.actor_name
+          ? null
+          : latest.actor_name
+
+      const vehicles = creator?.actor_id
+        ? await fetchVehicleSnapshots([creator.actor_id]).catch(
+            () => new Map(),
+          )
+        : new Map()
+      const vehicle = creator?.actor_id ? vehicles.get(creator.actor_id) : null
+
+      if (provenanceFor !== markerId) return
+      provenance = {
+        creatorName: creator?.actor_name || "",
+        creatorId: creator?.actor_id || null,
+        vehicleType: vehicle?.vehicleType || null,
+        vehicleColor: vehicle?.bodyColor || null,
+        editedByName: editor,
+        createdIso: creator?.occurred_at || null,
+        editedIso: creator ? latest.occurred_at : null,
+      }
+    } catch (error) {
+      console.warn("Marker provenance unavailable:", error?.message || error)
+    }
+  }
+
+  /** @param {string} iso */
+  function shortDate(iso) {
+    if (!iso) return ""
+    return new Date(iso).toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  }
+
+  // "Created 12 Mar" / "Edited 21 Oct" — falls back to the row timestamps when
+  // the log has nothing for this marker (old markers, guests, offline).
+  $: createdIso =
+    provenance?.createdIso || marker?.created_at || marker?.createdAt || null
+  $: editedIso = recentEditIso(
+    marker?.updated_at || marker?.updatedAt,
+    createdIso,
+    provenance?.editedIso,
+  )
+  $: dateLabel = editedIso
+    ? `Edited ${shortDate(editedIso)}`
+    : createdIso
+      ? `Created ${shortDate(createdIso)}`
+      : ""
+  $: dateTitle = [
+    createdIso ? `Created ${shortDate(createdIso)}` : "",
+    editedIso ? `Edited ${shortDate(editedIso)}` : "",
+    provenance?.editedByName ? `Last edit by ${provenance.editedByName}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  /** Edits land milliseconds after creation — only call it an edit when the
+   *  row was touched meaningfully later, or the log names another editor. */
+  function recentEditIso(updatedIso, createdIso, logEditedIso) {
+    if (!updatedIso) return null
+    const updated = new Date(updatedIso).getTime()
+    const created = createdIso ? new Date(createdIso).getTime() : updated
+    const threshold = 60 * 1000
+    if (updated - created > threshold) return updatedIso
+    return logEditedIso && new Date(logEditedIso).getTime() - created > threshold
+      ? logEditedIso
+      : null
+  }
+
+  $: creatorFirstName = (provenance?.creatorName || "").trim().split(/\s+/)[0]
+  $: creatorInitial = (creatorFirstName || "?").charAt(0).toUpperCase()
+  $: vehicleComponent = provenance?.vehicleType
+    ? vehicleComponents[provenance.vehicleType] || vehicleComponents.Pointer
+    : null
+
+  // ── Coords helpers ──
 
   function formatCoordinates(coordinates) {
     if (!coordinates || coordinates.length !== 2) return "N/A"
@@ -1296,40 +1406,52 @@
       bind:this={markerPopEl}
     >
       <div class="marker-pop-head" on:click={handleHeaderClick}>
-        <div class="marker-pop-icon">
-          {#if displayIconClass === "default"}
-            <IconSVG icon="mapbox-marker" size="24px" />
-          {:else if displayIconClass?.startsWith("custom-svg")}
-            <IconSVG
-              icon={displayIconClass?.replace("custom-svg-", "")}
-              size="24px"
-            />
-          {:else if displayIconClass?.startsWith("ionic-")}
-            <ion-icon
-              name={displayIconClass?.replace("ionic-", "")}
-              style="font-size: 24px;"
-            ></ion-icon>
-          {:else}
-            <i class={`${displayIconClass} text-lg`}></i>
-          {/if}
+        <!-- Real map preview: same renderer MarkerManager uses, so the thumb
+             shows the marker's own tint style (circle-fill-black by default)
+             and colour. -->
+        <div
+          class="marker-pop-icon"
+          title={`Marker colour: ${headerColorDef.label}`}
+        >
+          <TintedIconPreview
+            icon={headerIconDef}
+            colorKey={markerColorKey}
+            size={30}
+          />
         </div>
         <div class="marker-pop-titles">
           <div class="marker-pop-title-row">
             <span class="marker-pop-title" title={markerName}>{markerName}</span
             >
-            <span
-              class="marker-pop-color-name"
-              style="color: {swatchText(
-                headerColorDef,
-              )}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
-              title={`Marker colour: ${headerColorDef.label}`}
-            >
-              {headerColorDef.label}
-            </span>
           </div>
-          {#if createdShort}
-            <span class="marker-pop-sub">Created {createdShort}</span>
-          {/if}
+          <div class="marker-pop-meta">
+            {#if provenance?.creatorName}
+              <span
+                class="mp-meta-chip"
+                title={`Placed by ${provenance.creatorName}`}
+              >
+                <span class="mp-meta-avatar">{creatorInitial}</span>
+                <span class="mp-meta-chip-name">{creatorFirstName}</span>
+              </span>
+            {/if}
+            {#if vehicleComponent}
+              <span
+                class="mp-meta-vehicle"
+                title={`Left by ${provenance.creatorName}${
+                  provenance.vehicleType ? ` · ${provenance.vehicleType}` : ""
+                }`}
+              >
+                <svelte:component
+                  this={vehicleComponent}
+                  bodyColor={provenance.vehicleColor || "yellow"}
+                  size="15px"
+                />
+              </span>
+            {/if}
+            {#if dateLabel}
+              <span class="mp-meta-date" title={dateTitle}>{dateLabel}</span>
+            {/if}
+          </div>
         </div>
         <button
           class="marker-pop-close"
@@ -1358,77 +1480,81 @@
             <span>Back</span>
           </button>
           <span class="mp-subhead-title">Icon</span>
-        </div>
-        <div class="marker-pop-body">
-          <div class="mp-section mp-icon-color-section">
-            <div class="mp-color-bar-wrap">
+          <!-- Colour sits in the sub-header as a compact pill beside Back, so
+               the whole body is left to the icon grid. -->
+          <div class="mp-color-anchor">
+            <button
+              type="button"
+              class="mp-color-pill"
+              class:open={colorBoxOpen}
+              class:color-active={markerColorKey !== MARKER_COLOR_DEFAULT}
+              title="Change the marker colour"
+              aria-label={`Change colour — currently ${
+                markerColorKey === MARKER_COLOR_DEFAULT
+                  ? "Default"
+                  : headerColorDef?.label
+              }`}
+              on:click={toggleColorBox}
+            >
+              <span
+                class="mp-color-swatch"
+                style="background: {styleSwatchBg(
+                  markerColor(menuTriggerColorKey, markerStyle),
+                  markerStyle,
+                )};"
+              ></span>
+              <span class="mp-color-pill-label">
+                {markerColorKey === MARKER_COLOR_DEFAULT
+                  ? "Default"
+                  : headerColorDef?.label}
+              </span>
+              <ChevronDown size={14} class="mp-color-chevron" />
+            </button>
+            {#if colorBoxOpen}
               <button
                 type="button"
-                class="mp-color-bar"
-                class:open={colorBoxOpen}
-                class:color-active={markerColorKey !== MARKER_COLOR_DEFAULT}
-                title="Change colour"
-                aria-label="Change colour"
-                on:click={toggleColorBox}
-              >
-                <span class="mp-color-bar-title">Color</span>
-                <span
-                  class="mp-color-trigger"
-                  class:mp-color-trigger-default={markerColorKey ===
-                    MARKER_COLOR_DEFAULT}
-                  style="background: {markerColorKey === MARKER_COLOR_DEFAULT
-                    ? 'transparent'
-                    : styleSwatchBg(
-                        markerColor(menuTriggerColorKey, markerStyle),
-                        markerStyle,
-                      )};"
-                  >{#if markerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span
-                >
-              </button>
-              {#if colorBoxOpen}
+                class="mp-color-pop-overlay"
+                aria-label="Close colour picker"
+                on:click={() => (colorBoxOpen = false)}
+              ></button>
+              <div class="mp-color-pop">
                 <button
                   type="button"
-                  class="mp-color-pop-overlay"
-                  aria-label="Close colour picker"
-                  on:click={() => (colorBoxOpen = false)}
-                ></button>
-                <div class="mp-color-pop">
+                  class="mp-color-cell mp-color-cell-special"
+                  class:active={markerColorKey === MARKER_COLOR_DEFAULT}
+                  title="Default — follows the marker default colour"
+                  aria-label="Marker colour: Default"
+                  on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
+                  >D</button
+                >
+                {#each pickableColorsForStyle(markerStyle) as c}
                   <button
                     type="button"
-                    class="mp-color-cell mp-color-cell-special"
-                    class:active={markerColorKey === MARKER_COLOR_DEFAULT}
-                    title="Default — follows the marker default colour"
-                    aria-label="Marker colour: Default"
-                    on:click={() => pickMenuColor(MARKER_COLOR_DEFAULT)}
-                    >D</button
-                  >
-                  {#each pickableColorsForStyle(markerStyle) as c}
-                    <button
-                      type="button"
-                      class="mp-color-cell"
-                      class:active={markerColorKey === c.key}
-                      style="background: {styleSwatchBg(
-                        markerColor(c.key, markerStyle),
-                        markerStyle,
-                      )};"
-                      title={c.label}
-                      aria-label={`Marker colour ${c.label}`}
-                      on:click={() => pickMenuColor(c.key)}
-                    ></button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-            {#if makeDefaultVisible}
-              <label
-                class="mp-make-default-check"
-                title="Save will also set this colour as the default for {markerName}"
-              >
-                <input type="checkbox" bind:checked={makeDefaultArmed} />
-                <span>Make default</span>
-              </label>
+                    class="mp-color-cell"
+                    class:active={markerColorKey === c.key}
+                    style="background: {styleSwatchBg(
+                      markerColor(c.key, markerStyle),
+                      markerStyle,
+                    )};"
+                    title={c.label}
+                    aria-label={`Marker colour ${c.label}`}
+                    on:click={() => pickMenuColor(c.key)}
+                  ></button>
+                {/each}
+              </div>
             {/if}
           </div>
+        </div>
+        <div class="marker-pop-body">
+          {#if makeDefaultVisible}
+            <label
+              class="mp-make-default-check"
+              title="Save will also set this colour as the default for {markerName}"
+            >
+              <input type="checkbox" bind:checked={makeDefaultArmed} />
+              <span>Make default</span>
+            </label>
+          {/if}
           <div class="mp-icon-grid">
             {#if specialMarkers.length}
               {#each specialMarkers as icon}
@@ -1670,25 +1796,27 @@
                 onEditEnd={() => (hideForEditor = false)}
               />
             </div>
-
-            <div class="mp-delete-row">
-              <button
-                class="mp-delete-btn"
-                class:armed={confirmDelete}
-                class:guest-disabled={isViewer}
-                on:click={confirmDelete ? doDelete : armDelete}
-                title={confirmDelete ? "Tap again to confirm" : "Delete marker"}
-              >
-                {#if confirmDelete}
-                  <Check size={14} />
-                  <span>Confirm delete?</span>
-                {:else}
-                  <Trash2 size={14} />
-                  <span>Delete marker</span>
-                {/if}
-              </button>
-            </div>
           </div>
+        </div>
+
+        <!-- Sticky delete bar — always visible above the footer, never buried
+             at the end of the scrolling body. -->
+        <div class="mp-delete-row">
+          <button
+            class="mp-delete-btn"
+            class:armed={confirmDelete}
+            class:guest-disabled={isViewer}
+            on:click={confirmDelete ? doDelete : armDelete}
+            title={confirmDelete ? "Tap again to confirm" : "Delete marker"}
+          >
+            {#if confirmDelete}
+              <Check size={18} />
+              <span>Tap again to delete</span>
+            {:else}
+              <Trash2 size={18} />
+              <span>Delete marker</span>
+            {/if}
+          </button>
         </div>
 
         <div class="mp-footer-row">
@@ -1814,7 +1942,7 @@
     position: fixed;
     transform: translate(-50%, var(--pop-y));
     width: 280px;
-    height: 360px;
+    height: 400px;
     max-height: calc(100vh - 70px);
     z-index: 1001;
     animation: mp-pop-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1886,9 +2014,6 @@
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 8px;
-    background: rgba(96, 165, 250, 0.14);
-    color: #93c5fd;
     flex-shrink: 0;
   }
   .marker-pop-titles {
@@ -1913,31 +2038,71 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .marker-pop-sub {
+  /* Compact provenance line: [who] [machine] · when. Kept on one line so the
+     header never grows taller than the icon it sits beside. */
+  .marker-pop-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
     font-size: 9px;
     font-weight: 600;
     line-height: 1.2;
     color: rgba(255, 255, 255, 0.45);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .marker-pop-color-name {
+  .mp-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 1px 5px 1px 1px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .mp-meta-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
     flex-shrink: 0;
-    align-self: center;
+    border-radius: 50%;
+    background: rgba(96, 165, 250, 0.28);
+    color: #dbeafe;
     font-size: 8px;
     font-weight: 800;
-    line-height: 1.3;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    padding: 1px 5px;
-    border-radius: 999px;
-    border: 1px solid;
-    white-space: nowrap;
-    max-width: 72px;
+  }
+  .mp-meta-chip-name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 52px;
+  }
+  .mp-meta-vehicle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px;
+  }
+  .mp-meta-vehicle :global(svg) {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .mp-meta-date {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .marker-pop-close {
     display: flex;
@@ -1963,14 +2128,16 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+    min-height: 32px;
   }
   .mp-back {
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    padding: 4px 8px 4px 4px;
+    min-height: 32px;
+    padding: 0 10px 0 4px;
     border: none;
-    border-radius: 7px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.85);
     font-size: 11px;
@@ -1998,6 +2165,27 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding-bottom: 8px;
+    /* Visible scrollbar: desktop and Android WebView render this track/thumb
+       permanently, so "there's more below" is obvious without scrolling. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(147, 197, 253, 0.6) rgba(255, 255, 255, 0.07);
+  }
+  .marker-pop-body::-webkit-scrollbar {
+    width: 9px;
+  }
+  .marker-pop-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+  }
+  .marker-pop-body::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: rgba(147, 197, 253, 0.55);
+    background-clip: padding-box;
+  }
+  .marker-pop-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(191, 219, 254, 0.85);
+    background-clip: padding-box;
   }
   .mp-section {
     display: flex;
@@ -2275,34 +2463,21 @@
     cursor: default;
   }
 
-  /* Delete marker — subtle danger row at the bottom of the main view */
+  /* Delete marker — pinned above the footer, high contrast so it reads in
+     sunlight. Two-step (arm → confirm) so it can't fire by accident. */
   .mp-delete-row {
     display: flex;
+    flex-shrink: 0;
   }
-  .mp-color-trigger {
-    width: 26px;
-    height: 26px;
+  /* Colour swatch — always shows the colour the marker will actually render
+     with (including the resolved default), so the control never looks empty. */
+  .mp-color-swatch {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
     border-radius: 6px;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-    cursor: pointer;
-    padding: 0;
-    transition: transform 0.15s ease;
-  }
-  .mp-color-trigger:hover {
-    transform: scale(1.1);
-  }
-  /* Default selection — dashed rim with a D glyph (not the emulated colour) */
-  .mp-color-trigger-default {
-    border-style: dashed !important;
-    border-color: rgba(255, 255, 255, 0.55) !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    color: rgba(255, 255, 255, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
   }
   .mp-color-pop-overlay {
     position: fixed;
@@ -2315,8 +2490,8 @@
   }
   .mp-color-pop {
     position: absolute;
-    top: 0;
-    left: calc(100% + 6px);
+    top: calc(100% + 6px);
+    right: 0;
     z-index: 31;
     width: 112px;
     display: grid;
@@ -2366,24 +2541,36 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 9px 10px;
-    border-radius: 9px;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    background: rgba(239, 68, 68, 0.08);
-    color: rgba(252, 165, 165, 0.85);
-    font-size: 11px;
-    font-weight: 700;
+    gap: 8px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(248, 113, 113, 0.75);
+    background: rgba(239, 68, 68, 0.18);
+    color: #fecaca;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: all 0.15s ease;
+    touch-action: manipulation;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.06s ease;
   }
   .mp-delete-btn:hover {
-    background: rgba(239, 68, 68, 0.16);
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(252, 165, 165, 0.95);
+    color: #fff;
+  }
+  .mp-delete-btn:active {
+    transform: scale(0.99);
   }
   .mp-delete-btn.armed {
-    background: rgba(239, 68, 68, 0.9);
+    background: #dc2626;
     color: #fff;
-    border-color: rgba(239, 68, 68, 0.9);
+    border-color: #fecaca;
+    box-shadow: 0 0 0 2px rgba(254, 202, 202, 0.35);
   }
   .mp-action-btn {
     flex: 1;
@@ -2575,68 +2762,67 @@
     box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4);
   }
 
-  /* Colour picker inside the icon edit view — the card IS the button so the
-     whole card (incl. its padding) is the clickable target for the popover. */
-  .mp-icon-color-section {
-    position: relative;
-    margin-bottom: 10px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
-  /* Wraps the compact colour bar + its popover. The popover's top-left corner
-     sits against the bar's top-right corner (top:0; left: calc(100% + 6px)). */
-  .mp-color-bar-wrap {
+  /* Colour pill — a compact control sized to match the Back button it sits
+     beside, so it reads as one of the sub-header's buttons instead of a
+     full-width card stealing space from the icon grid. */
+  .mp-color-anchor {
     position: relative;
     display: flex;
-    flex: 0 0 auto;
+    flex-shrink: 0;
   }
-  .mp-color-bar {
-    display: flex;
+  .mp-color-pill {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    width: auto;
-    padding: 10px;
-    border-radius: 9px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.55);
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 8px 0 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
     cursor: pointer;
+    touch-action: manipulation;
     transition:
       background 0.15s ease,
       border-color 0.15s ease,
       box-shadow 0.15s ease;
   }
-  .mp-color-bar:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(96, 165, 250, 0.35);
+  .mp-color-pill:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(96, 165, 250, 0.45);
   }
-  /* A colour is picked → slight border highlight around the card. */
-  .mp-color-bar.color-active {
-    border-color: rgba(96, 165, 250, 0.55);
-    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+  /* A colour is picked → clear highlight around the control. */
+  .mp-color-pill.color-active {
+    border-color: rgba(96, 165, 250, 0.7);
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.3);
   }
-  .mp-color-bar-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  .mp-color-pill.open {
+    background: rgba(96, 165, 250, 0.18);
+    border-color: rgba(147, 197, 253, 0.85);
   }
-  .mp-color-bar.open .mp-color-trigger {
-    transform: scale(1.1);
+  .mp-color-pill-label {
+    max-width: 54px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mp-color-chevron {
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.65);
   }
 
-  /* "Make default" checkbox — sits to the right of the colour bar; only
-     appears right after a non-default colour is picked. Checking it arms the
-     action; Save then also sets the colour as the marker type's default. */
+  /* "Make default" checkbox — appears right after a non-default colour is
+     picked, above the grid. Checking it arms the action; Save then also sets
+     the colour as the marker type's default. */
   .mp-make-default-check {
     display: inline-flex;
     align-items: center;
+    align-self: flex-start;
     gap: 5px;
+    margin-bottom: 8px;
     flex-shrink: 0;
     white-space: nowrap;
     cursor: pointer;

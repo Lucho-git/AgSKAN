@@ -170,7 +170,9 @@
     transform: translate(-50%, -50%);
     width: 44px;
     height: 44px;
-    z-index: 1002;
+    /* Below every map panel (they start at 1000) so an edge badge can never
+       cover a menu button; still above the map canvas and its markers. */
+    z-index: 900;
     display: flex;
     align-items: center;
     justify-content: center;

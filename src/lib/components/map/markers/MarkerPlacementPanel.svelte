@@ -5,7 +5,8 @@
 <script>
   import { onMount, onDestroy } from "svelte"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
-  import { X, Check, MapPin } from "lucide-svelte"
+  import TintedIconPreview from "$lib/components/map/markers/TintedIconPreview.svelte"
+  import { X, Check, MapPin, ChevronDown } from "lucide-svelte"
   import {
     getAllMarkers,
     findMarkerByIconClass,
@@ -19,7 +20,6 @@
     MARKER_COLOR_DEFAULT,
     markerColor,
     styleSwatchBg,
-    swatchText,
     markerDefaultColorKey,
     styleDefaultColor,
     randomColorForId,
@@ -47,6 +47,11 @@
   // The icon shown in the header thumb (preview wins over the current one).
   $: displayIconClass =
     previewIconClass || getCurrentIconClass(marker?.id) || "default"
+  // Marker definition for the header thumbnail (real map preview).
+  $: headerIconDef =
+    findMarkerByIconClass(displayIconClass) ||
+    findMarkerByIconClass(marker?.iconClass) ||
+    null
 
   // ── Colour selection ──
   let pickerColorKey = MARKER_COLOR_DEFAULT
@@ -372,35 +377,21 @@
     bind:this={markerPopEl}
   >
     <div class="marker-pop-head">
-      <div class="marker-pop-icon">
-        {#if displayIconClass === "default"}
-          <IconSVG icon="mapbox-marker" size="18px" />
-        {:else if displayIconClass?.startsWith("custom-svg")}
-          <IconSVG
-            icon={displayIconClass.replace("custom-svg-", "")}
-            size="18px"
-          />
-        {:else if displayIconClass?.startsWith("ionic-")}
-          <ion-icon
-            name={displayIconClass.replace("ionic-", "")}
-            style="font-size: 18px;"
-          ></ion-icon>
-        {:else if displayIconClass?.startsWith("at-")}
-          <i class={`${displayIconClass} text-base`}></i>
-        {:else}
-          <IconSVG icon="mapbox-marker" size="18px" />
-        {/if}
+      <!-- Same renderer as the map, so a freshly picked colour/style reads
+           exactly as it will once placed. -->
+      <div
+        class="marker-pop-icon"
+        title={`Marker colour: ${headerColorDef.label}`}
+      >
+        <TintedIconPreview
+          icon={headerIconDef}
+          colorKey={pickerColorKey}
+          size={30}
+        />
       </div>
       <div class="marker-pop-titles">
         <div class="marker-pop-title-row">
           <span class="marker-pop-title" title={markerName}>{markerName}</span>
-          <span
-            class="marker-pop-color-name"
-            style="color: {swatchText(
-              headerColorDef,
-            )}; border-color: {headerColorDef.dark}66; background: {headerColorDef.dark}1a;"
-            >{headerColorDef.label}</span
-          >
         </div>
         <span class="marker-pop-sub">New marker</span>
       </div>
@@ -416,64 +407,6 @@
     </div>
 
     <div class="marker-pop-body">
-      <div class="mp-section mp-icon-color-section">
-        <button
-          type="button"
-          class="mp-color-bar"
-          class:open={colorBoxOpen}
-          class:color-active={pickerColorKey !== MARKER_COLOR_DEFAULT}
-          title="Change colour"
-          aria-label="Change colour"
-          on:click={toggleColorBox}
-        >
-          <span class="mp-color-bar-title">Color</span>
-          <span
-            class="mp-color-trigger"
-            class:mp-color-trigger-default={pickerColorKey ===
-              MARKER_COLOR_DEFAULT}
-            style="background: {pickerColorKey === MARKER_COLOR_DEFAULT
-              ? 'transparent'
-              : styleSwatchBg(
-                  markerColor(menuTriggerColorKey, markerStyle),
-                  markerStyle,
-                )};"
-            >{#if pickerColorKey === MARKER_COLOR_DEFAULT}D{/if}</span
-          >
-        </button>
-        {#if colorBoxOpen}
-          <button
-            type="button"
-            class="mp-color-pop-overlay"
-            aria-label="Close colour picker"
-            on:click={() => (colorBoxOpen = false)}
-          ></button>
-          <div class="mp-color-pop">
-            <button
-              type="button"
-              class="mp-color-cell mp-color-cell-special"
-              class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
-              title="Default — follows the marker default colour"
-              aria-label="Marker colour: Default"
-              on:click={() => setPickerColor(MARKER_COLOR_DEFAULT)}>D</button
-            >
-            {#each pickableColorsForStyle(markerStyle) as c}
-              <button
-                type="button"
-                class="mp-color-cell"
-                class:active={pickerColorKey === c.key}
-                style="background: {styleSwatchBg(
-                  markerColor(c.key, markerStyle),
-                  markerStyle,
-                )};"
-                title={c.label}
-                aria-label={`Marker colour ${c.label}`}
-                on:click={() => setPickerColor(c.key)}
-              ></button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
       <div class="mp-icon-grid">
         {#if specialMarkers.length}
           {#each specialMarkers as icon}
@@ -516,14 +449,80 @@
       </div>
     </div>
 
-    <input
-      type="text"
-      class="mp-notes-input"
-      bind:value={markerNotes}
-      placeholder="Add a note..."
-      maxlength="500"
-      aria-label="Add a note"
-    />
+    <!-- Colour pill + note sit together at the bottom, right above Place, so
+         the icon grid owns the body while the finishing touches stay in reach
+         of the confirm button. -->
+    <div class="mp-tool-row">
+      <div class="mp-color-anchor">
+        <button
+          type="button"
+          class="mp-color-pill"
+          class:open={colorBoxOpen}
+          class:color-active={pickerColorKey !== MARKER_COLOR_DEFAULT}
+          title="Change the marker colour"
+          aria-label={`Change colour — currently ${
+            pickerColorKey === MARKER_COLOR_DEFAULT
+              ? "Default"
+              : headerColorDef.label
+          }`}
+          on:click={toggleColorBox}
+        >
+          <span
+            class="mp-color-swatch"
+            style="background: {styleSwatchBg(
+              markerColor(menuTriggerColorKey, markerStyle),
+              markerStyle,
+            )};"
+          ></span>
+          <span class="mp-color-pill-label">
+            {pickerColorKey === MARKER_COLOR_DEFAULT
+              ? "Default"
+              : headerColorDef.label}
+          </span>
+          <ChevronDown size={14} class="mp-color-chevron" />
+        </button>
+        {#if colorBoxOpen}
+          <button
+            type="button"
+            class="mp-color-pop-overlay"
+            aria-label="Close colour picker"
+            on:click={() => (colorBoxOpen = false)}
+          ></button>
+          <div class="mp-color-pop">
+            <button
+              type="button"
+              class="mp-color-cell mp-color-cell-special"
+              class:active={pickerColorKey === MARKER_COLOR_DEFAULT}
+              title="Default — follows the marker default colour"
+              aria-label="Marker colour: Default"
+              on:click={() => setPickerColor(MARKER_COLOR_DEFAULT)}>D</button
+            >
+            {#each pickableColorsForStyle(markerStyle) as c}
+              <button
+                type="button"
+                class="mp-color-cell"
+                class:active={pickerColorKey === c.key}
+                style="background: {styleSwatchBg(
+                  markerColor(c.key, markerStyle),
+                  markerStyle,
+                )};"
+                title={c.label}
+                aria-label={`Marker colour ${c.label}`}
+                on:click={() => setPickerColor(c.key)}
+              ></button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <input
+        type="text"
+        class="mp-notes-input"
+        bind:value={markerNotes}
+        placeholder="Add a note..."
+        maxlength="500"
+        aria-label="Add a note"
+      />
+    </div>
 
     <button type="button" class="mp-place-confirm" on:click={confirmPlacement}>
       <Check size={14} />
@@ -591,9 +590,6 @@
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 8px;
-    background: rgba(96, 165, 250, 0.14);
-    color: #93c5fd;
     flex-shrink: 0;
   }
   .marker-pop-titles {
@@ -628,22 +624,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .marker-pop-color-name {
-    flex-shrink: 0;
-    align-self: center;
-    font-size: 8px;
-    font-weight: 800;
-    line-height: 1.3;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    padding: 1px 5px;
-    border-radius: 999px;
-    border: 1px solid;
-    white-space: nowrap;
-    max-width: 72px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .marker-pop-close {
     display: flex;
     align-items: center;
@@ -669,80 +649,73 @@
     overflow-x: hidden;
     padding-bottom: 8px;
   }
-  .mp-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
 
-  /* The colour card IS the button — the whole card (incl. its padding) is
-     the clickable target for the colour popover. */
-  .mp-icon-color-section {
-    position: relative;
-    margin-bottom: 10px;
-  }
-  .mp-color-bar {
+  /* Colour pill and note field share one slim row, leaving the body to the
+     icon grid. Styles mirror the "Back" button in the edit menu so both
+     menus' controls look like the same family. */
+  .mp-tool-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
-    width: 100%;
-    padding: 10px;
-    border-radius: 9px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.55);
+    flex-shrink: 0;
+  }
+  .mp-color-anchor {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+  }
+  .mp-color-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 33px;
+    padding: 0 8px 0 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
     cursor: pointer;
+    touch-action: manipulation;
     transition:
       background 0.15s ease,
       border-color 0.15s ease,
       box-shadow 0.15s ease;
   }
-  .mp-color-bar:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(96, 165, 250, 0.35);
+  .mp-color-pill:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(96, 165, 250, 0.45);
   }
-  /* A colour is picked → slight border highlight around the card. */
-  .mp-color-bar.color-active {
-    border-color: rgba(96, 165, 250, 0.55);
-    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+  /* A colour is picked → clear highlight around the control. */
+  .mp-color-pill.color-active {
+    border-color: rgba(96, 165, 250, 0.7);
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.3);
   }
-  .mp-color-bar-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  .mp-color-pill.open {
+    background: rgba(96, 165, 250, 0.18);
+    border-color: rgba(147, 197, 253, 0.85);
   }
-  .mp-color-bar.open .mp-color-trigger {
-    transform: scale(1.1);
-  }
-
-  .mp-color-trigger {
-    width: 26px;
-    height: 26px;
+  /* Always shows the colour the marker will actually render with (including
+     the resolved default) so the control never looks empty. */
+  .mp-color-swatch {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
     border-radius: 6px;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-    cursor: pointer;
-    padding: 0;
-    transition: transform 0.15s ease;
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
   }
-  .mp-color-trigger:hover {
-    transform: scale(1.1);
+  .mp-color-pill-label {
+    max-width: 54px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .mp-color-trigger-default {
-    border-style: dashed !important;
-    border-color: rgba(255, 255, 255, 0.55) !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    color: rgba(255, 255, 255, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
+  .mp-color-chevron {
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.65);
   }
   .mp-color-pop-overlay {
     position: fixed;
@@ -753,10 +726,13 @@
     padding: 0;
     cursor: default;
   }
+  /* Opens upward and left-aligned: the pill sits at the left of the tool row,
+     just above the Place button, so a downward/right-aligned popover would
+     fall outside the panel. */
   .mp-color-pop {
     position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
+    bottom: calc(100% + 6px);
+    left: 0;
     z-index: 31;
     width: 112px;
     display: grid;
@@ -848,12 +824,13 @@
     box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4);
   }
 
-  /* Always-open single-line note field above the Place button. */
+  /* Note field shares the tool row with the colour pill. */
   .mp-notes-input {
-    width: 100%;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
+    flex-shrink: 1;
     padding: 8px 10px;
-    border-radius: 9px;
+    border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.14);
     background: rgba(255, 255, 255, 0.07);
     color: #fff;

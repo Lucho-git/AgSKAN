@@ -52,7 +52,6 @@
     PUBLIC_SUPABASE_ANON_KEY,
   } from "$env/static/public"
   import { devModeEnabled, devPositionStore } from "$lib/stores/devModeStore"
-  import { messagePanelStore } from "$lib/stores/messageStore"
 
   export let map
   export let disableAutoZoom = false
@@ -464,21 +463,10 @@
     }
   }
 
-  // Messages take over the screen: when the message panel opens while a
-  // vehicle is selected, clear the selection so its bottom panel doesn't sit
-  // underneath the chat sheet (same "one panel at a time" rule the other map
-  // panels follow — opening messages closes the vehicle/marker menus).
-  let wasMessagePanelOpen = false
-  $: {
-    const messagePanelOpen = !!$messagePanelStore
-    if (messagePanelOpen && !wasMessagePanelOpen) {
-      if (!globalSelectionContext) checkGlobalSelectionContext()
-      if (globalSelectionContext?.getState?.().selectedType === "vehicle") {
-        globalSelectionContext.clear?.()
-      }
-    }
-    wasMessagePanelOpen = messagePanelOpen
-  }
+  // Messages take over the screen: closing the selected vehicle when the chat
+  // opens is handled centrally in MapViewer, which can reach MapEventManager's
+  // global selection. (This component used to try it via getContext, but it is
+  // a sibling of MapEventManager, so that context was never available.)
 
   export function handleVehicleSelection(vehicleId) {
     console.log(

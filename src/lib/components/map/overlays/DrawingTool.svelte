@@ -1,17 +1,23 @@
 <!-- src/lib/components/map/overlays/DrawingTool.svelte -->
 <script>
-  import { onMount, onDestroy } from "svelte"
+  import { onDestroy } from "svelte"
   import { Plus, Undo } from "lucide-svelte"
   import { markerDrawingStore } from "$lib/stores/markerDrawingStore"
 
+  /** @type {any} */
   export let map
 
+  /** @type {string | null} */
   let sourceId = null
+  /** @type {{ fill: string | null, line: string | null, points: string | null }} */
   let layerIds = {
     fill: null,
     line: null,
     points: null,
   }
+  // One stale-layer sweep per drawing session (map.getStyle() serialises the
+  // whole style, so it must not run on every point that's added).
+  let sweptStaleLayers = false
 
   const colorOptions = [
     { name: "Blue", value: "#0ea5e9" },
@@ -29,31 +35,61 @@
   $: selectedColor = $markerDrawingStore.color
   $: canUndo = points.length > 0
 
-  // Initialize/cleanup layers when active state changes
-  $: if (isActive && map) {
-    initializeLayers()
+  // Keep the draft layers in sync. Everything the drawing needs is passed in
+  // as arguments so this re-runs on point/colour/mode changes too — the old
+  // version only created the layers when `isActive` flipped, so if the first
+  // attempt failed (the style is still busy right after the previous drawing
+  // is torn down) the new draft stayed invisible until some other component
+  // happened to redraw it.
+  $: if (map) {
+    if (isActive) {
+      ensureLayers(mode, selectedColor)
+      updateDisplay(points, mode)
+      updateLayerColors(selectedColor)
+    } else if (sourceId) {
+      cleanupLayers()
+    }
   }
 
-  // Update display when points or color change
-  $: if (isActive && map && (points || selectedColor)) {
-    updateDisplay()
-    updateLayerColors()
+  /** @type {any} */
+  let listenedMap = null
+
+  // A style (re)load wipes custom sources/layers — rebuild them the moment the
+  // style settles, otherwise the in-progress draft silently vanishes.
+  $: if (map && map !== listenedMap) {
+    listenedMap?.off("styledata", handleStyleData)
+    map.on("styledata", handleStyleData)
+    listenedMap = map
   }
 
-  // Cleanup when deactivated
-  $: if (!isActive && sourceId) {
-    cleanupLayers()
+  onDestroy(() => {
+    listenedMap?.off("styledata", handleStyleData)
+    listenedMap = null
+  })
+
+  function handleStyleData() {
+    if (!isActive || !map) return
+    if (!sourceId || !map.getLayer(layerIds.line)) {
+      ensureLayers(mode, selectedColor)
+      updateDisplay(points, mode)
+      updateLayerColors(selectedColor)
+    }
   }
 
-  function initializeLayers() {
-    if (!map || !map.isStyleLoaded()) return
+  /**
+   * @param {string} drawMode
+   * @param {string} color
+   */
+  function ensureLayers(drawMode, color) {
+    if (!map) return
 
-    // Generate unique IDs
-    sourceId = `drawing-tool-${Date.now()}`
-    layerIds = {
-      fill: `${sourceId}-fill`,
-      line: `${sourceId}-line`,
-      points: `${sourceId}-points`,
+    if (!sourceId) {
+      sourceId = `drawing-tool-${Date.now()}`
+      layerIds = {
+        fill: `${sourceId}-fill`,
+        line: `${sourceId}-line`,
+        points: `${sourceId}-points`,
+      }
     }
 
     try {
@@ -65,14 +101,14 @@
       }
 
       // Fill layer (for areas only)
-      if (mode === "area" && !map.getLayer(layerIds.fill)) {
+      if (drawMode === "area" && !map.getLayer(layerIds.fill)) {
         map.addLayer({
           id: layerIds.fill,
           type: "fill",
           source: sourceId,
           filter: ["==", "$type", "Polygon"],
           paint: {
-            "fill-color": selectedColor,
+            "fill-color": color,
             "fill-opacity": 0.5,
           },
         })
@@ -90,7 +126,7 @@
             "line-join": "round",
           },
           paint: {
-            "line-color": selectedColor,
+            "line-color": color,
             "line-width": 3,
             "line-dasharray": [1, 0],
           },
@@ -107,32 +143,56 @@
           paint: {
             "circle-radius": 6,
             "circle-color": "#fff",
-            "circle-stroke-color": selectedColor,
+            "circle-stroke-color": color,
             "circle-stroke-width": 2,
           },
         })
       }
-    } catch (error) {
-      console.error("Error initializing drawing layers:", error)
+
+      sweepStaleDraftLayers()
+    } catch {
+      // Style is still loading — handleStyleData() retries on the next
+      // `styledata` event.
     }
   }
 
-  function updateLayerColors() {
+  // Removes draft layers left behind by a session whose teardown was
+  // interrupted, so old geometry can't linger under a fresh draft.
+  function sweepStaleDraftLayers() {
+    if (!map || sweptStaleLayers) return
+    try {
+      const style = map.getStyle?.()
+      if (!style) return
+      const ours = Object.values(layerIds)
+      style.layers?.forEach((layer) => {
+        if (layer.id.startsWith("drawing-tool-") && !ours.includes(layer.id)) {
+          if (map.getLayer(layer.id)) map.removeLayer(layer.id)
+        }
+      })
+      Object.keys(style.sources || {}).forEach((id) => {
+        if (id.startsWith("drawing-tool-") && id !== sourceId) {
+          if (map.getSource(id)) map.removeSource(id)
+        }
+      })
+      sweptStaleLayers = true
+    } catch {
+      // Style not ready — retry on the next ensure pass.
+    }
+  }
+
+  /** @param {string} color */
+  function updateLayerColors(color) {
     if (!map || !sourceId) return
 
     try {
       if (map.getLayer(layerIds.fill)) {
-        map.setPaintProperty(layerIds.fill, "fill-color", selectedColor)
+        map.setPaintProperty(layerIds.fill, "fill-color", color)
       }
       if (map.getLayer(layerIds.line)) {
-        map.setPaintProperty(layerIds.line, "line-color", selectedColor)
+        map.setPaintProperty(layerIds.line, "line-color", color)
       }
       if (map.getLayer(layerIds.points)) {
-        map.setPaintProperty(
-          layerIds.points,
-          "circle-stroke-color",
-          selectedColor,
-        )
+        map.setPaintProperty(layerIds.points, "circle-stroke-color", color)
       }
     } catch (error) {
       console.warn("Error updating layer colors:", error)
@@ -153,14 +213,28 @@
     markerDrawingStore.setColor(color)
   }
 
-  function updateDisplay() {
-    if (!map || !map.getSource(sourceId)) return
+  /**
+   * @param {any[]} pts
+   * @param {string} drawMode
+   */
+  function updateDisplay(pts, drawMode) {
+    if (!map || !sourceId) return
+
+    /** @type {any} */
+    let source = map.getSource(sourceId)
+    if (!source) {
+      // The layer set went missing (style reload / interrupted teardown):
+      // rebuild it, then write the geometry into it.
+      ensureLayers(drawMode, selectedColor)
+      source = map.getSource(sourceId)
+      if (!source) return
+    }
 
     try {
       const features = []
 
       // Add points
-      points.forEach((point, index) => {
+      pts.forEach((point, index) => {
         features.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: point },
@@ -168,24 +242,24 @@
         })
       })
 
-      if (mode === "area" && points.length >= 3) {
+      if (drawMode === "area" && pts.length >= 3) {
         // Show polygon
-        const closedPoints = [...points, points[0]]
+        const closedPoints = [...pts, pts[0]]
         features.push({
           type: "Feature",
           geometry: { type: "Polygon", coordinates: [closedPoints] },
           properties: {},
         })
-      } else if (points.length >= 2) {
+      } else if (pts.length >= 2) {
         // Show line
         features.push({
           type: "Feature",
-          geometry: { type: "LineString", coordinates: points },
+          geometry: { type: "LineString", coordinates: pts },
           properties: {},
         })
       }
 
-      map.getSource(sourceId).setData({
+      source.setData({
         type: "FeatureCollection",
         features,
       })
@@ -197,19 +271,25 @@
   function cleanupLayers() {
     if (!map || !sourceId) return
 
+    const ids = layerIds
+    const src = sourceId
+    // Drop our handles first: if a removal throws (style mid-swap) the next
+    // session must not keep pointing at a dead source. Any leftovers are
+    // swept by sweepStaleDraftLayers() when the next draft is created.
+    sourceId = null
+    layerIds = { fill: null, line: null, points: null }
+    sweptStaleLayers = false
+
     try {
-      Object.values(layerIds).forEach((layerId) => {
+      Object.values(ids).forEach((layerId) => {
         if (layerId && map.getLayer && map.getLayer(layerId)) {
           map.removeLayer(layerId)
         }
       })
 
-      if (map.getSource && map.getSource(sourceId)) {
-        map.removeSource(sourceId)
+      if (map.getSource && map.getSource(src)) {
+        map.removeSource(src)
       }
-
-      sourceId = null
-      layerIds = { fill: null, line: null, points: null }
     } catch (error) {
       console.warn("Error cleaning up layers:", error)
     }

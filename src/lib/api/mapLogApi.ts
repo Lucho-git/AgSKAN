@@ -9,6 +9,7 @@ export interface MapLogEntry {
     id: number
     occurred_at: string
     source: string
+    actor_id: string | null
     actor_name: string
     action: string
     entity_type: string
@@ -53,7 +54,7 @@ export async function fetchMapLogPage(
     let query = supabase
         .from("map_log")
         .select(
-            "id, occurred_at, source, actor_name, action, entity_type, entity_id, summary, details",
+            "id, occurred_at, source, actor_id, actor_name, action, entity_type, entity_id, summary, details",
         )
         .eq("master_map_id", masterMapId)
         .order("id", { ascending: false })
@@ -69,6 +70,40 @@ export async function fetchMapLogPage(
     const { data, error } = await query
     if (error) throw new Error(error.message)
     return (data ?? []) as MapLogEntry[]
+}
+
+/** Machine snapshot for an actor — lets a marker show whose vehicle left it. */
+export interface VehicleSnapshot {
+    vehicleId: string
+    vehicleType: string | null
+    bodyColor: string | null
+}
+
+/** Current vehicle marker (type + body colour) for the given vehicle/profile ids. */
+export async function fetchVehicleSnapshots(
+    vehicleIds: string[],
+): Promise<Map<string, VehicleSnapshot>> {
+    const out = new Map<string, VehicleSnapshot>()
+    const ids = vehicleIds.filter(Boolean)
+    if (!ids.length) return out
+
+    const { data, error } = await supabase
+        .from("vehicle_state")
+        .select("vehicle_id, vehicle_marker")
+        .in("vehicle_id", ids)
+
+    if (error) return out
+
+    for (const row of data ?? []) {
+        if (!row.vehicle_id) continue
+        const marker = row.vehicle_marker || {}
+        out.set(row.vehicle_id, {
+            vehicleId: row.vehicle_id,
+            vehicleType: marker.type ?? null,
+            bodyColor: marker.bodyColor ?? null,
+        })
+    }
+    return out
 }
 
 /** How many log entries landed since `sinceIso` (drives the tab badge). */

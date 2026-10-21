@@ -281,54 +281,73 @@
   .confirm-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 7px;
     border: none;
     border-radius: 999px;
-    padding: 8px 12px;
+    min-height: 44px;
+    padding: 10px 16px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 12px;
-    font-weight: 600;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.06s ease;
+    font-size: 13px;
+    font-weight: 700;
+    touch-action: manipulation;
+    white-space: nowrap;
   }
 
   .cancel-btn {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1.5px solid rgba(248, 113, 113, 0.85);
+    color: #fecaca;
   }
 
   .cancel-btn:hover {
     background: rgba(239, 68, 68, 0.3);
-    color: white;
-    transform: scale(1.05);
+    color: #fff;
   }
 
+  /* Primary action — solid fill so it reads clearly in sunlight. */
   .confirm-btn {
-    background: rgba(34, 197, 94, 0.2);
-    border: 1px solid rgba(34, 197, 94, 0.4);
-    color: #22c55e;
+    background: #16a34a;
+    border: 1.5px solid #86efac;
+    color: #fff;
   }
 
   .confirm-btn:hover:not(.disabled) {
-    background: rgba(34, 197, 94, 0.3);
-    color: white;
-    transform: scale(1.05);
+    background: #15803d;
+  }
+
+  .cancel-btn:active,
+  .confirm-btn:active:not(.disabled) {
+    transform: scale(0.98);
   }
 
   .confirm-btn.disabled {
-    opacity: 0.3;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.4);
     cursor: not-allowed;
   }
 
   @media (max-width: 768px) {
+    .drawing-mode-panel {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
     .drawing-mode-header {
-      padding: 12px 16px;
-      min-height: 60px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px 14px;
+      min-height: 0;
     }
 
     .drawing-icon {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
     }
 
     .drawing-title {
@@ -340,28 +359,26 @@
     }
 
     .drawing-actions {
-      gap: 8px;
+      gap: 10px;
     }
 
-    .btn-text {
-      display: none;
-    }
-
+    /* Big, labelled, thumb-sized buttons — the labels stay visible so the
+       actions are never a guess. */
     .cancel-btn,
     .confirm-btn {
-      padding: 8px;
-      width: 40px;
-      height: 40px;
-      justify-content: center;
+      flex: 1;
+      min-height: 52px;
+      padding: 12px 16px;
+      font-size: 15px;
+      gap: 9px;
     }
   }
 
   @media (max-width: 480px) {
     .cancel-btn,
     .confirm-btn {
-      width: 40px;
-      height: 40px;
-      padding: 8px;
+      min-height: 56px;
+      font-size: 16px;
     }
   }
 </style>

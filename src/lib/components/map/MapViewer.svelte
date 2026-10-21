@@ -22,6 +22,7 @@
   import { drawingModeEnabled } from "$lib/stores/controlStore"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import { messagePanelStore } from "$lib/stores/messageStore"
   import { fileApi } from "$lib/api/fileApi"
   import { toast } from "svelte-sonner"
   import { browser } from "$app/environment"
@@ -110,6 +111,19 @@
   let mapEventManagerRef = null
   let trailHighlighter = null
   let toolboxRef = null
+
+  // Opening chat takes over the screen: clear whatever selection panel is
+  // showing (vehicle / field / marker / trail) so the chat isn't stranded
+  // underneath it. Routed through MapEventManager so its global selection
+  // state stays in step with the panels it clears.
+  let wasMessagePanelOpen = false
+  $: {
+    const messagePanelOpen = !!$messagePanelStore
+    if (messagePanelOpen && !wasMessagePanelOpen) {
+      mapEventManagerRef?.setSelection?.(null, null, null)
+    }
+    wasMessagePanelOpen = messagePanelOpen
+  }
 
   // Manager references
   let satelliteManager = null
