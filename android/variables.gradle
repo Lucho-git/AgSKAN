@@ -1,5 +1,6 @@
 ext {
-    minSdkVersion = 23
+    // Play's "automatic protection" rejects bundles with minSdk < 24.
+    minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.9.2'

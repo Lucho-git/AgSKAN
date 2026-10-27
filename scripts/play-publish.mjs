@@ -32,6 +32,9 @@ import { readJson } from "./lib/json.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const API = "https://androidpublisher.googleapis.com/androidpublisher/v3"
+// Media uploads live under a different prefix: without /upload the bundle is
+// parsed as a JSON body and rejected with "Invalid JSON payload".
+const UPLOAD_API = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3"
 const SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 
 export const DEFAULT_AAB = resolve(
@@ -55,6 +58,38 @@ function readPlaySigningInfo() {
   } catch {
     return undefined
   }
+}
+
+/** Play's raw error JSON is unhelpful; map the common ones to an action. */
+export function explainPlayError(message) {
+  const hints = []
+  if (/invalid_grant/i.test(message)) {
+    hints.push(
+      "The key is wrong, revoked, or belongs to a different service account than the one invited in Play Console.",
+    )
+  }
+  if (/has not been used in project|SERVICE_DISABLED|it is disabled/i.test(message)) {
+    hints.push(
+      "Enable the API in the Cloud project: https://console.developers.google.com/apis/api/androidpublisher.googleapis.com/",
+    )
+  }
+  if (/has not been linked in the Google Play Developer Console/i.test(message)) {
+    hints.push(
+      "Link the Cloud project: Play Console → Setup → API access → Link a Google Cloud project.",
+    )
+  }
+  if (/does not own the application|caller does not have permission|insufficient permissions for this request/i.test(message)) {
+    hints.push(
+      "Give the service account access to this app: Play Console → Users and permissions → the service-account row → App permissions → tick 'Release to production, exclude devices, and use Play App Signing'.",
+    )
+  }
+  if (/minimum SDK version/i.test(message)) {
+    hints.push(
+      "Raise minSdkVersion (Play's automatic protection requires 24+) in android/variables.gradle, then rebuild and re-upload. The rejected versionCode was not consumed.",
+    )
+  }
+  if (!hints.length) return message
+  return `${message}\n\nWhat to do:\n${hints.map((hint) => `  - ${hint}`).join("\n")}`
 }
 
 /** Locate the service-account JSON, or explain how to provide it. */
@@ -245,7 +280,7 @@ export async function publishBundle({
 
   try {
     const uploadRes = await fetch(
-      `${API}/applications/${packageName}/edits/${edit.id}/bundles?uploadType=media`,
+      `${UPLOAD_API}/applications/${packageName}/edits/${edit.id}/bundles?uploadType=media`,
       {
         method: "POST",
         headers: {
@@ -335,6 +370,79 @@ export async function publishBundle({
   }
 }
 
+/**
+ * Move an already-uploaded versionCode to a live release status without
+ * re-uploading it (Play rejects a second bundle with the same versionCode).
+ */
+export async function promoteRelease({
+  packageName,
+  versionCode,
+  track = "production",
+  status = "completed",
+  userFraction,
+  releaseNotes,
+  notesLanguage = "en-US",
+  credentials,
+  log = console.log,
+}) {
+  const { creds, path: credsPath } = findCredentials(credentials)
+  const token = await getAccessToken(creds, credsPath)
+  const edit = await openEdit(token, packageName)
+
+  try {
+    const { tracks = [] } = await api(
+      token,
+      "GET",
+      `/applications/${packageName}/edits/${edit.id}/tracks`,
+    )
+    const target = (tracks.find((t) => t.track === track)?.releases ?? []).find(
+      (release) =>
+        (release.versionCodes ?? []).map(String).includes(String(versionCode)),
+    )
+    if (!target) {
+      throw new Error(
+        `versionCode ${versionCode} is not on the "${track}" track.\n` +
+          "Upload it first (npm run app:publish:upload) or pick a versionCode from the track listing.",
+      )
+    }
+
+    const release = { ...target, status }
+    if (userFraction !== undefined && userFraction !== null) {
+      if (status === "completed") release.status = "inProgress"
+      release.userFraction = userFraction
+    } else {
+      delete release.userFraction
+    }
+    if (releaseNotes) {
+      release.releaseNotes = [
+        { language: notesLanguage, text: releaseNotes.slice(0, 500) },
+      ]
+    }
+
+    await api(
+      token,
+      "PATCH",
+      `/applications/${packageName}/edits/${edit.id}/tracks/${track}`,
+      { track, releases: [release] },
+    )
+    await api(
+      token,
+      "POST",
+      `/applications/${packageName}/edits/${edit.id}:commit`,
+    )
+    log(
+      `✅ ${track} ← ${release.name ?? versionCode} / ${versionCode} is now ` +
+        `${release.status}${release.userFraction != null ? ` (${Math.round(release.userFraction * 100)}%)` : ""} — no re-upload needed.`,
+    )
+    return release
+  } catch (error) {
+    if (await discardEdit(token, packageName, edit.id)) {
+      log(`↩ Discarded edit ${edit.id} (nothing changed).`)
+    }
+    throw error
+  }
+}
+
 /** List every track (opens and discards a throwaway edit). Read-only. */
 export async function listTracks({ packageName, credentials }) {
   const { creds, path: credsPath } = findCredentials(credentials)
@@ -396,6 +504,7 @@ const KNOWN_FLAGS = new Set([
   "validate",
   "no-sign-check",
   "check",
+  "promote",
   "dry-run",
   "help",
   "h",
@@ -415,6 +524,7 @@ const HELP = `Usage: node scripts/play-publish.mjs [options]
   --validate            ask Play to validate the edit before committing
   --no-sign-check       skip the "does this AAB look signed" heuristic
   --check               read-only: authenticate and list the tracks (setup check)
+  --promote <code>      push an already-uploaded versionCode live (no re-upload)
   --dry-run             check bundle + credentials, do not touch Play
   -h, --help            this help
 `
@@ -487,6 +597,41 @@ async function main() {
     return
   }
 
+  if (args.promote) {
+    if (args.promote === true) {
+      throw new Error(
+        "--promote needs a versionCode, e.g. `npm run app:publish:promote -- 297`.",
+      )
+    }
+    const versionCode = Number(args.promote)
+    if (!Number.isInteger(versionCode) || versionCode <= 0) {
+      throw new Error(`--promote needs a numeric versionCode, got "${args.promote}".`)
+    }
+    if (args["dry-run"]) {
+      const trackLabel = args.track ?? "production"
+      const statusLabel =
+        args.fraction === undefined
+          ? (args.status ?? "completed")
+          : `inProgress at ${Math.round(Number(args.fraction) * 100)}%`
+      console.log(
+        `Dry run — would set versionCode ${versionCode} on ${trackLabel} to ${statusLabel}.`,
+      )
+      return
+    }
+    await promoteRelease({
+      packageName,
+      versionCode,
+      track: args.track ?? "production",
+      status: args.status ?? "completed",
+      userFraction:
+        args.fraction === undefined ? undefined : Number(args.fraction),
+      releaseNotes,
+      notesLanguage: args["notes-lang"] ?? "en-US",
+      credentials: args.credentials,
+    })
+    return
+  }
+
   if (args["dry-run"]) {
     const { creds, path } = findCredentials(args.credentials)
     console.log(
@@ -540,7 +685,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   main().catch((error) => {
     // Note: process.exitCode (not process.exit) — exiting while an upload socket
     // is still open aborts libuv on Windows ("Assertion failed ... UV_HANDLE_CLOSING").
-    console.error(`\n✗ ${error.message}\n`)
+    console.error(`\n✗ ${explainPlayError(error.message)}\n`)
     process.exitCode = 1
   })
 }

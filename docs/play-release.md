@@ -42,6 +42,21 @@ npm run app:publish -- 297 --no-gradle                 # upload an existing AAB 
 `npm run app:publish:upload` uploads the AAB that is already on disk without
 bumping or rebuilding (same options as above). `npm run app:publish:check`
 reports the current track contents and proves the service account works.
+`npm run app:publish:promote -- <versionCode>` moves a version that is already
+on Play (e.g. a draft or an internal-testing build) to a live release without
+re-uploading it — Play rejects a second bundle with the same versionCode.
+
+### Draft → rollout workflow
+
+```bash
+npm run app:publish:rebuild -- --status draft   # upload only; nothing goes live
+# review it in Play Console if you want, then either:
+npm run app:publish:promote -- 297              # full production rollout
+npm run app:publish:promote -- 297 --fraction 0.1   # or 10% staged
+```
+
+If you rebuild after a draft upload, the versionCode is already taken — bump to
+a new version (`npm run app:publish`) instead of re-uploading the same one.
 
 ---
 
@@ -121,36 +136,44 @@ npm run app:publish -- --build-only     # prints "... signed"
 
 ### 2. Play Developer API service account
 
-1. Play Console → **Setup → API access**. If it says no Cloud project is
-   linked, choose **Link an existing project** or **Create a new project** and
-   accept. This is what enables the *Google Play Android Developer API* — if a
-   later call fails with 403 *"API has not been used … or is disabled"*, enable
-   that API yourself under console.cloud.google.com → **APIs & Services →
-   Library** for the linked project.
-2. In the linked Cloud project go to **IAM & Admin → Service accounts → Create
-   service account**, give it a name (e.g. `agskan-play-publisher`), skip the
-   optional role step, and click **Done** (Play permissions are granted in Play
-   Console, not IAM).
-3. Open the new service account → **Keys → Add key → Create new key → JSON**.
-   The key downloads once — keep it, you cannot download it again.
-4. Save it as `android/play-service-account.json` (git-ignored), or point to it
+1. **Google Cloud Console** → [create or pick a project](https://console.cloud.google.com/projectcreate)
+   (e.g. `agskan-play`).
+2. **Enable the API**: open the [Google Play Android Developer API page](https://console.developers.google.com/apis/api/androidpublisher.googleapis.com/)
+   and click **Enable**. (Without this every call fails with
+   *"API has not been used … or is disabled"*.)
+3. **IAM & Admin → Service accounts → Create service account** in that project.
+   Name it e.g. `agskan-play-publisher`, skip the "grant this service account
+   access" step, and click **Done** — Play permissions are granted in Play
+   Console, not via IAM roles.
+4. Open the new service account → **Keys → Add key → Create new key → JSON**.
+   The key downloads once; you cannot download it again.
+5. Save it as `android/play-service-account.json` (git-ignored), or point to it
    with an environment variable:
 
 ```powershell
 $env:PLAY_SERVICE_ACCOUNT_JSON = "C:\keys\agskan-play.json"
 ```
 
-5. Back in Play Console → **Users and permissions → Invite new users**, paste
-   the service account email (`...@....iam.gserviceaccount.com`) and choose
-   **App permissions → AgSKAN**:
+6. **Play Console → Users and permissions → Invite new users**, paste the
+   service-account email (`...@....iam.gserviceaccount.com`), then
+   **App permissions → add app → AgSKAN**:
    - tick *Release to production, exclude devices, and use Play App Signing*;
    - tick *Release to testing tracks* if you use `--track internal/beta`;
    - leave **Account permissions** empty unless you want the API to see
-     financial data.
-   Click **Invite user** (the wording is "Save"/"Send invite" depending on the
-   console version).
+     financial data (required only for the Billing APIs).
+   Click **Invite user**.
 
-Permissions usually take effect within a few minutes.
+Permissions usually take effect within a few minutes. The service account will
+show up as a user with 0 app installs — that is expected.
+
+Shortcut for steps 1–4 if you have `gcloud` (still do step 6 in the browser):
+
+```bash
+gcloud services enable androidpublisher.googleapis.com
+gcloud iam service-accounts create agskan-play-publisher --display-name="AgSKAN Play publisher"
+gcloud iam service-accounts keys create android/play-service-account.json \
+  --iam-account=agskan-play-publisher@<PROJECT_ID>.iam.gserviceaccount.com
+```
 
 The key can also be supplied per run with `--credentials <path>`. The
 credential search order is `--credentials` → `PLAY_SERVICE_ACCOUNT_JSON` →
@@ -165,6 +188,50 @@ npm run app:publish:check
 That mints a token, lists the app's tracks (production/internal/…), and prints
 them — read-only, nothing is uploaded. `npm run app:publish -- --dry-run` is
 the lighter check that only inspects local files.
+
+### Troubleshooting the API setup
+
+The scripts translate these for you, but in short:
+
+| Error | Meaning / fix |
+|-------|----------------|
+| `invalid_grant: account not found` | The JSON key is wrong, revoked, or from a different service account than the one invited. |
+| `API has not been used … or is disabled` | Enable the *Google Play Android Developer API* in the Cloud project (step 2). |
+| `project id … has not been linked` | Older error: Play Console → **Setup → API access** → **Link a Google Cloud project**. |
+| `PERMISSION_DENIED` / `does not own the application` | The service account has no app permission — redo step 6 and tick the release boxes. |
+| `409` on release | Another edit is open (Play Console UI or an earlier crashed run). Finish/discard it in **Publishing overview**, or wait ~1 hour. |
+| `Play automatic protection requires a minimum SDK version of 24` | `minSdkVersion` in `android/variables.gradle` is too low; raise it to 24 (or higher), rebuild, re-upload. The rejected versionCode is not consumed. |
+
+**"Service account key creation is disabled"** (`iam.managed.disableServiceAccountKeyCreation`)
+is a Google Cloud organisation policy, not a Play Console setting — Workspace
+domains get this baseline constraint enforced automatically. Three ways out:
+
+1. **Relax it (fastest if you own the domain).** You need the
+   *Organisation Policy Administrator* role (`roles/orgpolicy.policyAdmin`) on
+   the organisation. Then open
+   [Org policies → Disable service account key creation](https://console.cloud.google.com/iam-admin/orgpolicies/iam-managed.disableServiceAccountKeyCreation)
+   → **Manage policy** → **Override parent's policy** / **Enforcement: Off** →
+   **Set policy**. From Cloud Shell:
+   ```bash
+   gcloud org-policies describe iam.managed.disableServiceAccountKeyCreation --effective
+   gcloud org-policies reset iam.managed.disableServiceAccountKeyCreation --organization=<ORG_ID>
+   ```
+   (If the constraint appears "managed" and cannot be overridden at project
+   level, apply the change at the organisation root.)
+   If `gcloud` answers `Permission 'orgpolicy.policies.create' denied`, you are
+   not an org policy admin — find who is with
+   `gcloud organizations get-iam-policy <ORG_ID>` (or just use option 2 below).
+2. **Use a project outside the organisation.** Sign in to
+   [console.cloud.google.com](https://console.cloud.google.com) with a **personal
+   Gmail** account (no Workspace → no baseline policy), create the project,
+   enable the API, and create the service account + JSON key there. Play Console
+   only cares about the service account *email* you invite, not which project or
+   organisation it lives in.
+3. **Go keyless instead.** Run the release in CI with Workload Identity
+   Federation + `iamcredentials.generateAccessToken` impersonation, or grant an
+   OAuth client for user-based access (Play Console → **Setup → API access**).
+   Both avoid downloadable keys; they need code/runners beyond this repo's
+   laptop flow.
 
 ### 3. Android Studio (optional)
 

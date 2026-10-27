@@ -27,6 +27,7 @@
     "app:publish:draft": "node scripts/app-release-play.mjs --status draft",
     "app:publish:upload": "node scripts/play-publish.mjs",
     "app:publish:check": "node scripts/play-publish.mjs --check",
+    "app:publish:promote": "node scripts/play-publish.mjs --promote",
     "app:setup-key": "node scripts/setup-upload-key.mjs",
     "build:app": "node scripts/app-release.mjs",
     "build:app:patch": "node scripts/app-release.mjs patch",

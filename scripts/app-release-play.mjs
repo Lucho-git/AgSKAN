@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url"
 
 import { findKeytool, normalizeFingerprint, printJarSignerSha256 } from "./lib/java-tools.mjs"
 import { readJson } from "./lib/json.mjs"
-import { DEFAULT_AAB, findCredentials, publishBundle, readTrack } from "./play-publish.mjs"
+import { DEFAULT_AAB, explainPlayError, findCredentials, publishBundle, readTrack } from "./play-publish.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const androidDir = resolve(root, "android")
@@ -455,6 +455,6 @@ try {
 } catch (error) {
   // process.exitCode (not process.exit): closing the process while an upload
   // socket is open aborts libuv on Windows.
-  console.error(`\n✗ ${error.message}\n`)
+  console.error(`\n✗ ${explainPlayError(error.message)}\n`)
   process.exitCode = 1
 }
