@@ -28,9 +28,11 @@ vite.config.ts.timestamp-*
 /android/app/build/
 /android/build/
 /android/.gradle/
-/android/gradle/wrapper/gradle-wrapper.jar # Some prefer to version this, others ignore
+# The wrapper jar is committed on purpose so builds work without a Gradle install.
+# /android/gradle/wrapper/gradle-wrapper.jar
 /android/local.properties
-/android/keystore.properties # release signing credentials — never commit
+# release signing credentials - never commit
+/android/keystore.properties
 /android/.idea/
 /android/**/*.iml
 /android/captures/
@@ -44,7 +46,8 @@ vite.config.ts.timestamp-*
 /ios/build/
 /ios/DerivedData/
 /ios/Pods/
-/ios/**/*.xcscheme # User-specific schemes. Shared schemes are sometimes committed.
+# User-specific Xcode schemes (shared schemes are committed)
+/ios/**/*.xcscheme
 /ios/*/*.xcworkspace/xcuserdata/
 /ios/.swiftpm/
 
@@ -56,3 +59,7 @@ vite.config.ts.timestamp-*
 *.key
 *.mobileprovision
 *.orig.*
+
+# Google Play upload credentials - never commit
+/android/play-service-account.json
+**/play-service-account*.json

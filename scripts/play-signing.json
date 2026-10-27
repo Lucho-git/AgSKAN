@@ -1,0 +1,6 @@
+{
+  "$comment": "Play Console -> Setup -> App signing (com.skanfarming). Used by npm run app:setup-key and the release preflight to verify the upload key. Update these if you ever reset the upload key.",
+  "appSigningSha256": "61:35:BA:29:A8:29:C3:0F:F1:39:DE:91:71:8B:D2:9C:47:FE:EC:35:E9:90:92:A1:96:77:AC:EC:D7:D6:9C:1F",
+  "uploadSha256": "6E:C9:34:D4:BC:63:46:DF:CE:82:00:7C:4F:36:47:6A:8F:45:B2:41:1B:06:D9:F4:96:EC:51:CD:EC:5E:3F:66",
+  "uploadAlias": "android-keystore"
+}
