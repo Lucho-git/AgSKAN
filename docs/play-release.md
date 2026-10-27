@@ -248,6 +248,18 @@ Nothing in the release path needs the Studio UI, but for local debugging:
 
 ## Notes and guardrails
 
+- **Play SDK floors.** `minSdkVersion` must be at least 24 (Play rejects the
+  upload otherwise) and `targetSdkVersion` must be at least 36 for updates
+  (Play rejects the *review* otherwise — the "App must target Android 16
+  (API level 36) or higher" policy item). Both live in
+  `android/variables.gradle`; the preflight prints them and warns when they
+  fall below the values in `PLAY_MIN_SDK` / `PLAY_MIN_TARGET_SDK`
+  (`scripts/app-release-play.mjs`). Google raises the target requirement every
+  31 August — update that constant once a year.
+- A policy item about the target API level is judged against the **release that
+  is live**, so it clears only after a compliant version is rolled out (a draft
+  does not change it).
+
 - **Version numbers** stay `MAJOR.MINOR` names with `versionCode = MAJOR*100 + MINOR`
   (see `scripts/app-release.mjs`). Play rejects a reused `versionCode`, so never
   re-upload a version that is already live — use a new bump.

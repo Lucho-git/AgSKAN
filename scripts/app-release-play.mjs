@@ -175,6 +175,22 @@ function hasCommand(cmd) {
 
 const versionJson = readJson(versionPath)
 
+// Play's current floors. Update these when Play raises them (targetSdk moves
+// up every 31 August; minSdk is enforced at upload time).
+const PLAY_MIN_TARGET_SDK = 36
+const PLAY_MIN_SDK = 24
+
+/** Read ext.minSdkVersion / ext.targetSdkVersion from android/variables.gradle. */
+function readAndroidSdkLevels() {
+  const path = resolve(androidDir, "variables.gradle")
+  if (!existsSync(path)) return {}
+  const text = readFileSync(path, "utf8")
+  return {
+    minSdk: Number(text.match(/minSdkVersion\s*=\s*(\d+)/)?.[1]),
+    targetSdk: Number(text.match(/targetSdkVersion\s*=\s*(\d+)/)?.[1]),
+  }
+}
+
 // Fingerprints from Play Console → Setup → App signing (see scripts/play-signing.json).
 function readSigningInfo() {
   const path = resolve(root, "scripts/play-signing.json")
@@ -193,6 +209,28 @@ const notes = []
 
 if (!existsSync(gradlew)) problems.push(`missing gradle wrapper: ${gradlew}`)
 if (!hasCommand("java")) problems.push("java not found on PATH (Android Studio ships one — set JAVA_HOME or use its terminal)")
+
+// Play rejects uploads/reviews that do not meet its SDK floors; say so before
+// a 2-minute build and a 46 MB upload.
+const sdk = readAndroidSdkLevels()
+if (Number.isFinite(sdk.targetSdk) && sdk.targetSdk < PLAY_MIN_TARGET_SDK) {
+  notes.push(
+    `targetSdkVersion ${sdk.targetSdk} is below Play's current requirement (${PLAY_MIN_TARGET_SDK}) — ` +
+      "updates are rejected at review. Raise targetSdkVersion in android/variables.gradle.",
+  )
+}
+if (Number.isFinite(sdk.minSdk) && sdk.minSdk < PLAY_MIN_SDK) {
+  problems.push(
+    `minSdkVersion ${sdk.minSdk} is below Play's floor (${PLAY_MIN_SDK}) — uploads fail with ` +
+      "'Play automatic protection requires a minimum SDK version'. Raise it in android/variables.gradle.",
+  )
+}
+if (Number.isFinite(sdk.targetSdk) && Number.isFinite(sdk.minSdk)) {
+  console.log(
+    `  ✓ minSdk ${sdk.minSdk} / targetSdk ${sdk.targetSdk}` +
+      (sdk.targetSdk >= PLAY_MIN_TARGET_SDK ? " (meets Play's floors)" : ""),
+  )
+}
 
 const uploading = !args["build-only"]
 // A signed bundle is needed whenever gradle runs — build-only included.
