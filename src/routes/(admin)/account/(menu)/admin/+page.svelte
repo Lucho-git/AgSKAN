@@ -22,6 +22,49 @@
   import { NotepadText, X } from "lucide-svelte"
   import { noteIsDirty, timeAgo } from "$lib/utils/adminFormat"
 
+  type QuickFilter = "all" | "exceeding" | "no_mapping" | "dormant"
+  type AttentionTone = "error" | "warning" | "info"
+
+  interface AttentionFilter {
+    key: Exclude<QuickFilter, "all">
+    label: string
+    count: number
+    icon: string
+    tone: AttentionTone
+    title: string
+    disabled: boolean
+  }
+
+  // Written out in full so Tailwind keeps the classes.
+  const ATTENTION_TONE: Record<AttentionTone, { active: string }> = {
+    error: {
+      active:
+        "border-error/35 bg-error/10 text-error ring-1 ring-inset ring-error/20",
+    },
+    warning: {
+      active:
+        "border-warning/35 bg-warning/10 text-warning ring-1 ring-inset ring-warning/20",
+    },
+    info: {
+      active:
+        "border-info/35 bg-info/10 text-info ring-1 ring-inset ring-info/20",
+    },
+  }
+
+  const statCard = "rounded-xl border border-base-300 bg-base-100 p-3"
+  const statLabel =
+    "text-[11px] font-medium uppercase tracking-wider text-contrast-content/50"
+  const statValue =
+    "mt-2 text-2xl font-semibold leading-none tabular-nums text-contrast-content"
+  const statNote = "mt-2 text-[11px] leading-snug text-contrast-content/55"
+
+  function formatHectares(ha: number): string {
+    if (!Number.isFinite(ha) || ha <= 0) return "—"
+    if (ha >= 1_000_000) return `${(ha / 1_000_000).toFixed(1)}M ha`
+    if (ha >= 1_000) return `${Math.round(ha / 1_000)}k ha`
+    return `${Math.round(ha)} ha`
+  }
+
   // Imagery sources (mirrors SatelliteControls.svelte)
   const IMAGERY_SOURCES: Record<
     string,
@@ -62,7 +105,7 @@
   let errorMessage = ""
   let selectedMapId: string | null = null
   let searchQuery = ""
-  let quickFilter: "all" | "exceeding" | "no_mapping" | "dormant" = "all"
+  let quickFilter: QuickFilter = "all"
   let filterPlan: "all" | "paid" | "free" = "all"
   let sortBy: "default" | "latest" = "latest"
   let lastRefreshed: Date | null = null
@@ -315,6 +358,40 @@
     (e) => e.vehicles_active_30d === 0 && e.members_active_30d === 0,
   ).length
 
+  // Filter chips: neutral until selected, so they read as filters rather than
+  // as a permanent wall of alerts.
+  $: attentionFilters = [
+    {
+      key: "exceeding",
+      label: "over seats",
+      count: exceedingCount,
+      icon: "solar:shield-warning-bold-duotone",
+      tone: "error",
+      title: "Clients over their seat limit",
+      disabled: false,
+    },
+    {
+      key: "no_mapping",
+      label: "no mapping",
+      count: noMappingCount,
+      icon: "solar:map-bold-duotone",
+      tone: "warning",
+      title: contentStatsLoaded
+        ? "Clients with no fields mapped yet"
+        : "Mapping stats unavailable",
+      disabled: !contentStatsLoaded,
+    },
+    {
+      key: "dormant",
+      label: "dormant",
+      count: dormantCount,
+      icon: "solar:clock-circle-bold-duotone",
+      tone: "info",
+      title: "No vehicle or member activity in the last 30 days",
+      disabled: false,
+    },
+  ] as AttentionFilter[]
+
   // Filtered & searched entries
   $: filteredEntries = entries
     .filter((e) => {
@@ -407,6 +484,23 @@
     .map((e) => activityMap.get(e.master_map_id)?.active_profiles ?? 0)
     .reduce((a, b) => a + b, 0)
 
+  $: activeClients7d = entries.filter((e) => e.vehicles_active_7d > 0).length
+  $: paidSeatsUsed = entries
+    .filter((e) => e.subscription !== "FREE" && e.subscription_status !== "free")
+    .reduce((sum, e) => sum + e.connected_vehicles, 0)
+  $: seatsOverLimit = entries.reduce((sum, e) => sum + e.seats_over_limit, 0)
+  $: seatUsagePct = paidSeats
+    ? Math.min(100, Math.round((paidSeatsUsed / paidSeats) * 100))
+    : 0
+  $: mappedHectares = entries.reduce(
+    (sum, e) => sum + (contentStatsMap.get(e.master_map_id)?.field_hectares ?? 0),
+    0,
+  )
+  $: mappedFields = entries.reduce(
+    (sum, e) => sum + (contentStatsMap.get(e.master_map_id)?.field_count ?? 0),
+    0,
+  )
+
   // ── Data loading ──────────────────────────────────────────────────────────
   async function loadData() {
     loading = true
@@ -464,66 +558,85 @@
 </svelte:head>
 
 <!-- Header -->
-<div
-  class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 font-inter lg:p-5"
->
-  <h2
-    class="flex items-center gap-2 text-xl font-semibold text-contrast-content"
+<header class="border-b border-base-300 bg-base-100 font-inter">
+  <div
+    class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-6"
   >
-    <div class="rounded-lg bg-warning/20 p-1.5">
-      <Icon
-        icon="solar:shield-keyhole-bold-duotone"
-        width="18"
-        height="18"
-        class="text-warning"
-      />
+    <div class="flex min-w-0 items-center gap-3">
+      <div
+        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-warning/15 ring-1 ring-inset ring-warning/25"
+      >
+        <Icon
+          icon="solar:shield-keyhole-bold-duotone"
+          width="20"
+          height="20"
+          class="text-warning"
+        />
+      </div>
+      <div class="min-w-0">
+        <h1
+          class="truncate text-lg font-semibold leading-tight text-contrast-content"
+        >
+          Admin Dashboard
+        </h1>
+        <p
+          class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-contrast-content/55"
+        >
+          <span class="tabular-nums">{totalMaps} clients</span>
+          <span class="text-contrast-content/20">·</span>
+          <span class="tabular-nums">{totalUsers} users</span>
+          {#if lastRefreshed}
+            <span class="text-contrast-content/20">·</span>
+            <span class="tabular-nums"
+              >updated {lastRefreshed.toLocaleTimeString()}</span
+            >
+          {/if}
+        </p>
+      </div>
     </div>
-    Admin Dashboard
-  </h2>
-  <div class="flex items-center gap-2">
-    <button
-      class="btn btn-outline btn-sm gap-1"
-      on:click={openLimitsModal}
-      title="Manage limit warnings per map"
-    >
-      <Icon
-        icon="solar:shield-warning-bold-duotone"
-        width="16"
-        height="16"
-        class="text-warning"
-      />
-      Limits
-    </button>
-    <button
-      class="btn btn-outline btn-sm gap-1"
-      on:click={loadData}
-      disabled={loading}
-    >
-      <Icon
-        icon="solar:refresh-bold-duotone"
-        width="16"
-        height="16"
-        class={loading ? "animate-spin" : ""}
-      />
-      Refresh
-    </button>
-  </div>
-</div>
 
-<div class="space-y-4 p-3 font-inter sm:p-4 lg:space-y-5 lg:p-6">
+    <div class="flex items-center gap-1.5">
+      <button
+        class="btn btn-ghost btn-sm gap-1.5 text-contrast-content/70 hover:text-contrast-content"
+        on:click={openLimitsModal}
+        title="Manage limit warnings per map"
+      >
+        <Icon icon="solar:shield-warning-bold-duotone" width="16" height="16" />
+        <span class="hidden sm:inline">Limits</span>
+      </button>
+      <button
+        class="btn btn-sm gap-1.5 border-base-300 bg-base-100 hover:bg-base-200"
+        on:click={loadData}
+        disabled={loading}
+        aria-busy={loading}
+        title="Reload dashboard data"
+      >
+        <Icon
+          icon="solar:refresh-bold-duotone"
+          width="16"
+          height="16"
+          class={loading ? "animate-spin" : ""}
+        />
+        {loading ? "Refreshing…" : "Refresh"}
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="space-y-3 p-3 font-inter sm:space-y-4 sm:p-4 lg:space-y-5 lg:p-6">
   {#if loading && entries.length === 0}
     <!-- Loading skeleton -->
     <div class="flex items-center justify-center py-20">
       <div class="text-center">
         <span class="loading loading-spinner loading-lg text-warning"></span>
         <p class="mt-3 text-sm text-contrast-content/60">
-          Loading admin data...
+          Loading admin data…
         </p>
       </div>
     </div>
   {:else if errorMessage && entries.length === 0}
     <!-- Error state -->
-    <div class="rounded-lg border border-error/20 bg-error/5 p-8 text-center">
+    <div class="rounded-xl border border-error/20 bg-error/5 p-8 text-center">
       <Icon
         icon="solar:danger-triangle-bold-duotone"
         width="40"
@@ -536,184 +649,257 @@
       </button>
     </div>
   {:else}
-    <!-- KPI strip — slim single-bar layout -->
-    <div
-      class="flex flex-wrap items-start gap-x-10 gap-y-3 rounded-xl border border-base-300 bg-base-200/30 px-4 py-3 lg:px-5"
+    <!-- KPI cards -->
+    <section
+      class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-6"
+      aria-label="Dashboard summary"
     >
-      <div>
-        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
-          Clients
-        </p>
-        <p class="mt-1 flex items-baseline gap-2">
-          <span class="text-xl font-semibold leading-none tabular-nums text-contrast-content"
-            >{totalMaps}</span
-          >
-          <span class="text-xs text-contrast-content/60"
-            >{activeClients} with activity 24h</span
-          >
-        </p>
-      </div>
-      <div>
-        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
-          Users
-        </p>
-        <p class="mt-1 flex items-baseline gap-2">
-          <span class="text-xl font-semibold leading-none tabular-nums text-contrast-content"
-            >{totalUsers}</span
-          >
-          <span class="text-xs text-contrast-content/60"
-            >{activeUsers24h} active 24h · {activeUsers30d} active 30d</span
-          >
-        </p>
-      </div>
-      <div>
-        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
-          Paid plans
-        </p>
-        <p class="mt-1 flex items-baseline gap-2">
-          <span class="text-xl font-semibold leading-none tabular-nums text-primary"
-            >{proCount}</span
-          >
-          <span class="text-xs text-contrast-content/60">{paidSeats} seats</span>
-        </p>
-      </div>
-      <div>
-        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
-          Free plans
-        </p>
-        <p class="mt-1 flex items-baseline gap-2">
-          <span
-            class="text-xl font-semibold leading-none tabular-nums text-contrast-content/70"
-            >{freeCount}</span
-          >
-          <span class="text-xs text-contrast-content/60"
-            >{headlessCount} headless</span
-          >
-        </p>
-      </div>
-      <div>
-        <p class="text-[11px] font-medium uppercase tracking-wider text-contrast-content/50">
-          Over seats
-        </p>
-        <p class="mt-1 flex items-baseline gap-2">
-          <span class="text-xl font-semibold leading-none tabular-nums text-error"
-            >{exceedingCount}</span
-          >
-          <span class="text-xs text-contrast-content/60">seat limit warnings</span>
-        </p>
-      </div>
-    </div>
-
-    <!-- Attention queue -->
-    <div class="flex flex-wrap items-center gap-2">
-      <span
-        class="text-xs font-semibold uppercase tracking-wider text-contrast-content/50"
-        >Attention</span
-      >
-      <button
-        type="button"
-        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {quickFilter ===
-        'exceeding'
-          ? 'border-error/40 bg-error/15 text-error'
-          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
-        title="Clients over their seat limit"
-        on:click={() =>
-          (quickFilter = quickFilter === "exceeding" ? "all" : "exceeding")}
-      >
-        <Icon icon="solar:shield-warning-bold-duotone" width="13" height="13" />
-        {exceedingCount} over seats
-      </button>
-      <button
-        type="button"
-        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 {quickFilter ===
-        'no_mapping'
-          ? 'border-warning/40 bg-warning/15 text-warning'
-          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
-        title={contentStatsLoaded
-          ? "Clients with no fields mapped yet"
-          : "Mapping stats unavailable"}
-        disabled={!contentStatsLoaded}
-        on:click={() =>
-          (quickFilter = quickFilter === "no_mapping" ? "all" : "no_mapping")}
-      >
-        <Icon icon="solar:map-bold-duotone" width="13" height="13" />
-        {noMappingCount} no mapping
-      </button>
-      <button
-        type="button"
-        class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {quickFilter ===
-        'dormant'
-          ? 'border-info/40 bg-info/15 text-info'
-          : 'border-base-300 text-contrast-content/60 hover:bg-base-200'}"
-        title="No vehicle or member activity in the last 30 days"
-        on:click={() =>
-          (quickFilter = quickFilter === "dormant" ? "all" : "dormant")}
-      >
-        <Icon icon="solar:clock-circle-bold-duotone" width="13" height="13" />
-        {dormantCount} dormant
-      </button>
-    </div>
-
-    <!-- Search & filters -->
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div class="relative flex-1">
-        <Icon
-          icon="solar:magnifer-bold-duotone"
-          width="16"
-          height="16"
-          class="absolute left-3 top-1/2 -translate-y-1/2 text-contrast-content/40"
-        />
-        <input
-          type="text"
-          placeholder="Search by name, email, map, or member..."
-          class="input input-sm input-bordered w-full pl-9"
-          bind:value={searchQuery}
-        />
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Plan filter -->
-        <div class="flex gap-0.5 rounded-lg bg-base-200/50 p-0.5">
-          <button
-            class="btn btn-xs {filterPlan === 'all'
-              ? 'btn-neutral'
-              : 'btn-ghost'}"
-            on:click={() => (filterPlan = "all")}>All</button
-          >
-          <button
-            class="btn btn-xs {filterPlan === 'paid'
-              ? 'btn-neutral'
-              : 'btn-ghost'}"
-            on:click={() => (filterPlan = "paid")}>Paid</button
-          >
-          <button
-            class="btn btn-xs {filterPlan === 'free'
-              ? 'btn-neutral'
-              : 'btn-ghost'}"
-            on:click={() => (filterPlan = "free")}>Free</button
-          >
+      <article class={statCard} title="Farms with at least one member reporting GPS">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Clients</p>
+          <Icon
+            icon="solar:users-group-rounded-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
         </div>
-        <div class="h-4 w-px bg-base-300"></div>
-        <!-- Sort -->
-        <select
-          bind:value={sortBy}
-          class="select select-bordered select-xs w-32"
+        <p class={statValue}>{totalMaps}</p>
+        <p class={statNote}>
+          <span class="font-semibold text-success">{activeClients}</span>
+          active 24h
+          <span class="mx-1 text-contrast-content/20">·</span>
+          <span class="font-medium text-contrast-content/70">{activeClients7d}</span>
+          in 7d
+        </p>
+      </article>
+
+      <article class={statCard} title="Members across every client">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Users</p>
+          <Icon
+            icon="solar:user-check-rounded-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
+        </div>
+        <p class={statValue}>{totalUsers}</p>
+        <p class={statNote}>
+          <span class="font-semibold text-success">{activeUsers24h}</span>
+          active 24h
+          <span class="mx-1 text-contrast-content/20">·</span>
+          <span class="font-medium text-contrast-content/70">{activeUsers30d}</span>
+          in 30d
+        </p>
+      </article>
+
+      <article class={statCard} title="Clients on a paid plan, and seats in use">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Paid plans</p>
+          <Icon
+            icon="solar:card-recive-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
+        </div>
+        <p class="{statValue} text-primary">{proCount}</p>
+        <p class={statNote}>
+          <span class="font-medium text-contrast-content/70">{paidSeatsUsed}</span>
+          of {paidSeats} seats in use
+        </p>
+        <div class="mt-2 h-1 w-full overflow-hidden rounded-full bg-base-300">
+          <div
+            class="h-full rounded-full bg-primary transition-[width]"
+            style="width: {seatUsagePct}%"
+          ></div>
+        </div>
+      </article>
+
+      <article class={statCard} title="Clients on the free plan; headless = owner has no device reporting">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Free plans</p>
+          <Icon
+            icon="solar:gift-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
+        </div>
+        <p class="{statValue} text-contrast-content/80">{freeCount}</p>
+        <p class={statNote}>
+          <span class="font-medium text-contrast-content/70">{headlessCount}</span>
+          headless
+        </p>
+      </article>
+
+      <article class={statCard} title="Clients whose connected devices exceed their seat allowance">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Over seats</p>
+          <Icon
+            icon="solar:shield-warning-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
+        </div>
+        <p class="{statValue} {exceedingCount > 0 ? 'text-error' : ''}">
+          {exceedingCount}
+        </p>
+        <p class={statNote}>
+          <span class="font-medium text-contrast-content/70">{seatsOverLimit}</span>
+          seats over limit
+        </p>
+      </article>
+
+      <article class={statCard} title="Total area across mapped fields">
+        <div class="flex items-start justify-between gap-2">
+          <p class={statLabel}>Mapped</p>
+          <Icon
+            icon="solar:map-bold-duotone"
+            width="15"
+            height="15"
+            class="shrink-0 text-contrast-content/25"
+          />
+        </div>
+        <p class="{statValue} text-accent">{formatHectares(mappedHectares)}</p>
+        <p class={statNote}>
+          <span class="font-medium text-contrast-content/70">{mappedFields}</span>
+          fields mapped
+        </p>
+      </article>
+    </section>
+
+    <!-- Filters: attention chips + search + plan/sort -->
+    <section class="overflow-hidden rounded-xl border border-base-300 bg-base-100">
+      <div class="flex flex-wrap items-center gap-1.5 border-b border-base-300 px-3 py-2">
+        <span
+          class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-contrast-content/45"
+          >Needs attention</span
         >
-          <option value="latest">Latest activity</option>
-          <option value="default">Default order</option>
-        </select>
-        <div class="h-4 w-px bg-base-300"></div>
-        <span class="text-xs text-contrast-content/60">
-          {filteredEntries.length} of {totalMaps} clients
-        </span>
-        {#if lastRefreshed}
-          <span
-            class="hidden text-xs text-contrast-content/40 lg:inline"
-            title="Last refreshed {lastRefreshed.toLocaleTimeString()}"
-            >refreshed {lastRefreshed.toLocaleTimeString()}</span
+        {#each attentionFilters as filter (filter.key)}
+          <button
+            type="button"
+            aria-pressed={quickFilter === filter.key}
+            disabled={filter.disabled}
+            title={filter.title}
+            class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 {quickFilter ===
+            filter.key
+              ? ATTENTION_TONE[filter.tone].active
+              : 'border-transparent bg-base-200/40 text-contrast-content/65 hover:bg-base-200 hover:text-contrast-content'}"
+            on:click={() =>
+              (quickFilter = quickFilter === filter.key ? "all" : filter.key)}
           >
+            <Icon
+              icon={filter.icon}
+              width="13"
+              height="13"
+              class={quickFilter === filter.key
+                ? ""
+                : "text-contrast-content/40"}
+            />
+            <span class="font-semibold tabular-nums">{filter.count}</span>
+            <span>{filter.label}</span>
+          </button>
+        {/each}
+        {#if quickFilter !== "all"}
+          <button
+            type="button"
+            class="ml-auto flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-contrast-content/60 hover:bg-base-200 hover:text-contrast-content"
+            on:click={() => (quickFilter = "all")}
+          >
+            <Icon icon="solar:close-circle-bold-duotone" width="13" height="13" />
+            Clear filter
+          </button>
         {/if}
       </div>
-    </div>
+
+      <div class="flex flex-col gap-2 px-3 py-2.5 lg:flex-row lg:items-center lg:gap-3">
+        <div class="relative flex-1">
+          <Icon
+            icon="solar:magnifer-bold-duotone"
+            width="15"
+            height="15"
+            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-contrast-content/35"
+          />
+          <input
+            type="text"
+            placeholder="Search name, email, farm or member…"
+            class="input input-sm w-full border-base-300 bg-base-100 pl-9 pr-8 text-sm placeholder:text-contrast-content/35"
+            bind:value={searchQuery}
+          />
+          {#if searchQuery}
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-contrast-content/40 hover:text-contrast-content"
+              on:click={() => (searchQuery = "")}
+              title="Clear search"
+            >
+              <Icon
+                icon="solar:close-circle-bold-duotone"
+                width="14"
+                height="14"
+              />
+            </button>
+          {/if}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div
+            class="flex rounded-lg bg-base-200/70 p-0.5 ring-1 ring-inset ring-base-300/70"
+            role="group"
+            aria-label="Plan filter"
+          >
+            <button
+              class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors {filterPlan ===
+              'all'
+                ? 'bg-base-100 text-contrast-content shadow-sm'
+                : 'text-contrast-content/60 hover:text-contrast-content'}"
+              on:click={() => (filterPlan = "all")} aria-pressed={filterPlan === "all"}>All</button
+            >
+            <button
+              class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors {filterPlan ===
+              'paid'
+                ? 'bg-base-100 text-contrast-content shadow-sm'
+                : 'text-contrast-content/60 hover:text-contrast-content'}"
+              on:click={() => (filterPlan = "paid")} aria-pressed={filterPlan === "paid"}>Paid</button
+            >
+            <button
+              class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors {filterPlan ===
+              'free'
+                ? 'bg-base-100 text-contrast-content shadow-sm'
+                : 'text-contrast-content/60 hover:text-contrast-content'}"
+              on:click={() => (filterPlan = "free")} aria-pressed={filterPlan === "free"}>Free</button
+            >
+          </div>
+
+          <select
+            bind:value={sortBy}
+            class="select select-xs w-36 border-base-300 bg-base-100"
+            aria-label="Sort clients"
+            title="Sort clients"
+          >
+            <option value="latest">Latest activity</option>
+            <option value="default">Default order</option>
+          </select>
+
+          <span class="text-xs tabular-nums text-contrast-content/55">
+            <span class="font-semibold text-contrast-content/80"
+              >{filteredEntries.length}</span
+            >
+            of {totalMaps}
+          </span>
+
+          {#if searchQuery || quickFilter !== "all" || filterPlan !== "all"}
+            <button
+              class="text-xs font-medium text-primary hover:underline"
+              on:click={clearFilters}>Reset</button
+            >
+          {/if}
+        </div>
+      </div>
+    </section>
 
     <!-- Client list — responsive table (columns collapse on smaller screens) -->
     {#if filteredEntries.length === 0}
