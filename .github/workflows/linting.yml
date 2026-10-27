@@ -2,9 +2,17 @@ name: Linting
 
 on: [push]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PUBLIC_SUPABASE_URL: 'https://fake_test_url.supabase.co'
   PUBLIC_SUPABASE_ANON_KEY: 'fake_anon_key'
+  PUBLIC_MAPBOX_ACCESS_TOKEN: 'pk.fake_ci_token'
   PRIVATE_SUPABASE_SERVICE_ROLE: 'fake_service_role'
   PRIVATE_STRIPE_API_KEY: 'fake_strip_api_key'
   PUBLIC_SITE_NAME: 'AgSKAN Build Test'
@@ -13,19 +21,22 @@ jobs:
   lint_and_check:
     name: Lint and Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: NPM install
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
+      # Both checks are informational for now: src/ has roughly 1.6k
+      # pre-existing lint errors. Drop continue-on-error once cleared.
       - name: Linting
         run: npm run lint
         continue-on-error: true

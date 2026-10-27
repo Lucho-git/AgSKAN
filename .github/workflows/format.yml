@@ -2,6 +2,13 @@ name: Format Check
 
 on: [push]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PUBLIC_SUPABASE_URL: 'https://fake_test_url.supabase.co'
   PUBLIC_SUPABASE_ANON_KEY: 'fake_anon_key'
@@ -13,21 +20,23 @@ jobs:
   format_check:
     name: Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: NPM install
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
+      # Informational only: src/ is not Prettier-clean yet (443 files), so this
+      # reports rather than blocks. Drop continue-on-error after running
+      # "npm run format" and committing the result.
       - name: Check Code Format
-        run: |
-          echo "Running format check..."
-          npm run format_check || echo "Formatting issues found, but continuing workflow"
+        run: npm run format_check
         continue-on-error: true

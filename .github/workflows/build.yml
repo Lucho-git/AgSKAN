@@ -1,12 +1,24 @@
 name: Build
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PUBLIC_SUPABASE_URL: 'https://fake.example.com'
   PUBLIC_SUPABASE_ANON_KEY: 'fake_anon_key'
+  # Required: src/lib/utils/thumbnailRenderer.ts imports it from $env/static/public,
+  # so the build fails without a value at build time.
+  PUBLIC_MAPBOX_ACCESS_TOKEN: 'pk.fake_ci_token'
   PRIVATE_SUPABASE_SERVICE_ROLE: 'fake_service_role'
-  PRIVATE_STRIPE_WEBHOOK_SECRET: 'fake_webhook_secret' 
+  PRIVATE_STRIPE_WEBHOOK_SECRET: 'fake_webhook_secret'
   PRIVATE_STRIPE_API_KEY: 'fake_api_key'
   PUBLIC_SITE_NAME: 'AgSKAN Build Test'
   PUBLIC_VAPID_APPLICATION_SERVER_KEY: '[0,0,0,0]'
@@ -27,18 +39,24 @@ jobs:
   build_and_test:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
+      # Node >= 20 is required: @capacitor/cli declares engines.node >=20 and
+      # .npmrc sets engine-strict=true, so an older Node fails during install.
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '22'
           cache: 'npm'
 
+      # plotly.js pulls in style-loader, whose webpack peer is not needed to
+      # consume plotly. Without this flag npm on Linux requires webpack in the
+      # lockfile and the install aborts with "Missing: webpack from lock file".
       - name: NPM install
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
-      - name: SvelteKit Build 
+      - name: SvelteKit Build
         run: npm run build
