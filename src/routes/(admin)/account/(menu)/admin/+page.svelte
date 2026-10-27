@@ -385,7 +385,11 @@
   $: exceedingCount = entries.filter(
     (e) => e.seat_status === "EXCEEDING",
   ).length
-  $: activeToday = entries.filter((e) => e.vehicles_active_24h > 0).length
+  // Clients (farms) with at least one member reporting GPS in the last 24h.
+  $: activeClients = entries.filter((e) => e.vehicles_active_24h > 0).length
+  // Members (not farms) with a GPS ping in the last 24h — this is the sum of
+  // the per-client "active 24h" badges, so it is much larger than activeClients.
+  $: activeUsers24h = entries.reduce((sum, e) => sum + e.vehicles_active_24h, 0)
   $: proCount = entries.filter(
     (e) => e.subscription !== "FREE" && e.subscription_status !== "free",
   ).length
@@ -545,7 +549,7 @@
             >{totalMaps}</span
           >
           <span class="text-xs text-contrast-content/60"
-            >{activeToday} active 24h</span
+            >{activeClients} with activity 24h</span
           >
         </p>
       </div>
@@ -558,7 +562,7 @@
             >{totalUsers}</span
           >
           <span class="text-xs text-contrast-content/60"
-            >{activeUsers30d} active 30d</span
+            >{activeUsers24h} active 24h · {activeUsers30d} active 30d</span
           >
         </p>
       </div>
