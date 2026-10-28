@@ -319,7 +319,10 @@
 </script>
 
 <!-- HUD Container -->
-<div class="fixed bottom-4 left-4 z-50" style="width: 110px; height: 110px;">
+<div
+  class="vehicle-hud fixed bottom-4 left-4 z-50"
+  style="width: 110px; height: 110px;"
+>
   <!-- ── Operation Name Badge (top-left above hub) ── -->
 
   {#if !vehiclePickerOpen}

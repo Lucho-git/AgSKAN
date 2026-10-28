@@ -38,7 +38,12 @@
     Play,
     Square,
     Timer,
+    EyeOff,
   } from "lucide-svelte"
+  import {
+    mapChromeHiddenStore,
+    setMapChromeHidden,
+  } from "$lib/stores/mapChromeStore"
   import IconSVG from "$lib/components/general/IconSVG.svelte"
   import { getAllMarkers } from "$lib/data/markerDefinitions"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
@@ -72,6 +77,7 @@
 
   onDestroy(() => {
     if (guestTipTimer) clearTimeout(guestTipTimer)
+    cancelChromeHold()
   })
 
   // ── UI variation ──
@@ -246,6 +252,48 @@
     isExpanded = !isExpanded
   }
 
+  // ── Clean-screen mode ──
+  // Tapping the chevron expands / collapses the button list (as before).
+  // Holding it hides the on-screen controls; tapping it again restores them.
+  // Tap-driven selection menus (marker / vehicle / field) are unaffected.
+  const CHROME_HOLD_MS = 500
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let chromeHoldTimer = null
+  let chromeHoldFired = false
+
+  function startChromeHold(event) {
+    // Always reset first: if a previous hold never produced a click, the next
+    // press must not swallow that tap.
+    chromeHoldFired = false
+    if (event?.button > 0) return
+    if ($mapChromeHiddenStore) return
+    chromeHoldTimer = setTimeout(() => {
+      chromeHoldTimer = null
+      chromeHoldFired = true
+      setMapChromeHidden(true)
+    }, CHROME_HOLD_MS)
+  }
+
+  function cancelChromeHold() {
+    if (chromeHoldTimer) {
+      clearTimeout(chromeHoldTimer)
+      chromeHoldTimer = null
+    }
+  }
+
+  function handleChromeToggleClick() {
+    // A hold already toggled the mode — swallow the click it fires on release.
+    if (chromeHoldFired) {
+      chromeHoldFired = false
+      return
+    }
+    if ($mapChromeHiddenStore) {
+      setMapChromeHidden(false)
+      return
+    }
+    toggleExpanded()
+  }
+
   function dropPrimaryMarker() {
     const coordinates = $userVehicleStore.coordinates
     if (coordinates) {
@@ -296,33 +344,35 @@
 
 <div>
   <!-- Back to Dashboard Button, Top Left (guests: leads to their guest home) -->
-  <button
-    class="back-button btn {isCircular
-      ? 'btn-circle'
-      : 'btn-square'} btn-lg absolute left-4 top-4 z-10"
-    on:click={handleBackToDashboard}
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      class="h-6 w-6"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
+  {#if !$mapChromeHiddenStore}
+    <button
+      class="back-button btn {isCircular
+        ? 'btn-circle'
+        : 'btn-square'} btn-lg absolute left-4 top-4 z-10"
+      on:click={handleBackToDashboard}
     >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-      />
-    </svg>
-  </button>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+        />
+      </svg>
+    </button>
+  {/if}
 
   <!-- ── Top-right column: dropdown + marker grid stacked ── -->
   <div class="fixed right-4 top-4 z-20 flex flex-col items-end gap-3">
     <!-- Chevron row: compact marker grid (left) + chevron toggle (right) -->
     <div class="flex items-start gap-3">
-      {#if totalMarkerCount >= 3}
+      {#if totalMarkerCount >= 3 && !$mapChromeHiddenStore}
         <!-- Compact 2-col grid to left of chevron -->
         <div class="marker-grid-panel">
           <button
@@ -398,34 +448,51 @@
 
       <!-- Dropdown menu column -->
       <div class="flex flex-col items-end">
-        <!-- Chevron toggle -->
+        <!-- Chevron toggle: tap expands the list, hold hides every control -->
         <button
           class="top-button btn {isCircular
             ? 'btn-circle'
             : 'btn-square'} btn-lg"
-          on:click={toggleExpanded}
+          class:chrome-restore={$mapChromeHiddenStore}
+          on:pointerdown={startChromeHold}
+          on:pointerup={cancelChromeHold}
+          on:pointerleave={cancelChromeHold}
+          on:pointercancel={cancelChromeHold}
+          on:contextmenu|preventDefault
+          on:click={handleChromeToggleClick}
+          title={$mapChromeHiddenStore
+            ? "Controls hidden — tap to show"
+            : "Tap for menu · hold to hide all controls"}
+          aria-label={$mapChromeHiddenStore
+            ? "Show map controls"
+            : "Map menu (hold to hide all controls)"}
+          aria-pressed={$mapChromeHiddenStore}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8 transition-transform duration-300 {isExpanded
-              ? 'rotate-180'
-              : ''}"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+          {#if $mapChromeHiddenStore}
+            <EyeOff size={28} />
+          {:else}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-8 w-8 transition-transform duration-300 {isExpanded
+                ? 'rotate-180'
+                : ''}"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          {/if}
         </button>
 
         <!-- Button list container -->
         <div
-          class="mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
+          class="map-btn-list mt-3 flex origin-top flex-col items-end space-y-3 transition-all duration-700 ease-in-out {isExpanded
             ? 'scale-100 opacity-90'
             : 'h-50 scale-0 overflow-hidden opacity-0'} trail-below"
         >
@@ -850,6 +917,19 @@
   .top-button:hover {
     background-color: #f7db5c;
     color: #000000;
+  }
+
+  /* Clean-screen mode: the restored-controls toggle sits alone on the map,
+     so fade it back until it is touched. */
+  .top-button.chrome-restore {
+    opacity: 0.5;
+    transition: opacity 0.25s ease;
+  }
+
+  .top-button.chrome-restore:hover,
+  .top-button.chrome-restore:focus-visible,
+  .top-button.chrome-restore:active {
+    opacity: 1;
   }
 
   /* Trailing active state — always red, even when paused */

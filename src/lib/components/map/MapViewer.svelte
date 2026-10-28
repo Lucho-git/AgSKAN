@@ -53,6 +53,10 @@
   import NavigationControl from "$lib/components/map/toolbox/NavigationControl.svelte"
   import Toolbox from "$lib/components/map/toolbox/Toolbox.svelte"
   import { locationPickStore } from "$lib/stores/locationPickStore"
+  import {
+    mapChromeHiddenStore,
+    setMapChromeHidden,
+  } from "$lib/stores/mapChromeStore"
   import CrosshairMarkerPlacement from "$lib/components/map/markers/CrosshairMarkerPlacement.svelte"
   import DrawingTool from "$lib/components/map/overlays/DrawingTool.svelte"
   import DrawingModePanel from "$lib/components/map/overlays/DrawingModePanel.svelte"
@@ -111,6 +115,17 @@
   let mapEventManagerRef = null
   let trailHighlighter = null
   let toolboxRef = null
+
+  // Clean-screen mode (hold the top-right toggle): the persistent chrome is
+  // hidden and the toggle stays so the map can be restored. Tapping a marker,
+  // vehicle or field still opens its selection menu.
+  $: if ($mapChromeHiddenStore && toolboxOpen) toolboxOpen = false
+
+  // Location picking replaces the whole UI, so clean-screen mode must not
+  // survive it — otherwise the restore toggle would be gone.
+  $: if ($locationPickStore.active || $locationPickStore.captured) {
+    setMapChromeHidden(false)
+  }
 
   // Opening chat takes over the screen: clear whatever selection panel is
   // showing (vehicle / field / marker / trail) so the chat isn't stranded
@@ -2052,6 +2067,7 @@
   })
 
   onDestroy(() => {
+    setMapChromeHidden(false)
     if (map) {
       map.off()
       map.remove()
@@ -2080,6 +2096,7 @@
   class="map-container"
   class:location-picking={$locationPickStore.active ||
     $locationPickStore.captured}
+  class:chrome-hidden={$mapChromeHiddenStore}
   bind:this={mapContainer}
 >
   {#if mapboxInitError}
@@ -2105,7 +2122,7 @@
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
 
     <!-- Toolbox Trigger Button (hidden while picking a message location) -->
-    {#if !$locationPickStore.active && !$locationPickStore.captured}
+    {#if !$locationPickStore.active && !$locationPickStore.captured && !$mapChromeHiddenStore}
       <div class="toolbox-trigger-container">
         <button
           class="toolbox-trigger-button"
@@ -2599,6 +2616,21 @@
   /* While choosing / confirming a message location, clear the map UI. */
   .map-container.location-picking :global(.msg-popup-stack),
   .map-container.location-picking :global(.tracking-bar) {
+    display: none !important;
+  }
+
+  /* Clean-screen mode (hold the top-right toggle): hide the persistent
+     chrome only. Map content (field names/hectares, markers, trails) and
+     tap-driven selection menus (marker, vehicle and field panels) stay. */
+  .map-container.chrome-hidden :global(.map-btn-list),
+  .map-container.chrome-hidden :global(.vehicle-hud),
+  .map-container.chrome-hidden :global([data-vehicle-menu-trigger]),
+  .map-container.chrome-hidden :global(.menu-expanded),
+  .map-container.chrome-hidden :global(.tracking-bar),
+  .map-container.chrome-hidden :global(.qa-rail),
+  .map-container.chrome-hidden :global(.edge-badge),
+  .map-container.chrome-hidden :global(.ndvi-bottom-panel),
+  .map-container.chrome-hidden :global(.mapboxgl-ctrl-group) {
     display: none !important;
   }
 </style>
