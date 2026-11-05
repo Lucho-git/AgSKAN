@@ -35,6 +35,15 @@
   import { mapApi } from "$lib/api/mapApi"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
   import { mapSettingsApi } from "$lib/api/mapSettingsApi"
+  import {
+    ensureTeamVehicleStates,
+    refreshTeamVehicleStates,
+    teamVehicleStatesIncomplete,
+  } from "$lib/services/teamActivity"
+  import {
+    registerDomainRetry,
+    unregisterDomainRetry,
+  } from "$lib/stores/dataStatusStore"
 
   // Support team user IDs with kick permissions
   const SUPPORT_TEAM_IDS = [
@@ -57,6 +66,7 @@
   let currentTime = DateTime.utc()
   let timeUpdateInterval
   let forceUpdate = 0
+  let visibilityHandler = null
 
   // Edit name state
   let showEditName = false
@@ -112,7 +122,7 @@
     }
   }
 
-  $: sortedProfiles = $mapActivityStore.connected_profiles.sort((a, b) => {
+  $: sortedProfiles = [...$mapActivityStore.connected_profiles].sort((a, b) => {
     if (a.id === currentUserId) return -1
     if (b.id === currentUserId) return 1
     const aVehicle = $mapActivityStore.vehicle_states.find(
@@ -156,11 +166,34 @@
       currentTime = DateTime.utc()
       forceUpdate++
     }, 30000)
+
+    // The roster is written once by the account layout. If the vehicle_state
+    // half of that load didn't land, every member drops to a generic icon and
+    // "Offline" and stays that way. Repair it whenever this panel appears
+    // (e.g. coming back from Settings or out of the map) instead of waiting
+    // for a full page refresh.
+    void ensureTeamVehicleStates()
+    registerDomainRetry("team", () => refreshTeamVehicleStates())
+
+    if (browser) {
+      visibilityHandler = () => {
+        if (document.visibilityState !== "visible") return
+        if (teamVehicleStatesIncomplete()) {
+          void ensureTeamVehicleStates(null, { force: true })
+        }
+      }
+      document.addEventListener("visibilitychange", visibilityHandler)
+    }
   })
 
   onDestroy(() => {
     if (timeUpdateInterval) {
       clearInterval(timeUpdateInterval)
+    }
+    unregisterDomainRetry("team")
+    if (browser && visibilityHandler) {
+      document.removeEventListener("visibilitychange", visibilityHandler)
+      visibilityHandler = null
     }
   })
 
@@ -336,7 +369,7 @@
 
 <!-- Team Members section -->
 <div
-  class="mt-4 rounded-lg border border-base-300 bg-base-200 p-4 shadow-md transition-all duration-300 hover:shadow-lg md:mt-6 md:p-6"
+  class="mt-4 rounded-2xl bg-base-200/50 p-3 transition-all duration-300 sm:p-4 md:mt-6 md:p-5"
 >
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3 md:mb-6">
     <h2

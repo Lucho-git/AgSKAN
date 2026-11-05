@@ -81,8 +81,8 @@
 
   <!-- Desktop Loading -->
   <div class="mb-8 hidden md:block">
-    <Card class="rounded-lg border border-base-300 bg-base-100 shadow-md">
-      <CardContent class="p-6">
+    <Card class="border-0 bg-transparent shadow-none">
+      <CardContent class="p-0 sm:p-2">
         <div class="mb-6 flex items-center gap-3 border-b border-base-300 pb-4">
           <Skeleton class="h-8 w-8 rounded-full" />
           <div>
@@ -270,10 +270,8 @@
 
   <!-- Desktop Layout -->
   <div class="mb-8 hidden md:block">
-    <div
-      class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-md transition-all duration-300 hover:shadow-lg"
-    >
-      <div class="mb-6 flex items-center gap-3 border-b border-base-300 pb-4">
+    <div class="transition-all duration-300">
+      <div class="mb-4 flex items-center gap-3 border-b border-base-300 pb-3">
         <div
           class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-400/20 shadow-sm"
         >

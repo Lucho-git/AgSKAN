@@ -203,10 +203,37 @@ async function downgradeToFree(userId: string, stripeSubscriptionId?: string) {
     console.log("User downgraded to FREE:", userId)
 }
 
+const smsDryRun = Deno.env.get("SMS_DRY_RUN") === "true"
+
+/**
+ * ClickSend expects E.164 (+61412345678) but profiles.mobile is stored in
+ * local AU format ("0478 638 278"), so normalise before sending.
+ */
+function normalizePhone(raw: string): string {
+    const cleaned = String(raw).replace(/[^\d+]/g, "")
+    if (cleaned.startsWith("+")) return cleaned
+    if (cleaned.startsWith("0061")) return `+61${cleaned.slice(4)}`
+    if (cleaned.startsWith("0")) return `+61${cleaned.replace(/^0+/, "")}`
+    if (cleaned.startsWith("61") && cleaned.length === 11) return `+${cleaned}`
+    return cleaned
+}
+
 /**
  * Send an SMS via ClickSend
  */
 async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
+    const to = normalizePhone(phoneNumber)
+
+    if (!to) {
+        console.error(`[SMS] Invalid phone number: ${phoneNumber}`)
+        return false
+    }
+
+    if (smsDryRun) {
+        console.log(`[SMS] DRY RUN — would send to ${to}: ${message}`)
+        return true
+    }
+
     try {
         const auth = btoa(`${clickSendUser}:${clickSendKey}`)
         const res = await fetch("https://rest.clicksend.com/v3/sms/send", {
@@ -219,8 +246,9 @@ async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
                 messages: [
                     {
                         source: "sdk",
+                        from: "AgSKAN",
                         body: message,
-                        to: phoneNumber,
+                        to,
                     },
                 ],
             }),
@@ -231,7 +259,7 @@ async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
             return false
         }
 
-        console.log(`[SMS] Sent to ${phoneNumber}: ${message}`)
+        console.log(`[SMS] Sent to ${to}: ${message}`)
         return true
     } catch (err) {
         console.error("[SMS] Failed:", err instanceof Error ? err.message : err)
@@ -243,9 +271,9 @@ async function sendSms(phoneNumber: string, message: string): Promise<boolean> {
  * Look up the user's mobile & first name and send an invoice SMS.
  * Checks Stripe customer.phone first, then falls back to profiles.mobile.
  * Supports {firstName} placeholder in the message.
- * Currently restricted to SMS_TEST_NUMBERS whitelist.
+ * Returns true only when ClickSend accepted the message.
  */
-async function sendInvoiceSms(userId: string, stripeCustomerId: string, message: string) {
+async function sendInvoiceSms(userId: string, stripeCustomerId: string, message: string): Promise<boolean> {
     let rawMobile: string | null = null
     let firstName = "there"
 
@@ -261,29 +289,35 @@ async function sendInvoiceSms(userId: string, stripeCustomerId: string, message:
         console.log(`[SMS] Could not retrieve Stripe customer ${stripeCustomerId}:`, err instanceof Error ? err.message : err)
     }
 
-    // 2. Fall back to profiles table
+    // 2. Fall back to profiles table (it stores full_name, there is no first_name column)
     if (!rawMobile) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from("profiles")
-            .select("mobile, first_name")
+            .select("mobile, full_name")
             .eq("id", userId)
             .single()
 
+        if (profileError) {
+            console.error(`[SMS] profiles lookup failed for ${userId}:`, profileError.message)
+        }
+
         rawMobile = profile?.mobile || null
-        if (profile?.first_name) firstName = profile.first_name
+        const fullName = profile?.full_name?.trim()
+        if (fullName) firstName = fullName.split(" ")[0]
     }
 
     if (!rawMobile) {
         console.log(`[SMS] SKIP: No mobile number for user ${userId} (checked Stripe & profiles)`)
-        return
+        return false
     }
 
     const personalized = message.replace("{firstName}", firstName)
 
     const ok = await sendSms(rawMobile, personalized)
     if (!ok) {
-        console.error(`[SMS] FAILED to send to ${normalized} (user ${userId})`)
+        console.error(`[SMS] FAILED to send to ${rawMobile} (user ${userId})`)
     }
+    return ok
 }
 
 /**
@@ -307,6 +341,64 @@ async function shortenUrl(longUrl: string): Promise<string> {
     } catch (err) {
         console.error("[shortenUrl] Error:", err instanceof Error ? err.message : err)
         return longUrl
+    }
+}
+
+/**
+ * Persist the invoice so cron-invoice-reminders can chase it later.
+ * Stripe only sends `due_date` for invoices sent to the customer, so we keep
+ * `created` as well and let the cron fall back to it.
+ */
+async function upsertInvoice(invoice: any) {
+    if (!invoice?.id || !invoice.customer) return
+
+    const { error } = await supabase
+        .from("stripe_invoices")
+        .upsert(
+            {
+                id: invoice.id,
+                customer_id: invoice.customer as string,
+                subscription_id: (invoice.subscription as string) || null,
+                hosted_invoice_url: invoice.hosted_invoice_url || null,
+                amount_due: invoice.amount_due ?? 0,
+                status: invoice.status || null,
+                due_date: invoice.due_date
+                    ? new Date(invoice.due_date * 1000).toISOString()
+                    : null,
+                created: new Date((invoice.created || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+            },
+            { onConflict: "id" }
+        )
+
+    if (error) {
+        console.error(`[Webhook] Failed to store invoice ${invoice.id}:`, error.message)
+    }
+}
+
+/**
+ * Mark a reminder as sent for this specific invoice so the cron doesn't repeat it.
+ */
+async function recordReminder(
+    userId: string,
+    invoiceId: string,
+    subscriptionId: string | null,
+    reminderDay: number
+) {
+    const { error } = await supabase
+        .from("invoice_reminders")
+        .upsert(
+            {
+                user_id: userId,
+                stripe_invoice_id: invoiceId,
+                stripe_subscription_id: subscriptionId,
+                reminder_day: reminderDay,
+                sent_at: new Date().toISOString(),
+            },
+            { onConflict: "stripe_invoice_id,reminder_day" }
+        )
+
+    if (error) {
+        console.error(`[Webhook] Failed to record reminder for ${invoiceId}:`, error.message)
     }
 }
 
@@ -409,6 +501,8 @@ serve(async (req) => {
                 const invoice = event.data.object as any
                 if (!invoice.customer) break
 
+                await upsertInvoice(invoice)
+
                 const userId = await getUserIdFromCustomer(invoice.customer as string)
 
                 if (invoice.subscription) {
@@ -466,18 +560,32 @@ serve(async (req) => {
             // ─── INVOICE PAYMENT FAILED (card declined) ───
             case "invoice.payment_failed": {
                 const invoice = event.data.object as any
-                if (!invoice.subscription || !invoice.customer) break
+                if (!invoice.customer) break
 
-                const userId = await getUserIdFromCustomer(invoice.customer as string)
-                const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string)
-                const updateData = mapSubscriptionToUpdate(subscription)
+                await upsertInvoice(invoice)
 
-                console.log("[Webhook] Invoice PAYMENT FAILED:", {
-                    user_id: userId, status: subscription.status,
-                    attempt: invoice.attempt_count,
-                })
+                let userId: string
+                try {
+                    userId = await getUserIdFromCustomer(invoice.customer as string)
+                } catch (err) {
+                    console.log(`[Webhook] Invoice FAILED ${invoice.id}: no app user for ${invoice.customer} — stored, no SMS (${err instanceof Error ? err.message : err})`)
+                    break
+                }
 
-                await updateSubscription(userId, updateData)
+                if (invoice.subscription) {
+                    const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string)
+                    const updateData = mapSubscriptionToUpdate(subscription)
+
+                    console.log("[Webhook] Invoice PAYMENT FAILED:", {
+                        user_id: userId, status: subscription.status,
+                        attempt: invoice.attempt_count,
+                    })
+
+                    await updateSubscription(userId, updateData)
+                } else {
+                    // Manual invoice with no subscription — nothing to sync, just chase it
+                    console.log("[Webhook] Invoice PAYMENT FAILED (no subscription):", invoice.id)
+                }
 
                 // SMS reminder
                 const email = invoice.customer_email || "your email"
@@ -485,14 +593,20 @@ serve(async (req) => {
                 const reason = invoice.billing_reason || ""
 
                 // Auto-renewal that failed — card issue
+                let sentOk: boolean
                 if (reason === "subscription_cycle") {
-                    await sendInvoiceSms(userId, invoice.customer as string,
+                    sentOk = await sendInvoiceSms(userId, invoice.customer as string,
                         `Hi {firstName}, your automatic renewal with AgSKAN couldn't be processed — your card may have expired.\nSent to: ${email}\nUpdate payment: ${payLink}\nContact: service@skanfarming.com`
                     )
                 } else {
-                    await sendInvoiceSms(userId, invoice.customer as string,
+                    sentOk = await sendInvoiceSms(userId, invoice.customer as string,
                         `Hi {firstName}, a friendly reminder from AgSKAN that your invoice remains unpaid.\nSent to: ${email}\nPay online: ${payLink}\nIf you've already paid please disregard. Contact: service@skanfarming.com`
                     )
+                }
+
+                // This text covers day 0, so the cron must not repeat it
+                if (sentOk) {
+                    await recordReminder(userId, invoice.id, (invoice.subscription as string) || null, 0)
                 }
                 break
             }
@@ -502,7 +616,16 @@ serve(async (req) => {
                 const invoice = event.data.object as any
                 if (!invoice.customer) break
 
-                const userId = await getUserIdFromCustomer(invoice.customer as string)
+                await upsertInvoice(invoice)
+
+                let userId: string
+                try {
+                    userId = await getUserIdFromCustomer(invoice.customer as string)
+                } catch (err) {
+                    console.log(`[Webhook] Invoice SENT ${invoice.id}: no app user for ${invoice.customer} — stored, no SMS (${err instanceof Error ? err.message : err})`)
+                    break
+                }
+
                 const email = invoice.customer_email || "your email"
                 const dueDate = invoice.due_date
                     ? new Date(invoice.due_date * 1000).toLocaleDateString("en-AU")
@@ -520,10 +643,42 @@ serve(async (req) => {
                 } else {
                     // Manual, subscription_create, subscription_update — needs payment
                     const payLink = await shortenUrl(invoice.hosted_invoice_url || "")
-                    await sendInvoiceSms(userId, invoice.customer as string,
+                    const sentOk = await sendInvoiceSms(userId, invoice.customer as string,
                         `Hi {firstName},\nInvoice from AgSKAN — due ${dueDate}\nPay online: ${payLink}\nSent to: ${email}\nContact: service@skanfarming.com`
                     )
+
+                    // This text covers day 0, so the cron must not repeat it
+                    if (sentOk) {
+                        await recordReminder(userId, invoice.id, (invoice.subscription as string) || null, 0)
+                    }
                 }
+                break
+            }
+
+            // ─── INVOICE LIFECYCLE (persist so the reminder cron can chase it) ───
+            case "invoice.created":
+            case "invoice.finalized":
+            case "invoice.updated":
+            case "invoice.overdue":
+            case "invoice.voided":
+            case "invoice.marked_uncollectible":
+            case "invoice.deleted": {
+                const invoice = event.data.object as any
+                if (!invoice.id) break
+
+                if (event.type === "invoice.deleted") {
+                    await supabase.from("stripe_invoices").delete().eq("id", invoice.id)
+                    break
+                }
+
+                await upsertInvoice(invoice)
+
+                console.log(`[Webhook] Invoice ${event.type.replace("invoice.", "").toUpperCase()}:`, {
+                    id: invoice.id,
+                    status: invoice.status,
+                    due_date: invoice.due_date,
+                    amount_due: invoice.amount_due,
+                })
                 break
             }
 

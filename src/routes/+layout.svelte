@@ -18,6 +18,14 @@
   // reference resolves without duplicating the ~300 KB library per icon.
   import IconSprite from "$lib/components/general/IconSprite.svelte"
 
+  // Connectivity awareness: shared status store + the "can't reach the server"
+  // strip, plus the on-device network simulator used to reproduce patchy
+  // reception (see $lib/utils/networkSimulator.ts).
+  import { startNetworkMonitor } from "$lib/stores/networkStore"
+  import { startDataRecovery } from "$lib/stores/dataStatusStore"
+  import { installNetworkSimulator } from "$lib/utils/networkSimulator"
+  import NetworkBanner from "$lib/components/general/NetworkBanner.svelte"
+
   // Capacitor imports
   import { Capacitor } from "@capacitor/core"
   // --- Screen header (status/navigation bars) ---
@@ -427,6 +435,12 @@
     // Patch navigator.geolocation FIRST, before any map/location code runs
     patchGeolocationForNative()
 
+    // Connectivity: install the simulator hook before anything makes a
+    // request, then start probing. Both are idempotent.
+    installNetworkSimulator()
+    startNetworkMonitor()
+    startDataRecovery()
+
     console.log(
       "+++++ ROOT LAYOUT ONMOUNT (iOS Native + Android JS Theme Handling) +++++",
     )
@@ -586,6 +600,7 @@
     ></div>
   {/if}
   <slot />
+  <NetworkBanner />
   <Toaster
     expand={true}
     position="top-center"

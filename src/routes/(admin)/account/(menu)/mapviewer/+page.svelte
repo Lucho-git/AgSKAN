@@ -16,6 +16,14 @@
   import { farmApi } from "$lib/api/farmApi"
   import { profileStore } from "$lib/stores/profileStore"
   import GuestMapBar from "$lib/components/map/GuestMapBar.svelte"
+  import {
+    classifyLoadError,
+    type LoadFailure,
+  } from "$lib/utils/networkErrors"
+  import {
+    networkStore,
+    refreshNetworkNow,
+  } from "$lib/stores/networkStore"
 
   import { locationApi } from "$lib/api/locationApi" // Import the locationApi
   export let data: PageData
@@ -23,6 +31,7 @@
   // Client-side state
   let loading = true
   let error = null
+  let loadFailure: LoadFailure | null = null
   let fields = []
   let objectLocation = null
   let initialLocation = null
@@ -104,7 +113,10 @@
       return fields
     } catch (err) {
       console.error("Error loading fields:", err)
-      error = err.message || "Failed to load fields"
+      loadFailure = classifyLoadError(err, {
+        browserOnline: $networkStore.browserOnline,
+      })
+      error = loadFailure.detail || "Failed to load fields"
       toast.error("Failed to load field data")
       throw err
     }
@@ -163,6 +175,7 @@
       // Set up device-specific features
       requestWakeLock()
       document.addEventListener("visibilitychange", handleVisibilityChange)
+      window.addEventListener("online", handleBackOnline)
     }
   })
 
@@ -170,8 +183,15 @@
     if (browser) {
       releaseWakeLock()
       document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("online", handleBackOnline)
     }
   })
+
+  // A map that couldn't load because the device has no signal should come
+  // back by itself rather than waiting for the user to notice.
+  function handleBackOnline() {
+    if (loadFailure && browser) window.location.reload()
+  }
 
   function handleVisibilityChange() {
     if (browser) {
@@ -194,6 +214,27 @@
     }
     goto("/account")
   }
+
+  let retrying = false
+
+  async function handleRetry() {
+    if (retrying) return
+    retrying = true
+    try {
+      const state = await refreshNetworkNow(true)
+      if (state.status === "online") {
+        window.location.reload()
+        return
+      }
+      toast.error(
+        state.status === "offline"
+          ? "Still offline — reconnect and we'll load the map automatically."
+          : "Still can't reach AgSKAN. We'll keep trying.",
+      )
+    } finally {
+      retrying = false
+    }
+  }
 </script>
 
 {#if browser}
@@ -213,15 +254,34 @@
     <div
       class="fixed left-0 top-0 flex h-full w-full items-center justify-center"
     >
-      <div class="max-w-md rounded-lg bg-red-50 p-6 text-center shadow-lg">
-        <h2 class="text-2xl font-bold text-red-700">Error Loading Map</h2>
-        <p class="mt-2 text-red-600">{error}</p>
+      <div
+        class="max-w-md rounded-lg p-6 text-center shadow-lg"
+        class:bg-amber-50={loadFailure?.kind === "offline" ||
+          loadFailure?.kind === "timeout"}
+        class:bg-red-50={loadFailure?.kind !== "offline" &&
+          loadFailure?.kind !== "timeout"}
+      >
+        {#if loadFailure?.kind === "offline" || loadFailure?.kind === "timeout"}
+          <h2 class="text-2xl font-bold text-amber-800">
+            {loadFailure.title}
+          </h2>
+          <p class="mt-2 text-amber-700">{loadFailure.detail}</p>
+          <p class="mt-3 text-sm text-amber-700/80">
+            We'll load the map automatically as soon as you're back online.
+          </p>
+        {:else}
+          <h2 class="text-2xl font-bold text-red-700">
+            {loadFailure?.title ?? "Error Loading Map"}
+          </h2>
+          <p class="mt-2 text-red-600">{loadFailure?.detail ?? error}</p>
+        {/if}
         <div class="mt-6 flex justify-center space-x-4">
           <button
-            class="rounded bg-primary px-4 py-2 text-white"
-            on:click={() => window.location.reload()}
+            class="rounded bg-primary px-4 py-2 text-white disabled:opacity-60"
+            on:click={handleRetry}
+            disabled={retrying}
           >
-            Try Again
+            {retrying ? "Checking..." : "Try Again"}
           </button>
           <button
             class="rounded border border-gray-300 bg-white px-4 py-2 text-gray-700"

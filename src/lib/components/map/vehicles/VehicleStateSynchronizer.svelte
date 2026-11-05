@@ -26,6 +26,7 @@
   import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
   import { App } from "@capacitor/app"
   import { Capacitor } from "@capacitor/core"
+  import { networkStore } from "$lib/stores/networkStore"
 
   let channel = null
   let appStateListener = null
@@ -37,6 +38,28 @@
   const DATABASE_UPDATE_INTERVAL = 10000 // 10 seconds
   const POLL_INTERVAL_MS = 60000 // 60 seconds – safety-net only (prefer postgres_changes)
   let pollInterval = null
+
+  // ── Realtime recovery ────────────────────────────────────────────────────
+  // Supabase Realtime does not reliably rejoin a channel after a network drop.
+  // Without this, the socket stayed dead and the 60s `vehicle_state` poll
+  // silently became the only source of positions — spots jumping once a minute
+  // instead of moving live. So: detect the failure, rebuild the channel with
+  // backoff, and only lean on the poll while realtime is actually down.
+  const REALTIME_RETRY_BASE_MS = 2000
+  const REALTIME_RETRY_MAX_MS = 30000
+  const POLL_INTERVAL_HEALTHY_MS = 300000 // 5 min — realtime is doing the work
+  let realtimeHealthy = false
+  let realtimeAttempts = 0
+  let realtimeRetryTimer = null
+  let realtimeMasterMapId = null
+  let realtimeUserId = null
+  let hadSubscription = false
+  let resubscribing = false
+  /** Re-creates the channel; set by onMount so retries can rebuild it. */
+  let rebuildChannelFn = null
+  let unsubNetworkRecovery = null
+  let onlineRecoveryHandler = null
+  let visibilityRecoveryHandler = null
 
   function parseUpdateTime(value) {
     if (!value) return 0
@@ -741,6 +764,113 @@
     previousVehicleData = { ...vehicleData }
   }
 
+  // ── Vehicle realtime: build / rebuild / recover ─────────────────────────
+  function restartPoll(intervalMs) {
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
+    pollInterval = setInterval(() => {
+      void pollVehicleStates()
+    }, intervalMs)
+  }
+
+  function clearRealtimeRetry() {
+    if (realtimeRetryTimer) {
+      clearTimeout(realtimeRetryTimer)
+      realtimeRetryTimer = null
+    }
+  }
+
+  /** Pull one authoritative snapshot — used to close the gap after a reconnect. */
+  async function refreshVehicleSnapshot(masterMapId, userId) {
+    try {
+      const snapshot = await fetchInitialVehicleData(masterMapId, userId)
+      serverOtherVehiclesData.set(snapshot)
+      const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
+      otherVehiclesDataChanges.set(changes)
+      console.log("[vehicle-rt] snapshot refreshed after reconnect")
+    } catch (error) {
+      console.warn("[vehicle-rt] snapshot refresh failed:", error)
+    }
+  }
+
+  function onRealtimeSubscribed(masterMapId, userId) {
+    realtimeHealthy = true
+    realtimeAttempts = 0
+    clearRealtimeRetry()
+
+    try {
+      channel?.track({
+        user_id: userId,
+        online_at: new Date().toISOString(),
+      })
+    } catch (error) {
+      console.warn("Presence track failed:", error)
+    }
+
+    // Realtime is live again, so the poll drops back to a slow safety net.
+    restartPoll(POLL_INTERVAL_HEALTHY_MS)
+
+    if (hadSubscription) {
+      console.log("[vehicle-rt] resubscribed — catching up on missed updates")
+      void refreshVehicleSnapshot(masterMapId, userId)
+    }
+    hadSubscription = true
+  }
+
+  function scheduleRealtimeResubscribe() {
+    if (realtimeRetryTimer) return
+
+    const delay = Math.min(
+      REALTIME_RETRY_MAX_MS,
+      REALTIME_RETRY_BASE_MS * 2 ** realtimeAttempts,
+    )
+    realtimeAttempts += 1
+
+    realtimeRetryTimer = setTimeout(() => {
+      realtimeRetryTimer = null
+      void resubscribeVehicleChannel("retry")
+    }, delay)
+  }
+
+  function onRealtimeLost(status, err) {
+    if (realtimeHealthy) {
+      console.warn(`[vehicle-rt] channel ${status} — falling back to polling`)
+    }
+    if (err) console.warn("[vehicle-rt] channel error:", err)
+    realtimeHealthy = false
+    // Poll harder while realtime is down so positions stay roughly current.
+    restartPoll(POLL_INTERVAL_MS)
+    scheduleRealtimeResubscribe()
+  }
+
+  async function resubscribeVehicleChannel(reason = "manual") {
+    if (resubscribing) return
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      // Wait for the connectivity monitor to tell us we're back.
+      return
+    }
+    if (!realtimeMasterMapId || !realtimeUserId) return
+    if (!rebuildChannelFn) return
+
+    resubscribing = true
+    try {
+      console.log(`[vehicle-rt] rebuilding realtime channel (${reason})`)
+      if (channel) {
+        try {
+          await supabase.removeChannel(channel)
+        } catch (error) {
+          console.warn("[vehicle-rt] removeChannel failed:", error)
+        }
+        channel = null
+      }
+      channel = rebuildChannelFn()
+    } finally {
+      resubscribing = false
+    }
+  }
+
   onMount(async () => {
     console.log("Initializing VehicleStateSynchronizer")
     const userId = $profileStore.id
@@ -828,8 +958,16 @@
     const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
     otherVehiclesDataChanges.set(changes)
 
-    channel = supabase
-      .channel(`vehicle_updates_${masterMapId}`, {
+    realtimeMasterMapId = masterMapId
+    realtimeUserId = userId
+
+    // Built as a closure so it can be re-created on reconnect: Supabase
+    // Realtime does not reliably rejoin a channel after a network drop, and
+    // when it dies this component silently fell back to the 60s
+    // `vehicle_state` poll — "positions jump once a minute" instead of live.
+    const buildChannel = () =>
+      supabase
+        .channel(`vehicle_updates_${masterMapId}`, {
         config: { presence: { key: userId } },
       })
       .on("presence", { event: "sync" }, () => {
@@ -1006,14 +1144,22 @@
           handleProfileChanged(payload.new)
         },
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         if (status === "SUBSCRIBED") {
-          channel.track({
-            user_id: userId,
-            online_at: new Date().toISOString(),
-          })
+          onRealtimeSubscribed(masterMapId, userId)
+          return
+        }
+        if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          onRealtimeLost(status, err)
         }
       })
+
+    rebuildChannelFn = buildChannel
+    channel = buildChannel()
 
     // Messaging presence: when the app goes to the background, drop out of
     // the online set so senders know to push a phone notification instead of
@@ -1043,8 +1189,29 @@
     }
 
     // Reliable polling fallback — catches background-sync DB writes
-    // even when broadcast + postgres_changes both miss
-    pollInterval = setInterval(pollVehicleStates, POLL_INTERVAL_MS)
+    // even when broadcast + postgres_changes both miss. Starts at the fast
+    // interval and backs off to 5 min as soon as realtime subscribes.
+    restartPoll(POLL_INTERVAL_MS)
+
+    // Recover realtime the moment the connection is usable again. The probe
+    // store is used rather than the browser `online` event so a silent drop
+    // (radio associated, no upstream) also triggers a rebuild.
+    unsubNetworkRecovery = networkStore.subscribe((net) => {
+      if (net.status === "online" && !realtimeHealthy) {
+        void resubscribeVehicleChannel("network-recovered")
+      }
+    })
+
+    onlineRecoveryHandler = () => {
+      if (!realtimeHealthy) void resubscribeVehicleChannel("online-event")
+    }
+    visibilityRecoveryHandler = () => {
+      if (document.visibilityState === "visible" && !realtimeHealthy) {
+        void resubscribeVehicleChannel("visibility")
+      }
+    }
+    window.addEventListener("online", onlineRecoveryHandler)
+    document.addEventListener("visibilitychange", visibilityRecoveryHandler)
 
     unsubscribe = userVehicleStore.subscribe(async (vehicleData) => {
       await broadcastVehicleState(vehicleData)
@@ -1061,6 +1228,21 @@
 
   onDestroy(() => {
     mapPresenceStore.set(new Set())
+    clearRealtimeRetry()
+    if (unsubNetworkRecovery) {
+      unsubNetworkRecovery()
+      unsubNetworkRecovery = null
+    }
+    if (onlineRecoveryHandler) {
+      window.removeEventListener("online", onlineRecoveryHandler)
+      onlineRecoveryHandler = null
+    }
+    if (visibilityRecoveryHandler) {
+      document.removeEventListener("visibilitychange", visibilityRecoveryHandler)
+      visibilityRecoveryHandler = null
+    }
+    realtimeMasterMapId = null
+    realtimeUserId = null
     if (appStateListener) {
       appStateListener.remove()
       appStateListener = null

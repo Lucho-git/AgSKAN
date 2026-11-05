@@ -14,7 +14,14 @@
   import { fly, fade } from "svelte/transition"
   import { toast } from "svelte-sonner"
   import { Capacitor } from "@capacitor/core"
-  import { Cloud, AlertCircle, RotateCcw, ArrowLeft } from "lucide-svelte"
+  import {
+    Cloud,
+    AlertCircle,
+    RotateCcw,
+    ArrowLeft,
+    WifiOff,
+    Loader2,
+  } from "lucide-svelte"
 
   // Import necessary stores
   import { profileStore } from "$lib/stores/profileStore"
@@ -34,6 +41,23 @@
   import { operatorApi } from "$lib/api/operatorApi"
   import { operatorStore } from "$lib/stores/operatorStore"
   import OperatorPicker from "$lib/components/map/trails/OperatorPicker.svelte"
+  import {
+    classifyLoadError,
+    describeLoadError,
+    isRetryableFailure,
+    type LoadFailure,
+  } from "$lib/utils/networkErrors"
+  import {
+    networkStore,
+    refreshNetworkNow,
+  } from "$lib/stores/networkStore"
+  import {
+    registerDomainRetry,
+    reportOk,
+    reportResult,
+    unregisterDomainRetry,
+    type DataDomain,
+  } from "$lib/stores/dataStatusStore"
 
   // Native push (OneSignal) — links this device to the signed-in user
   import { initNativePush, syncNativePushUser } from "$lib/nativePush"
@@ -48,6 +72,20 @@
     data.sessionStatus === "loading" || data.sessionStatus === "initializing"
   let error = data.error || null
   let redirecting = false
+
+  // Set when the identity queries fail for a reason we can act on. Kept
+  // separate from `error` (thrown exceptions) so the UI can tell "we couldn't
+  // reach the server" apart from "this account genuinely has no map".
+  let loadFailure: LoadFailure | null = null
+  /** Outcome of the load attempt currently running (not shown until it ends). */
+  let attemptFailure: LoadFailure | null = null
+  let retrying = false
+  let autoRetryCount = 0
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let retryTimer = null
+  let lastFailureDetail = ""
+
+  const MAX_AUTO_RETRIES = 8
 
   let authStateUnsubscribe = null
   let showMapLoadOperatorPicker = false
@@ -144,6 +182,25 @@
       const profile = profileResult.data
       const subscription = subscriptionResult.data
       const user_settings = user_settingsResult.data
+
+      const netOpts = { browserOnline: $networkStore.browserOnline }
+
+      // A transport failure is NOT "you have no map". Supabase resolves with
+      // `{ data: null, error }` rather than throwing, so without this check a
+      // dropped connection used to fall through to `!profile?.master_map_id`,
+      // wipe the connected-map store and render the Create/Join Map screen.
+      if (profileResult.error) {
+        attemptFailure = classifyLoadError(profileResult.error, netOpts)
+        lastFailureDetail = describeLoadError(profileResult.error)
+        console.warn("[account] profile load failed:", lastFailureDetail)
+        return null
+      }
+      reportOk("profile")
+
+      // These are not fatal — the dashboard still renders — but silently
+      // dropping them is what made a half-loaded account look healthy.
+      reportResult("subscription", subscriptionResult.error, netOpts)
+      reportResult("settings", user_settingsResult.error, netOpts)
 
       console.log("Profile loaded:", profile?.id)
 
@@ -392,6 +449,34 @@
       ] = mapActivityResult
       const operations = operationsResult.data
 
+      // Same trap as the profile query: a failed master_maps fetch leaves
+      // `data` null, and the old code then reported "no connected map".
+      if (masterMapResult.error) {
+        attemptFailure = classifyLoadError(masterMapResult.error, {
+          browserOnline: $networkStore.browserOnline,
+        })
+        lastFailureDetail = describeLoadError(masterMapResult.error)
+        console.warn("[account] map load failed:", lastFailureDetail)
+        return null
+      }
+      reportOk("map")
+
+      // Non-fatal, but each one silently degrades a visible part of the
+      // dashboard if it drops: no operations means the map can't pick one and
+      // trails never sync; no totals means zeroed stats; no team query means
+      // an empty member list.
+      reportResult("operations", operationsResult.error, {
+        browserOnline: $networkStore.browserOnline,
+      })
+      reportResult(
+        "stats",
+        markerCount.error ??
+          trailHectaresResult.error ??
+          trailDetailsResult.error ??
+          fieldCount.error,
+        { browserOnline: $networkStore.browserOnline },
+      )
+
       console.log("Map data loaded:", masterMap?.id)
 
       if (!masterMap) {
@@ -472,6 +557,15 @@
             connectedProfilesWithOperations.map((profile) => profile.id) || [],
           ),
       ])
+
+      // Team members need BOTH the profile rows and their vehicle state — the
+      // vehicle icons and online dots come from vehicle_states, which is
+      // exactly what went missing in the half-loaded dashboard.
+      reportResult(
+        "team",
+        connectedProfilesResult.error ?? vehicleStatesResult.error,
+        { browserOnline: $networkStore.browserOnline },
+      )
 
       // Create connected map object
       const connected_map = {
@@ -622,8 +716,23 @@
       }
 
       // Load all user data
+      attemptFailure = null
       const userData = await loadUserData()
+
+      // A classified failure means "we don't know", not "there's nothing".
+      // Skip the onboarding redirect and the animation delay, and let the
+      // retry loop take over.
+      if (attemptFailure) {
+        loadFailure = attemptFailure
+        if (isRetryableFailure(loadFailure)) scheduleAutoRetry()
+        return
+      }
+
+      // Only now is it safe to drop the failure screen — retries keep it up
+      // (with a "retrying" state) so the empty dashboard never flashes.
+      loadFailure = null
       userDataLoaded = true
+      autoRetryCount = 0
 
       // Calculate elapsed time and ensure minimum animation time
       const elapsedTime = Date.now() - operationStartTime
@@ -646,6 +755,69 @@
       error = e
     } finally {
       loading = false
+    }
+  }
+
+  // ── Recovery from a bad load ───────────────────────────────────────────
+  // Everything here is bounded: a capped number of automatic attempts with
+  // exponential backoff, plus an immediate attempt whenever the device
+  // reports it is back online or the tab regains focus.
+
+  function scheduleAutoRetry() {
+    if (retryTimer || autoRetryCount >= MAX_AUTO_RETRIES) return
+
+    const delay = Math.min(30_000, 2_000 * 2 ** autoRetryCount)
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      autoRetryCount += 1
+      void retryLoad(false)
+    }, delay)
+  }
+
+  function cancelAutoRetry() {
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      retryTimer = null
+    }
+  }
+
+  /**
+   * @param showLoading Show the full-screen loader (manual retry). Automatic
+   *   retries keep the failure panel up instead of flashing the half-built
+   *   dashboard.
+   */
+  async function retryLoad(showLoading = true) {
+    if (retrying) return
+    cancelAutoRetry()
+
+    retrying = true
+    error = null
+    if (showLoading) loading = true
+
+    try {
+      await refreshNetworkNow(true)
+      await completeDataLoading()
+    } catch (e) {
+      console.error("[account] retry failed:", e)
+    } finally {
+      retrying = false
+    }
+  }
+
+  function handleBackOnline() {
+    console.log("[account] back online, retrying load")
+    autoRetryCount = 0
+    if (loadFailure) void retryLoad(false)
+  }
+
+  function handleRetryVisibility() {
+    if (document.visibilityState === "visible" && loadFailure) {
+      void refreshNetworkNow().then((state) => {
+        if (state.status === "online") {
+          autoRetryCount = 0
+          void retryLoad(false)
+        }
+      })
     }
   }
 
@@ -716,11 +888,34 @@
     )
     authStateUnsubscribe = authSubscription.subscription.unsubscribe
 
+    // Recover automatically once the device is usable again.
+    window.addEventListener("online", handleBackOnline)
+    document.addEventListener("visibilitychange", handleRetryVisibility)
+
+    // Every account-level domain recovers by re-running the load in place —
+    // no page reload, so whatever is already on screen stays put.
+    const accountDomains: DataDomain[] = [
+      "profile",
+      "subscription",
+      "settings",
+      "map",
+      "operations",
+      "team",
+      "stats",
+    ]
+    for (const domain of accountDomains) {
+      registerDomainRetry(domain, () => retryLoad(false))
+    }
+
     return () => {
       console.log("Account layout unmounting")
       if (authStateUnsubscribe) authStateUnsubscribe()
       if (operatorRealtimeChannel)
         supabase.removeChannel(operatorRealtimeChannel)
+      window.removeEventListener("online", handleBackOnline)
+      document.removeEventListener("visibilitychange", handleRetryVisibility)
+      for (const domain of accountDomains) unregisterDomainRetry(domain)
+      cancelAutoRetry()
     }
   })
 
@@ -865,6 +1060,116 @@
               Back to Login
             </a>
           </div>
+        </div>
+      </div>
+    </div>
+  {:else if loadFailure}
+    <!-- Couldn't load the account: say why, and keep trying -->
+    <div class="flex h-screen w-full items-center justify-center bg-base-100">
+      <div
+        class="mx-4 w-full max-w-md rounded-2xl border p-8 shadow-xl"
+        class:border-amber-200={loadFailure.kind === "offline" ||
+          loadFailure.kind === "timeout"}
+        class:bg-amber-50={loadFailure.kind === "offline" ||
+          loadFailure.kind === "timeout"}
+        class:border-red-200={loadFailure.kind !== "offline" &&
+          loadFailure.kind !== "timeout"}
+        class:bg-red-50={loadFailure.kind !== "offline" &&
+          loadFailure.kind !== "timeout"}
+      >
+        <div class="text-center">
+          <div
+            class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+            class:bg-amber-100={loadFailure.kind === "offline" ||
+              loadFailure.kind === "timeout"}
+            class:bg-red-100={loadFailure.kind !== "offline" &&
+              loadFailure.kind !== "timeout"}
+          >
+            {#if loadFailure.kind === "offline" || loadFailure.kind === "timeout"}
+              <WifiOff class="h-8 w-8 text-amber-700" />
+            {:else}
+              <AlertCircle class="h-8 w-8 text-red-600" />
+            {/if}
+          </div>
+
+          <h2
+            class="mb-2 text-xl font-bold"
+            class:text-amber-900={loadFailure.kind === "offline" ||
+              loadFailure.kind === "timeout"}
+            class:text-red-900={loadFailure.kind !== "offline" &&
+              loadFailure.kind !== "timeout"}
+          >
+            {loadFailure.title}
+          </h2>
+
+          <p
+            class="mb-5 text-sm"
+            class:text-amber-800={loadFailure.kind === "offline" ||
+              loadFailure.kind === "timeout"}
+            class:text-red-700={loadFailure.kind !== "offline" &&
+              loadFailure.kind !== "timeout"}
+          >
+            {loadFailure.detail}
+          </p>
+
+          <p class="mb-5 text-xs text-contrast-content/60" aria-live="polite">
+            {#if retrying || $networkStore.status === "unknown"}
+              Checking the connection...
+            {:else if loadFailure.retryable && autoRetryCount > 0}
+              Retry {autoRetryCount} of {MAX_AUTO_RETRIES}. We'll try again
+              automatically.
+            {:else if loadFailure.retryable}
+              We'll retry automatically as soon as the connection returns.
+            {/if}
+          </p>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            {#if loadFailure.retryable}
+              <button
+                class="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                on:click={() => retryLoad()}
+                disabled={retrying}
+              >
+                {#if retrying}
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                  Retrying...
+                {:else}
+                  <RotateCcw class="h-4 w-4" />
+                  Try Again
+                {/if}
+              </button>
+            {:else}
+              <a
+                href="/login"
+                class="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-medium text-white transition-opacity hover:opacity-90"
+              >
+                <ArrowLeft class="h-4 w-4" />
+                Sign in again
+              </a>
+            {/if}
+
+            <button
+              class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              on:click={() => window.location.reload()}
+            >
+              Reload app
+            </button>
+          </div>
+
+          {#if lastFailureDetail}
+            <details class="mt-5 text-left">
+              <summary
+                class="cursor-pointer text-xs text-contrast-content/50 hover:text-contrast-content/80"
+              >
+                Technical details
+              </summary>
+              <p
+                class="mt-2 break-words rounded-lg bg-black/5 p-3 font-mono text-[11px] text-contrast-content/70"
+              >
+                {lastFailureDetail}
+              </p>
+            </details>
+          {/if}
         </div>
       </div>
     </div>

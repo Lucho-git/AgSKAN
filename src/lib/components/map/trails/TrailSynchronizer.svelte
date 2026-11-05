@@ -63,6 +63,13 @@
 
   import TrailView from "./TrailView.svelte"
   import backgroundService from "$lib/services/backgroundService"
+  import {
+    registerDomainRetry,
+    reportLoading,
+    reportOk,
+    reportResult,
+    unregisterDomainRetry,
+  } from "$lib/stores/dataStatusStore"
 
   export let selectedOperation
   export let map
@@ -112,7 +119,24 @@
     offlineListener: null,
     pagehideListener: null,
     beforeunloadListener: null,
+    activeTrailReconcile: null,
   }
+
+  // Lets the connection banner re-fetch trails in place (no page reload) as
+  // soon as the connection is back, without waiting for the user to notice.
+  // Both halves are registered: the operation's finished trails, and the live
+  // trails other machines are recording right now.
+  $: if (selectedOperation?.id) {
+    registerDomainRetry("trails", fetchOperationTrails)
+    registerDomainRetry("activeTrails", () =>
+      checkOtherActiveTrails({ silent: true }),
+    )
+  }
+
+  // Active trails are live data — other machines start and stop them while the
+  // map is open, and a missed check used to stay missed for the whole session.
+  // Reconcile quietly so it can't.
+  const ACTIVE_TRAIL_RECONCILE_MS = 90_000
 
   onMount(async () => {
     console.log("🚀 TrailSynchronizer: Initializing")
@@ -183,6 +207,18 @@
     // so all trail data is ready before the loading toast dismisses
     await Promise.all([checkOtherActiveTrails(), fetchOperationTrails()])
 
+    // Quietly reconcile the live trails while the map stays open.
+    cleanup.activeTrailReconcile = setInterval(() => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
+        return
+      }
+      if (navigator.onLine === false) return
+      void checkOtherActiveTrails({ silent: true })
+    }, ACTIVE_TRAIL_RECONCILE_MS)
+
     // Instant coordinate sending
     cleanup.coordinateBufferUnsubscribe = coordinateBufferStore.subscribe(
       async (newCoordinateBuffer) => {
@@ -230,6 +266,12 @@
   }
 
   onDestroy(() => {
+    unregisterDomainRetry("trails")
+    unregisterDomainRetry("activeTrails")
+    if (cleanup.activeTrailReconcile) {
+      clearInterval(cleanup.activeTrailReconcile)
+      cleanup.activeTrailReconcile = null
+    }
     if (cleanup.coordinateBufferUnsubscribe)
       cleanup.coordinateBufferUnsubscribe()
     if (cleanup.pendingCoordinatesUnsubscribe)
@@ -379,7 +421,12 @@
         },
       ])
       trailsApi
-        .recordTrailPause(trailId, pausedAt, coords?.latitude, coords?.longitude)
+        .recordTrailPause(
+          trailId,
+          pausedAt,
+          coords?.latitude,
+          coords?.longitude,
+        )
         .catch(() => {})
     }
 
@@ -402,7 +449,9 @@
     if (trailId && pausePoint) {
       trailPausesStore.update((list) =>
         list.map((p) =>
-          p.pausedAt === pausePoint.timestamp ? { ...p, resumedAt: Date.now() } : p,
+          p.pausedAt === pausePoint.timestamp
+            ? { ...p, resumedAt: Date.now() }
+            : p,
         ),
       )
       trailsApi.recordTrailResume(trailId, pausePoint.timestamp).catch(() => {})
@@ -1640,6 +1689,11 @@
         .neq("vehicle_id", currentVehicleId)
 
       if (trailsErr) {
+        // Same silence problem as the boot-time check: record it so the banner
+        // and the reconcile can pick it back up.
+        reportResult("activeTrails", trailsErr, {
+          browserOnline: navigator.onLine !== false,
+        })
         console.warn(
           "[TRAIL-RT] Catch-up: failed to fetch active trails:",
           trailsErr.message,
@@ -2133,6 +2187,7 @@
 
   async function fetchOperationTrails() {
     trailsLoadingStore.set(true)
+    reportLoading("trails")
     toast.promise(
       (async () => {
         try {
@@ -2145,7 +2200,15 @@
           ])
 
           areTrailsLoaded = true
+          reportOk("trails")
           return trails
+        } catch (error) {
+          // Keep the failure visible until it is actually fixed: the banner
+          // offers a Retry and the connection probe re-runs it on reconnect.
+          reportResult("trails", error, {
+            browserOnline: navigator.onLine !== false,
+          })
+          throw error
         } finally {
           // Always clear the spinner, even if a subscriber throws while the
           // store above is being updated.
@@ -2213,8 +2276,14 @@
     }
   }
 
-  async function checkOtherActiveTrails() {
-    const toastId = toast.loading("Checking for active trails...")
+  async function checkOtherActiveTrails(options = {}) {
+    const silent = options.silent === true
+    if (!selectedOperation?.id) return
+
+    const toastId = silent
+      ? null
+      : toast.loading("Checking for active trails...")
+    reportLoading("activeTrails")
 
     try {
       const data = await trailsApi.checkOtherActiveTrails(
@@ -2230,7 +2299,7 @@
 
       if (data.errors) {
         data.errors.forEach((error) => {
-          toast.error(error, { duration: 6000 })
+          if (!silent) toast.error(error, { duration: 6000 })
         })
       }
 
@@ -2272,23 +2341,35 @@
           .filter((name) => name !== null)
 
         otherActiveTrailStore.set(formattedTrails)
+        reportOk("activeTrails")
 
-        const message =
-          activeUsers.length > 0
-            ? `Active trails from: ${activeUsers.join(", ")}`
-            : `Found ${activeTrails.length} active ${activeTrails.length === 1 ? "trail" : "trails"} from unknown vehicles`
+        if (!silent) {
+          const message =
+            activeUsers.length > 0
+              ? `Active trails from: ${activeUsers.join(", ")}`
+              : `Found ${activeTrails.length} active ${activeTrails.length === 1 ? "trail" : "trails"} from unknown vehicles`
 
-        toast.success(message, { id: toastId, duration: 6000 })
+          toast.success(message, { id: toastId, duration: 6000 })
+        }
       } else {
         otherActiveTrailStore.set([])
-        toast.dismiss(toastId)
+        reportOk("activeTrails")
+        if (toastId) toast.dismiss(toastId)
       }
     } catch (error) {
       const msg =
         error instanceof Error
           ? error.message
           : "Failed to check for other active trails"
-      toast.error(msg, { id: toastId, duration: 6000 })
+
+      // Record it so the banner can offer a retry and the reconnect probe can
+      // re-run it. Previously this was a toast that vanished after 6 seconds,
+      // which is why machines' live trails could stay missing for the rest of
+      // the session.
+      reportResult("activeTrails", error, {
+        browserOnline: navigator.onLine !== false,
+      })
+      if (toastId) toast.error(msg, { id: toastId, duration: 6000 })
       console.error("Failed to check other active trails:", error)
     }
   }

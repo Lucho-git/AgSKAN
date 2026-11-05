@@ -690,8 +690,8 @@
       </div>
     </div>
 
-    <!-- Fields list -->
-    <div class="rounded-xl border border-base-300 bg-base-100">
+    <!-- Fields list (flat — no enclosing shell) -->
+    <div>
       <FieldsOverview {navigateToProcess} />
     </div>
 

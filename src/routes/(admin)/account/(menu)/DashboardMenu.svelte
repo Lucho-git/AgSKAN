@@ -836,9 +836,7 @@
   </div>
 
   <!-- Tab Content -->
-  <div
-    class="mb-6 min-h-[32rem] rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg sm:p-6"
-  >
+  <div class="mb-6 min-h-[32rem] py-1 sm:py-3">
     {#if mapTransition}
       <!-- Map Transition Overlay -->
       <div
