@@ -7,7 +7,7 @@
 <script>
   import { fly } from "svelte/transition"
 
-  /** @type {Array<{id: string, label: string, title?: string, accent?: string, bg?: string, iconSvg?: string, icon?: any, fill?: number|null, tonnes?: string|null, text?: string|null, onActivate?: () => void}>} */
+  /** @type {Array<{id: string, label: string, title?: string, accent?: string, bg?: string, iconSvg?: string, icon?: any, iconProps?: Record<string, any>, fill?: number|null, tonnes?: string|null, text?: string|null, onActivate?: () => void}>} */
   export let items = []
 
   /** Distance of the rail's bottom edge from the viewport bottom (px).
@@ -40,7 +40,11 @@
             <span class="qa-ico">{@html item.iconSvg}</span>
           {:else if item.icon}
             <span class="qa-ico qa-ico-component">
-              <svelte:component this={item.icon} size={22} />
+              <svelte:component
+                this={item.icon}
+                size={22}
+                {...item.iconProps || {}}
+              />
             </span>
           {/if}
           {#if item.fill != null}

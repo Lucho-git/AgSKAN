@@ -1908,6 +1908,17 @@
       map.setMinPitch(0)
 
       markerStore.set(map)
+
+      // Publish the map for the screen-recording harness (scripts/help-video)
+      // so shots can drive frame-accurate camera moves instead of simulating
+      // pointer gestures. Dev-only unless the URL opts in with ?debugMap.
+      if (
+        import.meta.env.DEV ||
+        new URLSearchParams(window.location.search).has("debugMap")
+      ) {
+        window.__agskanMap = map
+      }
+
       mapInitialized = true
 
       const setupMap = () => {
@@ -2069,6 +2080,7 @@
   onDestroy(() => {
     setMapChromeHidden(false)
     if (map) {
+      if (window.__agskanMap === map) delete window.__agskanMap
       map.off()
       map.remove()
       map = null

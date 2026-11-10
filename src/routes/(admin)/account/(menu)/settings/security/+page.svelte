@@ -182,7 +182,7 @@
       const { error } = await supabase.auth.resetPasswordForEmail(
         $session.user.email,
         {
-          redirectTo: `${$page.url.origin}/auth/callback?next=%2Faccount%2Fsettings%2Freset_password`,
+          redirectTo: `${$page.url.origin}/auth/callback?next=%2Faccount%2Fsettings%2Fsecurity`,
         },
       )
 

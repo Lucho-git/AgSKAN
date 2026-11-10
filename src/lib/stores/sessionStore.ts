@@ -6,6 +6,28 @@ import {
     PUBLIC_SUPABASE_URL
 } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
+
+// Snapshot the auth parameters of the URL the page was loaded with.
+// `detectSessionInUrl` makes supabase-js consume the recovery/sign-in tokens and
+// strip them from the URL during client initialisation, which races with any page
+// that inspects `window.location` afterwards. Capturing them here — before the
+// client is constructed — means the callback always sees what the browser got.
+function snapshotAuthUrl() {
+    if (!browser) {
+        const empty = new URLSearchParams();
+        return { hash: empty, query: empty, rawHash: '', rawSearch: '', pathname: '' };
+    }
+    return {
+        hash: new URLSearchParams(window.location.hash.replace(/^#/, '')),
+        query: new URLSearchParams(window.location.search),
+        rawHash: window.location.hash,
+        rawSearch: window.location.search,
+        pathname: window.location.pathname,
+    };
+}
+
+export const initialAuthUrl = snapshotAuthUrl();
 
 // Initialize supabase client
 export const supabase = createClient(
@@ -21,7 +43,7 @@ export const supabase = createClient(
 );
 
 // Create a writable store for the session
-export const session = writable(null);
+export const session = writable<Session | null>(null);
 
 let initialized = false;
 
@@ -43,7 +65,7 @@ export async function initializeSession() {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
 
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
                 session.set(newSession);
             } else if (event === 'SIGNED_OUT') {
                 session.set(null);

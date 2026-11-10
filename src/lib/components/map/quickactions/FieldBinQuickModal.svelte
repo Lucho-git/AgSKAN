@@ -6,9 +6,12 @@
      on-map panel for moving. -->
 <script>
   import { createEventDispatcher, onDestroy, onMount } from "svelte"
-  import { Crosshair, Minus, Plus, Trash2, X } from "lucide-svelte"
+  import { Container, Crosshair, Minus, Plus, Trash2, X } from "lucide-svelte"
+  import { toast } from "svelte-sonner"
   import { confirmedMarkersStore } from "$lib/stores/markerStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
+  import { chaserLoadsStore, setChaserLoad } from "$lib/stores/chaserLoadsStore"
   import {
     MARKER_COLOR_DEFAULT,
     PICKABLE_MARKER_COLORS,
@@ -23,6 +26,17 @@
     grainBinGlyphSvg,
     loadGrainBinGlyphs,
   } from "./fieldBinGlyph"
+  import GrainLogList from "./GrainLogList.svelte"
+  import { logGrainEvent } from "$lib/api/grainLogApi"
+  import {
+    binStoredTonnes,
+    chaserLoad,
+    formatTonnes,
+    isChaserBinType,
+    planTransfer,
+    roundTonnes,
+  } from "$lib/utils/grainLoad"
+  import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
 
   /** The bin marker row (live from confirmedMarkersStore). */
   export let marker = null
@@ -44,7 +58,21 @@
     $grainBinGlyphsStore,
   )
 
-  let tab = "fill" // 'fill' | 'settings'
+  // Chaser bin (the user's own machine) — drives the one-tap empty. The
+  // tonnage lives in the shared chaser-loads record, not on the vehicle.
+  $: ownVehicleId = $userVehicleStore?.vehicle_id || null
+  $: chaserMarker = $userVehicleStore?.vehicle_marker || null
+  $: ownChaserState = (ownVehicleId && $chaserLoadsStore?.[ownVehicleId]) || null
+  $: chaserTonnes = isChaserBinType(chaserMarker?.type)
+    ? chaserLoad(ownChaserState)
+    : 0
+  $: transferPlan = planTransfer({
+    loadTonnes: chaserTonnes,
+    binFill: fill,
+    binCapacity: capacityTonnes,
+  })
+
+  let tab = "fill" // 'fill' | 'settings' | 'record'
   let fill = 0
   let contents = ""
   let capacityTonnes = 100 // bin size in tonnes — placeholder; per-type default set on open
@@ -56,6 +84,10 @@
   let confirmDelete = false
   let contentsInput = null
   let lastMarkerId = null
+  // Last stored-tonnes figure we put in the grain record — the "before" side
+  // of the next change (the slider itself only reports the new value).
+  let recordedTonnes = 0
+  let recordKey = 0
 
   // Reset local state when a DIFFERENT bin opens — commits from our own
   // edits must not fight the fields (same pattern as SiloMarkerPanel).
@@ -70,6 +102,7 @@
     tonnesDelta = ""
     deltaHint = false
     confirmDelete = false
+    recordedTonnes = binStoredTonnes(capacityTonnes, fill)
   }
 
   onMount(() => void loadGrainBinGlyphs())
@@ -110,6 +143,34 @@
     )
   }
 
+  // Record a fill change in the grain log. `beforeTonnes` is the figure the
+  // last record saw, so a slider drag (or Add/Take) reads as one delta
+  // rather than the intermediate values the drag passed through.
+  function recordFill(beforeTonnes) {
+    if (!marker) return
+    const afterTonnes = binStoredTonnes(capacityTonnes, fill)
+    if (roundTonnes(afterTonnes) === roundTonnes(beforeTonnes)) return
+    void logGrainEvent({
+      action: "bin.level",
+      binId: marker.id,
+      binName: name,
+      tonnesBefore: roundTonnes(beforeTonnes),
+      tonnesAfter: afterTonnes,
+      binFillBefore:
+        capacityTonnes > 0 ? (beforeTonnes / capacityTonnes) * 100 : 0,
+      binFillAfter: fill,
+    })
+    recordedTonnes = afterTonnes
+    recordKey++
+  }
+
+  // Slider release — persist, then record the change.
+  function commitFill() {
+    const before = recordedTonnes
+    commit()
+    recordFill(before)
+  }
+
   // Set the bin size. Changing it preserves the stored tonnes — the fill
   // percentage recalculates so the bin change doesn't magically add/remove
   // grain (same maths as the panel).
@@ -125,6 +186,9 @@
       markerManagerRef?.updateSiloBarLive?.(marker.id, fill, grainColor)
     }
     commit()
+    // Same stored tonnes, new bin size — keep the record's baseline in step
+    // so the next level change reads as the delta it really is.
+    recordedTonnes = binStoredTonnes(capacityTonnes, fill)
   }
 
   // Pick a grain colour for the bin (map gauge + rail button accent).
@@ -176,7 +240,47 @@
     fill = (next / capacityTonnes) * 100
     markerManagerRef?.updateSiloBarLive?.(marker.id, fill, grainColor)
     commit()
+    recordFill(recordedTonnes)
     tonnesDelta = ""
+  }
+
+  // One tap: tip the user's chaser bin into this bin — as much as fits, the
+  // rest stays in the chaser. Both sides are recorded as one transfer event.
+  function emptyChaserHere() {
+    if (isViewer || !marker) return
+    const plan = transferPlan
+    if (plan.moved <= 0) return
+    const chaserBefore = chaserTonnes
+    const binFillBefore = fill
+
+    fill = plan.binFillAfter
+    markerManagerRef?.updateSiloBarLive?.(marker.id, fill, grainColor)
+    commit()
+    void setChaserLoad({
+      masterMapId: $profileStore?.master_map_id ?? null,
+      vehicleId: ownVehicleId,
+      load: plan.loadAfter,
+      actorId: $profileStore?.id ?? null,
+    })
+
+    void logGrainEvent({
+      action: "chaser.empty",
+      binId: marker.id,
+      binName: name,
+      vehicleId: $profileStore?.id ?? null,
+      vehicleName: getVehicleDisplayName($userVehicleStore),
+      tonnesBefore: chaserBefore,
+      tonnesAfter: plan.loadAfter,
+      binFillBefore,
+      binFillAfter: plan.binFillAfter,
+    })
+    recordedTonnes = plan.binStoredAfter
+    recordKey++
+
+    toast.success(
+      `Moved ${formatTonnes(plan.moved)} into ${name}` +
+        (plan.overflows ? ` · ${formatTonnes(plan.loadAfter)} left` : ""),
+    )
   }
 </script>
 
@@ -232,6 +336,13 @@
       >
         Settings
       </button>
+      <button
+        class="qb-tab"
+        class:active={tab === "record"}
+        on:click={() => (tab = "record")}
+      >
+        Record
+      </button>
     </div>
 
     {#if tab === "fill"}
@@ -248,7 +359,7 @@
             bind:value={fill}
             disabled={isViewer}
             on:input={onFillInput}
-            on:change={commit}
+            on:change={commitFill}
             aria-label="Field bin fill level"
             style="--qb-thumb: {colorDef.dark}; background: linear-gradient(to right, {colorDef.dark} 0%, {colorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
           />
@@ -267,6 +378,33 @@
           </span>
         {/if}
       </div>
+
+      {#if chaserTonnes > 0}
+        <!-- One-tap empty: the user's own chaser bin tips into this bin. -->
+        <button
+          class="qb-transfer mt-3"
+          disabled={isViewer || transferPlan.moved <= 0}
+          on:click={emptyChaserHere}
+          title={transferPlan.moved <= 0
+            ? "This bin is full"
+            : `Move ${formatTonnes(transferPlan.moved)} from the chaser into this bin`}
+        >
+          <Container size={15} class="qb-transfer-ico" />
+          <span class="qb-transfer-body">
+            <span class="qb-transfer-title">
+              {transferPlan.moved <= 0 ? "Bin full" : "Empty chaser here"}
+            </span>
+            <span class="qb-transfer-note">
+              {transferPlan.moved > 0
+                ? `${formatTonnes(transferPlan.moved)} → ${Math.round(
+                    transferPlan.binFillAfter,
+                  )}%`
+                : `${Math.round(fill)}% · no room left`}
+            </span>
+          </span>
+          <span class="qb-transfer-amount">{formatTonnes(chaserTonnes)}</span>
+        </button>
+      {/if}
 
       <!-- Add / take tonnes -->
       <div class="mt-3">
@@ -318,7 +456,7 @@
           </span>
         {/if}
       </div>
-    {:else}
+    {:else if tab === "settings"}
       <!-- Settings tab — mirrors the on-map bin panel's settings. -->
       <div class="mt-3">
         <label class="qb-label" for="qb-storing">Storing</label>
@@ -417,6 +555,15 @@
           <span>Delete bin</span>
         </button>
       {/if}
+    {:else}
+      <!-- Record tab — this bin's grain history. -->
+      <div class="mt-3">
+        <GrainLogList
+          masterMapId={$profileStore?.master_map_id ?? null}
+          binId={marker?.id ?? null}
+          refreshKey={recordKey}
+        />
+      </div>
     {/if}
 
     {#if isViewer}
@@ -492,6 +639,55 @@
   .qb-range:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+
+  /* One-tap empty from the user's own chaser bin. */
+  .qb-transfer {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 10px 11px;
+    border-radius: 10px;
+    border: 1px solid #2563eb;
+    background: rgba(37, 99, 235, 0.16);
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .qb-transfer:hover:not(:disabled) {
+    background: rgba(37, 99, 235, 0.32);
+  }
+  .qb-transfer:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .qb-transfer :global(.qb-transfer-ico) {
+    flex: 0 0 auto;
+    color: #93c5fd;
+  }
+  .qb-transfer-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .qb-transfer-title {
+    font-size: 12.5px;
+    font-weight: 800;
+  }
+  .qb-transfer-note {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .qb-transfer-amount {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #93c5fd;
   }
 
   .qb-num,

@@ -2,16 +2,16 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { goto } from "$app/navigation"
-  import { supabase, session } from "$lib/stores/sessionStore"
+  import { supabase, session, initialAuthUrl } from "$lib/stores/sessionStore"
   import { toast } from "svelte-sonner"
 
   // Show a loading indicator
   let loading = true
-  let error = null
+  let error: string | null = null
   let debugInfo = {
     hash: "",
     query: "",
-    sessionResult: null,
+    sessionResult: "",
     profileCreated: false,
     redirectTo: "",
     isDeepLink: false,
@@ -155,19 +155,54 @@
     }
   }
 
+  // GoTrue hands back a machine code (otp_expired, access_denied, ...) when a
+  // one-time link has already been consumed or has timed out.
+  function describeLinkError(code: string | null) {
+    const known: Record<string, string> = {
+      otp_expired: "That reset link has expired.",
+      access_denied: "That reset link has already been used.",
+      flow_state_not_found: "That link is no longer valid.",
+    }
+    return (code && known[code]) || "That link is no longer valid."
+  }
+
   onMount(async () => {
     console.log("Auth callback mounting - PROFILE CREATION WILL HAPPEN HERE")
+    let isRecoveryFlow = false
     try {
-      // Store debug info
-      debugInfo.hash = window.location.hash
-      debugInfo.query = window.location.search
+      // On a fresh page load supabase-js may already have stripped the tokens out
+      // of the URL, so fall back to the load-time snapshot — but only for the page
+      // that produced it, since SPA navigation keeps a stale snapshot from before.
+      const sameDocument = initialAuthUrl.pathname === window.location.pathname
+      const liveHash = new URLSearchParams(
+        window.location.hash.replace(/^#/, ""),
+      )
+      const liveQuery = new URLSearchParams(window.location.search)
+      const hashParams = liveHash.toString()
+        ? liveHash
+        : sameDocument
+          ? initialAuthUrl.hash
+          : liveHash
+      const queryParams = liveQuery.toString()
+        ? liveQuery
+        : sameDocument
+          ? initialAuthUrl.query
+          : liveQuery
+      debugInfo.hash = initialAuthUrl.rawHash
+      debugInfo.query = initialAuthUrl.rawSearch
 
-      // Get search params from URL
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const queryParams = new URLSearchParams(window.location.search)
+      // GoTrue reports failures as #error=access_denied&error_code=otp_expired...
+      const linkErrorCode =
+        hashParams.get("error_code") ||
+        queryParams.get("error_code") ||
+        hashParams.get("error") ||
+        queryParams.get("error")
+      const linkErrorDescription =
+        hashParams.get("error_description") ||
+        queryParams.get("error_description")
 
       // FIXED: Check for recovery type in BOTH query params AND hash params
-      const isRecoveryFlow =
+      isRecoveryFlow =
         queryParams.get("type") === "recovery" ||
         hashParams.get("type") === "recovery"
       debugInfo.isRecovery = isRecoveryFlow
@@ -175,6 +210,7 @@
       console.log("Recovery check:", {
         queryType: queryParams.get("type"),
         hashType: hashParams.get("type"),
+        hasLinkError: Boolean(linkErrorCode || linkErrorDescription),
         isRecoveryFlow,
       })
 
@@ -203,16 +239,24 @@
       }
 
       // FIXED: Override redirect for recovery flows
+      const postResetNext = nextParam
       if (isRecoveryFlow) {
-        nextParam = "/reset-password"
+        // Carry the caller's destination through so we can honour it after the
+        // password has been changed (otherwise they always land on /account).
+        debugInfo.redirectTo = `/reset-password?next=${encodeURIComponent(postResetNext)}`
         console.log("Recovery flow detected, redirecting to password reset")
+      } else {
+        debugInfo.redirectTo = nextParam
       }
-
-      debugInfo.redirectTo = nextParam
 
       // ADDED: Check if this is a deep link flow (tokens in query params)
       const deepLinkAccessToken = queryParams.get("access_token")
       const deepLinkRefreshToken = queryParams.get("refresh_token")
+      // Sign-in confirmations and recovery links deliver their tokens in the hash.
+      const hashAccessToken = hashParams.get("access_token")
+      const hashRefreshToken = hashParams.get("refresh_token")
+      const authCode = queryParams.get("code")
+      const tokenHash = queryParams.get("token_hash")
       // Refresh token alone is sufficient — we can derive a fresh access token.
       debugInfo.isDeepLink = !!deepLinkRefreshToken
 
@@ -222,146 +266,102 @@
         redirectTo: debugInfo.redirectTo,
         isDeepLink: debugInfo.isDeepLink,
         isRecovery: debugInfo.isRecovery,
+        linkErrorCode,
       })
 
-      let sessionResult = null
-
-      // ADDED: Handle deep link flow first (tokens in query params)
-      if (debugInfo.isDeepLink) {
-        console.log("Processing deep link authentication")
-
-        let data
-        if (deepLinkAccessToken) {
-          // Legacy links carry both tokens — set the session directly.
-          const result = await supabase.auth.setSession({
-            access_token: deepLinkAccessToken,
-            refresh_token: deepLinkRefreshToken,
-          })
-          if (result.error) throw result.error
-          data = result.data
-        } else {
-          // Refresh-only links: derive a fresh session from the refresh token.
-          const result = await supabase.auth.refreshSession({
-            refresh_token: deepLinkRefreshToken,
-          })
-          if (result.error) throw result.error
-          data = result.data
-        }
-
-        sessionResult = data.session
-
-        // Manually update the store as well
-        if (data.session) {
-          console.log("Manually updating session store from deep link")
-          session.set(data.session)
-
-          // Create or update profile
-          debugInfo.profileCreated = await createOrUpdateProfile(data.session)
-          console.log("Profile creation result:", debugInfo.profileCreated)
-
-          // Show success toast for deep link
-          const userName =
-            data.session.user.user_metadata?.full_name ||
-            data.session.user.user_metadata?.name ||
-            data.session.user.email?.split("@")[0] ||
-            "User"
-
-          toast.success(`Welcome back, ${userName}!`, {
-            description: "You have been automatically signed in.",
-            duration: 4000,
-          })
-        }
+      // A link that expired or was already used comes back with an error and no
+      // session, so stop before sending anyone to a reset form they can't use.
+      if (linkErrorCode || linkErrorDescription) {
+        throw new Error(
+          linkErrorDescription || describeLinkError(linkErrorCode),
+        )
       }
-      // FIXED: Handle hash fragment (including recovery with hash)
-      else if (window.location.hash) {
-        console.log("Processing hash fragment")
-        const accessToken = hashParams.get("access_token")
-        const refreshToken = hashParams.get("refresh_token")
 
-        if (accessToken && refreshToken) {
-          // Set the session manually
+      // Identity carried in the URL always wins over whatever session the browser
+      // happens to hold — a shared computer must not reset the wrong account.
+      const urlAccessToken = deepLinkAccessToken || hashAccessToken
+      const urlRefreshToken = deepLinkRefreshToken || hashRefreshToken
+      const hasUrlIdentity = Boolean(
+        urlAccessToken || urlRefreshToken || authCode || tokenHash,
+      )
+      let sessionResult = hasUrlIdentity
+        ? null
+        : (await supabase.auth.getSession()).data.session
+
+      // Fall back to handling the tokens ourselves if supabase-js could not.
+      if (!sessionResult) {
+        if (urlAccessToken && urlRefreshToken) {
           console.log("Setting session from tokens")
           const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
+            access_token: urlAccessToken,
+            refresh_token: urlRefreshToken,
           })
-
           if (sessionError) throw sessionError
           sessionResult = data.session
-
-          // Manually update the store as well
-          if (data.session) {
-            console.log("Manually updating session store")
-            session.set(data.session)
-
-            // Create or update profile
-            debugInfo.profileCreated = await createOrUpdateProfile(data.session)
-            console.log("Profile creation result:", debugInfo.profileCreated)
-
-            // FIXED: Show appropriate toast based on recovery type
-            if (isRecoveryFlow) {
-              toast.success("Recovery link verified!", {
-                description: "Please set your new password.",
-                duration: 4000,
-              })
-            } else {
-              const userName =
-                data.session.user.user_metadata?.full_name ||
-                data.session.user.user_metadata?.name ||
-                data.session.user.email?.split("@")[0] ||
-                "User"
-
-              toast.success(`Welcome back, ${userName}!`, {
-                description: "You have been automatically signed in.",
-                duration: 4000,
-              })
-            }
-          }
+        } else if (deepLinkRefreshToken) {
+          // Refresh-only deep links: derive a fresh session from the token.
+          console.log("Deriving session from refresh token")
+          const { data, error: refreshError } =
+            await supabase.auth.refreshSession({
+              refresh_token: deepLinkRefreshToken,
+            })
+          if (refreshError) throw refreshError
+          sessionResult = data.session
+        } else if (authCode) {
+          // Email confirmation / recovery delivered as a PKCE code
+          console.log("Processing code exchange for type:", queryParams.get("type"))
+          const { data, error: codeError } =
+            await supabase.auth.exchangeCodeForSession(authCode)
+          if (codeError) throw codeError
+          sessionResult = data.session
+        } else if (tokenHash) {
+          // Email templates that verify with a token hash instead of tokens
+          console.log("Verifying token hash for type:", queryParams.get("type"))
+          const { data, error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: (queryParams.get("type") || "recovery") as "recovery",
+          })
+          if (otpError) throw otpError
+          sessionResult = data.session
         }
       }
-      // Email verification uses query parameters
-      else if (
-        queryParams.get("type") === "recovery" ||
-        queryParams.get("type") === "signup"
-      ) {
-        console.log(
-          "Processing code exchange for type:",
-          queryParams.get("type"),
-        )
-        const { data, error: codeError } =
-          await supabase.auth.exchangeCodeForSession(queryParams.get("code"))
 
-        if (codeError) throw codeError
-        sessionResult = data.session
+      if (sessionResult) {
+        console.log("Manually updating session store")
+        session.set(sessionResult)
 
-        // Manually update the store as well
-        if (data.session) {
-          console.log("Manually updating session store from code exchange")
-          session.set(data.session)
+        // Create or update profile
+        debugInfo.profileCreated = await createOrUpdateProfile(sessionResult)
+        console.log("Profile creation result:", debugInfo.profileCreated)
 
-          // Create or update profile
-          debugInfo.profileCreated = await createOrUpdateProfile(data.session)
-          console.log("Profile creation result:", debugInfo.profileCreated)
+        // FIXED: Show appropriate toast based on recovery type
+        if (isRecoveryFlow) {
+          toast.success("Recovery link verified!", {
+            description: "Please set your new password.",
+            duration: 4000,
+          })
+        } else {
+          const userName =
+            sessionResult.user.user_metadata?.full_name ||
+            sessionResult.user.user_metadata?.name ||
+            sessionResult.user.email?.split("@")[0] ||
+            "User"
+          const isSignup = queryParams.get("type") === "signup"
 
-          // Show appropriate toast for recovery vs signup
-          if (queryParams.get("type") === "recovery") {
-            toast.success("Email verified successfully!", {
-              description: "Please set your new password.",
+          toast.success(
+            isSignup ? `Welcome, ${userName}!` : `Welcome back, ${userName}!`,
+            {
+              description: isSignup
+                ? "Your account has been created successfully."
+                : "You have been automatically signed in.",
               duration: 4000,
-            })
-          } else {
-            const userName =
-              data.session.user.user_metadata?.full_name ||
-              data.session.user.user_metadata?.name ||
-              data.session.user.email?.split("@")[0] ||
-              "User"
-
-            toast.success(`Welcome, ${userName}!`, {
-              description: "Your account has been created successfully.",
-              duration: 4000,
-            })
-          }
+            },
+          )
         }
+      } else if (isRecoveryFlow) {
+        // A recovery link that yields no session can never set a password, so
+        // send the user back for a fresh link instead of an unusable form.
+        throw new Error("That reset link is no longer valid.")
       }
 
       debugInfo.sessionResult = sessionResult ? "success" : "failure"
@@ -376,9 +376,24 @@
         goto(debugInfo.redirectTo)
       }, 1000)
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
       console.error("Error during auth callback:", e)
-      error = e.message
-      debugInfo.sessionResult = "error: " + e.message
+      debugInfo.sessionResult = "error: " + message
+
+      if (isRecoveryFlow) {
+        // Reset links are single-use and short-lived; the fix is always a new one.
+        toast.error("That reset link didn't work", {
+          description:
+            "Reset links can only be used once and expire after an hour. Request a new one to continue.",
+          duration: 8000,
+        })
+        setTimeout(() => {
+          goto("/login/forgot_password?error=link_expired")
+        }, 1200)
+        return
+      }
+
+      error = message
       loading = false
 
       // ADDED: Show error toast for failed authentication

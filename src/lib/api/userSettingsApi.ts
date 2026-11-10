@@ -1426,4 +1426,50 @@ export const userSettingsApi = {
             };
         }
     },
+
+    /**
+     * Show/hide ONE chaser bin's button on the map's quick-action rail.
+     *
+     * A per-viewer preference (stored as { vehicleId: true } in
+     * user_settings.chaser_rail_visibility), so two operators can keep
+     * different chasers on their own rail. Chasers start hidden.
+     *
+     * @param {string} vehicleId the chaser operator's profiles.id
+     * @param {boolean} show
+     */
+    async updateChaserRailVisibility(vehicleId: string, show: boolean) {
+        if (!vehicleId) return { success: false, message: "No chaser", errorFields: [] };
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                toast.error("You must be logged in to update settings");
+                goto("/login");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            let nextVisibility: Record<string, boolean> = {};
+            userSettingsStore.update((settings) => {
+                nextVisibility = { ...(settings.chaserRailVisibility ?? {}) };
+                if (show) nextVisibility[vehicleId] = true;
+                else delete nextVisibility[vehicleId];
+                return { ...settings, chaserRailVisibility: nextVisibility };
+            });
+
+            const userId = sessionData.session.user.id;
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, chaser_rail_visibility: nextVisibility },
+                { onConflict: "user_id" },
+            );
+
+            if (error) {
+                console.error("Error saving chaser rail visibility:", error);
+                return { success: false, message: "Failed to save setting", errorFields: [] };
+            }
+
+            return { success: true, message: "Chaser shortcut updated" };
+        } catch (error) {
+            console.error("Error in updateChaserRailVisibility:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
 };

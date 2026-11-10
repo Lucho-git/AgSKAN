@@ -45,6 +45,10 @@ const defaultSettings = {
     rockPickingMenuEnabled: true, // Show Rock Picking menu in map toolbox (default on)
     weatherMenuEnabled: true, // Show Weather menu in map toolbox (default on)
     weatherSource: null as { mode: "farm" | "my"; farmId: string; lat: number | null; lng: number | null } | null, // saved weather location
+    // Which chaser bins get a button on the map's quick-action rail
+    // ({ [vehicleId]: true }). Per viewer, and off by default — the rail
+    // starts clean and you opt chasers in from that chaser's Setup tab.
+    chaserRailVisibility: {} as Record<string, boolean>,
 };
 
 export const userSettingsStore = writable(defaultSettings);

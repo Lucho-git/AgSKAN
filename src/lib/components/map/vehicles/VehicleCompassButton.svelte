@@ -20,6 +20,8 @@
   import { clearAllPersistedData } from "$lib/services/db"
   import SVGComponents from "$lib/vehicles/index.js"
   import RawGps from "$lib/plugins/rawGps.js"
+  import { openChaserBinModal } from "$lib/stores/mapQuickActionStore"
+  import { isChaserBinType } from "$lib/utils/grainLoad"
   import { Capacitor } from "@capacitor/core"
   import { onMount, onDestroy } from "svelte"
   import {
@@ -212,8 +214,13 @@
   let vehiclePickerOpen = false
   let purging = false
 
-  const actions = [
+  // A chaser bin gets a bottom-bar shortcut to its load modal — it's the one
+  // machine with something to check while driving.
+  $: isChaserBin = isChaserBinType($userVehicleStore.vehicle_marker?.type)
+
+  $: actions = [
     { label: "Edit Vehicle" },
+    ...(isChaserBin ? [{ label: "Chaser Bin" }] : []),
     { label: "First Person View" },
     { label: "Broadcast" },
   ]
@@ -231,6 +238,9 @@
     switch (label) {
       case "Edit Vehicle":
         if (onOpenVehicleControls) onOpenVehicleControls()
+        break
+      case "Chaser Bin":
+        openChaserBinModal($userVehicleStore.vehicle_id)
         break
       case "First Person View":
         // Open vehicle picker instead of toggling directly

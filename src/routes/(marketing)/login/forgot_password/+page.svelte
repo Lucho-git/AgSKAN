@@ -6,6 +6,7 @@
   import { onMount } from "svelte"
 
   let showSpamWarning = false
+  let linkExpired = false
   let authComponent: any
 
   // Function to intercept the form submission
@@ -27,6 +28,10 @@
   }
 
   onMount(() => {
+    // The auth callback sends people here when their reset link expired or had
+    // already been used, so they know why they are being asked again.
+    linkExpired = $page.url.searchParams.has("error")
+
     // Check if we're already in the "email sent" state (URL has ?email= parameter)
     if ($page.url.searchParams.has("email")) {
       showSpamWarning = true
@@ -67,6 +72,16 @@
 <div class="container mx-auto max-w-md px-4 py-8">
   <h1 class="mb-6 text-2xl font-bold text-contrast-content">Forgot Password</h1>
 
+  {#if linkExpired}
+    <div class="mb-6 rounded-lg border border-error bg-error/10 p-4 text-error">
+      <p class="font-medium">That reset link didn't work</p>
+      <p class="mt-1 text-sm text-error/80">
+        Reset links can only be used once and expire after an hour. Enter your
+        email below to receive a new one.
+      </p>
+    </div>
+  {/if}
+
   {#if showSpamWarning}
     <!-- Spam Warning Notice - Only shown after email submission -->
     <div
@@ -100,7 +115,7 @@
   <Auth
     supabaseClient={supabase}
     view="forgotten_password"
-    redirectTo={`${$page.url.origin}/auth/callback?next=%account`}
+    redirectTo={`${$page.url.origin}/auth/callback?next=%2Faccount`}
     providers={oauthProviders}
     socialLayout="horizontal"
     showLinks={false}

@@ -1,6 +1,8 @@
 // src/lib/stores/vehicleStore.js
 import { writable } from "svelte/store"
 import vehicleComponents from "$lib/vehicles"
+import { openChaserBinModal } from "$lib/stores/mapQuickActionStore"
+import { isChaserBinType } from "$lib/utils/grainLoad"
 
 function createUserVehicleStore() {
   const { subscribe, set, update } = writable({
@@ -13,6 +15,11 @@ function createUserVehicleStore() {
       bodyColor: "Yellow",
       size: 45,
       swath: 4,
+      // Chaser-bin grain load (tonnes) + tank size. Only chaser bins use
+      // these; they ride the vehicle_marker broadcast/DB payload so every
+      // connected user sees the load (see utils/grainLoad).
+      grainLoad: 0,
+      grainCapacity: /** @type {number | null} */ (null),
       path: () => vehicleComponents.Pointer,
     },
     heading: 0,
@@ -34,14 +41,26 @@ function createUserVehicleStore() {
     set,
     update,
     updateVehicleMarker: (newMarker, presetId = null) => {
-      update((store) => ({
-        ...store,
-        vehicle_marker: {
-          ...store.vehicle_marker,
-          ...newMarker,
-          path: () => vehicleComponents[newMarker.type] || vehicleComponents.Pointer,
-        },
-      }))
+      let ownVehicleId = null
+      update((store) => {
+        ownVehicleId = store.vehicle_id
+        return {
+          ...store,
+          vehicle_marker: {
+            ...store.vehicle_marker,
+            ...newMarker,
+            path: () => vehicleComponents[newMarker.type] || vehicleComponents.Pointer,
+          },
+        }
+      })
+      // Picking a chaser bin is exactly when its load panel is wanted, so it
+      // opens on selection — alongside the bottom panel/HUD that already
+      // shows the machine. (Only user selections land here; loading the
+      // vehicle back from the server uses update() directly, so opening the
+      // map never pops the modal uninvited.)
+      if (isChaserBinType(newMarker?.type) && ownVehicleId) {
+        openChaserBinModal(ownVehicleId)
+      }
     },
   }
 }

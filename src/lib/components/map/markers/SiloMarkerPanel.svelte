@@ -17,7 +17,20 @@
   import { mapInteractionsSuppressed } from "$lib/stores/controlStore"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { profileStore } from "$lib/stores/profileStore"
+  import { userVehicleStore } from "$lib/stores/vehicleStore"
+  import { chaserLoadsStore, setChaserLoad } from "$lib/stores/chaserLoadsStore"
   import { blockForViewer, showGuestTip } from "$lib/utils/guestMode"
+  import { toast } from "svelte-sonner"
+  import { logGrainEvent } from "$lib/api/grainLogApi"
+  import {
+    binStoredTonnes,
+    chaserLoad,
+    formatTonnes,
+    isChaserBinType,
+    planTransfer,
+    roundTonnes,
+  } from "$lib/utils/grainLoad"
+  import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
 
   export let map
   export let marker
@@ -131,6 +144,24 @@
   $: markerName = marker?.notes?.trim() || grainBinName(marker?.iconClass)
   $: currentTonnes = capacityTonnes > 0 ? (capacityTonnes * fill) / 100 : 0
 
+  // Chaser bin (the user's own machine) — drives the one-tap empty, exactly
+  // like the bin quick modal. The tonnage lives in the shared chaser-loads
+  // record, not on the vehicle.
+  $: ownVehicleId = $userVehicleStore?.vehicle_id || null
+  $: chaserMarker = $userVehicleStore?.vehicle_marker || null
+  $: ownChaserState = (ownVehicleId && $chaserLoadsStore?.[ownVehicleId]) || null
+  $: chaserTonnes = isChaserBinType(chaserMarker?.type)
+    ? chaserLoad(ownChaserState)
+    : 0
+  $: transferPlan = planTransfer({
+    loadTonnes: chaserTonnes,
+    binFill: fill,
+    binCapacity: capacityTonnes,
+  })
+  // Last stored-tonnes figure the grain record saw — the "before" side of
+  // the next fill change (the slider only reports the new value).
+  let recordedTonnes = 0
+
   // Sync local state when the marker changes (NOT while dragging — that's
   // what made the old slider stick at its stored value).
   $: {
@@ -143,6 +174,7 @@
       capacityInput = capacityTonnes ? String(capacityTonnes) : ""
       tonnesDelta = ""
       grainColor = siloColorKey(marker?.grainColor)
+      recordedTonnes = binStoredTonnes(capacityTonnes, fill)
       // The first time a field bin's panel opens (right after it's placed),
       // land on the Settings tab so the user can set it up; every later open
       // uses the usual Fill tab. `fieldBinConfigured` is persisted on the
@@ -280,6 +312,69 @@
     )
   }
 
+  // Put one fill change in the grain record. `beforeTonnes` is what the last
+  // record saw, so a slider drag reads as a single delta.
+  function recordFill(beforeTonnes) {
+    if (!marker) return
+    const afterTonnes = binStoredTonnes(capacityTonnes, fill)
+    if (roundTonnes(afterTonnes) === roundTonnes(beforeTonnes)) return
+    void logGrainEvent({
+      action: "bin.level",
+      binId: marker.id,
+      binName: markerName,
+      tonnesBefore: roundTonnes(beforeTonnes),
+      tonnesAfter: afterTonnes,
+      binFillBefore:
+        capacityTonnes > 0 ? (beforeTonnes / capacityTonnes) * 100 : 0,
+      binFillAfter: fill,
+    })
+    recordedTonnes = afterTonnes
+  }
+
+  // Slider release — persist, then record the change.
+  function commitFill() {
+    const before = recordedTonnes
+    commit()
+    recordFill(before)
+  }
+
+  // One tap: tip the user's chaser bin into this bin (as much as fits).
+  function emptyChaserHere() {
+    if (isViewer || !marker) return
+    const plan = transferPlan
+    if (plan.moved <= 0) return
+    const chaserBefore = chaserTonnes
+    const binFillBefore = fill
+
+    fill = plan.binFillAfter
+    updateSiloBarLive(marker.id, fill, grainColor)
+    commit()
+    void setChaserLoad({
+      masterMapId: $profileStore?.master_map_id ?? null,
+      vehicleId: ownVehicleId,
+      load: plan.loadAfter,
+      actorId: $profileStore?.id ?? null,
+    })
+
+    void logGrainEvent({
+      action: "chaser.empty",
+      binId: marker.id,
+      binName: markerName,
+      vehicleId: $profileStore?.id ?? null,
+      vehicleName: getVehicleDisplayName($userVehicleStore),
+      tonnesBefore: chaserBefore,
+      tonnesAfter: plan.loadAfter,
+      binFillBefore,
+      binFillAfter: plan.binFillAfter,
+    })
+    recordedTonnes = plan.binStoredAfter
+
+    toast.success(
+      `Moved ${formatTonnes(plan.moved)} into ${markerName}` +
+        (plan.overflows ? ` · ${formatTonnes(plan.loadAfter)} left` : ""),
+    )
+  }
+
   // Set the bin size. Changing it preserves the stored tonnes — the fill
   // percentage recalculates so the bin change doesn't magically add/remove
   // grain.
@@ -296,6 +391,8 @@
       updateSiloBarLive(marker.id, fill, grainColor)
     }
     commit()
+    // Same stored tonnes, new bin size — keep the record baseline in step.
+    recordedTonnes = binStoredTonnes(capacityTonnes, fill)
   }
 
   // Pick a grain colour for the on-map fill gauge.
@@ -326,6 +423,7 @@
     fill = (next / capacityTonnes) * 100
     updateSiloBarLive(marker.id, fill, grainColor)
     commit()
+    recordFill(recordedTonnes)
     tonnesDelta = ""
   }
 
@@ -672,7 +770,7 @@
               step="1"
               bind:value={fill}
               on:input={handleFillInput}
-              on:change={commit}
+              on:change={commitFill}
               aria-label="Field bin fill level"
               style="--silo-thumb: {grainColorDef.dark}; background: linear-gradient(to right, {grainColorDef.dark} 0%, {grainColorDef.dark} {fill}%, rgba(255,255,255,0.14) {fill}%);"
             />
@@ -734,6 +832,34 @@
             <span class="silo-pop-delta-hint">Enter a value first</span>
           {/if}
         </div>
+
+        {#if chaserTonnes > 0}
+          <!-- One-tap empty: the user's own chaser bin tips into this bin. -->
+          <button
+            class="silo-pop-transfer"
+            disabled={transferPlan.moved <= 0}
+            on:click={emptyChaserHere}
+            title={transferPlan.moved <= 0
+              ? "This bin is full"
+              : `Move ${formatTonnes(transferPlan.moved)} from the chaser into this bin`}
+          >
+            <span class="silo-pop-transfer-body">
+              <span class="silo-pop-transfer-title">
+                {transferPlan.moved <= 0 ? "Bin full" : "Empty chaser here"}
+              </span>
+              <span class="silo-pop-transfer-note">
+                {transferPlan.moved > 0
+                  ? `${formatTonnes(transferPlan.moved)} → ${Math.round(
+                      transferPlan.binFillAfter,
+                    )}%`
+                  : `${Math.round(fill)}% · no room left`}
+              </span>
+            </span>
+            <span class="silo-pop-transfer-amount"
+              >{formatTonnes(chaserTonnes)}</span
+            >
+          </button>
+        {/if}
 
         <button
           class="silo-pop-move"
@@ -1093,6 +1219,49 @@
     font-size: 10.5px;
     font-weight: 700;
     color: #fbbf24;
+  }
+  /* One-tap empty from the user's own chaser bin. */
+  .silo-pop-transfer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 9px;
+    border-radius: 9px;
+    border: 1px solid #2563eb;
+    background: rgba(37, 99, 235, 0.16);
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .silo-pop-transfer:hover:not(:disabled) {
+    background: rgba(37, 99, 235, 0.32);
+  }
+  .silo-pop-transfer:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .silo-pop-transfer-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .silo-pop-transfer-title {
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .silo-pop-transfer-note {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .silo-pop-transfer-amount {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 800;
+    color: #93c5fd;
   }
   .silo-pop-move-body {
     flex: 1;

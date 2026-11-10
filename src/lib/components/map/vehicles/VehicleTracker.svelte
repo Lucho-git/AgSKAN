@@ -29,6 +29,8 @@
   import VehicleDetailsPanel from "./VehicleDetailsPanel.svelte"
   import { mapAttentionStore } from "$lib/stores/mapAttentionStore"
   import { muteBroadcast } from "$lib/stores/broadcastMuteStore"
+  import { openChaserBinModal } from "$lib/stores/mapQuickActionStore"
+  import { isChaserBinType } from "$lib/utils/grainLoad"
   import SVGComponents from "$lib/vehicles/index.js"
   import { toast } from "svelte-sonner"
   import { RadioTower } from "lucide-svelte"
@@ -488,6 +490,23 @@
     }
 
     updateAllVehicleSelectionStates()
+
+    // Selecting a chaser bin pops its load modal on top of the bottom panel —
+    // the tonnage is the thing you came to look at. Works for teammates'
+    // chasers too, which is also how you reach one whose rail button is
+    // switched off (they're all off by default).
+    if (selectedVehicleId) {
+      const selected = ($otherVehiclesStore || []).find(
+        (v) => v.vehicle_id === selectedVehicleId,
+      )
+      const isOwn = selectedVehicleId === $userVehicleStore.vehicle_id
+      const selectedMarker = isOwn
+        ? $userVehicleStore.vehicle_marker
+        : selected?.vehicle_marker
+      if (isChaserBinType(selectedMarker?.type)) {
+        openChaserBinModal(selectedVehicleId)
+      }
+    }
 
     // Just selected a teammate's vehicle that is broadcasting? Offer to
     // silence it — silencing stops the broadcast for everyone.

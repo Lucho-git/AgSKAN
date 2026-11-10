@@ -294,6 +294,7 @@
             user_settings.rock_picking_menu_enabled ?? true,
           weatherMenuEnabled: user_settings.weather_menu_enabled ?? true,
           weatherSource: user_settings.weather_source ?? null,
+          chaserRailVisibility: user_settings.chaser_rail_visibility ?? {},
         })
 
         layerVisibilityStore.applySavedState(
@@ -338,6 +339,7 @@
           rockPickingMenuEnabled: true,
           weatherMenuEnabled: true,
           weatherSource: null,
+          chaserRailVisibility: {},
         })
 
         layerVisibilityStore.reset()

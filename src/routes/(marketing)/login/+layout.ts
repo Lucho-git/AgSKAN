@@ -1,23 +1,15 @@
 // +layout.ts
-import {
-    PUBLIC_SUPABASE_ANON_KEY,
-    PUBLIC_SUPABASE_URL,
-} from "$env/static/public";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "$lib/stores/sessionStore";
 
 export const load = async ({ depends, url }) => {
     depends("supabase:auth");
 
-    const supabase = createClient(
-        PUBLIC_SUPABASE_URL,
-        PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    // Check session client-side
+    // Use the shared client. Creating an extra supabase-js client on every
+    // navigation makes several clients share one storage key, and they then race
+    // each other over refresh-token rotation (which logs people out at random).
     const { data: { session } } = await supabase.auth.getSession();
 
     return {
-        supabase,
         session,
         url: url.origin
     };
