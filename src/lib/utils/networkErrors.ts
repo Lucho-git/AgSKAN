@@ -181,6 +181,28 @@ export function isRetryableFailure(failure: LoadFailure | null): boolean {
   return !!failure?.retryable
 }
 
+/**
+ * PostgREST answers `.single()` with 406/PGRST116 when the query matched no
+ * rows. That is an empty result, not a failed request — for tables whose rows
+ * are created lazily (subscriptions, settings) a brand-new account legitimately
+ * has none yet. Treating it as a transport failure produced "some data didn't
+ * load" banners on healthy connections.
+ */
+export function isNoRowsError(error: unknown): boolean {
+  if (error == null) return false
+  if (typeof error !== "object") return false
+
+  const value = error as Record<string, unknown>
+  if (String(value.code ?? "") === "PGRST116") return true
+
+  const text = collectErrorText(error)
+  return (
+    text.includes("json object requested") ||
+    text.includes("multiple (or no) rows returned") ||
+    text.includes("result contains 0 rows")
+  )
+}
+
 /** One-line technical summary for logs / the details toggle. */
 export function describeLoadError(error: unknown): string {
   if (error == null) return "no error object"

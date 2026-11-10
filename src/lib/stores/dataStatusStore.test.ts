@@ -43,6 +43,23 @@ describe("dataStatusStore", () => {
     expect(get(failedDomains)).toContain("team")
   })
 
+  // `.single()` on a table with no matching row resolves with a PGRST116 error.
+  // A brand-new account has no subscription/settings row yet, and reporting that
+  // as a dropped connection is what made signups show "some data didn't load".
+  it("treats a no-rows answer as ok, not as missing data", () => {
+    const noRows = {
+      code: "PGRST116",
+      message:
+        "JSON object requested, multiple (or no) rows returned",
+      details: "The result contains 0 rows",
+    }
+
+    expect(reportResult("subscription", noRows)).toBe(true)
+    expect(reportResult("settings", noRows)).toBe(true)
+    expect(get(dataStatusStore).subscription.state).toBe("ok")
+    expect(get(failedDomains)).toEqual([])
+  })
+
   it("clears a failure once the domain reports ok again", () => {
     reportResult("stats", { message: "boom", code: "XX000" })
     expect(get(failedDomains)).toContain("stats")

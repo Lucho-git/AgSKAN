@@ -58,6 +58,10 @@
     unregisterDomainRetry,
     type DataDomain,
   } from "$lib/stores/dataStatusStore"
+  import {
+    createSubscriptionIfNeeded,
+    createUserSettingsIfNeeded,
+  } from "$lib/helpers/authHelpers"
 
   // Native push (OneSignal) — links this device to the signed-in user
   import { initNativePush, syncNativePushUser } from "$lib/nativePush"
@@ -167,21 +171,28 @@
       const [profileResult, subscriptionResult, user_settingsResult] =
         await Promise.all([
           supabase.from("profiles").select(`*`).eq("id", userId).single(),
+          // maybeSingle on purpose: these rows are created by the client (there
+          // is no DB trigger), so a brand-new account legitimately has none yet.
+          // `.single()` turns "no rows" into a PGRST116 *error*, which the data
+          // status store reported as a dropped connection — the banner then
+          // claimed the plan and settings "didn't arrive" on a perfectly good
+          // connection, and the missing subscription left the sidebar profile
+          // block stuck on its placeholder.
           supabase
             .from("user_subscriptions")
             .select("*")
             .eq("user_id", userId)
-            .single(),
+            .maybeSingle(),
           supabase
             .from("user_settings")
             .select("*")
             .eq("user_id", userId)
-            .single(),
+            .maybeSingle(),
         ])
 
       const profile = profileResult.data
-      const subscription = subscriptionResult.data
-      const user_settings = user_settingsResult.data
+      let subscription = subscriptionResult.data
+      let user_settings = user_settingsResult.data
 
       const netOpts = { browserOnline: $networkStore.browserOnline }
 
@@ -201,6 +212,31 @@
       // dropping them is what made a half-loaded account look healthy.
       reportResult("subscription", subscriptionResult.error, netOpts)
       reportResult("settings", user_settingsResult.error, netOpts)
+
+      // A row that simply doesn't exist yet is not a load failure: provision it
+      // and read it back, so new accounts show real values immediately instead
+      // of waiting for the next page load. Both helpers are idempotent.
+      if (!subscription && !subscriptionResult.error) {
+        await createSubscriptionIfNeeded(userId)
+        subscription = (
+          await supabase
+            .from("user_subscriptions")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle()
+        ).data
+      }
+
+      if (!user_settings && !user_settingsResult.error) {
+        await createUserSettingsIfNeeded(userId)
+        user_settings = (
+          await supabase
+            .from("user_settings")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle()
+        ).data
+      }
 
       console.log("Profile loaded:", profile?.id)
 
@@ -236,11 +272,28 @@
       if (subscription) {
         subscriptionStore.set({
           subscription: subscription.subscription,
+          subscription_status: subscription.subscription_status,
+          stripe_subscription_id: subscription.stripe_subscription_id,
           marker_limit: subscription.marker_limit,
           trail_limit: subscription.trail_limit,
           lingering_seats: subscription.lingering_seats,
           current_seats: subscription.current_seats,
           next_billing_date: subscription.next_billing_date,
+        })
+      } else if (!subscriptionResult.error) {
+        // The row is absent and couldn't be created (offline, or a temporary
+        // permissions problem). Carry on with the free-plan defaults instead of
+        // leaving the store empty — an empty store keeps the sidebar profile
+        // block on its skeleton for the rest of the session.
+        subscriptionStore.set({
+          subscription: "FREE",
+          subscription_status: "active",
+          stripe_subscription_id: null,
+          marker_limit: 100,
+          trail_limit: 100000,
+          lingering_seats: 0,
+          current_seats: 1,
+          next_billing_date: null,
         })
       }
 

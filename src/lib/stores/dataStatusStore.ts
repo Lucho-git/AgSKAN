@@ -13,7 +13,7 @@
 // (no page reload), automatically once the connection is back.
 
 import { writable, derived, get, type Readable } from "svelte/store"
-import { classifyLoadError, type LoadFailure } from "$lib/utils/networkErrors"
+import { classifyLoadError, isNoRowsError, type LoadFailure } from "$lib/utils/networkErrors"
 import { networkStore } from "$lib/stores/networkStore"
 
 export type DataDomain =
@@ -113,6 +113,12 @@ export function reportResult(
   options: { browserOnline?: boolean } = {},
 ): boolean {
   if (!error) {
+    reportOk(domain)
+    return true
+  }
+
+  // "No rows" is an empty result, not data that failed to arrive.
+  if (isNoRowsError(error)) {
     reportOk(domain)
     return true
   }

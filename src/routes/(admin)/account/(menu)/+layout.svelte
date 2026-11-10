@@ -246,9 +246,10 @@
     return true
   })
 
-  // Wait for stores to be populated
-  $: storesReady =
-    browser && $profileStore?.id && $subscriptionStore?.subscription
+  // Wait for the profile to be populated. Deliberately not gated on the
+  // subscription: the plan label is optional, and requiring it left the
+  // name/avatar block on a skeleton whenever the subscription row was missing.
+  $: storesReady = browser && !!$profileStore?.id
 </script>
 
 <div class="drawer lg:drawer-open">
@@ -420,7 +421,7 @@
                   </p>
                   {#if $subscriptionStore?.subscription === "FREE"}
                     <p class="text-xs opacity-70">Free Plan</p>
-                  {:else}
+                  {:else if $subscriptionStore?.subscription}
                     <p class="flex items-center text-xs opacity-70">
                       Pro Plan
                       <Icon
