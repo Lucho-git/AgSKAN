@@ -216,7 +216,12 @@
       // A row that simply doesn't exist yet is not a load failure: provision it
       // and read it back, so new accounts show real values immediately instead
       // of waiting for the next page load. Both helpers are idempotent.
-      if (!subscription && !subscriptionResult.error) {
+      // handle_new_user() creates the profile + settings at signup, and the
+      // on_profile_became_manager trigger mints the FREE plan, so these are a
+      // safety net for rows lost before those triggers existed. Only managers
+      // get a plan row written from here — operators and viewers ride the
+      // manager's plan and fall back to the FREE defaults below.
+      if (!subscription && !subscriptionResult.error && profile?.role === "manager") {
         await createSubscriptionIfNeeded(userId)
         subscription = (
           await supabase

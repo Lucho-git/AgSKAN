@@ -88,7 +88,7 @@ export async function updateOrCreateProfile(sessionData: Session) {
     // First check if profile exists
     const { data: existingProfile, error: fetchError } = await supabase
         .from("profiles")
-        .select("id, email, full_name, avatar_url, created_at")
+        .select("id, email, full_name, avatar_url, created_at, role")
         .eq("id", userId)
         .single();
 
@@ -119,8 +119,9 @@ export async function updateOrCreateProfile(sessionData: Session) {
 
         console.log("[Auth Helper] Profile created successfully");
 
-        // Also create a free subscription
-        await createSubscriptionIfNeeded(userId);
+        // No free plan here: the role isn't known until /account/select_role,
+        // and the on_profile_became_manager trigger mints the plan for managers.
+        // Operators and viewers ride their manager's plan.
 
         // Create user settings with default values
         await createUserSettingsIfNeeded(userId);
@@ -190,8 +191,13 @@ export async function updateOrCreateProfile(sessionData: Session) {
             }
         }
 
-        // Check subscription
-        await createSubscriptionIfNeeded(userId);
+        // Managers own a plan of their own; everyone else rides their
+        // manager's plan (operators/viewers fall back to FREE defaults in the
+        // UI). The on_profile_became_manager trigger also covers this, so this
+        // is only a repair for accounts that never got a row.
+        if (existingProfile.role === "manager") {
+            await createSubscriptionIfNeeded(userId);
+        }
 
         // Ensure user settings exist
         await createUserSettingsIfNeeded(userId);
