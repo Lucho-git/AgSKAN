@@ -51,6 +51,12 @@ function douglasPeucker(points, startIndex, endIndex, tolerance) {
 function perpendicularDistance(point, lineStart, lineEnd) {
   const dx = lineEnd.x - lineStart.x
   const dy = lineEnd.y - lineStart.y
+  // A segment whose ends coincide (a trail that returns to where it started)
+  // has no direction: measure straight to the point instead of dividing by 0,
+  // which made every distance NaN and collapsed the whole loop to two points.
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point.x - lineStart.x, point.y - lineStart.y)
+  }
   const numerator = Math.abs(
     dy * point.x -
       dx * point.y +

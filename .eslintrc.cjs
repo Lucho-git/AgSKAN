@@ -20,6 +20,14 @@ module.exports = {
           typescript: '@typescript-eslint/parser'
         }
       }
+    },
+    {
+      // Tests build partial fakes of Supabase rows and clients on purpose.
+      files: ['*.test.ts', '*.test.js', 'src/lib/test/**'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/ban-ts-comment': ['error', { 'ts-nocheck': false }]
+      }
     }
   ],
 	env: {

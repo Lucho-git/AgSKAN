@@ -2,10 +2,13 @@
 <script lang="ts">
   import { supabase } from "$lib/supabaseClient"
   import { invalidateAll } from "$app/navigation"
-  import { page } from "$app/stores"
-  import { enhance } from "$app/forms"
 
-  let sessionData: any = null
+  let sessionData: {
+    id?: string
+    email?: string
+    provider?: string
+    expiresAt?: number
+  } | null = null
   let logoutStatus: string = ""
   let loading: boolean = false
   let error: string = ""
@@ -16,11 +19,12 @@
       loading = true
       error = ""
 
-      // Get session from page data
-      sessionData = $page.data.session
+      // The app is a static build, so the session lives in the client only.
+      const { data } = await supabase.auth.getSession()
+      const session = data.session
 
       // Log the raw session data
-      console.log("Raw session data:", $page.data.session)
+      console.log("Raw session data:", session)
 
       // Parse and store cookies
       cookies = document.cookie
@@ -36,13 +40,13 @@
 
       console.log("Current cookies:", cookies)
 
-      if (sessionData) {
-        // Update the session data to match the structure we're displaying
+      if (session) {
+        // Keep just the fields the page displays
         sessionData = {
-          id: sessionData.user?.id,
-          email: sessionData.user?.email,
-          provider: sessionData.user?.app_metadata?.provider,
-          expiresAt: sessionData.expires_at,
+          id: session.user?.id,
+          email: session.user?.email,
+          provider: session.user?.app_metadata?.provider,
+          expiresAt: session.expires_at,
         }
 
         // Log the processed session data
@@ -103,17 +107,6 @@
             })
           }
         })
-      }
-
-      // Call server-side logout action first
-      const formData = new FormData()
-      const response = await fetch("?/logout", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error("Server-side logout failed")
       }
 
       // Sign out from Supabase client
@@ -212,27 +205,13 @@
       </button>
 
       {#if sessionData}
-        <form
-          method="POST"
-          action="?/logout"
-          use:enhance={() => {
-            loading = true
-            return async ({ result }) => {
-              if (result.error) {
-                error = result.error
-              }
-              await handleLogout()
-            }
-          }}
+        <button
+          on:click={handleLogout}
+          disabled={loading}
+          class="flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
         >
-          <button
-            type="submit"
-            disabled={loading}
-            class="flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Logout"}
-          </button>
-        </form>
+          {loading ? "Loading..." : "Logout"}
+        </button>
       {/if}
     </div>
 

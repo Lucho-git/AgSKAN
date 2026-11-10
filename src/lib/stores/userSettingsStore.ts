@@ -27,7 +27,7 @@ const defaultSettings = {
     devToolsEnabled: false, // Show Dev Mode & BG Sim buttons in map toolbox
     // Per-user ADMIN flag — gates admin-only maintenance actions (Records page
     // Backfill / Fix Paths / Regen All). Separate from Developer mode; toggled
-    // per user from the Admin dashboard. See sql/migrations/2026-09-25_add_is_admin.sql
+    // per user from the Admin dashboard. See supabase/migrations/20260925000000_add_is_admin.sql
     isAdmin: false,
     // GPS-related settings
     enableFull1Hz: false, // Enable native 1Hz UI updates

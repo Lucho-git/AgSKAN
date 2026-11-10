@@ -95,7 +95,10 @@ npx cap open android
 - `src/lib/services` contains GPS/background/offline service code.
 - `src/lib/api` contains client-side API wrappers for Supabase and Edge Functions.
 - `supabase/functions` contains deployable Supabase Edge Functions.
+- `supabase/migrations` holds every schema change as `<timestamp>_<name>.sql`, in applied order. Create new ones with `supabase migration new`; see `supabase/README.md`.
+- `supabase/adhoc` holds one-off diagnostic and data-repair SQL (not migrations).
 - `scripts` contains operational maintenance scripts for trail, billing, and data cleanup work.
+- Tests sit next to the code they cover (`*.test.ts` / `*.test.js`, run with `npm run test`). `src/lib/test/fakeSupabase.ts` is a chainable fake client for testing code that talks to Supabase.
 
 ## Supabase Project & MCP Access (for AI agents)
 

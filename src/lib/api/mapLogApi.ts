@@ -1,5 +1,5 @@
 // src/lib/api/mapLogApi.ts
-// Reads for the map activity log (see supabase/migrations/add_map_log.sql).
+// Reads for the map activity log (see supabase/migrations/20260911041043_add_map_log.sql).
 // Rows are written server-side by triggers; the client only reads them.
 import { supabase } from "$lib/supabaseClient"
 

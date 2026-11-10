@@ -1,7 +1,7 @@
 // src/lib/stores/chaserLoadsStore.js
 // The tonnage in EVERY chaser bin on the map — not just the one you drive.
 //
-// One shared row per chaser (see supabase/migrations/add_chaser_loads.sql) so
+// One shared row per chaser (see supabase/migrations/20261110042557_add_chaser_loads.sql) so
 // any operator can adjust any chaser's load. Deliberately NOT stored on
 // vehicle_state.vehicle_marker: that row is re-pushed by the machine's own
 // client every few seconds, which would overwrite a teammate's edit within one

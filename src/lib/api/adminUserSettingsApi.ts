@@ -2,7 +2,7 @@
 // Admin-only API for viewing and modifying any user's settings.
 // Uses the standard supabase client — requires RLS policies that allow
 // support team members to read/write user_settings for any user.
-// See accompanying SQL migration: sql/migrations/2026-06-24_admin_user_settings_rls.sql
+// See accompanying SQL migration: supabase/migrations/20260624000000_admin_user_settings_rls.sql
 
 import { supabase } from "$lib/supabaseClient"
 

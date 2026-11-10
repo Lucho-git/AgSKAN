@@ -1,5 +1,5 @@
 // src/lib/api/markerStatsApi.ts
-// Reads for marker usage stats (see sql/migrations/2026-09-22_marker_archive.sql).
+// Reads for marker usage stats (see supabase/migrations/20260922000004_marker_archive.sql).
 // The archive is written server-side by triggers; the client only reads.
 import { supabase } from "$lib/supabaseClient"
 

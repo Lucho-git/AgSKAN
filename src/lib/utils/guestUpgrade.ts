@@ -4,7 +4,7 @@
 // to the guest signup page, which adapts to the invite's "Keep their access
 // after signup" checkbox (map_invites.retain_on_signup → copied onto
 // profiles.retain_after_signup at redeem time, see
-// supabase/migrations/add_invite_retain_on_signup.sql):
+// supabase/migrations/20260914042648_add_invite_retain_on_signup.sql):
 //
 //   - ticked  → the guest upgrades in place: they stay joined to the map and
 //               the access becomes permanent.

@@ -1,6 +1,6 @@
 // src/lib/api/grainLogApi.ts
 // Read/write access for the grain activity record (see
-// supabase/migrations/add_grain_log.sql).
+// supabase/migrations/20261110042558_add_grain_log.sql).
 //
 // Writes go through the `log_grain_event` RPC — the actor and the map are
 // resolved server-side from the caller's profile, so the client never sends

@@ -5,7 +5,7 @@
 // Storage layout (matches user_files_bucket conventions):
 //   user_<userId>/kmz_overlays/<fileName>
 //
-// DB table: public.kmz_overlays (see supabase/migrations/add_kmz_overlays.sql)
+// DB table: public.kmz_overlays (see supabase/migrations/20260806065952_add_kmz_overlays.sql)
 //   id, map_id, name, source_file, geojson (jsonb), style (jsonb), created_at, updated_at
 import { supabase } from "$lib/supabaseClient"
 import { kml } from "@tmcw/togeojson"

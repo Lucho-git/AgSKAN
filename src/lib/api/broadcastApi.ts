@@ -1,6 +1,6 @@
 // src/lib/api/broadcastApi.ts
 // Custom broadcasts — created by users and shared with everyone on the map
-// (see sql/migrations/2026-09-22_map_broadcasts.sql).
+// (see supabase/migrations/20260922000003_map_broadcasts.sql).
 import { supabase } from "$lib/supabaseClient"
 
 export interface MapBroadcast {
