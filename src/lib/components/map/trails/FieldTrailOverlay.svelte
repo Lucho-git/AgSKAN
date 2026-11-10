@@ -31,8 +31,54 @@
   import {
     suggestMatches,
     suggestActivityAssignments,
-    type MatchSuggestion,
   } from "$lib/utils/agworldMatching"
+  import {
+    recordKey,
+    formatDuration,
+    formatDate,
+    formatTime,
+    formatSliderDate,
+    formatHa,
+    formatKm,
+    formatVehicleType,
+    getVehicleType,
+    formatTimeBetween,
+    buildTrailSelection,
+    trailPopupHtml,
+    matchActivityName,
+    activityTypeLabel,
+    matchColor,
+    formatClusterWindow,
+    confidenceLabel,
+    clusterSwathLabel,
+    bdRows,
+  } from "$lib/utils/fieldTrailFormat"
+  import {
+    getTrailColor as trailColor,
+    sortedRecordTimes,
+    initialRangeMode,
+    sliderBounds,
+    timeToPct as pctAlong,
+    clampSliderStart,
+    clampSliderEnd,
+    filterRecords,
+    sortByStart,
+    startMs,
+    availableOperations as listOperations,
+    matchedRecordMap as buildMatchedRecordMap,
+  } from "$lib/utils/fieldTrailTimeline"
+  import {
+    getAllOuterRings,
+    getBoundsFromBoundary,
+    getFieldCentroid,
+  } from "$lib/utils/boundaryGeometry"
+  import { buildReportData } from "$lib/utils/fieldTrailReport"
+  import { writeReportPdf, reportFileName } from "$lib/utils/fieldTrailReportPdf"
+  import {
+    fetchWorkingWeather,
+    boundaryCentroid,
+  } from "$lib/services/fieldWeather"
+  import { fetchTrailGeojson } from "$lib/services/trailGeojson"
 
   const dispatch = createEventDispatcher()
 
@@ -56,9 +102,6 @@
   let selectedTrail = null as any
   // Multi-select: record keys currently highlighted on the map + legend
   let selectedTrailIds = new Set<string>()
-  function recordKey(r: any): string {
-    return r?.id ?? r?.trail_id ?? r?.start_time
-  }
 
   // Mobile bottom-sheet drag state
   let panelHeight = 0 // 0 = auto-fit to content
@@ -120,568 +163,34 @@
     // Capture map snapshot
     const snapshot = map.getCanvas().toDataURL("image/png")
 
-    // Compute totals
-    const totalArea = sortedRecords.reduce(
-      (sum, r) => sum + parseFloat(r.area_hectares || 0),
-      0,
-    )
-    const totalDistance = sortedRecords.reduce(
-      (sum, r) => sum + parseFloat(r.distance_km || 0),
-      0,
-    )
-    const startTime = sortedRecords[0]?.start_time
-    const endTime =
-      sortedRecords[sortedRecords.length - 1]?.end_time ||
-      sortedRecords[sortedRecords.length - 1]?.start_time
-    const operators = [
-      ...new Set(sortedRecords.map((r) => r.operator_name || "Unknown")),
-    ].join(", ")
-
     // Real weather — Open-Meteo lookup for the field's working hours
-    const weatherLookup = await fetchWorkingWeather(sortedRecords, fieldBoundary)
-    const weather = weatherLookup.rows
-    const weatherSource = weatherLookup.source
+    const weather = await fetchWorkingWeather(
+      sortedRecords,
+      await boundaryCentroid(fieldBoundary),
+    )
 
-    // Inputs applied — real data (e.g. Agworld) only; no stubs when unavailable
-    let products: any[] = []
-    let productsSource = ""
-    if (inputProducts?.length) {
-      products = inputProducts.map((p: any) => ({
-        name: p.name || "Unknown",
-        activeIngredient: p.activeIngredient || "—",
-        rate: p.rate || "—",
-        usage: p.usage || "—",
-      }))
-      productsSource = "Agworld"
-    }
-
-    // Operations — pull actual operation names from records
-    const opNames = [
-      ...new Set(sortedRecords.map((r) => r.operation_name || "Unknown")),
-    ]
-    const operations = opNames.map((name) => ({
-      name,
-      rate: "1 ha/ha",
-      area: `${totalArea.toFixed(2)} ha`,
-      cost: `$${(totalArea * 20).toFixed(2)}`,
-    }))
-
-    // Operating hours — from interval entry/exit times across all records
-    const operatingHours: any[] = []
-    for (const r of sortedRecords) {
-      if (r.intervals?.length) {
-        for (const iv of r.intervals) {
-          const entry = new Date(iv.entry_time)
-          const exit = new Date(iv.exit_time)
-          const durSec = Math.round((exit.getTime() - entry.getTime()) / 1000)
-          const durMin = Math.floor(durSec / 60)
-          const durH = Math.floor(durMin / 60)
-          const durM = durMin % 60
-          operatingHours.push({
-            date: entry.toLocaleDateString([], {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }),
-            entry: entry.toLocaleTimeString([], {
-              hour: "numeric",
-              minute: "2-digit",
-            }),
-            exit: exit.toLocaleTimeString([], {
-              hour: "numeric",
-              minute: "2-digit",
-            }),
-            duration: durH > 0 ? `${durH}h ${durM}m` : `${durM}m`,
-            operator: r.operator_name || "Unknown",
-          })
-        }
-      } else {
-        const entry = new Date(r.start_time)
-        const exit = new Date(r.end_time || r.start_time)
-        const durSec = Math.round((exit.getTime() - entry.getTime()) / 1000)
-        const durMin = Math.floor(durSec / 60)
-        const durH = Math.floor(durMin / 60)
-        const durM = durMin % 60
-        operatingHours.push({
-          date: entry.toLocaleDateString([], {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-          entry: entry.toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit",
-          }),
-          exit: exit.toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit",
-          }),
-          duration: durH > 0 ? `${durH}h ${durM}m` : `${durM}m`,
-          operator: r.operator_name || "Unknown",
-        })
-      }
-    }
-    // Total operating time
-    const totalDurSec = operatingHours.reduce((sum, o) => {
-      const [h, m] = o.duration.includes("h")
-        ? o.duration
-            .match(/(\d+)h\s*(\d+)?m?/)
-            .slice(1)
-            .map(Number)
-        : [0, parseInt(o.duration)]
-      return sum + (h || 0) * 3600 + (m || 0) * 60
-    }, 0)
-    const totalH = Math.floor(totalDurSec / 3600)
-    const totalM = Math.floor((totalDurSec % 3600) / 60)
-    const totalOperatingTime =
-      totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`
-
-    reportData = {
-      crop: fieldCrop || "Unknown",
-      started: new Date(startTime).toLocaleString([], {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      completed: new Date(endTime).toLocaleString([], {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      treatedArea: totalArea.toFixed(2),
-      totalDistance: totalDistance.toFixed(2),
-      operators,
-      totalOperatingTime,
-      operatingHours,
+    reportData = buildReportData({
+      records: sortedRecords,
+      crop: fieldCrop,
+      inputProducts,
       snapshot,
       weather,
-      weatherSource,
-      weatherError: weatherLookup.error || "",
-      products,
-      productsSource,
-      operations,
-    }
+    })
     reportLoading = false
     showReport = true
-  }
-
-  // ── Real weather lookup (Open-Meteo) for the field's working hours ──
-  async function fetchWorkingWeather(records: any[], boundary: any) {
-    // 1) Working hour range across all records
-    let minT = Infinity
-    let maxT = -Infinity
-    for (const r of records) {
-      const s = new Date(r.start_time).getTime()
-      const e = new Date(r.end_time || r.start_time).getTime()
-      if (!isNaN(s) && s < minT) minT = s
-      if (!isNaN(e) && e > maxT) maxT = e
-    }
-    if (!isFinite(minT) || !isFinite(maxT))
-      return { rows: [], source: "", error: "no time data in records" }
-
-    // 2) Field centroid from the boundary
-    let lat: number | null = null
-    let lng: number | null = null
-    try {
-      const turf = await import("@turf/turf")
-      const c = turf.centroid(turf.feature(boundary))
-      lng = c.geometry.coordinates[0]
-      lat = c.geometry.coordinates[1]
-    } catch {
-      return { rows: [], source: "", error: "could not compute field centre" }
-    }
-    if (lat == null || lng == null)
-      return { rows: [], source: "", error: "no field boundary" }
-
-    // 3) Local date range
-    const pad = (n: number) => String(n).padStart(2, "0")
-    const dstr = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    const startDate = dstr(new Date(minT))
-    const endDate = dstr(new Date(maxT))
-
-    // 4) Working hours (local, top-of-hour, deduped)
-    const hours = new Map<string, number>() // "YYYY-MM-DDTHH:00" -> ms
-    for (const r of records) {
-      const recStart = new Date(r.start_time)
-      const recEnd = new Date(r.end_time || r.start_time)
-      const h = new Date(recStart)
-      h.setMinutes(0, 0, 0)
-      for (let t = h.getTime(); t <= recEnd.getTime(); t += 3600000) {
-        const d = new Date(t)
-        const key = `${dstr(d)}T${pad(d.getHours())}:00`
-        if (!hours.has(key)) hours.set(key, t)
-      }
-    }
-
-    // 5) Fetch hourly weather (ERA5 archive; fall back to past GFS for recent data)
-    const fields =
-      "temperature_2m,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
-    const params = `latitude=${lat}&longitude=${lng}&start_date=${startDate}&end_date=${endDate}&timezone=auto&hourly=${fields}`
-    let source = "Open-Meteo · ERA5"
-    let data: any = null
-    try {
-      const r = await fetch(
-        `https://archive-api.open-meteo.com/v1/archive?${params}`,
-      )
-      if (r.ok) data = await r.json()
-    } catch {
-      data = null
-    }
-    if (!data?.hourly?.time?.length) {
-      // ERA5 lags ~5 days — recent work falls back to past GFS forecast
-      source = "Open-Meteo · GFS"
-      try {
-        const r = await fetch(
-          `https://historical-forecast-api.open-meteo.com/v1/forecast?${params}`,
-        )
-        if (r.ok) data = await r.json()
-      } catch {
-        data = null
-      }
-    }
-    const hh = data?.hourly || {}
-    const times: string[] = hh.time || []
-    if (times.length === 0)
-      return { rows: [], source, error: "no weather data returned" }
-    const byTime = new Map<string, number>()
-    times.forEach((t, i) => byTime.set(String(t).slice(0, 16), i))
-
-    // 6) Build a row for each working hour
-    const rows: any[] = []
-    for (const [key, ms] of hours) {
-      const idx = byTime.get(key)
-      if (idx == null) continue
-      const temp = hh.temperature_2m?.[idx]
-      const humidity = hh.relative_humidity_2m?.[idx]
-      const dew = hh.dew_point_2m?.[idx]
-      const dt =
-        temp != null && dew != null ? Math.round((temp - dew) * 10) / 10 : null
-      rows.push({
-        time: new Date(ms).toLocaleString([], {
-          day: "numeric",
-          month: "short",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        conditions: wmoDescShort(hh.weather_code?.[idx]),
-        temp: temp != null ? Math.round(temp) : null,
-        windSpeed:
-          hh.wind_speed_10m?.[idx] != null
-            ? Math.round(hh.wind_speed_10m[idx])
-            : null,
-        windDir: compassFromDeg(hh.wind_direction_10m?.[idx]),
-        gust:
-          hh.wind_gusts_10m?.[idx] != null
-            ? Math.round(hh.wind_gusts_10m[idx])
-            : null,
-        humidity: humidity != null ? Math.round(humidity) : null,
-        deltaT: dt != null ? dt.toFixed(1) : null,
-        rain: hh.precipitation?.[idx] ?? 0,
-        _ms: ms,
-      })
-    }
-    rows.sort((a, b) => a._ms - b._ms)
-    for (const row of rows) delete row._ms
-    return { rows, source, error: "" }
-  }
-
-  function wmoDescShort(code: number): string {
-    const map: Record<number, string> = {
-      0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
-      45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
-      61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Freezing rain",
-      71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
-      80: "Light showers", 81: "Showers", 82: "Violent showers", 85: "Snow showers", 86: "Heavy snow showers",
-      95: "Thunderstorm", 96: "Thunderstorm w/ hail", 99: "Severe thunderstorm",
-    }
-    return map[code] || "Unknown"
-  }
-
-  function compassFromDeg(deg: number): string {
-    if (deg == null || isNaN(deg)) return ""
-    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    return dirs[Math.round(((deg % 360) / 45)) % 8] || ""
   }
 
   function downloadReportPDF() {
     if (!reportData) return
     const doc = new jsPDF({ unit: "pt", format: "a4" })
-    const pageW = doc.internal.pageSize.getWidth()
-    const pageH = doc.internal.pageSize.getHeight()
-    const margin = 40
-    let y = margin
-
-    // Title
-    doc.setFontSize(18)
-    doc.setFont("helvetica", "bold")
-    doc.text(`Input Report — ${fieldName}`, margin, y)
-    y += 24
-
-    // Summary
-    doc.setFontSize(11)
-    doc.setFont("helvetica", "bold")
-    doc.text("Summary", margin, y)
-    y += 14
-    doc.setFont("helvetica", "normal")
-    const summary = [
-      `Field: ${fieldName}`,
-      `Crop: ${reportData.crop}`,
-      `Started: ${reportData.started}`,
-      `Completed: ${reportData.completed}`,
-      `Treated Area: ${reportData.treatedArea} ha`,
-      `Total Distance: ${reportData.totalDistance} km`,
-      `Records: ${sortedRecords.length}`,
-      ...(includeOperators
-        ? [
-            `Operators: ${reportData.operators}`,
-            `Total Operating Hours: ${reportData.totalOperatingTime}`,
-          ]
-        : []),
-    ]
-    for (const line of summary) {
-      doc.text(line, margin, y)
-      y += 14
-    }
-    y += 10
-
-    // Map snapshot
-    if (reportData.snapshot) {
-      doc.setFont("helvetica", "bold")
-      doc.text("Coverage Map", margin, y)
-      y += 10
-      const imgW = pageW - margin * 2
-      const imgH = imgW * 0.6
-      try {
-        doc.addImage(reportData.snapshot, "PNG", margin, y, imgW, imgH)
-        y += imgH + 16
-      } catch (e) {
-        doc.text("[Map snapshot unavailable]", margin, y)
-        y += 14
-      }
-    }
-
-    // Products
-    if (includeProducts && reportData.products?.length) {
-      if (y > pageH - 80) {
-        doc.addPage()
-        y = margin
-      }
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      doc.text("Inputs Applied", margin, y)
-      if (reportData.productsSource) {
-        doc.setFontSize(8)
-        doc.setTextColor(130)
-        doc.text(`Source: ${reportData.productsSource}`, pageW - margin, y, {
-          align: "right",
-        })
-        doc.setTextColor(0)
-      }
-      y += 14
-      doc.setFontSize(9)
-      const pCols = ["Product", "Active Ingredient", "Rate", "Usage"]
-      const pColW = [0.26, 0.28, 0.2, 0.24]
-      let cx = margin
-      pCols.forEach((h) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(h, cx, y)
-        cx += pColW[pCols.indexOf(h)] * (pageW - margin * 2)
-      })
-      y += 12
-      doc.setFont("helvetica", "normal")
-      for (const p of reportData.products) {
-        if (y > pageH - 30) {
-          doc.addPage()
-          y = margin
-        }
-        cx = margin
-        const vals = [p.name, p.activeIngredient, p.rate, p.usage]
-        vals.forEach((v, i) => {
-          doc.text(String(v).split("\n").join(" / "), cx, y)
-          cx += pColW[i] * (pageW - margin * 2)
-        })
-        y += 11
-      }
-      y += 10
-    }
-
-    // Operating hours
-    if (includeOperators && reportData.operatingHours?.length) {
-      if (y > pageH - 80) {
-        doc.addPage()
-        y = margin
-      }
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      doc.text(
-        `Operating Hours (Total: ${reportData.totalOperatingTime})`,
-        margin,
-        y,
-      )
-      y += 14
-      doc.setFontSize(9)
-      const ohCols = ["Date", "Entry", "Exit", "Duration", "Operator"]
-      const ohColW = [0.24, 0.16, 0.16, 0.16, 0.28]
-      let cx = margin
-      ohCols.forEach((h, i) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(h, cx, y)
-        cx += ohColW[i] * (pageW - margin * 2)
-      })
-      y += 12
-      doc.setFont("helvetica", "normal")
-      for (const oh of reportData.operatingHours) {
-        if (y > pageH - 30) {
-          doc.addPage()
-          y = margin
-        }
-        cx = margin
-        const vals = [oh.date, oh.entry, oh.exit, oh.duration, oh.operator]
-        vals.forEach((v, i) => {
-          doc.text(String(v), cx, y)
-          cx += ohColW[i] * (pageW - margin * 2)
-        })
-        y += 11
-      }
-      y += 10
-    }
-
-    // Weather
-    if (includeWeather && reportData.weather?.length) {
-      if (y > pageH - 80) {
-        doc.addPage()
-        y = margin
-      }
-      doc.setFont("helvetica", "bold")
-      doc.text("Weather Records", margin, y)
-      if (reportData.weatherSource) {
-        doc.setFontSize(8)
-        doc.setTextColor(130)
-        doc.text(`Source: ${reportData.weatherSource}`, pageW - margin, y, {
-          align: "right",
-        })
-        doc.setTextColor(0)
-      }
-      y += 14
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      const wCols = [
-        "Time",
-        "Conditions",
-        "Temp",
-        "Wind",
-        "Gust",
-        "Humidity",
-        "Delta T",
-      ]
-      const wColW = [0.22, 0.16, 0.08, 0.16, 0.1, 0.1, 0.1]
-      let cx = margin
-      wCols.forEach((h, i) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(h, cx, y)
-        cx += wColW[i] * (pageW - margin * 2)
-      })
-      y += 12
-      doc.setFont("helvetica", "normal")
-      for (const w of reportData.weather) {
-        if (y > pageH - 30) {
-          doc.addPage()
-          y = margin
-        }
-        cx = margin
-        const vals = [
-          w.time,
-          w.conditions,
-          `${w.temp ?? "-"}°C`,
-          `${w.windSpeed ?? "-"} km/h ${w.windDir ?? ""}`,
-          `${w.gust ?? "-"} km/h`,
-          `${w.humidity ?? "-"}%`,
-          w.deltaT ?? "-",
-        ]
-        vals.forEach((v, i) => {
-          doc.text(String(v), cx, y)
-          cx += wColW[i] * (pageW - margin * 2)
-        })
-        y += 11
-      }
-      y += 10
-    } else if (includeWeather) {
-      if (y > pageH - 40) {
-        doc.addPage()
-        y = margin
-      }
-      doc.setFont("helvetica", "bold")
-      doc.text("Weather Records", margin, y)
-      if (reportData.weatherSource) {
-        doc.setFontSize(8)
-        doc.setTextColor(130)
-        doc.text(`Source: ${reportData.weatherSource}`, pageW - margin, y, {
-          align: "right",
-        })
-        doc.setTextColor(0)
-      }
-      y += 14
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(130)
-      doc.text(
-        reportData.weatherError
-          ? `Weather lookup failed: ${reportData.weatherError}`
-          : "No weather data available for the working hours.",
-        margin,
-        y,
-      )
-      doc.setTextColor(0)
-      y += 10
-    }
-
-    // Operations
-    if (reportData.operations?.length) {
-      if (y > pageH - 60) {
-        doc.addPage()
-        y = margin
-      }
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      doc.text("Operations", margin, y)
-      y += 14
-      doc.setFontSize(9)
-      const oCols = includeProducts
-        ? ["Operation", "Rate", "Area", "Cost"]
-        : ["Operation", "Rate", "Area"]
-      const oColW = includeProducts ? [0.35, 0.2, 0.2, 0.2] : [0.4, 0.3, 0.3]
-      let cx = margin
-      oCols.forEach((h) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(h, cx, y)
-        cx += oColW[oCols.indexOf(h)] * (pageW - margin * 2)
-      })
-      y += 12
-      doc.setFont("helvetica", "normal")
-      for (const op of reportData.operations) {
-        if (y > pageH - 30) {
-          doc.addPage()
-          y = margin
-        }
-        cx = margin
-        const vals = includeProducts
-          ? [op.name, op.rate, op.area, op.cost]
-          : [op.name, op.rate, op.area]
-        vals.forEach((v, i) => {
-          doc.text(String(v), cx, y)
-          cx += oColW[i] * (pageW - margin * 2)
-        })
-        y += 11
-      }
-    }
-
-    const filename = `input-report-${fieldName}-${new Date().toISOString().split("T")[0]}.pdf`
-    doc.save(filename)
+    writeReportPdf(doc, reportData, {
+      fieldName,
+      recordCount: sortedRecords.length,
+      includeWeather,
+      includeOperators,
+      includeProducts,
+    })
+    doc.save(reportFileName(fieldName))
     // Also open in a new tab
     const blob = doc.output("blob")
     const url = URL.createObjectURL(blob)
@@ -701,22 +210,15 @@
     highlightTrailLoading = true
     highlightTrailId = trailId
     try {
-      const { data, error } = await supabase.rpc("get_trail_geojson", {
-        p_trail_id: trailId,
-      })
-      if (error) throw error
-      if (
-        (data?.path_geojson?.type === "LineString" ||
-          data?.path_geojson?.type === "MultiLineString") &&
-        data.path_geojson.coordinates?.length >= 2
-      ) {
-        highlightPath = data.path_geojson
+      const path = await fetchTrailGeojson(supabase, trailId)
+      if (path) {
+        highlightPath = path
         updateHighlightTrail()
         console.log(
-          `[FieldOverlay] Loaded full trail: ${data.path_geojson.coordinates.length} points`,
+          `[FieldOverlay] Loaded full trail: ${path.coordinates.length} points`,
         )
       } else {
-        console.error("[FieldOverlay] Invalid trail GeoJSON:", data)
+        console.error("[FieldOverlay] Invalid trail GeoJSON for", trailId)
         highlightTrailId = null
         highlightPath = null
         updateHighlightTrail()
@@ -742,43 +244,13 @@
   let sliderEnd = 100
   let rangeInitialized = false
 
-  // High-contrast palette optimized for satellite imagery visibility.
-  // 12 colors — enough for most field views without adjacent duplicates.
-  const TRAIL_COLORS = [
-    "#ef4444",
-    "#3b82f6",
-    "#22c55e",
-    "#f97316",
-    "#a855f7",
-    "#06b6d4",
-    "#eab308",
-    "#ec4899",
-    "#84cc16",
-    "#f43f5e",
-    "#8b5cf6",
-    "#14b8a6",
-  ]
-
-  // Deterministic color assignment: hash the record ID to a stable index.
-  // This ensures the same record always gets the same color regardless of
-  // sort order or filter state, which helps users recognize patterns.
-  // In locked mode (single record preview), always use red to match thumbnails.
+  // Stable per-record colour (always red in locked mode).
   function getTrailColor(record: any, idx: number): string {
-    if (lockedMode) return "#ef4444"
-    if (record.id) {
-      let hash = 0
-      const s = String(record.id)
-      for (let i = 0; i < s.length; i++)
-        hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0
-      return TRAIL_COLORS[Math.abs(hash) % TRAIL_COLORS.length]
-    }
-    return TRAIL_COLORS[idx % TRAIL_COLORS.length]
+    return trailColor(record, idx, lockedMode)
   }
 
   // Compute the time range from records
-  $: recordTimes = records
-    .map((r) => new Date(r.start_time).getTime())
-    .sort((a, b) => a - b)
+  $: recordTimes = sortedRecordTimes(records)
   $: timeMin = recordTimes.length > 0 ? recordTimes[0] : Date.now() - 86400000
   $: timeMax =
     recordTimes.length > 0 ? recordTimes[recordTimes.length - 1] : Date.now()
@@ -787,75 +259,33 @@
   let autoEscalationDone = false
   $: if (!lockedMode && !autoEscalationDone && recordTimes.length > 0) {
     autoEscalationDone = true
-    const now = Date.now()
-    const escalationSteps = [
-      { mode: "7d", span: 604800000 },
-      { mode: "30d", span: 2592000000 },
-      { mode: "3m", span: 7776000000 },
-      { mode: "1y", span: 31536000000 },
-      { mode: "all", span: Infinity },
-    ]
-    for (const step of escalationSteps) {
-      const hasRecords = recordTimes.some((t) => t >= now - step.span)
-      if (hasRecords || step.mode === "all") {
-        rangeMode = step.mode
-        break
-      }
-    }
+    rangeMode = initialRangeMode(recordTimes, Date.now())
   }
 
   // When rangeMode changes or records load, update slider bounds
   $: {
-    if (rangeMode === "all" || lockedMode) {
-      sliderMin = timeMin
-      sliderMax = timeMax
-    } else {
-      const periods: Record<string, number> = {
-        "1d": 86400000,
-        "7d": 604800000,
-        "30d": 2592000000,
-        "3m": 7776000000,
-        "1y": 31536000000,
-      }
-      const span = periods[rangeMode] || 604800000
-      sliderMax = Date.now()
-      sliderMin = sliderMax - span
-      // Clamp to actual record range
-      sliderMin = Math.max(sliderMin, timeMin - 86400000)
-      sliderMax = Math.min(sliderMax, timeMax + 86400000)
-    }
+    ;({ min: sliderMin, max: sliderMax } = sliderBounds({
+      rangeMode,
+      lockedMode,
+      timeMin,
+      timeMax,
+      now: Date.now(),
+    }))
     sliderStart = sliderMin
     sliderEnd = sliderMax
     rangeInitialized = true
   }
 
-  // Filter records by slider range — computed synchronously in renderTrails
-  // to avoid reactive ordering issues on initial load
-  function getFilteredRecords() {
-    // In locked mode, show all records regardless of slider
-    if (lockedMode) return records
-    return records.filter((r) => {
-      const t = new Date(r.start_time).getTime()
-      return t >= sliderStart && t <= sliderEnd
-    })
-  }
-
-  // Reactive version for stats display
-  $: filteredRecords = records.filter((r) => {
-    const t = new Date(r.start_time).getTime()
-    if (t < sliderStart || t > sliderEnd) return false
-    if (selectedOperationId && r.operation_id !== selectedOperationId)
-      return false
-    return true
-  })
+  // Records in the slider range (and selected operation)
+  $: filteredRecords = filterRecords(
+    records,
+    sliderStart,
+    sliderEnd,
+    selectedOperationId,
+  )
 
   // Sorted by start_time — MUST match renderTrails ordering for index-based layer IDs
-  $: sortedRecords = filteredRecords
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
-    )
+  $: sortedRecords = sortByStart(filteredRecords)
 
   // Agworld match suggestions (predictive only — nothing is linked)
   $: matchSuggestions = agworldActivities
@@ -878,62 +308,17 @@
 
   // Legend badges: record id → matched Agworld activity name (so the badge
   // identifies which plan/actual each trail record was matched to)
-  $: matchedRecordMap = (() => {
-    const m = new Map<string, { name: string; type: string }>()
-    for (const s of matchSuggestions) {
-      if (s.confidence === "none" || !s.activity) continue
-      const name =
-        s.activity.attributes?.name ||
-        s.activity.attributes?.operation_type_name ||
-        "Unnamed"
-      const type = activityTypeLabel(s.type)
-      for (const r of s.cluster.records) {
-        m.set(r.id ?? r.trail_id ?? r.start_time, { name, type })
-      }
-    }
-    return m
-  })()
+  $: matchedRecordMap = buildMatchedRecordMap(matchSuggestions)
 
   function matchedInfoFor(record: any): { name: string; type: string } {
     return (
-      matchedRecordMap.get(
-        record.id ?? record.trail_id ?? record.start_time,
-      ) || { name: "", type: "" }
+      matchedRecordMap.get(recordKey(record)) || { name: "", type: "" }
     )
   }
 
   // Timeline match strip helpers
   function timeToPct(t: number): number {
-    if (sliderMax <= sliderMin) return 0
-    return Math.max(
-      0,
-      Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100),
-    )
-  }
-
-  function matchActivityName(s: MatchSuggestion): string {
-    return (
-      s.activity?.attributes?.name ||
-      s.activity?.attributes?.operation_type_name ||
-      "Unnamed"
-    )
-  }
-
-  // Distinct color per attempted match on the timeline strip
-  const MATCH_COLORS = [
-    "#4ade80",
-    "#60a5fa",
-    "#fbbf24",
-    "#f472b6",
-    "#a78bfa",
-    "#34d399",
-    "#fb923c",
-    "#f87171",
-    "#22d3ee",
-    "#facc15",
-  ]
-  function matchColor(i: number): string {
-    return MATCH_COLORS[i % MATCH_COLORS.length]
+    return pctAlong(t, sliderMin, sliderMax)
   }
 
   // Hovered match on the timeline strip (for the detail tooltip).
@@ -969,114 +354,9 @@
     expandedBd = new Set(expandedBd)
   }
 
-  function formatClusterWindow(c: { start: number; end: number }): string {
-    const fmt = (t: number, withYear: boolean) =>
-      new Date(t).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-        ...(withYear ? { year: "numeric" } : {}),
-      })
-    const sameYear =
-      new Date(c.start).getFullYear() === new Date(c.end).getFullYear()
-    if (fmt(c.start, false) === fmt(c.end, false))
-      return fmt(c.start, true)
-    return `${fmt(c.start, false)} – ${fmt(c.end, sameYear ? false : true)}`
-  }
-
-  function confidenceLabel(c: MatchSuggestion["confidence"]): string {
-    return c === "high"
-      ? "Likely match"
-      : c === "medium"
-        ? "Possible match"
-        : c === "low"
-          ? "Weak match"
-          : "No match"
-  }
-
-  function activityTypeLabel(t: MatchSuggestion["type"]): string {
-    return t === "actual"
-      ? "Actual"
-      : t === "plan"
-        ? "Plan"
-        : t === "work_order"
-          ? "Work Order"
-          : ""
-  }
-
-  function clusterSwathLabel(c: { swathWidths: number[] }): string {
-    if (!c.swathWidths.length) return ""
-    const avg = Math.round(
-      c.swathWidths.reduce((a, b) => a + b, 0) / c.swathWidths.length,
-    )
-    return `~${avg}m swath`
-  }
-
-  function bdPct(score: number): number {
-    return Math.round(score * 100)
-  }
-
-  function bdRow(
-    label: string,
-    comp: {
-      score: number
-      weight: number
-      details?: Record<string, string>
-    } | undefined,
-  ): {
-    label: string
-    pct: number
-    weight: number
-    contrib: number
-    details: Record<string, string>
-  } | null {
-    if (!comp) return null
-    return {
-      label,
-      pct: bdPct(comp.score),
-      weight: comp.weight,
-      contrib: Math.round(comp.score * comp.weight * 1000) / 1000,
-      details: comp.details || {},
-    }
-  }
-
-  function bdRows(breakdown: any): {
-    label: string
-    pct: number
-    weight: number
-    contrib: number
-    details: Record<string, string>
-  }[] {
-    return [
-      bdRow("timing", breakdown?.timing),
-      bdRow("vehicle", breakdown?.vehicle),
-      bdRow("coverage", breakdown?.coverage),
-    ].filter(
-      (
-        r,
-      ): r is {
-        label: string
-        pct: number
-        weight: number
-        contrib: number
-        details: Record<string, string>
-      } => !!r,
-    )
-  }
 
   // Available operations from records, with counts, sorted by recency
-  $: availableOperations = (() => {
-    const seen = new Map()
-    for (const r of records) {
-      if (!seen.has(r.operation_id)) {
-        seen.set(r.operation_id, { id: r.operation_id, name: r.operation_name || "Unknown", count: 0, latest: 0 })
-      }
-      const entry = seen.get(r.operation_id)
-      entry.count++
-      const t = new Date(r.start_time).getTime()
-      if (t > entry.latest) entry.latest = t
-    }
-    return [...seen.values()].sort((a, b) => b.latest - a.latest)
-  })()
+  $: availableOperations = listOperations(records)
 
   // Format slider positions to dates
   $: sliderStartPct =
@@ -1089,33 +369,16 @@
       : 100
 
   // Tick marks for each record's start time along the slider
-  $: sliderTicks = records.map((r) => {
-    const t = new Date(r.start_time).getTime()
-    if (sliderMax > sliderMin) {
-      return Math.max(
-        0,
-        Math.min(100, ((t - sliderMin) / (sliderMax - sliderMin)) * 100),
-      )
-    }
-    return 0
-  })
+  $: sliderTicks = records.map((r) =>
+    pctAlong(startMs(r), sliderMin, sliderMax),
+  )
 
-  function formatSliderDate(ts: number): string {
-    return new Date(ts).toLocaleDateString([], {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    })
-  }
-
-  // Minimum gap between handles (1 hour)
-  const SLIDER_MIN_GAP = 3600000
 
   function onSliderStartChange(e: Event) {
     const input = e.target as HTMLInputElement
     const val = parseInt(input.value)
     // Prevent start handle from crossing past end handle
-    const clamped = Math.min(val, sliderEnd - SLIDER_MIN_GAP)
+    const clamped = clampSliderStart(val, sliderEnd)
     sliderStart = clamped
     // Force the DOM input to reflect the clamped position (prevents visual crossing)
     if (clamped !== val) input.value = String(clamped)
@@ -1124,86 +387,12 @@
     const input = e.target as HTMLInputElement
     const val = parseInt(input.value)
     // Prevent end handle from crossing past start handle
-    const clamped = Math.max(val, sliderStart + SLIDER_MIN_GAP)
+    const clamped = clampSliderEnd(val, sliderStart)
     sliderEnd = clamped
     // Force the DOM input to reflect the clamped position (prevents visual crossing)
     if (clamped !== val) input.value = String(clamped)
   }
 
-  // Extract all outer ring coordinates from Polygon or MultiPolygon
-  function getAllOuterRings(boundary: any): [number, number][] {
-    if (boundary.type === "Polygon") {
-      return boundary.coordinates[0]
-    } else if (boundary.type === "MultiPolygon") {
-      // Flatten all sub-polygon outer rings into one array
-      return boundary.coordinates.flatMap((poly: number[][][]) => poly[0])
-    }
-    return []
-  }
-
-  function getBoundsFromBoundary(boundary: any): mapboxgl.LngLatBoundsLike {
-    const coords = getAllOuterRings(boundary)
-    let minLng = Infinity,
-      minLat = Infinity,
-      maxLng = -Infinity,
-      maxLat = -Infinity
-    for (const [lng, lat] of coords) {
-      minLng = Math.min(minLng, lng)
-      minLat = Math.min(minLat, lat)
-      maxLng = Math.max(maxLng, lng)
-      maxLat = Math.max(maxLat, lat)
-    }
-    return [
-      [minLng, minLat],
-      [maxLng, maxLat],
-    ] as mapboxgl.LngLatBoundsLike
-  }
-
-  function formatDuration(seconds: number): string {
-    if (!seconds) return "0s"
-    const h = Math.floor(seconds / 3600),
-      m = Math.floor((seconds % 3600) / 60)
-    if (h > 0) return `${h}h ${m}m`
-    if (m > 0) return `${m}m`
-    return `${seconds}s`
-  }
-  function formatDate(ts: string): string {
-    return new Date(ts).toLocaleDateString([], {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    })
-  }
-  function formatTime(ts: string): string {
-    return new Date(ts).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit",
-    })
-  }
-  function formatHa(ha: any): string {
-    return `${parseFloat(String(ha || 0)).toFixed(2)} ha`
-  }
-  function formatKm(km: any): string {
-    return `${parseFloat(String(km || 0)).toFixed(2)} km`
-  }
-  function formatVehicleType(type: string): string {
-    return type ? type.replace(/([A-Z])/g, " $1").trim() : "Unknown"
-  }
-  function getVehicleType(record: any): string {
-    return record.vehicle_type || record.vehicle_marker?.type || ''
-  }
-
-  // Get the centroid of a polygon for label placement
-  function getFieldCentroid(boundary: any): [number, number] | null {
-    const coords = getAllOuterRings(boundary)
-    let lng = 0,
-      lat = 0
-    for (const [cLng, cLat] of coords) {
-      lng += cLng
-      lat += cLat
-    }
-    return coords.length > 0 ? [lng / coords.length, lat / coords.length] : null
-  }
 
   // Debounced render — prevents flickering while dragging the slider
   function scheduleRender() {
@@ -1484,18 +673,7 @@
         className: "trail-popup",
       })
         .setLngLat(e.lngLat)
-        .setHTML(
-          `
-          <div style="padding: 8px 12px; font-size: 13px; color: #333; min-width: 180px;">
-            <div style="font-weight: 600; margin-bottom: 6px; color: ${props.color};">${props.date}</div>
-            <div style="margin-bottom: 4px;">👤 ${props.operator}</div>
-            <div style="margin-bottom: 4px;">🚜 ${props.vehicle}</div>
-            ${props.startTime ? `<div style="margin-bottom: 4px;">⏰ ${props.startTime} – ${props.endTime}</div>` : ""}
-            <div style="margin-bottom: 4px;">📐 ${props.area}</div>
-            <div>📏 ${props.distance}</div>
-          </div>
-        `,
-        )
+        .setHTML(trailPopupHtml(props))
         .addTo(map)
     } else {
       map.getCanvas().style.cursor = "default"
@@ -1533,20 +711,8 @@
     }
     pinnedMatch = null
     selectedTrailIds = new Set([key])
-    selectedTrail = {
-      recordIdx: idx,
-      recordId: record.id,
-      intervalIdx: null, // null = highlight all intervals
-      color: getTrailColor(record, idx),
-      date: formatDate(record.start_time),
-      operator: record.operator_name || "Unknown",
-      vehicle: formatVehicleType(getVehicleType(record)),
-      area: formatHa(record.area_hectares),
-      distance: formatKm(record.distance_km),
-      startTime: null,
-      endTime: null,
-      intervalCount: record.intervals?.length || 1,
-    }
+    // intervalIdx null = highlight all intervals
+    selectedTrail = buildTrailSelection(record, idx, getTrailColor(record, idx))
     applySelection()
   }
 
@@ -1566,40 +732,16 @@
       return
     }
     pinnedMatch = null
-    const interval = record.intervals?.[intervalIdx]
     selectedTrailIds = new Set([key])
-    selectedTrail = {
+    selectedTrail = buildTrailSelection(
+      record,
       recordIdx,
-      recordId: record.id,
+      getTrailColor(record, recordIdx),
       intervalIdx,
-      color: getTrailColor(record, recordIdx),
-      date: formatDate(record.start_time),
-      operator: record.operator_name || "Unknown",
-      vehicle: formatVehicleType(getVehicleType(record)),
-      area: formatHa(interval?.area_hectares || record.area_hectares),
-      distance: formatKm(interval?.distance_km || record.distance_km),
-      startTime: interval?.entry_time ? formatTime(interval.entry_time) : null,
-      endTime: interval?.exit_time ? formatTime(interval.exit_time) : null,
-      intervalCount: record.intervals?.length || 1,
-    }
+    )
     applySelection()
   }
 
-  // Format time between two spray records (e.g. "2 hours", "3 days", "2 months")
-  function formatTimeBetween(prevTime: number, currTime: number): string {
-    const diff = currTime - prevTime
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
-    const months = Math.floor(days / 30)
-    const years = Math.floor(days / 365)
-    if (years > 0) return `${years} year${years > 1 ? "s" : ""}`
-    if (months > 0) return `${months} month${months > 1 ? "s" : ""}`
-    if (days > 0) return `${days} day${days > 1 ? "s" : ""}`
-    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""}`
-    if (minutes > 0) return `${minutes} min`
-    return "moments"
-  }
 
   // Single click handler on the map — handles both trail clicks and deadspace clicks
   function onMapClick(e: any) {
@@ -1643,10 +785,6 @@
     map.getCanvas().style.cursor = "default"
   }
 
-  function onTrailClick(e: any) {
-    // No longer used — replaced by onMapClick
-    // Kept for reference; all click logic is now in onMapClick
-  }
 
   // Move selected trails' layers to the top of the render order (multi-select aware)
   function bringSelectedToTop() {
@@ -1717,20 +855,8 @@
     const idx = sortedRecords.findIndex(
       (r) => recordKey(r) === recordKey(first),
     )
-    selectedTrail = idx >= 0 ? {
-      recordIdx: idx,
-      recordId: first.id,
-      intervalIdx: null,
-      color: getTrailColor(first, idx),
-      date: formatDate(first.start_time),
-      operator: first.operator_name || "Unknown",
-      vehicle: formatVehicleType(getVehicleType(first)),
-      area: formatHa(first.area_hectares),
-      distance: formatKm(first.distance_km),
-      startTime: null,
-      endTime: null,
-      intervalCount: first.intervals?.length || 1,
-    } : null
+    selectedTrail =
+      idx >= 0 ? buildTrailSelection(first, idx, getTrailColor(first, idx)) : null
     pinnedMatch = i
     applySelection()
   }
