@@ -41,12 +41,49 @@
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   let _prevEnableFull1Hz = null
   let _prevGpsIntervalSeconds = null
-  import { getVehicleDisplayName } from "$lib/utils/vehicleDisplayName"
+  import { isValidHeading } from "$lib/utils/heading"
   import {
-    courseOverGround,
-    isValidHeading,
-    smoothHeading,
-  } from "$lib/utils/heading"
+    tagLabelFor,
+    isVehicleInactive,
+    createTagElement,
+    applyTagColor,
+    renderTagText,
+  } from "$lib/utils/vehicleTag"
+  import {
+    parseCoordinates,
+    parsePointString,
+    resolveFixTime,
+    createSpeedEstimator,
+    createHeadingResolver,
+    createPausePointThinner,
+    checkGpsAccuracy,
+    shouldUpdateUi,
+    shouldPushVehicleUpdate,
+    USER_UI_UPDATE_INTERVAL_MS,
+  } from "$lib/utils/vehicleMotion"
+  import {
+    buildVehicleList,
+    planEdgeBadges,
+    staleEdgeBadgeIds,
+    broadcastStartToast,
+    upsertVehicle,
+  } from "$lib/utils/vehicleBadges"
+  import {
+    emptyDebugOverlay,
+    recordRawFix,
+    tickDebugOverlay,
+  } from "$lib/utils/gpsDebugOverlay"
+  import {
+    NATIVE_SYNC_AUTH_REQUIRED_KEY,
+    getNativeSyncTokens as fetchNativeSyncTokens,
+    rememberNativeSyncAuthRequired,
+    clearNativeSyncAuthRequired,
+    buildNativeSyncConfig,
+  } from "$lib/services/nativeSyncAuth"
+  import {
+    fetchMissingTrailPoints,
+    mergeTrailPath,
+  } from "$lib/services/backgroundTrailMerge"
   import { profileStore } from "$lib/stores/profileStore"
   import { supabase } from "$lib/supabaseClient"
   import {
@@ -86,7 +123,6 @@
   let otherVehicleMarkers = []
   let currentSpeed = 0
 
-  const tagStyle = 7
   let isMobileApp = false
   let isBackground = false
   let appState = "web"
@@ -113,117 +149,19 @@
 
   let contextCheckInterval = null
 
-  let lastSpeedCalcPosition = null
-  let lastSpeedCalcTime = null
-  let speedHistory = []
-  const MIN_SPEED_CALC_INTERVAL_MS = 1000
-  const MIN_MOVEMENT_THRESHOLD_M = 0.8
-  const SPEED_HISTORY_SIZE = 5
-  const SPEED_SMOOTHING_ALPHA = 0.6
-  const STALE_SPEED_THRESHOLD_MS = 30000 // 30s — treat speed as 0 if no update since
-
-  // ── GPS glitch filter thresholds ──
-  const GPS_MAX_ACCURACY_M = 100 // Reject if reported accuracy > 100m (WiFi/cell)
-  // Guests (viewer accounts) are usually on desktops or phones using network
-  // / IP-based location, which can be hundreds of metres — or kilometres —
-  // off. They still get a pointer on the map, so give them an effectively
-  // unlimited gate instead of rejecting every fix.
-  const GPS_MAX_ACCURACY_GUEST_M = 500000
-  const GPS_MAX_SPEED_KMH = 500 // Reject if implied speed > 500 km/h
-  const GPS_SPEED_GATE_MAX_GAP_S = 180 // Only apply speed gate if time gap < 3 minutes
-  const GPS_SNAP_BACK_THRESHOLD = 3 // Consecutive rejections before snap-back kicks in
-  const GPS_SNAP_BACK_DISTANCE_M = 500 // Min jump distance to trigger snap-back check
-  let lastAcceptedCoords = null
-  let lastAcceptedTime = null
-  let priorAcceptedCoords = null // The accepted point BEFORE lastAccepted (for snap-back)
-  let priorAcceptedTime = null
-  let consecutiveRejectionsFromLast = 0 // Track consecutive rejections from current lastAccepted
-
-  // ── Heading ───────────────────────────────────────────────────────────
-  // Two sources, because neither alone is reliable:
-  //   • course-over-ground (COG) from our own accepted fixes — steady, but
-  //     needs a few metres of travel before it means anything
-  //   • the GNSS chip's bearing — responsive on bends, but Doppler-derived
-  //     and effectively noise below a walking pace (and 0 when unavailable)
-  // COG wins whenever we have moved far enough; the chip is the fallback at
-  // speed. If neither is usable we hold the last known heading rather than
-  // snapping to north. See lib/utils/heading.ts for the smoothing maths.
-  const HEADING_COG_MIN_M = 5 // travel needed before COG is trustworthy
-  const HEADING_COG_MIN_GAP_MS = 1000 // ...and a >=1s baseline so noise averages out
-  const HEADING_COG_MAX_M = 40 // stale anchor — chord no longer a real bearing
-  const HEADING_COG_MAX_GAP_MS = 10000 // anchor expiry
-  const HEADING_CHIP_MIN_SPEED_KMH = 4 // trust the chip's bearing above this
-  /** @type {{ latitude: number, longitude: number, timestamp: number } | null} */
-  let headingAnchor = null // anchor for the course-over-ground leg
-  /** @type {number | null} */
-  let lastSmoothedHeading = null // float, for circular smoothing continuity
+  const speedEstimator = createSpeedEstimator()
+  // Heading: course-over-ground from our own fixes, falling back to the GNSS
+  // chip's bearing at speed — see lib/utils/vehicleMotion.ts.
+  const headingResolver = createHeadingResolver()
+  const pausePointThinner = createPausePointThinner()
 
   let previousVisibility = { vehicles: true, vehicleLabels: true }
 
-  const LOCATION_TRACKING_INTERVAL_MIN = 30
-  const MIN_VEHICLE_DATA_UPDATE_INTERVAL = 15000 // 15s heartbeat — force an update even when stationary
-  // While paused we record only when the vehicle has moved this far since the
-  // last recorded pause point — keeps the dotted connector light, and lets a
-  // parked vehicle go "idle" for the 4h stale-trail safety net.
-  const PAUSE_POINT_MIN_MOVE_M = 5
-  let lastPauseRecordCoords = null
-
-  /** Cheap haversine (metres) for pause-point thinning */
-  function approxDistanceMeters(lat1, lon1, lat2, lon2) {
-    const R = 6371000
-    const toRad = (deg) => (deg * Math.PI) / 180
-    const dLat = toRad(lat2 - lat1)
-    const dLon = toRad(lon2 - lon1)
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }
-  // UI update throttle for native high-rate fixes (ms)
-  const USER_UI_UPDATE_INTERVAL_MS = 1000 // show marker updates every 1s (align with native 1Hz)
-  const NATIVE_SYNC_AUTH_REQUIRED_KEY = "agskan_native_sync_auth_required"
   let nativeSyncAuthPromptShown = false
-
-  /** @param {any} error */
-  function isPermanentRefreshError(error) {
-    const status = Number(error?.status || error?.code || error?.statusCode)
-    const message = String(
-      error?.message || error?.error_description || "",
-    ).toLowerCase()
-
-    return (
-      status === 400 ||
-      status === 401 ||
-      status === 403 ||
-      message.includes("invalid refresh") ||
-      message.includes("refresh token") ||
-      message.includes("jwt")
-    )
-  }
-
-  /** @param {Record<string, any>} [details] */
-  function rememberNativeSyncAuthRequired(details = {}) {
-    try {
-      localStorage.setItem(
-        NATIVE_SYNC_AUTH_REQUIRED_KEY,
-        JSON.stringify({ at: Date.now(), ...details }),
-      )
-    } catch (error) {
-      console.warn("[BG-DIAG] Could not persist native sync auth state:", error)
-    }
-  }
-
-  function clearNativeSyncAuthRequired() {
-    try {
-      localStorage.removeItem(NATIVE_SYNC_AUTH_REQUIRED_KEY)
-    } catch (error) {
-      console.warn("[BG-DIAG] Could not clear native sync auth state:", error)
-    }
-  }
 
   /** @param {Record<string, any>} [details] */
   async function handleNativeSyncAuthRequired(details = {}) {
-    rememberNativeSyncAuthRequired(details)
+    rememberNativeSyncAuthRequired(localStorage, details)
     await backgroundService.disableNativeSync()
 
     if (nativeSyncAuthPromptShown) return
@@ -251,75 +189,11 @@
   }
 
   /** @param {string} [context] */
-  async function getNativeSyncTokens(context = "native sync") {
-    const { data: sessionData } = await supabase.auth.getSession()
-    let session = sessionData?.session
-
-    if (!session?.access_token || !session?.refresh_token) {
-      return {
-        authFailed: true,
-        status: null,
-        message: !session?.access_token
-          ? "Missing access token"
-          : "Missing refresh token",
-      }
-    }
-
-    if (navigator.onLine === false) {
-      return {
-        accessToken: session.access_token,
-        refreshToken: session.refresh_token,
-      }
-    }
-
-    try {
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error || !data?.session) {
-        if (isPermanentRefreshError(error)) {
-          return {
-            authFailed: true,
-            status: error?.status || error?.code || null,
-            message:
-              error?.message || `Session refresh failed during ${context}`,
-          }
-        }
-
-        console.warn(
-          `[BG-DIAG] Transient session refresh failure during ${context}; using current token`,
-          error?.message || error,
-        )
-        return {
-          accessToken: session.access_token,
-          refreshToken: session.refresh_token,
-        }
-      }
-
-      clearNativeSyncAuthRequired()
-      session = data.session
-      return {
-        accessToken: session.access_token,
-        refreshToken: session.refresh_token,
-      }
-    } catch (error) {
-      const refreshError = /** @type {any} */ (error)
-      if (isPermanentRefreshError(refreshError)) {
-        return {
-          authFailed: true,
-          status: refreshError?.status || refreshError?.code || null,
-          message:
-            refreshError?.message || `Session refresh failed during ${context}`,
-        }
-      }
-
-      console.warn(
-        `[BG-DIAG] Session refresh exception during ${context}; using current token`,
-        error,
-      )
-      return {
-        accessToken: session.access_token,
-        refreshToken: session.refresh_token,
-      }
-    }
+  function getNativeSyncTokens(context = "native sync") {
+    return fetchNativeSyncTokens(supabase, context, {
+      isOnline: navigator.onLine,
+      onRefreshed: () => clearNativeSyncAuthRequired(localStorage),
+    })
   }
   // Default emit interval used by NativeGeolocationAdapter (ms)
   const NATIVE_ADAPTER_DEFAULT_EMIT_MS = 1000
@@ -342,27 +216,7 @@
   let previousVehicleMarker = null
 
   // ── 1Hz debug overlay state ──
-  let debugOverlayData = {
-    rawLat: null,
-    rawLng: null,
-    appliedLat: null,
-    appliedLng: null,
-    nativeEventCount: 0,
-    uniqueCoordCount: 0,
-    lastChangedAt: null,
-    prevRawLat: null,
-    prevRawLng: null,
-    accuracy: null,
-    heading: null,
-    speed: null,
-    timestamp: null,
-    source: null,
-    // Frequency tracking: events per second over a rolling window
-    recentEventTimes: [], // timestamps of recent events
-    recentUniqueTimes: [], // timestamps of recent unique-coord events
-    eventsPerSec: 0,
-    uniquePerSec: 0,
-  }
+  let debugOverlayData = emptyDebugOverlay()
   // Tick counter to force Svelte re-render of "Xs ago" in the overlay
   let debugOverlayTick = 0
   let debugOverlayTickId = null
@@ -608,128 +462,14 @@
     })
   }
 
-  function parseCoordinates(coords) {
-    if (!coords) return null
-
-    if (typeof coords === "object" && coords.latitude && coords.longitude) {
-      return {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      }
-    }
-
-    if (typeof coords === "string") {
-      const cleanedCoords = coords.slice(1, -1)
-      const [longitude, latitude] = cleanedCoords.split(",").map(parseFloat)
-      return {
-        latitude: latitude,
-        longitude: longitude,
-      }
-    }
-
-    return null
-  }
-
-  function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000
-    const φ1 = (lat1 * Math.PI) / 180
-    const φ2 = (lat2 * Math.PI) / 180
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-    return R * c
-  }
-
-  function calculateSpeedFromGPS(latitude, longitude, timestamp) {
-    if (!lastSpeedCalcPosition || !lastSpeedCalcTime) {
-      lastSpeedCalcPosition = { latitude, longitude }
-      lastSpeedCalcTime = timestamp
-      return currentSpeed || 0
-    }
-
-    const timeDiff = timestamp - lastSpeedCalcTime
-
-    if (timeDiff < MIN_SPEED_CALC_INTERVAL_MS) {
-      return currentSpeed
-    }
-
-    const distance = calculateDistance(
-      lastSpeedCalcPosition.latitude,
-      lastSpeedCalcPosition.longitude,
-      latitude,
-      longitude,
-    )
-
-    const timeInSeconds = timeDiff / 1000
-    let speedKmh = (distance / timeInSeconds) * 3.6
-
-    if (speedKmh > 200) {
-      return currentSpeed
-    }
-
-    lastSpeedCalcPosition = { latitude, longitude }
-    lastSpeedCalcTime = timestamp
-
-    if (distance < MIN_MOVEMENT_THRESHOLD_M) {
-      speedHistory.push(Math.min(speedKmh, 0.5))
-    } else {
-      speedHistory.push(speedKmh)
-    }
-
-    if (speedHistory.length > SPEED_HISTORY_SIZE) {
-      speedHistory.shift()
-    }
-
-    if (speedHistory.length > 0) {
-      let smoothedSpeed = speedHistory[0]
-      for (let i = 1; i < speedHistory.length; i++) {
-        smoothedSpeed =
-          SPEED_SMOOTHING_ALPHA * speedHistory[i] +
-          (1 - SPEED_SMOOTHING_ALPHA) * smoothedSpeed
-      }
-
-      const finalSpeed =
-        SPEED_SMOOTHING_ALPHA * smoothedSpeed +
-        (1 - SPEED_SMOOTHING_ALPHA) * currentSpeed
-
-      const roundedSpeed = Math.round(finalSpeed * 10) / 10
-
-      return roundedSpeed
-    }
-
-    return currentSpeed
-  }
-
-  function getUserInitials(fullName) {
-    if (!fullName || typeof fullName !== "string") return ""
-
-    const trimmed = fullName.trim()
-    if (!trimmed) return ""
-
-    const names = trimmed.split(/\s+/)
-
-    if (names.length === 1) {
-      return names[0].substring(0, 2).toUpperCase()
-    }
-
-    return (names[0][0] + names[names.length - 1][0]).toUpperCase()
-  }
-
-  // Guests show "<initials> (Guest)" in their floating tag instead of a bare
-  // name — e.g. "KS (Guest)" for Kim Smith.
-  function getGuestTagLabel(fullName) {
-    const initials = getUserInitials(fullName)
-    return initials ? `${initials} (Guest)` : "Guest"
-  }
-
   // Guests show "Guest" in their floating tag instead of initials.
   function isSelfGuest() {
     return $profileStore?.user_type === "viewer"
+  }
+
+  /** Tag text for the signed-in user's own vehicle. */
+  function selfTagLabel() {
+    return tagLabelFor($profileStore?.full_name, isSelfGuest())
   }
 
   // Reactive mirror for template use — a bare isSelfGuest() call in the
@@ -737,213 +477,19 @@
   // re-evaluate once the profile finishes loading.
   $: isSelfViewer = $profileStore?.user_type === "viewer"
 
-  // 3-day inactivity threshold (ms)
-  const INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000
-
-  function isVehicleInactive(lastUpdate) {
-    if (!lastUpdate) return true
-    const ts =
-      typeof lastUpdate === "string"
-        ? new Date(lastUpdate).getTime()
-        : lastUpdate
-    return Date.now() - ts > INACTIVE_THRESHOLD_MS
-  }
-
-  /** Return the number of days since last update */
-  function getAwayDays(lastUpdate) {
-    if (!lastUpdate) return 0
-    const ts =
-      typeof lastUpdate === "string"
-        ? new Date(lastUpdate).getTime()
-        : lastUpdate
-    return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000))
-  }
-
-  /** Check if a vehicle's speed data is stale (no update in 30s) */
-  function isSpeedStale(lastUpdate) {
-    if (!lastUpdate) return true
-    const ts =
-      typeof lastUpdate === "string"
-        ? new Date(lastUpdate).getTime()
-        : lastUpdate
-    return Date.now() - ts > STALE_SPEED_THRESHOLD_MS
+  // Tag DOM lives in lib/utils/vehicleTag.ts; these take the map marker.
+  function updateInitialsMarkerColor(marker, vehicleColor, inactive = false) {
+    const el = marker?.getElement()
+    if (el) applyTagColor(el, vehicleColor, inactive)
   }
 
   /**
-   * Build the active-vehicle tag content into EL based on tagStyle.
-   * If lastUpdate is stale (>30s), speed is forced to 0.
+   * @param {any} marker
+   * @param {string} initials
+   * @param {boolean} [inactive]
+   * @param {string | number | null} [lastUpdate]
+   * @param {number} [speed]
    */
-  function renderActiveTag(el, initials, speed, lastUpdate = null) {
-    const effectiveSpeed = isSpeedStale(lastUpdate) ? 0 : speed || 0
-    const s = effectiveSpeed.toFixed(1)
-    el.innerHTML = ""
-
-    switch (tagStyle) {
-      case 1: // mid-dot
-        el.textContent = `${initials} \u00B7 ${s}`
-        break
-
-      case 2: // pipe
-        el.textContent = `${initials} | ${s}`
-        break
-
-      case 3: // km suffix
-        el.textContent = `${initials} ${s}km`
-        break
-
-      case 4: {
-        // two-line
-        const nameLine = document.createElement("div")
-        nameLine.textContent = initials
-        nameLine.style.cssText =
-          "font-weight: 700; font-size: 11px; line-height: 1.1;"
-        el.appendChild(nameLine)
-        const speedLine = document.createElement("div")
-        speedLine.textContent = `${s} km/h`
-        speedLine.style.cssText =
-          "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;"
-        el.appendChild(speedLine)
-        break
-      }
-
-      case 5: {
-        // pill badge — two segments
-        const left = document.createElement("span")
-        left.textContent = initials
-        left.style.cssText =
-          "padding: 1px 5px; border-radius: 6px; background: rgba(255,255,255,0.2);"
-        el.appendChild(left)
-        const gap = document.createTextNode(" ")
-        el.appendChild(gap)
-        const right = document.createElement("span")
-        right.textContent = s
-        right.style.cssText =
-          "padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,0.25);"
-        el.appendChild(right)
-        break
-      }
-
-      case 6: // speed only when moving (single line)
-        el.textContent =
-          parseFloat(s) > 0 ? `${initials} \u00B7 ${s}` : initials
-        break
-
-      case 7: {
-        // smart two-line: two-line when moving, initials only when stopped
-        if (parseFloat(s) > 0) {
-          const nameLine = document.createElement("div")
-          nameLine.textContent = initials
-          nameLine.style.cssText =
-            "font-weight: 700; font-size: 11px; line-height: 1.1;"
-          el.appendChild(nameLine)
-          const speedLine = document.createElement("div")
-          speedLine.textContent = `${s} km/h`
-          speedLine.style.cssText =
-            "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.85;"
-          el.appendChild(speedLine)
-        } else {
-          el.textContent = initials
-        }
-        break
-      }
-
-      default:
-        el.textContent = `${initials} \u00B7 ${s}`
-    }
-  }
-
-  function createInitialsMarkerElement(
-    initials,
-    vehicleColor = null,
-    inactive = false,
-    lastUpdate = null,
-    speed = 0,
-  ) {
-    const el = document.createElement("div")
-    el.className = "fm-initials-marker"
-
-    let backgroundColor = "rgba(0, 0, 0, 0.85)"
-
-    if (vehicleColor) {
-      const colorMap = {
-        Yellow: "rgba(234, 179, 8, 0.95)",
-        Orange: "rgba(249, 115, 22, 0.95)",
-        Red: "rgba(239, 68, 68, 0.95)",
-        Green: "rgba(34, 197, 94, 0.95)",
-        Blue: "rgba(59, 130, 246, 0.95)",
-        Purple: "rgba(168, 85, 247, 0.95)",
-        HotPink: "rgba(236, 72, 153, 0.95)",
-      }
-      backgroundColor = colorMap[vehicleColor] || backgroundColor
-    }
-
-    // If inactive, desaturate the tag background
-    const bgColor = inactive ? "rgba(120, 120, 120, 0.85)" : backgroundColor
-
-    if (inactive) {
-      // Two-line layout: initials on top, Away (XD) below
-      const days = getAwayDays(lastUpdate)
-
-      el.innerHTML = ""
-      const nameLine = document.createElement("div")
-      nameLine.textContent = initials
-      nameLine.style.cssText =
-        "font-weight: 700; font-size: 11px; line-height: 1.1;"
-
-      const awayLine = document.createElement("div")
-      awayLine.textContent = days > 0 ? `Away (${days}D)` : "Away"
-      awayLine.style.cssText =
-        "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.8;"
-
-      el.appendChild(nameLine)
-      el.appendChild(awayLine)
-    } else {
-      renderActiveTag(el, initials, speed, lastUpdate)
-    }
-
-    el.style.cssText = `
-      background: ${bgColor};
-      color: white;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 10px;
-      border: 2px solid white;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-      white-space: nowrap;
-      pointer-events: none;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      user-select: none;
-      line-height: 1;
-      text-align: center;
-      ${inactive ? "opacity: 0.75;" : ""}
-    `
-
-    return el
-  }
-
-  function updateInitialsMarkerColor(marker, vehicleColor, inactive = false) {
-    if (!marker) return
-
-    const el = marker.getElement()
-    if (!el) return
-
-    const colorMap = {
-      Yellow: "rgba(234, 179, 8, 0.95)",
-      Orange: "rgba(249, 115, 22, 0.95)",
-      Red: "rgba(239, 68, 68, 0.95)",
-      Green: "rgba(34, 197, 94, 0.95)",
-      Blue: "rgba(59, 130, 246, 0.95)",
-      Purple: "rgba(168, 85, 247, 0.95)",
-      HotPink: "rgba(236, 72, 153, 0.95)",
-    }
-
-    el.style.background = inactive
-      ? "rgba(120, 120, 120, 0.85)"
-      : colorMap[vehicleColor] || "rgba(0, 0, 0, 0.85)"
-    el.style.opacity = inactive ? "0.75" : "1"
-  }
-
   function updateInitialsMarkerText(
     marker,
     initials,
@@ -951,29 +497,8 @@
     lastUpdate = null,
     speed = 0,
   ) {
-    if (!marker) return
-    const el = marker.getElement()
-    if (!el) return
-
-    if (inactive) {
-      const days = getAwayDays(lastUpdate)
-
-      el.innerHTML = ""
-      const nameLine = document.createElement("div")
-      nameLine.textContent = initials
-      nameLine.style.cssText =
-        "font-weight: 700; font-size: 11px; line-height: 1.1;"
-
-      const awayLine = document.createElement("div")
-      awayLine.textContent = days > 0 ? `Away (${days}D)` : "Away"
-      awayLine.style.cssText =
-        "font-weight: 600; font-size: 9px; line-height: 1.1; opacity: 0.8;"
-
-      el.appendChild(nameLine)
-      el.appendChild(awayLine)
-    } else {
-      renderActiveTag(el, initials, speed, lastUpdate)
-    }
+    const el = marker?.getElement()
+    if (el) renderTagText(el, initials, inactive, lastUpdate, speed)
   }
 
   function getVehicleById(vehicleId) {
@@ -1259,23 +784,18 @@
       // recorded (rendered as a dotted connector), so background sync must
       // keep writing trail points while paused.
       const isTrailing = $userVehicleTrailing
-      const currentTrail = $currentTrailStore
-      const operationId = isTrailing
-        ? currentTrail?.operation_id || $userVehicleStore?.operation_id || ""
-        : ""
-      const trailId = isTrailing ? currentTrail?.id || "" : ""
-
-      const success = await backgroundService.configureNativeSync({
-        supabaseUrl: PUBLIC_SUPABASE_URL,
-        anonKey: PUBLIC_SUPABASE_ANON_KEY,
-        authToken,
-        refreshToken,
-        operationId,
-        trailId,
-        vehicleId: $userVehicleStore?.vehicle_id || "",
-        masterMapId: $profileStore?.master_map_id || "",
-        isTrailing,
-      })
+      const success = await backgroundService.configureNativeSync(
+        buildNativeSyncConfig({
+          supabaseUrl: PUBLIC_SUPABASE_URL,
+          anonKey: PUBLIC_SUPABASE_ANON_KEY,
+          authToken,
+          refreshToken,
+          isTrailing,
+          currentTrail: $currentTrailStore,
+          userVehicle: $userVehicleStore,
+          masterMapId: $profileStore?.master_map_id,
+        }),
+      )
 
       if (success) {
         console.log(
@@ -1386,55 +906,21 @@
         backgroundService.nativeSyncEnabled
       ) {
         try {
-          const { data: dbPoints, error: dbErr } = await supabase
-            .from("trail_stream")
-            .select("coordinate, timestamp")
-            .eq("trail_id", currentTrail.id)
-            .order("timestamp", { ascending: true })
-
-          if (!dbErr && dbPoints && dbPoints.length > 0) {
-            const existingTimestamps = new Set(
-              (currentTrail.path || []).map((p) => p.timestamp),
+          const { total, newPoints } = await fetchMissingTrailPoints(
+            supabase,
+            currentTrail,
+          )
+          if (newPoints.length > 0) {
+            currentTrailStore.update((trail) =>
+              trail ? { ...trail, path: mergeTrailPath(trail.path, newPoints) } : trail,
             )
-
-            let merged = 0
-            const newPathPoints = dbPoints
-              .filter((row) => {
-                const ts =
-                  typeof row.timestamp === "string"
-                    ? new Date(row.timestamp).getTime()
-                    : row.timestamp
-                return !existingTimestamps.has(ts)
-              })
-              .map((row) => ({
-                coordinates: {
-                  latitude: row.coordinate.coordinates[1],
-                  longitude: row.coordinate.coordinates[0],
-                },
-                timestamp:
-                  typeof row.timestamp === "string"
-                    ? new Date(row.timestamp).getTime()
-                    : row.timestamp,
-              }))
-
-            if (newPathPoints.length > 0) {
-              currentTrailStore.update((trail) => {
-                if (!trail) return trail
-                const allPoints = [
-                  ...(trail.path || []),
-                  ...newPathPoints,
-                ].sort((a, b) => a.timestamp - b.timestamp)
-                return { ...trail, path: allPoints }
-              })
-              merged = newPathPoints.length
-              console.log(
-                `[BG-DIAG] 🗺️ Merged ${merged} background-synced trail_stream points into currentTrailStore (JS had ${currentTrail.path?.length || 0})`,
-              )
-            } else {
-              console.log(
-                `[BG-DIAG] trail_stream had ${dbPoints.length} points, all already in currentTrailStore`,
-              )
-            }
+            console.log(
+              `[BG-DIAG] 🗺️ Merged ${newPoints.length} background-synced trail_stream points into currentTrailStore (JS had ${currentTrail.path?.length || 0})`,
+            )
+          } else if (total > 0) {
+            console.log(
+              `[BG-DIAG] trail_stream had ${total} points, all already in currentTrailStore`,
+            )
           }
         } catch (mergeErr) {
           console.warn(
@@ -1645,7 +1131,7 @@
         if (storedAuthFailure) {
           const { data } = await supabase.auth.getSession()
           if (data?.session?.access_token && data?.session?.refresh_token) {
-            clearNativeSyncAuthRequired()
+            clearNativeSyncAuthRequired(localStorage)
           } else {
             handleNativeSyncAuthRequired(JSON.parse(storedAuthFailure))
           }
@@ -1673,24 +1159,8 @@
       isBackground = false
       appState = "web"
 
-      const startTimeStr = localStorage.getItem("webBackgroundStartTime")
-      if (startTimeStr) {
-        const startTime = parseInt(startTimeStr, 10)
-        const duration = Date.now() - startTime
-
-        const seconds = Math.floor(duration / 1000)
-        const minutes = Math.floor(seconds / 60)
-        const hours = Math.floor(minutes / 60)
-
-        let durationText = ""
-        if (hours > 0) {
-          durationText = `${hours}h ${minutes % 60}m ${seconds % 60}s`
-        } else if (minutes > 0) {
-          durationText = `${minutes}m ${seconds % 60}s`
-        } else {
-          durationText = `${seconds}s`
-        }
-
+      // The background start time is only kept while hidden.
+      if (localStorage.getItem("webBackgroundStartTime")) {
         localStorage.removeItem("webBackgroundStartTime")
       }
     }
@@ -2003,21 +1473,7 @@
           if (!debugOverlayTickId) {
             debugOverlayTickId = setInterval(() => {
               debugOverlayTick++
-              const WINDOW_MS = 5000
-              const cutoff = Date.now() - WINDOW_MS
-              const recentEvents = debugOverlayData.recentEventTimes.filter(
-                (t) => t > cutoff,
-              )
-              const recentUniques = debugOverlayData.recentUniqueTimes.filter(
-                (t) => t > cutoff,
-              )
-              debugOverlayData = {
-                ...debugOverlayData,
-                recentEventTimes: recentEvents,
-                recentUniqueTimes: recentUniques,
-                eventsPerSec: recentEvents.length / (WINDOW_MS / 1000),
-                uniquePerSec: recentUniques.length / (WINDOW_MS / 1000),
-              }
+              debugOverlayData = tickDebugOverlay(debugOverlayData, Date.now())
             }, 1000)
           }
         } else if (!enabled && full1HzIntervalId) {
@@ -2045,26 +1501,7 @@
             clearInterval(debugOverlayTickId)
             debugOverlayTickId = null
           }
-          debugOverlayData = {
-            rawLat: null,
-            rawLng: null,
-            appliedLat: null,
-            appliedLng: null,
-            nativeEventCount: 0,
-            uniqueCoordCount: 0,
-            lastChangedAt: null,
-            prevRawLat: null,
-            prevRawLng: null,
-            accuracy: null,
-            heading: null,
-            speed: null,
-            timestamp: null,
-            source: null,
-            recentEventTimes: [],
-            recentUniqueTimes: [],
-            eventsPerSec: 0,
-            uniquePerSec: 0,
-          }
+          debugOverlayData = emptyDebugOverlay()
         }
       } catch (e) {
         console.warn("Error handling userSettings subscription:", e)
@@ -2222,20 +1659,10 @@
       // redeemed an invite but hasn't sent a GPS fix yet). It still belongs in
       // the vehicles menu — only map drawing needs a real position.
       const isGuest = map_role === "viewer"
-      const hasCoordinates = !!coordinates && typeof coordinates === "string"
-      let longitude = null
-      let latitude = null
-      if (hasCoordinates) {
-        ;[longitude, latitude] = coordinates
-          .slice(1, -1)
-          .split(",")
-          .map(parseFloat)
-        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
-          longitude = null
-          latitude = null
-        }
-      }
-      const hasFix = longitude !== null && latitude !== null
+      const point = parsePointString(coordinates)
+      const longitude = point ? point[0] : null
+      const latitude = point ? point[1] : null
+      const hasFix = point !== null
 
       // Handle flash state changes with toasts
       if (update_types.includes("flash_state_changed")) {
@@ -2243,18 +1670,11 @@
           (v) => v.vehicle_id === vehicle_id,
         )
 
-        // Broadcast just started
-        if (is_flashing && existingVehicle && !existingVehicle.is_flashing) {
-          const reasonLabel = String(flash_reason || "Broadcast").toUpperCase()
-          const reasonColor = flash_color || "#f59e0b"
-          const isHelpSignal =
-            String(flash_reason || "").toLowerCase() === "help"
-
-          const toastOptions = {
-            description: isHelpSignal
-              ? `${full_name} needs assistance!`
-              : `${full_name} is broadcasting ${reasonLabel}`,
-            duration: isHelpSignal ? 45000 : 8000,
+        const broadcastToast = broadcastStartToast(change, existingVehicle)
+        if (broadcastToast) {
+          const { level, title, ...options } = broadcastToast
+          toast[level](title, {
+            ...options,
             action: hasFix
               ? {
                   label: "Locate",
@@ -2267,23 +1687,9 @@
                   },
                 }
               : undefined,
-            style: `border-left: 4px solid ${reasonColor};`,
-          }
-
-          if (isHelpSignal) {
-            toast.error(`🆘 ${reasonLabel} Broadcast`, toastOptions)
-          } else {
-            toast.warning(`📢 ${reasonLabel} Broadcast`, toastOptions)
-          }
-
+          })
           console.log(`📢 Broadcast started for ${full_name}:`, flash_reason)
-        }
-        // Flash just stopped
-        else if (
-          !is_flashing &&
-          existingVehicle &&
-          existingVehicle.is_flashing
-        ) {
+        } else if (!is_flashing && existingVehicle?.is_flashing) {
           console.log(`📢 Broadcast stopped for ${full_name}`)
         }
       }
@@ -2342,9 +1748,7 @@
               vehicle_marker.bodyColor,
               inactive,
             )
-            const initials = isGuest
-              ? getGuestTagLabel(full_name)
-              : getUserInitials(full_name)
+            const initials = tagLabelFor(full_name, isGuest)
             if (initials)
               updateInitialsMarkerText(
                 initialsMarker,
@@ -2369,9 +1773,7 @@
           if (initialsMarker) {
             animateMarker(initialsMarker, longitude, latitude, 0)
             // Update speed in the tag
-            const initials = isGuest
-              ? getGuestTagLabel(full_name)
-              : getUserInitials(full_name)
+            const initials = tagLabelFor(full_name, isGuest)
             if (initials)
               updateInitialsMarkerText(
                 initialsMarker,
@@ -2416,11 +1818,9 @@
 
         let initialsMarker = null
         if (full_name || isGuest) {
-          const initials = isGuest
-            ? getGuestTagLabel(full_name)
-            : getUserInitials(full_name)
+          const initials = tagLabelFor(full_name, isGuest)
           if (initials) {
-            const initialsEl = createInitialsMarkerElement(
+            const initialsEl = createTagElement(
               initials,
               vehicle_marker.bodyColor,
               inactive,
@@ -2455,19 +1855,7 @@
         console.log(`🕓 ${vehicle_id} has no GPS fix yet — marker deferred`)
       }
 
-      otherVehiclesStore.update((vehicles) => {
-        const index = vehicles.findIndex(
-          (vehicle) => vehicle.vehicle_id === vehicle_id,
-        )
-        if (index !== -1) {
-          const oldVehicle = vehicles[index]
-
-          vehicles[index] = { ...oldVehicle, ...change, speed }
-        } else {
-          vehicles.push({ ...change, speed })
-        }
-        return vehicles
-      })
+      otherVehiclesStore.update((vehicles) => upsertVehicle(vehicles, change))
     })
   }
 
@@ -2637,11 +2025,9 @@
       element.style.display = vehiclesVisible ? "block" : "none"
 
       if ($profileStore?.full_name || isSelfGuest()) {
-        const initials = isSelfGuest()
-          ? getGuestTagLabel($profileStore?.full_name)
-          : getUserInitials($profileStore.full_name)
+        const initials = selfTagLabel()
         if (initials) {
-          const initialsEl = createInitialsMarkerElement(
+          const initialsEl = createTagElement(
             initials,
             vehicleMarker.bodyColor,
           )
@@ -2793,127 +2179,17 @@
     setTimeout(() => marker.remove(), 1200)
   }
 
-  /**
-   * Hybrid GPS glitch filter.
-   * Returns { accepted: true } or { accepted: false, reason: string }.
-   *
-   * Rules:
-   *  1. If accuracy > GPS_MAX_ACCURACY_M → reject (WiFi/cell tower fix).
-   *     Guest/viewer sessions use a far looser threshold — network-based
-   *     location would otherwise never pass and they'd be invisible.
-   *  2. If implied speed > GPS_MAX_SPEED_KMH AND time gap < GPS_SPEED_GATE_MAX_GAP_S → reject
-   *  3. Snap-back detection: if we've been rejecting GPS_SNAP_BACK_THRESHOLD
-   *     consecutive points from the current anchor, the anchor itself was a
-   *     glitch — roll back to the prior anchor and re-evaluate this point.
-   *  4. Otherwise → accept
-   */
-  function filterGpsCoordinate(latitude, longitude, accuracy, timestamp) {
-    // Only enforce an accuracy gate. All other filters (speed, snap-back)
-    // have been removed per request so native fixes are not rejected
-    // except when accuracy indicates a likely cell/WiFi-derived fix.
-    const maxAccuracy =
-      $profileStore?.user_type === "viewer"
-        ? GPS_MAX_ACCURACY_GUEST_M
-        : GPS_MAX_ACCURACY_M
-
-    if (accuracy != null && accuracy > maxAccuracy) {
-      return {
-        accepted: false,
-        reason: `Accuracy too low: ${Math.round(accuracy)}m (max ${maxAccuracy}m)`,
-        category: "accuracy",
-        accuracy,
-      }
-    }
-
-    return { accepted: true }
-  }
-
-  /**
-   * Pick the best heading for this fix and smooth it circularly.
-   *
-   * COG (course over ground) from our own accepted fixes is preferred because
-   * it is immune to the GNSS chip's low-speed bearing noise. The chip's
-   * bearing is used while moving fast enough for Doppler to be meaningful.
-   * With neither available we hold the last heading instead of snapping to
-   * north.
-   *
-   * @param {number} latitude
-   * @param {number} longitude
-   * @param {number | null} chipHeading
-   * @param {number} speedKmh
-   * @param {number} timestamp
-   * @returns {number|null} whole degrees clockwise from north, or null
-   */
-  function resolveHeading(latitude, longitude, chipHeading, speedKmh, timestamp) {
-    const chipValid = isValidHeading(chipHeading)
-
-    let cog = null
-    const anchor = headingAnchor
-    if (anchor) {
-      const distance = approxDistanceMeters(
-        anchor.latitude,
-        anchor.longitude,
-        latitude,
-        longitude,
-      )
-      const gap = timestamp - anchor.timestamp
-
-      if (distance > HEADING_COG_MAX_M || gap > HEADING_COG_MAX_GAP_MS) {
-        // Stale anchor: the chord no longer describes where we are heading.
-        headingAnchor = { latitude, longitude, timestamp }
-      } else if (
-        distance >= HEADING_COG_MIN_M &&
-        gap >= HEADING_COG_MIN_GAP_MS
-      ) {
-        cog = courseOverGround(
-          anchor.latitude,
-          anchor.longitude,
-          latitude,
-          longitude,
-        )
-        headingAnchor = { latitude, longitude, timestamp }
-      }
-      // Otherwise keep the anchor and accumulate a longer baseline.
-    } else {
-      headingAnchor = { latitude, longitude, timestamp }
-    }
-
-    let rawHeading = null
-    if (cog !== null) {
-      rawHeading = cog
-    } else if (chipValid && speedKmh >= HEADING_CHIP_MIN_SPEED_KMH) {
-      rawHeading = chipHeading
-    }
-
-    lastSmoothedHeading = smoothHeading(
-      lastSmoothedHeading,
-      rawHeading,
-      speedKmh,
-    )
-
-    return isValidHeading(lastSmoothedHeading)
-      ? Math.round(lastSmoothedHeading) % 360
-      : null
-  }
-
   function streamMarkerPosition(
     coords,
     forceUpdate = false,
     source = "unknown",
     gpsTimestamp = null,
   ) {
-    const { latitude, longitude, heading, speed, accuracy } = coords
+    const { latitude, longitude, heading, accuracy } = coords
 
     // Use the GPS hardware timestamp when available. This prevents fallback
     // loops from turning an old coordinate into a fresh vehicle update.
-    const parsedGpsTimestamp = gpsTimestamp
-      ? typeof gpsTimestamp === "string"
-        ? new Date(gpsTimestamp).getTime()
-        : gpsTimestamp
-      : null
-    const currentTime = Number.isFinite(parsedGpsTimestamp)
-      ? parsedGpsTimestamp
-      : Date.now()
+    const currentTime = resolveFixTime(gpsTimestamp)
     const trailTimestamp = currentTime
 
     if ($devModeEnabled)
@@ -2927,45 +2203,22 @@
 
     // ── Update raw overlay data BEFORE filtering (shows what we received) ──
     if ($userSettingsStore?.enableFull1Hz) {
-      const prevLat = debugOverlayData.rawLat
-      const prevLng = debugOverlayData.rawLng
-      const coordChanged = prevLat !== latitude || prevLng !== longitude
-      const now = Date.now()
-      // Push timestamps for rolling-window frequency calculation
-      const recentEvents = [...debugOverlayData.recentEventTimes, now]
-      const recentUniques = coordChanged
-        ? [...debugOverlayData.recentUniqueTimes, now]
-        : debugOverlayData.recentUniqueTimes
-      debugOverlayData = {
-        ...debugOverlayData,
-        rawLat: latitude,
-        rawLng: longitude,
-        prevRawLat: prevLat,
-        prevRawLng: prevLng,
-        accuracy: accuracy,
-        heading: heading,
-        speed: speed,
-        nativeEventCount: debugOverlayData.nativeEventCount + 1,
-        uniqueCoordCount:
-          debugOverlayData.uniqueCoordCount + (coordChanged ? 1 : 0),
-        lastChangedAt: coordChanged ? now : debugOverlayData.lastChangedAt,
-        timestamp: now,
-        source: source,
-        recentEventTimes: recentEvents,
-        recentUniqueTimes: recentUniques,
-      }
+      debugOverlayData = recordRawFix(
+        debugOverlayData,
+        coords,
+        source,
+        Date.now(),
+      )
     }
 
-    // Run the hybrid filter (skipped in dev mode)
+    // Accuracy gate (skipped in dev mode). Guests get a far looser gate —
+    // network-based location would otherwise never pass.
     if (!$devModeEnabled) {
-      const filterResult = filterGpsCoordinate(
-        latitude,
-        longitude,
+      const filterResult = checkGpsAccuracy(
         accuracy,
-        currentTime,
+        $profileStore?.user_type === "viewer",
       )
       if (!filterResult.accepted) {
-        // Keep rejection logging minimal — only warn when accuracy fails
         console.warn("🚫 GPS coordinate rejected (accuracy):", {
           lat: latitude,
           lng: longitude,
@@ -2975,8 +2228,8 @@
           showGpsRejectedLabel(
             longitude,
             latitude,
-            filterResult.category || "gps",
-            filterResult.accuracy != null ? filterResult.accuracy : accuracy,
+            filterResult.category,
+            filterResult.accuracy,
             filterResult.reason,
           )
         }
@@ -2984,21 +2237,16 @@
       }
     }
 
-    // Coordinate accepted — update tracking state
-    priorAcceptedCoords = lastAcceptedCoords
-    priorAcceptedTime = lastAcceptedTime
-    lastAcceptedCoords = { latitude, longitude }
-    lastAcceptedTime = currentTime
-
     // Show a positive acceptance label for every accepted GPS fix (testing aid)
     if ($userSettingsStore?.showGpsAcceptedPopups) {
       showGpsAcceptedLabel(longitude, latitude, accuracy)
     }
 
-    const calculatedSpeed = calculateSpeedFromGPS(
+    const calculatedSpeed = speedEstimator.update(
       latitude,
       longitude,
       currentTime,
+      currentSpeed,
     )
 
     currentSpeed = Math.round(calculatedSpeed)
@@ -3010,7 +2258,8 @@
       speed: calculatedSpeed,
     }
 
-    const updatedHeading = resolveHeading(
+    // Smoothed, normalised heading (or null when none is known yet).
+    const updatedHeading = headingResolver.resolve(
       latitude,
       longitude,
       heading,
@@ -3018,19 +2267,17 @@
       currentTime,
     )
 
-    // `updatedHeading` is already smoothed and normalised (or null when no
-    // heading is known yet) — see resolveHeading above.
-    const smoothedHeading = updatedHeading
-
-    // Throttle UI updates so marker/camera updates happen ~every USER_UI_UPDATE_INTERVAL_MS
-    // Allow callers (Mapbox geolocate events) to force an immediate update so
-    // the camera and marker move together at the exact same time.
+    // Throttle UI updates to ~USER_UI_UPDATE_INTERVAL_MS. Callers (Mapbox
+    // geolocate events) can force an immediate update so the camera and
+    // marker move together; speed and heading state are already updated.
     if (
-      !forceUpdate &&
-      !$userSettingsStore?.enableFull1Hz &&
-      currentTime - lastUiUpdateTime < USER_UI_UPDATE_INTERVAL_MS
+      !shouldUpdateUi({
+        now: currentTime,
+        lastUiUpdateTime,
+        forceUpdate,
+        full1Hz: !!$userSettingsStore?.enableFull1Hz,
+      })
     ) {
-      // still update internal accepted anchor and speed, but skip UI/store churn
       if ($devModeEnabled)
         console.log("[1Hz-DIAG] throttled - skipping UI update", {
           now: currentTime,
@@ -3074,7 +2321,7 @@
           $userVehicleStore.vehicle_id,
           longitude,
           latitude,
-          smoothedHeading,
+          updatedHeading,
         )
       }
     }
@@ -3082,157 +2329,136 @@
     updateUserVehicleData(
       currentTime,
       vehicleData,
-      smoothedHeading,
+      updatedHeading,
       trailTimestamp,
     )
   }
 
+  /**
+   * @param {number} currentTime
+   * @param {any} vehicleData
+   * @param {any} updatedHeading
+   * @param {number | null} [trailTimestamp]
+   */
   function updateUserVehicleData(
     currentTime,
     vehicleData,
     updatedHeading,
     trailTimestamp = null,
   ) {
-    if (currentTime - lastRecordedTime >= LOCATION_TRACKING_INTERVAL_MIN) {
-      const { coordinates, speed } = vehicleData
-      const { latitude, longitude } = coordinates
+    const { coordinates, speed } = vehicleData
+    const { latitude, longitude } = coordinates
 
-      // ✅ Check if coordinates or heading have changed
-      const coordinatesChanged =
-        !lastClientCoordinates ||
-        lastClientCoordinates.latitude !== latitude ||
-        lastClientCoordinates.longitude !== longitude
+    // Only proceed if coordinates or heading changed, or the heartbeat elapsed.
+    if (
+      !shouldPushVehicleUpdate({
+        now: currentTime,
+        lastRecordedTime,
+        lastPushTime: lastVehicleDataUpdateTime,
+        coords: coordinates,
+        heading: updatedHeading,
+        lastCoords: lastClientCoordinates,
+        lastHeading: lastClientHeading,
+      })
+    )
+      return
 
-      const headingChanged = lastClientHeading !== updatedHeading
-
-      // ✅ Check if the update heartbeat elapsed
-      const timeElapsed =
-        currentTime - lastVehicleDataUpdateTime >=
-        MIN_VEHICLE_DATA_UPDATE_INTERVAL
-
-      // ✅ Only proceed if coordinates changed, heading changed, OR 15 seconds passed
-      if (coordinatesChanged || headingChanged || timeElapsed) {
-        if ($userVehicleTrailing) {
-          // Paused still records — but only genuine movement — the close
-          // partition renders it as a minimal dotted connector, and a parked
-          // vehicle stays idle for the 4h stale-trail safety net.
-          let shouldRecord = !$trailPausedStore
-          if ($trailPausedStore) {
-            const ref = lastPauseRecordCoords
-            if (!ref) {
-              lastPauseRecordCoords = { latitude, longitude }
-            } else if (
-              approxDistanceMeters(
-                ref.latitude,
-                ref.longitude,
-                latitude,
-                longitude,
-              ) >= PAUSE_POINT_MIN_MOVE_M
-            ) {
-              shouldRecord = true
-              lastPauseRecordCoords = { latitude, longitude }
-            }
-          } else {
-            lastPauseRecordCoords = null
-          }
-          if (shouldRecord) {
-            coordinateBufferStore.set({
-              coordinates: { latitude, longitude },
-              timestamp: trailTimestamp || currentTime,
-            })
-          }
-        }
-
-        userVehicleStore.update((vehicle) => {
-          return {
-            ...vehicle,
-            coordinates: vehicleData.coordinates,
-            last_update: vehicleData.last_update,
-            vehicle_marker: vehicleData.vehicle_marker,
-            heading: updatedHeading,
-            speed: speed,
-          }
+    if ($userVehicleTrailing) {
+      // Paused still records — but only genuine movement — the close
+      // partition renders it as a minimal dotted connector, and a parked
+      // vehicle stays idle for the 4h stale-trail safety net.
+      if (pausePointThinner.shouldRecord(!!$trailPausedStore, coordinates)) {
+        coordinateBufferStore.set({
+          coordinates: { latitude, longitude },
+          timestamp: trailTimestamp || currentTime,
         })
-
-        if (userMarkerData?.marker) {
-          if (userMarkerData.marker.getLngLat()) {
-            // Marker already on the map — animate to new position
-            animateMarker(
-              userMarkerData.marker,
-              longitude,
-              latitude,
-              updatedHeading,
-            )
-
-            if (userInitialsMarker) {
-              animateMarker(userInitialsMarker, longitude, latitude, 0)
-              // Update speed in the user's tag
-              if ($profileStore?.full_name || isSelfGuest()) {
-                const initials = isSelfGuest()
-                  ? getGuestTagLabel($profileStore?.full_name)
-                  : getUserInitials($profileStore.full_name)
-                if (initials)
-                  updateInitialsMarkerText(
-                    userInitialsMarker,
-                    initials,
-                    false,
-                    Date.now(),
-                    currentSpeed,
-                  )
-              }
-            }
-          } else {
-            // Marker was created without coordinates (new user, first visit).
-            // Now that geolocation has provided coordinates, place it on the map.
-            console.log(
-              "📍 Placing user marker on map for first time (new account)",
-            )
-            userMarkerData.marker
-              .setLngLat([longitude, latitude])
-              .setRotation(isValidHeading(updatedHeading) ? updatedHeading : 0)
-              .addTo(map)
-
-            const vehiclesVisible = $layerVisibilityStore.vehicles
-            const element = userMarkerData.marker.getElement()
-            if (element) {
-              element.style.display = vehiclesVisible ? "block" : "none"
-            }
-
-            // Create initials marker if it doesn't exist yet
-            if (
-              !userInitialsMarker &&
-              ($profileStore?.full_name || isSelfGuest())
-            ) {
-              const initials = isSelfGuest()
-                ? getGuestTagLabel($profileStore?.full_name)
-                : getUserInitials($profileStore.full_name)
-              if (initials) {
-                const initialsEl = createInitialsMarkerElement(
-                  initials,
-                  $userVehicleStore.vehicle_marker.bodyColor,
-                )
-                userInitialsMarker = new mapboxgl.Marker({
-                  element: initialsEl,
-                  anchor: "bottom",
-                  offset: [0, -40],
-                })
-                  .setLngLat([longitude, latitude])
-                  .addTo(map)
-
-                const labelsVisible = $layerVisibilityStore.vehicleLabels
-                initialsEl.style.display =
-                  vehiclesVisible && labelsVisible ? "block" : "none"
-              }
-            }
-          }
-        }
-
-        lastClientCoordinates = { latitude, longitude }
-        lastClientHeading = updatedHeading
-        lastRecordedTime = currentTime
-        lastVehicleDataUpdateTime = currentTime
       }
     }
+
+    userVehicleStore.update((vehicle) => {
+      return {
+        ...vehicle,
+        coordinates: vehicleData.coordinates,
+        last_update: vehicleData.last_update,
+        vehicle_marker: vehicleData.vehicle_marker,
+        heading: updatedHeading,
+        speed: speed,
+      }
+    })
+
+    if (userMarkerData?.marker) {
+      if (userMarkerData.marker.getLngLat()) {
+        // Marker already on the map — animate to new position
+        animateMarker(
+          userMarkerData.marker,
+          longitude,
+          latitude,
+          updatedHeading,
+        )
+
+        if (userInitialsMarker) {
+          animateMarker(userInitialsMarker, longitude, latitude, 0)
+          // Update speed in the user's tag
+          if ($profileStore?.full_name || isSelfGuest()) {
+            const initials = selfTagLabel()
+            if (initials)
+              updateInitialsMarkerText(
+                userInitialsMarker,
+                initials,
+                false,
+                Date.now(),
+                currentSpeed,
+              )
+          }
+        }
+      } else {
+        // Marker was created without coordinates (new user, first visit).
+        // Now that geolocation has provided coordinates, place it on the map.
+        console.log(
+          "📍 Placing user marker on map for first time (new account)",
+        )
+        userMarkerData.marker
+          .setLngLat([longitude, latitude])
+          .setRotation(isValidHeading(updatedHeading) ? updatedHeading : 0)
+          .addTo(map)
+
+        const vehiclesVisible = $layerVisibilityStore.vehicles
+        const element = userMarkerData.marker.getElement()
+        if (element) {
+          element.style.display = vehiclesVisible ? "block" : "none"
+        }
+
+        // Create initials marker if it doesn't exist yet
+        if (
+          !userInitialsMarker &&
+          ($profileStore?.full_name || isSelfGuest())
+        ) {
+          const initials = selfTagLabel()
+          if (initials) {
+            const initialsEl = createTagElement(
+              initials,
+              $userVehicleStore.vehicle_marker.bodyColor,
+            )
+            userInitialsMarker = new mapboxgl.Marker({
+              element: initialsEl,
+              anchor: "bottom",
+              offset: [0, -40],
+            })
+              .setLngLat([longitude, latitude])
+              .addTo(map)
+
+            const labelsVisible = $layerVisibilityStore.vehicleLabels
+            initialsEl.style.display =
+              vehiclesVisible && labelsVisible ? "block" : "none"
+          }
+        }
+      }
+    }
+
+    lastClientCoordinates = { latitude, longitude }
+    lastClientHeading = updatedHeading
+    lastRecordedTime = currentTime
+    lastVehicleDataUpdateTime = currentTime
   }
 
   function handleStartTracking(event) {
@@ -3298,37 +2524,9 @@
     showFirstPersonEnabledToast()
   }
 
-  // Build vehicle list for the HUD vehicle picker
-  function buildVehicleList() {
-    const allVehicles = [
-      {
-        id: $userVehicleStore.vehicle_id,
-        name: "You",
-        isCurrentUser: true,
-        coordinates: $userVehicleStore.coordinates,
-        last_update: $userVehicleStore.last_update,
-        vehicleType: $userVehicleStore.vehicle_marker?.type || "SimpleTractor",
-        bodyColor: $userVehicleStore.vehicle_marker?.bodyColor || "red",
-      },
-      ...$otherVehiclesStore.map((v) => ({
-        id: v.vehicle_id,
-        name: v.full_name || getVehicleDisplayName(v),
-        isCurrentUser: false,
-        coordinates: v.coordinates,
-        last_update: v.last_update,
-        vehicleType: v.vehicle_marker?.type || "SimpleTractor",
-        bodyColor: v.vehicle_marker?.bodyColor || "red",
-      })),
-    ].filter((v) => parseCoordinates(v.coordinates) !== null)
 
-    return allVehicles
-  }
-
-  $: vehicleList = buildVehicleList()
-  // Re-trigger when stores change
-  $: if ($otherVehiclesStore || $userVehicleStore) {
-    vehicleList = buildVehicleList()
-  }
+  // Vehicle list for the HUD vehicle picker
+  $: vehicleList = buildVehicleList($userVehicleStore, $otherVehiclesStore)
 
   // ── Offscreen vehicle tracking ("Show vehicles always") ──
   // When the per-user setting is on, every vehicle that has moved within the
@@ -3337,17 +2535,6 @@
   // its heading. Stale/off vehicles are removed.
   // NOTE: deps passed as explicit args — Svelte 4 only tracks variables
   // referenced directly in the reactive statement.
-  const VEHICLE_TRACK_ACTIVE_MS = 3 * 60 * 1000 // 3 minutes
-  const VEHICLE_COLOR_HEX = {
-    Yellow: "#eab308",
-    Orange: "#f97316",
-    Red: "#ef4444",
-    Green: "#22c55e",
-    Blue: "#3b82f6",
-    Purple: "#a855f7",
-    HotPink: "#ec4899",
-  }
-
   $: syncVehicleTracking(
     $userSettingsStore?.showVehiclesAlways ?? true,
     $userVehicleStore,
@@ -3364,133 +2551,37 @@
     mapReady,
   ) {
     if (!mapReady) return
-    const now = Date.now()
-    const wanted = new Set()
-
-    // A vehicle is "active" if it has had a movement update within 3 min.
-    const isActive = (lastUpdate) => {
-      if (!lastUpdate) return false
-      const ts =
-        typeof lastUpdate === "string"
-          ? new Date(lastUpdate).getTime()
-          : lastUpdate
-      return Number.isFinite(ts) && now - ts < VEHICLE_TRACK_ACTIVE_MS
-    }
-
-    // Register a vehicle's edge badge (upsert by id). `broadcast` switches
-    // the badge to the broadcast signal icon + colour instead of the vehicle
-    // icon, so broadcasting vehicles read as a live signal wherever they are.
-    const register = (id, coords, vehicleMarker, heading, label, broadcast) => {
-      const parsed = parseCoordinates(coords)
-      if (!parsed) return
-      wanted.add(id)
-      const type = vehicleMarker?.type || "SimpleTractor"
-      const bodyColor = vehicleMarker?.bodyColor || "Yellow"
-      const swath = vehicleMarker?.swath ?? 12
-      const size = vehicleMarker?.size ?? 45
+    const badges = planEdgeBadges({
+      enabled,
+      vehiclesVisible,
+      userVehicle,
+      otherVehicles,
+      now: Date.now(),
+    })
+    for (const { broadcast, vehicleType, componentProps, ...badge } of badges) {
       mapAttentionStore.add({
-        id,
-        coordinates: [parsed.longitude, parsed.latitude],
-        color: broadcast
-          ? broadcast.color
-          : VEHICLE_COLOR_HEX[bodyColor] || "#eab308",
-        label,
-        heading: broadcast
-          ? undefined
-          : isValidHeading(heading)
-            ? heading
-            : undefined,
+        ...badge,
+        // Broadcasting vehicles read as a live signal wherever they are.
         ...(broadcast
           ? { icon: RadioTower, component: null, componentProps: null }
           : {
               icon: null,
-              component: SVGComponents[type] || SVGComponents.SimpleTractor,
-              componentProps: {
-                bodyColor,
-                size: `${Math.max(16, Math.min(30, Math.round(size * 0.55)))}px`,
-                swath,
-              },
+              component:
+                SVGComponents[
+                  /** @type {keyof typeof SVGComponents} */ (vehicleType)
+                ] || SVGComponents.SimpleTractor,
+              componentProps,
             }),
       })
     }
 
-    // Broadcast style for a broadcasting vehicle (label + colour, with legacy
-    // id fallbacks for older senders).
-    const broadcastInfo = (v) => {
-      const reason = String(v.flash_reason || "Broadcast").toUpperCase()
-      const legacyColors = {
-        FULL: "#f59e0b",
-        EMPTY: "#8b5cf6",
-        HELP: "#ef4444",
-      }
-      return {
-        color: v.flash_color || legacyColors[reason] || "#f59e0b",
-        reason,
-      }
-    }
-
-    // Broadcasting vehicles always get an edge indicator in the broadcast
-    // colour — independent of the "show vehicles always" setting.
-    if (userVehicle?.is_flashing) {
-      const b = broadcastInfo(userVehicle)
-      register(
-        `vehicle-track-${userVehicle.vehicle_id || "me"}`,
-        userVehicle.coordinates,
-        userVehicle.vehicle_marker,
-        userVehicle.heading,
-        `You — broadcasting ${b.reason}`,
-        b,
-      )
-    }
-    for (const v of otherVehicles || []) {
-      if (!v.is_flashing) continue
-      const b = broadcastInfo(v)
-      register(
-        `vehicle-track-${v.vehicle_id}`,
-        v.coordinates,
-        v.vehicle_marker,
-        v.heading,
-        `${v.full_name || getVehicleDisplayName(v)} — broadcasting ${b.reason}`,
-        b,
-      )
-    }
-
-    if (enabled && vehiclesVisible) {
-      // The user's own vehicle (skipped while broadcasting — registered above).
-      if (isActive(userVehicle?.last_update) && !userVehicle?.is_flashing) {
-        register(
-          `vehicle-track-${userVehicle.vehicle_id || "me"}`,
-          userVehicle.coordinates,
-          userVehicle.vehicle_marker,
-          userVehicle.heading,
-          "You",
-        )
-      }
-      // All other vehicles with recent movement.
-      for (const v of otherVehicles || []) {
-        if (!isActive(v.last_update) || v.is_flashing) continue
-        register(
-          `vehicle-track-${v.vehicle_id}`,
-          v.coordinates,
-          v.vehicle_marker,
-          v.heading,
-          v.full_name || getVehicleDisplayName(v),
-        )
-      }
-    }
-
     // Remove edge dots that are no longer wanted (setting off, stale, or
     // the vehicle is no longer tracked).
-    const current = get(mapAttentionStore)
-    for (const item of current) {
-      if (
-        item.id &&
-        item.id.startsWith("vehicle-track-") &&
-        !wanted.has(item.id)
-      ) {
-        mapAttentionStore.remove(item.id)
-      }
-    }
+    const stale = staleEdgeBadgeIds(
+      get(mapAttentionStore),
+      badges.map((b) => b.id),
+    )
+    for (const id of stale) mapAttentionStore.remove(id)
   }
 
   function handleZoomToVehicle(event) {
@@ -3513,9 +2604,7 @@
   function refreshAllTags() {
     // User's own tag
     if (userInitialsMarker && ($profileStore?.full_name || isSelfGuest())) {
-      const initials = isSelfGuest()
-        ? getGuestTagLabel($profileStore?.full_name)
-        : getUserInitials($profileStore.full_name)
+      const initials = selfTagLabel()
       if (initials)
         updateInitialsMarkerText(
           userInitialsMarker,
@@ -3531,9 +2620,7 @@
       const v = $otherVehiclesStore.find((v) => v.vehicle_id === vehicleId)
       if (!v) return
       const initials =
-        v.map_role === "viewer"
-          ? getGuestTagLabel(v.full_name)
-          : getUserInitials(v.full_name)
+        tagLabelFor(v.full_name, v.map_role === "viewer")
       if (!initials) return
       const inactive = isVehicleInactive(v.last_update)
       updateInitialsMarkerText(
