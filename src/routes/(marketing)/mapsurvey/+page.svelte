@@ -609,29 +609,21 @@
             ? " · existing settings"
             : ""}
         </div>
+        <div class="survey-legend" aria-label="Trail colours in this set">
+          <div class="survey-legend-title">Trails {trailLabel}</div>
+          {#each legend as item (item.key)}
+            <div class="survey-legend-item">
+              <span class="survey-legend-swatches">
+                {#each item.colors as color}
+                  <span class="survey-legend-swatch" style="background: {color}"
+                  ></span>
+                {/each}
+              </span>
+              {item.label}
+            </div>
+          {/each}
+        </div>
       {/if}
-    </div>
-
-    <div class="survey-legend" aria-label="Trail colours in this set">
-      <span class="survey-stylebar-label">Trails {trailLabel} colours</span>
-      <div class="survey-legend-items">
-        {#each legend as item (item.key)}
-          <span class="survey-legend-item">
-            <span class="survey-legend-swatches">
-              {#each item.colors as color}
-                <span
-                  class="survey-legend-swatch"
-                  style="background: {color}; opacity: {Math.min(
-                    1,
-                    look.trails.opacity + 0.3,
-                  )}"
-                ></span>
-              {/each}
-            </span>
-            {item.label}
-          </span>
-        {/each}
-      </div>
     </div>
 
     <div class="survey-farmbar">
@@ -950,36 +942,45 @@
     background: #0f172a;
     color: #fff;
   }
+  /* On the map, under the style chip, so it stays in view while switching sets. */
   .survey-legend {
+    position: absolute;
+    top: 54px;
+    left: 12px;
+    z-index: 4;
     display: flex;
-    align-items: center;
-    gap: 8px 12px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #f1f5f9;
+    pointer-events: none;
   }
-  .survey-legend-items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
+  .survey-legend-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #cbd5e1;
   }
   .survey-legend-item {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
+    line-height: 1;
     white-space: nowrap;
   }
   .survey-legend-swatches {
     display: inline-flex;
     gap: 2px;
-    padding: 2px;
-    border-radius: 6px;
-    background: #57534e;
   }
   .survey-legend-swatch {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
     transition: background 0.2s ease;
   }
   .survey-newset {
@@ -1124,6 +1125,19 @@
     .survey-map {
       height: 62vh;
       min-height: 380px;
+    }
+    .survey-legend {
+      top: 50px;
+      left: 8px;
+      gap: 3px;
+      padding: 6px 8px;
+    }
+    .survey-legend-item {
+      font-size: 10px;
+    }
+    .survey-legend-swatch {
+      width: 10px;
+      height: 10px;
     }
     .survey-stylebtn {
       width: 36px;
