@@ -4,7 +4,7 @@
 // actually differs. That matters: setPaintProperty fires `styledata`, and the
 // applier re-runs on `styledata`, so a blind write would loop forever.
 import {
-  OUTSIDE_TONES,
+  OUTSIDE_WASH_COLOR,
   basemapPaint,
   buildOutsideMask,
   resolveTrailColor,
@@ -139,7 +139,7 @@ export function applyOutsideLook(
     }
 
     const strength = Math.max(0, Math.min(1, look.outside.strength))
-    const color = OUTSIDE_TONES[look.outside.tone] ?? OUTSIDE_TONES.dark
+    const color = OUTSIDE_WASH_COLOR
 
     if (!map.getLayer(LOOK_MASK_LAYER)) {
       map.addLayer(

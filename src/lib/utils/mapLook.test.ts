@@ -3,7 +3,10 @@ import {
   FIELD_AUTO_PALETTE,
   PRESETS,
   TRAIL_PALETTES,
+  MAP_STYLES,
+  TRAIL_STYLES,
   basemapPaint,
+  composeLook,
   buildOutsideMask,
   fieldColors,
   resolveLook,
@@ -52,6 +55,34 @@ describe("presets", () => {
       expect(look.trails.opacity).toBeGreaterThanOrEqual(0.45)
       expect(look.trails.opacity).toBeLessThanOrEqual(0.65)
     }
+  })
+})
+
+describe("map styles and trail styles", () => {
+  it("every wash is dark-only and moderate", () => {
+    for (const look of Object.values(PRESETS)) {
+      expect(look.outside.strength).toBeLessThanOrEqual(0.4)
+      expect(look.outside).not.toHaveProperty("tone")
+    }
+  })
+
+  it("compose any map style with any trail palette", () => {
+    const look = composeLook("mono", "earth")
+    expect(look.basemap).toEqual(PRESETS.mono.basemap)
+    expect(look.fields).toEqual(PRESETS.mono.fields)
+    expect(look.trails).toEqual(TRAIL_STYLES.earth)
+    expect(look.trails.palette).toBe("earth")
+  })
+
+  it("Classic map + Classic trails is exactly the Classic preset", () => {
+    expect(composeLook("classic", "classic")).toEqual(PRESETS.classic)
+  })
+
+  it("falls back to Classic for unknown names", () => {
+    expect(composeLook("nope" as never, "nope" as never)).toEqual(
+      PRESETS.classic,
+    )
+    expect(Object.keys(MAP_STYLES).sort()).toEqual(Object.keys(PRESETS).sort())
   })
 })
 
@@ -108,7 +139,9 @@ describe("resolveTrailColor", () => {
     expect(resolveTrailColor("Red", classic)).toBe("#ff0000")
     expect(resolveTrailColor("Red", PRESETS.muted)).toBe("#ef4444")
     expect(resolveTrailColor("SKYBLUE", PRESETS.muted)).toBe("#38bdf8")
-    expect(resolveTrailColor(" hotpink ", PRESETS.poster)).toBe("#b02a6b")
+    expect(resolveTrailColor(" hotpink ", composeLook("mono", "earth"))).toBe(
+      "#c96b8f",
+    )
   })
 
   it("passes hex and other CSS colours through untouched", () => {
@@ -189,7 +222,10 @@ describe("fieldColors", () => {
   })
 
   it("cycles the auto palette by field order and keeps a neutral outline", () => {
-    const poster = PRESETS.poster
+    const poster = resolveLook({
+      preset: "muted",
+      overrides: { fields: { autoPalette: true } },
+    })
     expect(fieldColors("default", 0, poster).fillColor).toBe(
       FIELD_AUTO_PALETTE[0],
     )

@@ -9,19 +9,8 @@
 // colour (#ff0000, #ffff00 …). Mapping the name through a palette lets a look
 // restyle every existing trail without touching stored data.
 
-export type TrailPaletteName = "classic" | "soft" | "earth" | "ink"
-export type OutsideTone = "dark" | "grey" | "light"
-export type PresetName =
-  | "classic"
-  | "natural"
-  | "muted"
-  | "spotlight"
-  | "earth"
-  | "mono"
-  | "blocks"
-  | "dusk"
-  | "paper"
-  | "poster"
+export type TrailPaletteName = "classic" | "soft" | "earth"
+export type PresetName = "classic" | "muted" | "mono" | "spotlight"
 
 export interface MapLook {
   basemap: {
@@ -37,9 +26,8 @@ export interface MapLook {
     hideRoadsAndLabels: boolean
   }
   outside: {
-    /** 0 … 1 opacity of the wash drawn over everything outside fields. */
+    /** 0 … 1 opacity of the dark wash drawn over everything outside fields. */
     strength: number
-    tone: OutsideTone
   }
   fields: {
     fillOpacity: number
@@ -113,27 +101,12 @@ export const TRAIL_PALETTES: Record<
     lightgreen: "#9bbf6a",
     hotpink: "#c96b8f",
   },
-  // Darker shades that read on light, flat field fills.
-  ink: {
-    red: "#b3261e",
-    blue: "#1e4fa3",
-    green: "#1f6b3a",
-    yellow: "#a67c00",
-    orange: "#b85c00",
-    purple: "#5b2a86",
-    skyblue: "#1f7fa6",
-    lightgreen: "#4f8a2b",
-    hotpink: "#b02a6b",
-  },
 }
 
 export const TRAIL_FALLBACK_COLOR = "#FF0000"
 
-export const OUTSIDE_TONES: Record<OutsideTone, string> = {
-  dark: "#101418",
-  grey: "#8a8f93",
-  light: "#efe9da",
-}
+/** The wash outside paddocks is always a dark neutral: it dims without tinting. */
+export const OUTSIDE_WASH_COLOR = "#101418"
 
 /** Earthy fills handed out to default-coloured fields when autoPalette is on. */
 export const FIELD_AUTO_PALETTE = [
@@ -153,6 +126,10 @@ const FIELD_SOFT_COLORS: Record<string, string> = {
   "#ff0000": "#d1495b",
 }
 
+// A preset is a map style (imagery + paddocks + wash) with the trail palette
+// that suits it by default. The two halves are independent: MAP_STYLES and
+// TRAIL_STYLES below let them be chosen separately (the farmer survey does).
+// Every wash is dark and kept moderate, so the land around a farm stays readable.
 export const PRESETS: Record<PresetName, MapLook> = {
   // Exactly the values the map used before looks existed.
   classic: {
@@ -163,7 +140,7 @@ export const PRESETS: Record<PresetName, MapLook> = {
       brightnessMax: 1,
       hideRoadsAndLabels: false,
     },
-    outside: { strength: 0, tone: "dark" },
+    outside: { strength: 0 },
     fields: {
       fillOpacity: 0.1,
       selectedFillOpacity: 0.3,
@@ -181,97 +158,16 @@ export const PRESETS: Record<PresetName, MapLook> = {
       palette: "classic",
     },
   },
-  // Calmer imagery, paddocks lifted out of a darkened surround.
+  // Calmer satellite colours, paddocks lifted out of a slightly darker surround.
   muted: {
     basemap: {
-      saturation: -0.45,
-      contrast: -0.1,
+      saturation: -0.4,
+      contrast: -0.08,
       brightnessMin: 0,
-      brightnessMax: 0.92,
+      brightnessMax: 0.94,
       hideRoadsAndLabels: false,
     },
-    outside: { strength: 0.35, tone: "dark" },
-    fields: {
-      fillOpacity: 0.06,
-      selectedFillOpacity: 0.25,
-      outlineWidth: 2,
-      outlineOpacity: 0.95,
-      defaultFill: "#ffffff",
-      defaultOutline: "#f4f1e8",
-      autoPalette: false,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.55,
-      pauseOpacity: 0.55,
-      dimmedOpacity: 0.2,
-      palette: "soft",
-    },
-  },
-  // Greyscale imagery: field tints and trails are the only colour.
-  mono: {
-    basemap: {
-      saturation: -1,
-      contrast: 0.08,
-      brightnessMin: 0,
-      brightnessMax: 0.95,
-      hideRoadsAndLabels: false,
-    },
-    outside: { strength: 0.25, tone: "dark" },
-    fields: {
-      fillOpacity: 0.25,
-      selectedFillOpacity: 0.45,
-      outlineWidth: 2,
-      outlineOpacity: 0.95,
-      defaultFill: "#4f9d69",
-      defaultOutline: "#e8f3ea",
-      autoPalette: false,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.55,
-      pauseOpacity: 0.55,
-      dimmedOpacity: 0.2,
-      palette: "soft",
-    },
-  },
-  // Flat, poster-like paddocks on a pale ground; imagery mostly hidden.
-  poster: {
-    basemap: {
-      saturation: -0.6,
-      contrast: -0.2,
-      brightnessMin: 0,
-      brightnessMax: 1,
-      hideRoadsAndLabels: true,
-    },
-    outside: { strength: 0.8, tone: "light" },
-    fields: {
-      fillOpacity: 0.78,
-      selectedFillOpacity: 0.92,
-      outlineWidth: 3,
-      outlineOpacity: 1,
-      defaultFill: "#e0b040",
-      defaultOutline: "#efe9da",
-      autoPalette: true,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.6,
-      pauseOpacity: 0.6,
-      dimmedOpacity: 0.2,
-      palette: "ink",
-    },
-  },
-  // Imagery left alone; only the trail and outline colours calm down.
-  natural: {
-    basemap: {
-      saturation: 0,
-      contrast: 0,
-      brightnessMin: 0,
-      brightnessMax: 1,
-      hideRoadsAndLabels: false,
-    },
-    outside: { strength: 0, tone: "dark" },
+    outside: { strength: 0.25 },
     fields: {
       fillOpacity: 0.05,
       selectedFillOpacity: 0.25,
@@ -289,7 +185,34 @@ export const PRESETS: Record<PresetName, MapLook> = {
       palette: "soft",
     },
   },
-  // Full-colour paddocks, everything around them pushed well back.
+  // Black-and-white satellite: paddock tints and trails are the only colour.
+  mono: {
+    basemap: {
+      saturation: -1,
+      contrast: 0.08,
+      brightnessMin: 0,
+      brightnessMax: 0.95,
+      hideRoadsAndLabels: false,
+    },
+    outside: { strength: 0.2 },
+    fields: {
+      fillOpacity: 0.2,
+      selectedFillOpacity: 0.4,
+      outlineWidth: 2,
+      outlineOpacity: 0.95,
+      defaultFill: "#4f9d69",
+      defaultOutline: "#e8f3ea",
+      autoPalette: false,
+      softenCustom: true,
+    },
+    trails: {
+      opacity: 0.55,
+      pauseOpacity: 0.55,
+      dimmedOpacity: 0.2,
+      palette: "soft",
+    },
+  },
+  // Full-colour satellite inside crisp white outlines, the surround dimmed.
   spotlight: {
     basemap: {
       saturation: 0,
@@ -298,7 +221,7 @@ export const PRESETS: Record<PresetName, MapLook> = {
       brightnessMax: 1,
       hideRoadsAndLabels: false,
     },
-    outside: { strength: 0.6, tone: "dark" },
+    outside: { strength: 0.4 },
     fields: {
       fillOpacity: 0.03,
       selectedFillOpacity: 0.2,
@@ -316,155 +239,71 @@ export const PRESETS: Record<PresetName, MapLook> = {
       palette: "soft",
     },
   },
-  // Slightly faded imagery with muted farm-tone trails.
-  earth: {
-    basemap: {
-      saturation: -0.3,
-      contrast: -0.05,
-      brightnessMin: 0,
-      brightnessMax: 0.95,
-      hideRoadsAndLabels: false,
-    },
-    outside: { strength: 0.3, tone: "grey" },
-    fields: {
-      fillOpacity: 0.08,
-      selectedFillOpacity: 0.28,
-      outlineWidth: 2,
-      outlineOpacity: 0.95,
-      defaultFill: "#d9c79a",
-      defaultOutline: "#efe6cf",
-      autoPalette: false,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.6,
-      pauseOpacity: 0.6,
-      dimmedOpacity: 0.2,
-      palette: "earth",
-    },
-  },
-  // A dark, low-glare map for early starts and night shifts.
-  dusk: {
-    basemap: {
-      saturation: -0.35,
-      contrast: 0.1,
-      brightnessMin: 0,
-      brightnessMax: 0.6,
-      hideRoadsAndLabels: false,
-    },
-    outside: { strength: 0.5, tone: "dark" },
-    fields: {
-      fillOpacity: 0.05,
-      selectedFillOpacity: 0.25,
-      outlineWidth: 2,
-      outlineOpacity: 0.9,
-      defaultFill: "#93c5fd",
-      defaultOutline: "#cbd5e1",
-      autoPalette: false,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.6,
-      pauseOpacity: 0.6,
-      dimmedOpacity: 0.2,
-      palette: "soft",
-    },
-  },
-  // Pale, washed-out imagery with dark outlines and dark trails.
-  paper: {
-    basemap: {
-      saturation: -0.85,
-      contrast: -0.3,
-      brightnessMin: 0.35,
-      brightnessMax: 1,
-      hideRoadsAndLabels: true,
-    },
-    outside: { strength: 0.55, tone: "light" },
-    fields: {
-      fillOpacity: 0.12,
-      selectedFillOpacity: 0.35,
-      outlineWidth: 2,
-      outlineOpacity: 1,
-      defaultFill: "#ffffff",
-      defaultOutline: "#334155",
-      autoPalette: false,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.6,
-      pauseOpacity: 0.6,
-      dimmedOpacity: 0.2,
-      palette: "ink",
-    },
-  },
-  // Greyscale imagery with each paddock tinted its own colour.
-  blocks: {
-    basemap: {
-      saturation: -1,
-      contrast: 0,
-      brightnessMin: 0,
-      brightnessMax: 0.9,
-      hideRoadsAndLabels: false,
-    },
-    outside: { strength: 0.4, tone: "dark" },
-    fields: {
-      fillOpacity: 0.42,
-      selectedFillOpacity: 0.6,
-      outlineWidth: 2,
-      outlineOpacity: 1,
-      defaultFill: "#e0b040",
-      defaultOutline: "#f4f1e8",
-      autoPalette: true,
-      softenCustom: true,
-    },
-    trails: {
-      opacity: 0.6,
-      pauseOpacity: 0.6,
-      dimmedOpacity: 0.2,
-      palette: "soft",
-    },
-  },
 }
 
 export const PRESET_LABELS: Record<PresetName, string> = {
   classic: "Classic",
-  natural: "Natural",
   muted: "Muted",
-  spotlight: "Spotlight",
-  earth: "Earth",
   mono: "Mono",
-  blocks: "Blocks",
-  dusk: "Dusk",
-  paper: "Paper",
-  poster: "Poster",
+  spotlight: "Spotlight",
 }
 
-/** Display order, from closest to today's map to furthest from it. */
+/** Display order, from today's map to furthest from it. */
 export const PRESET_ORDER: PresetName[] = [
   "classic",
-  "natural",
   "muted",
   "spotlight",
-  "earth",
   "mono",
-  "blocks",
-  "dusk",
-  "paper",
-  "poster",
 ]
 
-/** One plain line per look, for pickers and the farmer survey. */
+/** One plain line per map style. */
 export const PRESET_DESCRIPTIONS: Record<PresetName, string> = {
   classic: "The map as it is today.",
-  natural: "Today's satellite view with calmer trail colours.",
-  muted: "Softer satellite colours, darker outside your paddocks.",
-  spotlight: "Full-colour paddocks with everything else dimmed.",
-  earth: "Slightly faded satellite view with earthy trail colours.",
+  muted: "Softer satellite colours, a little darker outside your paddocks.",
   mono: "Black-and-white satellite view with tinted paddocks.",
-  blocks: "Black-and-white satellite view, each paddock its own colour.",
-  dusk: "A dark map that's easier on the eyes at night.",
-  paper: "A pale, washed-out map with dark outlines and trails.",
-  poster: "Flat coloured paddocks, like a drawn farm map.",
+  spotlight: "Full-colour paddocks with everything around them dimmed.",
+}
+
+export const TRAIL_PALETTE_LABELS: Record<TrailPaletteName, string> = {
+  classic: "Classic",
+  soft: "Soft",
+  earth: "Earth",
+}
+
+/** The map half of a preset: everything except its trails. */
+export type MapStyle = Omit<MapLook, "trails">
+
+export const MAP_STYLES = Object.fromEntries(
+  Object.entries(PRESETS).map(([name, look]) => [
+    name,
+    { basemap: look.basemap, outside: look.outside, fields: look.fields },
+  ]),
+) as Record<PresetName, MapStyle>
+
+/** Trail colours + opacity for each palette, usable with any map style. */
+export const TRAIL_STYLES: Record<TrailPaletteName, MapLook["trails"]> = {
+  classic: PRESETS.classic.trails,
+  soft: {
+    opacity: 0.55,
+    pauseOpacity: 0.55,
+    dimmedOpacity: 0.2,
+    palette: "soft",
+  },
+  earth: {
+    opacity: 0.6,
+    pauseOpacity: 0.55,
+    dimmedOpacity: 0.2,
+    palette: "earth",
+  },
+}
+
+/** A map style and a trail palette, chosen separately, as one look. */
+export function composeLook(
+  map: PresetName,
+  trails: TrailPaletteName,
+): MapLook {
+  const style = MAP_STYLES[map] ?? MAP_STYLES.classic
+  return { ...style, trails: TRAIL_STYLES[trails] ?? TRAIL_STYLES.classic }
 }
 
 export const DEFAULT_LOOK_STATE: MapLookState = {

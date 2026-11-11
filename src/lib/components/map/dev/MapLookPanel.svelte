@@ -25,7 +25,6 @@
     PRESET_ORDER,
     TRAIL_PALETTES,
     type MapLook,
-    type OutsideTone,
     type TrailPaletteName,
   } from "$lib/utils/mapLook"
 
@@ -35,7 +34,6 @@
 
   const presetNames = PRESET_ORDER
   const paletteNames = Object.keys(TRAIL_PALETTES) as TrailPaletteName[]
-  const tones: OutsideTone[] = ["dark", "grey", "light"]
   const swatchNames = ["red", "orange", "yellow", "green", "blue", "purple"]
 
   type Slider = {
@@ -236,18 +234,6 @@
               />
               <span>Hide roads and place labels</span>
             </label>
-          {:else if section.title === "Outside fields"}
-            <div class="mlook-seg small">
-              {#each tones as tone}
-                <button
-                  class="mlook-seg-btn"
-                  class:active={look.outside.tone === tone}
-                  on:click={() => set("outside", "tone", tone)}
-                >
-                  {tone}
-                </button>
-              {/each}
-            </div>
           {:else if section.title === "Fields"}
             <label class="mlook-row mlook-check">
               <input
@@ -379,7 +365,7 @@
 
   .mlook-seg.presets {
     grid-auto-flow: row;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .mlook-seg-btn {
@@ -390,10 +376,6 @@
     color: rgba(243, 244, 246, 0.85);
     font-weight: 600;
     text-transform: capitalize;
-  }
-  .mlook-seg.small .mlook-seg-btn {
-    padding: 4px;
-    font-weight: 500;
   }
   .mlook-seg-btn.active {
     background: rgba(96, 165, 250, 0.25);

@@ -1,32 +1,34 @@
 <!--
   src/routes/(marketing)/mapsurvey/+page.svelte
   Public "Map Style Survey" page: a live map of a demo farm (real paddocks,
-  trails and markers from farms that agreed to it, with every name removed)
-  that farmers flick through in ten colour styles, then rank their top 3,
-  name the one they like least and leave comments.
+  trails and markers from farms that agreed to it, with every name removed).
+  Farmers make two separate choices and can mix them freely on the map:
 
-  Styles are the map "looks" from $lib/utils/mapLook.ts, drawn with the same
-  apply functions as the real map viewer, so what is voted on is what would
-  ship. They are shown as "Style A…J" in a fixed scrambled order so nobody can
-  tell which one is today's map. Responses go to `map_look_survey_responses`
-  (anon INSERT only), stored by look key.
+    - the MAP style  (satellite treatment + paddocks)  shown as Map 1…4
+    - the TRAIL colours                                 shown as Trails A…C
+
+  Both come from $lib/utils/mapLook.ts and are drawn with the same apply
+  functions as the real map viewer, so what is voted on is what would ship.
+  Numbers and letters are in a fixed scrambled order so nobody can tell which
+  is today's map. Responses go to `map_look_survey_responses` (anon INSERT
+  only), stored by style key.
 
   Demo data lives in static/mapsurvey-data/farm-*.json and is built by
   scripts/build-map-survey-farms.mjs.
 -->
 <script lang="ts">
   import { onDestroy, onMount } from "svelte"
-  import { ChevronLeft, ChevronRight } from "lucide-svelte"
   // @ts-expect-error -- no type declarations for mapbox-gl 1.x
   import mapboxgl from "mapbox-gl"
   import "mapbox-gl/dist/mapbox-gl.css"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import { supabase } from "$lib/supabaseClient"
   import {
-    PRESETS,
+    composeLook,
     fieldColors,
     resolveTrailColor,
     type PresetName,
+    type TrailPaletteName,
   } from "$lib/utils/mapLook"
   import {
     applyBasemapLabels,
@@ -53,19 +55,18 @@
     renderSvgMarkerImageData,
   } from "$lib/components/map/markers/markerSvgRenderer"
 
-  // Fixed, scrambled lettering: the letter never hints at which style is the
-  // current map, and "Style C" means the same thing in every farmer's comment.
-  const STYLES: { letter: string; look: PresetName }[] = [
-    { letter: "A", look: "muted" },
-    { letter: "B", look: "poster" },
-    { letter: "C", look: "classic" },
-    { letter: "D", look: "mono" },
-    { letter: "E", look: "earth" },
-    { letter: "F", look: "dusk" },
-    { letter: "G", look: "spotlight" },
-    { letter: "H", look: "blocks" },
-    { letter: "I", look: "natural" },
-    { letter: "J", look: "paper" },
+  // Fixed, scrambled labels: neither list hints at which option is today's
+  // map, and "Map 3" / "Trails A" mean the same thing in every comment.
+  const MAPS: { label: string; key: PresetName }[] = [
+    { label: "1", key: "muted" },
+    { label: "2", key: "classic" },
+    { label: "3", key: "spotlight" },
+    { label: "4", key: "mono" },
+  ]
+  const TRAILS: { label: string; key: TrailPaletteName }[] = [
+    { label: "A", key: "soft" },
+    { label: "B", key: "classic" },
+    { label: "C", key: "earth" },
   ]
   const FARMS = ["a", "b", "c", "d", "e"]
 
@@ -91,22 +92,24 @@
   let mapError: string | null = null
   let farmLoading = false
 
-  let styleIndex = 0
+  let mapChoice: PresetName = MAPS[0].key
+  let trailChoice: TrailPaletteName = TRAILS[0].key
   let farmIndex = 0
   let farm: DemoFarm | null = null
   let trailLayerIds: string[] = []
   const farmCache = new Map<string, DemoFarm>()
-  let viewed = new Set<string>([STYLES[0].look])
+  let viewedMaps = new Set<string>([mapChoice])
+  let viewedTrails = new Set<string>([trailChoice])
 
-  $: activeStyle = STYLES[styleIndex]
-  $: look = PRESETS[activeStyle.look]
+  $: look = composeLook(mapChoice, trailChoice)
+  $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
+  $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
   // ── Form state ──
   let name = ""
-  let top1 = ""
-  let top2 = ""
-  let top3 = ""
-  let least = ""
+  // The vote. Picking an answer also shows it on the map.
+  let mapVote: PresetName | "" = ""
+  let trailVote: TrailPaletteName | "" = ""
   let comments = ""
   let submitting = false
   let submitError: string | null = null
@@ -358,9 +361,24 @@
     }
   }
 
-  function showStyle(index: number) {
-    styleIndex = (index + STYLES.length) % STYLES.length
-    viewed = new Set([...viewed, STYLES[styleIndex].look])
+  function showMap(key: PresetName) {
+    mapChoice = key
+    viewedMaps = new Set([...viewedMaps, key])
+  }
+
+  function showTrails(key: TrailPaletteName) {
+    trailChoice = key
+    viewedTrails = new Set([...viewedTrails, key])
+  }
+
+  function voteMap(key: PresetName) {
+    mapVote = key
+    showMap(key)
+  }
+
+  function voteTrails(key: TrailPaletteName) {
+    trailVote = key
+    showTrails(key)
   }
 
   // Repaint whenever the chosen style changes.
@@ -421,26 +439,14 @@
 
   // ── Survey ──
 
-  const letterFor = (lookKey: string) =>
-    STYLES.find((s) => s.look === lookKey)?.letter ?? ""
-
   async function submitSurvey() {
     submitError = null
     if (!name.trim()) {
       submitError = "Please enter your name."
       return
     }
-    if (!top1) {
-      submitError = "Please choose at least your favourite style."
-      return
-    }
-    const picks = [top1, top2, top3].filter(Boolean)
-    if (new Set(picks).size !== picks.length) {
-      submitError = "Your top picks must all be different."
-      return
-    }
-    if (least && picks.includes(least)) {
-      submitError = "Your least favourite can't also be one of your top picks."
+    if (!mapVote || !trailVote) {
+      submitError = "Please pick the map and the trail colours you like best."
       return
     }
 
@@ -450,11 +456,10 @@
         .from("map_look_survey_responses")
         .insert({
           name: name.trim().slice(0, 100),
-          top1_look: top1,
-          top2_look: top2 || null,
-          top3_look: top3 || null,
-          least_liked_look: least || null,
-          viewed_looks: [...viewed],
+          map_style: mapVote,
+          trail_style: trailVote,
+          viewed_looks: [...viewedMaps],
+          viewed_trail_styles: [...viewedTrails],
           demo_farm: `farm-${FARMS[farmIndex]}`,
           comments: comments.trim().slice(0, 4000) || null,
         })
@@ -482,34 +487,55 @@
   <div class="survey-hero">
     <h1>Help us choose the look of the map</h1>
     <p>
-      We're refreshing the colours of the AgSKAN map: the satellite view, your
-      paddocks and the trails your machines leave. Below is a live demo farm
-      drawn in
-      <strong>{STYLES.length} different styles</strong>. Flick through them,
-      zoom in on where trails overlap, and see which you'd want to look at all
-      day.
+      We're refreshing the colours of the AgSKAN map. There are two things to
+      choose, and you can mix them however you like on the demo farm below: the <strong
+        >map</strong
+      >
+      (the satellite view and your paddocks) and the
+      <strong>trail colours</strong> your machines leave.
     </p>
     <p class="survey-sub">
-      Then tell us your <strong>top 3</strong>, the one you like least, and
-      anything else you think. It takes about two minutes.
+      Try each one, zoom in on where trails overlap, then tell us which map and
+      which trail colours you'd want to look at all day. It takes about a
+      minute.
     </p>
   </div>
 
   <div class="survey-map-card">
-    <div class="survey-stylebar">
-      <span class="survey-stylebar-label">Style</span>
-      <div class="survey-stylebtns">
-        {#each STYLES as style, i}
-          <button
-            class="survey-stylebtn"
-            class:active={styleIndex === i}
-            class:seen={viewed.has(style.look) && styleIndex !== i}
-            on:click={() => showStyle(i)}
-            aria-label={`Style ${style.letter}`}
-          >
-            {style.letter}
-          </button>
-        {/each}
+    <div class="survey-pickers">
+      <div class="survey-stylebar">
+        <span class="survey-stylebar-label">Map</span>
+        <div class="survey-stylebtns">
+          {#each MAPS as option (option.key)}
+            <button
+              class="survey-stylebtn"
+              class:active={mapChoice === option.key}
+              class:seen={viewedMaps.has(option.key) &&
+                mapChoice !== option.key}
+              on:click={() => showMap(option.key)}
+              aria-label={`Map ${option.label}`}
+            >
+              {option.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="survey-stylebar">
+        <span class="survey-stylebar-label">Trails</span>
+        <div class="survey-stylebtns">
+          {#each TRAILS as option (option.key)}
+            <button
+              class="survey-stylebtn"
+              class:active={trailChoice === option.key}
+              class:seen={viewedTrails.has(option.key) &&
+                trailChoice !== option.key}
+              on:click={() => showTrails(option.key)}
+              aria-label={`Trails ${option.label}`}
+            >
+              {option.label}
+            </button>
+          {/each}
+        </div>
       </div>
     </div>
 
@@ -519,21 +545,7 @@
       {:else if !mapReady || (farmLoading && !farm)}
         <div class="survey-map-overlay">Loading map…</div>
       {:else}
-        <div class="survey-map-chip">Style {activeStyle.letter}</div>
-        <button
-          class="survey-arrow left"
-          aria-label="Previous style"
-          on:click={() => showStyle(styleIndex - 1)}
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <button
-          class="survey-arrow right"
-          aria-label="Next style"
-          on:click={() => showStyle(styleIndex + 1)}
-        >
-          <ChevronRight size={22} />
-        </button>
+        <div class="survey-map-chip">Map {mapLabel} · Trails {trailLabel}</div>
       {/if}
     </div>
 
@@ -553,75 +565,63 @@
       </div>
     </div>
     <p class="survey-map-hint">
-      Scroll or pinch to zoom, drag to pan. Use the arrows on the map or the
-      letters above to change style. The farms are real paddocks and trails with
-      the names removed.
+      Scroll or pinch to zoom, drag to pan. The farms are real paddocks and
+      trails with the names removed.
     </p>
   </div>
 
   <form class="survey-form" on:submit|preventDefault={submitSurvey}>
     <div class="survey-card">
-      <h2>Your top 3 styles</h2>
+      <h2>Which map do you like best?</h2>
       <p class="survey-card-desc">
-        1st is your favourite. If you only have one favourite, just pick the
-        first.
+        The satellite view and paddocks. Tap one to see it on the map again.
       </p>
-      <div class="survey-picks">
-        <label class="survey-field">
-          <span>1st choice</span>
-          <select bind:value={top1}>
-            <option value="">Choose…</option>
-            {#each STYLES as s}<option value={s.look}>Style {s.letter}</option
-              >{/each}
-          </select>
-        </label>
-        <label class="survey-field">
-          <span>2nd choice</span>
-          <select bind:value={top2}>
-            <option value="">Choose…</option>
-            {#each STYLES as s}<option value={s.look}>Style {s.letter}</option
-              >{/each}
-          </select>
-        </label>
-        <label class="survey-field">
-          <span>3rd choice</span>
-          <select bind:value={top3}>
-            <option value="">Choose…</option>
-            {#each STYLES as s}<option value={s.look}>Style {s.letter}</option
-              >{/each}
-          </select>
-        </label>
+      <div class="survey-choices">
+        {#each MAPS as option (option.key)}
+          <button
+            type="button"
+            class="survey-choice"
+            class:chosen={mapVote === option.key}
+            aria-pressed={mapVote === option.key}
+            on:click={() => voteMap(option.key)}
+          >
+            Map {option.label}
+          </button>
+        {/each}
       </div>
     </div>
 
     <div class="survey-card">
-      <h2>The one you like least</h2>
-      <p class="survey-card-desc">Optional, but it helps us rule styles out.</p>
-      <div class="survey-picks">
-        <label class="survey-field survey-name-field">
-          <span>Least favourite</span>
-          <select bind:value={least}>
-            <option value="">None in particular</option>
-            {#each STYLES as s}<option value={s.look}>Style {s.letter}</option
-              >{/each}
-          </select>
-        </label>
+      <h2>Which trail colours do you like best?</h2>
+      <p class="survey-card-desc">
+        Think about telling machines apart and seeing where passes overlap.
+      </p>
+      <div class="survey-choices">
+        {#each TRAILS as option (option.key)}
+          <button
+            type="button"
+            class="survey-choice"
+            class:chosen={trailVote === option.key}
+            aria-pressed={trailVote === option.key}
+            on:click={() => voteTrails(option.key)}
+          >
+            Trails {option.label}
+          </button>
+        {/each}
       </div>
     </div>
 
     <div class="survey-card">
       <h2>Comments</h2>
       <p class="survey-card-desc">
-        What did you like or dislike? Could you tell where trails overlapped?
-        Were the paddocks and trails easy to see in the sun? Mention styles by
-        letter if you can.
+        Optional. Anything you liked or disliked, or that was hard to see?
       </p>
       <textarea
         class="survey-textarea"
         bind:value={comments}
         rows="4"
         maxlength="4000"
-        placeholder="e.g. Style D is easiest to read, but the trails in B are too dark…"
+        placeholder="e.g. Map 4 is easiest to read, but Trails C are hard to tell apart…"
       ></textarea>
     </div>
 
@@ -652,8 +652,7 @@
         <div class="survey-thanks">
           <strong>Thanks, {name.trim()}!</strong>
           <span>
-            Your vote for Style {letterFor(top1)} is recorded. It'll help decide
-            how the map looks.
+            Your vote is recorded. It'll help decide how the map looks.
           </span>
         </div>
       {/if}
@@ -792,31 +791,6 @@
     border-radius: 999px;
     pointer-events: none;
   }
-  .survey-arrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 4;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    border: none;
-    background: rgba(15, 23, 42, 0.78);
-    color: #fff;
-    cursor: pointer;
-  }
-  .survey-arrow.left {
-    left: 12px;
-  }
-  .survey-arrow.right {
-    right: 12px;
-  }
-  .survey-arrow:hover {
-    background: rgba(15, 23, 42, 0.95);
-  }
   .survey-map-hint {
     font-size: 12px;
     opacity: 0.65;
@@ -846,10 +820,36 @@
     color: #64748b;
     margin: 0 0 14px;
   }
-  .survey-picks {
+  .survey-pickers {
     display: flex;
-    gap: 12px;
     flex-wrap: wrap;
+    gap: 10px 28px;
+  }
+  .survey-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .survey-choice {
+    flex: 1;
+    min-width: 110px;
+    padding: 14px 10px;
+    border-radius: 10px;
+    border: 2px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .survey-choice:hover {
+    border-color: #60a5fa;
+  }
+  .survey-choice.chosen {
+    border-color: #16a34a;
+    background: #f0fdf4;
+    color: #166534;
   }
   .survey-field {
     display: flex;
@@ -861,7 +861,6 @@
     flex: 1;
     min-width: 150px;
   }
-  .survey-field select,
   .survey-field input,
   .survey-textarea {
     width: 100%;
@@ -873,7 +872,6 @@
     background: #fff;
     font-family: inherit;
   }
-  .survey-field select:focus,
   .survey-field input:focus,
   .survey-textarea:focus {
     outline: none;
