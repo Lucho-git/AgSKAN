@@ -5,7 +5,7 @@
   Farmers make two separate choices and can mix them freely on the map:
 
     - the MAP style  (satellite treatment + paddocks)  shown as Map 1…5
-    - the TRAIL colours                                 shown as Trails A…E
+    - the TRAIL colours                                 shown as Trails A…C
 
   Both come from $lib/utils/mapLook.ts and are drawn with the same apply
   functions as the real map viewer, so what is voted on is what would ship.
@@ -26,7 +26,7 @@
   import {
     composeLook,
     fieldColors,
-    trailColorFor,
+    resolveTrailColor,
     trailLegend,
     type PresetName,
     type TrailPaletteName,
@@ -65,47 +65,16 @@
     { label: "4", key: "mono" },
     { label: "5", key: "records" },
   ]
-  // A–C keep every trail in its machine's colour, ordered from most muted to
-  // brightest. D and E are new colour sets: each trail a machine records takes
-  // one of three shades of that machine's colour (D bright, E muted).
-  const TRAILS: {
-    label: string
-    key: TrailPaletteName
-    isNew?: boolean
-    blurb: string
-  }[] = [
-    {
-      label: "A",
-      key: "earth",
-      blurb: "The most muted: soft, earthy tones.",
-    },
+  // Ordered from most muted to brightest.
+  const TRAILS: { label: string; key: TrailPaletteName; blurb: string }[] = [
+    { label: "A", key: "earth", blurb: "The most muted: soft, earthy tones." },
     {
       label: "B",
       key: "soft",
       blurb: "In between: clear colours, toned down a little.",
     },
-    {
-      label: "C",
-      key: "classic",
-      blurb: "The brightest: bold, pure colours.",
-    },
-    {
-      label: "D",
-      key: "records",
-      isNew: true,
-      blurb:
-        "New colour set, bright like Trails B. One machine no longer means one colour: every trail it records gets one of three shades of its colour (a red machine leaves red, rose and deep red), so separate jobs are easier to tell apart.",
-    },
-    {
-      label: "E",
-      key: "earthshades",
-      isNew: true,
-      blurb:
-        "New colour set, muted like Trails A. Every trail a machine records gets one of three earthy shades of its colour, so separate jobs are easier to tell apart.",
-    },
+    { label: "C", key: "classic", blurb: "The brightest: bold, pure colours." },
   ]
-  const MACHINE_TRAILS = TRAILS.filter((t) => !t.isNew)
-  const NEW_TRAILS = TRAILS.filter((t) => t.isNew)
   const FARMS = ["a", "b", "c", "d", "e"]
 
   type DemoFarm = {
@@ -260,8 +229,6 @@
       .forEach((trail, i) => {
         const sourceId = `trail-source-${i}`
         const layerId = `trail-layer-${i}`
-        // Stands in for the trail id, so per-trail colouring is stable.
-        const trailKey = `farm-${FARMS[farmIndex]}-trail-${i}`
         map.addSource(sourceId, {
           type: "geojson",
           data: { type: "Feature", properties: {}, geometry: trail.geometry },
@@ -273,11 +240,10 @@
           metadata: {
             agskanTrailColor: trail.color || "Red",
             agskanTrailRole: "work",
-            agskanTrailKey: trailKey,
           },
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": trailColorFor(trail.color, trailKey, look),
+            "line-color": resolveTrailColor(trail.color, look),
             "line-width": calculateZoomDependentWidth(trail.width || 12, 1),
             "line-opacity": look.trails.opacity,
           },
@@ -545,10 +511,8 @@
       There are two things to choose on the demo farm below, and you can mix
       them however you like: the <strong>map</strong> (the satellite view and
       your paddocks) and the <strong>trail colours</strong> your machines leave.
-      Trails A to C run from most muted to brightest. D and E are
-      <strong>new colour sets</strong> where a machine's trails come in a few
-      shades of its colour. The <strong>Existing settings</strong> button shows how
-      it looks today.
+      Trails A to C run from most muted to brightest. The
+      <strong>Existing settings</strong> button shows how it looks today.
     </p>
     <p class="survey-sub">
       Try each one, zoom in on where trails overlap, then tell us which map and
@@ -579,7 +543,7 @@
       <div class="survey-stylebar">
         <span class="survey-stylebar-label">Trails</span>
         <div class="survey-stylebtns">
-          {#each MACHINE_TRAILS as option (option.key)}
+          {#each TRAILS as option (option.key)}
             <button
               class="survey-stylebtn"
               class:active={trailChoice === option.key}
@@ -587,23 +551,6 @@
                 trailChoice !== option.key}
               on:click={() => showTrails(option.key)}
               aria-label={`Trails ${option.label}`}
-            >
-              {option.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-      <div class="survey-stylebar survey-newset">
-        <span class="survey-stylebar-label">New colour sets</span>
-        <div class="survey-stylebtns">
-          {#each NEW_TRAILS as option (option.key)}
-            <button
-              class="survey-stylebtn"
-              class:active={trailChoice === option.key}
-              class:seen={viewedTrails.has(option.key) &&
-                trailChoice !== option.key}
-              on:click={() => showTrails(option.key)}
-              aria-label={`New colour set ${option.label}`}
             >
               {option.label}
             </button>
@@ -621,7 +568,7 @@
     </div>
 
     {#if activeTrail}
-      <p class="survey-set-note" class:is-new={activeTrail.isNew}>
+      <p class="survey-set-note">
         <strong>Trails {activeTrail.label}.</strong>
         {activeTrail.blurb}
       </p>
@@ -642,12 +589,10 @@
           <div class="survey-legend-title">Trails {trailLabel}</div>
           {#each legend as item (item.key)}
             <div class="survey-legend-item">
-              <span class="survey-legend-swatches">
-                {#each item.colors as color}
-                  <span class="survey-legend-swatch" style="background: {color}"
-                  ></span>
-                {/each}
-              </span>
+              <span
+                class="survey-legend-swatch"
+                style="background: {item.color}"
+              ></span>
               {item.label}
             </div>
           {/each}
@@ -703,25 +648,8 @@
         A to C run from most muted to brightest. Think about telling machines
         apart and seeing where trails overlap.
       </p>
-      <div class="survey-choice-group">One colour per machine</div>
       <div class="survey-choices">
-        {#each MACHINE_TRAILS as option (option.key)}
-          <button
-            type="button"
-            class="survey-choice"
-            class:chosen={trailVote === option.key}
-            aria-pressed={trailVote === option.key}
-            on:click={() => voteTrails(option.key)}
-          >
-            Trails {option.label}
-          </button>
-        {/each}
-      </div>
-      <div class="survey-choice-group">
-        New colour sets: a few shades per machine (D bright, E muted)
-      </div>
-      <div class="survey-choices">
-        {#each NEW_TRAILS as option (option.key)}
+        {#each TRAILS as option (option.key)}
           <button
             type="button"
             class="survey-choice"
@@ -1003,19 +931,11 @@
     line-height: 1;
     white-space: nowrap;
   }
-  .survey-legend-swatches {
-    display: inline-flex;
-    gap: 2px;
-  }
   .survey-legend-swatch {
     width: 12px;
     height: 12px;
     border-radius: 3px;
     transition: background 0.2s ease;
-  }
-  .survey-newset {
-    padding-left: 14px;
-    border-left: 2px solid rgba(148, 163, 184, 0.6);
   }
   .survey-set-note {
     margin: 0;
@@ -1026,22 +946,6 @@
     color: #334155;
     font-size: 13px;
     line-height: 1.5;
-  }
-  .survey-set-note.is-new {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1e3a8a;
-  }
-  .survey-choice-group {
-    margin: 12px 0 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .survey-choice-group:first-of-type {
-    margin-top: 0;
   }
   .survey-choices {
     display: flex;

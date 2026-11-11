@@ -7,7 +7,7 @@ import {
   OUTSIDE_WASH_COLOR,
   basemapPaint,
   buildOutsideMask,
-  trailColorFor,
+  resolveTrailColor,
   trailColorExpr,
   type MapLook,
 } from "./mapLook"
@@ -196,13 +196,7 @@ export function applyTrailLook(map: MapboxMap, look: MapLook) {
     const stored = layer.metadata?.agskanTrailColor
     if (typeof stored !== "string") continue
     const pause = layer.metadata?.agskanTrailRole === "pause"
-    const key = layer.metadata?.agskanTrailKey
-    setPaint(
-      map,
-      layer.id,
-      "line-color",
-      trailColorFor(stored, typeof key === "string" ? key : null, look),
-    )
+    setPaint(map, layer.id, "line-color", resolveTrailColor(stored, look))
     setPaint(
       map,
       layer.id,

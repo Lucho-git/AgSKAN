@@ -9,12 +9,7 @@
 // colour (#ff0000, #ffff00 …). Mapping the name through a palette lets a look
 // restyle every existing trail without touching stored data.
 
-export type TrailPaletteName =
-  | "classic"
-  | "soft"
-  | "earth"
-  | "records"
-  | "earthshades"
+export type TrailPaletteName = "classic" | "soft" | "earth"
 export type PresetName = "classic" | "muted" | "mono" | "spotlight" | "records"
 
 export interface MapLook {
@@ -53,13 +48,6 @@ export interface MapLook {
     /** Opacity of the other trails while one trail is selected. */
     dimmedOpacity: number
     palette: TrailPaletteName
-    /**
-     * "vehicle" (default): a trail takes its machine's colour.
-     * "trail": every closed trail gets its own colour from RECORD_TRAIL_COLORS,
-     * like the Records page, so neighbouring passes are easy to tell apart.
-     * Live trails always keep the machine's colour.
-     */
-    colorBy?: "vehicle" | "trail"
   }
 }
 
@@ -113,85 +101,7 @@ export const TRAIL_PALETTES: Record<
     lightgreen: "#9bbf6a",
     hotpink: "#c96b8f",
   },
-  // The Records page colours, matched to the nearest vehicle colour.
-  records: {
-    red: "#ef4444",
-    blue: "#3b82f6",
-    green: "#22c55e",
-    yellow: "#eab308",
-    orange: "#f97316",
-    purple: "#a855f7",
-    skyblue: "#06b6d4",
-    lightgreen: "#84cc16",
-    hotpink: "#ec4899",
-  },
-  // Base colours of the muted shade families (see TRAIL_FAMILIES).
-  earthshades: {
-    red: "#c8553d",
-    blue: "#3d6f9e",
-    green: "#5a8f4e",
-    yellow: "#d9a441",
-    orange: "#d97b29",
-    purple: "#7d5ba6",
-    skyblue: "#6fa8c7",
-    lightgreen: "#9bbf6a",
-    hotpink: "#c96b8f",
-  },
 }
-
-/**
- * Shade families for the "new colour sets" (colorBy "trail"): each closed
- * trail takes one shade from its MACHINE's family, picked by trail id. So a
- * red machine's passes stay recognisably red (red, rose, deep red) while
- * neighbouring passes still differ. The first shade is the palette colour.
- */
-export const TRAIL_FAMILIES: Partial<
-  Record<TrailPaletteName, Record<string, string[]>>
-> = {
-  // Bright shades, built around the Records page colours.
-  records: {
-    red: ["#ef4444", "#f43f5e", "#b91c1c"],
-    blue: ["#3b82f6", "#6366f1", "#1d4ed8"],
-    green: ["#22c55e", "#16a34a", "#4ade80"],
-    yellow: ["#eab308", "#facc15", "#ca8a04"],
-    orange: ["#f97316", "#fb923c", "#c2410c"],
-    purple: ["#a855f7", "#8b5cf6", "#7e22ce"],
-    skyblue: ["#06b6d4", "#38bdf8", "#14b8a6"],
-    lightgreen: ["#84cc16", "#a3e635", "#65a30d"],
-    hotpink: ["#ec4899", "#f472b6", "#be185d"],
-  },
-  // Muted farm tones: each machine colour as a base, a lighter and a deeper shade.
-  earthshades: {
-    red: ["#c8553d", "#e07a5f", "#9c3d2a"],
-    blue: ["#3d6f9e", "#6492bd", "#2b5078"],
-    green: ["#5a8f4e", "#7fb071", "#3f6b36"],
-    yellow: ["#d9a441", "#e8c46f", "#a97c25"],
-    orange: ["#d97b29", "#e9a15b", "#a85a17"],
-    purple: ["#7d5ba6", "#9d80c0", "#5d4180"],
-    skyblue: ["#6fa8c7", "#94c2da", "#4d86a5"],
-    lightgreen: ["#9bbf6a", "#b9d58f", "#7a9c4c"],
-    hotpink: ["#c96b8f", "#dc92ad", "#a34d70"],
-  },
-}
-
-/**
- * The Records page palette (/account/records): 12 high-contrast colours for
- * satellite imagery, handed out per trail rather than per machine.
- */
-export const RECORD_TRAIL_COLORS = [
-  "#ef4444",
-  "#3b82f6",
-  "#22c55e",
-  "#f97316",
-  "#a855f7",
-  "#06b6d4",
-  "#eab308",
-  "#ec4899",
-  "#84cc16",
-  "#f43f5e",
-  "#8b5cf6",
-  "#14b8a6",
-]
 
 export const TRAIL_FALLBACK_COLOR = "#FF0000"
 
@@ -330,8 +240,7 @@ export const PRESETS: Record<PresetName, MapLook> = {
     },
   },
   // The Records page look: untouched satellite inside green outlines, a deep
-  // dark surround, and trails that each get their own shade. Trails stay
-  // see-through like every other style, so overlapping passes still show. Its wash
+  // dark surround, with the Soft trail colours. Its wash
   // is deliberately heavier than the other styles to match that page.
   records: {
     basemap: {
@@ -356,8 +265,7 @@ export const PRESETS: Record<PresetName, MapLook> = {
       opacity: 0.6,
       pauseOpacity: 0.55,
       dimmedOpacity: 0.2,
-      palette: "records",
-      colorBy: "trail",
+      palette: "soft",
     },
   },
 }
@@ -392,8 +300,6 @@ export const TRAIL_PALETTE_LABELS: Record<TrailPaletteName, string> = {
   classic: "Classic",
   soft: "Soft",
   earth: "Earth",
-  records: "Bright shades",
-  earthshades: "Earth shades",
 }
 
 /** The map half of a preset: everything except its trails. */
@@ -420,14 +326,6 @@ export const TRAIL_STYLES: Record<TrailPaletteName, MapLook["trails"]> = {
     pauseOpacity: 0.55,
     dimmedOpacity: 0.2,
     palette: "earth",
-  },
-  records: PRESETS.records.trails,
-  earthshades: {
-    opacity: 0.6,
-    pauseOpacity: 0.55,
-    dimmedOpacity: 0.2,
-    palette: "earthshades",
-    colorBy: "trail",
   },
 }
 
@@ -498,40 +396,6 @@ export function resolveTrailColor(
   return palette[raw.toLowerCase()] ?? raw
 }
 
-/** Stable index into a list from any string key (same hash the Records page uses). */
-function hashIndex(key: string, length: number): number {
-  let hash = 0
-  for (let i = 0; i < key.length; i++) {
-    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash) % length
-}
-
-/**
- * The colour for one closed trail. Normally its machine's colour. With colorBy
- * "trail" and a trail key (its id), the trail takes one shade from its
- * machine's family, so it stays close to the machine colour. Stored colours
- * with no family (a raw hex, say) fall back to the wider Records palette.
- */
-export function trailColorFor(
-  nameOrColor: string | null | undefined,
-  trailKey: string | null | undefined,
-  look: MapLook,
-): string {
-  if (look.trails.colorBy === "trail" && trailKey) {
-    const name = (nameOrColor ?? "").trim().toLowerCase()
-    const family = TRAIL_FAMILIES[look.trails.palette]?.[name]
-    if (family?.length)
-      return family[hashIndex(String(trailKey), family.length)]
-    if (!(name in TRAIL_PALETTES.classic)) {
-      return RECORD_TRAIL_COLORS[
-        hashIndex(String(trailKey), RECORD_TRAIL_COLORS.length)
-      ]
-    }
-  }
-  return resolveTrailColor(nameOrColor, look)
-}
-
 /** The nine machine colours, in picker order, with display names. */
 export const MACHINE_COLOURS: { key: string; label: string }[] = [
   { key: "red", label: "Red" },
@@ -545,22 +409,15 @@ export const MACHINE_COLOURS: { key: string; label: string }[] = [
   { key: "hotpink", label: "Hot pink" },
 ]
 
-/**
- * What each machine colour is drawn as under a look: one colour normally, or
- * the machine's whole shade family when the look colours each trail separately.
- */
+/** The colour each machine's trails are drawn in under a look. */
 export function trailLegend(
   look: MapLook,
-): { key: string; label: string; colors: string[] }[] {
+): { key: string; label: string; color: string }[] {
   const palette = TRAIL_PALETTES[look.trails.palette] ?? TRAIL_PALETTES.classic
-  const families =
-    look.trails.colorBy === "trail"
-      ? TRAIL_FAMILIES[look.trails.palette]
-      : undefined
   return MACHINE_COLOURS.map(({ key, label }) => ({
     key,
     label,
-    colors: families?.[key]?.length ? families[key] : [palette[key]],
+    color: palette[key],
   }))
 }
 
