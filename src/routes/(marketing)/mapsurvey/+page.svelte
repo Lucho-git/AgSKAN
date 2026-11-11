@@ -496,7 +496,7 @@
     <p>
       We're refreshing the colours of the AgSKAN map. There are two things to
       choose, and you can mix them however you like on the demo farm below (the <strong
-        >Current map</strong
+        >Existing settings</strong
       >
       button shows how it looks today): the <strong>map</strong>
       (the satellite view and your paddocks) and the
@@ -549,9 +549,9 @@
         class="survey-current"
         class:active={isCurrent}
         on:click={showCurrent}
-        title="Show the map as it is in the app today"
+        title="Show the map with its existing settings, as it is in the app today"
       >
-        Current map
+        Existing settings
       </button>
     </div>
 
@@ -563,7 +563,7 @@
       {:else}
         <div class="survey-map-chip">
           Map {mapLabel} · Trails {trailLabel}{isCurrent
-            ? " · current map"
+            ? " · existing settings"
             : ""}
         </div>
       {/if}
