@@ -21,12 +21,11 @@
     setLookPreset,
   } from "$lib/stores/mapLookStore"
   import {
-    PRESETS,
     PRESET_LABELS,
+    PRESET_ORDER,
     TRAIL_PALETTES,
     type MapLook,
     type OutsideTone,
-    type PresetName,
     type TrailPaletteName,
   } from "$lib/utils/mapLook"
 
@@ -34,7 +33,7 @@
 
   let collapsed = false
 
-  const presetNames = Object.keys(PRESETS) as PresetName[]
+  const presetNames = PRESET_ORDER
   const paletteNames = Object.keys(TRAIL_PALETTES) as TrailPaletteName[]
   const tones: OutsideTone[] = ["dark", "grey", "light"]
   const swatchNames = ["red", "orange", "yellow", "green", "blue", "purple"]
@@ -195,7 +194,7 @@
 
   {#if !collapsed}
     <div class="mlook-body">
-      <div class="mlook-seg">
+      <div class="mlook-seg presets">
         {#each presetNames as name}
           <button
             class="mlook-seg-btn"
@@ -376,6 +375,11 @@
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 4px;
+  }
+
+  .mlook-seg.presets {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .mlook-seg-btn {
