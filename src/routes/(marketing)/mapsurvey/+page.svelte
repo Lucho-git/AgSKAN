@@ -65,14 +65,44 @@
     { label: "4", key: "mono" },
     { label: "5", key: "records" },
   ]
-  // A–C keep every trail in its machine's colour. D and E are new colour
-  // sets: each pass takes a different shade of its machine's colour.
-  const TRAILS: { label: string; key: TrailPaletteName; isNew?: boolean }[] = [
-    { label: "A", key: "soft" },
-    { label: "B", key: "classic" },
-    { label: "C", key: "earth" },
-    { label: "D", key: "records", isNew: true },
-    { label: "E", key: "earthshades", isNew: true },
+  // A–C keep every trail in its machine's colour, ordered from most muted to
+  // brightest. D and E are new colour sets: each trail a machine records takes
+  // one of three shades of that machine's colour (D bright, E muted).
+  const TRAILS: {
+    label: string
+    key: TrailPaletteName
+    isNew?: boolean
+    blurb: string
+  }[] = [
+    {
+      label: "A",
+      key: "earth",
+      blurb: "The most muted: soft, earthy tones.",
+    },
+    {
+      label: "B",
+      key: "soft",
+      blurb: "In between: clear colours, toned down a little.",
+    },
+    {
+      label: "C",
+      key: "classic",
+      blurb: "The brightest: bold, pure colours.",
+    },
+    {
+      label: "D",
+      key: "records",
+      isNew: true,
+      blurb:
+        "New colour set, bright like Trails B. One machine no longer means one colour: every trail it records gets one of three shades of its colour (a red machine leaves red, rose and deep red), so separate jobs are easier to tell apart.",
+    },
+    {
+      label: "E",
+      key: "earthshades",
+      isNew: true,
+      blurb:
+        "New colour set, muted like Trails A. Every trail a machine records gets one of three earthy shades of its colour, so separate jobs are easier to tell apart.",
+    },
   ]
   const MACHINE_TRAILS = TRAILS.filter((t) => !t.isNew)
   const NEW_TRAILS = TRAILS.filter((t) => t.isNew)
@@ -113,7 +143,7 @@
   $: isCurrent = mapChoice === "classic" && trailChoice === "classic"
   $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
   $: legend = trailLegend(look)
-  $: trailIsNew = !!TRAILS.find((t) => t.key === trailChoice)?.isNew
+  $: activeTrail = TRAILS.find((t) => t.key === trailChoice)
   $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
   // ── Form state ──
@@ -515,9 +545,10 @@
       There are two things to choose on the demo farm below, and you can mix
       them however you like: the <strong>map</strong> (the satellite view and
       your paddocks) and the <strong>trail colours</strong> your machines leave.
-      Trails D and E are <strong>new colour sets</strong> that give each pass
-      its own shade. The <strong>Existing settings</strong> button shows how it looks
-      today.
+      Trails A to C run from most muted to brightest. D and E are
+      <strong>new colour sets</strong> where a machine's trails come in a few
+      shades of its colour. The <strong>Existing settings</strong> button shows how
+      it looks today.
     </p>
     <p class="survey-sub">
       Try each one, zoom in on where trails overlap, then tell us which map and
@@ -589,12 +620,10 @@
       </button>
     </div>
 
-    {#if trailIsNew}
-      <p class="survey-newset-note">
-        <strong>Trails {trailLabel} is a new colour set.</strong> Instead of one
-        colour per machine, each pass gets its own shade of that machine's colour
-        (a red machine leaves reds and pinks), so passes side by side are easier
-        to tell apart.
+    {#if activeTrail}
+      <p class="survey-set-note" class:is-new={activeTrail.isNew}>
+        <strong>Trails {activeTrail.label}.</strong>
+        {activeTrail.blurb}
       </p>
     {/if}
 
@@ -671,7 +700,8 @@
     <div class="survey-card">
       <h2>Which trail colours do you like best?</h2>
       <p class="survey-card-desc">
-        Think about telling machines apart and seeing where passes overlap.
+        A to C run from most muted to brightest. Think about telling machines
+        apart and seeing where trails overlap.
       </p>
       <div class="survey-choice-group">One colour per machine</div>
       <div class="survey-choices">
@@ -688,7 +718,7 @@
         {/each}
       </div>
       <div class="survey-choice-group">
-        New colour sets: each pass a different shade of its machine's colour
+        New colour sets: a few shades per machine (D bright, E muted)
       </div>
       <div class="survey-choices">
         {#each NEW_TRAILS as option (option.key)}
@@ -987,15 +1017,20 @@
     padding-left: 14px;
     border-left: 2px solid rgba(148, 163, 184, 0.6);
   }
-  .survey-newset-note {
+  .survey-set-note {
     margin: 0;
     padding: 10px 14px;
     border-radius: 10px;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
-    color: #1e3a8a;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
     font-size: 13px;
     line-height: 1.5;
+  }
+  .survey-set-note.is-new {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
   }
   .survey-choice-group {
     margin: 12px 0 8px;
