@@ -1,0 +1,200 @@
+/*
+ * Landing page theme ("paper + ink").
+ *
+ * Applied by adding `.lp-theme` to the marketing layout root while on "/".
+ * It re-points the DaisyUI colour variables, so existing sections (Pricing,
+ * FAQ, Founders, Navbar, Footer) pick the palette up without being rewritten,
+ * and exposes `--lp-*` tokens for the new landing components.
+ */
+
+.lp-theme {
+  /* Landing tokens — light */
+  --lp-paper: #f4f1e6;
+  --lp-paper-2: #ebe7d8;
+  --lp-card: #fbf9f2;
+  --lp-line: #d6d1bd;
+  --lp-ink: #15261c;
+  --lp-ink-soft: rgba(21, 38, 28, 0.72);
+  --lp-ink-faint: rgba(21, 38, 28, 0.5);
+  --lp-contour: rgba(21, 38, 28, 0.09);
+  --lp-yellow: #f7db5c;
+  --lp-green: #17a34a;
+  --lp-rust: #d95d39;
+  --lp-accent-text: #0f7a36;
+  /* The "ink band" sections stay dark in both modes */
+  --lp-band: #15261c;
+  --lp-band-2: #1d3226;
+  --lp-band-text: #f4f1e6;
+  --lp-band-soft: rgba(244, 241, 230, 0.72);
+  --lp-band-line: rgba(244, 241, 230, 0.14);
+  --lp-display:
+    "Bricolage Grotesque", "Archivo", "Montserrat", ui-sans-serif, system-ui,
+    sans-serif;
+  --lp-mono:
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* DaisyUI overrides — light */
+  --b1: 95.75% 0.0149 94.2;
+  --b2: 92.7% 0.0204 94.5;
+  --b3: 85.93% 0.0276 95.4;
+  --bc: 25% 0.0298 157.6;
+  --n: 25% 0.0298 157.6;
+  --nc: 95.75% 0.0149 94.2;
+  --contrast: 95.75% 0.0149 94.2;
+  --contrast-content: 25% 0.0298 157.6;
+  --dark-card: 25% 0.0298 157.6;
+  --dark-card-content: 95.75% 0.0149 94.2;
+
+  background-color: var(--lp-paper);
+  color: var(--lp-ink);
+}
+
+[data-theme="skanthemedark"] .lp-theme {
+  --lp-paper: #0d1611;
+  --lp-paper-2: #142019;
+  --lp-card: #17251d;
+  --lp-line: #2a3a30;
+  --lp-ink: #f4f1e6;
+  --lp-ink-soft: rgba(244, 241, 230, 0.74);
+  --lp-ink-faint: rgba(244, 241, 230, 0.5);
+  --lp-contour: rgba(244, 241, 230, 0.07);
+  --lp-accent-text: #f7db5c;
+  --lp-band: #142019;
+  --lp-band-2: #1b2b22;
+
+  --b1: 18.92% 0.0168 159.9;
+  --b2: 22.96% 0.0217 158.5;
+  --b3: 33.09% 0.0274 157.1;
+  --bc: 89.15% 0.1473 96.8;
+  --n: 22.96% 0.0217 158.5;
+  --nc: 95.75% 0.0149 94.2;
+  --contrast: 95.75% 0.0149 94.2;
+  --contrast-content: 95.75% 0.0149 94.2;
+  --dark-card: 95.75% 0.0149 94.2;
+  --dark-card-content: 18.92% 0.0168 159.9;
+}
+
+/* app.css sets a font on `*`, so headings and their children both need it. */
+.lp-theme :is(h1, h2, h3),
+.lp-theme :is(h1, h2, h3) * {
+  font-family: var(--lp-display);
+  letter-spacing: -0.025em;
+}
+
+/* ── Shared landing primitives ── */
+
+.lp-eyebrow,
+.lp-eyebrow * {
+  font-family: var(--lp-mono);
+}
+.lp-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+
+.lp-h2 {
+  font-size: clamp(2rem, 4.6vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.02;
+  color: var(--lp-ink);
+  text-wrap: balance;
+}
+
+.lp-lede {
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+  line-height: 1.55;
+  color: var(--lp-ink-soft);
+  text-wrap: pretty;
+}
+
+.lp-section {
+  position: relative;
+  padding-block: clamp(4rem, 9vw, 7.5rem);
+}
+
+.lp-band {
+  background: var(--lp-band);
+  color: var(--lp-band-text);
+  --lp-ink: var(--lp-band-text);
+  --lp-ink-soft: var(--lp-band-soft);
+  --lp-ink-faint: rgba(244, 241, 230, 0.5);
+  --lp-line: var(--lp-band-line);
+  --lp-contour: rgba(244, 241, 230, 0.07);
+  --lp-accent-text: #f7db5c;
+}
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.25rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.lp-btn:active {
+  transform: translateY(1px);
+}
+.lp-btn-primary {
+  background: var(--lp-yellow);
+  color: #15261c;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 10px 24px -10px rgba(190, 150, 20, 0.7);
+}
+.lp-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 16px 30px -10px rgba(190, 150, 20, 0.8);
+}
+.lp-btn-ghost {
+  border: 1.5px solid var(--lp-line);
+  color: var(--lp-ink);
+}
+.lp-btn-ghost:hover {
+  border-color: var(--lp-ink);
+}
+.lp-btn .lp-arrow {
+  transition: transform 0.2s ease;
+}
+.lp-btn:hover .lp-arrow {
+  transform: translateX(4px);
+}
+
+/* Scroll-reveal (see reveal.ts). Content is visible without JS. */
+.lp-reveal-ready {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--lp-reveal-delay, 0ms);
+}
+.lp-reveal-ready.lp-reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal-ready {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lp-btn,
+  .lp-btn .lp-arrow {
+    transition: none;
+  }
+}
