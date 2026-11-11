@@ -6,7 +6,9 @@ import {
   MAP_STYLES,
   TRAIL_STYLES,
   basemapPaint,
+  RECORD_TRAIL_COLORS,
   composeLook,
+  trailColorFor,
   buildOutsideMask,
   fieldColors,
   resolveLook,
@@ -51,7 +53,9 @@ describe("presets", () => {
   })
 
   it("keeps trail opacity where one pass and two passes stay distinguishable", () => {
-    for (const look of Object.values(PRESETS)) {
+    // Records is the exception: it copies the Records page's solid trails.
+    for (const [name, look] of Object.entries(PRESETS)) {
+      if (name === "records") continue
       expect(look.trails.opacity).toBeGreaterThanOrEqual(0.45)
       expect(look.trails.opacity).toBeLessThanOrEqual(0.65)
     }
@@ -60,8 +64,10 @@ describe("presets", () => {
 
 describe("map styles and trail styles", () => {
   it("every wash is dark-only and moderate", () => {
-    for (const look of Object.values(PRESETS)) {
-      expect(look.outside.strength).toBeLessThanOrEqual(0.4)
+    for (const [name, look] of Object.entries(PRESETS)) {
+      expect(look.outside.strength).toBeLessThanOrEqual(
+        name === "records" ? 0.6 : 0.4,
+      )
       expect(look.outside).not.toHaveProperty("tone")
     }
   })
@@ -158,6 +164,27 @@ describe("resolveTrailColor", () => {
     expect(resolveTrailRgb("Red", PRESETS.muted)).toEqual([239, 68, 68])
     expect(resolveTrailRgb("#000080", classic)).toEqual([0, 0, 128])
     expect(resolveTrailRgb("white", classic)).toBeNull()
+  })
+})
+
+describe("trailColorFor", () => {
+  const records = PRESETS.records
+
+  it("colours by machine unless the look colours by trail", () => {
+    expect(trailColorFor("Red", "trail-1", PRESETS.muted)).toBe("#ef4444")
+    expect(trailColorFor("Red", null, records)).toBe("#ef4444")
+  })
+
+  it("gives each trail a stable colour from the Records palette", () => {
+    const a = trailColorFor("Red", "trail-1", records)
+    expect(RECORD_TRAIL_COLORS).toContain(a)
+    expect(trailColorFor("Blue", "trail-1", records)).toBe(a)
+    const spread = new Set(
+      Array.from({ length: 40 }, (_, i) =>
+        trailColorFor("Red", `trail-${i}`, records),
+      ),
+    )
+    expect(spread.size).toBeGreaterThan(6)
   })
 })
 

@@ -245,6 +245,19 @@
               <span>Vary field colours</span>
             </label>
           {:else if section.title === "Trails"}
+            <label class="mlook-row mlook-check">
+              <input
+                type="checkbox"
+                checked={look.trails.colorBy === "trail"}
+                on:change={(e) =>
+                  set(
+                    "trails",
+                    "colorBy",
+                    e.currentTarget.checked ? "trail" : "vehicle",
+                  )}
+              />
+              <span>Colour each closed trail separately</span>
+            </label>
             <div class="mlook-palettes">
               {#each paletteNames as name}
                 <button

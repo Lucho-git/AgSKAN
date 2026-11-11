@@ -9,8 +9,8 @@
 // colour (#ff0000, #ffff00 …). Mapping the name through a palette lets a look
 // restyle every existing trail without touching stored data.
 
-export type TrailPaletteName = "classic" | "soft" | "earth"
-export type PresetName = "classic" | "muted" | "mono" | "spotlight"
+export type TrailPaletteName = "classic" | "soft" | "earth" | "records"
+export type PresetName = "classic" | "muted" | "mono" | "spotlight" | "records"
 
 export interface MapLook {
   basemap: {
@@ -48,6 +48,13 @@ export interface MapLook {
     /** Opacity of the other trails while one trail is selected. */
     dimmedOpacity: number
     palette: TrailPaletteName
+    /**
+     * "vehicle" (default): a trail takes its machine's colour.
+     * "trail": every closed trail gets its own colour from RECORD_TRAIL_COLORS,
+     * like the Records page, so neighbouring passes are easy to tell apart.
+     * Live trails always keep the machine's colour.
+     */
+    colorBy?: "vehicle" | "trail"
   }
 }
 
@@ -101,7 +108,38 @@ export const TRAIL_PALETTES: Record<
     lightgreen: "#9bbf6a",
     hotpink: "#c96b8f",
   },
+  // The Records page colours, matched to the nearest vehicle colour.
+  records: {
+    red: "#ef4444",
+    blue: "#3b82f6",
+    green: "#22c55e",
+    yellow: "#eab308",
+    orange: "#f97316",
+    purple: "#a855f7",
+    skyblue: "#06b6d4",
+    lightgreen: "#84cc16",
+    hotpink: "#ec4899",
+  },
 }
+
+/**
+ * The Records page palette (/account/records): 12 high-contrast colours for
+ * satellite imagery, handed out per trail rather than per machine.
+ */
+export const RECORD_TRAIL_COLORS = [
+  "#ef4444",
+  "#3b82f6",
+  "#22c55e",
+  "#f97316",
+  "#a855f7",
+  "#06b6d4",
+  "#eab308",
+  "#ec4899",
+  "#84cc16",
+  "#f43f5e",
+  "#8b5cf6",
+  "#14b8a6",
+]
 
 export const TRAIL_FALLBACK_COLOR = "#FF0000"
 
@@ -239,6 +277,36 @@ export const PRESETS: Record<PresetName, MapLook> = {
       palette: "soft",
     },
   },
+  // The Records page look: untouched satellite inside green outlines, a deep
+  // dark surround, and solid trails that each get their own colour. Its wash
+  // is deliberately heavier than the other styles to match that page.
+  records: {
+    basemap: {
+      saturation: 0,
+      contrast: 0,
+      brightnessMin: 0,
+      brightnessMax: 1,
+      hideRoadsAndLabels: false,
+    },
+    outside: { strength: 0.6 },
+    fields: {
+      fillOpacity: 0.08,
+      selectedFillOpacity: 0.25,
+      outlineWidth: 2,
+      outlineOpacity: 0.8,
+      defaultFill: "#22c55e",
+      defaultOutline: "#22c55e",
+      autoPalette: false,
+      softenCustom: false,
+    },
+    trails: {
+      opacity: 0.85,
+      pauseOpacity: 0.55,
+      dimmedOpacity: 0.25,
+      palette: "records",
+      colorBy: "trail",
+    },
+  },
 }
 
 export const PRESET_LABELS: Record<PresetName, string> = {
@@ -246,6 +314,7 @@ export const PRESET_LABELS: Record<PresetName, string> = {
   muted: "Muted",
   mono: "Mono",
   spotlight: "Spotlight",
+  records: "Records",
 }
 
 /** Display order, from today's map to furthest from it. */
@@ -254,6 +323,7 @@ export const PRESET_ORDER: PresetName[] = [
   "muted",
   "spotlight",
   "mono",
+  "records",
 ]
 
 /** One plain line per map style. */
@@ -262,12 +332,14 @@ export const PRESET_DESCRIPTIONS: Record<PresetName, string> = {
   muted: "Softer satellite colours, a little darker outside your paddocks.",
   mono: "Black-and-white satellite view with tinted paddocks.",
   spotlight: "Full-colour paddocks with everything around them dimmed.",
+  records: "Like the Records page: green outlines on a deep dark surround.",
 }
 
 export const TRAIL_PALETTE_LABELS: Record<TrailPaletteName, string> = {
   classic: "Classic",
   soft: "Soft",
   earth: "Earth",
+  records: "Records",
 }
 
 /** The map half of a preset: everything except its trails. */
@@ -295,6 +367,7 @@ export const TRAIL_STYLES: Record<TrailPaletteName, MapLook["trails"]> = {
     dimmedOpacity: 0.2,
     palette: "earth",
   },
+  records: PRESETS.records.trails,
 }
 
 /** A map style and a trail palette, chosen separately, as one look. */
@@ -362,6 +435,32 @@ export function resolveTrailColor(
   if (!raw) return TRAIL_FALLBACK_COLOR
   const palette = TRAIL_PALETTES[look.trails.palette] ?? TRAIL_PALETTES.classic
   return palette[raw.toLowerCase()] ?? raw
+}
+
+/** Stable index into a list from any string key (same hash the Records page uses). */
+function hashIndex(key: string, length: number): number {
+  let hash = 0
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % length
+}
+
+/**
+ * The colour for one closed trail. With colorBy "trail" and a trail key (its
+ * id), the trail gets its own colour; otherwise its machine's colour.
+ */
+export function trailColorFor(
+  nameOrColor: string | null | undefined,
+  trailKey: string | null | undefined,
+  look: MapLook,
+): string {
+  if (look.trails.colorBy === "trail" && trailKey) {
+    return RECORD_TRAIL_COLORS[
+      hashIndex(String(trailKey), RECORD_TRAIL_COLORS.length)
+    ]
+  }
+  return resolveTrailColor(nameOrColor, look)
 }
 
 /** [r, g, b] for a stored trail colour, for rgba() gradients. Null if not a palette name or hex. */

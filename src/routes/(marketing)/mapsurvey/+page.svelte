@@ -4,8 +4,8 @@
   trails and markers from farms that agreed to it, with every name removed).
   Farmers make two separate choices and can mix them freely on the map:
 
-    - the MAP style  (satellite treatment + paddocks)  shown as Map 1…4
-    - the TRAIL colours                                 shown as Trails A…C
+    - the MAP style  (satellite treatment + paddocks)  shown as Map 1…5
+    - the TRAIL colours                                 shown as Trails A…D
 
   Both come from $lib/utils/mapLook.ts and are drawn with the same apply
   functions as the real map viewer, so what is voted on is what would ship.
@@ -26,7 +26,7 @@
   import {
     composeLook,
     fieldColors,
-    resolveTrailColor,
+    trailColorFor,
     type PresetName,
     type TrailPaletteName,
   } from "$lib/utils/mapLook"
@@ -62,11 +62,13 @@
     { label: "2", key: "classic" },
     { label: "3", key: "spotlight" },
     { label: "4", key: "mono" },
+    { label: "5", key: "records" },
   ]
   const TRAILS: { label: string; key: TrailPaletteName }[] = [
     { label: "A", key: "soft" },
     { label: "B", key: "classic" },
     { label: "C", key: "earth" },
+    { label: "D", key: "records" },
   ]
   const FARMS = ["a", "b", "c", "d", "e"]
 
@@ -220,6 +222,8 @@
       .forEach((trail, i) => {
         const sourceId = `trail-source-${i}`
         const layerId = `trail-layer-${i}`
+        // Stands in for the trail id, so per-trail colouring is stable.
+        const trailKey = `farm-${FARMS[farmIndex]}-trail-${i}`
         map.addSource(sourceId, {
           type: "geojson",
           data: { type: "Feature", properties: {}, geometry: trail.geometry },
@@ -231,10 +235,11 @@
           metadata: {
             agskanTrailColor: trail.color || "Red",
             agskanTrailRole: "work",
+            agskanTrailKey: trailKey,
           },
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": resolveTrailColor(trail.color, look),
+            "line-color": trailColorFor(trail.color, trailKey, look),
             "line-width": calculateZoomDependentWidth(trail.width || 12, 1),
             "line-opacity": look.trails.opacity,
           },
@@ -490,7 +495,7 @@
   />
 </svelte:head>
 
-<div class="survey-wrap">
+<div class="survey-wrap text-contrast-content">
   <div class="survey-hero">
     <h1>Help us choose the look of the map</h1>
     <p>

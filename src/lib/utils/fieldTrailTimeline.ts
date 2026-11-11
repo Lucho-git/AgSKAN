@@ -4,7 +4,12 @@
 // picker, and which Agworld activity each record was matched to.
 
 import type { MatchSuggestion } from "./agworldMatching"
-import { activityTypeLabel, matchActivityName, recordKey } from "./fieldTrailFormat"
+import { RECORD_TRAIL_COLORS } from "./mapLook"
+import {
+  activityTypeLabel,
+  matchActivityName,
+  recordKey,
+} from "./fieldTrailFormat"
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- spray records are untyped rows */
 
@@ -14,20 +19,7 @@ const DAY_MS = 86400000
  * High-contrast palette for satellite imagery — 12 colours, enough for most
  * field views without adjacent duplicates.
  */
-export const TRAIL_COLORS = [
-  "#ef4444",
-  "#3b82f6",
-  "#22c55e",
-  "#f97316",
-  "#a855f7",
-  "#06b6d4",
-  "#eab308",
-  "#ec4899",
-  "#84cc16",
-  "#f43f5e",
-  "#8b5cf6",
-  "#14b8a6",
-]
+export const TRAIL_COLORS = RECORD_TRAIL_COLORS
 
 /**
  * Deterministic colour: the record id is hashed to a stable index, so the

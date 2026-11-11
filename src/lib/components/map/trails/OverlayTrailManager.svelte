@@ -240,14 +240,18 @@
       type: "line",
       source: sourceId,
       // Stored colour + role, so MapLook can restyle this layer when the look changes.
-      metadata: { agskanTrailColor: trail.trail_color || "#FF0000", agskanTrailRole: "work" },
+      metadata: {
+        agskanTrailColor: trail.trail_color || "#FF0000",
+        agskanTrailRole: "work",
+        agskanTrailKey: String(trail.id),
+      },
       layout: {
         "line-join": "round",
         "line-cap": "round",
         visibility: "visible",
       },
       paint: {
-        "line-color": trailLineColor(trail.trail_color),
+        "line-color": trailLineColor(trail.trail_color, String(trail.id)),
         "line-width": width,
         "line-opacity": trailOpacity("work"),
       },

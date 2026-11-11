@@ -5,7 +5,7 @@ import { derived, get, writable } from "svelte/store"
 import {
   DEFAULT_LOOK_STATE,
   resolveLook,
-  resolveTrailColor,
+  trailColorFor,
   sanitizeLookState,
   type MapLook,
   type MapLookState,
@@ -75,6 +75,9 @@ export function trailOpacity(role: TrailRole = "work"): number {
 }
 
 /** The colour the current look draws for a stored trail colour (name or CSS colour). */
-export function trailLineColor(nameOrColor: string | null | undefined): string {
-  return resolveTrailColor(nameOrColor, get(currentLook))
+export function trailLineColor(
+  nameOrColor: string | null | undefined,
+  trailKey?: string | null,
+): string {
+  return trailColorFor(nameOrColor, trailKey, get(currentLook))
 }
