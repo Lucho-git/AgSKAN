@@ -102,6 +102,7 @@
   let viewedTrails = new Set<string>([trailChoice])
 
   $: look = composeLook(mapChoice, trailChoice)
+  $: isCurrent = mapChoice === "classic" && trailChoice === "classic"
   $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
   $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
@@ -381,6 +382,12 @@
     showTrails(key)
   }
 
+  /** Show the map exactly as it is in the app today: no changes to map or trails. */
+  function showCurrent() {
+    showMap("classic")
+    showTrails("classic")
+  }
+
   // Repaint whenever the chosen style changes.
   $: if (mapReady) {
     look
@@ -488,9 +495,10 @@
     <h1>Help us choose the look of the map</h1>
     <p>
       We're refreshing the colours of the AgSKAN map. There are two things to
-      choose, and you can mix them however you like on the demo farm below: the <strong
-        >map</strong
+      choose, and you can mix them however you like on the demo farm below (the <strong
+        >Current map</strong
       >
+      button shows how it looks today): the <strong>map</strong>
       (the satellite view and your paddocks) and the
       <strong>trail colours</strong> your machines leave.
     </p>
@@ -537,6 +545,14 @@
           {/each}
         </div>
       </div>
+      <button
+        class="survey-current"
+        class:active={isCurrent}
+        on:click={showCurrent}
+        title="Show the map as it is in the app today"
+      >
+        Current map
+      </button>
     </div>
 
     <div class="survey-map" bind:this={mapContainer}>
@@ -545,7 +561,11 @@
       {:else if !mapReady || (farmLoading && !farm)}
         <div class="survey-map-overlay">Loading map…</div>
       {:else}
-        <div class="survey-map-chip">Map {mapLabel} · Trails {trailLabel}</div>
+        <div class="survey-map-chip">
+          Map {mapLabel} · Trails {trailLabel}{isCurrent
+            ? " · current map"
+            : ""}
+        </div>
       {/if}
     </div>
 
@@ -824,6 +844,28 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px 28px;
+  }
+  .survey-current {
+    margin-left: auto;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px dashed #94a3b8;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .survey-current:hover {
+    border-color: #60a5fa;
+    color: #2563eb;
+  }
+  .survey-current.active {
+    border-style: solid;
+    border-color: #0f172a;
+    background: #0f172a;
+    color: #fff;
   }
   .survey-choices {
     display: flex;
