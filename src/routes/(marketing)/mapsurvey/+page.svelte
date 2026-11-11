@@ -5,7 +5,7 @@
   Farmers make two separate choices and can mix them freely on the map:
 
     - the MAP style  (satellite treatment + paddocks)  shown as Map 1…5
-    - the TRAIL colours                                 shown as Trails A…D
+    - the TRAIL colours                                 shown as Trails A…E
 
   Both come from $lib/utils/mapLook.ts and are drawn with the same apply
   functions as the real map viewer, so what is voted on is what would ship.
@@ -64,12 +64,17 @@
     { label: "4", key: "mono" },
     { label: "5", key: "records" },
   ]
-  const TRAILS: { label: string; key: TrailPaletteName }[] = [
+  // A–C keep every trail in its machine's colour. D and E are new colour
+  // sets: each pass takes a different shade of its machine's colour.
+  const TRAILS: { label: string; key: TrailPaletteName; isNew?: boolean }[] = [
     { label: "A", key: "soft" },
     { label: "B", key: "classic" },
     { label: "C", key: "earth" },
-    { label: "D", key: "records" },
+    { label: "D", key: "records", isNew: true },
+    { label: "E", key: "earthshades", isNew: true },
   ]
+  const MACHINE_TRAILS = TRAILS.filter((t) => !t.isNew)
+  const NEW_TRAILS = TRAILS.filter((t) => t.isNew)
   const FARMS = ["a", "b", "c", "d", "e"]
 
   type DemoFarm = {
@@ -106,6 +111,7 @@
   $: look = composeLook(mapChoice, trailChoice)
   $: isCurrent = mapChoice === "classic" && trailChoice === "classic"
   $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
+  $: trailIsNew = !!TRAILS.find((t) => t.key === trailChoice)?.isNew
   $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
   // ── Form state ──
@@ -507,7 +513,9 @@
       There are two things to choose on the demo farm below, and you can mix
       them however you like: the <strong>map</strong> (the satellite view and
       your paddocks) and the <strong>trail colours</strong> your machines leave.
-      The <strong>Existing settings</strong> button shows how it looks today.
+      Trails D and E are <strong>new colour sets</strong> that give each pass
+      its own shade. The <strong>Existing settings</strong> button shows how it looks
+      today.
     </p>
     <p class="survey-sub">
       Try each one, zoom in on where trails overlap, then tell us which map and
@@ -538,7 +546,7 @@
       <div class="survey-stylebar">
         <span class="survey-stylebar-label">Trails</span>
         <div class="survey-stylebtns">
-          {#each TRAILS as option (option.key)}
+          {#each MACHINE_TRAILS as option (option.key)}
             <button
               class="survey-stylebtn"
               class:active={trailChoice === option.key}
@@ -546,6 +554,23 @@
                 trailChoice !== option.key}
               on:click={() => showTrails(option.key)}
               aria-label={`Trails ${option.label}`}
+            >
+              {option.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="survey-stylebar survey-newset">
+        <span class="survey-stylebar-label">New colour sets</span>
+        <div class="survey-stylebtns">
+          {#each NEW_TRAILS as option (option.key)}
+            <button
+              class="survey-stylebtn"
+              class:active={trailChoice === option.key}
+              class:seen={viewedTrails.has(option.key) &&
+                trailChoice !== option.key}
+              on:click={() => showTrails(option.key)}
+              aria-label={`New colour set ${option.label}`}
             >
               {option.label}
             </button>
@@ -561,6 +586,15 @@
         Existing settings
       </button>
     </div>
+
+    {#if trailIsNew}
+      <p class="survey-newset-note">
+        <strong>Trails {trailLabel} is a new colour set.</strong> Instead of one
+        colour per machine, each pass gets its own shade of that machine's colour
+        (a red machine leaves reds and pinks), so passes side by side are easier
+        to tell apart.
+      </p>
+    {/if}
 
     <div class="survey-map" bind:this={mapContainer}>
       {#if mapError}
@@ -623,8 +657,25 @@
       <p class="survey-card-desc">
         Think about telling machines apart and seeing where passes overlap.
       </p>
+      <div class="survey-choice-group">One colour per machine</div>
       <div class="survey-choices">
-        {#each TRAILS as option (option.key)}
+        {#each MACHINE_TRAILS as option (option.key)}
+          <button
+            type="button"
+            class="survey-choice"
+            class:chosen={trailVote === option.key}
+            aria-pressed={trailVote === option.key}
+            on:click={() => voteTrails(option.key)}
+          >
+            Trails {option.label}
+          </button>
+        {/each}
+      </div>
+      <div class="survey-choice-group">
+        New colour sets: each pass a different shade of its machine's colour
+      </div>
+      <div class="survey-choices">
+        {#each NEW_TRAILS as option (option.key)}
           <button
             type="button"
             class="survey-choice"
@@ -874,6 +925,31 @@
     border-color: #0f172a;
     background: #0f172a;
     color: #fff;
+  }
+  .survey-newset {
+    padding-left: 14px;
+    border-left: 2px solid rgba(148, 163, 184, 0.6);
+  }
+  .survey-newset-note {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .survey-choice-group {
+    margin: 12px 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .survey-choice-group:first-of-type {
+    margin-top: 0;
   }
   .survey-choices {
     display: flex;

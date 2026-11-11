@@ -9,7 +9,12 @@
 // colour (#ff0000, #ffff00 …). Mapping the name through a palette lets a look
 // restyle every existing trail without touching stored data.
 
-export type TrailPaletteName = "classic" | "soft" | "earth" | "records"
+export type TrailPaletteName =
+  | "classic"
+  | "soft"
+  | "earth"
+  | "records"
+  | "earthshades"
 export type PresetName = "classic" | "muted" | "mono" | "spotlight" | "records"
 
 export interface MapLook {
@@ -119,6 +124,53 @@ export const TRAIL_PALETTES: Record<
     skyblue: "#06b6d4",
     lightgreen: "#84cc16",
     hotpink: "#ec4899",
+  },
+  // Base colours of the muted shade families (see TRAIL_FAMILIES).
+  earthshades: {
+    red: "#c8553d",
+    blue: "#3d6f9e",
+    green: "#5a8f4e",
+    yellow: "#d9a441",
+    orange: "#d97b29",
+    purple: "#7d5ba6",
+    skyblue: "#6fa8c7",
+    lightgreen: "#9bbf6a",
+    hotpink: "#c96b8f",
+  },
+}
+
+/**
+ * Shade families for the "new colour sets" (colorBy "trail"): each closed
+ * trail takes one shade from its MACHINE's family, picked by trail id. So a
+ * red machine's passes stay recognisably red (red, rose, deep red) while
+ * neighbouring passes still differ. The first shade is the palette colour.
+ */
+export const TRAIL_FAMILIES: Partial<
+  Record<TrailPaletteName, Record<string, string[]>>
+> = {
+  // Bright shades, built around the Records page colours.
+  records: {
+    red: ["#ef4444", "#f43f5e", "#b91c1c"],
+    blue: ["#3b82f6", "#6366f1", "#1d4ed8"],
+    green: ["#22c55e", "#16a34a", "#4ade80"],
+    yellow: ["#eab308", "#facc15", "#ca8a04"],
+    orange: ["#f97316", "#fb923c", "#c2410c"],
+    purple: ["#a855f7", "#8b5cf6", "#7e22ce"],
+    skyblue: ["#06b6d4", "#38bdf8", "#14b8a6"],
+    lightgreen: ["#84cc16", "#a3e635", "#65a30d"],
+    hotpink: ["#ec4899", "#f472b6", "#be185d"],
+  },
+  // Muted farm tones: each machine colour as a base, a lighter and a deeper shade.
+  earthshades: {
+    red: ["#c8553d", "#e07a5f", "#9c3d2a"],
+    blue: ["#3d6f9e", "#6492bd", "#2b5078"],
+    green: ["#5a8f4e", "#7fb071", "#3f6b36"],
+    yellow: ["#d9a441", "#e8c46f", "#a97c25"],
+    orange: ["#d97b29", "#e9a15b", "#a85a17"],
+    purple: ["#7d5ba6", "#9d80c0", "#5d4180"],
+    skyblue: ["#6fa8c7", "#94c2da", "#4d86a5"],
+    lightgreen: ["#9bbf6a", "#b9d58f", "#7a9c4c"],
+    hotpink: ["#c96b8f", "#dc92ad", "#a34d70"],
   },
 }
 
@@ -339,7 +391,8 @@ export const TRAIL_PALETTE_LABELS: Record<TrailPaletteName, string> = {
   classic: "Classic",
   soft: "Soft",
   earth: "Earth",
-  records: "Records",
+  records: "Bright shades",
+  earthshades: "Earth shades",
 }
 
 /** The map half of a preset: everything except its trails. */
@@ -368,6 +421,13 @@ export const TRAIL_STYLES: Record<TrailPaletteName, MapLook["trails"]> = {
     palette: "earth",
   },
   records: PRESETS.records.trails,
+  earthshades: {
+    opacity: 0.7,
+    pauseOpacity: 0.55,
+    dimmedOpacity: 0.2,
+    palette: "earthshades",
+    colorBy: "trail",
+  },
 }
 
 /** A map style and a trail palette, chosen separately, as one look. */
@@ -447,8 +507,10 @@ function hashIndex(key: string, length: number): number {
 }
 
 /**
- * The colour for one closed trail. With colorBy "trail" and a trail key (its
- * id), the trail gets its own colour; otherwise its machine's colour.
+ * The colour for one closed trail. Normally its machine's colour. With colorBy
+ * "trail" and a trail key (its id), the trail takes one shade from its
+ * machine's family, so it stays close to the machine colour. Stored colours
+ * with no family (a raw hex, say) fall back to the wider Records palette.
  */
 export function trailColorFor(
   nameOrColor: string | null | undefined,
@@ -456,9 +518,14 @@ export function trailColorFor(
   look: MapLook,
 ): string {
   if (look.trails.colorBy === "trail" && trailKey) {
-    return RECORD_TRAIL_COLORS[
-      hashIndex(String(trailKey), RECORD_TRAIL_COLORS.length)
-    ]
+    const name = (nameOrColor ?? "").trim().toLowerCase()
+    const family = TRAIL_FAMILIES[look.trails.palette]?.[name]
+    if (family?.length) return family[hashIndex(String(trailKey), family.length)]
+    if (!(name in TRAIL_PALETTES.classic)) {
+      return RECORD_TRAIL_COLORS[
+        hashIndex(String(trailKey), RECORD_TRAIL_COLORS.length)
+      ]
+    }
   }
   return resolveTrailColor(nameOrColor, look)
 }

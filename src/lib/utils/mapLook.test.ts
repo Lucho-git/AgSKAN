@@ -7,6 +7,7 @@ import {
   TRAIL_STYLES,
   basemapPaint,
   RECORD_TRAIL_COLORS,
+  TRAIL_FAMILIES,
   composeLook,
   trailColorFor,
   buildOutsideMask,
@@ -175,16 +176,47 @@ describe("trailColorFor", () => {
     expect(trailColorFor("Red", null, records)).toBe("#ef4444")
   })
 
-  it("gives each trail a stable colour from the Records palette", () => {
-    const a = trailColorFor("Red", "trail-1", records)
-    expect(RECORD_TRAIL_COLORS).toContain(a)
-    expect(trailColorFor("Blue", "trail-1", records)).toBe(a)
-    const spread = new Set(
-      Array.from({ length: 40 }, (_, i) =>
-        trailColorFor("Red", `trail-${i}`, records),
-      ),
+  it("keeps each trail inside its machine's shade family", () => {
+    const reds = TRAIL_FAMILIES.records!.red
+    const blues = TRAIL_FAMILIES.records!.blue
+    const seen = new Set<string>()
+    for (let i = 0; i < 40; i++) {
+      const red = trailColorFor("Red", `trail-${i}`, records)
+      expect(reds).toContain(red)
+      expect(blues).toContain(trailColorFor("BLUE", `trail-${i}`, records))
+      seen.add(red)
+    }
+    // Neighbouring passes still differ: every shade gets used.
+    expect(seen.size).toBe(reds.length)
+    // Stable for the same trail.
+    expect(trailColorFor("Red", "trail-7", records)).toBe(
+      trailColorFor("Red", "trail-7", records),
     )
-    expect(spread.size).toBeGreaterThan(6)
+  })
+
+  it("every family covers the nine machine colours and starts on the palette colour", () => {
+    for (const [palette, families] of Object.entries(TRAIL_FAMILIES)) {
+      const base = TRAIL_PALETTES[palette as keyof typeof TRAIL_PALETTES]
+      expect(Object.keys(families!).sort()).toEqual(Object.keys(base).sort())
+      for (const [name, shades] of Object.entries(families!)) {
+        expect(shades[0]).toBe(base[name])
+        expect(new Set(shades).size).toBe(shades.length)
+      }
+    }
+  })
+
+  it("falls back to the Records palette for colours with no family", () => {
+    expect(RECORD_TRAIL_COLORS).toContain(
+      trailColorFor("#123456", "trail-1", records),
+    )
+  })
+
+  it("the second new colour set uses its own muted families", () => {
+    const look = composeLook("muted", "earthshades")
+    expect(look.trails.colorBy).toBe("trail")
+    expect(TRAIL_FAMILIES.earthshades!.green).toContain(
+      trailColorFor("Green", "trail-3", look),
+    )
   })
 })
 
