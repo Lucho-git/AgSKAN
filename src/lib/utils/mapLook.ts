@@ -330,7 +330,8 @@ export const PRESETS: Record<PresetName, MapLook> = {
     },
   },
   // The Records page look: untouched satellite inside green outlines, a deep
-  // dark surround, and solid trails that each get their own colour. Its wash
+  // dark surround, and trails that each get their own shade. Trails stay
+  // see-through like every other style, so overlapping passes still show. Its wash
   // is deliberately heavier than the other styles to match that page.
   records: {
     basemap: {
@@ -352,9 +353,9 @@ export const PRESETS: Record<PresetName, MapLook> = {
       softenCustom: false,
     },
     trails: {
-      opacity: 0.85,
+      opacity: 0.6,
       pauseOpacity: 0.55,
-      dimmedOpacity: 0.25,
+      dimmedOpacity: 0.2,
       palette: "records",
       colorBy: "trail",
     },
@@ -422,7 +423,7 @@ export const TRAIL_STYLES: Record<TrailPaletteName, MapLook["trails"]> = {
   },
   records: PRESETS.records.trails,
   earthshades: {
-    opacity: 0.7,
+    opacity: 0.6,
     pauseOpacity: 0.55,
     dimmedOpacity: 0.2,
     palette: "earthshades",
@@ -520,7 +521,8 @@ export function trailColorFor(
   if (look.trails.colorBy === "trail" && trailKey) {
     const name = (nameOrColor ?? "").trim().toLowerCase()
     const family = TRAIL_FAMILIES[look.trails.palette]?.[name]
-    if (family?.length) return family[hashIndex(String(trailKey), family.length)]
+    if (family?.length)
+      return family[hashIndex(String(trailKey), family.length)]
     if (!(name in TRAIL_PALETTES.classic)) {
       return RECORD_TRAIL_COLORS[
         hashIndex(String(trailKey), RECORD_TRAIL_COLORS.length)
@@ -528,6 +530,38 @@ export function trailColorFor(
     }
   }
   return resolveTrailColor(nameOrColor, look)
+}
+
+/** The nine machine colours, in picker order, with display names. */
+export const MACHINE_COLOURS: { key: string; label: string }[] = [
+  { key: "red", label: "Red" },
+  { key: "orange", label: "Orange" },
+  { key: "yellow", label: "Yellow" },
+  { key: "lightgreen", label: "Light green" },
+  { key: "green", label: "Green" },
+  { key: "skyblue", label: "Sky blue" },
+  { key: "blue", label: "Blue" },
+  { key: "purple", label: "Purple" },
+  { key: "hotpink", label: "Hot pink" },
+]
+
+/**
+ * What each machine colour is drawn as under a look: one colour normally, or
+ * the machine's whole shade family when the look colours each trail separately.
+ */
+export function trailLegend(
+  look: MapLook,
+): { key: string; label: string; colors: string[] }[] {
+  const palette = TRAIL_PALETTES[look.trails.palette] ?? TRAIL_PALETTES.classic
+  const families =
+    look.trails.colorBy === "trail"
+      ? TRAIL_FAMILIES[look.trails.palette]
+      : undefined
+  return MACHINE_COLOURS.map(({ key, label }) => ({
+    key,
+    label,
+    colors: families?.[key]?.length ? families[key] : [palette[key]],
+  }))
 }
 
 /** [r, g, b] for a stored trail colour, for rgba() gradients. Null if not a palette name or hex. */

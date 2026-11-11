@@ -27,6 +27,7 @@
     composeLook,
     fieldColors,
     trailColorFor,
+    trailLegend,
     type PresetName,
     type TrailPaletteName,
   } from "$lib/utils/mapLook"
@@ -111,6 +112,7 @@
   $: look = composeLook(mapChoice, trailChoice)
   $: isCurrent = mapChoice === "classic" && trailChoice === "classic"
   $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
+  $: legend = trailLegend(look)
   $: trailIsNew = !!TRAILS.find((t) => t.key === trailChoice)?.isNew
   $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
@@ -610,6 +612,28 @@
       {/if}
     </div>
 
+    <div class="survey-legend" aria-label="Trail colours in this set">
+      <span class="survey-stylebar-label">Trails {trailLabel} colours</span>
+      <div class="survey-legend-items">
+        {#each legend as item (item.key)}
+          <span class="survey-legend-item">
+            <span class="survey-legend-swatches">
+              {#each item.colors as color}
+                <span
+                  class="survey-legend-swatch"
+                  style="background: {color}; opacity: {Math.min(
+                    1,
+                    look.trails.opacity + 0.3,
+                  )}"
+                ></span>
+              {/each}
+            </span>
+            {item.label}
+          </span>
+        {/each}
+      </div>
+    </div>
+
     <div class="survey-farmbar">
       <span class="survey-stylebar-label">Demo farm</span>
       <div class="survey-stylebtns">
@@ -925,6 +949,38 @@
     border-color: #0f172a;
     background: #0f172a;
     color: #fff;
+  }
+  .survey-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+  }
+  .survey-legend-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .survey-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .survey-legend-swatches {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: #57534e;
+  }
+  .survey-legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
   }
   .survey-newset {
     padding-left: 14px;

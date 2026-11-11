@@ -10,6 +10,7 @@ import {
   TRAIL_FAMILIES,
   composeLook,
   trailColorFor,
+  trailLegend,
   buildOutsideMask,
   fieldColors,
   resolveLook,
@@ -54,9 +55,10 @@ describe("presets", () => {
   })
 
   it("keeps trail opacity where one pass and two passes stay distinguishable", () => {
-    // Records is the exception: it copies the Records page's solid trails.
-    for (const [name, look] of Object.entries(PRESETS)) {
-      if (name === "records") continue
+    for (const look of [
+      ...Object.values(PRESETS),
+      ...Object.values(TRAIL_STYLES).map((trails) => ({ trails })),
+    ]) {
       expect(look.trails.opacity).toBeGreaterThanOrEqual(0.45)
       expect(look.trails.opacity).toBeLessThanOrEqual(0.65)
     }
@@ -217,6 +219,26 @@ describe("trailColorFor", () => {
     expect(TRAIL_FAMILIES.earthshades!.green).toContain(
       trailColorFor("Green", "trail-3", look),
     )
+  })
+})
+
+describe("trailLegend", () => {
+  it("lists one colour per machine for ordinary palettes", () => {
+    const legend = trailLegend(PRESETS.muted)
+    expect(legend).toHaveLength(9)
+    expect(legend.find((l) => l.key === "red")).toEqual({
+      key: "red",
+      label: "Red",
+      colors: ["#ef4444"],
+    })
+  })
+
+  it("lists the whole shade family for the new colour sets", () => {
+    const legend = trailLegend(composeLook("classic", "earthshades"))
+    expect(legend.find((l) => l.key === "blue")!.colors).toEqual(
+      TRAIL_FAMILIES.earthshades!.blue,
+    )
+    expect(legend.every((l) => l.colors.length === 3)).toBe(true)
   })
 })
 
