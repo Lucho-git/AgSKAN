@@ -491,21 +491,23 @@
   <title>Map Style Survey — AgSKAN</title>
   <meta
     name="description"
-    content="Help us choose the look of the AgSKAN map — flick through the styles on a demo farm and tell us your favourites."
+    content="Bright, obvious colours or softer, muted tones? Try the AgSKAN map styles on a demo farm and tell us which you prefer."
   />
 </svelte:head>
 
 <div class="survey-wrap text-contrast-content">
   <div class="survey-hero">
-    <h1>Help us choose the look of the map</h1>
+    <h1>Bright and obvious, or calm and muted?</h1>
     <p>
-      We're refreshing the colours of the AgSKAN map. There are two things to
-      choose, and you can mix them however you like on the demo farm below (the <strong
-        >Existing settings</strong
-      >
-      button shows how it looks today): the <strong>map</strong>
-      (the satellite view and your paddocks) and the
-      <strong>trail colours</strong> your machines leave.
+      We're refreshing the colours of the AgSKAN map, and we want to know which
+      way you lean: <strong>bright, obvious colours</strong> that jump out at
+      you, or <strong>softer, muted tones</strong> that are easier on the eye.
+    </p>
+    <p>
+      There are two things to choose on the demo farm below, and you can mix
+      them however you like: the <strong>map</strong> (the satellite view and
+      your paddocks) and the <strong>trail colours</strong> your machines leave.
+      The <strong>Existing settings</strong> button shows how it looks today.
     </p>
     <p class="survey-sub">
       Try each one, zoom in on where trails overlap, then tell us which map and
@@ -639,7 +641,8 @@
     <div class="survey-card">
       <h2>Comments</h2>
       <p class="survey-card-desc">
-        Optional. Anything you liked or disliked, or that was hard to see?
+        Optional. Do you prefer bright colours or muted tones, and why? Was
+        anything hard to see?
       </p>
       <textarea
         class="survey-textarea"
