@@ -35,6 +35,7 @@
   import { get } from "svelte/store"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { mapFieldsStore } from "$lib/stores/mapFieldsStore"
+  import { currentLook } from "$lib/stores/mapLookStore"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
     computePowerNearData,
@@ -425,6 +426,12 @@
     }
   }
 
+  // Hand the outside-fields mask over when the map look's wash turns on or off.
+  $: if (map) {
+    $currentLook
+    applyVisibility()
+  }
+
   function applyVisibility() {
     if (!map) return
     const full = fullVisible()
@@ -436,7 +443,9 @@
     for (const spec of NEAR_LAYER_SPECS) {
       setLayerVisibility(spec.id, near && onFor(spec) ? "visible" : "none")
     }
-    setLayerVisibility(MASK_LAYER, within ? "visible" : "none")
+    // The map look's own outside-fields wash replaces this faint mask.
+    const lookWash = $currentLook.outside.strength > 0
+    setLayerVisibility(MASK_LAYER, within && !lookWash ? "visible" : "none")
   }
 
   // Safety net: whenever the map goes idle, make sure the near-fields layers

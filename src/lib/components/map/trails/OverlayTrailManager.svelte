@@ -12,6 +12,7 @@
     overlayTrailsStore,
   } from "$lib/stores/otherTrailStore"
   import { operationStore } from "$lib/stores/operationStore"
+  import { trailOpacity, trailLineColor } from "$lib/stores/mapLookStore"
   import { toast } from "svelte-sonner"
   import {
     calculateZoomDependentWidth,
@@ -21,7 +22,6 @@
   export let map: MapboxMap
 
   const mapContext = getContext<any>("map")
-  const OVERLAY_OPACITY = 0.5
   const OVERLAY_PREFIX = "overlay-trail"
   const ACTIVE_OVERLAY_PREFIX = "overlay-active-trail"
 
@@ -239,15 +239,17 @@
       id: layerId,
       type: "line",
       source: sourceId,
+      // Stored colour + role, so MapLook can restyle this layer when the look changes.
+      metadata: { agskanTrailColor: trail.trail_color || "#FF0000", agskanTrailRole: "work" },
       layout: {
         "line-join": "round",
         "line-cap": "round",
         visibility: "visible",
       },
       paint: {
-        "line-color": trail.trail_color || "#FF0000",
+        "line-color": trailLineColor(trail.trail_color),
         "line-width": width,
-        "line-opacity": OVERLAY_OPACITY,
+        "line-opacity": trailOpacity("work"),
       },
     }
 

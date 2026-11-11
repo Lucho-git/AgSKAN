@@ -7,6 +7,9 @@
   import { fieldBoundaryStore } from "$lib/stores/homeBoundaryStore"
   import { fieldStore } from "$lib/stores/fieldStore"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { currentLook } from "$lib/stores/mapLookStore"
+  import { fieldColors } from "$lib/utils/mapLook"
+  import { applyFieldPaint } from "$lib/utils/mapLookApply"
   import * as mapboxgl from "mapbox-gl"
   import * as turf from "@turf/turf"
   import InfoPanel from "./InfoPanel.svelte"
@@ -21,19 +24,10 @@
   let globalSelectionState = null
 
   // 🆕 Helper function to get fill and outline colors based on field color
-  function getFieldColors(fieldColor: string | null | undefined) {
-    // If color is null, undefined, or explicitly "default", use the classic two-color scheme
-    if (!fieldColor || fieldColor === "default") {
-      return {
-        fillColor: "#0080ff",
-        outlineColor: "#bfffbf",
-      }
-    }
-    // Otherwise, use the same color for both fill and outline
-    return {
-      fillColor: fieldColor,
-      outlineColor: fieldColor,
-    }
+  // Colours come from the current map look (see $lib/utils/mapLook.ts): the
+  // look decides the default pair, and may soften or auto-assign fills.
+  function getFieldColors(fieldColor: string | null | undefined, index = 0) {
+    return fieldColors(fieldColor, index, get(currentLook))
   }
 
   function checkGlobalSelectionContext() {
@@ -521,7 +515,7 @@
       const fieldsGeojson = {
         type: "FeatureCollection",
         features: fields.map((field, index) => {
-          const colors = getFieldColors(field.color)
+          const colors = getFieldColors(field.color, index)
           return {
             type: "Feature",
             geometry: field.boundary,
@@ -654,7 +648,7 @@
         const fieldsGeojson = {
           type: "FeatureCollection",
           features: fields.map((field, index) => {
-            const colors = getFieldColors(field.color)
+            const colors = getFieldColors(field.color, index)
             return {
               type: "Feature",
               geometry: field.boundary,
@@ -688,7 +682,7 @@
           source: "fields",
           paint: {
             "fill-color": ["get", "fillColor"],
-            "fill-opacity": 0.1,
+            "fill-opacity": get(currentLook).fields.fillOpacity,
           },
         })
 
@@ -700,7 +694,7 @@
           filter: ["==", "id", -1],
           paint: {
             "fill-color": ["get", "fillColor"],
-            "fill-opacity": 0.3,
+            "fill-opacity": get(currentLook).fields.selectedFillOpacity,
           },
         })
 
@@ -711,8 +705,8 @@
           source: "fields",
           paint: {
             "line-color": ["get", "outlineColor"],
-            "line-opacity": 0.95,
-            "line-width": 2,
+            "line-opacity": get(currentLook).fields.outlineOpacity,
+            "line-width": get(currentLook).fields.outlineWidth,
           },
         })
 
@@ -923,7 +917,21 @@
       map.on("load", loadFields)
     }
 
+    // Repaint fields when the map look changes (preset or slider).
+    let lookInitialized = false
+    const lookUnsubscribe = currentLook.subscribe((look) => {
+      if (!lookInitialized) {
+        lookInitialized = true
+        return
+      }
+      if (canUseMap() && map.getSource("fields")) {
+        applyFieldPaint(map, look)
+        updateMapColors()
+      }
+    })
+
     return () => {
+      lookUnsubscribe()
       if (map) {
         map.off("load", loadFields)
       }

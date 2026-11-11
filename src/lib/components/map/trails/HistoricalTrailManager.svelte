@@ -6,6 +6,7 @@
   import type { Trail } from "$lib/types/trail"
   import { trailsApi } from "$lib/api/trailsApi"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { trailOpacity, trailLineColor } from "$lib/stores/mapLookStore"
   import { historicalTrailStore } from "$lib/stores/otherTrailStore"
   import { toast } from "svelte-sonner"
   import {
@@ -273,15 +274,17 @@
       id: layerId,
       type: "line",
       source: sourceId,
+      // Stored colour + role, so MapLook can restyle this layer when the look changes.
+      metadata: { agskanTrailColor: trail.trail_color || "#FF0000", agskanTrailRole: "work" },
       layout: {
         "line-join": "round",
         "line-cap": "round",
         visibility: visibility,
       },
       paint: {
-        "line-color": trail.trail_color || "#FF0000",
+        "line-color": trailLineColor(trail.trail_color),
         "line-width": zoomDependentWidth,
-        "line-opacity": TRAIL_CONFIG.DEFAULT_OPACITY,
+        "line-opacity": trailOpacity("work"),
       },
     }
 
@@ -299,15 +302,16 @@
         id: pauseLayerId,
         type: "line",
         source: pauseSourceId,
+        metadata: { agskanTrailColor: trail.trail_color || "#FF0000", agskanTrailRole: "pause" },
         layout: {
           "line-join": "round",
           "line-cap": "round",
           visibility: visibility,
         },
         paint: {
-          "line-color": trail.trail_color || "#FF0000",
+          "line-color": trailLineColor(trail.trail_color),
           "line-width": pauseZoomDependentWidth,
-          "line-opacity": 0.55,
+          "line-opacity": trailOpacity("pause"),
           "line-dasharray": [0.12, 1.5],
         },
       }

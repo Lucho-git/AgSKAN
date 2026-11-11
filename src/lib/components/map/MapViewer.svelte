@@ -77,10 +77,13 @@
   import {
     devModeEnabled,
     devBackgroundSimEnabled,
+    devMapLookEnabled,
   } from "$lib/stores/devModeStore"
 
   // Import persistent managers
   import SatelliteManager from "$lib/components/map/toolbox/SatelliteManager.svelte"
+  import MapLook from "$lib/components/map/MapLook.svelte"
+  import MapLookPanel from "$lib/components/map/dev/MapLookPanel.svelte"
 
   import { db } from "$lib/services/db.js"
   import { commands } from "$lib/stores/commandStore"
@@ -2132,6 +2135,7 @@
 
     <!-- Persistent Managers -->
     <SatelliteManager bind:this={satelliteManager} {map} {mapLoaded} />
+    <MapLook {map} {mapLoaded} />
 
     <!-- Toolbox Trigger Button (hidden while picking a message location) -->
     {#if !$locationPickStore.active && !$locationPickStore.captured && !$mapChromeHiddenStore}
@@ -2382,6 +2386,11 @@
 <!-- Background Simulation Panel -->
 {#if $devModeEnabled || $devBackgroundSimEnabled}
   <BackgroundSimPanel {map} />
+{/if}
+
+<!-- Map look tuner (dev tools only) -->
+{#if $devMapLookEnabled}
+  <MapLookPanel on:close={() => devMapLookEnabled.set(false)} />
 {/if}
 
 <!-- Trail Modals (rendered at MapViewer level - no constraints!) -->

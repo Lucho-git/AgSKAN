@@ -12,6 +12,7 @@
     Gamepad2,
     Magnet,
     Radio,
+    Palette,
     LandPlot,
     UserCircle,
   } from "lucide-svelte"
@@ -19,6 +20,7 @@
   import {
     devModeEnabled,
     devBackgroundSimEnabled,
+    devMapLookEnabled,
   } from "$lib/stores/devModeStore"
   import {
     collectionModeStore,
@@ -304,6 +306,11 @@
 
   function toggleBgSim() {
     devBackgroundSimEnabled.update((v) => !v)
+    closeToolbox()
+  }
+
+  function toggleMapLook() {
+    devMapLookEnabled.update((v) => !v)
     closeToolbox()
   }
 
@@ -760,6 +767,15 @@
             >
               <Radio size={26} />
               <span>{$devBackgroundSimEnabled ? "Exit BG Sim" : "BG Sim"}</span>
+            </button>
+
+            <button
+              class="tool-button"
+              class:tool-active={$devMapLookEnabled}
+              on:click={toggleMapLook}
+            >
+              <Palette size={26} />
+              <span>{$devMapLookEnabled ? "Close Map Look" : "Map Look"}</span>
             </button>
           {/if}
         </div>

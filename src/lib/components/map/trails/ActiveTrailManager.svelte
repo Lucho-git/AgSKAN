@@ -6,6 +6,8 @@
   import type { Map } from "mapbox-gl"
   import type { Trail } from "$lib/types/trail"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { currentLook, trailOpacity } from "$lib/stores/mapLookStore"
+  import { trailColorExpr } from "$lib/utils/mapLook"
   import { otherActiveTrailStore } from "$lib/stores/otherTrailStore"
   import { currentTrailStore, trailPausesStore } from "$lib/stores/currentTrailStore"
   import {
@@ -450,7 +452,7 @@
         "line-sort-key": ["get", "sortKey"],
       },
       paint: {
-        "line-color": ["get", "color"],
+        "line-color": trailColorExpr(get(currentLook)),
         "line-width": [
           // ← FIX: Use dynamic width from properties
           "interpolate",
@@ -471,7 +473,7 @@
             ["^", 2, TRAIL_CONFIG.MAX_POWER],
           ],
         ],
-        "line-opacity": TRAIL_CONFIG.DEFAULT_OPACITY,
+        "line-opacity": trailOpacity("work"),
       },
     }
 
@@ -514,7 +516,7 @@
         "line-sort-key": ["get", "sortKey"],
       },
       paint: {
-        "line-color": ["get", "color"],
+        "line-color": trailColorExpr(get(currentLook)),
         "line-width": [
           "interpolate",
           ["exponential", 2],
@@ -536,7 +538,7 @@
             ["^", 2, TRAIL_CONFIG.MAX_POWER],
           ],
         ],
-        "line-opacity": 0.55,
+        "line-opacity": trailOpacity("pause"),
         "line-dasharray": [0.12, 1.5],
       },
     }

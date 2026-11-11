@@ -18,6 +18,7 @@
   import { onMount } from "svelte"
 
   import { toast } from "svelte-sonner"
+  import { trailOpacity, trailLineColor } from "$lib/stores/mapLookStore"
 
   import {
     Trash2,
@@ -1360,7 +1361,7 @@ font-size: 12px;
 
             "line-opacity",
 
-            HIGHLIGHT_CONFIG.DIMMED_OPACITY,
+            trailOpacity("dimmed"),
           )
         }
       }
@@ -1438,7 +1439,7 @@ font-size: 12px;
       id: innerLayerId,
 
       paint: {
-        "line-color": trail.trail_color,
+        "line-color": trailLineColor(trail.trail_color),
 
         "line-width": calculateZoomDependentWidth(
           baseWidth,
@@ -1651,7 +1652,7 @@ font-size: 12px;
 
             "line-opacity",
 
-            HIGHLIGHT_CONFIG.NORMAL_OPACITY,
+            trailOpacity("work"),
           )
         }
       })

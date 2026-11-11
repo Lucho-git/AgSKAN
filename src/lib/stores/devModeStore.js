@@ -18,3 +18,6 @@ export const devSpeedMultiplier = writable(10)
 
 // Background simulation mode (tests background GPS pipeline from browser/emulator)
 export const devBackgroundSimEnabled = writable(false)
+
+// Map look tuner panel (presets + sliders for imagery, field and trail colours)
+export const devMapLookEnabled = writable(false)
