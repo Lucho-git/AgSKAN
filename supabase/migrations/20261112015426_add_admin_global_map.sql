@@ -277,11 +277,17 @@ BEGIN
     FROM (
         SELECT f.map_id, f.name, f.area,
                ST_CollectionExtract(ST_SimplifyPreserveTopology(f.boundary, 0.0001), 3) AS geom
-        FROM fields f
-        WHERE f.boundary IS NOT NULL
-        ORDER BY f.field_id
-        OFFSET GREATEST(p_offset, 0)
-        LIMIT LEAST(GREATEST(p_limit, 1), 3000)
+        FROM (
+            -- Page on ids alone, so skipped rows never have their boundary
+            -- read or simplified (otherwise later pages get slower and slower).
+            SELECT p.field_id
+            FROM fields p
+            WHERE p.boundary IS NOT NULL
+            ORDER BY p.field_id
+            OFFSET GREATEST(p_offset, 0)
+            LIMIT LEAST(GREATEST(p_limit, 1), 3000)
+        ) page
+        JOIN fields f ON f.field_id = page.field_id
     ) s
     WHERE s.geom IS NOT NULL AND NOT ST_IsEmpty(s.geom);
 

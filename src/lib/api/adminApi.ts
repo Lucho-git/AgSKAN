@@ -139,7 +139,8 @@ export interface GlobalMapField {
     g: { type: string; coordinates: any };
 }
 
-const GLOBAL_MAP_FIELDS_PAGE = 1500;
+const GLOBAL_MAP_FIELDS_PAGE = 1000;
+const GLOBAL_MAP_FIELDS_CONCURRENCY = 2;
 
 export const adminApi = {
     /** Every farm with its team, vehicles, content counts and test/duplicate status. */
@@ -160,8 +161,8 @@ export const adminApi = {
     },
 
     /**
-     * Simplified boundaries for every field, fetched in parallel pages (each
-     * page stays well under the database statement timeout).
+     * Simplified boundaries for every field, fetched in pages, two at a time
+     * (each page stays well under the database statement timeout).
      */
     async fetchGlobalMapFields(
         totalFields: number,
@@ -169,25 +170,37 @@ export const adminApi = {
         try {
             // One spare page in case fields were added since the farms query.
             const pages = Math.max(1, Math.ceil(totalFields / GLOBAL_MAP_FIELDS_PAGE) + 1);
-            const results = await Promise.all(
-                Array.from({ length: pages }, (_, i) =>
-                    supabase.rpc('admin_global_map_fields', {
-                        p_offset: i * GLOBAL_MAP_FIELDS_PAGE,
-                        p_limit: GLOBAL_MAP_FIELDS_PAGE,
-                    }),
-                ),
+            const fetchPage = (i: number) =>
+                supabase.rpc('admin_global_map_fields', {
+                    p_offset: i * GLOBAL_MAP_FIELDS_PAGE,
+                    p_limit: GLOBAL_MAP_FIELDS_PAGE,
+                });
+
+            // Only a few pages at a time: fetching them all at once makes the
+            // queries compete and pushes each one towards the statement timeout.
+            const results: GlobalMapField[][] = new Array(pages).fill(null).map(() => []);
+            let next = 0;
+            let failure: string | null = null;
+            const worker = async () => {
+                while (next < pages && !failure) {
+                    const i = next++;
+                    let res = await fetchPage(i);
+                    if (res.error) res = await fetchPage(i); // one retry
+                    if (res.error) {
+                        console.error('Global map fields RPC error:', res.error);
+                        failure = res.error.message;
+                        return;
+                    }
+                    results[i] = (res.data as GlobalMapField[]) || [];
+                }
+            };
+            await Promise.all(
+                Array.from({ length: Math.min(GLOBAL_MAP_FIELDS_CONCURRENCY, pages) }, worker),
             );
 
-            const failed = results.find((r) => r.error);
-            if (failed?.error) {
-                console.error('Global map fields RPC error:', failed.error);
-                return { success: false, data: [], error: failed.error.message };
-            }
+            if (failure) return { success: false, data: [], error: failure };
 
-            return {
-                success: true,
-                data: results.flatMap((r) => (r.data as GlobalMapField[]) || []),
-            };
+            return { success: true, data: results.flat() };
         } catch (error: any) {
             console.error('Global map fields fetch error:', error);
             return { success: false, data: [], error: error.message || 'Unexpected error' };
