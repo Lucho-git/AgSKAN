@@ -1,7 +1,8 @@
 <script lang="ts">
   import { ArrowRight, Phone } from "lucide-svelte"
   import Contours from "./Contours.svelte"
-  import PhoneMap from "./PhoneMap.svelte"
+  import DeviceMap from "./DeviceMap.svelte"
+  import DeviceSwitch from "./DeviceSwitch.svelte"
   import StoreBadges from "./StoreBadges.svelte"
   import { parallax } from "./motion"
 </script>
@@ -19,8 +20,7 @@
       </h1>
       <p class="lp-lede lede rise" style="--d: 140ms">
         See where every operator is, what's been covered and what to steer
-        around — live, on the phone that's already in the cab. No hardware to
-        buy.
+        around — live, on a phone in your pocket or a tablet mounted in the cab.
       </p>
 
       <div class="actions rise" style="--d: 210ms">
@@ -50,23 +50,26 @@
     <div class="stage rise" style="--d: 200ms">
       <div class="glow" aria-hidden="true"></div>
 
-      <div class="float float-a" aria-hidden="true" use:parallax={0.07}>
-        <span class="dots">
-          <i style="background:#2F62D6"></i>
-          <i style="background:#D95D39"></i>
-          <i style="background:#15261C"></i>
-        </span>
-        3 operators live
+      <div class="device-wrap">
+        <div class="float float-a" aria-hidden="true" use:parallax={0.07}>
+          <span class="dots">
+            <i style="background:#D95D39"></i>
+            <i style="background:#2F62D6"></i>
+            <i style="background:#F4F1E6"></i>
+            <i style="background:#0E8C99"></i>
+          </span>
+          4 operators live
+        </div>
+
+        <DeviceMap scene="harvest" labels={false} />
+
+        <div class="float float-b" aria-hidden="true" use:parallax={0.13}>
+          <span class="pin"></span>
+          Rock picked · just now
+        </div>
       </div>
 
-      <div class="phone-wrap">
-        <PhoneMap caption="Operator tracking" />
-      </div>
-
-      <div class="float float-b" aria-hidden="true" use:parallax={0.13}>
-        <span class="pin"></span>
-        Rock marked · just now
-      </div>
+      <DeviceSwitch />
     </div>
   </div>
 </section>
@@ -86,7 +89,7 @@
   }
   @media (min-width: 1024px) {
     .inner {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
 
@@ -171,21 +174,30 @@
     text-decoration: underline;
   }
 
-  /* Phone stage */
+  /* Device stage */
   .stage {
     position: relative;
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    gap: 1.5rem;
   }
-  .phone-wrap {
+  @media (min-width: 1024px) {
+    .stage {
+      min-height: 640px;
+    }
+  }
+  .device-wrap {
     position: relative;
-    width: min(74vw, 300px);
+    width: 100%;
+    max-width: 580px;
   }
   .glow {
     position: absolute;
-    top: 12%;
+    top: 8%;
     left: 50%;
-    width: min(120%, 520px);
+    width: min(120%, 560px);
     aspect-ratio: 1;
     border-radius: 50%;
     background: radial-gradient(
@@ -213,12 +225,20 @@
     box-shadow: 0 14px 30px -14px rgba(10, 25, 15, 0.5);
   }
   .float-a {
-    top: 16%;
-    right: max(0px, calc(50% - 235px));
+    top: 13%;
+    right: 0;
   }
   .float-b {
-    bottom: 22%;
-    left: max(0px, calc(50% - 250px));
+    bottom: 34%;
+    left: 0;
+  }
+  @media (min-width: 1280px) {
+    .float-a {
+      right: -1.5rem;
+    }
+    .float-b {
+      left: -1.5rem;
+    }
   }
   .dots {
     display: inline-flex;
@@ -228,6 +248,7 @@
     height: 11px;
     margin-left: -3px;
     border: 2px solid #fbf9f2;
+    box-shadow: 0 0 0 0.5px rgba(21, 38, 28, 0.25);
     border-radius: 50%;
   }
   .dots i:first-child {

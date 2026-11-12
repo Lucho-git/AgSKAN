@@ -1,10 +1,18 @@
 <script lang="ts">
-  /** Season-by-season use cases, each with a small map vignette. */
+  /** Season-by-season use cases, each with a small animated map scene. */
+  import FieldScene from "./FieldScene.svelte"
   import { reveal } from "./motion"
 
   export let id = "seasons"
 
-  const cases = [
+  type Case = {
+    kind: "seeding" | "harvest" | "rocks" | "records"
+    tag: string
+    title: string
+    body: string
+  }
+
+  const cases: Case[] = [
     {
       kind: "seeding",
       tag: "Spraying & seeding",
@@ -24,10 +32,10 @@
       body: "Drop a pin on a rock or stump from any cab. The whole crew sees it live, and the picker knows exactly where to go.",
     },
     {
-      kind: "contract",
+      kind: "records",
       tag: "Contractors",
       title: "Show clients what's done.",
-      body: "Clients see the job as it happens, so there are fewer calls asking whether you've finished their paddock.",
+      body: "Every job is kept as a record, paddock by paddock, so clients can see exactly what was covered. Fewer calls asking whether you've finished.",
     },
   ]
 </script>
@@ -43,128 +51,7 @@
       {#each cases as item, i}
         <article class="tile" use:reveal={i * 70}>
           <div class="scene" aria-hidden="true">
-            <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
-              {#if item.kind === "seeding"}
-                <rect width="160" height="100" fill="#D8B04A" />
-                <path
-                  d="M-5,20 H165 M-5,36 H165 M-5,52 H112"
-                  stroke="#2F62D6"
-                  stroke-width="12"
-                  opacity="0.6"
-                  fill="none"
-                />
-                <path
-                  d="M-5,20 H165 M-5,36 H70"
-                  stroke="#15261C"
-                  stroke-width="4"
-                  stroke-dasharray="2 5"
-                  opacity="0.55"
-                  fill="none"
-                />
-                <circle cx="112" cy="52" r="7" fill="#fff" /><circle
-                  cx="112"
-                  cy="52"
-                  r="4.5"
-                  fill="#2F62D6"
-                />
-                <circle cx="70" cy="36" r="7" fill="#fff" /><circle
-                  cx="70"
-                  cy="36"
-                  r="4.5"
-                  fill="#15261C"
-                />
-              {:else if item.kind === "harvest"}
-                <rect width="160" height="100" fill="#DDB955" />
-                <path
-                  d="M26,105 V-5 M42,105 V-5 M58,105 V38"
-                  stroke="#D95D39"
-                  stroke-width="13"
-                  opacity="0.6"
-                  fill="none"
-                />
-                <circle cx="58" cy="38" r="7" fill="#fff" /><circle
-                  cx="58"
-                  cy="38"
-                  r="4.5"
-                  fill="#D95D39"
-                />
-                <circle cx="78" cy="46" r="7" fill="#fff" /><circle
-                  cx="78"
-                  cy="46"
-                  r="4.5"
-                  fill="#2F62D6"
-                />
-                <path
-                  d="M84,50 Q112,66 124,62"
-                  stroke="#15261C"
-                  stroke-width="1.6"
-                  stroke-dasharray="3 3"
-                  fill="none"
-                  opacity="0.6"
-                />
-                <circle
-                  cx="130"
-                  cy="60"
-                  r="9"
-                  fill="#fff"
-                  stroke="#15261C"
-                  stroke-width="1.8"
-                />
-                <path
-                  d="M126,63.5 V59 L130,55.5 L134,59 V63.5 Z"
-                  fill="#D95D39"
-                />
-              {:else if item.kind === "rocks"}
-                <rect width="160" height="100" fill="#6E9B5C" />
-                <path
-                  d="M22,78 L52,34 L92,62 L128,26"
-                  stroke="#fff"
-                  stroke-width="1.8"
-                  stroke-dasharray="4 4"
-                  fill="none"
-                  opacity="0.85"
-                />
-                {#each [[52, 34], [92, 62], [128, 26]] as [cx, cy]}
-                  <circle
-                    {cx}
-                    {cy}
-                    r="9"
-                    fill="#fff"
-                    stroke="#15261C"
-                    stroke-width="1.8"
-                  />
-                  <path
-                    d="M-4,2 L-3,-2.5 L1,-4 L4,-1 L3,3 L-1.5,4 Z"
-                    transform="translate({cx} {cy})"
-                    fill="#6B6F6B"
-                  />
-                {/each}
-                <circle cx="22" cy="78" r="7" fill="#fff" /><circle
-                  cx="22"
-                  cy="78"
-                  r="4.5"
-                  fill="#15261C"
-                />
-              {:else}
-                <rect width="160" height="100" fill="#4E8153" />
-                <path
-                  d="M-5,18 H165 M-5,34 H165 M-5,50 H165 M-5,66 H165 M-5,82 H165"
-                  stroke="#F2A277"
-                  stroke-width="12"
-                  opacity="0.55"
-                  fill="none"
-                />
-                <circle cx="80" cy="50" r="17" fill="#fbf9f2" />
-                <path
-                  d="M72,50.5 L78,56.5 L89,44.5"
-                  stroke="#15261C"
-                  stroke-width="3.4"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              {/if}
-            </svg>
+            <FieldScene kind={item.kind} />
           </div>
           <p class="lp-eyebrow tag">{item.tag}</p>
           <h3>{item.title}</h3>
@@ -212,11 +99,6 @@
     overflow: hidden;
     aspect-ratio: 16 / 10;
     border-radius: 0.9rem;
-  }
-  .scene svg {
-    display: block;
-    width: 100%;
-    height: 100%;
   }
   .tag {
     margin: 1.25rem 0.5rem 0;

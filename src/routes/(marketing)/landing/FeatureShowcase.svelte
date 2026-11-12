@@ -1,20 +1,25 @@
 <script lang="ts">
   /**
-   * "What it does" — one phone, five features. Picking a feature switches
-   * which layers the animated map shows. Cycles on its own until the visitor
-   * picks one.
+   * "What it does" — one device, one continuous seeding job, told in five
+   * steps. Each step ADDS to the map (paddocks, then machines, then their
+   * trails, then pins) so nothing pops in and out as you move through it.
+   *
+   * While it plays on its own the steps are locked to the map's loop: the
+   * loop is exactly five steps long and restarts with step one, so the ute
+   * reaches the rocks just as the pins step comes up. Picking a step by hand
+   * stops the auto-play and leaves the map running.
    */
   import { onMount } from "svelte"
-  import PhoneMap from "./PhoneMap.svelte"
+  import DeviceMap from "./DeviceMap.svelte"
+  import DeviceSwitch from "./DeviceSwitch.svelte"
   import Contours from "./Contours.svelte"
-  import { reveal } from "./motion"
+  import { reveal, type Leg } from "./motion"
 
   export let id = "features"
 
   type Feature = {
     title: string
     body: string
-    caption: string
     layers: {
       boundaries: boolean
       tracking: boolean
@@ -26,44 +31,53 @@
 
   const features: Feature[] = [
     {
+      title: "Paddock boundaries",
+      body: "Upload your existing boundary files in a couple of minutes and everyone works off the same named paddocks.",
+      layers: { boundaries: true, tracking: false, trails: false, pins: false },
+    },
+    {
       title: "Operator tracking",
       body: "Watch every machine on the farm move in real time, from any phone or tablet. No more radioing around to find out who's where.",
-      caption: "Operator tracking",
-      layers: { boundaries: false, tracking: true, trails: false, pins: false },
+      layers: { boundaries: true, tracking: true, trails: false, pins: false },
     },
     {
       title: "Coverage trails",
       body: "Each pass paints the map as it happens, so the seeder can follow the sprayer and nobody doubles back over finished ground.",
-      caption: "Coverage trails",
-      layers: { boundaries: false, tracking: true, trails: true, pins: false },
+      layers: { boundaries: true, tracking: true, trails: true, pins: false },
     },
     {
       title: "Pin drops",
-      body: "Mark rocks, stumps, water tanks and field bins with one tap. The whole crew sees them straight away.",
-      caption: "Pin drops",
-      layers: { boundaries: false, tracking: false, trails: false, pins: true },
-    },
-    {
-      title: "Paddock boundaries",
-      body: "Upload your existing boundary files in a couple of minutes and everyone works off the same named paddocks.",
-      caption: "Paddock boundaries",
-      layers: { boundaries: true, tracking: false, trails: false, pins: false },
+      body: "Mark rocks, stumps, gates and field bins with one tap. The whole crew sees them straight away, and a picked rock comes off the map for everyone.",
+      layers: { boundaries: true, tracking: true, trails: true, pins: true },
     },
     {
       title: "Patchy reception",
       body: "Trails keep recording when coverage drops out, and upload on their own once you're back in range.",
-      caption: "Background recording",
       layers: { boundaries: true, tracking: true, trails: true, pins: true },
       status: "offline",
     },
   ]
 
-  const DWELL_MS = 5200
+  const DWELL_MS = 6000
+  const LOOP_S = (DWELL_MS * features.length) / 1000
+
+  // The ute's part, in loop fractions (one step = 0.2): it sets off as
+  // tracking comes on, waits at the gate through the trails step, then
+  // collects the three rocks during the pins step.
+  const UTE_DEPART = 0.22
+  const UTE_LEGS: Leg[] = [
+    { arrive: 0.36, pause: 0.25 },
+    { arrive: 0.635, pause: 0.03 },
+    { arrive: 0.7, pause: 0.03 },
+    { arrive: 0.765, pause: 0.03 },
+  ]
 
   let active = 0
   let auto = false
+  let epoch = 0
   let section: HTMLElement
   let timer: ReturnType<typeof setInterval> | undefined
+  let userPicked = false
 
   function stopAuto() {
     auto = false
@@ -71,29 +85,33 @@
     timer = undefined
   }
 
+  function startAuto() {
+    auto = true
+    active = 0
+    epoch += 1 // restart the map's loop alongside step one
+    timer = setInterval(() => {
+      active = (active + 1) % features.length
+      if (active === 0) epoch += 1
+    }, DWELL_MS)
+  }
+
   function pick(index: number) {
+    userPicked = true
     stopAuto()
     active = index
   }
 
   onMount(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-
-    let userStopped = false
-    const stopForGood = () => (userStopped = true)
-    section.addEventListener("pointerdown", stopForGood)
-    section.addEventListener("keydown", stopForGood)
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // No auto-play: show the full map rather than an empty first step.
+      active = 3
+      return
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !userStopped && !timer) {
-          auto = true
-          timer = setInterval(() => {
-            active = (active + 1) % features.length
-          }, DWELL_MS)
-        } else if (!entry.isIntersecting && timer) {
-          stopAuto()
-        }
+        if (entry.isIntersecting && !userPicked && !timer) startAuto()
+        else if (!entry.isIntersecting && timer) stopAuto()
       },
       { threshold: 0.35 },
     )
@@ -102,8 +120,6 @@
     return () => {
       observer.disconnect()
       stopAuto()
-      section?.removeEventListener("pointerdown", stopForGood)
-      section?.removeEventListener("keydown", stopForGood)
     }
   })
 
@@ -120,11 +136,17 @@
     </header>
 
     <div class="phone-col" use:reveal={80}>
+      <DeviceSwitch />
       <div class="phone-wrap">
-        <PhoneMap
+        <DeviceMap
           {...current.layers}
+          scene="seeding"
+          truck={false}
+          loop={LOOP_S}
+          uteDepart={UTE_DEPART}
+          uteLegs={UTE_LEGS}
+          {epoch}
           status={current.status ?? "live"}
-          caption={current.caption}
         />
       </div>
     </div>
@@ -192,10 +214,12 @@
   }
   .phone-col {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
   }
   .phone-wrap {
-    width: min(66vw, 280px);
+    width: 100%;
   }
 
   /* Mobile pills */
@@ -242,12 +266,12 @@
 
   @media (min-width: 1024px) {
     .inner {
-      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       grid-template-areas:
         "phone head"
         "phone list";
       align-items: start;
-      column-gap: clamp(3rem, 7vw, 7rem);
+      column-gap: clamp(2.5rem, 5vw, 5rem);
       row-gap: 2.5rem;
     }
     .head {
@@ -257,8 +281,9 @@
       grid-area: phone;
       align-self: center;
     }
-    .phone-wrap {
-      width: min(100%, 320px);
+    .phone-col {
+      min-height: 640px;
+      justify-content: center;
     }
     .list-col {
       grid-area: list;

@@ -1,8 +1,8 @@
 /*
  * Landing page theme ("paper + ink").
  *
- * Applied by adding `.lp-theme` to the marketing layout root while on "/".
- * It re-points the DaisyUI colour variables, so existing sections (Pricing,
+ * Applied by `.lp-theme` on the marketing layout root, so every marketing page
+ * shares it. It re-points the DaisyUI colour variables, so existing sections (Pricing,
  * FAQ, Founders, Navbar, Footer) pick the palette up without being rewritten,
  * and exposes `--lp-*` tokens for the new landing components.
  */

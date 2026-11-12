@@ -11,7 +11,7 @@
   const steps = [
     {
       title: "Download the app",
-      body: "Install AgSKAN on any phone or tablet. No hardware, no setup headaches.",
+      body: "Install AgSKAN on any phone or tablet. Mount a tablet in the cab for all-day tracking.",
     },
     {
       title: "Add your farm and your crew",

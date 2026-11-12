@@ -79,23 +79,28 @@
     }
   })
 
-  // Fixed appearance configuration
+  // Auth UI colours follow the marketing palette (landing-theme.css).
   const appearance = {
     theme: {
       default: {
         colors: {
           brand: "#F7DB5C",
           brandAccent: "#E6C94F",
-          brandButtonText: "#232322",
-          inputText: "oklch(var(--contrast-content) / 0.7)",
-          messageText: "hsl(var(--bc))",
-          dividerBackground: "oklch(var(--contrast-content) / 0.2)",
-          inputLabelText: "hsl(var(--bc) / 0.8)",
-          defaultButtonText: "hsl(var(--bc))",
-          anchorTextColor: "hsl(var(--p))",
-          inputBackground: "hsl(var(--b1))",
-          inputBorder: "oklch(var(--contrast-content) / 0.4)",
-          defaultButtonBorder: "oklch(var(--contrast-content) / 0.25)",
+          brandButtonText: "#15261C",
+          inputText: "var(--lp-ink)",
+          inputPlaceholder: "var(--lp-ink-faint)",
+          messageText: "var(--lp-ink)",
+          dividerBackground: "var(--lp-line)",
+          inputLabelText: "var(--lp-ink-soft)",
+          defaultButtonText: "var(--lp-ink)",
+          defaultButtonBackground: "var(--lp-card)",
+          defaultButtonBackgroundHover: "var(--lp-paper-2)",
+          anchorTextColor: "var(--lp-accent-text)",
+          inputBackground: "var(--lp-card)",
+          inputBorder: "var(--lp-line)",
+          inputBorderHover: "var(--lp-ink-faint)",
+          inputBorderFocus: "var(--lp-ink)",
+          defaultButtonBorder: "var(--lp-line)",
         },
         fonts: {
           bodyFontFamily: `ui-sans-serif, system-ui, sans-serif`,
@@ -106,16 +111,18 @@
           baseButtonSize: "16px",
         },
         radii: {
-          borderRadiusButton: "0.5rem",
-          inputBorderRadius: "0.5rem",
+          borderRadiusButton: "0.8rem",
+          inputBorderRadius: "0.8rem",
         },
         space: {
-          inputPadding: "0.75rem 1rem",
-          buttonPadding: "0.75rem 1.25rem",
+          inputPadding: "0.9rem 1rem",
+          buttonPadding: "0.95rem 1.25rem",
+          labelBottomMargin: "0.4rem",
+          spaceMedium: "1.1rem",
         },
         borderWidths: {
           inputBorderWidth: "1.5px",
-          defaultButtonBorderWidth: "1.5px",
+          buttonBorderWidth: "1.5px",
         },
       },
     },
@@ -130,37 +137,40 @@
   />
 </svelte:head>
 
-<div class="animate-fadeIn rounded-xl bg-base-100 p-8 shadow-xl">
-  <div class="mb-8 text-center">
-    <h1 class="mb-2 font-archivo text-2xl font-bold text-contrast-content">
-      {activeTab === "sign_up" ? "Create Account" : "Welcome Back"}
+<div class="auth-card animate-fadeIn">
+  <div class="auth-head">
+    <p class="lp-eyebrow">
+      {activeTab === "sign_up" ? "Free account" : "Welcome back"}
+    </p>
+    <h1>
+      {activeTab === "sign_up" ? "Get your farm on the map." : "Sign in."}
     </h1>
-    <p class="text-contrast-content/60">
+    <p class="auth-sub">
       {activeTab === "sign_up"
-        ? "Join thousands of farmers using AgSKAN"
-        : "Sign in to your AgSKAN account"}
+        ? "No card, no expiry. Add your crew when you're ready."
+        : "Pick up where you left off."}
     </p>
   </div>
 
   <!-- Tab Navigation -->
-  <div class="mb-6 flex rounded-lg bg-base-200 p-1">
+  <div class="auth-tabs" role="tablist" aria-label="Sign in or sign up">
     <button
-      class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 {activeTab ===
-      'sign_in'
-        ? 'bg-base-100 text-base-content shadow-sm'
-        : 'text-contrast-content/60 hover:text-base-content'}"
-      on:click={() => (activeTab = "sign_in")}
-    >
-      Sign In
-    </button>
-    <button
-      class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 {activeTab ===
-      'sign_up'
-        ? 'bg-base-100 text-base-content shadow-sm'
-        : 'text-contrast-content/60 hover:text-base-content'}"
+      type="button"
+      role="tab"
+      aria-selected={activeTab === "sign_up"}
+      class:active={activeTab === "sign_up"}
       on:click={() => (activeTab = "sign_up")}
     >
-      Sign Up
+      Sign up
+    </button>
+    <button
+      type="button"
+      role="tab"
+      aria-selected={activeTab === "sign_in"}
+      class:active={activeTab === "sign_in"}
+      on:click={() => (activeTab = "sign_in")}
+    >
+      Sign in
     </button>
   </div>
 
@@ -246,57 +256,32 @@
     </div>
   {/if}
 
-  {#if activeTab === "sign_in"}
-    <div class="mt-4 text-center">
-      <a
-        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
-        href="/login/forgot_password"
-      >
-        Forgot Password?
-      </a>
-    </div>
-  {/if}
-
-  <!-- Toggle between Sign In/Up -->
-  {#if activeTab === "sign_in"}
-    <div class="mt-6 text-center">
-      <span class="text-sm text-contrast-content/60"
-        >Don't have an account?
-      </span>
-      <button
-        on:click={() => (activeTab = "sign_up")}
-        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
-      >
-        Sign up for free
-      </button>
-    </div>
-  {/if}
-
-  {#if activeTab === "sign_up"}
-    <div class="mt-6 text-center">
-      <span class="text-sm text-contrast-content/60"
-        >Already have an account?
-      </span>
-      <button
-        on:click={() => (activeTab = "sign_in")}
-        class="hover:text-base-content-focus text-sm font-medium text-base-content transition-colors duration-200"
-      >
-        Sign in
-      </button>
-    </div>
-  {/if}
+  <div class="auth-links">
+    {#if activeTab === "sign_in"}
+      <a href="/login/forgot_password">Forgot password?</a>
+      <p>
+        New to AgSKAN?
+        <button type="button" on:click={() => (activeTab = "sign_up")}>
+          Sign up for free
+        </button>
+      </p>
+    {:else}
+      <p>
+        Already have an account?
+        <button type="button" on:click={() => (activeTab = "sign_in")}>
+          Sign in
+        </button>
+      </p>
+    {/if}
+  </div>
 </div>
 
 <!-- Footer Note -->
-<p class="mt-6 text-center text-xs text-contrast-content/60">
+<p class="auth-terms">
   By signing {activeTab === "sign_up" ? "up" : "in"}, you agree to AgSKAN's
-  <a href="/terms-of-service" class="text-base-content hover:underline"
-    >Terms of Service</a
-  >
+  <a href="/terms-of-service">Terms of Service</a>
   and
-  <a href="/privacy-policy" class="text-base-content hover:underline"
-    >Privacy Policy</a
-  >.
+  <a href="/privacy-policy">Privacy Policy</a>.
 </p>
 
 <!-- Success Alert -->
@@ -322,7 +307,88 @@
 {/if}
 
 <style>
-  .font-archivo {
-    font-family: "Archivo", Arial, sans-serif;
+  .auth-head h1 {
+    margin-top: 0.6rem;
+    font-size: clamp(2.1rem, 9vw, 2.8rem);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--lp-ink);
+    text-wrap: balance;
+  }
+  .auth-sub {
+    margin-top: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--lp-ink-soft);
+  }
+
+  .auth-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    margin: 1.75rem 0 1.5rem;
+    padding: 4px;
+    border: 1px solid var(--lp-line);
+    border-radius: 999px;
+    background: var(--lp-paper-2);
+  }
+  .auth-tabs button {
+    min-height: 2.9rem;
+    border-radius: 999px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: var(--lp-ink-soft);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .auth-tabs button.active {
+    background: var(--lp-ink);
+    color: var(--lp-paper);
+  }
+
+  .auth-links {
+    display: grid;
+    gap: 0.9rem;
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--lp-ink-soft);
+  }
+  .auth-links a,
+  .auth-links button {
+    display: inline-block;
+    padding: 0.35rem 0.15rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .auth-terms {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--lp-line);
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--lp-ink-faint);
+  }
+  .auth-terms a {
+    color: var(--lp-ink-soft);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .auth-tabs button:focus-visible,
+  .auth-links a:focus-visible,
+  .auth-links button:focus-visible {
+    outline: 2px solid var(--lp-accent-text);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .auth-tabs button {
+      transition: none;
+    }
   }
 </style>

@@ -98,24 +98,13 @@
   <title>AgSKAN — One live map for the whole farm crew</title>
   <meta
     name="description"
-    content="AgSKAN shows every operator, coverage trail and hazard pin on one live farm map. Works on any phone or tablet with no hardware. Start free."
+    content="AgSKAN shows every operator, coverage trail and hazard pin on one live farm map. Works on any phone or tablet. Start free."
   />
   <link rel="canonical" href="https://www.skanfarming.com.au/" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    rel="preconnect"
-    href="https://fonts.gstatic.com"
-    crossorigin="anonymous"
-  />
-  <link
-    rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=JetBrains+Mono:wght@400;500;700&display=swap"
-  />
 </svelte:head>
 
 <main class="w-full">
   <LandingHero />
-  <Partners />
   <FeatureShowcase id="features" />
   <RadioToMap />
   <UseCases id="seasons" />
@@ -124,5 +113,6 @@
   <Pricing id="pricing" />
   <QandA id="qanda" />
   <Founders />
+  <Partners />
   <FinalCta />
 </main>

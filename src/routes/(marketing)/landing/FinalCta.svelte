@@ -14,7 +14,7 @@
     <h2>Get your crew on the map.</h2>
     <p class="lp-lede lede">
       Start on a free account, add your paddocks and invite the team when you're
-      ready. No card, no hardware, no expiry.
+      ready. No card, no expiry.
     </p>
 
     <div class="actions">

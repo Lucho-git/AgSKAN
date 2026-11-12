@@ -2,22 +2,40 @@
   import "../../app.css"
   import "./landing/landing-theme.css"
   import { page } from "$app/stores"
-  import Navbar from "./Navbar.svelte"
-  import OgNavbar from "./OGNavbar.svelte"
+  import SiteNav from "./SiteNav.svelte"
   import Footer from "./Footer.svelte"
 
   export let data
 
-  // The redesigned home page carries its own palette (see landing-theme.css).
-  $: isLanding = $page.url.pathname === "/"
+  // Sign-in pages are a single focused task: no footer, pared-back header.
+  $: isAuthPage =
+    $page.url.pathname.startsWith("/login") ||
+    $page.url.pathname.startsWith("/reset-password")
+  // The onboarding prototype brings its own chrome.
+  $: isBare = $page.url.pathname.startsWith("/onboarding-preview")
 </script>
 
 <svelte:head>
   <script src="https://t.contentsquare.net/uxa/e5382af3aa047.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+  />
 </svelte:head>
 
-<div class="min-h-screen bg-background" class:lp-theme={isLanding}>
-  <OgNavbar />
+<!-- .lp-theme carries the marketing palette (see landing/landing-theme.css) -->
+<div class="lp-theme flex min-h-screen flex-col bg-background">
+  {#if !isBare}
+    <SiteNav minimal={isAuthPage} />
+  {/if}
   <slot />
-  <Footer />
+  {#if !isAuthPage && !isBare}
+    <Footer />
+  {/if}
 </div>

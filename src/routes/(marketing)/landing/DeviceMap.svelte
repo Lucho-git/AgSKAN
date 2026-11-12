@@ -1,20 +1,23 @@
 <script lang="ts">
-  /** A phone frame showing the animated FarmMap with app-style chrome. */
+  /**
+   * A phone or tablet frame showing the animated FarmMap with app-style
+   * chrome. Follows the shared `device` store unless `device` is passed.
+   * Any other prop (scene, layers, labels, loop...) goes straight to FarmMap.
+   */
   import FarmMap from "./FarmMap.svelte"
+  import { device as deviceStore, type Device } from "./device"
 
-  export let boundaries = true
-  export let tracking = true
-  export let trails = true
-  export let pins = true
+  /** Force a device instead of following the shared switch. */
+  export let device: Device | undefined = undefined
   /** Status chip: "live" (green dot) or "offline" (amber, saving locally). */
   export let status: "live" | "offline" = "live"
-  /** Text for the bottom card. Empty hides the card. */
-  export let caption = ""
+
+  $: shown = device ?? $deviceStore
 </script>
 
-<div class="phone">
+<div class="device {shown}">
   <div class="screen">
-    <FarmMap {boundaries} {tracking} {trails} {pins} />
+    <FarmMap {...$$restProps} view={shown} />
 
     <div class="notch" aria-hidden="true"></div>
 
@@ -22,30 +25,31 @@
       <span class="dot"></span>
       {status === "offline" ? "NO SIGNAL · SAVING" : "LIVE"}
     </div>
-
-    {#if caption}
-      <div class="sheet" aria-hidden="true">
-        {#key caption}
-          <span class="sheet-text">{caption}</span>
-          <span class="switch"><span class="knob"></span></span>
-        {/key}
-      </div>
-    {/if}
   </div>
 </div>
 
 <style>
-  .phone {
+  .device {
     position: relative;
     width: 100%;
-    aspect-ratio: 300 / 590;
-    padding: 9px;
-    border-radius: 2.6rem;
+    margin-inline: auto;
     background: #12201a;
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.08) inset,
       0 40px 70px -30px rgba(10, 25, 15, 0.55),
       0 18px 30px -18px rgba(10, 25, 15, 0.45);
+  }
+  .device.phone {
+    max-width: 300px;
+    aspect-ratio: 300 / 590;
+    padding: 9px;
+    border-radius: 2.6rem;
+  }
+  .device.tablet {
+    max-width: 580px;
+    aspect-ratio: 4 / 3;
+    padding: 13px;
+    border-radius: 1.7rem;
   }
   .screen {
     position: relative;
@@ -56,6 +60,9 @@
     background: #cdbd92;
     /* Safari: keep the rounded clip while children animate */
     isolation: isolate;
+  }
+  .tablet .screen {
+    border-radius: 0.95rem;
   }
 
   .notch {
@@ -69,6 +76,16 @@
     transform: translateX(-50%);
   }
 
+  /* A tablet has a camera dot on the bezel instead of a notch. */
+  .tablet .notch {
+    top: -9px;
+    width: 5px;
+    height: 5px;
+    background: #2c3d34;
+  }
+  .tablet .status {
+    top: 12px;
+  }
   .status {
     position: absolute;
     top: 22px;
@@ -108,72 +125,8 @@
     }
   }
 
-  .sheet {
-    position: absolute;
-    right: 12px;
-    bottom: 14px;
-    left: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-height: 46px;
-    padding: 10px 12px 10px 14px;
-    border-radius: 14px;
-    background: #fbf9f2;
-    box-shadow: 0 8px 20px -8px rgba(10, 25, 15, 0.45);
-  }
-  .sheet-text {
-    color: #15261c;
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-    font-size: 12.5px;
-    font-weight: 600;
-    line-height: 1.2;
-    animation: card-in 0.35s ease both;
-  }
-  .switch {
-    position: relative;
-    flex-shrink: 0;
-    width: 38px;
-    height: 22px;
-    border-radius: 99px;
-    background: #15261c;
-    animation: toggle-bg 0.6s ease both;
-  }
-  .knob {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #f7db5c;
-    transform: translateX(16px);
-    animation: knob 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
-  }
-  @keyframes card-in {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-  }
-  @keyframes toggle-bg {
-    from {
-      background: #b9b4a2;
-    }
-  }
-  @keyframes knob {
-    from {
-      transform: translateX(0);
-      background: #fff;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .status .dot,
-    .sheet-text,
-    .switch,
-    .knob {
+    .status .dot {
       animation: none;
     }
   }

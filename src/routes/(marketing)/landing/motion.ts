@@ -90,3 +90,77 @@ export function parallax(node: HTMLElement, depth = 0.1) {
     },
   }
 }
+
+/**
+ * Playback policy for an SVG animated with SMIL: pause it while it's off
+ * screen, and for visitors who prefer reduced motion hold one representative
+ * frame (`restAt` seconds in) instead of animating.
+ */
+export function smilPlayback(svg: SVGSVGElement, restAt = 0) {
+  if (prefersReducedMotion()) {
+    svg.pauseAnimations()
+    svg.setCurrentTime(restAt)
+    return {}
+  }
+  const observer = new IntersectionObserver(([entry]) => {
+    if (entry.isIntersecting) svg.unpauseAnimations()
+    else svg.pauseAnimations()
+  })
+  observer.observe(svg)
+  return {
+    destroy() {
+      observer.disconnect()
+    },
+  }
+}
+
+export type Point = { x: number; y: number }
+/** When a traveller reaches a point, and how long it stays (loop fractions). */
+export type Leg = { arrive: number; pause?: number }
+
+/**
+ * Timing for an <animateMotion> that drives point to point and waits at some
+ * of them. `legs[i]` describes arriving at `points[i + 1]`. Returns the path
+ * and the keyPoints / keyTimes strings, plus `mid[i]`: the loop fraction
+ * halfway through the wait at each point, for timing what happens there.
+ */
+export function stopAndGo(points: Point[], legs: Leg[], depart = 0) {
+  const lengths = points
+    .slice(1)
+    .map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y))
+  const total = lengths.reduce((sum, l) => sum + l, 0)
+
+  const keyPoints: number[] = [0]
+  const keyTimes: number[] = [0]
+  if (depart > 0) {
+    keyPoints.push(0)
+    keyTimes.push(depart)
+  }
+
+  let run = 0
+  const mid: number[] = []
+  legs.forEach((leg, i) => {
+    run += lengths[i]
+    const at = run / total
+    const pause = leg.pause ?? 0
+    keyPoints.push(at)
+    keyTimes.push(leg.arrive)
+    if (pause > 0) {
+      keyPoints.push(at)
+      keyTimes.push(leg.arrive + pause)
+    }
+    mid.push(leg.arrive + pause / 2)
+  })
+  if (keyTimes[keyTimes.length - 1] < 1) {
+    keyPoints.push(keyPoints[keyPoints.length - 1])
+    keyTimes.push(1)
+  }
+
+  const fmt = (n: number) => String(Number(n.toFixed(4)))
+  return {
+    path: "M" + points.map((p) => `${p.x},${p.y}`).join(" L"),
+    keyPoints: keyPoints.map(fmt).join(";"),
+    keyTimes: keyTimes.map(fmt).join(";"),
+    mid,
+  }
+}
