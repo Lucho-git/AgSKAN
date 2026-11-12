@@ -19,10 +19,8 @@
   import {
     ChevronUp,
     LocateFixed,
-    Minus,
     Navigation,
     Play,
-    Plus,
     Square,
     Trash2,
     X,
@@ -37,11 +35,16 @@
     type Pin,
     type Readout,
   } from "./engine"
-  import type { BaseLook } from "./mapStyle"
+  import type { BaseLook } from "$lib/components/mapnext/mapStyle"
   import { MACHINE_SPECS, machineById } from "./farm"
-  import { compassPoint, distanceM } from "./geo"
+  import { compassPoint, distanceM } from "$lib/components/mapnext/geo"
   import { PIN_KINDS, pinGlyphs, type PinKind } from "./glyphs"
-  import { formatAgo, formatDistance, formatHa } from "./format"
+  import {
+    formatAgo,
+    formatDistance,
+    formatHa,
+  } from "$lib/components/mapnext/format"
+  import { drawColour } from "$lib/components/mapnext/palette"
   import CrewList from "./CrewList.svelte"
   import JoinSheet from "./JoinSheet.svelte"
   import PinGlyph from "./PinGlyph.svelte"
@@ -65,8 +68,10 @@
 
   // ── Choices ──
   const saved = load<Me>("me")
-  // Rust by default: the example crew already use blue, green and teal.
-  let me: Me = saved ?? { name: "", machine: "sprayer", colour: "#D95D39" }
+  // Orange by default: the example crew already use blue, green and sky.
+  let me: Me = saved
+    ? { ...saved, colour: drawColour(saved.colour) }
+    : { name: "", machine: "sprayer", colour: drawColour("Orange") }
   let base: BaseLook = load<BaseLook>("base") ?? "satellite"
   let introSeen = load<boolean>("intro") === true
 
@@ -401,20 +406,6 @@
       {/if}
 
       <div class="mv-corner bottom-right">
-        {#if wide}
-          <div class="mv-zoom">
-            <button
-              type="button"
-              aria-label="Zoom in"
-              on:click={() => engine?.zoomBy(1)}><Plus size={24} /></button
-            >
-            <button
-              type="button"
-              aria-label="Zoom out"
-              on:click={() => engine?.zoomBy(-1)}><Minus size={24} /></button
-            >
-          </div>
-        {/if}
         <button
           type="button"
           class="mv-follow {follow}"
@@ -1009,9 +1000,8 @@
     opacity: 0.6;
   }
 
-  /* ── Follow, zoom and pin ── */
-  .mv-follow,
-  .mv-zoom {
+  /* ── Follow and pin ── */
+  .mv-follow {
     background: var(--lp-card);
     color: var(--lp-ink);
     box-shadow:
@@ -1068,29 +1058,12 @@
     box-shadow: 0 0 0 1px #d6d1bd;
     pointer-events: none;
   }
-  .mv.wide .mv-north {
-    top: 112px;
-  }
   .mv-north i {
     font-family: var(--lp-mono);
     font-size: 11px;
     font-style: normal;
     font-weight: 700;
     color: #d95d39;
-  }
-  .mv-zoom {
-    display: grid;
-    border-radius: 18px;
-  }
-  .mv-zoom button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 54px;
-    height: 54px;
-  }
-  .mv-zoom button + button {
-    border-top: 1px solid var(--lp-line);
   }
   .mv-pin-button {
     display: flex;

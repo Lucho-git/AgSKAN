@@ -11,7 +11,7 @@ import { get, writable, type Writable } from "svelte/store"
 // @ts-expect-error -- no type declarations for mapbox-gl 1.x
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
-import VehicleMarker from "./VehicleMarker.svelte"
+import VehicleMarker from "$lib/components/mapnext/VehicleMarker.svelte"
 import PinMarker from "./PinMarker.svelte"
 import {
   ACCURACY_SOURCE,
@@ -23,7 +23,7 @@ import {
   buildStyle,
   type BaseLook,
   type MapboxMap,
-} from "./mapStyle"
+} from "$lib/components/mapnext/mapStyle"
 import {
   CREW,
   EXAMPLE_PINS,
@@ -37,7 +37,7 @@ import {
   type MachineId,
   type Paddock,
 } from "./farm"
-import { COLOURS } from "../onboarding-preview/machines"
+import { VEHICLE_PALETTE } from "$lib/components/mapnext/palette"
 import {
   bearingDeg,
   clamp,
@@ -50,7 +50,7 @@ import {
   turn,
   type LngLat,
   type Projector,
-} from "./geo"
+} from "$lib/components/mapnext/geo"
 import type { PinKind } from "./glyphs"
 
 export type Me = { name: string; machine: MachineId; colour: string }
@@ -435,7 +435,7 @@ export class MapEngine {
       let colour = member.spec.colour
       if (taken.has(colour.toLowerCase())) {
         colour =
-          COLOURS.map((c) => c.value).find(
+          VEHICLE_PALETTE.map((c) => c.value).find(
             (c) =>
               !taken.has(c.toLowerCase()) &&
               !CREW.some((s) => s.colour.toLowerCase() === c.toLowerCase()),
@@ -552,11 +552,6 @@ export class MapEngine {
       this.insets.left / 2,
       -this.insets.bottom / 2 + (mode === "cab" ? height * 0.16 : 0),
     ]
-  }
-
-  zoomBy(step: number) {
-    this.followPausedUntil = performance.now() + 340
-    this.map.easeTo({ zoom: this.map.getZoom() + step, duration: 300 })
   }
 
   /** Look at a crew member (and stop following yourself). */

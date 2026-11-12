@@ -16,12 +16,22 @@
   export let label = ""
   /** The viewer's own machine: ringed, pulsing, and tagged in yellow. */
   export let me = false
+  /** Not heard from in days: drawn faded, so it reads as "was here". */
+  export let away = false
+  /** Can be tapped (the live map opens that person's card). */
+  export let tappable = false
 
   // A cream machine needs a dark halo to show against pale ground.
   $: halo = colour.toLowerCase() === "#f4f1e6" ? "#15261C" : colour
 </script>
 
-<div class="mv-vehicle" class:me style="--size: {size}px; --halo: {halo}">
+<div
+  class="mv-vehicle"
+  class:me
+  class:away
+  class:tappable
+  style="--size: {size}px; --halo: {halo}"
+>
   {#if me}
     <span class="pulse" aria-hidden="true"></span>
     <span class="ring" aria-hidden="true"></span>
@@ -47,6 +57,17 @@
     width: var(--size);
     height: var(--size);
     pointer-events: none;
+  }
+  .tappable {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .away .art {
+    filter: grayscale(0.85) drop-shadow(0 2px 3px rgba(10, 25, 15, 0.45));
+    opacity: 0.62;
+  }
+  .away .tag {
+    background: rgba(21, 38, 28, 0.72);
   }
   .art {
     position: absolute;

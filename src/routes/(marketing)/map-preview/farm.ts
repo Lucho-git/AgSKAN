@@ -15,7 +15,12 @@ import {
   machineById,
   type MachineId,
 } from "../onboarding-preview/machines"
-import { Track, labelPoint, workingPasses, type XY } from "./geo"
+import {
+  Track,
+  labelPoint,
+  workingPasses,
+  type XY,
+} from "$lib/components/mapnext/geo"
 import type { PinKind } from "./glyphs"
 
 export { MACHINES, machineById, type MachineId }
@@ -269,7 +274,7 @@ export const CREW: CrewSpec[] = [
     id: "bec",
     name: "Bec",
     machine: "ute",
-    colour: "#0E8C99",
+    colour: "#1A9BC2",
     job: {
       type: "run",
       stops: [

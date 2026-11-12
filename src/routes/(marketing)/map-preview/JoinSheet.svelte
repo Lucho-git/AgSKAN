@@ -14,7 +14,7 @@
     LocateFixed,
   } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
-  import { COLOURS } from "../onboarding-preview/machines"
+  import { VEHICLE_PALETTE } from "$lib/components/mapnext/palette"
   import { MACHINES, MACHINE_SPECS, machineById } from "./farm"
   import type { GpsState, Me } from "./engine"
 
@@ -105,13 +105,13 @@
           <div class="colours">
             <span class="lp-eyebrow">Colour</span>
             <div class="swatches">
-              {#each COLOURS as option}
+              {#each VEHICLE_PALETTE as option}
                 <button
                   type="button"
                   class="swatch"
                   class:selected={me.colour === option.value}
                   style="--swatch: {option.value}"
-                  aria-label={option.name}
+                  aria-label={option.label}
                   aria-pressed={me.colour === option.value}
                   on:click={() => update({ colour: option.value })}
                 ></button>
@@ -381,18 +381,20 @@
   }
 
   .colours {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
+    display: grid;
+    gap: 0.45rem;
     margin-top: 0.9rem;
   }
+  /* Nine across, whatever the width: they share the row. */
   .swatches {
-    display: flex;
-    gap: 0.3rem;
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 0.25rem;
+    max-width: 25.4rem;
   }
   .swatch {
-    width: clamp(2.1rem, 9.6vw, 2.6rem);
-    height: clamp(2.1rem, 9.6vw, 2.6rem);
+    width: 100%;
+    aspect-ratio: 1;
     border: 3px solid var(--lp-paper);
     border-radius: 50%;
     background: var(--swatch);

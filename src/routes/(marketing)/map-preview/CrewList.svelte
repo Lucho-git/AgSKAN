@@ -3,7 +3,7 @@
   import { createEventDispatcher } from "svelte"
   import vehicles from "$lib/vehicles"
   import { machineById } from "./farm"
-  import { formatDistance } from "./format"
+  import { formatDistance } from "$lib/components/mapnext/format"
   import type { CrewRow } from "./engine"
 
   export let crew: CrewRow[] = []
