@@ -27,6 +27,7 @@
   import { App } from "@capacitor/app"
   import { Capacitor } from "@capacitor/core"
   import { networkStore } from "$lib/stores/networkStore"
+  import { mergeVehicleSnapshot } from "$lib/utils/vehicleSnapshot"
 
   let channel = null
   let appStateListener = null
@@ -320,15 +321,19 @@
 
   // Re-read the map's profile list (used by the poll so stale entries —
   // removed or expired guests — drop out of every filter within a minute).
+  // Resolves true only when the list was actually re-read, so callers know
+  // whether it is safe to drop vehicles that are not on it.
   async function refreshConnectedProfiles() {
     const mapId = $profileStore.master_map_id
-    if (!mapId) return
+    if (!mapId) return false
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, map_role, selected_operation_id")
         .eq("master_map_id", mapId)
-      if (error || !data) return
+      // An empty list is never right while we are on the map ourselves: treat
+      // it like a failed read rather than emptying the roster.
+      if (error || !data || data.length === 0) return false
       mapActivityStore.update((state) => {
         const existing = state.connected_profiles || []
         const list = data.map((p) => {
@@ -345,8 +350,10 @@
         })
         return { ...state, connected_profiles: list }
       })
+      return true
     } catch (e) {
       /* best effort */
+      return false
     }
   }
 
@@ -531,6 +538,10 @@
       // this, the poll resurrects every historical vehicle_state row ever
       // written for the map (dead accounts) with no name.
       const profileMap = getConnectedProfileMap()
+      // With no team list at all (it failed to load) we cannot tell who has
+      // left, so nobody is pruned this cycle — better a stale vehicle than an
+      // empty map.
+      const teamKnown = profileMap.size > 0
       const connectedData = data.filter((row) =>
         isConnectedUser(profileMap, row.vehicle_id),
       )
@@ -538,9 +549,10 @@
       let hasUpdate = false
       serverOtherVehiclesData.update((vehicles) => {
         // Prune vehicles whose owner is no longer connected to this map.
-        const pruned = vehicles.filter((v) =>
-          isConnectedUser(profileMap, v.vehicle_id),
-        )
+        const pruned = teamKnown
+          ? vehicles.filter((v) => isConnectedUser(profileMap, v.vehicle_id))
+          : [...vehicles]
+        if (pruned.length !== vehicles.length) hasUpdate = true
         for (const rawRow of connectedData) {
           const row = enrichWithProfile(rawRow, profileMap)
           const idx = pruned.findIndex((v) => v.vehicle_id === row.vehicle_id)
@@ -782,11 +794,47 @@
     }
   }
 
-  /** Pull one authoritative snapshot — used to close the gap after a reconnect. */
+  /**
+   * Close the gap after a reconnect by re-reading the team and their vehicles
+   * from the database.
+   *
+   * This used to rebuild the list from mapActivityStore.vehicle_states — a
+   * copy saved once at page load — and replace the live list with it. Anyone
+   * not in that copy was removed from the map: everyone who joined later, or
+   * every vehicle if that first query had failed and the copy was empty.
+   * Now a failed read changes nothing, and a vehicle is only dropped when a
+   * confirmed team list says its owner has left.
+   */
   async function refreshVehicleSnapshot(masterMapId, userId) {
     try {
-      const snapshot = await fetchInitialVehicleData(masterMapId, userId)
-      serverOtherVehiclesData.set(snapshot)
+      const teamConfirmed = await refreshConnectedProfiles()
+
+      const { data, error } = await supabase
+        .from("vehicle_state")
+        .select("*")
+        .eq("master_map_id", masterMapId)
+        .neq("vehicle_id", userId)
+
+      if (error || !data) {
+        console.warn(
+          "[vehicle-rt] snapshot read failed — keeping current vehicles:",
+          error,
+        )
+        return
+      }
+
+      const profileMap = getConnectedProfileMap()
+      const fresh = data
+        .filter((row) => isConnectedUser(profileMap, row.vehicle_id))
+        .map((row) => enrichWithProfile(row, profileMap))
+
+      serverOtherVehiclesData.update((vehicles) =>
+        mergeVehicleSnapshot(
+          vehicles,
+          fresh,
+          teamConfirmed ? new Set(profileMap.keys()) : null,
+        ),
+      )
       const changes = compareData($serverOtherVehiclesData, $otherVehiclesStore)
       otherVehiclesDataChanges.set(changes)
       console.log("[vehicle-rt] snapshot refreshed after reconnect")
