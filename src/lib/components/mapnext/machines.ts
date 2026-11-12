@@ -3,8 +3,9 @@
  *
  * `type` is the name saved in `vehicle_marker.type` and the key into
  * `$lib/vehicles`; both viewers share it. What is new here is the plain
- * label, the grouping for the picker and one rule the old viewer never had:
- * road and yard vehicles show up live but don't paint a trail.
+ * label, the grouping for the picker and one distinction the old viewer never
+ * made: road and yard vehicles show up live but don't usually paint a trail
+ * (the live map checks before starting one in them; the demo never does).
  */
 import vehicles from "$lib/vehicles"
 
@@ -30,7 +31,7 @@ export type MachineSpec = {
   minPx: number
   /** Marker size the old viewer uses for this type (saved alongside it). */
   size: number
-  /** Works a paddock and paints coverage; road and yard vehicles don't. */
+  /** Works a paddock and paints coverage; road and yard vehicles usually don't. */
   paints: boolean
   /** What it is doing while it works. */
   verb: string

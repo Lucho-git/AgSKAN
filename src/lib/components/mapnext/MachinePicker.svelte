@@ -31,6 +31,7 @@
   $: current = machineFor(type)
   $: paint = drawColour(colour)
   $: selectedColour = findColour(colour)?.id ?? null
+  $: selectedLabel = findColour(colour)?.label ?? ""
   let showAll = false
   $: groups = MACHINE_GROUPS.filter(
     (group) => !compact || showAll || group === current.group,
@@ -56,7 +57,9 @@
 
 <div class="mn-machine-picker">
   <div class="colours">
-    <span class="lp-eyebrow">Colour</span>
+    <span class="lp-eyebrow">
+      Colour{#if selectedLabel}<b>{selectedLabel}</b>{/if}
+    </span>
     <div class="swatches">
       {#each VEHICLE_PALETTE as option}
         <button
@@ -106,39 +109,46 @@
     </button>
   {/if}
 
-  {#if current.paints}
-    <div class="width">
-      <span class="about">
-        <span class="lp-eyebrow">Working width</span>
-        <span class="note">How wide a trail it paints</span>
+  <div class="width">
+    <span class="about">
+      <span class="lp-eyebrow">Working width</span>
+      <span class="note">
+        {current.paints
+          ? "How wide a trail it paints"
+          : "Only if you start a trail in it"}
       </span>
-      <span class="stepper">
-        <button
-          type="button"
-          aria-label="Narrower"
-          disabled={swath <= 2}
-          on:click={() => nudge(-1)}><Minus size={20} /></button
-        >
-        <b>{swath}<small>m</small></b>
-        <button
-          type="button"
-          aria-label="Wider"
-          disabled={swath >= 60}
-          on:click={() => nudge(1)}><Plus size={20} /></button
-        >
-      </span>
-    </div>
-  {:else}
-    <p class="lesson">
-      A {current.label.toLowerCase()} shows up live for the crew but leaves no trail.
-    </p>
-  {/if}
+    </span>
+    <span class="stepper">
+      <button
+        type="button"
+        aria-label="Narrower"
+        disabled={swath <= 2}
+        on:click={() => nudge(-1)}><Minus size={20} /></button
+      >
+      <b>{swath}<small>m</small></b>
+      <button
+        type="button"
+        aria-label="Wider"
+        disabled={swath >= 60}
+        on:click={() => nudge(1)}><Plus size={20} /></button
+      >
+    </span>
+  </div>
 </div>
 
 <style>
   .mn-machine-picker {
     display: grid;
     gap: 0.9rem;
+  }
+  /* The name of the colour that is picked, beside the heading. */
+  .colours .lp-eyebrow b {
+    margin-left: 0.6em;
+    padding: 0.15em 0.6em;
+    border-radius: 99px;
+    background: var(--lp-ink);
+    color: var(--lp-paper);
+    font-weight: 700;
   }
   .colours,
   .group {
@@ -219,8 +229,7 @@
     display: grid;
     gap: 0.1rem;
   }
-  .note,
-  .lesson {
+  .note {
     font-size: 0.85rem;
     line-height: 1.35;
     color: var(--lp-ink-soft);

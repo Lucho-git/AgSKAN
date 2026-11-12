@@ -11,6 +11,7 @@ import { get, writable, type Writable } from "svelte/store"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import VehicleMarker from "$lib/components/mapnext/VehicleMarker.svelte"
+import SelectedPin from "$lib/components/mapnext/SelectedPin.svelte"
 import {
   ACCURACY_SOURCE,
   FARM_SOURCE,
@@ -22,6 +23,12 @@ import {
   TRAIL_SOURCE,
   applyBase,
   buildStyle,
+  march,
+  pickPaddock,
+  pinPixels,
+  pickTrail as paintPickedTrail,
+  PICKED_TRAIL_SOURCE,
+  REPLAY_SOURCE,
   setImagery,
   type BaseLook,
   type MapboxMap,
@@ -45,8 +52,10 @@ import { drawColour } from "$lib/components/mapnext/palette"
 import {
   loadPinGlyphs,
   pinDataUrl,
+  pinColour,
   pinImageKey,
   pinLabel,
+  type PinLook,
 } from "$lib/components/mapnext/pins"
 import {
   CrewLink,
@@ -57,6 +66,8 @@ import {
   loadPaddocks,
   loadPins,
   loadTrailShape,
+  loadTrailTimeline,
+  deleteTrail,
   removePin,
   restorePin,
   saveMyMachine,
@@ -117,6 +128,12 @@ export type CrewRow = {
 export type ToolView = "home" | "machine" | "pins" | "trails" | "map" | "farm"
 export type BaseChoice = { key: string; label: string; note: string }
 
+/** This person's own marker colour settings (which colour a pin gets). */
+export type PinSettings = {
+  markerDefaultColor?: string | null
+  markerTypeDefaultColors?: Record<string, string> | null
+}
+
 export type Loading = {
   paddocks: boolean
   pins: boolean
@@ -132,6 +149,44 @@ type Fix = {
   /** m/s from the GPS chip, when it reports one. */
   speed: number | null
   heading: number | null
+}
+
+export type ReplayState = {
+  trailId: string
+  phase: "loading" | "playing" | "paused" | "done"
+  /** How far through the trail, 0 to 1. */
+  progress: number
+  /** The time of day the machine was at this point (ms). */
+  time: number
+  /** Playback speed: 1, 2, 4 or 8 times the base pace. */
+  rate: number
+  /** Timed from the trail's own record, not spread evenly start to finish. */
+  timed: boolean
+}
+
+type ReplayPoint = {
+  at: LngLat
+  /** When the machine was here (ms). */
+  t: number
+  /** Position on the playback axis: working time so far, stops shortened. */
+  axis: number
+  part: number
+}
+
+type Replay = {
+  info: TrailInfo
+  points: ReplayPoint[]
+  /** Each stretch's coordinates and where it starts in `points`. */
+  parts: { coords: LngLat[]; from: number }[]
+  total: number
+  cursor: number
+  index: number
+  /** Seconds the whole trail takes at 1×. */
+  seconds: number
+  vehicle: Vehicle
+  colour: string
+  drawn: number
+  told: number
 }
 
 type Vehicle = {
@@ -240,6 +295,10 @@ export class LiveEngine {
   readonly dropped = writable(0)
   readonly selectedPin: Writable<LivePin | null> = writable(null)
   readonly selectedCrew: Writable<string | null> = writable(null)
+  readonly selectedPaddock: Writable<Paddock | null> = writable(null)
+  /** The finished trail picked out on the map, and its replay if running. */
+  readonly selectedTrail: Writable<TrailInfo | null> = writable(null)
+  readonly replay: Writable<ReplayState | null> = writable(null)
   readonly loading: Writable<Loading> = writable({
     paddocks: true,
     pins: true,
@@ -266,9 +325,19 @@ export class LiveEngine {
 
   private paddocks: Paddock[] = []
   private farmBounds: [number, number, number, number] | null = null
+  /** The main body of the farm, without far-flung blocks: the first view. */
+  private homeBounds: [number, number, number, number] | null = null
   private pinsById = new Map<string, LivePin>()
   private pinDraw = 0
   private pinImages = new Set<string>()
+  private pinSettings: PinSettings | null
+  /** The tapped pin, lifted off the layer as an animated marker. */
+  private picked: { marker: MapboxMap; view: SelectedPin } | null = null
+  /** Something is picked out with marching dashes: keep them moving. */
+  private marching = false
+  private replaying: Replay | null = null
+  private marchTick = 0
+  private marchStep = 0
   private crewById = new Map<string, CrewEntry>()
   private onlineIds = new Set<string>()
   private link: CrewLink
@@ -324,8 +393,10 @@ export class LiveEngine {
       me: VehicleMarkerData
       base: BaseLook
       imagery: string | null
+      pinSettings?: PinSettings | null
     },
   ) {
+    this.pinSettings = options.pinSettings ?? null
     this.userId = options.userId
     this.mapId = options.mapId
     this.me = options.me
@@ -412,10 +483,7 @@ export class LiveEngine {
           : []
         const id = hits[0]?.properties?.id as string | undefined
         const pin = id ? this.pinsById.get(id) : undefined
-        this.selectedCrew.set(null)
-        this.selectedPin.update((current) =>
-          pin && current?.id !== pin.id ? pin : null,
-        )
+        this.tapped(pin ?? null, [e.lngLat.lng, e.lngLat.lat])
       },
     )
     this.map.on("mouseenter", PIN_LAYER, () => {
@@ -424,9 +492,14 @@ export class LiveEngine {
     this.map.on("mouseleave", PIN_LAYER, () => {
       if (!this.armed) this.map.getCanvas().style.cursor = ""
     })
-    this.selectedPin.subscribe((pin) => {
-      if (get(this.ready))
-        this.map.setFilter("mv-pin-halo", ["==", ["get", "id"], pin?.id ?? ""])
+    this.selectedPin.subscribe((pin) => this.showPicked(pin))
+    this.selectedCrew.subscribe((id) => {
+      for (const [crewId, entry] of this.crewById)
+        entry.vehicle?.view.$set({ selected: crewId === id })
+    })
+    this.selectedPaddock.subscribe((paddock) => {
+      if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
+      this.keepMarching()
     })
     document.addEventListener("visibilitychange", this.onVisibility)
 
@@ -453,25 +526,50 @@ export class LiveEngine {
         this.paddocks = paddocks
         // The farm's extent, known as soon as the paddocks are (the map may
         // not be ready to draw them yet, but it can already be aimed).
-        this.farmBounds = paddocks.length
-          ? [
-              Math.min(...paddocks.map((p) => p.bbox[0])),
-              Math.min(...paddocks.map((p) => p.bbox[1])),
-              Math.max(...paddocks.map((p) => p.bbox[2])),
-              Math.max(...paddocks.map((p) => p.bbox[3])),
-            ]
-          : null
+        const around = (
+          list: Paddock[],
+        ): [number, number, number, number] | null =>
+          list.length
+            ? [
+                Math.min(...list.map((p) => p.bbox[0])),
+                Math.min(...list.map((p) => p.bbox[1])),
+                Math.max(...list.map((p) => p.bbox[2])),
+                Math.max(...list.map((p) => p.bbox[3])),
+              ]
+            : null
+        this.farmBounds = around(paddocks)
+        // A block or two a long way off would shrink the first view to a
+        // smudge: open on the main body of the farm instead.
+        const centre = (p: Paddock): LngLat => [
+          (p.bbox[0] + p.bbox[2]) / 2,
+          (p.bbox[1] + p.bbox[3]) / 2,
+        ]
+        const middle = (values: number[]) =>
+          [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+        if (paddocks.length >= 6) {
+          const heart: LngLat = [
+            middle(paddocks.map((p) => centre(p)[0])),
+            middle(paddocks.map((p) => centre(p)[1])),
+          ]
+          const reach = paddocks.map((p) => distanceM(centre(p), heart))
+          const typical = [...reach].sort((a, b) => a - b)[
+            Math.floor(reach.length * 0.75)
+          ]
+          this.homeBounds = around(
+            paddocks.filter((_, i) => reach[i] <= typical * 2.2),
+          )
+        } else this.homeBounds = this.farmBounds
         this.farm.set({
           paddocks: paddocks.length,
           ha: paddocks.reduce((sum, p) => sum + p.ha, 0),
         })
         this.drawPaddocks()
-        if (!this.arrived) this.fitFarm(0)
+        if (!this.arrived) this.fitFarm(0, false)
         else if (this.lastFix && this.farAway(this.lastFix.at)) {
           // Their first fix beat the paddocks here, and it is nowhere near
           // this farm: show the farm rather than where they are sitting.
           this.readout.update((r) => ({ ...r, far: true }))
-          this.fitFarm(0)
+          this.fitFarm(0, false)
         }
       })
       .catch(() => this.problem.set("Couldn't load the paddocks."))
@@ -582,6 +680,7 @@ export class LiveEngine {
     }
     this.map.getSource(FARM_SOURCE).setData(collection(features))
     this.map.getSource(LABEL_SOURCE).setData(collection(labels))
+    pickPaddock(this.map, get(this.selectedPaddock)?.id ?? null)
   }
 
   private paddockAt(at: LngLat) {
@@ -595,8 +694,8 @@ export class LiveEngine {
   }
 
   /** Show the whole farm (its paddocks, or its pins if it has none). */
-  fitFarm(duration = 900) {
-    let bounds = this.farmBounds
+  fitFarm(duration = 900, whole = true) {
+    let bounds = whole ? this.farmBounds : this.homeBounds
     if (!bounds && this.pinsById.size) {
       const pins = [...this.pinsById.values()]
       bounds = [
@@ -629,14 +728,124 @@ export class LiveEngine {
 
   // ── Pins ────────────────────────────────────────────────────────────────
 
-  private lookOf = (pin: LivePin) => ({
+  /** How a pin is drawn, with the colour this person sees it in. */
+  pinLook = (pin: LivePin): PinLook => ({
     iconClass: pin.iconClass,
-    colour: pin.colour,
+    colour: pinColour(pin, this.pinSettings),
     gateOpen: pin.gateOpen,
     rockPicked: pin.rockPicked,
     fill: pin.fill,
     grainColour: pin.grainColour,
   })
+
+  /** Their marker colour settings changed: repaint the pins. */
+  setPinSettings(settings: PinSettings | null) {
+    this.pinSettings = settings
+    this.drawPins()
+    this.showPicked(get(this.selectedPin))
+  }
+
+  /** Lift the tapped pin off the layer as an animated marker (or put it back). */
+  private showPicked(pin: LivePin | null) {
+    if (!pin) {
+      this.picked?.view.$destroy()
+      this.picked?.marker.remove()
+      this.picked = null
+      return
+    }
+    const props = {
+      image: pinImageKey(this.pinLook(pin)),
+      size: Math.round(pinPixels(this.map.getZoom())),
+    }
+    if (this.picked) {
+      this.picked.view.$set(props)
+      this.picked.marker.setLngLat(pin.at)
+      return
+    }
+    const el = document.createElement("div")
+    el.style.pointerEvents = "none"
+    const view = new SelectedPin({ target: el, props })
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat(pin.at)
+      .addTo(this.map)
+    marker.getElement().style.zIndex = "2"
+    this.picked = { marker, view }
+  }
+
+  /**
+   * A tap on the map that wasn't for dropping a pin: a pin under the finger
+   * wins, then the paddock it landed in; tapping what is already picked, or
+   * open ground, lets go of everything.
+   */
+  private tapped(pin: LivePin | null, at: LngLat) {
+    const current = {
+      pin: get(this.selectedPin),
+      crew: get(this.selectedCrew),
+      paddock: get(this.selectedPaddock),
+    }
+    // A replay isn't ended by a stray tap; a picked trail is let go by one.
+    if (this.replaying) return
+    if (get(this.selectedTrail)) {
+      this.pickTrail(null)
+      if (!pin) return
+    }
+    this.selectedCrew.set(null)
+    if (pin) {
+      this.selectedPaddock.set(null)
+      this.selectedPin.set(current.pin?.id === pin.id ? null : pin)
+      return
+    }
+    this.selectedPin.set(null)
+    // Letting go of a pin or a machine shouldn't pick the paddock under it.
+    if (current.pin || current.crew) return
+    const paddock = this.paddockAt(at)
+    this.selectedPaddock.set(
+      paddock && current.paddock?.id !== paddock.id ? paddock : null,
+    )
+  }
+
+  /** Pick a crew member out (from the list), letting go of anything else. */
+  pickCrew(id: string | null) {
+    this.selectedPin.set(null)
+    this.selectedPaddock.set(null)
+    this.selectedCrew.set(id)
+  }
+
+  /** Let go of whatever is picked on the map. */
+  clearSelection() {
+    this.pickTrail(null)
+    this.selectedPin.set(null)
+    this.selectedCrew.set(null)
+    this.selectedPaddock.set(null)
+  }
+
+  private keepMarching() {
+    this.marching = !!get(this.selectedPaddock) || !!get(this.selectedTrail)
+  }
+
+  /** Bring a paddock into view. */
+  lookAtPaddock(id: string) {
+    const paddock = this.paddocks.find((p) => p.id === id)
+    if (!paddock) return false
+    this.setFollow("free")
+    this.map.fitBounds(
+      [
+        [paddock.bbox[0], paddock.bbox[1]],
+        [paddock.bbox[2], paddock.bbox[3]],
+      ],
+      {
+        padding: {
+          top: 110,
+          right: 60,
+          bottom: 190 + this.insets.bottom,
+          left: 60 + this.insets.left,
+        },
+        maxZoom: 16.5,
+        duration: 900,
+      },
+    )
+    return true
+  }
 
   private addPinImage(key: string) {
     return new Promise<void>((resolve) => {
@@ -660,7 +869,7 @@ export class LiveEngine {
     await loadPinGlyphs()
     const pins = [...this.pinsById.values()]
     const features = pins.map((pin) => {
-      const image = pinImageKey(this.lookOf(pin))
+      const image = pinImageKey(this.pinLook(pin))
       const bin = pin.grainType || pin.fill > 0
       return {
         type: "Feature",
@@ -785,9 +994,13 @@ export class LiveEngine {
         event.stopPropagation()
         if (this.armed) return
         this.selectedPin.set(null)
+        this.selectedPaddock.set(null)
         this.selectedCrew.update((id) => (id === state.id ? null : state.id))
       })
-      entry.vehicle.view.$set({ tappable: true })
+      entry.vehicle.view.$set({
+        tappable: true,
+        selected: get(this.selectedCrew) === state.id,
+      })
       if (state.heading !== null) entry.vehicle.heading = state.heading
       this.onZoom()
     } else {
@@ -816,6 +1029,7 @@ export class LiveEngine {
     entry.vehicle.view.$set({
       label: this.tagFor(entry),
       away: Date.now() - state.t > AWAY_AFTER,
+      speed: Date.now() - state.t < FRESH_FOR ? state.speed : 0,
     })
   }
 
@@ -896,6 +1110,7 @@ export class LiveEngine {
       return
     }
     this.operation = operation
+    this.pickTrail(null)
     const load = ++this.trailLoad
     this.stopTrailWatch?.()
     this.stopTrailWatch = null
@@ -983,6 +1198,7 @@ export class LiveEngine {
         })
       },
       deleted: (id) => {
+        if (get(this.selectedTrail)?.id === id) this.pickTrail(null)
         if (this.liveTrails.delete(id)) this.liveDirty = true
         if (this.historyIds.delete(id)) {
           this.history = this.history.filter(
@@ -1012,6 +1228,281 @@ export class LiveEngine {
         geometry: shape.pausePath,
       })
     this.historyDirty = true
+  }
+
+  // ── Picking a trail out, and replaying it ───────────────────────────────
+
+  private trailFeatures(id: string) {
+    return this.history.filter((f) => {
+      const properties = (f as { properties: Record<string, unknown> })
+        .properties
+      return properties.id === id && properties.segment !== "pause"
+    }) as { geometry: { type: string; coordinates: unknown } }[]
+  }
+
+  /** Dim or restore the trails to suit what is picked (and being replayed). */
+  private paintPicked() {
+    if (!get(this.ready)) return
+    const picked = get(this.selectedTrail)
+    paintPickedTrail(this.map, picked?.id ?? null, this.base, !!this.replaying)
+  }
+
+  /**
+   * Pick one finished trail out: it stands forward with a line marching
+   * the way it was driven, the others fade back, and the map moves to it.
+   * `null` lets it go.
+   */
+  pickTrail(id: string | null) {
+    const info = id ? get(this.trails).find((t) => t.id === id) : null
+    if (!info && !get(this.selectedTrail)) return false
+    this.stopReplay()
+    if (info) {
+      this.selectedPin.set(null)
+      this.selectedCrew.set(null)
+      this.selectedPaddock.set(null)
+    }
+    const features = info ? this.trailFeatures(info.id) : []
+    // Chosen from the list before its shape has arrived: nothing to show.
+    if (info && !features.length) return false
+    this.selectedTrail.set(info ?? null)
+    if (get(this.ready))
+      this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection(features))
+    this.paintPicked()
+    this.keepMarching()
+    if (info) this.lookAtTrail(info.id)
+    return true
+  }
+
+  /** Delete the picked trail for good. */
+  async deletePickedTrail() {
+    const info = get(this.selectedTrail)
+    if (!info) return false
+    try {
+      await deleteTrail(info.id)
+    } catch {
+      this.problem.set("That trail couldn't be deleted. Try again.")
+      return false
+    }
+    this.pickTrail(null)
+    this.historyIds.delete(info.id)
+    this.history = this.history.filter(
+      (f) => (f as { properties: { id: string } }).properties.id !== info.id,
+    )
+    this.historyDirty = true
+    this.trails.update((list) => list.filter((t) => t.id !== info.id))
+    return true
+  }
+
+  /** Play the picked trail back (or carry on, or start again at the end). */
+  async playReplay() {
+    const info = get(this.selectedTrail)
+    if (!info) return
+    const running = this.replaying
+    if (running) {
+      if (running.cursor >= running.total) running.cursor = 0
+      this.replay.update((r) => (r ? { ...r, phase: "playing" } : r))
+      return
+    }
+    if (get(this.replay)?.phase === "loading") return
+    this.replay.set({
+      trailId: info.id,
+      phase: "loading",
+      progress: 0,
+      time: info.start,
+      rate: 1,
+      timed: false,
+    })
+    const timeline = await loadTrailTimeline(info).catch(() => null)
+    // They moved on while it loaded.
+    if (get(this.selectedTrail)?.id !== info.id || !get(this.replay)) return
+    if (!timeline || !timeline.parts.length) {
+      this.replay.set(null)
+      this.problem.set("This trail has no recorded path to replay.")
+      return
+    }
+
+    // Lay every point on one axis of working time. Untimed trails get an
+    // even pace from start to finish; long stops are shortened either way.
+    const points: ReplayPoint[] = []
+    const parts: Replay["parts"] = []
+    let length = 0
+    if (!timeline.timed)
+      for (const part of timeline.parts)
+        for (let i = 1; i < part.length; i++)
+          length += distanceM(part[i - 1].at, part[i].at)
+    const span =
+      info.end && info.end > info.start
+        ? info.end - info.start
+        : (length / 5) * 1000
+    let axis = 0
+    let covered = 0
+    timeline.parts.forEach((part, index) => {
+      parts.push({ coords: part.map((point) => point.at), from: points.length })
+      part.forEach((point, i) => {
+        let t = point.t
+        if (!timeline.timed) {
+          if (i > 0) covered += distanceM(part[i - 1].at, point.at)
+          t = info.start + (length ? covered / length : 0) * span
+        }
+        if (i > 0) axis += clamp(t - points[points.length - 1].t, 0, 20_000)
+        points.push({ at: point.at, t, axis, part: index })
+      })
+    })
+    if (points.length < 2 || axis <= 0) {
+      this.replay.set(null)
+      this.problem.set("This trail is too short to replay.")
+      return
+    }
+
+    const spec = machineFor(info.machine)
+    const vehicle = this.mountVehicle(
+      spec.type,
+      drawColour(info.colour),
+      "Replay",
+      points[0].at,
+      false,
+    )
+    vehicle.marker.getElement().style.zIndex = "5"
+    this.replaying = {
+      info,
+      points,
+      parts,
+      total: axis,
+      cursor: 0,
+      index: 0,
+      // A whole trail plays in under a minute or so at 1×.
+      seconds: clamp(axis / 1000 / 150, 14, 70),
+      vehicle,
+      colour: drawColour(info.colour),
+      drawn: -1,
+      told: 0,
+    }
+    this.onZoom()
+    this.paintPicked()
+    // The marching line steps aside: the trail paints itself in instead.
+    this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection([]))
+    this.replay.set({
+      trailId: info.id,
+      phase: "playing",
+      progress: 0,
+      time: points[0].t,
+      rate: 1,
+      timed: timeline.timed,
+    })
+  }
+
+  pauseReplay() {
+    this.replay.update((r) =>
+      r && r.phase === "playing" ? { ...r, phase: "paused" } : r,
+    )
+  }
+
+  /** Jump to a point in the replay, 0 to 1. */
+  seekReplay(progress: number) {
+    const running = this.replaying
+    if (!running) return
+    running.cursor = clamp(progress, 0, 1) * running.total
+    running.drawn = -1
+    this.replay.update((r) =>
+      r && r.phase === "done" ? { ...r, phase: "paused" } : r,
+    )
+  }
+
+  setReplayRate(rate: number) {
+    this.replay.update((r) => (r ? { ...r, rate } : r))
+  }
+
+  /** End the replay and put the trail back as it was. */
+  stopReplay() {
+    const running = this.replaying
+    this.replay.set(null)
+    if (!running) return
+    running.vehicle.view.$destroy()
+    running.vehicle.marker.remove()
+    this.replaying = null
+    this.map.getSource(REPLAY_SOURCE)?.setData(collection([]))
+    this.map
+      .getSource(PICKED_TRAIL_SOURCE)
+      ?.setData(collection(this.trailFeatures(running.info.id)))
+    this.paintPicked()
+  }
+
+  /** Move the replay on by one frame. */
+  private stepReplay(dt: number, now: number) {
+    const running = this.replaying
+    const state = get(this.replay)
+    if (!running || !state) return
+    const { points } = running
+    if (state.phase === "playing")
+      running.cursor = Math.min(
+        running.total,
+        running.cursor + dt * (running.total / running.seconds) * state.rate,
+      )
+
+    const last = points.length - 1
+    while (
+      running.index < last - 1 &&
+      points[running.index + 1].axis <= running.cursor
+    )
+      running.index++
+    while (running.index > 0 && points[running.index].axis > running.cursor)
+      running.index--
+    const a = points[running.index]
+    const b = points[Math.min(running.index + 1, last)]
+    let at = a.at
+    let time = a.t
+    if (b.part === a.part && b.axis > a.axis) {
+      const f = clamp((running.cursor - a.axis) / (b.axis - a.axis), 0, 1)
+      at = [lerp(a.at[0], b.at[0], f), lerp(a.at[1], b.at[1], f)]
+      time = lerp(a.t, b.t, f)
+      if (distanceM(a.at, b.at) > 0.5)
+        running.vehicle.heading = bearingDeg(a.at, b.at)
+    } else if (running.cursor >= b.axis) {
+      // The end of a stretch: the machine picks up where the next begins.
+      at = b.at
+      time = b.t
+    }
+
+    const { vehicle } = running
+    vehicle.pos = at
+    vehicle.marker.setLngLat(at)
+    vehicle.eased = Number.isNaN(vehicle.eased)
+      ? vehicle.heading
+      : easeHeading(vehicle.eased, vehicle.heading, 1 - Math.exp(-dt * 8))
+    this.turnTo(vehicle, vehicle.eased - this.map.getBearing())
+
+    // The trail paints in behind the machine, a few times a second.
+    if (running.cursor !== running.drawn && now - running.told > 70) {
+      running.drawn = running.cursor
+      const onNext = at === b.at && b.part !== a.part
+      const here = onNext ? b : a
+      const hereIndex = onNext ? running.index + 1 : running.index
+      const features = running.parts.flatMap((part, index) => {
+        if (index > here.part) return []
+        const coords =
+          index < here.part
+            ? part.coords
+            : [...part.coords.slice(0, hereIndex - part.from + 1), at]
+        return coords.length > 1
+          ? [line(coords, running.colour, running.info.width)]
+          : []
+      })
+      this.map.getSource(REPLAY_SOURCE)?.setData(collection(features))
+    }
+    if (now - running.told > 70) {
+      running.told = now
+      const done = running.cursor >= running.total
+      this.replay.update((r) =>
+        r
+          ? {
+              ...r,
+              progress: running.cursor / running.total,
+              time,
+              phase: done && r.phase === "playing" ? "done" : r.phase,
+            }
+          : r,
+      )
+    }
   }
 
   /** Bring a finished trail into view. */
@@ -1047,7 +1538,7 @@ export class LiveEngine {
         padding: {
           top: 100,
           right: 60,
-          bottom: 80 + this.insets.bottom,
+          bottom: 200 + this.insets.bottom,
           left: 60 + this.insets.left,
         },
         maxZoom: 16.5,
@@ -1215,6 +1706,7 @@ export class LiveEngine {
     if (!get(this.ready)) return
     if (changed) setImagery(this.map, imagery, look)
     applyBase(this.map, look)
+    this.paintPicked()
   }
 
   /** Space the chrome covers, so "centred" means centred in what's left. */
@@ -1568,6 +2060,17 @@ export class LiveEngine {
       }
     }
 
+    this.stepReplay(dt, now)
+
+    // Whatever is picked out keeps its dashes marching.
+    if (this.marching) {
+      this.marchTick -= dt
+      if (this.marchTick <= 0) {
+        this.marchTick = 0.07
+        march(this.map, this.marchStep++)
+      }
+    }
+
     // Trails redraw a few times a second, not every frame.
     this.trailTick -= dt
     if (this.trailTick <= 0) {
@@ -1578,6 +2081,21 @@ export class LiveEngine {
     if (this.slowTick <= 0) {
       this.slowTick = 1
       this.publishCrew()
+      // A machine that has gone quiet isn't doing the speed it last sent.
+      for (const entry of this.crewById.values())
+        if (
+          entry.vehicle &&
+          entry.state &&
+          entry.state.speed > 0 &&
+          Date.now() - entry.state.t >= FRESH_FOR
+        )
+          entry.vehicle.view.$set({ speed: 0 })
+      this.mine?.view.$set({
+        speed:
+          this.lastFix && Date.now() - this.lastFix.t < 15000
+            ? this.speedKmh
+            : 0,
+      })
       if (this.recorder.elsewhere && ++this.elsewhereTick >= 45) {
         this.elsewhereTick = 0
         this.recorder.recheck()
@@ -1619,6 +2137,8 @@ export class LiveEngine {
     for (const entry of this.crewById.values())
       if (entry.vehicle) resize(entry.vehicle)
     if (this.mine) resize(this.mine)
+    if (this.replaying) resize(this.replaying.vehicle)
+    this.picked?.view.$set({ size: Math.round(pinPixels(zoom)) })
   }
 
   destroy() {
@@ -1633,6 +2153,8 @@ export class LiveEngine {
     this.recorder.destroy()
     for (const entry of this.crewById.values()) entry.vehicle?.view.$destroy()
     this.mine?.view.$destroy()
+    this.picked?.view.$destroy()
+    this.replaying?.vehicle.view.$destroy()
     this.map.remove()
   }
 }

@@ -32,6 +32,8 @@
   export let secure = true
   /** Guests look at the map; they don't choose a machine. */
   export let guest = false
+  /** They already have a machine saved, so joining didn't ask for one. */
+  export let known = false
 
   const dispatch = createEventDispatcher<{
     machine: { type: string; colour: string; swath: number }
@@ -190,7 +192,9 @@
             </button>
           </div>
         {:else}
-          <p class="lp-eyebrow">One permission</p>
+          <p class="lp-eyebrow">
+            {known ? `Joining ${farmName}` : "One permission"}
+          </p>
           <h1>Put yourself on the map.</h1>
           <p class="sub">
             Your browser is about to ask for your location. Say yes and your
@@ -232,9 +236,33 @@
               Just look around
             </button>
           </div>
-          <button type="button" class="back" on:click={() => (step = "you")}>
-            <ArrowLeft size={16} /> Back
-          </button>
+          {#if known}
+            <!-- They weren't asked what they drive: leave the way open. -->
+            <div class="also">
+              {#if !guest}
+                <button
+                  type="button"
+                  class="mn-text-button"
+                  on:click={() => (step = "you")}
+                >
+                  Change machine
+                </button>
+              {/if}
+              {#if others.length}
+                <button
+                  type="button"
+                  class="mn-text-button"
+                  on:click={() => (step = "farm")}
+                >
+                  Open a different farm
+                </button>
+              {/if}
+            </div>
+          {:else}
+            <button type="button" class="back" on:click={() => (step = "you")}>
+              <ArrowLeft size={16} /> Back
+            </button>
+          {/if}
         {/if}
       </div>
     {/key}

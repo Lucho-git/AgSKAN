@@ -9,11 +9,13 @@
  *
  * Nothing in here draws anything.
  */
+// @ts-expect-error -- no type declarations for uuid in this repo
 import { v4 as uuidv4 } from "uuid"
 import { supabase } from "$lib/supabaseClient"
 import { fileApi } from "$lib/api/fileApi"
 import { farmApi } from "$lib/api/farmApi"
 import { markerApi } from "$lib/api/markerApi"
+import { trailsApi } from "$lib/api/trailsApi"
 import { userSettingsApi } from "$lib/api/userSettingsApi"
 import { markerRowToClientMarker } from "$lib/utils/markerRow"
 import { grainBinDefaultCapacity } from "$lib/components/map/markers/markerPalette"
@@ -596,12 +598,17 @@ export type TrailInfo = {
   width: number
   operator: string | null
   ha: number | null
+  /** The machine that laid it (`vehicle_marker.type`), when recorded. */
+  machine?: string | null
+  /** Metres driven, and the share of it that went over ground already done. */
+  distance?: number | null
+  overlap?: number | null
 }
 
 export type TrailPoint = { at: LngLat; t: number }
 
 const TRAIL_COLUMNS =
-  "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, operator_name, trail_hectares, source"
+  "id, vehicle_id, operation_id, start_time, end_time, trail_color, trail_width, operator_name, trail_hectares, trail_distance, trail_percentage_overlap, vehicle_marker, source"
 
 function trailFromRow(row: Row): TrailInfo {
   return {
@@ -617,8 +624,16 @@ function trailFromRow(row: Row): TrailInfo {
       row.trail_hectares === null || row.trail_hectares === undefined
         ? null
         : Number(row.trail_hectares),
+    machine: row.vehicle_marker?.type ?? null,
+    distance: numberOrNull(row.trail_distance),
+    overlap: numberOrNull(row.trail_percentage_overlap),
   }
 }
+
+const numberOrNull = (value: unknown) =>
+  value === null || value === undefined || Number.isNaN(Number(value))
+    ? null
+    : Number(value)
 
 type LineGeometry =
   | { type: "LineString"; coordinates: LngLat[] }
@@ -648,6 +663,132 @@ export async function loadTrailShape(
   if (!isLine(path)) return null
   const pause = (data as Row).pause_path
   return { info, path, pausePath: isLine(pause) ? pause : null }
+}
+
+// ── A trail's timeline, for replaying it ──────────────────────────────────
+
+/**
+ * Read a line (or several) with a measure on every point from PostGIS's
+ * EWKB hex, which is how a `geography` column arrives. A closed trail's
+ * `detailed_path` is such a line: longitude, latitude, and the time each
+ * point was laid as epoch milliseconds.
+ */
+export function parseTimedLines(hex: string): TrailPoint[][] {
+  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) return []
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++)
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
+  const view = new DataView(bytes.buffer)
+  let at = 0
+  const lines: TrailPoint[][] = []
+
+  const geometry = () => {
+    const little = view.getUint8(at) === 1
+    at += 1
+    const type = view.getUint32(at, little)
+    at += 4
+    const hasZ = !!(type & 0x80000000)
+    const hasM = !!(type & 0x40000000)
+    if (type & 0x20000000) at += 4 // SRID
+    const kind = type & 0xff
+    const count = view.getUint32(at, little)
+    at += 4
+    if (kind === 2) {
+      const line: TrailPoint[] = []
+      for (let i = 0; i < count; i++) {
+        const lng = view.getFloat64(at, little)
+        const lat = view.getFloat64(at + 8, little)
+        at += 16
+        if (hasZ) at += 8
+        let t = NaN
+        if (hasM) {
+          t = view.getFloat64(at, little)
+          at += 8
+        }
+        line.push({ at: [lng, lat], t })
+      }
+      lines.push(line)
+    } else if (kind === 5 || kind === 7) {
+      // A multi-line (or a collection): each part is a geometry of its own.
+      for (let i = 0; i < count; i++) geometry()
+    } else throw new Error("not a line")
+  }
+
+  try {
+    geometry()
+  } catch {
+    return []
+  }
+  return lines.filter((line) => line.length > 1)
+}
+
+export type TrailTimeline = {
+  /** The trail in stretches (a pause splits it), oldest point first. */
+  parts: TrailPoint[][]
+  /** Every point carries the real time it was laid. */
+  timed: boolean
+}
+
+/**
+ * The points of a finished trail with the time each was laid, for replay.
+ * Older trails without that detail come back untimed, from the drawn shape,
+ * and are replayed at an even pace between their start and finish.
+ */
+export async function loadTrailTimeline(
+  info: TrailInfo,
+): Promise<TrailTimeline | null> {
+  // The detail is a point a second or so: a very long trail would be many
+  // megabytes on a phone, so those replay from the drawn shape instead.
+  const hours = info.end ? (info.end - info.start) / 3_600_000 : 0
+  const { data } =
+    hours > 6
+      ? { data: null }
+      : await supabase
+          .from("trails")
+          .select("detailed_path")
+          .eq("id", info.id)
+          .maybeSingle()
+  const raw = (data as Row | null)?.detailed_path
+  let parts: TrailPoint[][] = []
+  if (typeof raw === "string") parts = parseTimedLines(raw)
+  else if (isLine(raw)) {
+    // Some set-ups hand geography back as GeoJSON; the measure, if kept,
+    // rides along as a third number.
+    const lines = (
+      raw.type === "LineString" ? [raw.coordinates] : raw.coordinates
+    ) as number[][][]
+    parts = lines.map((line) =>
+      line.map((c) => ({
+        at: [c[0], c[1]] as LngLat,
+        t: c.length > 2 ? c[c.length - 1] : NaN,
+      })),
+    )
+  }
+  // A real timestamp is epoch milliseconds; anything else isn't a time.
+  const timed =
+    parts.length > 0 &&
+    parts.every((line) => line.every((p) => p.t > 1e11 && p.t < 1e14))
+  if (timed) return { parts, timed }
+
+  const shape = await loadTrailShape(info)
+  if (!shape) return null
+  const lines = (
+    shape.path.type === "LineString"
+      ? [shape.path.coordinates]
+      : shape.path.coordinates
+  ) as LngLat[][]
+  return {
+    parts: lines
+      .filter((line) => line.length > 1)
+      .map((line) => line.map((at) => ({ at, t: NaN }))),
+    timed: false,
+  }
+}
+
+/** Delete a finished trail for good (the same call the current viewer makes). */
+export async function deleteTrail(id: string) {
+  const result = (await trailsApi.deleteTrail(id)) as Row
+  if (result?.error) throw new Error(result.message || "Couldn't delete it")
 }
 
 /**

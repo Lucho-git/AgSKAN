@@ -20,6 +20,10 @@
   export let away = false
   /** Can be tapped (the live map opens that person's card). */
   export let tappable = false
+  /** km/h, shown beside the name while the machine is moving. */
+  export let speed = 0
+  /** Picked out on the map: a turning ring, and it sits a little larger. */
+  export let selected = false
 
   // A cream machine needs a dark halo to show against pale ground.
   $: halo = colour.toLowerCase() === "#f4f1e6" ? "#15261C" : colour
@@ -30,11 +34,15 @@
   class:me
   class:away
   class:tappable
+  class:selected
   style="--size: {size}px; --halo: {halo}"
 >
   {#if me}
     <span class="pulse" aria-hidden="true"></span>
     <span class="ring" aria-hidden="true"></span>
+  {/if}
+  {#if selected}
+    <span class="pick" aria-hidden="true"></span>
   {/if}
   <div class="art" style="transform: rotate({heading}deg)">
     <svelte:component
@@ -47,7 +55,9 @@
     />
   </div>
   {#if label}
-    <span class="tag">{label}</span>
+    <span class="tag">
+      {label}{#if speed >= 1}<b>{Math.round(speed)}<small>km/h</small></b>{/if}
+    </span>
   {/if}
 </div>
 
@@ -61,6 +71,39 @@
   .tappable {
     pointer-events: auto;
     cursor: pointer;
+  }
+  /* Selected: a dashed yellow ring turns slowly round the machine. */
+  .pick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--size) * 1.25);
+    height: calc(var(--size) * 1.25);
+    min-width: 58px;
+    min-height: 58px;
+    border: 3px dashed #f7db5c;
+    border-radius: 50%;
+    background: rgba(247, 219, 92, 0.16);
+    box-shadow: 0 0 0 1.5px rgba(21, 38, 28, 0.55);
+    transform: translate(-50%, -50%);
+    animation:
+      mv-pick-in 0.32s cubic-bezier(0.3, 1.6, 0.5, 1) both,
+      mv-pick-turn 9s linear 0.32s infinite;
+  }
+  @keyframes mv-pick-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(1.7);
+    }
+  }
+  @keyframes mv-pick-turn {
+    to {
+      transform: translate(-50%, -50%) rotate(360deg);
+    }
+  }
+  .selected .tag {
+    background: #f7db5c;
+    color: #15261c;
   }
   .away .art {
     filter: grayscale(0.85) drop-shadow(0 2px 3px rgba(10, 25, 15, 0.45));
@@ -126,11 +169,27 @@
     transform: translateX(-50%);
     box-shadow: 0 2px 6px rgba(10, 25, 15, 0.35);
   }
+  .tag b {
+    margin-left: 7px;
+    padding-left: 7px;
+    border-left: 1px solid currentColor;
+    font-weight: 700;
+  }
+  .tag small {
+    margin-left: 2px;
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    opacity: 0.8;
+  }
   .me .tag {
     background: #f7db5c;
     color: #15261c;
   }
   @media (prefers-reduced-motion: reduce) {
+    .pick {
+      animation: none;
+    }
     .pulse {
       animation: none;
       opacity: 0;

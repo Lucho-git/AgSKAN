@@ -12,6 +12,7 @@
     Layers,
     LocateFixed,
     MapPinned,
+    Play,
     Route,
     Tractor,
     Users,
@@ -24,7 +25,7 @@
   import { drawColour } from "$lib/components/mapnext/palette"
   import { compassPoint } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
-  import type { PinChoice } from "$lib/components/mapnext/pins"
+  import type { PinChoice, PinLook } from "$lib/components/mapnext/pins"
   import type {
     BaseChoice,
     CrewRow,
@@ -47,10 +48,16 @@
   export let crew: CrewRow[] = []
   export let pinChoices: PinChoice[] = []
   export let pinKind = "default"
+  /** How a pin of a kind looks when this person drops one (their colours). */
+  export let choiceLook: (iconClass: string) => PinLook = (iconClass) => ({
+    iconClass,
+  })
   export let pinCount = 0
   export let operations: Operation[] = []
   export let operation: Operation | null = null
   export let trails: TrailInfo[] = []
+  /** The trail picked out on the map, if any. */
+  export let pickedTrail: string | null = null
   export let loading: Loading
   export let base = "satellite"
   export let baseChoices: BaseChoice[] = []
@@ -72,6 +79,7 @@
     dropPins: void
     operation: Operation
     lookTrail: string
+    replayTrail: string
     base: string
     fitFarm: void
     farm: string
@@ -231,18 +239,21 @@
           >
             See the running trail
           </button>
-        {:else if machine.paints}
+        {:else}
           <button
             type="button"
-            class="lp-btn lp-btn-primary"
-            disabled={!readout.hasFix ||
-              !operation ||
-              recording.phase === "starting"}
+            class="lp-btn {machine.paints ? 'lp-btn-primary' : 'lp-btn-ghost'}"
+            disabled={recording.phase === "starting"}
             on:click={() => dispatch("startTrail")}
           >
             {recording.phase === "starting" ? "Starting…" : "Start trail"}
           </button>
-          {#if !readout.hasFix}
+          {#if !machine.paints}
+            <p class="mn-note">
+              A {machine.label.toLowerCase()} doesn't usually lay a trail, but it
+              can.
+            </p>
+          {:else if !readout.hasFix}
             <p class="mn-note">A trail needs your location first.</p>
           {:else if !operation}
             <p class="mn-note">
@@ -250,11 +261,6 @@
               dashboard.
             </p>
           {/if}
-        {:else}
-          <p class="mn-note">
-            A {machine.label.toLowerCase()} shows up live for the crew but leaves
-            no trail.
-          </p>
         {/if}
         {#if recording.problem}
           <p class="mn-warning">{recording.problem}</p>
@@ -282,7 +288,7 @@
         </button>
         <button type="button" class="mn-tool" on:click={() => (view = "pins")}>
           <span class="icon"
-            ><PinArt look={{ iconClass: pinKind }} size={30} /></span
+            ><PinArt look={choiceLook(pinKind)} size={30} /></span
           >
           <span class="text">
             <strong>Pins</strong>
@@ -453,7 +459,7 @@
             aria-pressed={pinKind === choice.iconClass}
             on:click={() => dispatch("pinKind", choice.iconClass)}
           >
-            <PinArt look={{ iconClass: choice.iconClass }} size={36} />
+            <PinArt look={choiceLook(choice.iconClass)} size={36} />
             {choice.label}
           </button>
         {/each}
@@ -495,6 +501,12 @@
 
       {#if operation}
         <section class="mn-section">
+          {#if trails.length}
+            <p class="mn-note">
+              Tap a trail to pick it out on the map, or the play button to watch
+              it being laid.
+            </p>
+          {/if}
           <p class="lp-eyebrow">
             {#if loading.trails}
               Loading trails · {loading.trails.done} drawn
@@ -506,25 +518,39 @@
           {#if trails.length}
             <div class="mn-tools">
               {#each trails.slice(0, 60) as trail (trail.id)}
-                <button
-                  type="button"
-                  class="mn-tool mn-trail-row"
-                  on:click={() => dispatch("lookTrail", trail.id)}
+                <div
+                  class="mn-trail-row"
+                  class:selected={pickedTrail === trail.id}
                 >
-                  <span
-                    class="swatch"
-                    style="background: {drawColour(trail.colour)}"
-                  ></span>
-                  <span class="text">
-                    <strong>{day(trail.start)} · {clock(trail.start)}</strong>
+                  <button
+                    type="button"
+                    class="mn-tool"
+                    class:selected={pickedTrail === trail.id}
+                    on:click={() => dispatch("lookTrail", trail.id)}
+                  >
                     <span
-                      >{trail.operator || "No operator"} · {trail.width} m wide</span
-                    >
-                  </span>
-                  {#if trail.ha !== null}
-                    <span class="figure">{formatHa(trail.ha)} ha</span>
-                  {/if}
-                </button>
+                      class="swatch"
+                      style="background: {drawColour(trail.colour)}"
+                    ></span>
+                    <span class="text">
+                      <strong>{day(trail.start)} · {clock(trail.start)}</strong>
+                      <span
+                        >{trail.operator || "No operator"} · {trail.width} m wide</span
+                      >
+                    </span>
+                    {#if trail.ha !== null}
+                      <span class="figure">{formatHa(trail.ha)} ha</span>
+                    {/if}
+                  </button>
+                  <button
+                    type="button"
+                    class="play"
+                    aria-label="Replay this trail"
+                    on:click={() => dispatch("replayTrail", trail.id)}
+                  >
+                    <Play size={18} fill="currentColor" />
+                  </button>
+                </div>
               {/each}
             </div>
             {#if trails.length > 60}

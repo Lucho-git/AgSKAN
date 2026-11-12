@@ -18,9 +18,15 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
     ChevronUp,
+    LandPlot,
     LoaderCircle,
     LocateFixed,
     Navigation,
+    Pause,
+    Play,
+    RotateCcw,
+    SkipBack,
+    SkipForward,
     Trash2,
     X,
   } from "lucide-svelte"
@@ -44,6 +50,7 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
+  import { drawColour } from "$lib/components/mapnext/palette"
   import { compassPoint, distanceM } from "$lib/components/mapnext/geo"
   import {
     formatAgo,
@@ -52,6 +59,7 @@
   } from "$lib/components/mapnext/format"
   import {
     pinChoices as allPinChoices,
+    pinColour,
     pinLabel,
     preferenceIconClass,
   } from "$lib/components/mapnext/pins"
@@ -64,6 +72,7 @@
     type Loading,
     type Operation,
     type Readout,
+    type ReplayState,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -71,6 +80,7 @@
     loadMyVehicle,
     type FarmChoice,
     type LivePin,
+    type Paddock,
     type TrailInfo,
     type VehicleMarkerData,
   } from "./liveData"
@@ -122,6 +132,22 @@
   let readTimer: ReturnType<typeof setTimeout> | undefined
   /** They picked a machine before their saved one arrived: theirs wins. */
   let machineTouched = false
+  /** Whether they have a saved machine, once that has been looked up. */
+  let machineRead = false
+  let hasMachine = false
+
+  // The colour each of this person's pins is filled with comes from their
+  // own marker colour settings (the same ones the current viewer uses).
+  $: pinSettings = {
+    markerDefaultColor: $userSettingsStore.markerDefaultColor,
+    markerTypeDefaultColors: $userSettingsStore.markerTypeDefaultColors,
+  }
+  $: engine?.setPinSettings(pinSettings)
+  /** How a pin of this kind will look when this person drops one. */
+  $: choiceLook = (iconClass: string) => ({
+    iconClass,
+    colour: pinColour({ id: "new", iconClass }, pinSettings),
+  })
 
   // ── Map look ──
   const savedBase = load<string>("base")
@@ -206,6 +232,11 @@
   let crew: CrewRow[] = []
   let pinCount = 0
   let selectedPin: LivePin | null = null
+  let selectedPaddock: Paddock | null = null
+  let selectedTrail: TrailInfo | null = null
+  let replay: ReplayState | null = null
+  let deleteAsk = false
+  let roadAsk = false
   let selectedCrewId: string | null = null
   let trails: TrailInfo[] = []
   let farm = { paddocks: 0, ha: 0 }
@@ -296,6 +327,7 @@
       me: marker,
       base: lookOf(baseKey),
       imagery: imageryOf(baseKey),
+      pinSettings,
     })
     engine = created
     stop.push(
@@ -307,6 +339,12 @@
       created.pinCount.subscribe((v) => (pinCount = v)),
       created.dropped.subscribe((v) => (droppedTotal = v)),
       created.selectedPin.subscribe((v) => (selectedPin = v)),
+      created.selectedPaddock.subscribe((v) => (selectedPaddock = v)),
+      created.selectedTrail.subscribe((v) => {
+        selectedTrail = v
+        deleteAsk = false
+      }),
+      created.replay.subscribe((v) => (replay = v)),
       created.selectedCrew.subscribe((v) => (selectedCrewId = v)),
       created.trails.subscribe((v) => (trails = v)),
       created.farm.subscribe((v) => (farm = v)),
@@ -330,10 +368,15 @@
           if (mine?.marker && !machineTouched) {
             marker = mine.marker
             savedMarker = JSON.stringify(marker)
+            // They already have a machine: joining doesn't ask again.
+            if (phase === "join" && step === "you") step = "locate"
           }
+          hasMachine = !!mine?.marker
+          machineRead = true
           created.setMe(marker, false)
         })
         .catch(() => {
+          machineRead = true
           readTimer = setTimeout(readMine, 5000)
         })
     readMine()
@@ -492,14 +535,25 @@
       })
   }
 
-  const pinLook = (pin: LivePin) => ({
-    iconClass: pin.iconClass,
-    colour: pin.colour,
-    gateOpen: pin.gateOpen,
-    rockPicked: pin.rockPicked,
-    fill: pin.fill,
-    grainColour: pin.grainColour,
-  })
+  // Start or stop a trail, or say why one can't start.
+  function trailTap() {
+    if (trailOn) stopAsk = true
+    else if (trailFound) foundDismissed = false
+    else if (!readout.hasFix)
+      say("A trail needs your location first.", {
+        label: "Turn it on",
+        run: () => {
+          snack = null
+          askForLocation()
+        },
+      })
+    else if (!operation) say("This farm has no job to record against yet.")
+    // Utes, trucks and chaser bins don't usually lay a trail: check first.
+    else if (!machine.paints) {
+      panelOpen = false
+      roadAsk = true
+    } else startTrail()
+  }
 
   function pinFacts(pin: LivePin) {
     const facts: string[] = []
@@ -603,10 +657,11 @@
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Escape") return
     if (pinning) stopPinning()
+    else if (roadAsk) roadAsk = false
     else if (stopAsk) stopAsk = false
     else if (operatorAsk) operatorAsk = false
-    else if (selectedPin) engine?.selectedPin.set(null)
-    else if (selectedCrewId) engine?.selectedCrew.set(null)
+    else if (selectedPin || selectedCrewId || selectedPaddock || selectedTrail)
+      engine?.clearSelection()
     else closePanel()
   }
 
@@ -634,12 +689,84 @@
 
   $: cardOpen =
     pinning ||
+    roadAsk ||
     stopAsk ||
     operatorAsk ||
     !!sprayCard ||
     (trailFound && !foundDismissed) ||
     !!selectedPin ||
-    !!selectedCrew
+    !!selectedCrew ||
+    !!selectedPaddock ||
+    !!selectedTrail
+
+  // ── A picked trail ──
+  const day = (t: number) =>
+    new Date(t).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    })
+  const duration = (ms: number) => {
+    const minutes = Math.max(1, Math.round(ms / 60000))
+    if (minutes < 60) return `${minutes} min`
+    const rest = minutes % 60
+    return `${Math.floor(minutes / 60)} h${rest ? ` ${rest} min` : ""}`
+  }
+  function trailFacts(trail: TrailInfo) {
+    const facts = [trail.operator || "No operator"]
+    if (trail.machine) facts.push(machineFor(trail.machine).label)
+    facts.push(`${trail.width} m wide`)
+    if (trail.ha !== null) facts.push(`${formatHa(trail.ha)} ha`)
+    if (trail.distance)
+      facts.push(
+        trail.distance >= 1000
+          ? `${(trail.distance / 1000).toFixed(1)} km`
+          : `${Math.round(trail.distance)} m`,
+      )
+    if (trail.end) facts.push(duration(trail.end - trail.start))
+    if (trail.overlap !== null && trail.overlap !== undefined)
+      facts.push(`${Math.round(trail.overlap)}% overlap`)
+    return facts
+  }
+  $: trailIndex = selectedTrail
+    ? trails.findIndex((t) => t.id === selectedTrail?.id)
+    : -1
+
+  function pickTrail(id: string, thenPlay = false) {
+    if (!engine?.pickTrail(id)) {
+      say("That trail is still loading.")
+      return false
+    }
+    if (thenPlay) engine.playReplay()
+    return true
+  }
+
+  // Step to the next trail along the list, round the ends.
+  function stepTrail(by: number) {
+    if (trailIndex < 0 || trails.length < 2) return
+    const playing = !!replay
+    for (let i = 1; i < trails.length; i++) {
+      const next =
+        trails[(trailIndex + by * i + trails.length * i) % trails.length]
+      if (engine?.pickTrail(next.id)) {
+        if (playing) engine.playReplay()
+        return
+      }
+    }
+  }
+
+  async function deleteTrail() {
+    deleteAsk = false
+    if (await engine?.deletePickedTrail()) say("Trail deleted")
+  }
+
+  const RATES = [1, 2, 4, 8]
+  function nextRate() {
+    if (!replay) return
+    engine?.setReplayRate(
+      RATES[(RATES.indexOf(replay.rate) + 1) % RATES.length],
+    )
+  }
 </script>
 
 <svelte:window on:keydown={onKey} />
@@ -792,25 +919,19 @@
             {/if}
             <ChevronUp size={18} />
           </button>
-          {#if !guest && (trailOn || trailFound || machine.paints)}
+          {#if !guest}
             <button
               type="button"
               class="mn-trail-button"
               class:on={trailOn}
               disabled={recording.phase === "starting" ||
-                recording.phase === "stopping" ||
-                (!trailOn && !trailFound && (!readout.hasFix || !operation))}
+                recording.phase === "stopping"}
               aria-label={trailOn
                 ? "Stop trail"
                 : trailFound
                   ? "Your running trail"
                   : "Start trail"}
-              on:click={() =>
-                trailOn
-                  ? (stopAsk = true)
-                  : trailFound
-                    ? (foundDismissed = false)
-                    : startTrail()}
+              on:click={trailTap}
             >
               <span class="rec"></span>
               <span>{trailOn ? "Stop" : "Trail"}</span>
@@ -820,6 +941,24 @@
       {/if}
 
       <div class="mn-corner bottom-right">
+        {#if wide && !guest}
+          <button
+            type="button"
+            class="mn-trail-button"
+            class:on={trailOn}
+            disabled={recording.phase === "starting" ||
+              recording.phase === "stopping"}
+            aria-label={trailOn
+              ? "Stop trail"
+              : trailFound
+                ? "Your running trail"
+                : "Start trail"}
+            on:click={trailTap}
+          >
+            <span class="rec"></span>
+            <span>{trailOn ? "Stop" : "Trail"}</span>
+          </button>
+        {/if}
         <button
           type="button"
           class="mn-follow {follow}"
@@ -851,7 +990,7 @@
             aria-label="Drop a pin"
             on:click={startPinning}
           >
-            <PinArt look={{ iconClass: pinKind }} size={wide ? 36 : 32} />
+            <PinArt look={choiceLook(pinKind)} size={wide ? 36 : 32} />
             <span>Pin</span>
           </button>
         {/if}
@@ -880,7 +1019,7 @@
               aria-pressed={pinKind === choice.iconClass}
               on:click={() => choosePin(choice.iconClass)}
             >
-              <PinArt look={{ iconClass: choice.iconClass }} size={34} />
+              <PinArt look={choiceLook(choice.iconClass)} size={34} />
               {choice.label}
             </button>
           {/each}
@@ -965,6 +1104,41 @@
             Start
           </button>
         </form>
+      </div>
+    {:else if roadAsk}
+      <!-- ── A trail in a machine that doesn't usually lay one ── -->
+      <div class="mn-card" in:rise>
+        <p class="lp-eyebrow">Start a trail</p>
+        <h2 class="mn-card-title">
+          A {machine.label.toLowerCase()} doesn't usually lay a trail.
+        </h2>
+        <p class="mn-card-text">
+          Trails are for machines working a paddock. Start one anyway and it
+          records {marker.swath} m wide in your colour, or pick the machine you're
+          really in.
+        </p>
+        <div class="mn-card-actions">
+          <button
+            type="button"
+            class="lp-btn lp-btn-ghost"
+            on:click={() => {
+              roadAsk = false
+              openPanel("machine")
+            }}
+          >
+            Change machine
+          </button>
+          <button
+            type="button"
+            class="lp-btn lp-btn-primary"
+            on:click={() => {
+              roadAsk = false
+              startTrail()
+            }}
+          >
+            Start anyway
+          </button>
+        </div>
       </div>
     {:else if stopAsk}
       <!-- ── Stop the trail? ── -->
@@ -1073,11 +1247,152 @@
           Stop and save it from here
         </button>
       </div>
+    {:else if selectedTrail}
+      <!-- ── A trail, picked out: what it was, and a replay of it ── -->
+      <div class="mn-card mn-trail-card" in:rise>
+        <div class="head">
+          <span
+            class="swatch"
+            style="background: {drawColour(selectedTrail.colour)}"
+          ></span>
+          <div class="about">
+            <p class="lp-eyebrow">
+              Trail{trailIndex >= 0
+                ? ` ${trails.length - trailIndex} of ${trails.length}`
+                : ""}
+            </p>
+            <h2>{day(selectedTrail.start)} · {clock(selectedTrail.start)}</h2>
+          </div>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Close"
+            on:click={() => engine?.pickTrail(null)}
+          >
+            <X size={22} />
+          </button>
+        </div>
+        <p class="facts">{trailFacts(selectedTrail).join(" · ")}</p>
+
+        <div class="mn-replay">
+          <button
+            type="button"
+            class="step"
+            aria-label="Older trail"
+            disabled={trails.length < 2}
+            on:click={() => stepTrail(1)}
+          >
+            <SkipBack size={20} fill="currentColor" />
+          </button>
+          <button
+            type="button"
+            class="play"
+            aria-label={replay?.phase === "playing"
+              ? "Pause the replay"
+              : replay?.phase === "done"
+                ? "Replay again"
+                : "Replay this trail"}
+            disabled={replay?.phase === "loading"}
+            on:click={() =>
+              replay?.phase === "playing"
+                ? engine?.pauseReplay()
+                : engine?.playReplay()}
+          >
+            {#if replay?.phase === "loading"}
+              <span class="mn-spin"><LoaderCircle size={24} /></span>
+            {:else if replay?.phase === "playing"}
+              <Pause size={24} fill="currentColor" />
+            {:else if replay?.phase === "done"}
+              <RotateCcw size={24} />
+            {:else}
+              <Play size={24} fill="currentColor" />
+            {/if}
+          </button>
+          <button
+            type="button"
+            class="step"
+            aria-label="Newer trail"
+            disabled={trails.length < 2}
+            on:click={() => stepTrail(-1)}
+          >
+            <SkipForward size={20} fill="currentColor" />
+          </button>
+          {#if replay && replay.phase !== "loading"}
+            <span class="clock">
+              <b>{clock(replay.time)}</b>
+              <span>{replay.timed ? "as it happened" : "even pace"}</span>
+            </span>
+            <button
+              type="button"
+              class="rate"
+              aria-label="Replay speed: {replay.rate} times"
+              on:click={nextRate}
+            >
+              {replay.rate}×
+            </button>
+          {:else}
+            <span class="clock">
+              <span>Watch it being laid</span>
+            </span>
+          {/if}
+        </div>
+        {#if replay && replay.phase !== "loading"}
+          <input
+            class="mn-scrub"
+            type="range"
+            min="0"
+            max="1"
+            step="0.001"
+            value={replay.progress}
+            aria-label="Position in the replay"
+            style="--done: {(replay.progress * 100).toFixed(1)}%"
+            on:input={(e) => engine?.seekReplay(Number(e.currentTarget.value))}
+          />
+        {/if}
+
+        {#if !guest}
+          {#if deleteAsk}
+            <p class="mn-warning">
+              Delete this trail for good? It comes off the map and out of the
+              farm's records, and can't be brought back.
+            </p>
+            <div class="mn-card-actions">
+              <button
+                type="button"
+                class="lp-btn lp-btn-ghost"
+                on:click={() => (deleteAsk = false)}
+              >
+                Keep it
+              </button>
+              <button
+                type="button"
+                class="mn-remove solid"
+                on:click={deleteTrail}
+              >
+                <Trash2 size={17} /> Delete
+              </button>
+            </div>
+          {:else}
+            <button
+              type="button"
+              class="mn-text-button danger"
+              on:click={() => (deleteAsk = true)}
+            >
+              Delete this trail
+            </button>
+          {/if}
+        {/if}
+      </div>
     {:else if selectedPin}
       <!-- ── A pin ── -->
       {#key selectedPin.id}
         <div class="mn-card mn-about-card" in:rise>
-          <PinArt look={pinLook(selectedPin)} size={52} />
+          <PinArt
+            look={engine?.pinLook(selectedPin) ?? {
+              iconClass: selectedPin.iconClass,
+            }}
+            size={52}
+          />
           <div>
             <h2>{selectedPin.note || pinLabel(selectedPin.iconClass)}</h2>
             <p>
@@ -1149,6 +1464,44 @@
           </button>
         </div>
       {/key}
+    {:else if selectedPaddock}
+      <!-- ── A paddock ── -->
+      {#key selectedPaddock.id}
+        <div class="mn-card mn-about-card" in:rise>
+          <span class="art"><LandPlot size={30} /></span>
+          <div>
+            <h2>{selectedPaddock.name}</h2>
+            <p>
+              {[
+                ...(selectedPaddock.ha > 0
+                  ? [`${formatHa(selectedPaddock.ha)} ha`]
+                  : []),
+                ...(selectedPaddock.farm ? [selectedPaddock.farm] : []),
+                ...(readout.paddock?.name === selectedPaddock.name
+                  ? ["You're in it"]
+                  : []),
+              ].join(" · ") || "Paddock"}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Close"
+            on:click={() => engine?.selectedPaddock.set(null)}
+          >
+            <X size={22} />
+          </button>
+          <button
+            type="button"
+            class="lp-btn lp-btn-ghost wide-row"
+            style="margin-top: 8px"
+            on:click={() =>
+              selectedPaddock && engine?.lookAtPaddock(selectedPaddock.id)}
+          >
+            <LocateFixed size={18} /> Show the whole paddock
+          </button>
+        </div>
+      {/key}
     {/if}
 
     {#if snack && !pinning}
@@ -1184,6 +1537,7 @@
         {crew}
         {pinChoices}
         {pinKind}
+        {choiceLook}
         {pinCount}
         {operations}
         {operation}
@@ -1202,11 +1556,11 @@
         on:machine={(e) => changeMachine(e.detail)}
         on:lookCrew={(e) => {
           if (engine?.lookAt(e.detail)) {
-            engine.selectedCrew.set(e.detail)
+            engine.pickCrew(e.detail)
             if (!wide) closePanel()
           }
         }}
-        on:startTrail={startTrail}
+        on:startTrail={trailTap}
         on:stopTrail={() => {
           stopAsk = true
           if (!wide) closePanel()
@@ -1214,10 +1568,12 @@
         on:pinKind={(e) => choosePin(e.detail)}
         on:dropPins={startPinning}
         on:operation={(e) => chooseOperation(e.detail)}
+        pickedTrail={selectedTrail?.id ?? null}
         on:lookTrail={(e) => {
-          if (engine?.lookAtTrail(e.detail)) {
-            if (!wide) closePanel()
-          } else say("That trail is still loading.")
+          if (pickTrail(e.detail) && !wide) closePanel()
+        }}
+        on:replayTrail={(e) => {
+          if (pickTrail(e.detail, true) && !wide) closePanel()
         }}
         on:base={(e) => setBase(e.detail)}
         on:fitFarm={() => {
@@ -1232,7 +1588,7 @@
         on:leave={(e) => leave(e.detail)}
       />
     {/if}
-  {:else}
+  {:else if machineRead}
     <LiveJoin
       {farmName}
       {farmOwner}
@@ -1244,6 +1600,7 @@
       {gps}
       {secure}
       {guest}
+      known={hasMachine}
       on:machine={(e) => changeMachine(e.detail)}
       on:locate={() => {
         saveMachine()

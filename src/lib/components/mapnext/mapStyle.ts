@@ -1,7 +1,8 @@
 /**
  * One Mapbox style holding both looks of the new map:
  *
- *   "satellite"  real imagery, toned down so fences, trails and chips read
+ *   "satellite"  real imagery, eased back a touch so fences, trails and
+ *                chips read, but still the colour of the country
  *   "paper"      a drawn map in the landing page's colours: cream ground,
  *                contour lines, lanes, and paddocks filled like the
  *                illustrated farm map
@@ -33,6 +34,50 @@ export const LABEL_SOURCE = "mv-paddock-labels"
 /** Pins drawn by the map itself rather than as DOM markers (the live map). */
 export const PIN_SOURCE = "mv-pins"
 export const PIN_LAYER = "mv-pins"
+/** The one trail picked out (its centre line), and a trail being replayed. */
+export const PICKED_TRAIL_SOURCE = "mv-picked-trail"
+export const REPLAY_SOURCE = "mv-replay"
+
+/** Pin size by zoom: the layer's `icon-size` stops, on a 48px image. */
+const PIN_STOPS: [number, number][] = [
+  [9, 0.34],
+  [12, 0.5],
+  [15, 0.74],
+  [17, 0.84],
+]
+
+/** How many pixels across a pin is drawn at a zoom level. */
+export function pinPixels(zoom: number) {
+  const stops = PIN_STOPS
+  if (zoom <= stops[0][0]) return 48 * stops[0][1]
+  for (let i = 1; i < stops.length; i++) {
+    const [z0, s0] = stops[i - 1]
+    const [z1, s1] = stops[i]
+    if (zoom <= z1) return 48 * (s0 + ((zoom - z0) / (z1 - z0)) * (s1 - s0))
+  }
+  return 48 * stops[stops.length - 1][1]
+}
+
+/**
+ * Frames of a dashed line that appears to march along itself; step through
+ * them on a timer with `line-dasharray`.
+ */
+export const MARCH: number[][] = [
+  [0, 4, 3],
+  [0.5, 4, 2.5],
+  [1, 4, 2],
+  [1.5, 4, 1.5],
+  [2, 4, 1],
+  [2.5, 4, 0.5],
+  [3, 4, 0],
+  [0, 0.5, 3, 3.5],
+  [0, 1, 3, 3],
+  [0, 1.5, 3, 2.5],
+  [0, 2, 3, 2],
+  [0, 2.5, 3, 1.5],
+  [0, 3, 3, 1],
+  [0, 3.5, 3, 0.5],
+]
 
 const empty = { type: "FeatureCollection", features: [] }
 
@@ -85,6 +130,49 @@ const pauseLayer = (id: string, source: string) => ({
 })
 
 const TRAIL_LAYERS = ["mv-history", "mv-trails", "mv-my-trail"]
+
+/** How strongly trails are drawn in each look (the old viewer's 0.5). */
+export const trailOpacity = (look: BaseLook) => (look === "paper" ? 0.56 : 0.5)
+
+/**
+ * Pick one finished trail out: it is drawn stronger and the rest fade back.
+ * `null` puts every trail back to normal.
+ */
+export function pickTrail(
+  map: MapboxMap,
+  id: string | null,
+  look: BaseLook,
+  /** Being replayed: the trail itself fades too, so the replay paints it in. */
+  replaying = false,
+) {
+  const normal = trailOpacity(look)
+  map.setPaintProperty(
+    "mv-history",
+    "line-opacity",
+    id
+      ? ["case", ["==", ["get", "id"], id], replaying ? 0.16 : 0.82, 0.13]
+      : normal,
+  )
+  for (const layer of ["mv-trails", "mv-my-trail"])
+    map.setPaintProperty(layer, "line-opacity", id ? 0.18 : normal)
+}
+
+/** Pick a paddock out (or none). */
+export function pickPaddock(map: MapboxMap, id: string | null) {
+  for (const layer of [
+    "mv-paddock-picked-fill",
+    "mv-paddock-picked-case",
+    "mv-paddock-picked-line",
+  ])
+    map.setFilter(layer, ["==", ["get", "id"], id ?? ""])
+}
+
+/** Move the marching dashes of whatever is picked on one step. */
+export function march(map: MapboxMap, step: number) {
+  const frame = MARCH[step % MARCH.length]
+  for (const layer of ["mv-paddock-picked-line", "mv-picked-trail"])
+    map.setPaintProperty(layer, "line-dasharray", frame)
+}
 
 type Layer = Record<string, unknown> & { id: string }
 const group = (look: BaseLook, layers: Layer[]) =>
@@ -182,6 +270,8 @@ export function buildStyle() {
       [HISTORY_SOURCE]: { type: "geojson", data: empty },
       [LABEL_SOURCE]: { type: "geojson", data: empty },
       [PIN_SOURCE]: { type: "geojson", data: empty },
+      [PICKED_TRAIL_SOURCE]: { type: "geojson", data: empty },
+      [REPLAY_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
       {
@@ -287,9 +377,9 @@ export function buildStyle() {
           type: "raster",
           source: "satellite",
           paint: {
-            "raster-saturation": -0.38,
-            "raster-contrast": -0.06,
-            "raster-brightness-max": 0.92,
+            "raster-saturation": -0.12,
+            "raster-contrast": 0,
+            "raster-brightness-max": 0.97,
             "raster-fade-duration": 200,
           },
         },
@@ -297,7 +387,7 @@ export function buildStyle() {
         {
           id: "sat-wash",
           type: "background",
-          paint: { "background-color": INK, "background-opacity": 0.16 },
+          paint: { "background-color": INK, "background-opacity": 0.07 },
         },
         {
           id: "sat-road",
@@ -329,6 +419,13 @@ export function buildStyle() {
         layout: { visibility: "none" },
         paint: { "fill-color": "#3F6B4A", "fill-opacity": 0.85 },
       },
+      {
+        id: "mv-paddock-picked-fill",
+        type: "fill",
+        source: FARM_SOURCE,
+        filter: ["==", ["get", "id"], ""],
+        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.22 },
+      },
       trailLayer("mv-history", HISTORY_SOURCE),
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
@@ -343,6 +440,63 @@ export function buildStyle() {
           "line-opacity": 0.9,
           "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.8, 15, 1.8],
           "line-dasharray": [3, 2.4],
+        },
+      },
+      // A trail being replayed paints itself in again as the machine goes.
+      {
+        ...trailLayer("mv-replay", REPLAY_SOURCE),
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": trailWidth,
+          "line-opacity": 0.72,
+        },
+      },
+      // The picked trail: its centre line, marching the way it was driven.
+      {
+        id: "mv-picked-trail-case",
+        type: "line",
+        source: PICKED_TRAIL_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": INK,
+          "line-opacity": 0.55,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 3, 16, 6],
+        },
+      },
+      {
+        id: "mv-picked-trail",
+        type: "line",
+        source: PICKED_TRAIL_SOURCE,
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#F7DB5C",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.6, 16, 3.2],
+          "line-dasharray": MARCH[0],
+        },
+      },
+      // The picked paddock's fence, on top of everything drawn in it.
+      {
+        id: "mv-paddock-picked-case",
+        type: "line",
+        source: FARM_SOURCE,
+        filter: ["==", ["get", "id"], ""],
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": INK,
+          "line-opacity": 0.6,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 4, 16, 7.5],
+        },
+      },
+      {
+        id: "mv-paddock-picked-line",
+        type: "line",
+        source: FARM_SOURCE,
+        filter: ["==", ["get", "id"], ""],
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#F7DB5C",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2, 16, 4],
+          "line-dasharray": MARCH[0],
         },
       },
       {
@@ -391,20 +545,6 @@ export function buildStyle() {
           "text-halo-width": 1.6,
         },
       },
-      // The pin someone has tapped sits on a yellow disc.
-      {
-        id: "mv-pin-halo",
-        type: "circle",
-        source: PIN_SOURCE,
-        filter: ["==", ["get", "id"], ""],
-        paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 14, 16, 26],
-          "circle-color": "#F7DB5C",
-          "circle-opacity": 0.92,
-          "circle-stroke-color": INK,
-          "circle-stroke-width": 1.5,
-        },
-      },
       {
         id: PIN_LAYER,
         type: "symbol",
@@ -426,6 +566,19 @@ export function buildStyle() {
           ],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
+        },
+        // Looking at a whole district, hundreds of pins are just a smear:
+        // they fade out, and come back as the map closes in on a paddock.
+        paint: {
+          "icon-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            8.8,
+            0,
+            10.4,
+            1,
+          ],
         },
       },
       {
@@ -478,8 +631,9 @@ export function applyBase(map: MapboxMap, look: BaseLook) {
     paper ? 1 : SAT_FILL_OPACITY,
   )
   map.setLayoutProperty("mv-scrub", "visibility", paper ? "visible" : "none")
+  // (A picked trail's dimming is put back by the caller after this.)
   for (const id of TRAIL_LAYERS)
-    map.setPaintProperty(id, "line-opacity", paper ? 0.56 : 0.5)
+    map.setPaintProperty(id, "line-opacity", trailOpacity(look))
   for (const id of ["mv-paddock-name", "mv-pin-notes"]) {
     map.setPaintProperty(id, "text-color", paper ? INK : "#F4F1E6")
     map.setPaintProperty(
@@ -542,9 +696,9 @@ export function setImagery(map: MapboxMap, key: string | null, look: BaseLook) {
       metadata: { look: "satellite" },
       layout: { visibility: look === "satellite" ? "visible" : "none" },
       paint: {
-        "raster-saturation": -0.38,
-        "raster-contrast": -0.06,
-        "raster-brightness-max": 0.92,
+        "raster-saturation": -0.12,
+        "raster-contrast": 0,
+        "raster-brightness-max": 0.97,
         "raster-fade-duration": 200,
       },
     },

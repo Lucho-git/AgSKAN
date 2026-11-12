@@ -560,21 +560,24 @@
 /* A short message that comes and goes, clear of the buttons and cards. */
 .mn-snack {
   position: absolute;
+  right: var(--mn-gap);
   bottom: calc(var(--mn-bottom) + 166px);
-  left: calc(var(--mn-rail) + 50% - var(--mn-rail) / 2);
+  left: calc(var(--mn-rail) + var(--mn-gap));
   z-index: 14;
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: calc(100vw - var(--mn-rail) - 32px);
+  /* As wide as its words, centred in the map, never wider than it. */
+  width: fit-content;
+  max-width: calc(100% - var(--mn-rail) - 2 * var(--mn-gap));
+  margin-inline: auto;
   padding: 10px 16px;
-  border-radius: 99px;
+  border-radius: 22px;
   background: rgba(18, 32, 26, 0.96);
   color: #f4f1e6;
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.3;
-  transform: translateX(-50%);
   box-shadow: 0 12px 28px -12px rgba(10, 25, 15, 0.9);
 }
 .mn-snack button {
@@ -978,10 +981,188 @@
 }
 
 /* Trails */
+.mn-trail-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.mn-trail-row .mn-tool {
+  flex: 1;
+  min-width: 0;
+}
 .mn-trail-row .swatch {
+  flex-shrink: 0;
   width: 14px;
   height: 30px;
   border-radius: 5px;
+}
+.mn-trail-row .play {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 16px;
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+}
+.mn-trail-row .play:hover {
+  border-color: var(--lp-ink);
+}
+
+/* The picked trail's card, with its replay controls. */
+.mn-trail-card {
+  display: grid;
+  gap: 8px;
+}
+.mn-trail-card .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mn-trail-card .head .swatch {
+  flex-shrink: 0;
+  width: 12px;
+  align-self: stretch;
+  border-radius: 6px;
+}
+.mn-trail-card .about {
+  flex: 1;
+  min-width: 0;
+}
+.mn-trail-card h2 {
+  font-family: var(--lp-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.mn-trail-card .facts {
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--lp-ink-soft);
+}
+.mn-replay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mn-replay button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--lp-ink);
+}
+.mn-replay .step {
+  width: 44px;
+  height: 44px;
+  background: var(--lp-paper);
+  box-shadow: 0 0 0 1.5px var(--lp-line);
+}
+.mn-replay .step:disabled {
+  opacity: 0.4;
+}
+.mn-replay .play {
+  width: 56px;
+  height: 56px;
+  background: var(--lp-yellow);
+  color: #15261c;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 8px 16px -8px rgba(120, 95, 10, 0.9);
+}
+.mn-replay .clock {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+}
+.mn-replay .clock b {
+  font-family: var(--lp-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.mn-replay .clock span {
+  font-family: var(--lp-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+.mn-replay .rate {
+  min-width: 52px;
+  height: 44px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: #15261c;
+  color: #f4f1e6;
+  font-family: var(--lp-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.mn-scrub {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.mn-scrub::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 99px;
+  background: linear-gradient(
+    to right,
+    var(--lp-ink) var(--done),
+    var(--lp-line) var(--done)
+  );
+}
+.mn-scrub::-moz-range-track {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--lp-line);
+}
+.mn-scrub::-moz-range-progress {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+}
+.mn-scrub::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  margin-top: -8px;
+  border: 3px solid var(--lp-card);
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  box-shadow: 0 0 0 1.5px #15261c;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.mn-scrub::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--lp-card);
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  box-shadow: 0 0 0 1.5px #15261c;
+}
+.mn-text-button.danger {
+  justify-self: start;
+  min-height: 36px;
+  color: var(--lp-rust);
+}
+.mn-remove.solid {
+  margin-top: 0;
+  border-color: var(--lp-rust);
+  background: var(--lp-rust);
+  color: #fff;
 }
 .mn-tool .figure {
   flex-shrink: 0;
@@ -1161,6 +1342,12 @@
 }
 .mn-join .actions .lp-btn {
   white-space: normal;
+}
+.mn-join .also {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2rem;
+  margin-top: 0.3rem;
 }
 .mn-join .back {
   display: inline-flex;
