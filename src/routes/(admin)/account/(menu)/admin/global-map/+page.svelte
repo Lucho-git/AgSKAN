@@ -19,6 +19,7 @@
   } from "$lib/api/adminApi"
   import GlobalFarmDetail from "$lib/components/admin/GlobalFarmDetail.svelte"
   import GlobalFarmEditModal from "$lib/components/admin/GlobalFarmEditModal.svelte"
+  import GlobalFarmFieldsModal from "$lib/components/admin/GlobalFarmFieldsModal.svelte"
   import { mapApi } from "$lib/api/mapApi"
   import vehicleIcons from "$lib/vehicles/index.js"
   import { timeAgo } from "$lib/utils/adminFormat"
@@ -69,6 +70,7 @@
   // Edit modal for the selected farm: one of its people, or the map itself.
   let modal: { kind: "person"; id: string } | { kind: "map" } | null = null
   let joining = false
+  let fieldsOpen = false
 
   // ── Derived data ──────────────────────────────────────────────────────────
   $: farmsById = new Map(farms.map((f) => [f.id, f]))
@@ -96,6 +98,7 @@
         (f.map_name || "").toLowerCase().includes(q) ||
         (f.owner_name || "").toLowerCase().includes(q) ||
         (f.owner_email || "").toLowerCase().includes(q) ||
+        (f.owner_phone || "").replace(/\s/g, "").includes(q.replace(/\s/g, "")) ||
         (f.company_name || "").toLowerCase().includes(q) ||
         f.members.some((m) => (m.name || "").toLowerCase().includes(q))
       )
@@ -910,7 +913,10 @@
   function selectFarm(id: string, fly = true) {
     const farm = farmsById.get(id)
     if (!farm) return
-    if (id !== selectedId) modal = null
+    if (id !== selectedId) {
+      modal = null
+      fieldsOpen = false
+    }
     selectedId = id
     // A farm picked from a "copy of" link may be filtered out — show it.
     if (farm.is_test && !showTest) showTest = true
@@ -1053,6 +1059,14 @@
     toast.error(result?.error || result?.message || "Couldn't join this map")
   }
 
+  // The field editor changed this farm's fields: refresh its numbers and
+  // redraw the boundaries.
+  async function closeFields(changed: boolean) {
+    fieldsOpen = false
+    if (!changed) return
+    if (await loadFarms()) await loadFields()
+  }
+
   let readyQueue: (() => void)[] = []
   function whenMapReady(fn: () => void) {
     if (mapReady) fn()
@@ -1061,6 +1075,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key !== "Escape") return
+    if (fieldsOpen) return // the field editor closes itself
     if (modal) modal = null
     else if (selectedId) selectedId = null
   }
@@ -1387,8 +1402,13 @@
         onEditPerson={(id) => (modal = { kind: "person", id })}
         onJoinMap={joinMap}
         {joining}
+        onEditFields={() => (fieldsOpen = true)}
       />
     </div>
+  {/if}
+
+  {#if selectedFarm && fieldsOpen}
+    <GlobalFarmFieldsModal farm={selectedFarm} onClose={closeFields} />
   {/if}
 
   {#if selectedFarm && modal}

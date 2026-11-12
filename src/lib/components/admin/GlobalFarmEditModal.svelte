@@ -27,7 +27,7 @@
 
   const ICON_KEYS = Object.keys(vehicleIcons)
   const COLORS = [
-    "Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Pink", "White", "Gray", "Black",
+    "Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Pink",
   ]
   const ROLES = [
     { id: "manager", label: "Manager", icon: "solar:shield-user-bold-duotone", note: "Runs the farm" },
@@ -177,6 +177,31 @@
     <!-- Body -->
     <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
       {#if mode.kind === "person"}
+        {#if member?.email || member?.phone}
+          <div class="flex flex-wrap gap-1.5">
+            {#if member.email}
+              <a
+                href="mailto:{member.email}"
+                class="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                title="Email this person"
+              >
+                <Icon icon="solar:letter-bold-duotone" width="14" height="14" class="flex-shrink-0 text-white/50" />
+                <span class="truncate">{member.email}</span>
+              </a>
+            {/if}
+            {#if member.phone}
+              <a
+                href="tel:{member.phone}"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                title="Call this person"
+              >
+                <Icon icon="solar:phone-bold-duotone" width="14" height="14" class="flex-shrink-0 text-white/50" />
+                {member.phone}
+              </a>
+            {/if}
+          </div>
+        {/if}
+
         <label class="block">
           <span class={labelClass}>Name</span>
           <input type="text" class={inputClass} maxlength="80" bind:value={name} />

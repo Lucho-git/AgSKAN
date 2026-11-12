@@ -31,6 +31,7 @@
   export let onEditMap: () => void
   export let onEditPerson: (id: string) => void
   export let onJoinMap: () => void
+  export let onEditFields: () => void
   export let joining = false
 
   const REASON_LABEL: Record<string, string> = {
@@ -154,6 +155,16 @@
             · {farm.company_name}
           {/if}
         </p>
+        {#if farm.owner_phone}
+          <a
+            href="tel:{farm.owner_phone}"
+            class="mt-0.5 inline-flex items-center gap-1 text-xs text-white/60 transition-colors hover:text-white"
+            title="Call the owner"
+          >
+            <Icon icon="solar:phone-bold-duotone" width="12" height="12" />
+            {farm.owner_phone}
+          </a>
+        {/if}
       </div>
     </div>
     <button
@@ -230,6 +241,16 @@
         <Icon icon="solar:login-3-bold-duotone" width="16" height="16" />
         Join and view map
       {/if}
+    </button>
+
+    <button
+      type="button"
+      class="flex w-full items-center justify-center gap-2 rounded-[10px] border border-white/20 bg-white/10 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
+      title="Farm names, moving and deleting fields, and uploading new ones"
+      on:click={onEditFields}
+    >
+      <Icon icon="solar:map-bold-duotone" width="16" height="16" />
+      View and edit fields
     </button>
 
     <!-- Counts -->

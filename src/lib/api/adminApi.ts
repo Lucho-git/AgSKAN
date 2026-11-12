@@ -78,6 +78,8 @@ export interface AdminMapNote {
 export interface GlobalFarmMember {
     id: string;
     name: string | null;
+    email: string | null;
+    phone: string | null;
     role: string | null;
     map_role: string | null;
     is_owner: boolean;
@@ -106,6 +108,7 @@ export interface GlobalFarm {
     created_at: string;
     owner_name: string | null;
     owner_email: string | null;
+    owner_phone: string | null;
     company_name: string | null;
     subscription: string;
     paid: boolean;
@@ -141,6 +144,18 @@ export interface GlobalMapField {
     a: number | null;
     g: { type: string; coordinates: any };
 }
+
+/** One field as the admin field editor lists it (no boundary). */
+export interface AdminMapField {
+    field_id: string;
+    name: string;
+    area: number | null;
+    farm_id: string | null;
+    created_at: string;
+}
+
+// Field ids per request when moving or deleting in bulk (keeps the URL short).
+const FIELD_BATCH = 100;
 
 const GLOBAL_MAP_FIELDS_PAGE = 1000;
 const GLOBAL_MAP_FIELDS_CONCURRENCY = 2;
@@ -229,6 +244,69 @@ export const adminApi = {
             return { success: true };
         } catch (error: any) {
             console.error('Set map test flag error:', error);
+            return { success: false, error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /** Every field on one map, without boundaries — for the admin field editor. */
+    async fetchMapFields(
+        mapId: string,
+    ): Promise<{ success: boolean; data: AdminMapField[]; error?: string }> {
+        try {
+            const { data, error } = await supabase
+                .from('fields')
+                .select('field_id, name, area, farm_id, created_at')
+                .eq('map_id', mapId)
+                .order('name', { ascending: true })
+                .limit(10000);
+
+            if (error) return { success: false, data: [], error: error.message };
+            return { success: true, data: (data as AdminMapField[]) || [] };
+        } catch (error: any) {
+            return { success: false, data: [], error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /** Put fields under a farm name on their map (null = no farm name). */
+    async moveFields(
+        mapId: string,
+        fieldIds: string[],
+        farmId: string | null,
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            for (let i = 0; i < fieldIds.length; i += FIELD_BATCH) {
+                const { error } = await supabase
+                    .from('fields')
+                    .update({ farm_id: farmId })
+                    .eq('map_id', mapId)
+                    .in('field_id', fieldIds.slice(i, i + FIELD_BATCH));
+                if (error) return { success: false, error: error.message };
+            }
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /**
+     * Permanently delete fields from a map. Spray records on those fields go
+     * with them; trails stay but lose their field link.
+     */
+    async deleteFields(
+        mapId: string,
+        fieldIds: string[],
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            for (let i = 0; i < fieldIds.length; i += FIELD_BATCH) {
+                const { error } = await supabase
+                    .from('fields')
+                    .delete()
+                    .eq('map_id', mapId)
+                    .in('field_id', fieldIds.slice(i, i + FIELD_BATCH));
+                if (error) return { success: false, error: error.message };
+            }
+            return { success: true };
+        } catch (error: any) {
             return { success: false, error: error.message || 'Unexpected error' };
         }
     },

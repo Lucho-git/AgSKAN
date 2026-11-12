@@ -91,6 +91,8 @@ BEGIN
                    jsonb_build_object(
                        'id', p.id,
                        'name', p.full_name,
+                       'email', p.email,
+                       'phone', NULLIF(btrim(p.mobile::text), ''),
                        'role', p.role,
                        'map_role', p.map_role,
                        'is_owner', (p.id = mm.master_user_id),
@@ -143,6 +145,7 @@ BEGIN
     base AS (
         SELECT mm.id, mm.map_name, mm.created_at,
                p.full_name AS owner_name, p.email AS owner_email, p.company_name,
+               NULLIF(btrim(p.mobile::text), '') AS owner_phone,
                COALESCE(sub.subscription, 'FREE') AS subscription,
                COALESCE(sub.subscription_status, 'free') AS subscription_status,
                COALESCE(sub.current_seats, 1) AS plan_seats,
@@ -198,7 +201,7 @@ BEGIN
     farms AS (
         SELECT
             r.id, r.map_name, r.created_at,
-            r.owner_name, r.owner_email, r.company_name,
+            r.owner_name, r.owner_email, r.company_name, r.owner_phone,
             r.subscription,
             (r.subscription <> 'FREE' AND r.subscription_status <> 'free') AS paid,
             r.members AS member_count,
