@@ -596,6 +596,14 @@
     </div>
 
     <div class="flex items-center gap-1.5">
+      <a
+        href="/account/admin/global-map"
+        class="btn btn-sm gap-1.5 border-base-300 bg-base-100 hover:bg-base-200"
+        title="See every farm on one map"
+      >
+        <Icon icon="solar:earth-bold-duotone" width="16" height="16" />
+        <span class="hidden sm:inline">Global map</span>
+      </a>
       <button
         class="btn btn-ghost btn-sm gap-1.5 text-contrast-content/70 hover:text-contrast-content"
         on:click={openLimitsModal}

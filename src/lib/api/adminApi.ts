@@ -73,7 +73,151 @@ export interface AdminMapNote {
     updated_at: string | null;
 }
 
+// ── Global farm map ──────────────────────────────────────────────────────────
+
+export interface GlobalFarmMember {
+    id: string;
+    name: string | null;
+    role: string | null;
+    map_role: string | null;
+    is_owner: boolean;
+    last_sign_in: string | null;
+}
+
+export interface GlobalFarmVehicle {
+    id: string;
+    name: string | null;
+    type: string | null;
+    color: string | null;
+    last_update: string | null;
+    lng: number | null;
+    lat: number | null;
+    recording: boolean;
+}
+
+/** Why a map is treated as a test map (see admin_global_map_farms). */
+export type GlobalFarmTestReason = 'manual' | 'internal' | 'name' | 'duplicate';
+
+/** One farm (master map) on the global map. */
+export interface GlobalFarm {
+    id: string;
+    map_name: string | null;
+    created_at: string;
+    owner_name: string | null;
+    owner_email: string | null;
+    company_name: string | null;
+    subscription: string;
+    paid: boolean;
+    member_count: number;
+    members: GlobalFarmMember[];
+    vehicles: GlobalFarmVehicle[];
+    vehicles_active_24h: number;
+    vehicles_active_7d: number;
+    latest_vehicle_update: string | null;
+    last_activity: string | null;
+    field_count: number;
+    hectares: number;
+    trail_count: number;
+    marker_count: number;
+    lng: number | null;
+    lat: number | null;
+    /** Farm position comes from its fields, or failing that its vehicles. */
+    located_by: 'fields' | 'vehicles' | null;
+    bbox: [number, number, number, number] | null;
+    /** Admin override: true = test, false = real client, null = automatic. */
+    manual_flag: boolean | null;
+    is_test: boolean;
+    test_reasons: GlobalFarmTestReason[];
+    duplicate_of: { id: string; name: string | null; shared_fields: number } | null;
+}
+
+/** Simplified field boundary: m = map id, n = name, a = hectares, g = GeoJSON geometry. */
+export interface GlobalMapField {
+    m: string;
+    n: string | null;
+    a: number | null;
+    g: { type: string; coordinates: any };
+}
+
+const GLOBAL_MAP_FIELDS_PAGE = 1500;
+
 export const adminApi = {
+    /** Every farm with its team, vehicles, content counts and test/duplicate status. */
+    async fetchGlobalMapFarms(): Promise<{ success: boolean; data: GlobalFarm[]; error?: string }> {
+        try {
+            const { data, error } = await supabase.rpc('admin_global_map_farms');
+
+            if (error) {
+                console.error('Global map farms RPC error:', error);
+                return { success: false, data: [], error: error.message };
+            }
+
+            return { success: true, data: (data as GlobalFarm[]) || [] };
+        } catch (error: any) {
+            console.error('Global map farms fetch error:', error);
+            return { success: false, data: [], error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /**
+     * Simplified boundaries for every field, fetched in parallel pages (each
+     * page stays well under the database statement timeout).
+     */
+    async fetchGlobalMapFields(
+        totalFields: number,
+    ): Promise<{ success: boolean; data: GlobalMapField[]; error?: string }> {
+        try {
+            // One spare page in case fields were added since the farms query.
+            const pages = Math.max(1, Math.ceil(totalFields / GLOBAL_MAP_FIELDS_PAGE) + 1);
+            const results = await Promise.all(
+                Array.from({ length: pages }, (_, i) =>
+                    supabase.rpc('admin_global_map_fields', {
+                        p_offset: i * GLOBAL_MAP_FIELDS_PAGE,
+                        p_limit: GLOBAL_MAP_FIELDS_PAGE,
+                    }),
+                ),
+            );
+
+            const failed = results.find((r) => r.error);
+            if (failed?.error) {
+                console.error('Global map fields RPC error:', failed.error);
+                return { success: false, data: [], error: failed.error.message };
+            }
+
+            return {
+                success: true,
+                data: results.flatMap((r) => (r.data as GlobalMapField[]) || []),
+            };
+        } catch (error: any) {
+            console.error('Global map fields fetch error:', error);
+            return { success: false, data: [], error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /** Flag a map as a test map (true), a real client (false), or back to automatic (null). */
+    async setMapTestFlag(
+        mapId: string,
+        isTest: boolean | null,
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { error } = await supabase.rpc('admin_set_map_test_flag', {
+                p_master_map_id: mapId,
+                p_is_test: isTest,
+            });
+
+            if (error) {
+                console.error('Set map test flag error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            console.error('Set map test flag error:', error);
+            return { success: false, error: error.message || 'Unexpected error' };
+        }
+    },
+
+
     async fetchDashboardData(): Promise<{ success: boolean; data: AdminMapEntry[]; error?: string }> {
         try {
             const { data: sessionData } = await supabase.auth.getSession();
