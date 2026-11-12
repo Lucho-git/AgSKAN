@@ -90,6 +90,7 @@ export interface GlobalFarmVehicle {
     type: string | null;
     color: string | null;
     last_update: string | null;
+    heading: number | null;
     lng: number | null;
     lat: number | null;
     recording: boolean;
@@ -109,6 +110,8 @@ export interface GlobalFarm {
     subscription: string;
     paid: boolean;
     member_count: number;
+    /** Seats on the owner's paid plan (0 on the free plan). */
+    paid_seats: number;
     members: GlobalFarmMember[];
     vehicles: GlobalFarmVehicle[];
     vehicles_active_24h: number;
@@ -230,6 +233,65 @@ export const adminApi = {
         }
     },
 
+    /** Rename a map (farm). */
+    async updateMapName(
+        mapId: string,
+        name: string,
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { error } = await supabase
+                .from('master_maps')
+                .update({ map_name: name })
+                .eq('id', mapId);
+
+            if (error) {
+                console.error('Update map name error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: error.message || 'Unexpected error' };
+        }
+    },
+
+    /**
+     * Change the vehicle a member shows as on a map. Only the icon type and
+     * colour change; the rest of their marker (size, swath, load) is kept.
+     */
+    async updateVehicleMarker(
+        mapId: string,
+        vehicleId: string,
+        change: { type: string; bodyColor: string },
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { data, error: readError } = await supabase
+                .from('vehicle_state')
+                .select('vehicle_marker')
+                .eq('vehicle_id', vehicleId)
+                .eq('master_map_id', mapId)
+                .maybeSingle();
+
+            if (readError || !data) {
+                return { success: false, error: readError?.message || 'Vehicle not found' };
+            }
+
+            const { error } = await supabase
+                .from('vehicle_state')
+                .update({ vehicle_marker: { ...(data.vehicle_marker || {}), ...change } })
+                .eq('vehicle_id', vehicleId)
+                .eq('master_map_id', mapId);
+
+            if (error) {
+                console.error('Update vehicle marker error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: error.message || 'Unexpected error' };
+        }
+    },
 
     async fetchDashboardData(): Promise<{ success: boolean; data: AdminMapEntry[]; error?: string }> {
         try {

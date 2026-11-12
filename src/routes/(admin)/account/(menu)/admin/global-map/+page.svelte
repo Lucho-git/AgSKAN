@@ -18,6 +18,9 @@
     type GlobalMapField,
   } from "$lib/api/adminApi"
   import GlobalFarmDetail from "$lib/components/admin/GlobalFarmDetail.svelte"
+  import GlobalFarmEditModal from "$lib/components/admin/GlobalFarmEditModal.svelte"
+  import { mapApi } from "$lib/api/mapApi"
+  import vehicleIcons from "$lib/vehicles/index.js"
   import { timeAgo } from "$lib/utils/adminFormat"
   import {
     STATUS_META,
@@ -25,11 +28,15 @@
     farmColor,
     farmStatus,
     formatHa,
-    spreadKm,
+    vehicleIconKey,
     type FarmStatus,
   } from "$lib/utils/globalFarmMap"
 
   type SortKey = "area" | "recent" | "team"
+  /** Collated = farms as clustering bubbles; individual = every field, no clusters. */
+  type ViewMode = "collated" | "individual"
+  /** What a bubble's size stands for: mapped hectares, or people on the map. */
+  type SizeBy = "ha" | "seats"
 
   const DAY_MS = 24 * 60 * 60 * 1000
   const glass =
@@ -49,21 +56,30 @@
   let initialViewDone = false
 
   let showTest = false
-  let statusFilter: FarmStatus | null = null
+  // Activity bands to show; empty = all of them.
+  let statusFilter: FarmStatus[] = []
+  let paidOnly = false
+  let viewMode: ViewMode = "collated"
+  let sizeBy: SizeBy = "ha"
   let searchQuery = ""
   let sortBy: SortKey = "area"
   let listOpen = true
   let selectedId: string | null = null
   let savingFlag = false
+  // Edit modal for the selected farm: one of its people, or the map itself.
+  let modal: { kind: "person"; id: string } | { kind: "map" } | null = null
+  let joining = false
 
   // ── Derived data ──────────────────────────────────────────────────────────
   $: farmsById = new Map(farms.map((f) => [f.id, f]))
   $: testCount = farms.filter((f) => f.is_test).length
   // Everything the totals describe: real clients, plus test maps when shown.
-  $: baseFarms = farms.filter((f) => showTest || !f.is_test)
+  $: visibleFarms = farms.filter((f) => showTest || !f.is_test)
+  $: paidCount = visibleFarms.filter((f) => f.paid).length
+  $: baseFarms = paidOnly ? visibleFarms.filter((f) => f.paid) : visibleFarms
   // What the map and list draw: the above, narrowed by the activity filter.
-  $: mapFarms = statusFilter
-    ? baseFarms.filter((f) => farmStatus(f) === statusFilter)
+  $: mapFarms = statusFilter.length
+    ? baseFarms.filter((f) => statusFilter.includes(farmStatus(f)))
     : baseFarms
   $: selectedFarm = selectedId ? (farmsById.get(selectedId) ?? null) : null
 
@@ -99,23 +115,24 @@
     farms: baseFarms.length,
     located: baseFarms.filter((f) => f.located_by).length,
     mapped: baseFarms.filter((f) => f.field_count > 0).length,
+    paying: baseFarms.filter((f) => f.paid).length,
     hectares: baseFarms.reduce((sum, f) => sum + Number(f.hectares || 0), 0),
     fields: baseFarms.reduce((sum, f) => sum + f.field_count, 0),
     people: baseFarms.reduce((sum, f) => sum + f.member_count, 0),
+    paidSeats: baseFarms.reduce((sum, f) => sum + (f.paid_seats || 0), 0),
     vehicles: baseFarms.reduce((sum, f) => sum + f.vehicles.length, 0),
     active24h: baseFarms.reduce((sum, f) => sum + f.vehicles_active_24h, 0),
     recording: baseFarms.reduce(
       (sum, f) => sum + f.vehicles.filter((v) => v.recording).length,
       0,
     ),
-    spread: spreadKm(baseFarms),
   }
 
   $: headlineStats = [
     {
       label: "Farms",
       value: totals.farms.toLocaleString("en-AU"),
-      note: `${totals.mapped} with fields mapped`,
+      note: `${totals.paying} paying · ${totals.mapped} with fields`,
     },
     {
       label: "Mapped",
@@ -123,9 +140,9 @@
       note: `${totals.fields.toLocaleString("en-AU")} fields`,
     },
     {
-      label: "People",
+      label: "Seats",
       value: totals.people.toLocaleString("en-AU"),
-      note: `${totals.vehicles.toLocaleString("en-AU")} vehicles`,
+      note: `${totals.paidSeats.toLocaleString("en-AU")} paid for · ${totals.vehicles.toLocaleString("en-AU")} vehicles`,
     },
     {
       label: "Active 24h",
@@ -134,16 +151,12 @@
         ? `${totals.recording} recording now`
         : "vehicles reporting",
     },
-    {
-      label: "Spread",
-      value: `${Math.round(totals.spread).toLocaleString("en-AU")} km`,
-      note: "between furthest farms",
-    },
   ]
 
   // ── Map data sync ─────────────────────────────────────────────────────────
+  $: if (mapReady) rebuildFarmLayers(viewMode, sizeBy)
   $: if (mapReady) syncFarmSources(mapFarms)
-  $: if (mapReady) syncFieldFilters(showTest, statusFilter, selectedId)
+  $: if (mapReady) syncFieldFilters(showTest, statusFilter, paidOnly, selectedId)
   $: if (mapReady && !initialViewDone && baseFarms.length) fitAll(false)
 
   function farmName(farm: GlobalFarm): string {
@@ -163,6 +176,8 @@
           id: f.id,
           name: farmName(f),
           ha: Number(f.hectares) || 0,
+          seats: f.member_count,
+          paid: f.paid_seats || 0,
           s: farmStatus(f, now),
           lb: f.located_by,
           v24: f.vehicles_active_24h,
@@ -184,6 +199,10 @@
           geometry: { type: "Point" as const, coordinates: [v.lng!, v.lat!] },
           properties: {
             id: v.id,
+            vt: vehicleIconKey(v.type, ICON_KEYS),
+            vc: v.color || "Yellow",
+            icon: `veh:${vehicleIconKey(v.type, ICON_KEYS)}:${v.color || "Yellow"}`,
+            h: Number(v.heading) || 0,
             farmId: f.id,
             farm: farmName(f),
             name: v.name || "Unnamed",
@@ -198,30 +217,113 @@
     )
 
     setSourceData("farms", farmFeatures)
-    setSourceData("vehicles", vehicleFeatures)
+    syncVehicleSource(vehicleFeatures)
+  }
+
+  // ── Vehicle icons ─────────────────────────────────────────────────────────
+  const ICON_KEYS = Object.keys(vehicleIcons)
+  const iconRequests = new Map<string, Promise<void>>()
+  let vehicleSyncToken = 0
+
+  // Draw a vehicle's Svelte icon into a map image, once per type + colour.
+  function ensureVehicleIcon(type: string, color: string): Promise<void> {
+    const id = `veh:${type}:${color}`
+    let request = iconRequests.get(id)
+    if (request) return request
+    request = new Promise<void>((resolve) => {
+      const host = document.createElement("div")
+      host.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden"
+      document.body.appendChild(host)
+      const component = new (vehicleIcons as Record<string, any>)[type]({
+        target: host,
+        props: { bodyColor: color, size: "128px" },
+      })
+      const svg = host.querySelector("svg")
+      let markup = ""
+      if (svg) {
+        // The icons are partly styled by component CSS, which an image can't
+        // see — copy what the browser resolved onto each shape.
+        // Read every shape before writing any: the colours hang off CSS
+        // variables on the root, which the first write would wipe.
+        const shapes = [svg, ...svg.querySelectorAll("*")]
+        const resolved = shapes.map((el) => {
+          const cs = getComputedStyle(el)
+          return `fill:${cs.fill};stroke:${cs.stroke};stroke-width:${cs.strokeWidth};opacity:${cs.opacity};fill-opacity:${cs.fillOpacity}`
+        })
+        shapes.forEach((el, i) => el.setAttribute("style", resolved[i]))
+        svg.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+        svg.removeAttribute("class")
+        markup = svg.outerHTML
+      }
+      component.$destroy()
+      host.remove()
+      if (!markup) return resolve()
+      const image = new Image(128, 128)
+      image.onload = () => {
+        if (map && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 })
+        resolve()
+      }
+      image.onerror = () => resolve()
+      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup)
+    })
+    iconRequests.set(id, request)
+    return request
+  }
+
+  // The icon images have to exist before the layer asks for them.
+  async function syncVehicleSource(features: any[]) {
+    const token = ++vehicleSyncToken
+    const combos = new Map<string, [string, string]>()
+    for (const f of features) combos.set(f.properties.icon, [f.properties.vt, f.properties.vc])
+    await Promise.all([...combos.values()].map(([type, color]) => ensureVehicleIcon(type, color)))
+    if (token === vehicleSyncToken) setSourceData("vehicles", features)
+  }
+
+  // Centre of a field's bounding box — where its far-away dot is drawn.
+  function fieldCentre(geometry: GlobalMapField["g"]): [number, number] | null {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    const walk = (coords: any) => {
+      if (typeof coords[0] === "number") {
+        if (coords[0] < x0) x0 = coords[0]
+        if (coords[0] > x1) x1 = coords[0]
+        if (coords[1] < y0) y0 = coords[1]
+        if (coords[1] > y1) y1 = coords[1]
+      } else {
+        for (const c of coords) walk(c)
+      }
+    }
+    walk(geometry.coordinates || [])
+    return Number.isFinite(x0) ? [(x0 + x1) / 2, (y0 + y1) / 2] : null
   }
 
   function syncFieldSource() {
     const now = Date.now()
-    const features = fieldsRaw.flatMap((f) => {
+    const features: any[] = []
+    const dots: any[] = []
+    for (const f of fieldsRaw) {
       const farm = farmsById.get(f.m)
-      if (!farm || !f.g) return []
-      return [
-        {
-          type: "Feature" as const,
-          geometry: f.g,
-          properties: {
-            m: f.m,
-            n: f.n || "",
-            a: Number(f.a) || 0,
-            c: farmColor(f.m),
-            t: farm.is_test ? 1 : 0,
-            s: farmStatus(farm, now),
-          },
-        },
-      ]
-    })
+      if (!farm || !f.g) continue
+      const properties = {
+        m: f.m,
+        n: f.n || "",
+        a: Number(f.a) || 0,
+        c: farmColor(f.m),
+        t: farm.is_test ? 1 : 0,
+        p: farm.paid ? 1 : 0,
+        s: farmStatus(farm, now),
+      }
+      features.push({ type: "Feature", geometry: f.g, properties })
+      const centre = fieldCentre(f.g)
+      if (centre) {
+        dots.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: centre },
+          properties,
+        })
+      }
+    }
     setSourceData("fields", features)
+    setSourceData("field-dots", dots)
   }
 
   function setSourceData(id: string, features: any[]) {
@@ -231,18 +333,22 @@
 
   function syncFieldFilters(
     withTest: boolean,
-    status: FarmStatus | null,
+    status: FarmStatus[],
+    paid: boolean,
     selected: string | null,
   ) {
     if (!map) return
     const filter: any[] = ["all"]
     if (!withTest) filter.push(["==", ["get", "t"], 0])
-    if (status) filter.push(["==", ["get", "s"], status])
-    for (const layer of ["fields-fill", "fields-line", "fields-label"]) {
+    if (paid) filter.push(["==", ["get", "p"], 1])
+    if (status.length) filter.push(["in", ["get", "s"], ["literal", status]])
+    for (const layer of ["fields-fill", "fields-line", "fields-label", "field-dots"]) {
       map.setFilter(layer, filter)
     }
     map.setFilter("fields-selected", ["==", ["get", "m"], selected ?? ""])
-    map.setFilter("farm-selected", ["==", ["get", "id"], selected ?? ""])
+    if (map.getLayer("farm-selected")) {
+      map.setFilter("farm-selected", ["==", ["get", "id"], selected ?? ""])
+    }
   }
 
   // ── Map setup ─────────────────────────────────────────────────────────────
@@ -253,13 +359,9 @@
     STATUS_META.dormant.color,
   ]
   const hasFields: any = ["==", ["get", "lb"], "fields"]
-  const farmRadius: any = [
-    "interpolate",
-    ["linear"],
-    ["sqrt", ["get", "ha"]],
-    0, 6,
-    60, 10,
-    200, 22,
+  const FARM_LAYERS = [
+    "farm-label", "farm-selected", "farm-paid", "farm-dot",
+    "cluster-label", "clusters-paid", "clusters",
   ]
   const emptyCollection: any = { type: "FeatureCollection", features: [] }
 
@@ -353,17 +455,96 @@
         ],
         "circle-stroke-color": "#0b0f14",
         "circle-stroke-width": 1.5,
+        // Up close the dot hands over to the vehicle's own icon.
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 15, 0],
+        "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 15, 0],
       },
     })
+    // Vehicle icons are pinned to the ground: they halve in size with every
+    // zoom level out (drawn about 4x life size so a tractor is still findable),
+    // which keeps them from blanketing the map from far away.
+    map.addLayer({
+      id: "vehicle-icons",
+      type: "symbol",
+      source: "vehicles",
+      minzoom: 13,
+      layout: {
+        "icon-image": ["get", "icon"],
+        "icon-size": ["interpolate", ["exponential", 2], ["zoom"], 12.5, 0.03125, 17.5, 1],
+        "icon-rotate": ["get", "h"],
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+      },
+      paint: {
+        "icon-opacity": ["interpolate", ["linear"], ["zoom"], 13.5, 0, 14.5, 1],
+      },
+    })
+
+    // Far-away stand-in for the boundaries (individual view): one dot per
+    // field in its farm's colour, never smaller than a couple of pixels, so a
+    // farm reads as a cloud of fields long before the shapes are visible.
+    map.addSource("field-dots", { type: "geojson", data: emptyCollection })
+    map.addLayer({
+      id: "field-dots",
+      type: "circle",
+      source: "field-dots",
+      maxzoom: 11,
+      layout: { visibility: "none" },
+      paint: {
+        "circle-color": ["get", "c"],
+        "circle-radius": [
+          "interpolate", ["exponential", 2], ["zoom"],
+          4, 1.6,
+          7, ["max", 1.6, ["*", 0.054, ["sqrt", ["get", "a"]]]],
+          10, ["max", 1.6, ["*", 0.434, ["sqrt", ["get", "a"]]]],
+        ],
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 8.5, 0.85, 10.5, 0],
+      },
+    })
+  }
+
+  // The farm bubbles are rebuilt when the view or the size measure changes:
+  // clustering is fixed when a source is created, so it can't just be toggled.
+  function rebuildFarmLayers(view: ViewMode, size: SizeBy) {
+    if (!map) return
+    for (const id of FARM_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+    if (map.getSource("farms")) map.removeSource("farms")
+
+    const collated = view === "collated"
+    const bySeats = size === "seats"
+    // Seats use one scale for farms and merged bubbles alike (area = seats),
+    // so the filled disc (seats used) and white ring (seats paid for) compare.
+    const seatRadius = (prop: string, min: number): any => [
+      "max", min, ["min", 60, ["*", 4.5, ["sqrt", ["get", prop]]]],
+    ]
+    const farmRadius: any = bySeats
+      ? seatRadius("seats", 5)
+      : ["interpolate", ["linear"], ["sqrt", ["get", "ha"]], 0, 6, 60, 10, 200, 22]
+    const fadeNearFields: any = [
+      "interpolate", ["linear"], ["zoom"],
+      9, 1,
+      11.5, ["case", hasFields, 0, 1],
+    ]
+    // Individual view leaves farms with fields to their fields — unless the
+    // bubbles are showing seats, which the fields can't.
+    const dotFilter: any =
+      collated || bySeats ? ["!", ["has", "point_count"]] : ["!", hasFields]
 
     map.addSource("farms", {
       type: "geojson",
       data: emptyCollection,
-      cluster: true,
+      cluster: collated,
       clusterMaxZoom: 7,
       clusterRadius: 46,
-      clusterProperties: { ha: ["+", ["get", "ha"]] },
+      clusterProperties: {
+        ha: ["+", ["get", "ha"]],
+        seats: ["+", ["get", "seats"]],
+        paid: ["+", ["get", "paid"]],
+      },
     })
+    map.setLayoutProperty("field-dots", "visibility", collated ? "none" : "visible")
+
     map.addLayer({
       id: "clusters",
       type: "circle",
@@ -374,29 +555,55 @@
         "circle-opacity": 0.4,
         "circle-stroke-color": "#4ade80",
         "circle-stroke-width": 1.5,
-        "circle-radius": ["step", ["get", "point_count"], 20, 10, 27, 40, 36, 120, 46],
+        "circle-radius": bySeats
+          ? seatRadius("seats", 16)
+          : ["step", ["get", "point_count"], 20, 10, 27, 40, 36, 120, 46],
       },
     })
+    if (bySeats) {
+      map.addLayer({
+        id: "clusters-paid",
+        type: "circle",
+        source: "farms",
+        filter: ["all", ["has", "point_count"], [">", ["get", "paid"], 0]],
+        paint: {
+          "circle-radius": seatRadius("paid", 0),
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+        },
+      })
+    }
     map.addLayer({
       id: "cluster-label",
       type: "symbol",
       source: "farms",
       filter: ["has", "point_count"],
       layout: {
-        "text-field": [
-          "format",
-          ["to-string", ["get", "point_count"]],
-          { "font-scale": 1.25 },
-          "\n",
-          {},
-          [
-            "case",
-            [">=", ["get", "ha"], 1000],
-            ["concat", ["to-string", ["round", ["/", ["get", "ha"], 1000]]], "k ha"],
-            "farms",
-          ],
-          { "font-scale": 0.75 },
-        ],
+        "text-field": bySeats
+          ? [
+              "format",
+              ["to-string", ["get", "seats"]],
+              { "font-scale": 1.25 },
+              "\n",
+              {},
+              ["concat", ["to-string", ["get", "paid"]], " paid"],
+              { "font-scale": 0.75 },
+            ]
+          : [
+              "format",
+              ["to-string", ["get", "point_count"]],
+              { "font-scale": 1.25 },
+              "\n",
+              {},
+              [
+                "case",
+                [">=", ["get", "ha"], 1000],
+                ["concat", ["to-string", ["round", ["/", ["get", "ha"], 1000]]], "k ha"],
+                "farms",
+              ],
+              { "font-scale": 0.75 },
+            ],
         "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
         "text-size": 13,
         "text-line-height": 1.1,
@@ -410,7 +617,7 @@
       id: "farm-dot",
       type: "circle",
       source: "farms",
-      filter: ["!", ["has", "point_count"]],
+      filter: dotFilter,
       paint: {
         "circle-radius": farmRadius,
         "circle-color": statusColorExpr,
@@ -428,6 +635,21 @@
         ],
       },
     })
+    if (bySeats) {
+      map.addLayer({
+        id: "farm-paid",
+        type: "circle",
+        source: "farms",
+        filter: ["all", dotFilter, [">", ["get", "paid"], 0]],
+        paint: {
+          "circle-radius": seatRadius("paid", 0),
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-opacity": fadeNearFields,
+        },
+      })
+    }
     map.addLayer({
       id: "farm-selected",
       type: "circle",
@@ -452,13 +674,29 @@
       filter: ["!", ["has", "point_count"]],
       minzoom: 5.5,
       layout: {
-        "text-field": ["get", "name"],
+        "text-field": bySeats
+          ? [
+              "format",
+              ["get", "name"],
+              {},
+              "\n",
+              {},
+              [
+                "concat",
+                ["to-string", ["get", "seats"]],
+                " used · ",
+                ["to-string", ["get", "paid"]],
+                " paid",
+              ],
+              { "font-scale": 0.8 },
+            ]
+          : ["get", "name"],
         "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 6, 10, 11, 13],
         "text-variable-anchor": ["top", "bottom", "left", "right"],
         "text-radial-offset": ["interpolate", ["linear"], ["zoom"], 6, 1.3, 11.5, 0.2],
         "text-max-width": 9,
-        "symbol-sort-key": ["-", ["get", "ha"]],
+        "symbol-sort-key": ["-", ["get", bySeats ? "seats" : "ha"]],
       },
       paint: {
         "text-color": "#ffffff",
@@ -466,6 +704,9 @@
         "text-halo-width": 1.5,
       },
     })
+
+    syncFarmSources(mapFarms)
+    map.setFilter("farm-selected", ["==", ["get", "id"], selectedId ?? ""])
   }
 
   // Popup content is built with textContent — names come from users.
@@ -531,15 +772,41 @@
     m.on("click", "fields-fill", (e) => {
       // Farm bubbles and vehicles sit on top — let them win the click.
       const above = m.queryRenderedFeatures(e.point, {
-        layers: ["farm-dot", "farm-label", "clusters", "vehicles"],
+        layers: ["farm-dot", "farm-label", "clusters", "vehicles", "vehicle-icons"],
       })
       if (above.length) return
       const id = e.features?.[0]?.properties?.m
       if (id) selectFarm(id, false)
     })
-    m.on("click", "vehicles", (e) => {
-      const id = e.features?.[0]?.properties?.farmId
+    for (const layer of ["vehicles", "vehicle-icons"]) {
+      m.on("click", layer, (e) => {
+        const id = e.features?.[0]?.properties?.farmId
+        if (id) selectFarm(id, false)
+      })
+      m.on("mousemove", layer, (e) => {
+        const p = e.features?.[0]?.properties
+        if (!p) return
+        m.getCanvas().style.cursor = "pointer"
+        showHover((e.features![0].geometry as any).coordinates, p.name, [p.farm, p.ago])
+      })
+    }
+    m.on("click", "field-dots", (e) => {
+      const above = m.queryRenderedFeatures(e.point, {
+        layers: ["farm-dot", "farm-label", "clusters", "vehicles", "vehicle-icons"],
+      })
+      if (above.length) return
+      const id = e.features?.[0]?.properties?.m
       if (id) selectFarm(id, false)
+    })
+    m.on("mousemove", "field-dots", (e) => {
+      const p = e.features?.[0]?.properties
+      const farm = p ? farmsById.get(p.m) : null
+      if (!farm) return
+      m.getCanvas().style.cursor = "pointer"
+      showHover(e.lngLat, farmName(farm), [
+        `${formatHa(farm.hectares)} · ${farm.field_count} fields`,
+        `${farm.member_count} people · ${farm.vehicles.length} vehicles`,
+      ])
     })
 
     m.on("mousemove", "farm-dot", (e) => {
@@ -552,7 +819,7 @@
         farm.field_count
           ? `${formatHa(farm.hectares)} · ${farm.field_count} fields`
           : "No fields mapped",
-        `${farm.member_count} people · ${farm.vehicles.length} vehicles`,
+        `${farm.member_count} seats used · ${farm.paid_seats} paid · ${farm.vehicles.length} vehicles`,
         STATUS_META[farmStatus(farm)].label,
       ])
     })
@@ -562,20 +829,15 @@
       m.getCanvas().style.cursor = "pointer"
       showHover((e.features![0].geometry as any).coordinates, `${p.point_count} farms`, [
         p.ha > 0 ? `${formatHa(p.ha)} mapped` : "No fields mapped",
+        `${p.seats} seats used · ${p.paid} paid`,
         "Click to zoom in",
       ])
-    })
-    m.on("mousemove", "vehicles", (e) => {
-      const p = e.features?.[0]?.properties
-      if (!p) return
-      m.getCanvas().style.cursor = "pointer"
-      showHover((e.features![0].geometry as any).coordinates, p.name, [p.farm, p.ago])
     })
     m.on("mousemove", "fields-fill", (e) => {
       const p = e.features?.[0]?.properties
       if (!p) return
       const above = m.queryRenderedFeatures(e.point, {
-        layers: ["farm-dot", "clusters", "vehicles"],
+        layers: ["farm-dot", "clusters", "vehicles", "vehicle-icons"],
       })
       if (above.length) return
       m.getCanvas().style.cursor = "pointer"
@@ -585,7 +847,7 @@
         farm ? farmName(farm) : "",
       ])
     })
-    for (const layer of ["farm-dot", "clusters", "vehicles", "fields-fill"]) {
+    for (const layer of ["farm-dot", "clusters", "vehicles", "vehicle-icons", "fields-fill", "field-dots"]) {
       m.on("mouseleave", layer, hideHover)
     }
   }
@@ -648,10 +910,12 @@
   function selectFarm(id: string, fly = true) {
     const farm = farmsById.get(id)
     if (!farm) return
+    if (id !== selectedId) modal = null
     selectedId = id
     // A farm picked from a "copy of" link may be filtered out — show it.
     if (farm.is_test && !showTest) showTest = true
-    if (statusFilter && farmStatus(farm) !== statusFilter) statusFilter = null
+    if (paidOnly && !farm.paid) paidOnly = false
+    if (statusFilter.length && !statusFilter.includes(farmStatus(farm))) statusFilter = []
     if (window.innerWidth < 1024) listOpen = false
     if (fly) focusFarm(farm)
   }
@@ -663,7 +927,7 @@
         [vehicle.lng, vehicle.lat],
         [vehicle.lng, vehicle.lat],
       ],
-      { padding: cameraPadding(), maxZoom: 15, duration: 1200 },
+      { padding: cameraPadding(), maxZoom: 16.5, duration: 1200 },
     )
   }
 
@@ -721,6 +985,74 @@
     savingFlag = false
   }
 
+  async function renameMap(name: string): Promise<boolean> {
+    if (!selectedFarm) return false
+    const result = await adminApi.updateMapName(selectedFarm.id, name)
+    if (!result.success) {
+      toast.error(result.error || "Failed to rename the map")
+      return false
+    }
+    await loadFarms()
+    toast.success("Map renamed")
+    return true
+  }
+
+  async function saveMember(change: {
+    id: string
+    name?: string
+    role?: string
+    vehicle?: { type: string; bodyColor: string }
+  }): Promise<boolean> {
+    if (!selectedFarm) return false
+    const mapId = selectedFarm.id
+    const failures: string[] = []
+    if (change.name) {
+      const r = await adminApi.updateMemberName(change.id, change.name)
+      if (!r.success) failures.push(r.error || "name")
+    }
+    if (change.role) {
+      const r = await adminApi.updateMemberRole(change.id, change.role)
+      if (!r.success) failures.push(r.error || "account type")
+    }
+    if (change.vehicle) {
+      const r = await adminApi.updateVehicleMarker(mapId, change.id, change.vehicle)
+      if (!r.success) failures.push(r.error || "vehicle")
+    }
+    await loadFarms()
+    if (failures.length) {
+      toast.error(`Couldn't save: ${failures.join(", ")}`)
+      return false
+    }
+    toast.success("Saved")
+    return true
+  }
+
+  async function makeOwner(memberId: string): Promise<boolean> {
+    if (!selectedFarm) return false
+    const result = await adminApi.transferOwnership(selectedFarm.id, memberId)
+    if (!result.success) {
+      toast.error(result.error || "Failed to transfer ownership")
+      return false
+    }
+    await loadFarms()
+    toast.success("Ownership transferred")
+    return true
+  }
+
+  // Put the admin's own account on this farm's map and open it in the viewer.
+  // A full page load lets the account layout set everything up for the new map.
+  async function joinMap() {
+    if (!selectedFarm || joining) return
+    joining = true
+    const result: any = await mapApi.connectToMap(selectedFarm.id)
+    if (result?.success) {
+      window.location.href = "/account/mapviewer"
+      return
+    }
+    joining = false
+    toast.error(result?.error || result?.message || "Couldn't join this map")
+  }
+
   let readyQueue: (() => void)[] = []
   function whenMapReady(fn: () => void) {
     if (mapReady) fn()
@@ -728,7 +1060,9 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape" && selectedId) selectedId = null
+    if (e.key !== "Escape") return
+    if (modal) modal = null
+    else if (selectedId) selectedId = null
   }
 
   onMount(() => {
@@ -876,18 +1210,34 @@
           {#each statusCounts as { status, count } (status)}
             <button
               type="button"
-              aria-pressed={statusFilter === status}
-              title="Show only: {STATUS_META[status].label.toLowerCase()}"
-              class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] transition-colors {statusFilter === status
+              aria-pressed={statusFilter.includes(status)}
+              title="{STATUS_META[status].hint} — pick any number to show together"
+              class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] transition-colors {statusFilter.includes(status)
                 ? 'border-white/40 bg-white/15 text-white'
                 : 'border-transparent bg-white/5 text-white/65 hover:bg-white/10'}"
-              on:click={() => (statusFilter = statusFilter === status ? null : status)}
+              on:click={() =>
+                (statusFilter = statusFilter.includes(status)
+                  ? statusFilter.filter((s) => s !== status)
+                  : [...statusFilter, status])}
             >
               <span class="h-2 w-2 rounded-full" style="background: {STATUS_META[status].color}"></span>
               {STATUS_META[status].label}
               <span class="font-semibold tabular-nums text-white/90">{count}</span>
             </button>
           {/each}
+          <button
+            type="button"
+            aria-pressed={paidOnly}
+            title="Show only farms on a paid plan"
+            class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] transition-colors {paidOnly
+              ? 'border-emerald-300/60 bg-emerald-400/20 text-white'
+              : 'border-transparent bg-white/5 text-white/65 hover:bg-white/10'}"
+            on:click={() => (paidOnly = !paidOnly)}
+          >
+            <Icon icon="solar:dollar-minimalistic-bold-duotone" width="11" height="11" class="text-emerald-300" />
+            Paying
+            <span class="font-semibold tabular-nums text-white/90">{paidCount}</span>
+          </button>
         </div>
 
         <div class="flex items-center justify-between gap-2">
@@ -969,7 +1319,7 @@
       </div>
 
       <p class="border-t border-white/10 px-3 py-2 text-[10px] leading-snug text-white/40">
-        {listFarms.length} of {baseFarms.length} farms · bubble size = mapped hectares, hollow = no fields yet
+        {listFarms.length} of {baseFarms.length} farms · {sizeBy === "seats" ? "bubble = seats used, white ring = seats paid for" : "bubble size = mapped hectares, hollow = no fields yet"}
       </p>
     </aside>
   {:else}
@@ -984,6 +1334,43 @@
     </button>
   {/if}
 
+  <!-- View switches: collated bubbles vs individual fields, and what bubble size means -->
+  <div class="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-14">
+    <div class="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+      <div class="flex rounded-xl p-1 text-xs font-medium {glass}" role="group" aria-label="Map view">
+        {#each [{ id: "collated", label: "Collated", icon: "solar:record-circle-bold-duotone", tip: "Farms as bubbles that merge with their neighbours" }, { id: "individual", label: "Individual", icon: "solar:widget-4-bold-duotone", tip: "Every field from far away, no merging" }] as option (option.id)}
+          <button
+            type="button"
+            aria-pressed={viewMode === option.id}
+            title={option.tip}
+            class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors {viewMode === option.id
+              ? 'bg-white/20 text-white'
+              : 'text-white/60 hover:bg-white/10'}"
+            on:click={() => (viewMode = option.id === "individual" ? "individual" : "collated")}
+          >
+            <Icon icon={option.icon} width="14" height="14" />
+            {option.label}
+          </button>
+        {/each}
+      </div>
+      <div class="flex rounded-xl p-1 text-xs font-medium {glass}" role="group" aria-label="Bubble size">
+        {#each [{ id: "ha", label: "Hectares", tip: "Size bubbles by mapped hectares" }, { id: "seats", label: "Seats", tip: "Bubbles show seats used (people on the map) with a white ring for seats paid for" }] as option (option.id)}
+          <button
+            type="button"
+            aria-pressed={sizeBy === option.id}
+            title={option.tip}
+            class="rounded-lg px-2.5 py-1.5 transition-colors {sizeBy === option.id
+              ? 'bg-white/20 text-white'
+              : 'text-white/60 hover:bg-white/10'}"
+            on:click={() => (sizeBy = option.id === "seats" ? "seats" : "ha")}
+          >
+            {option.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+  </div>
+
   <!-- Farm card -->
   {#if selectedFarm}
     <div
@@ -995,10 +1382,25 @@
         {savingFlag}
         onClose={() => (selectedId = null)}
         onSelectFarm={(id) => selectFarm(id)}
-        onLocateVehicle={locateVehicle}
         onSetTestFlag={setTestFlag}
+        onEditMap={() => (modal = { kind: "map" })}
+        onEditPerson={(id) => (modal = { kind: "person", id })}
+        onJoinMap={joinMap}
+        {joining}
       />
     </div>
+  {/if}
+
+  {#if selectedFarm && modal}
+    <GlobalFarmEditModal
+      farm={selectedFarm}
+      mode={modal}
+      onClose={() => (modal = null)}
+      onLocateVehicle={locateVehicle}
+      onRenameMap={renameMap}
+      onSaveMember={saveMember}
+      onMakeOwner={makeOwner}
+    />
   {/if}
 </div>
 

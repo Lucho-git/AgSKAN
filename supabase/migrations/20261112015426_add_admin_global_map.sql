@@ -117,6 +117,7 @@ BEGIN
                        'type', vs.vehicle_marker->>'type',
                        'color', COALESCE(vs.vehicle_marker->>'bodyColor', vs.vehicle_marker->>'color'),
                        'last_update', vs.last_update,
+                       'heading', vs.heading,
                        'lng', vs.coordinates[0],
                        'lat', vs.coordinates[1],
                        'recording', (vs.is_trailing IS TRUE AND vs.last_update > now() - interval '15 minutes')
@@ -144,6 +145,7 @@ BEGIN
                p.full_name AS owner_name, p.email AS owner_email, p.company_name,
                COALESCE(sub.subscription, 'FREE') AS subscription,
                COALESCE(sub.subscription_status, 'free') AS subscription_status,
+               COALESCE(sub.current_seats, 1) AS plan_seats,
                COALESCE(m.members, 0) AS members,
                COALESCE(fs.field_count, 0) AS field_count,
                GREATEST(v.last_update, m.last_sign_in) AS last_activity,
@@ -200,6 +202,8 @@ BEGIN
             r.subscription,
             (r.subscription <> 'FREE' AND r.subscription_status <> 'free') AS paid,
             r.members AS member_count,
+            CASE WHEN r.subscription <> 'FREE' AND r.subscription_status <> 'free'
+                 THEN r.plan_seats ELSE 0 END AS paid_seats,
             COALESCE(m.members_detail, '[]'::jsonb) AS members,
             COALESCE(v.vehicles_detail, '[]'::jsonb) AS vehicles,
             COALESCE(v.active_24h, 0) AS vehicles_active_24h,

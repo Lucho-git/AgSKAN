@@ -2,23 +2,43 @@
 // Shared helpers for the admin global farm map (page + farm card).
 import type { GlobalFarm } from "$lib/api/adminApi"
 
-export type FarmStatus = "live" | "day" | "week" | "month" | "dormant"
+export type FarmStatus =
+  | "live"
+  | "day"
+  | "week"
+  | "month"
+  | "season"
+  | "dormant"
+  | "dead"
 
 /** Activity colours — fixed, since they're drawn on the dark map. */
-export const STATUS_META: Record<FarmStatus, { label: string; color: string }> = {
-  live: { label: "Live now", color: "#22c55e" },
-  day: { label: "Active today", color: "#a3e635" },
-  week: { label: "Active this week", color: "#facc15" },
-  month: { label: "Active this month", color: "#fb923c" },
-  dormant: { label: "Dormant", color: "#64748b" },
+export const STATUS_META: Record<
+  FarmStatus,
+  { label: string; hint: string; color: string }
+> = {
+  live: { label: "Live now", hint: "A vehicle reported in the last 15 minutes", color: "#22c55e" },
+  day: { label: "Active today", hint: "A vehicle reported in the last 24 hours", color: "#a3e635" },
+  week: { label: "Active this week", hint: "Activity in the last 7 days", color: "#facc15" },
+  month: { label: "Active this month", hint: "Activity in the last 30 days", color: "#fb923c" },
+  season: { label: "Active this season", hint: "Activity in the last 3 months", color: "#f472b6" },
+  dormant: { label: "Dormant", hint: "No activity in 3 months", color: "#94a3b8" },
+  dead: { label: "Dead", hint: "No activity in over 12 months", color: "#475569" },
 }
 
-export const STATUS_ORDER: FarmStatus[] = ["live", "day", "week", "month", "dormant"]
+export const STATUS_ORDER: FarmStatus[] = [
+  "live",
+  "day",
+  "week",
+  "month",
+  "season",
+  "dormant",
+  "dead",
+]
 
 const MIN = 60 * 1000
 const DAY = 24 * 60 * MIN
 
-/** Live/today come from vehicle GPS; week/month also count member sign-ins. */
+/** Live/today come from vehicle GPS; the longer bands also count member sign-ins. */
 export function farmStatus(farm: GlobalFarm, now = Date.now()): FarmStatus {
   const vehicleAge = farm.latest_vehicle_update
     ? now - new Date(farm.latest_vehicle_update).getTime()
@@ -30,7 +50,9 @@ export function farmStatus(farm: GlobalFarm, now = Date.now()): FarmStatus {
     : Infinity
   if (age <= 7 * DAY) return "week"
   if (age <= 30 * DAY) return "month"
-  return "dormant"
+  if (age <= 90 * DAY) return "season"
+  if (age <= 365 * DAY) return "dormant"
+  return "dead"
 }
 
 export function formatHa(ha: number): string {
@@ -54,27 +76,10 @@ export function farmColor(id: string): string {
   return FARM_COLORS[Math.abs(hash) % FARM_COLORS.length]
 }
 
-function haversineKm(a: [number, number], b: [number, number]): number {
-  const rad = Math.PI / 180
-  const dLat = (b[1] - a[1]) * rad
-  const dLng = (b[0] - a[0]) * rad
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2
-  return 6371 * 2 * Math.asin(Math.sqrt(h))
-}
-
-/** Greatest distance between any two located farms — "how far we spread". */
-export function spreadKm(farms: GlobalFarm[]): number {
-  const pts = farms
-    .filter((f) => f.lng != null && f.lat != null)
-    .map((f) => [f.lng, f.lat] as [number, number])
-  let max = 0
-  for (let i = 0; i < pts.length; i++) {
-    for (let j = i + 1; j < pts.length; j++) {
-      const d = haversineKm(pts[i], pts[j])
-      if (d > max) max = d
-    }
-  }
-  return max
+/** Vehicle types are stored loosely ("tractor", "simpleTractor") — find the icon's real key. */
+export function vehicleIconKey(type: string | null, keys: string[]): string {
+  if (!type) return "Pointer"
+  if (keys.includes(type)) return type
+  const lower = type.toLowerCase()
+  return keys.find((k) => k.toLowerCase() === lower) ?? "Pointer"
 }
