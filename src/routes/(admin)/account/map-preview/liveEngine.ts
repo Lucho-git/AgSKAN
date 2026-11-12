@@ -23,7 +23,9 @@ import {
   TRAIL_SOURCE,
   applyBase,
   buildStyle,
-  march,
+  breathe,
+  MEASURE_SOURCE,
+  showLayers,
   pickPaddock,
   pinPixels,
   pickTrail as paintPickedTrail,
@@ -68,6 +70,16 @@ import {
   loadTrailShape,
   loadTrailTimeline,
   deleteTrail,
+  patchPin,
+  setPinNote,
+  type PinPatch,
+  patchPaddock,
+  deletePaddock,
+  loadFarmNames,
+  type FarmName,
+  type PaddockPatch,
+  flashLabel,
+  type Flash,
   removePin,
   restorePin,
   saveMyMachine,
@@ -125,13 +137,32 @@ export type CrewRow = {
   placed: boolean
 }
 
-export type ToolView = "home" | "machine" | "pins" | "trails" | "map" | "farm"
+export type ToolView =
+  | "home"
+  | "crew"
+  | "machine"
+  | "pins"
+  | "trails"
+  | "paddocks"
+  | "map"
+  | "layers"
+  | "broadcast"
+  | "farm"
 export type BaseChoice = { key: string; label: string; note: string }
 
 /** This person's own marker colour settings (which colour a pin gets). */
 export type PinSettings = {
   markerDefaultColor?: string | null
   markerTypeDefaultColors?: Record<string, string> | null
+}
+
+/** What the measure tool has so far. */
+export type Measure = {
+  points: number
+  /** Metres along the line tapped out. */
+  distance: number
+  /** Hectares inside it, once there are three corners. */
+  ha: number
 }
 
 export type Loading = {
@@ -168,6 +199,8 @@ type ReplayPoint = {
   at: LngLat
   /** When the machine was here (ms). */
   t: number
+  /** Metres driven to here along its stretch of the trail. */
+  along: number
   /** Position on the playback axis: working time so far, stops shortened. */
   axis: number
   part: number
@@ -212,6 +245,12 @@ type CrewEntry = {
 }
 
 type LiveTrail = { info: TrailInfo; points: TrailPoint[] }
+
+/** How long a broadcast runs before it stops itself. */
+export const BROADCAST_FOR = 5 * 60_000
+
+/** `selectedCrew` holds this when the viewer's own machine is picked. */
+export const ME = "me"
 
 const AUSTRALIA: LngLat = [133.7751, -25.2744]
 const DAY = 86_400_000
@@ -299,6 +338,17 @@ export class LiveEngine {
   /** The finished trail picked out on the map, and its replay if running. */
   readonly selectedTrail: Writable<TrailInfo | null> = writable(null)
   readonly replay: Writable<ReplayState | null> = writable(null)
+  /** The measure tool's running figures while it is in use, else null. */
+  readonly measure: Writable<Measure | null> = writable(null)
+  /** Every paddock on the farm, for the paddock list. */
+  readonly paddockList: Writable<Paddock[]> = writable([])
+  /** This person's own broadcast, while one is running. */
+  readonly broadcast: Writable<Flash | null> = writable(null)
+  /** A crew member has just started broadcasting (for a notice). */
+  readonly heard: Writable<{ id: string; name: string; flash: Flash } | null> =
+    writable(null)
+  /** The farms (blocks) the paddocks are grouped into. */
+  readonly farmNames: Writable<FarmName[]> = writable([])
   readonly loading: Writable<Loading> = writable({
     paddocks: true,
     pins: true,
@@ -332,12 +382,17 @@ export class LiveEngine {
   private pinImages = new Set<string>()
   private pinSettings: PinSettings | null
   /** The tapped pin, lifted off the layer as an animated marker. */
-  private picked: { marker: MapboxMap; view: SelectedPin } | null = null
+  private picked: { id: string; marker: MapboxMap; view: SelectedPin } | null =
+    null
+  /** The pin being moved: the next tap on the map is its new place. */
+  readonly movingPin: Writable<string | null> = writable(null)
   /** Something is picked out with marching dashes: keep them moving. */
   private marching = false
+  private measured: LngLat[] = []
+  /** Layers the person has switched off (the same keys the old viewer saves). */
+  private shown: Record<string, boolean> = {}
   private replaying: Replay | null = null
   private marchTick = 0
-  private marchStep = 0
   private crewById = new Map<string, CrewEntry>()
   private onlineIds = new Set<string>()
   private link: CrewLink
@@ -427,9 +482,11 @@ export class LiveEngine {
       if (this.destroyed) return
       applyBase(this.map, this.base)
       setImagery(this.map, this.imagery, this.base)
+      showLayers(this.map, this.shown, this.base)
       this.ready.set(true)
       this.drawPaddocks()
       this.drawPins()
+      this.hidePinInLayer()
       this.historyDirty = true
       this.liveDirty = true
       this.onZoom()
@@ -466,6 +523,19 @@ export class LiveEngine {
         point: { x: number; y: number }
         lngLat: { lng: number; lat: number }
       }) => {
+        if (get(this.measure)) {
+          this.measured.push([e.lngLat.lng, e.lngLat.lat])
+          this.drawMeasure()
+          return
+        }
+        const moving = get(this.movingPin)
+        if (moving) {
+          const at: LngLat = [e.lngLat.lng, e.lngLat.lat]
+          this.movePin(null)
+          this.updatePin(moving, { at })
+          this.ripple(at)
+          return
+        }
         if (this.armed) {
           this.dropPin(this.armed, [e.lngLat.lng, e.lngLat.lat])
           return
@@ -496,6 +566,7 @@ export class LiveEngine {
     this.selectedCrew.subscribe((id) => {
       for (const [crewId, entry] of this.crewById)
         entry.vehicle?.view.$set({ selected: crewId === id })
+      this.mine?.view.$set({ selected: id === ME })
     })
     this.selectedPaddock.subscribe((paddock) => {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
@@ -524,6 +595,7 @@ export class LiveEngine {
       .then((paddocks) => {
         if (this.destroyed) return
         this.paddocks = paddocks
+        this.paddockList.set(paddocks)
         // The farm's extent, known as soon as the paddocks are (the map may
         // not be ready to draw them yet, but it can already be aimed).
         const around = (
@@ -574,6 +646,10 @@ export class LiveEngine {
       })
       .catch(() => this.problem.set("Couldn't load the paddocks."))
       .finally(() => this.loading.update((l) => ({ ...l, paddocks: false })))
+
+    loadFarmNames(this.mapId)
+      .then((farms) => this.farmNames.set(farms))
+      .catch(() => {})
 
     loadPins(this.mapId)
       .then((pins) => {
@@ -673,7 +749,10 @@ export class LiveEngine {
         type: "Feature",
         properties: {
           name: paddock.name,
-          sub: paddock.ha > 0 ? `${formatHa(paddock.ha)} ha` : "",
+          sub:
+            paddock.ha > 0 && this.shown.fieldHectares !== false
+              ? `${formatHa(paddock.ha)} ha`
+              : "",
         },
         geometry: { type: "Point", coordinates: labelPoint(biggest) },
       })
@@ -747,15 +826,22 @@ export class LiveEngine {
 
   /** Lift the tapped pin off the layer as an animated marker (or put it back). */
   private showPicked(pin: LivePin | null) {
-    if (!pin) {
-      this.picked?.view.$destroy()
-      this.picked?.marker.remove()
+    const old = this.picked
+    if (old && old.id !== pin?.id) {
+      // Let go: it eases back to its size in the layer, then the layer's
+      // own pin takes over again.
       this.picked = null
-      return
+      old.view.$set({ leaving: true })
+      setTimeout(() => {
+        old.view.$destroy()
+        old.marker.remove()
+        this.hidePinInLayer()
+      }, 200)
     }
+    if (!pin) return
     const props = {
       image: pinImageKey(this.pinLook(pin)),
-      size: Math.round(pinPixels(this.map.getZoom())),
+      size: Math.round(pinPixels()),
     }
     if (this.picked) {
       this.picked.view.$set(props)
@@ -769,7 +855,78 @@ export class LiveEngine {
       .setLngLat(pin.at)
       .addTo(this.map)
     marker.getElement().style.zIndex = "2"
-    this.picked = { marker, view }
+    this.picked = { id: pin.id, marker, view }
+    this.hidePinInLayer()
+  }
+
+  /** The picked pin is drawn by its marker, so the layer leaves it out. */
+  private hidePinInLayer() {
+    if (!get(this.ready)) return
+    this.map.setFilter(
+      PIN_LAYER,
+      this.picked ? ["!=", ["get", "id"], this.picked.id] : null,
+    )
+  }
+
+  /** Rings spreading from a spot: a pin has just landed there. */
+  private ripple(at: LngLat) {
+    const el = document.createElement("div")
+    el.className = "mn-ripple"
+    el.innerHTML = "<i></i><i></i>"
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat(at)
+      .addTo(this.map)
+    marker.getElement().style.zIndex = "1"
+    setTimeout(() => marker.remove(), 1400)
+  }
+
+  /**
+   * Change the picked pin (its type, colour, note, gate, and so on). The map
+   * shows the change straight away and puts it back if it doesn't save.
+   */
+  async updatePin(id: string, change: PinPatch & { note?: string }) {
+    const before = this.pinsById.get(id)
+    if (!before) return false
+    const { note, ...rest } = change
+    const after: LivePin = {
+      ...before,
+      ...(rest.iconClass !== undefined ? { iconClass: rest.iconClass } : {}),
+      ...(rest.colour !== undefined ? { colour: rest.colour } : {}),
+      ...(rest.gateOpen !== undefined ? { gateOpen: rest.gateOpen } : {}),
+      ...(rest.rockPicked !== undefined ? { rockPicked: rest.rockPicked } : {}),
+      ...(rest.noteVisible !== undefined
+        ? { noteVisible: rest.noteVisible }
+        : {}),
+      ...(rest.fill !== undefined ? { fill: rest.fill } : {}),
+      ...(rest.grainType !== undefined ? { grainType: rest.grainType } : {}),
+      ...(rest.at ? { at: rest.at } : {}),
+      ...(note !== undefined ? { note: note.trim().slice(0, 500) } : {}),
+    }
+    const show = (pin: LivePin) => {
+      this.pinsById.set(id, pin)
+      if (get(this.selectedPin)?.id === id) this.selectedPin.set(pin)
+      this.drawPins()
+    }
+    show(after)
+    try {
+      if (Object.keys(rest).length) await patchPin(id, this.userId, rest)
+      if (note !== undefined) await setPinNote(id, note)
+      return true
+    } catch {
+      if (this.pinsById.has(id)) show(before)
+      this.problem.set(
+        navigator.onLine
+          ? "That change didn't save. Try again."
+          : "No signal: that change didn't save.",
+      )
+      return false
+    }
+  }
+
+  /** Start (or cancel) moving a pin: the next tap on the map places it. */
+  movePin(id: string | null) {
+    this.movingPin.set(id)
+    this.map.getCanvas().style.cursor = id ? "crosshair" : ""
   }
 
   /**
@@ -811,6 +968,116 @@ export class LiveEngine {
     this.selectedCrew.set(id)
   }
 
+  /**
+   * Change the picked paddock (name, crop, colour, farm). The map shows the
+   * change straight away and puts it back if it doesn't save.
+   */
+  async updatePaddock(id: string, change: PaddockPatch) {
+    const before = this.paddocks.find((p) => p.id === id)
+    if (!before) return false
+    const farms = get(this.farmNames)
+    const after: Paddock = {
+      ...before,
+      ...(change.name !== undefined ? { name: change.name } : {}),
+      ...(change.crop !== undefined ? { crop: change.crop } : {}),
+      ...(change.colour !== undefined ? { colour: change.colour } : {}),
+      ...(change.farmId !== undefined
+        ? {
+            farmId: change.farmId,
+            farm:
+              farms.length > 1
+                ? (farms.find((f) => f.id === change.farmId)?.name ?? null)
+                : null,
+          }
+        : {}),
+    }
+    const show = (paddock: Paddock) => {
+      this.paddocks = this.paddocks.map((p) => (p.id === id ? paddock : p))
+      this.paddockList.set(this.paddocks)
+      if (get(this.selectedPaddock)?.id === id)
+        this.selectedPaddock.set(paddock)
+      this.drawPaddocks()
+    }
+    show(after)
+    try {
+      await patchPaddock(id, change)
+      return true
+    } catch {
+      show(before)
+      this.problem.set(
+        navigator.onLine
+          ? "That change didn't save. Try again."
+          : "No signal: that change didn't save.",
+      )
+      return false
+    }
+  }
+
+  /** Delete the picked paddock for good. */
+  async removePaddock(id: string) {
+    try {
+      await deletePaddock(id)
+    } catch {
+      this.problem.set("That paddock couldn't be deleted. Try again.")
+      return false
+    }
+    this.paddocks = this.paddocks.filter((p) => p.id !== id)
+    this.paddockList.set(this.paddocks)
+    this.farm.set({
+      paddocks: this.paddocks.length,
+      ha: this.paddocks.reduce((sum, p) => sum + p.ha, 0),
+    })
+    if (get(this.selectedPaddock)?.id === id) this.selectedPaddock.set(null)
+    this.drawPaddocks()
+    return true
+  }
+
+  /** Pick a paddock out from the list and bring it into view. */
+  pickPaddockById(id: string) {
+    const paddock = this.paddocks.find((p) => p.id === id)
+    if (!paddock) return false
+    this.pickTrail(null)
+    this.selectedPin.set(null)
+    this.selectedCrew.set(null)
+    this.selectedPaddock.set(paddock)
+    return this.lookAtPaddock(id)
+  }
+
+  /**
+   * Broadcast a word to the crew ("Full", "Help"…): it flashes on this
+   * machine on everyone's map for five minutes, or until stopped. Needs a
+   * position, since that is what the crew is being pointed at.
+   */
+  startBroadcast(reason: string, colour: string) {
+    if (!this.lastFix || !this.meKnown) {
+      this.problem.set("A broadcast needs your location first.")
+      return false
+    }
+    const flash: Flash = { reason, colour, started: Date.now() }
+    this.broadcast.set(flash)
+    this.mine?.view.$set({
+      flash: { label: flashLabel(flash), colour: flash.colour },
+    })
+    this.sendNow(flash)
+    return true
+  }
+
+  stopBroadcast() {
+    if (!get(this.broadcast)) return
+    this.broadcast.set(null)
+    this.mine?.view.$set({ flash: null })
+    this.sendNow(null)
+  }
+
+  /** Pick up a broadcast this person left running (a reload). */
+  resumeBroadcast(flash: Flash | null | undefined) {
+    if (!flash || Date.now() - flash.started >= BROADCAST_FOR) return
+    this.broadcast.set(flash)
+    this.mine?.view.$set({
+      flash: { label: flashLabel(flash), colour: flash.colour },
+    })
+  }
+
   /** Let go of whatever is picked on the map. */
   clearSelection() {
     this.pickTrail(null)
@@ -849,15 +1116,16 @@ export class LiveEngine {
 
   private addPinImage(key: string) {
     return new Promise<void>((resolve) => {
-      const image = new Image(96, 96)
+      // Three times its size on screen, like the current viewer's pins.
+      const image = new Image(144, 144)
       image.onload = () => {
         if (!this.destroyed && !this.map.hasImage(key))
-          this.map.addImage(key, image, { pixelRatio: 2 })
+          this.map.addImage(key, image, { pixelRatio: 3 })
         this.pinImages.add(key)
         resolve()
       }
       image.onerror = () => resolve()
-      image.src = pinDataUrl(key, 96)
+      image.src = pinDataUrl(key, 144)
     })
   }
 
@@ -920,6 +1188,7 @@ export class LiveEngine {
       this.pinsById.set(pin.id, pin)
       this.dropped.update((n) => n + 1)
       this.drawPins()
+      this.ripple(pin.at)
       return pin
     } catch {
       this.problem.set(
@@ -962,6 +1231,7 @@ export class LiveEngine {
   // ── Crew ────────────────────────────────────────────────────────────────
 
   private tagFor(entry: CrewEntry) {
+    if (this.shown.vehicleLabels === false) return ""
     const name =
       firstName(entry.profile.name) + (entry.profile.guest ? " (guest)" : "")
     const age = entry.state ? Date.now() - entry.state.t : 0
@@ -975,7 +1245,18 @@ export class LiveEngine {
     if (entry.state && state.t < entry.state.t) return
     const previous = entry.state
     // A broadcast between phones may leave the machine out; keep what we had.
-    entry.state = { ...state, marker: state.marker ?? previous?.marker ?? null }
+    // Likewise it only says what they are flashing when that has changed.
+    const flash = state.flash === undefined ? previous?.flash : state.flash
+    entry.state = {
+      ...state,
+      marker: state.marker ?? previous?.marker ?? null,
+      flash: flash ?? null,
+    }
+    // A broadcast runs five minutes; one left on longer is stale.
+    const live =
+      flash && Date.now() - flash.started < BROADCAST_FOR ? flash : null
+    if (live && (!previous?.flash || previous.flash.started !== live.started))
+      this.heard.set({ id: state.id, name: entry.profile.name, flash: live })
     const marker = entry.state.marker
     if (!state.at || !marker) return
 
@@ -1001,6 +1282,7 @@ export class LiveEngine {
         tappable: true,
         selected: get(this.selectedCrew) === state.id,
       })
+      if (this.shown.vehicles === false) el.style.display = "none"
       if (state.heading !== null) entry.vehicle.heading = state.heading
       this.onZoom()
     } else {
@@ -1027,6 +1309,7 @@ export class LiveEngine {
       }
     }
     entry.vehicle.view.$set({
+      flash: live ? { label: flashLabel(live), colour: live.colour } : null,
       label: this.tagFor(entry),
       away: Date.now() - state.t > AWAY_AFTER,
       speed: Date.now() - state.t < FRESH_FOR ? state.speed : 0,
@@ -1344,8 +1627,15 @@ export class LiveEngine {
           if (i > 0) covered += distanceM(part[i - 1].at, point.at)
           t = info.start + (length ? covered / length : 0) * span
         }
-        if (i > 0) axis += clamp(t - points[points.length - 1].t, 0, 20_000)
-        points.push({ at: point.at, t, axis, part: index })
+        const before = i > 0 ? points[points.length - 1] : null
+        if (before) axis += clamp(t - before.t, 0, 20_000)
+        points.push({
+          at: point.at,
+          t,
+          axis,
+          part: index,
+          along: before ? before.along + distanceM(before.at, point.at) : 0,
+        })
       })
     })
     if (points.length < 2 || axis <= 0) {
@@ -1427,6 +1717,29 @@ export class LiveEngine {
     this.paintPicked()
   }
 
+  /** Where the replay's machine is `along` metres into its current stretch. */
+  private replayAt(running: Replay, along: number): LngLat {
+    const { points } = running
+    const part = points[running.index].part
+    let i = running.index
+    if (along < points[i].along) {
+      while (i > 0 && points[i - 1].part === part && points[i].along > along)
+        i--
+    } else {
+      while (
+        i < points.length - 2 &&
+        points[i + 1].part === part &&
+        points[i + 1].along < along
+      )
+        i++
+    }
+    const a = points[i]
+    const b = points[i + 1]
+    if (!b || b.part !== part || b.along <= a.along) return a.at
+    const f = clamp((along - a.along) / (b.along - a.along), 0, 1)
+    return [lerp(a.at[0], b.at[0], f), lerp(a.at[1], b.at[1], f)]
+  }
+
   /** Move the replay on by one frame. */
   private stepReplay(dt: number, now: number) {
     const running = this.replaying
@@ -1455,8 +1768,16 @@ export class LiveEngine {
       const f = clamp((running.cursor - a.axis) / (b.axis - a.axis), 0, 1)
       at = [lerp(a.at[0], b.at[0], f), lerp(a.at[1], b.at[1], f)]
       time = lerp(a.t, b.t, f)
-      if (distanceM(a.at, b.at) > 0.5)
-        running.vehicle.heading = bearingDeg(a.at, b.at)
+      // Which way it points comes from the path itself: from a little
+      // behind the machine to a little ahead. That turns it smoothly through
+      // a headland at any replay speed, and GPS wobble between two points a
+      // few metres apart can't swing it about.
+      const here = lerp(a.along, b.along, f)
+      const reach = clamp(machineFor(running.info.machine).span * 0.45, 5, 14)
+      const behind = this.replayAt(running, here - reach)
+      const ahead = this.replayAt(running, here + reach)
+      if (distanceM(behind, ahead) > 1)
+        running.vehicle.heading = bearingDeg(behind, ahead)
     } else if (running.cursor >= b.axis) {
       // The end of a stretch: the machine picks up where the next begins.
       at = b.at
@@ -1466,9 +1787,10 @@ export class LiveEngine {
     const { vehicle } = running
     vehicle.pos = at
     vehicle.marker.setLngLat(at)
+    // Only the last of the jitter is eased out; the path does the turning.
     vehicle.eased = Number.isNaN(vehicle.eased)
       ? vehicle.heading
-      : easeHeading(vehicle.eased, vehicle.heading, 1 - Math.exp(-dt * 8))
+      : easeHeading(vehicle.eased, vehicle.heading, 1 - Math.exp(-dt * 30))
     this.turnTo(vehicle, vehicle.eased - this.map.getBearing())
 
     // The trail paints in behind the machine, a few times a second.
@@ -1487,6 +1809,22 @@ export class LiveEngine {
           ? [line(coords, running.colour, running.info.width)]
           : []
       })
+      // The stretch just laid is still bright: the last hundred metres or so.
+      const stretch = running.parts[here.part]
+      const laid = [
+        ...stretch.coords.slice(0, hereIndex - stretch.from + 1),
+        at,
+      ]
+      const fresh: LngLat[] = [at]
+      let length = 0
+      for (let i = laid.length - 2; i >= 0 && length < 110; i--) {
+        length += distanceM(laid[i + 1], laid[i])
+        fresh.push(laid[i])
+      }
+      if (fresh.length > 1)
+        features.push(
+          line(fresh, running.colour, running.info.width, { segment: "head" }),
+        )
       this.map.getSource(REPLAY_SOURCE)?.setData(collection(features))
     }
     if (now - running.told > 70) {
@@ -1706,7 +2044,83 @@ export class LiveEngine {
     if (!get(this.ready)) return
     if (changed) setImagery(this.map, imagery, look)
     applyBase(this.map, look)
+    showLayers(this.map, this.shown, look)
     this.paintPicked()
+  }
+
+  /**
+   * Show and hide layers. The keys are the ones the current viewer saves in
+   * the person's settings, so a choice made on either map holds on both.
+   */
+  setLayers(shown: Record<string, boolean>) {
+    const hectares = shown.fieldHectares !== this.shown.fieldHectares
+    this.shown = { ...shown }
+    if (get(this.ready)) showLayers(this.map, this.shown, this.base)
+    if (hectares) this.drawPaddocks()
+    for (const entry of this.crewById.values()) {
+      if (!entry.vehicle) continue
+      entry.vehicle.marker.getElement().style.display =
+        shown.vehicles === false ? "none" : ""
+      entry.vehicle.view.$set({ label: this.tagFor(entry) })
+    }
+  }
+
+  // ── Measuring ───────────────────────────────────────────────────────────
+
+  /** Start (or stop) the measure tool: taps on the map add corners. */
+  setMeasuring(on: boolean) {
+    this.measured = []
+    this.clearSelection()
+    this.armPin(null)
+    this.measure.set(on ? { points: 0, distance: 0, ha: 0 } : null)
+    this.map.getCanvas().style.cursor = on ? "crosshair" : ""
+    this.drawMeasure()
+  }
+
+  /** Take back the last corner. */
+  undoMeasure() {
+    this.measured.pop()
+    this.drawMeasure()
+  }
+
+  private drawMeasure() {
+    const points = this.measured
+    const features: unknown[] = points.map((at) => ({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "Point", coordinates: at },
+    }))
+    let distance = 0
+    for (let i = 1; i < points.length; i++)
+      distance += distanceM(points[i - 1], points[i])
+    let ha = 0
+    if (points.length > 1)
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: points.length > 2 ? [...points, points[0]] : points,
+        },
+      })
+    if (points.length > 2) {
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [[...points, points[0]]] },
+      })
+      // Area on flat ground around the first corner: plenty for a paddock.
+      const flat = projector(points[0])
+      const xy = points.map((p) => flat.toXY(p))
+      let twice = 0
+      for (let i = 0, j = xy.length - 1; i < xy.length; j = i++)
+        twice += xy[j][0] * xy[i][1] - xy[i][0] * xy[j][1]
+      ha = Math.abs(twice) / 2 / 10000
+    }
+    if (get(this.ready))
+      this.map.getSource(MEASURE_SOURCE)?.setData(collection(features))
+    if (get(this.measure))
+      this.measure.set({ points: points.length, distance, ha })
   }
 
   /** Space the chrome covers, so "centred" means centred in what's left. */
@@ -1868,6 +2282,24 @@ export class LiveEngine {
         fix.at,
         true,
       )
+      // Tapping your own machine opens its menu (colour, width, machine).
+      const el = this.mine.marker.getElement() as HTMLElement
+      el.addEventListener("click", (event) => {
+        event.stopPropagation()
+        if (this.armed || get(this.measure) || this.replaying) return
+        this.pickTrail(null)
+        this.selectedPin.set(null)
+        this.selectedPaddock.set(null)
+        this.selectedCrew.update((id) => (id === ME ? null : ME))
+      })
+      const flashing = get(this.broadcast)
+      this.mine.view.$set({
+        tappable: true,
+        selected: get(this.selectedCrew) === ME,
+        flash: flashing
+          ? { label: flashLabel(flashing), colour: flashing.colour }
+          : null,
+      })
       this.onZoom()
     }
     if (!this.arrived) this.arrive(fix.at)
@@ -1951,7 +2383,7 @@ export class LiveEngine {
     this.recorder.add(fix.at, fix.t)
   }
 
-  private sendNow() {
+  private sendNow(flash?: Flash | null) {
     const fix = this.lastFix
     if (!fix) return
     // Never write a machine we haven't read yet: the placeholder would
@@ -1973,6 +2405,7 @@ export class LiveEngine {
       operation: this.operation
         ? { id: this.operation.id, name: this.operation.name }
         : null,
+      ...(flash !== undefined ? { flash } : {}),
     })
   }
 
@@ -2062,12 +2495,12 @@ export class LiveEngine {
 
     this.stepReplay(dt, now)
 
-    // Whatever is picked out keeps its dashes marching.
+    // Whatever is picked out breathes: its glow swells and settles.
     if (this.marching) {
       this.marchTick -= dt
       if (this.marchTick <= 0) {
-        this.marchTick = 0.07
-        march(this.map, this.marchStep++)
+        this.marchTick = 0.05
+        breathe(this.map, 0.5 - 0.5 * Math.cos(now / 520))
       }
     }
 
@@ -2096,6 +2529,9 @@ export class LiveEngine {
             ? this.speedKmh
             : 0,
       })
+      const mine = get(this.broadcast)
+      if (mine && Date.now() - mine.started >= BROADCAST_FOR)
+        this.stopBroadcast()
       if (this.recorder.elsewhere && ++this.elsewhereTick >= 45) {
         this.elsewhereTick = 0
         this.recorder.recheck()
@@ -2138,7 +2574,6 @@ export class LiveEngine {
       if (entry.vehicle) resize(entry.vehicle)
     if (this.mine) resize(this.mine)
     if (this.replaying) resize(this.replaying.vehicle)
-    this.picked?.view.$set({ size: Math.round(pinPixels(zoom)) })
   }
 
   destroy() {

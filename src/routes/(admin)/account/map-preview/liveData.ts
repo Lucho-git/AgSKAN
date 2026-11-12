@@ -16,6 +16,7 @@ import { fileApi } from "$lib/api/fileApi"
 import { farmApi } from "$lib/api/farmApi"
 import { markerApi } from "$lib/api/markerApi"
 import { trailsApi } from "$lib/api/trailsApi"
+import { listMapBroadcasts } from "$lib/api/broadcastApi"
 import { userSettingsApi } from "$lib/api/userSettingsApi"
 import { markerRowToClientMarker } from "$lib/utils/markerRow"
 import { grainBinDefaultCapacity } from "$lib/components/map/markers/markerPalette"
@@ -69,6 +70,9 @@ export type Paddock = {
   ha: number
   /** The farm it belongs to, when the map has more than one. */
   farm: string | null
+  farmId: string | null
+  /** What is in it ("Wheat", "Canola"…), if anyone has said. */
+  crop: string
   /** The owner's chosen colour, if any. */
   colour: string | null
   /** Polygon rings, outer first; a paddock in several parts has several. */
@@ -81,6 +85,44 @@ function polygonsOf(boundary: Row | null): LngLat[][][] {
   if (boundary.type === "Polygon") return [boundary.coordinates]
   if (boundary.type === "MultiPolygon") return boundary.coordinates
   return []
+}
+
+export type FarmName = { id: string; name: string }
+
+/** The farms (blocks) a map's paddocks are grouped into. */
+export async function loadFarmNames(mapId: string): Promise<FarmName[]> {
+  const result = await farmApi.loadFarms(mapId)
+  return ((result.farms ?? []) as Row[])
+    .map((f) => ({ id: String(f.id), name: String(f.name ?? "") }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** What can be changed about a paddock from its menu. */
+export type PaddockPatch = {
+  name?: string
+  crop?: string
+  /** A hex colour, or null for the default. */
+  colour?: string | null
+  farmId?: string
+}
+
+/** Change a paddock, through the same call the current viewer's panel makes. */
+export async function patchPaddock(id: string, change: PaddockPatch) {
+  const updates: Row = {}
+  if (change.name !== undefined) updates.name = change.name
+  if (change.crop !== undefined) updates.field_type = change.crop
+  if (change.colour !== undefined) updates.color = change.colour ?? "default"
+  if (change.farmId !== undefined) updates.farm_id = change.farmId
+  const result = (await fileApi.updateField(id, updates)) as Row
+  if (result?.error || result?.success === false)
+    throw new Error(result.message || result.error || "Couldn't save")
+}
+
+/** Delete a paddock for good (its boundary goes with it). */
+export async function deletePaddock(id: string) {
+  const result = (await fileApi.deleteField(id)) as Row
+  if (result?.error || result?.success === false)
+    throw new Error(result.message || result.error || "Couldn't delete")
 }
 
 export async function loadPaddocks(mapId: string): Promise<Paddock[]> {
@@ -120,6 +162,8 @@ export async function loadPaddocks(mapId: string): Promise<Paddock[]> {
         farmNames.size > 1 && field.farm_id
           ? (farmNames.get(field.farm_id) ?? null)
           : null,
+      farmId: field.farm_id ?? null,
+      crop: field.field_type ?? "",
       colour,
       polygons,
       bbox: [w, s, e, n],
@@ -274,6 +318,78 @@ export async function createPin(
   return pinFromRow(row)!
 }
 
+/** What can be changed about a pin from its menu. */
+export type PinPatch = {
+  iconClass?: string
+  /** A marker colour key; "default" for none. */
+  colour?: string
+  gateOpen?: boolean
+  rockPicked?: boolean
+  /** Whether its note shows as a label on the map. */
+  noteVisible?: boolean
+  /** Grain bins: how full (0–100) and what is in it. */
+  fill?: number
+  grainType?: string
+  /** A new place for it. */
+  at?: LngLat
+}
+
+/**
+ * Change a pin. The old viewer rewrites the whole pin whenever anything on
+ * it changes; this reads the pin first and changes only what was asked, so
+ * photos, drawings and anything else on it are left exactly as they were.
+ */
+export async function patchPin(id: string, userId: string, change: PinPatch) {
+  const { data, error } = await supabase
+    .from("map_markers")
+    .select("marker_data")
+    .eq("id", id)
+    .single()
+  if (error) throw new Error(error.message)
+  const current = ((data as Row | null)?.marker_data ?? {}) as Row
+  const properties: Row = { ...(current.properties ?? {}) }
+  if (change.iconClass !== undefined) {
+    properties.icon = change.iconClass
+    // A pin turned into a grain bin starts at that bin's usual size.
+    if (properties.capacity_tonnes === undefined)
+      properties.capacity_tonnes = grainBinDefaultCapacity(change.iconClass)
+  }
+  if (change.colour !== undefined) properties.marker_color = change.colour
+  if (change.gateOpen !== undefined) properties.gate_open = change.gateOpen
+  if (change.rockPicked !== undefined)
+    properties.rock_picked = change.rockPicked
+  if (change.noteVisible !== undefined)
+    properties.note_label_visible = change.noteVisible
+  if (change.fill !== undefined) properties.silo_fill = change.fill
+  if (change.grainType !== undefined) properties.grain_type = change.grainType
+  const next: Row = { ...current, properties }
+  if (change.at)
+    next.geometry = {
+      ...(current.geometry ?? {}),
+      type: "Point",
+      coordinates: [change.at[0], change.at[1]],
+    }
+  const { error: failed } = await supabase
+    .from("map_markers")
+    .update({
+      marker_data: next,
+      updated_at: new Date().toISOString(),
+      update_user_id: userId,
+    })
+    .eq("id", id)
+  if (failed) throw new Error(failed.message)
+}
+
+/** Change a pin's note (its own column, saved by the existing API). */
+export async function setPinNote(id: string, note: string) {
+  const result = (await markerApi.updateMarkerNotes(
+    id,
+    note.trim().slice(0, 500),
+  )) as Row
+  if (result?.error || result?.success === false)
+    throw new Error(result.message || "Couldn't save the note")
+}
+
 /** Remove a pin (a soft delete, as everywhere else in the app). */
 export async function removePin(id: string) {
   const result = (await markerApi.deleteMarker(id)) as Row
@@ -308,6 +424,57 @@ export type VehicleState = {
   speed: number
   trailing: boolean
   marker: VehicleMarkerData | null
+  /**
+   * What they are broadcasting to the crew ("Full", "Help"…), null when
+   * nothing, undefined when this update doesn't say either way.
+   */
+  flash?: Flash | null
+}
+
+/** A broadcast: a word and a colour flashed on a machine for the crew. */
+export type Flash = {
+  /** "full", "help", or a custom label. */
+  reason: string
+  colour: string
+  /** When it began (ms). */
+  started: number
+}
+
+/** What a broadcast is called on screen. */
+export const flashLabel = (flash: Flash) =>
+  flash.reason === "full"
+    ? "Full"
+    : flash.reason === "help"
+      ? "Help"
+      : flash.reason
+
+const LEGACY_FLASH: Record<string, string> = {
+  full: "#f59e0b",
+  empty: "#8b5cf6",
+  help: "#ef4444",
+}
+
+function flashFromRow(row: Row): Flash | null | undefined {
+  if (!("is_flashing" in row)) return undefined
+  if (!row.is_flashing) return null
+  const reason = String(row.flash_reason || "full")
+  return {
+    reason,
+    colour: row.flash_color || LEGACY_FLASH[reason] || "#f59e0b",
+    started: row.flash_started_at
+      ? new Date(row.flash_started_at).getTime()
+      : Date.now(),
+  }
+}
+
+/** The broadcasts a map offers: the two built in, then the crew's own. */
+export async function loadBroadcastChoices(mapId: string) {
+  const own = await listMapBroadcasts(mapId).catch(() => [])
+  return [
+    { reason: "full", label: "Full", colour: "#f59e0b" },
+    { reason: "help", label: "Help", colour: "#ef4444" },
+    ...own.map((b) => ({ reason: b.label, label: b.label, colour: b.color })),
+  ]
 }
 
 export type CrewProfile = {
@@ -350,6 +517,7 @@ function vehicleFromRow(row: Row): VehicleState {
         : null,
     speed: Number(row.speed) || 0,
     trailing: !!row.is_trailing,
+    flash: flashFromRow(row),
     marker:
       marker && typeof marker === "object" && marker.type
         ? {
@@ -413,6 +581,12 @@ export type MyVehicleUpdate = {
   trailing: boolean
   marker: VehicleMarkerData
   operation: { id: string; name: string } | null
+  /**
+   * Set only when this screen has just started or stopped a broadcast (null
+   * to stop). Left out otherwise, so a broadcast running from another of
+   * this person's devices is never touched from here.
+   */
+  flash?: Flash | null
 }
 
 /**
@@ -506,6 +680,17 @@ export class CrewLink {
     const heading =
       update.heading === null ? null : Math.round(update.heading) % 360
     const speed = Math.round(update.speed * 10) / 10
+    const flash =
+      update.flash === undefined
+        ? {}
+        : {
+            is_flashing: !!update.flash,
+            flash_started_at: update.flash
+              ? new Date(update.flash.started).toISOString()
+              : null,
+            flash_reason: update.flash?.reason ?? null,
+            flash_color: update.flash?.colour ?? null,
+          }
 
     this.channel?.send({
       type: "broadcast",
@@ -522,17 +707,23 @@ export class CrewLink {
         selected_operation_id: update.operation?.id ?? null,
         operation_id: update.operation?.id ?? null,
         operation_name: update.operation?.name ?? "No operation",
+        ...flash,
       },
     })
 
     const marker = JSON.stringify(update.marker)
     const now = Date.now()
-    if (now - this.lastSaved < 10_000 && marker === this.savedMarker) return
+    if (
+      update.flash === undefined &&
+      now - this.lastSaved < 10_000 &&
+      marker === this.savedMarker
+    )
+      return
     this.lastSaved = now
     this.savedMarker = marker
-    // The broadcast/flash columns are left out on purpose: an upsert only
-    // touches the columns it sends, so a broadcast started on another of
-    // this person's devices is not cleared from here.
+    // The broadcast columns are only sent when this screen has just started
+    // or stopped one: an upsert only touches the columns it sends, so a
+    // broadcast started on another of this person's devices is not cleared.
     const { error } = await supabase.from("vehicle_state").upsert(
       {
         vehicle_id: update.userId,
@@ -543,6 +734,7 @@ export class CrewLink {
         vehicle_marker: update.marker,
         heading,
         speed,
+        ...flash,
       },
       { onConflict: "vehicle_id" },
     )

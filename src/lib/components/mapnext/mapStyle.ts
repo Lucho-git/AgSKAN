@@ -37,47 +37,45 @@ export const PIN_LAYER = "mv-pins"
 /** The one trail picked out (its centre line), and a trail being replayed. */
 export const PICKED_TRAIL_SOURCE = "mv-picked-trail"
 export const REPLAY_SOURCE = "mv-replay"
+/** The line or shape being measured with the measure tool. */
+export const MEASURE_SOURCE = "mv-measure"
 
-/** Pin size by zoom: the layer's `icon-size` stops, on a 48px image. */
-const PIN_STOPS: [number, number][] = [
-  [9, 0.34],
-  [12, 0.5],
-  [15, 0.74],
-  [17, 0.84],
-]
+/** What the Layers tool can show and hide, and the style layers behind each. */
+export const LAYER_GROUPS: Record<string, string[]> = {
+  fields: ["mv-paddock-fill", "mv-scrub", "mv-fence"],
+  fieldLabels: ["mv-paddock-name"],
+  markers: ["mv-pins"],
+  markerLabels: ["mv-pin-notes"],
+  historicalTrails: ["mv-history", "mv-history-pause"],
+  activeTrails: ["mv-trails"],
+}
 
-/** How many pixels across a pin is drawn at a zoom level. */
-export function pinPixels(zoom: number) {
-  const stops = PIN_STOPS
-  if (zoom <= stops[0][0]) return 48 * stops[0][1]
-  for (let i = 1; i < stops.length; i++) {
-    const [z0, s0] = stops[i - 1]
-    const [z1, s1] = stops[i]
-    if (zoom <= z1) return 48 * (s0 + ((zoom - z0) / (z1 - z0)) * (s1 - s0))
+/** Show or hide a group of layers. Pin notes also need their pins showing. */
+export function showLayers(
+  map: MapboxMap,
+  shown: Record<string, boolean>,
+  look: BaseLook,
+) {
+  for (const [group, layers] of Object.entries(LAYER_GROUPS)) {
+    let visible = shown[group] !== false
+    if (group === "markerLabels") visible = visible && shown.markers !== false
+    for (const layer of layers) {
+      // The scrub patches belong to the drawn map only.
+      const on = visible && (layer !== "mv-scrub" || look === "paper")
+      map.setLayoutProperty(layer, "visibility", on ? "visible" : "none")
+    }
   }
-  return 48 * stops[stops.length - 1][1]
 }
 
 /**
- * Frames of a dashed line that appears to march along itself; step through
- * them on a timer with `line-dasharray`.
+ * Pins are one size at every zoom, as in the current viewer: the image is
+ * drawn at three times its size on screen and only ever scaled down a
+ * little, which is what keeps it sharp.
  */
-export const MARCH: number[][] = [
-  [0, 4, 3],
-  [0.5, 4, 2.5],
-  [1, 4, 2],
-  [1.5, 4, 1.5],
-  [2, 4, 1],
-  [2.5, 4, 0.5],
-  [3, 4, 0],
-  [0, 0.5, 3, 3.5],
-  [0, 1, 3, 3],
-  [0, 1.5, 3, 2.5],
-  [0, 2, 3, 2],
-  [0, 2.5, 3, 1.5],
-  [0, 3, 3, 1],
-  [0, 3.5, 3, 0.5],
-]
+const PIN_SCALE = 0.78
+
+/** How many pixels across a pin is drawn (its image is 48px at scale 1). */
+export const pinPixels = () => 48 * PIN_SCALE
 
 const empty = { type: "FeatureCollection", features: [] }
 
@@ -88,15 +86,16 @@ const SAT_FILL = ["coalesce", ["get", "tint"], ["get", "fill"]]
 const SAT_FILL_OPACITY = ["coalesce", ["get", "wash"], 0.16]
 
 /** Trail width in metres → pixels, the same way the real viewer does it. */
-const trailWidth = [
+const trailWidthBy = (times: number) => [
   "interpolate",
   ["exponential", 2],
   ["zoom"],
   10,
-  ["*", ["get", "width"], Math.pow(2, -6)],
+  ["*", ["get", "width"], times * Math.pow(2, -6)],
   24,
-  ["*", ["get", "width"], Math.pow(2, 8)],
+  ["*", ["get", "width"], times * Math.pow(2, 8)],
 ]
+const trailWidth = trailWidthBy(1)
 
 const NOT_PAUSED = ["!=", ["get", "segment"], "pause"]
 const PAUSED = ["==", ["get", "segment"], "pause"]
@@ -161,17 +160,33 @@ export function pickTrail(
 export function pickPaddock(map: MapboxMap, id: string | null) {
   for (const layer of [
     "mv-paddock-picked-fill",
+    "mv-paddock-picked-glow",
     "mv-paddock-picked-case",
     "mv-paddock-picked-line",
   ])
     map.setFilter(layer, ["==", ["get", "id"], id ?? ""])
 }
 
-/** Move the marching dashes of whatever is picked on one step. */
-export function march(map: MapboxMap, step: number) {
-  const frame = MARCH[step % MARCH.length]
-  for (const layer of ["mv-paddock-picked-line", "mv-picked-trail"])
-    map.setPaintProperty(layer, "line-dasharray", frame)
+/**
+ * Let whatever is picked breathe: `level` runs 0 to 1 and back, and the glow
+ * round the picked paddock and trail follows it.
+ */
+export function breathe(map: MapboxMap, level: number) {
+  map.setPaintProperty(
+    "mv-paddock-picked-glow",
+    "line-opacity",
+    0.15 + 0.5 * level,
+  )
+  map.setPaintProperty(
+    "mv-paddock-picked-fill",
+    "fill-opacity",
+    0.16 + 0.12 * level,
+  )
+  map.setPaintProperty(
+    "mv-picked-trail-glow",
+    "line-opacity",
+    0.12 + 0.55 * level,
+  )
 }
 
 type Layer = Record<string, unknown> & { id: string }
@@ -272,6 +287,7 @@ export function buildStyle() {
       [PIN_SOURCE]: { type: "geojson", data: empty },
       [PICKED_TRAIL_SOURCE]: { type: "geojson", data: empty },
       [REPLAY_SOURCE]: { type: "geojson", data: empty },
+      [MEASURE_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
       {
@@ -442,39 +458,95 @@ export function buildStyle() {
           "line-dasharray": [3, 2.4],
         },
       },
-      // A trail being replayed paints itself in again as the machine goes.
+      // The picked trail, the way the current viewer shows it: a soft white
+      // glow that breathes, a white edge, and the trail itself at full
+      // strength on top.
       {
-        ...trailLayer("mv-replay", REPLAY_SOURCE),
-        paint: {
-          "line-color": ["get", "color"],
-          "line-width": trailWidth,
-          "line-opacity": 0.72,
-        },
-      },
-      // The picked trail: its centre line, marching the way it was driven.
-      {
-        id: "mv-picked-trail-case",
+        id: "mv-picked-trail-glow",
         type: "line",
         source: PICKED_TRAIL_SOURCE,
         layout: { "line-join": "round", "line-cap": "round" },
         paint: {
-          "line-color": INK,
-          "line-opacity": 0.55,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 3, 16, 6],
+          "line-color": "#ffffff",
+          "line-width": trailWidthBy(2.4),
+          "line-blur": 8,
+          "line-opacity": 0.4,
+        },
+      },
+      {
+        id: "mv-picked-trail-edge",
+        type: "line",
+        source: PICKED_TRAIL_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": trailWidthBy(1.45),
+          "line-opacity": 0.95,
         },
       },
       {
         id: "mv-picked-trail",
         type: "line",
         source: PICKED_TRAIL_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": trailWidth,
+          "line-opacity": 1,
+        },
+      },
+      // A trail being replayed paints itself in again as the machine goes:
+      // solid in its own colour inside a white edge, with the stretch just
+      // laid still bright behind the machine.
+      {
+        id: "mv-replay-edge",
+        type: "line",
+        source: REPLAY_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": trailWidthBy(1.3),
+          "line-opacity": 0.92,
+        },
+      },
+      {
+        id: "mv-replay",
+        type: "line",
+        source: REPLAY_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": trailWidth,
+          "line-opacity": 1,
+        },
+      },
+      {
+        id: "mv-replay-head",
+        type: "line",
+        source: REPLAY_SOURCE,
+        filter: ["==", ["get", "segment"], "head"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#FFF6C2",
+          "line-width": trailWidth,
+          "line-opacity": 0.9,
+        },
+      },
+      // The picked paddock's fence, on top of everything drawn in it: a
+      // solid line over a soft glow that breathes.
+      {
+        id: "mv-paddock-picked-glow",
+        type: "line",
+        source: FARM_SOURCE,
+        filter: ["==", ["get", "id"], ""],
         layout: { "line-join": "round" },
         paint: {
           "line-color": "#F7DB5C",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.6, 16, 3.2],
-          "line-dasharray": MARCH[0],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 8, 16, 18],
+          "line-blur": 8,
+          "line-opacity": 0.4,
         },
       },
-      // The picked paddock's fence, on top of everything drawn in it.
       {
         id: "mv-paddock-picked-case",
         type: "line",
@@ -483,8 +555,8 @@ export function buildStyle() {
         layout: { "line-join": "round" },
         paint: {
           "line-color": INK,
-          "line-opacity": 0.6,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 4, 16, 7.5],
+          "line-opacity": 0.55,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 3.5, 16, 6.5],
         },
       },
       {
@@ -495,8 +567,43 @@ export function buildStyle() {
         layout: { "line-join": "round" },
         paint: {
           "line-color": "#F7DB5C",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2, 16, 4],
-          "line-dasharray": MARCH[0],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.8, 16, 3.6],
+        },
+      },
+      // The measure tool: the shape so far, its outline, and its corners.
+      {
+        id: "mv-measure-fill",
+        type: "fill",
+        source: MEASURE_SOURCE,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.22 },
+      },
+      {
+        id: "mv-measure-case",
+        type: "line",
+        source: MEASURE_SOURCE,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": INK, "line-opacity": 0.6, "line-width": 6 },
+      },
+      {
+        id: "mv-measure-line",
+        type: "line",
+        source: MEASURE_SOURCE,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#F7DB5C", "line-width": 3 },
+      },
+      {
+        id: "mv-measure-corner",
+        type: "circle",
+        source: MEASURE_SOURCE,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#F7DB5C",
+          "circle-stroke-color": INK,
+          "circle-stroke-width": 2,
         },
       },
       {
@@ -551,19 +658,7 @@ export function buildStyle() {
         source: PIN_SOURCE,
         layout: {
           "icon-image": ["get", "image"],
-          "icon-size": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            9,
-            0.34,
-            12,
-            0.5,
-            15,
-            0.74,
-            17,
-            0.84,
-          ],
+          "icon-size": PIN_SCALE,
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
         },

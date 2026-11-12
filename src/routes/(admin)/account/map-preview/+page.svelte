@@ -18,7 +18,6 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
     ChevronUp,
-    LandPlot,
     LoaderCircle,
     LocateFixed,
     Navigation,
@@ -32,6 +31,7 @@
   } from "lucide-svelte"
   import "../../../(marketing)/landing/landing-theme.css"
   import "$lib/components/mapnext/chrome.css"
+  import "$lib/components/mapnext/menus.css"
   import vehicles from "$lib/vehicles"
   import { session } from "$lib/stores/sessionStore"
   import { profileStore } from "$lib/stores/profileStore"
@@ -46,25 +46,22 @@
   import { operationApi } from "$lib/api/operationApi"
   import { operatorApi } from "$lib/api/operatorApi"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
-  import { isGrainBinIcon } from "$lib/components/map/markers/markerPalette"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { compassPoint, distanceM } from "$lib/components/mapnext/geo"
-  import {
-    formatAgo,
-    formatDistance,
-    formatHa,
-  } from "$lib/components/mapnext/format"
+  import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import {
     pinChoices as allPinChoices,
     pinColour,
-    pinLabel,
     preferenceIconClass,
   } from "$lib/components/mapnext/pins"
   import {
+    BROADCAST_FOR,
     LiveEngine,
+    ME,
+    type Measure,
     type BaseChoice,
     type CrewRow,
     type FollowMode,
@@ -76,8 +73,12 @@
     type ToolView,
   } from "./liveEngine"
   import {
+    flashLabel,
+    loadBroadcastChoices,
     loadFarmChoices,
     loadMyVehicle,
+    type FarmName,
+    type Flash,
     type FarmChoice,
     type LivePin,
     type Paddock,
@@ -91,6 +92,11 @@
   } from "./recorder"
   import LiveJoin from "./LiveJoin.svelte"
   import Toolbox from "./Toolbox.svelte"
+  import PinCard from "./PinCard.svelte"
+  import MachineCard from "./MachineCard.svelte"
+  import PaddockCard from "./PaddockCard.svelte"
+  import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
+  import { userSettingsApi } from "$lib/api/userSettingsApi"
 
   const STORE = "agskan-map-next"
   const load = <T,>(key: string): T | null => {
@@ -118,7 +124,6 @@
   const farmOwner = $connectedMapStore?.owner ?? "Someone"
   const isOwner = !!$connectedMapStore?.is_owner
   const guest = $profileStore?.user_type === "viewer"
-  const myName = $profileStore?.full_name ?? ""
 
   // What this person is driving. A ute until their saved machine arrives.
   let marker: VehicleMarkerData = {
@@ -235,6 +240,16 @@
   let selectedPaddock: Paddock | null = null
   let selectedTrail: TrailInfo | null = null
   let replay: ReplayState | null = null
+  let paddocks: Paddock[] = []
+  let farmNames: FarmName[] = []
+  let measure: Measure | null = null
+  let movingPin: string | null = null
+  let broadcast: Flash | null = null
+  let broadcastChoices: { reason: string; label: string; colour: string }[] = []
+  /** The clock, ticking while something on screen counts down. */
+  let now = Date.now()
+  /** The driver chooser was opened to change driver, not to start a trail. */
+  let driverOnly = false
   let deleteAsk = false
   let roadAsk = false
   let selectedCrewId: string | null = null
@@ -345,6 +360,22 @@
         deleteAsk = false
       }),
       created.replay.subscribe((v) => (replay = v)),
+      created.paddockList.subscribe((v) => (paddocks = v)),
+      created.farmNames.subscribe((v) => (farmNames = v)),
+      created.measure.subscribe((v) => (measure = v)),
+      created.movingPin.subscribe((v) => (movingPin = v)),
+      created.broadcast.subscribe((v) => (broadcast = v)),
+      created.heard.subscribe((heard) => {
+        if (!heard) return
+        say(`${heard.name} is broadcasting ${flashLabel(heard.flash)}`, {
+          label: "Show me",
+          run: () => {
+            snack = null
+            if (created.lookAt(heard.id)) created.pickCrew(heard.id)
+          },
+        })
+        created.heard.set(null)
+      }),
       created.selectedCrew.subscribe((v) => (selectedCrewId = v)),
       created.trails.subscribe((v) => (trails = v)),
       created.farm.subscribe((v) => (farm = v)),
@@ -374,12 +405,19 @@
           hasMachine = !!mine?.marker
           machineRead = true
           created.setMe(marker, false)
+          created.resumeBroadcast(mine?.flash)
         })
         .catch(() => {
           machineRead = true
           readTimer = setTimeout(readMine, 5000)
         })
     readMine()
+
+    loadBroadcastChoices(mapId)
+      .then((choices) => (broadcastChoices = choices))
+      .catch(() => {})
+    const ticking = setInterval(() => (now = Date.now()), 1000)
+    stop.push(() => clearInterval(ticking))
 
     // Back again with location already allowed: no need to ask twice.
     if (joinedBefore && secure) {
@@ -555,20 +593,6 @@
     } else startTrail()
   }
 
-  function pinFacts(pin: LivePin) {
-    const facts: string[] = []
-    if (pin.note) facts.push(pinLabel(pin.iconClass))
-    if (isGrainBinIcon(pin.iconClass)) {
-      facts.push(`${Math.round(pin.fill)}% full`)
-      if (pin.grainType) facts.push(pin.grainType)
-    }
-    if (pin.iconClass === "custom-svg-gate")
-      facts.push(pin.gateOpen ? "Open" : "Closed")
-    if (pin.rockPicked) facts.push("Picked")
-    facts.push(`Dropped ${formatAgo(pin.t)}`)
-    return facts
-  }
-
   // ── Trails ──
   async function startTrail() {
     if (!engine || !mapId) return
@@ -603,8 +627,49 @@
     }
     operatorAsk = false
     operatorName = ""
-    startTrail()
+    if (driverOnly) {
+      driverOnly = false
+      say(`Trails are now signed by ${chosen.name}`)
+    } else startTrail()
   }
+
+  // Change who is driving, from the toolbox.
+  async function chooseDriver() {
+    if (!mapId) return
+    if (!wide) closePanel()
+    driverOnly = true
+    operatorAsk = true
+    operators = await operatorApi.getMapOperators(mapId)
+  }
+
+  // ── Layers: the same switches (and saved setting) as the current viewer ──
+  $: engine?.setLayers($layerVisibilityStore)
+  let layerTimer: ReturnType<typeof setTimeout> | undefined
+  function setLayer(key: string, on: boolean) {
+    layerVisibilityStore.setVisibility(key, on)
+    clearTimeout(layerTimer)
+    layerTimer = setTimeout(
+      () =>
+        userSettingsApi
+          .updateLayerVisibilitySettings({ ...$layerVisibilityStore })
+          .catch(() => {}),
+      1200,
+    )
+  }
+
+  // ── Measuring ──
+  function startMeasuring() {
+    panelOpen = false
+    stopPinning()
+    engine?.setMeasuring(true)
+  }
+  const metres = (m: number) =>
+    m >= 1000 ? `${(m / 1000).toFixed(2)}` : `${Math.round(m)}`
+
+  $: mineSelected = selectedCrewId === ME
+  $: broadcastLeft = broadcast
+    ? Math.max(0, broadcast.started + BROADCAST_FOR - now)
+    : 0
 
   async function stopTrail() {
     if (!engine) return
@@ -657,6 +722,8 @@
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Escape") return
     if (pinning) stopPinning()
+    else if (measure) engine?.setMeasuring(false)
+    else if (movingPin) engine?.movePin(null)
     else if (roadAsk) roadAsk = false
     else if (stopAsk) stopAsk = false
     else if (operatorAsk) operatorAsk = false
@@ -697,7 +764,9 @@
     !!selectedPin ||
     !!selectedCrew ||
     !!selectedPaddock ||
-    !!selectedTrail
+    !!selectedTrail ||
+    !!measure ||
+    mineSelected
 
   // ── A picked trail ──
   const day = (t: number) =>
@@ -856,6 +925,21 @@
           <span class="dot"></span>Trail · {formatHa(readout.ha)} ha
         </button>
       {/if}
+      {#if broadcast}
+        <button
+          type="button"
+          class="mn-chip cast"
+          style="--on: {broadcast.colour}"
+          on:click={() => openPanel("broadcast")}
+        >
+          <span class="dot"></span>{flashLabel(broadcast)} · {Math.floor(
+            broadcastLeft / 60000,
+          )}:{String(Math.floor((broadcastLeft % 60000) / 1000)).padStart(
+            2,
+            "0",
+          )}
+        </button>
+      {/if}
       {#if readout.paddock}
         <p class="mn-place">
           <b>{readout.paddock.name}</b><span
@@ -895,53 +979,31 @@
     {/if}
 
     <!-- On a phone a card takes the place of the bottom controls. -->
-    {#if wide || !cardOpen}
-      {#if !wide}
-        <div class="mn-corner bottom-left">
-          <button
-            type="button"
-            class="mn-me"
-            aria-label="You and the crew"
-            on:click={() => openPanel("home")}
-          >
+    {#if !cardOpen}
+      <div class="mn-corner bottom-left">
+        <button
+          type="button"
+          class="mn-me"
+          aria-label="You and the crew"
+          on:click={() => openPanel("home")}
+        >
+          <span class="figure">
+            <b>{Math.round(readout.speed)}</b><span>km/h</span>
+          </span>
+          {#if trailOn}
             <span class="figure">
-              <b>{Math.round(readout.speed)}</b><span>km/h</span>
+              <b>{formatHa(readout.ha)}</b><span>ha</span>
             </span>
-            {#if trailOn}
-              <span class="figure">
-                <b>{formatHa(readout.ha)}</b><span>ha</span>
-              </span>
-            {:else}
-              <span class="figure">
-                <b>{readout.hasFix ? compassPoint(readout.heading) : "–"}</b
-                ><span>heading</span>
-              </span>
-            {/if}
-            <ChevronUp size={18} />
-          </button>
-          {#if !guest}
-            <button
-              type="button"
-              class="mn-trail-button"
-              class:on={trailOn}
-              disabled={recording.phase === "starting" ||
-                recording.phase === "stopping"}
-              aria-label={trailOn
-                ? "Stop trail"
-                : trailFound
-                  ? "Your running trail"
-                  : "Start trail"}
-              on:click={trailTap}
-            >
-              <span class="rec"></span>
-              <span>{trailOn ? "Stop" : "Trail"}</span>
-            </button>
+          {:else}
+            <span class="figure">
+              <b>{readout.hasFix ? compassPoint(readout.heading) : "–"}</b><span
+                >heading</span
+              >
+            </span>
           {/if}
-        </div>
-      {/if}
-
-      <div class="mn-corner bottom-right">
-        {#if wide && !guest}
+          <ChevronUp size={18} />
+        </button>
+        {#if !guest}
           <button
             type="button"
             class="mn-trail-button"
@@ -959,6 +1021,10 @@
             <span>{trailOn ? "Stop" : "Trail"}</span>
           </button>
         {/if}
+      </div>
+    {/if}
+    {#if wide || !cardOpen}
+      <div class="mn-corner bottom-right">
         <button
           type="button"
           class="mn-follow {follow}"
@@ -1055,12 +1121,17 @@
       <!-- ── Who is driving ── -->
       <div class="mn-card" in:rise>
         <div class="mn-card-head">
-          <p class="lp-eyebrow">Before the trail starts</p>
+          <p class="lp-eyebrow">
+            {driverOnly ? "Driver" : "Before the trail starts"}
+          </p>
           <button
             type="button"
             class="mn-icon-button"
             aria-label="Close"
-            on:click={() => (operatorAsk = false)}
+            on:click={() => {
+              operatorAsk = false
+              driverOnly = false
+            }}
           >
             <X size={22} />
           </button>
@@ -1383,125 +1454,159 @@
           {/if}
         {/if}
       </div>
-    {:else if selectedPin}
-      <!-- ── A pin ── -->
-      {#key selectedPin.id}
-        <div class="mn-card mn-about-card" in:rise>
-          <PinArt
-            look={engine?.pinLook(selectedPin) ?? {
-              iconClass: selectedPin.iconClass,
-            }}
-            size={52}
-          />
+    {:else if measure}
+      <!-- ── Measuring ── -->
+      <div class="mn-card mn-menu" in:rise>
+        <div class="mn-card-head">
+          <p class="lp-eyebrow">Measure</p>
+          <p class="mn-hint">
+            {measure.points < 2
+              ? "Tap the map to mark each corner."
+              : measure.points < 3
+                ? "One more corner gives an area."
+                : `${measure.points} corners`}
+          </p>
+        </div>
+        <div class="mn-measure">
           <div>
-            <h2>{selectedPin.note || pinLabel(selectedPin.iconClass)}</h2>
-            <p>
-              {[
-                ...pinFacts(selectedPin),
-                ...(pinDistance !== null
-                  ? [`${formatDistance(pinDistance)} away`]
-                  : []),
-              ].join(" · ")}
-            </p>
+            <b>{metres(measure.distance)}</b><span
+              >{measure.distance >= 1000 ? "km" : "m"} along</span
+            >
           </div>
+          <div>
+            <b>{measure.points > 2 ? measure.ha.toFixed(2) : "–"}</b><span
+              >ha inside</span
+            >
+          </div>
+        </div>
+        <div class="mn-card-actions">
           <button
             type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => engine?.selectedPin.set(null)}
+            class="lp-btn lp-btn-ghost"
+            disabled={!measure.points}
+            on:click={() => engine?.undoMeasure()}
           >
-            <X size={22} />
+            Undo
           </button>
-          {#if !guest}
-            <button
-              type="button"
-              class="mn-remove"
-              on:click={removeSelectedPin}
-            >
-              <Trash2 size={17} /> Remove pin
-            </button>
-          {/if}
+          <button
+            type="button"
+            class="lp-btn lp-btn-primary"
+            on:click={() => engine?.setMeasuring(false)}
+          >
+            Done
+          </button>
         </div>
-      {/key}
+      </div>
+    {:else if selectedPin}
+      <!-- ── A pin ── -->
+      <div in:rise>
+        <PinCard
+          pin={selectedPin}
+          look={engine?.pinLook(selectedPin) ?? {
+            iconClass: selectedPin.iconClass,
+          }}
+          distance={pinDistance}
+          {guest}
+          choices={pinChoices}
+          {choiceLook}
+          moving={movingPin === selectedPin.id}
+          on:close={() => {
+            engine?.movePin(null)
+            engine?.selectedPin.set(null)
+          }}
+          on:change={(e) =>
+            selectedPin && engine?.updatePin(selectedPin.id, e.detail)}
+          on:move={(e) =>
+            engine?.movePin(e.detail && selectedPin ? selectedPin.id : null)}
+          on:remove={removeSelectedPin}
+        />
+      </div>
+    {:else if mineSelected}
+      <!-- ── Your own machine ── -->
+      <div in:rise>
+        <MachineCard
+          {marker}
+          locked={trailOn || trailFound}
+          on:close={() => engine?.selectedCrew.set(null)}
+          on:change={(e) => changeMachine(e.detail)}
+          on:machine={() => {
+            engine?.selectedCrew.set(null)
+            openPanel("machine")
+          }}
+        />
+      </div>
     {:else if selectedCrew}
       <!-- ── Someone on the crew ── -->
       {#key selectedCrew.id}
-        <div class="mn-card mn-about-card" in:rise>
-          <span class="art">
-            <svelte:component
-              this={vehicles[selectedCrew.type]}
-              size="46px"
-              bodyColor={selectedCrew.colour}
-              outlineColor="#ffffff"
-              wheelColor="#15261C"
-              loadColor="#F7DB5C"
-            />
-          </span>
-          <div>
-            <h2>
-              {selectedCrew.name}{selectedCrew.guest ? " (guest)" : ""}
-            </h2>
-            <p>
-              {[
-                selectedCrew.machineLabel,
-                selectedCrew.doing,
-                ...(selectedCrew.speed > 0
-                  ? [`${selectedCrew.speed} km/h`]
-                  : []),
-                ...(selectedCrew.distance !== null
-                  ? [`${formatDistance(selectedCrew.distance)} away`]
-                  : []),
-              ].join(" · ")}
-            </p>
+        <div class="mn-card mn-menu" in:rise>
+          <div class="head">
+            <span class="art">
+              <svelte:component
+                this={vehicles[selectedCrew.type]}
+                size="44px"
+                bodyColor={selectedCrew.colour}
+                outlineColor="#ffffff"
+                wheelColor="#15261C"
+                loadColor="#F7DB5C"
+              />
+            </span>
+            <div class="about">
+              <h2>
+                {selectedCrew.name}{selectedCrew.guest ? " (guest)" : ""}
+              </h2>
+              <p>
+                {[
+                  selectedCrew.machineLabel,
+                  selectedCrew.doing,
+                  ...(selectedCrew.speed > 0
+                    ? [`${selectedCrew.speed} km/h`]
+                    : []),
+                  ...(selectedCrew.distance !== null
+                    ? [`${formatDistance(selectedCrew.distance)} away`]
+                    : []),
+                ].join(" · ")}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="mn-icon-button"
+              aria-label="Close"
+              on:click={() => engine?.selectedCrew.set(null)}
+            >
+              <X size={22} />
+            </button>
           </div>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => engine?.selectedCrew.set(null)}
-          >
-            <X size={22} />
-          </button>
+          <div class="mn-menu-actions">
+            <button
+              type="button"
+              on:click={() => selectedCrew && engine?.lookAt(selectedCrew.id)}
+            >
+              <LocateFixed size={18} /> Centre on them
+            </button>
+          </div>
         </div>
       {/key}
     {:else if selectedPaddock}
       <!-- ── A paddock ── -->
-      {#key selectedPaddock.id}
-        <div class="mn-card mn-about-card" in:rise>
-          <span class="art"><LandPlot size={30} /></span>
-          <div>
-            <h2>{selectedPaddock.name}</h2>
-            <p>
-              {[
-                ...(selectedPaddock.ha > 0
-                  ? [`${formatHa(selectedPaddock.ha)} ha`]
-                  : []),
-                ...(selectedPaddock.farm ? [selectedPaddock.farm] : []),
-                ...(readout.paddock?.name === selectedPaddock.name
-                  ? ["You're in it"]
-                  : []),
-              ].join(" · ") || "Paddock"}
-            </p>
-          </div>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => engine?.selectedPaddock.set(null)}
-          >
-            <X size={22} />
-          </button>
-          <button
-            type="button"
-            class="lp-btn lp-btn-ghost wide-row"
-            style="margin-top: 8px"
-            on:click={() =>
-              selectedPaddock && engine?.lookAtPaddock(selectedPaddock.id)}
-          >
-            <LocateFixed size={18} /> Show the whole paddock
-          </button>
-        </div>
-      {/key}
+      <div in:rise>
+        <PaddockCard
+          paddock={selectedPaddock}
+          farms={farmNames}
+          {guest}
+          here={readout.paddock?.name === selectedPaddock.name}
+          on:close={() => engine?.selectedPaddock.set(null)}
+          on:change={(e) =>
+            selectedPaddock &&
+            engine?.updatePaddock(selectedPaddock.id, e.detail)}
+          on:look={() =>
+            selectedPaddock && engine?.lookAtPaddock(selectedPaddock.id)}
+          on:remove={async () => {
+            const gone = selectedPaddock
+            if (gone && (await engine?.removePaddock(gone.id)))
+              say(`${gone.name} deleted`)
+          }}
+        />
+      </div>
     {/if}
 
     {#if snack && !pinning}
@@ -1529,12 +1634,12 @@
         bind:view={toolView}
         {wide}
         {status}
-        {myName}
         {marker}
-        {readout}
         {recording}
         {guest}
+        hasFix={readout.hasFix}
         {crew}
+        driver={$operatorStore.operator?.name ?? ""}
         {pinChoices}
         {pinKind}
         {choiceLook}
@@ -1542,9 +1647,15 @@
         {operations}
         {operation}
         {trails}
+        pickedTrail={selectedTrail?.id ?? null}
         {loading}
+        {paddocks}
+        pickedPaddock={selectedPaddock?.id ?? null}
         base={baseKey}
         {baseChoices}
+        layers={$layerVisibilityStore}
+        {broadcastChoices}
+        {broadcast}
         {farmName}
         {farmOwner}
         {isOwner}
@@ -1560,31 +1671,32 @@
             if (!wide) closePanel()
           }
         }}
-        on:startTrail={trailTap}
-        on:stopTrail={() => {
-          stopAsk = true
-          if (!wide) closePanel()
-        }}
         on:pinKind={(e) => choosePin(e.detail)}
         on:dropPins={startPinning}
         on:operation={(e) => chooseOperation(e.detail)}
-        pickedTrail={selectedTrail?.id ?? null}
         on:lookTrail={(e) => {
           if (pickTrail(e.detail) && !wide) closePanel()
         }}
         on:replayTrail={(e) => {
           if (pickTrail(e.detail, true) && !wide) closePanel()
         }}
+        on:lookPaddock={(e) => {
+          if (engine?.pickPaddockById(e.detail) && !wide) closePanel()
+        }}
         on:base={(e) => setBase(e.detail)}
+        on:layer={(e) => setLayer(e.detail.key, e.detail.on)}
+        on:measure={startMeasuring}
+        on:broadcast={(e) => {
+          if (engine?.startBroadcast(e.detail.reason, e.detail.colour))
+            if (!wide) closePanel()
+        }}
+        on:stopBroadcast={() => engine?.stopBroadcast()}
+        on:driver={chooseDriver}
         on:fitFarm={() => {
           if (!engine?.fitFarm()) say("This farm has no paddocks yet.")
           else if (!wide) closePanel()
         }}
         on:farm={(e) => switchFarm(e.detail)}
-        on:foundTrail={() => {
-          foundDismissed = false
-          if (!wide) closePanel()
-        }}
         on:leave={(e) => leave(e.detail)}
       />
     {/if}

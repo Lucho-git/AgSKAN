@@ -24,6 +24,8 @@
   export let speed = 0
   /** Picked out on the map: a turning ring, and it sits a little larger. */
   export let selected = false
+  /** Broadcasting to the crew: its word, in its colour, pulsing. */
+  export let flash: { label: string; colour: string } | null = null
 
   // A cream machine needs a dark halo to show against pale ground.
   $: halo = colour.toLowerCase() === "#f4f1e6" ? "#15261C" : colour
@@ -43,6 +45,12 @@
   {/if}
   {#if selected}
     <span class="pick" aria-hidden="true"></span>
+  {/if}
+  {#if flash}
+    <span class="flash-ring" style="--flash: {flash.colour}" aria-hidden="true"
+    ></span>
+    <span class="flash-word" style="--flash: {flash.colour}">{flash.label}</span
+    >
   {/if}
   <div class="art" style="transform: rotate({heading}deg)">
     <svelte:component
@@ -99,6 +107,50 @@
   @keyframes mv-pick-turn {
     to {
       transform: translate(-50%, -50%) rotate(360deg);
+    }
+  }
+  /* Broadcasting: rings pulse out in the broadcast's colour, with its word
+     underneath. */
+  .flash-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--size) * 1.3);
+    height: calc(var(--size) * 1.3);
+    min-width: 60px;
+    min-height: 60px;
+    border: 4px solid var(--flash);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.85),
+      0 0 18px var(--flash);
+    transform: translate(-50%, -50%);
+    animation: mv-flash 0.9s ease-in-out infinite;
+  }
+  .flash-word {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: var(--flash);
+    color: #fff;
+    font-family: var(--lp-mono, ui-monospace, monospace);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    box-shadow:
+      0 0 0 1.5px #fff,
+      0 0 12px var(--flash);
+  }
+  @keyframes mv-flash {
+    50% {
+      transform: translate(-50%, -50%) scale(1.18);
+      opacity: 0.55;
     }
   }
   .selected .tag {
@@ -187,7 +239,8 @@
     color: #15261c;
   }
   @media (prefers-reduced-motion: reduce) {
-    .pick {
+    .pick,
+    .flash-ring {
       animation: none;
     }
     .pulse {

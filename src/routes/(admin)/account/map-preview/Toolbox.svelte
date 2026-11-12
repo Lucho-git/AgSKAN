@@ -1,20 +1,26 @@
 <script lang="ts">
   /**
-   * The new toolbox: one panel for everything that isn't the map. It opens
-   * on you and the crew, with a short list of tools underneath (machine,
-   * pins, trails, map, farm); each tool takes over the panel and has a way
-   * back. A side rail on a cab tablet, a pull-up sheet on a phone.
+   * The toolbox: one panel for everything that isn't the map. It opens on a
+   * grid of tools, each a tile saying what it is set to; a tool takes over
+   * the panel and has a way back. New tools are new tiles, so the grid grows
+   * across as well as down. A side rail on a cab tablet, a pull-up sheet on
+   * a phone.
    */
   import { createEventDispatcher } from "svelte"
   import {
     ArrowLeft,
     ChevronRight,
+    LandPlot,
     Layers,
     LocateFixed,
+    Map as MapIcon,
     MapPinned,
     Play,
+    RadioTower,
     Route,
-    Tractor,
+    Ruler,
+    Search,
+    UserRound,
     Users,
     X,
   } from "lucide-svelte"
@@ -23,7 +29,6 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
-  import { compassPoint } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import type { PinChoice, PinLook } from "$lib/components/mapnext/pins"
   import type {
@@ -31,21 +36,28 @@
     CrewRow,
     Loading,
     Operation,
-    Readout,
     ToolView,
   } from "./liveEngine"
-  import type { FarmChoice, TrailInfo, VehicleMarkerData } from "./liveData"
+  import {
+    flashLabel,
+    type FarmChoice,
+    type Flash,
+    type Paddock,
+    type TrailInfo,
+    type VehicleMarkerData,
+  } from "./liveData"
   import type { RecorderState } from "./recorder"
 
   export let view: ToolView = "home"
   export let wide = false
   export let status: { tone: string; text: string }
-  export let myName: string
   export let marker: VehicleMarkerData
-  export let readout: Readout
   export let recording: RecorderState
   export let guest = false
+  export let hasFix = false
   export let crew: CrewRow[] = []
+  /** Who the trail is signed by, if anyone is set. */
+  export let driver = ""
   export let pinChoices: PinChoice[] = []
   export let pinKind = "default"
   /** How a pin of a kind looks when this person drops one (their colours). */
@@ -59,8 +71,18 @@
   /** The trail picked out on the map, if any. */
   export let pickedTrail: string | null = null
   export let loading: Loading
+  export let paddocks: Paddock[] = []
+  export let pickedPaddock: string | null = null
   export let base = "satellite"
   export let baseChoices: BaseChoice[] = []
+  /** Layer switches, by the keys the current viewer saves. */
+  export let layers: Record<string, boolean> = {}
+  export let broadcastChoices: {
+    reason: string
+    label: string
+    colour: string
+  }[] = []
+  export let broadcast: Flash | null = null
   export let farmName = ""
   export let farmOwner = ""
   export let isOwner = false
@@ -73,17 +95,20 @@
     locate: void
     machine: { type: string; colour: string; swath: number }
     lookCrew: string
-    startTrail: void
-    stopTrail: void
     pinKind: string
     dropPins: void
     operation: Operation
     lookTrail: string
     replayTrail: string
+    lookPaddock: string
     base: string
+    layer: { key: string; on: boolean }
+    measure: void
+    broadcast: { reason: string; colour: string }
+    stopBroadcast: void
+    driver: void
     fitFarm: void
     farm: string
-    foundTrail: void
     leave: "dashboard" | "viewer"
   }>()
 
@@ -95,15 +120,54 @@
     pinChoices.find((choice) => choice.iconClass === pinKind)?.label ?? "Pin"
   $: baseLabel = baseChoices.find((choice) => choice.key === base)?.label ?? ""
   $: otherFarms = farms.filter((choice) => choice.id !== currentFarmId)
-  $: firstName = myName.trim().split(/\s+/)[0] || "You"
+  $: hidden = LAYERS.filter((layer) => layers[layer.key] === false).length
 
   const TITLES: Record<ToolView, string> = {
     home: "",
+    crew: "Crew",
     machine: "Your machine",
     pins: "Pins",
     trails: "Trails",
+    paddocks: "Paddocks",
     map: "Map",
+    layers: "Layers",
+    broadcast: "Broadcast",
     farm: "Farm",
+  }
+
+  /** What can be shown and hidden; the indented ones belong to the one above. */
+  const LAYERS: { key: string; label: string; part?: boolean }[] = [
+    { key: "fields", label: "Paddocks" },
+    { key: "fieldLabels", label: "Paddock names", part: true },
+    { key: "fieldHectares", label: "Hectares", part: true },
+    { key: "markers", label: "Pins" },
+    { key: "markerLabels", label: "Pin notes", part: true },
+    { key: "vehicles", label: "Crew machines" },
+    { key: "vehicleLabels", label: "Name tags", part: true },
+    { key: "historicalTrails", label: "Finished trails" },
+    { key: "activeTrails", label: "Trails being laid" },
+  ]
+
+  // ── Paddock list ──
+  let paddockSearch = ""
+  $: wanted = paddockSearch.trim().toLowerCase()
+  $: found = wanted
+    ? paddocks.filter((p) => p.name.toLowerCase().includes(wanted))
+    : paddocks
+  $: paddockGroups = groupByFarm(found)
+  function groupByFarm(list: Paddock[]) {
+    const groups = new Map<string, Paddock[]>()
+    for (const paddock of list) {
+      const key = paddock.farm ?? ""
+      groups.set(key, [...(groups.get(key) ?? []), paddock])
+    }
+    return [...groups.entries()]
+      .map(([name, items]) => ({
+        name,
+        items: items.sort((a, b) => a.name.localeCompare(b.name)),
+        ha: items.reduce((sum, p) => sum + p.ha, 0),
+      }))
+      .sort((a, b) => b.items.length - a.items.length)
   }
 
   const day = (t: number) =>
@@ -135,7 +199,7 @@
       <span class="mark"
         ><img src="/images/logo.svg" alt="" width="30" height="30" /></span
       >
-      <span class="word">AgSKAN</span>
+      <span class="word">{farmName || "AgSKAN"}</span>
       {#if wide}
         <button
           type="button"
@@ -157,189 +221,152 @@
       {/if}
     </header>
 
-    <section class="mn-you">
-      <div class="mn-you-top">
-        <span class="art">
-          <svelte:component
-            this={vehicles[machine.type]}
-            size="48px"
-            bodyColor={colour}
-            outlineColor="#ffffff"
-            wheelColor="#15261C"
-            loadColor="#F7DB5C"
-          />
-        </span>
-        <span class="who">
-          <strong>{firstName}</strong>
-          <span>
-            {machine.label}{machine.paints ? ` · ${marker.swath} m` : ""}
-          </span>
-        </span>
-      </div>
-
-      <div class="mn-figures">
-        <div>
-          <b>{Math.round(readout.speed)}</b><span>km/h</span>
-        </div>
-        {#if trailOn}
-          <div>
-            <b>{formatHa(readout.ha)}</b><span>ha this trail</span>
-          </div>
-        {/if}
-        <div>
-          <b>{readout.hasFix ? compassPoint(readout.heading) : "–"}</b><span
-            >heading</span
-          >
-        </div>
-      </div>
-
-      <p class="mn-where">
-        {#if !readout.hasFix}
-          Not on the map yet
-        {:else if readout.paddock}
-          In {readout.paddock.name} · {formatHa(readout.paddock.ha)} ha
-        {:else if readout.far}
-          A long way from this farm
-        {:else}
-          Outside the paddocks
-        {/if}
-        {#if readout.accuracy !== null && readout.hasFix}
-          <span>GPS ±{Math.round(readout.accuracy)} m</span>
-        {/if}
-      </p>
-
-      {#if !guest}
-        {#if trailOn}
-          <button
-            type="button"
-            class="mn-stop-trail"
-            disabled={recording.phase === "stopping"}
-            on:click={() => dispatch("stopTrail")}
-          >
-            <i></i>
-            {recording.phase === "stopping"
-              ? "Saving your trail…"
-              : "Stop trail"}
-          </button>
-          {#if recording.waiting > 5}
-            <p class="mn-note">
-              {recording.waiting} points waiting for signal. They're kept on this
-              device and sent when you're back in range.
-            </p>
-          {/if}
-        {:else if recording.phase === "found"}
-          <p class="mn-note">
-            You have a trail running on another screen, so this one isn't adding
-            to it or sharing your position.
-          </p>
-          <button
-            type="button"
-            class="lp-btn lp-btn-ghost"
-            on:click={() => dispatch("foundTrail")}
-          >
-            See the running trail
-          </button>
-        {:else}
-          <button
-            type="button"
-            class="lp-btn {machine.paints ? 'lp-btn-primary' : 'lp-btn-ghost'}"
-            disabled={recording.phase === "starting"}
-            on:click={() => dispatch("startTrail")}
-          >
-            {recording.phase === "starting" ? "Starting…" : "Start trail"}
-          </button>
-          {#if !machine.paints}
-            <p class="mn-note">
-              A {machine.label.toLowerCase()} doesn't usually lay a trail, but it
-              can.
-            </p>
-          {:else if !readout.hasFix}
-            <p class="mn-note">A trail needs your location first.</p>
-          {:else if !operation}
-            <p class="mn-note">
-              This farm has no job to record against yet. Add one from the
-              dashboard.
-            </p>
-          {/if}
-        {/if}
-        {#if recording.problem}
-          <p class="mn-warning">{recording.problem}</p>
-        {/if}
-      {/if}
-    </section>
-
-    <nav class="mn-tools" aria-label="Tools">
+    <nav class="mn-grid" aria-label="Tools">
+      <button type="button" class="mn-tile" on:click={() => (view = "crew")}>
+        <span class="icon"><Users size={24} /></span>
+        <strong>Crew</strong>
+        <small>{online} on now</small>
+      </button>
       {#if !guest}
         <button
           type="button"
-          class="mn-tool"
+          class="mn-tile"
           on:click={() => (view = "machine")}
         >
-          <span class="icon"><Tractor size={22} /></span>
-          <span class="text">
-            <strong>Machine</strong>
-            <span
-              >{machine.label}{machine.paints
-                ? ` · ${marker.swath} m wide`
-                : ""}</span
-            >
+          <span class="icon art">
+            <svelte:component
+              this={vehicles[machine.type]}
+              size="34px"
+              bodyColor={colour}
+              outlineColor="#ffffff"
+              wheelColor="#15261C"
+              loadColor="#F7DB5C"
+            />
           </span>
-          <ChevronRight size={20} />
+          <strong>Machine</strong>
+          <small>{marker.swath} m wide</small>
         </button>
-        <button type="button" class="mn-tool" on:click={() => (view = "pins")}>
+        <button type="button" class="mn-tile" on:click={() => (view = "pins")}>
           <span class="icon"
-            ><PinArt look={choiceLook(pinKind)} size={30} /></span
+            ><PinArt look={choiceLook(pinKind)} size={32} /></span
           >
-          <span class="text">
-            <strong>Pins</strong>
-            <span>Dropping: {pinLabelNow} · {pinCount} on this farm</span>
-          </span>
-          <ChevronRight size={20} />
+          <strong>Pins</strong>
+          <small>{pinCount} here</small>
         </button>
       {/if}
-      <button type="button" class="mn-tool" on:click={() => (view = "trails")}>
-        <span class="icon"><Route size={22} /></span>
-        <span class="text">
-          <strong>Trails</strong>
-          <span>
-            {#if !operation}
-              No job yet
-            {:else if loading.trails}
-              {operation.name} · loading {loading.trails.done} of {trails.length ||
-                "…"}
-            {:else}
-              {operation.name} · {trails.length}
-              {trails.length === 1 ? "trail" : "trails"}
-            {/if}
-          </span>
-        </span>
-        <ChevronRight size={20} />
+      <button type="button" class="mn-tile" on:click={() => (view = "trails")}>
+        <span class="icon"><Route size={24} /></span>
+        <strong>Trails</strong>
+        <small>
+          {#if loading.trails}
+            loading…
+          {:else if operation}
+            {trails.length} in {operation.name}
+          {:else}
+            no job yet
+          {/if}
+        </small>
       </button>
-      <button type="button" class="mn-tool" on:click={() => (view = "map")}>
-        <span class="icon"><Layers size={22} /></span>
-        <span class="text">
-          <strong>Map</strong>
-          <span>{baseLabel}</span>
-        </span>
-        <ChevronRight size={20} />
+      <button
+        type="button"
+        class="mn-tile"
+        on:click={() => (view = "paddocks")}
+      >
+        <span class="icon"><LandPlot size={24} /></span>
+        <strong>Paddocks</strong>
+        <small>{paddocks.length} · {formatHa(farm.ha)} ha</small>
       </button>
-      <button type="button" class="mn-tool" on:click={() => (view = "farm")}>
-        <span class="icon"><MapPinned size={22} /></span>
-        <span class="text">
-          <strong>Farm</strong>
-          <span>{farmName}</span>
-        </span>
-        <ChevronRight size={20} />
+      {#if !guest}
+        <button
+          type="button"
+          class="mn-tile"
+          class:on={!!broadcast}
+          style={broadcast ? `--on: ${broadcast.colour}` : ""}
+          on:click={() => (view = "broadcast")}
+        >
+          <span class="icon"><RadioTower size={24} /></span>
+          <strong>Broadcast</strong>
+          <small>{broadcast ? flashLabel(broadcast) : "Full, help…"}</small>
+        </button>
+      {/if}
+      <button
+        type="button"
+        class="mn-tile"
+        on:click={() => dispatch("measure")}
+      >
+        <span class="icon"><Ruler size={24} /></span>
+        <strong>Measure</strong>
+        <small>distance, area</small>
+      </button>
+      <button type="button" class="mn-tile" on:click={() => (view = "map")}>
+        <span class="icon"><MapIcon size={24} /></span>
+        <strong>Map</strong>
+        <small>{baseLabel}</small>
+      </button>
+      <button type="button" class="mn-tile" on:click={() => (view = "layers")}>
+        <span class="icon"><Layers size={24} /></span>
+        <strong>Layers</strong>
+        <small>{hidden ? `${hidden} hidden` : "all showing"}</small>
+      </button>
+      {#if !guest}
+        <button
+          type="button"
+          class="mn-tile"
+          on:click={() => dispatch("driver")}
+        >
+          <span class="icon"><UserRound size={24} /></span>
+          <strong>Driver</strong>
+          <small>{driver || "not set"}</small>
+        </button>
+      {/if}
+      <button type="button" class="mn-tile" on:click={() => (view = "farm")}>
+        <span class="icon"><MapPinned size={24} /></span>
+        <strong>Farm</strong>
+        <small>{isOwner ? "yours" : farmOwner}</small>
       </button>
     </nav>
 
-    <section class="mn-section">
-      <div class="mn-section-head">
-        <p class="lp-eyebrow">
-          Crew · {online} on the map now
-        </p>
-        <Users size={16} />
-      </div>
+    <footer class="mn-panel-foot">
+      <p>
+        Map data ©
+        <a
+          href="https://www.mapbox.com/about/maps/"
+          target="_blank"
+          rel="noreferrer">Mapbox</a
+        >
+        ©
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer">OpenStreetMap</a
+        > · imagery © Maxar
+      </p>
+    </footer>
+  {:else}
+    <header class="mn-panel-head">
+      <button
+        type="button"
+        class="mn-icon-button back"
+        aria-label="Back to the tools"
+        on:click={() => (view = "home")}
+      >
+        <ArrowLeft size={22} />
+      </button>
+      <h2>{TITLES[view]}</h2>
+      {#if !wide}
+        <button
+          type="button"
+          class="mn-icon-button"
+          aria-label="Close"
+          on:click={() => dispatch("close")}
+        >
+          <X size={22} />
+        </button>
+      {/if}
+    </header>
+
+    {#if view === "crew"}
+      <p class="lp-eyebrow">{online} on the map now · {crew.length} in all</p>
       {#if crew.length}
         <ul class="mn-crew">
           {#each crew as person (person.id)}
@@ -382,48 +409,7 @@
           dashboard and they'll show up here.
         </p>
       {/if}
-    </section>
-
-    <footer class="mn-panel-foot">
-      <p>
-        Map data ©
-        <a
-          href="https://www.mapbox.com/about/maps/"
-          target="_blank"
-          rel="noreferrer">Mapbox</a
-        >
-        ©
-        <a
-          href="https://www.openstreetmap.org/copyright"
-          target="_blank"
-          rel="noreferrer">OpenStreetMap</a
-        > · imagery © Maxar
-      </p>
-    </footer>
-  {:else}
-    <header class="mn-panel-head">
-      <button
-        type="button"
-        class="mn-icon-button back"
-        aria-label="Back to the toolbox"
-        on:click={() => (view = "home")}
-      >
-        <ArrowLeft size={22} />
-      </button>
-      <h2>{TITLES[view]}</h2>
-      {#if !wide}
-        <button
-          type="button"
-          class="mn-icon-button"
-          aria-label="Close"
-          on:click={() => dispatch("close")}
-        >
-          <X size={22} />
-        </button>
-      {/if}
-    </header>
-
-    {#if view === "machine"}
+    {:else if view === "machine"}
       {#if trailOn || recording.phase === "found"}
         <p class="mn-warning">
           A trail keeps the machine, colour and width it started with. Stop the
@@ -441,7 +427,7 @@
       <p class="mn-note">
         {pinCount}
         {pinCount === 1 ? "pin" : "pins"} on this farm. Choose what you drop, then
-        tap the map. Tap any pin to see it or remove it.
+        tap the map. Tap any pin to change it, move it or remove it.
       </p>
       <button
         type="button"
@@ -518,10 +504,7 @@
           {#if trails.length}
             <div class="mn-tools">
               {#each trails.slice(0, 60) as trail (trail.id)}
-                <div
-                  class="mn-trail-row"
-                  class:selected={pickedTrail === trail.id}
-                >
+                <div class="mn-trail-row">
                   <button
                     type="button"
                     class="mn-tool"
@@ -563,6 +546,51 @@
           {/if}
         </section>
       {/if}
+    {:else if view === "paddocks"}
+      <label class="mn-search">
+        <Search size={18} />
+        <input
+          type="search"
+          bind:value={paddockSearch}
+          placeholder="Find a paddock"
+          autocomplete="off"
+        />
+      </label>
+      {#if !found.length}
+        <p class="mn-empty">
+          {paddocks.length
+            ? "No paddock by that name."
+            : "This farm has no paddocks yet. Add them from the dashboard."}
+        </p>
+      {/if}
+      {#each paddockGroups as group (group.name)}
+        <section class="mn-section">
+          <p class="lp-eyebrow">
+            {group.name || (paddockGroups.length > 1 ? "No farm" : "Paddocks")} ·
+            {group.items.length} · {formatHa(group.ha)} ha
+          </p>
+          <div class="mn-tools">
+            {#each group.items as paddock (paddock.id)}
+              <button
+                type="button"
+                class="mn-tool"
+                class:selected={pickedPaddock === paddock.id}
+                on:click={() => dispatch("lookPaddock", paddock.id)}
+              >
+                <span
+                  class="swatch block"
+                  style="background: {paddock.colour ?? 'var(--lp-paper-2)'}"
+                ></span>
+                <span class="text">
+                  <strong>{paddock.name}</strong>
+                  {#if paddock.crop}<span>{paddock.crop}</span>{/if}
+                </span>
+                <span class="figure">{formatHa(paddock.ha)} ha</span>
+              </button>
+            {/each}
+          </div>
+        </section>
+      {/each}
     {:else if view === "map"}
       <div class="mn-looks">
         {#each baseChoices as choice (choice.key)}
@@ -588,6 +616,75 @@
       >
         <LocateFixed size={18} /> Show the whole farm
       </button>
+    {:else if view === "layers"}
+      <p class="mn-note">
+        What the map shows. These are the same switches as the current viewer's,
+        and a choice made on either holds on both.
+      </p>
+      <div class="mn-switches">
+        {#each LAYERS as layer (layer.key)}
+          {@const on = layers[layer.key] !== false}
+          <button
+            type="button"
+            class="mn-switch"
+            class:part={layer.part}
+            role="switch"
+            aria-checked={on}
+            on:click={() => dispatch("layer", { key: layer.key, on: !on })}
+          >
+            <span>{layer.label}</span>
+            <i></i>
+          </button>
+        {/each}
+      </div>
+    {:else if view === "broadcast"}
+      {#if broadcast}
+        <section class="mn-you">
+          <p class="lp-eyebrow">On the crew's maps now</p>
+          <p class="mn-live" style="--on: {broadcast.colour}">
+            <i></i>{flashLabel(broadcast)}
+          </p>
+          <p class="mn-note">
+            It flashes on your machine for five minutes, then stops by itself.
+          </p>
+          <button
+            type="button"
+            class="mn-stop-trail"
+            on:click={() => dispatch("stopBroadcast")}
+          >
+            <i></i> Stop broadcasting
+          </button>
+        </section>
+      {:else}
+        <p class="mn-note">
+          Flash a word on your machine for the whole crew: on their maps and as
+          a notice. It runs five minutes or until you stop it.
+        </p>
+        {#if !hasFix}
+          <p class="mn-warning">
+            A broadcast needs your location first, so the crew can see where you
+            are.
+          </p>
+        {/if}
+        <div class="mn-casts">
+          {#each broadcastChoices as choice (choice.reason)}
+            <button
+              type="button"
+              class="mn-cast"
+              style="--on: {choice.colour}"
+              disabled={!hasFix}
+              on:click={() =>
+                dispatch("broadcast", {
+                  reason: choice.reason,
+                  colour: choice.colour,
+                })}
+            >
+              <RadioTower size={22} />
+              {choice.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
     {:else if view === "farm"}
       <section class="mn-you">
         <div class="mn-you-top">
