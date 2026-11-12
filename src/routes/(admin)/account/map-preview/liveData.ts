@@ -9,6 +9,7 @@
  *
  * Nothing in here draws anything.
  */
+import { v4 as uuidv4 } from "uuid"
 import { supabase } from "$lib/supabaseClient"
 import { fileApi } from "$lib/api/fileApi"
 import { farmApi } from "$lib/api/farmApi"
@@ -229,7 +230,9 @@ export async function createPin(
   at: LngLat,
 ): Promise<LivePin> {
   const now = new Date().toISOString()
-  const id = crypto.randomUUID()
+  // The same generator the old viewer uses: `crypto.randomUUID` is missing
+  // on the older iPads still found in cabs.
+  const id = uuidv4()
   const row = {
     master_map_id: mapId,
     id,
