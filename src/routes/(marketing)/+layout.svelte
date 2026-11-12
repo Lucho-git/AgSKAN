@@ -11,8 +11,10 @@
   $: isAuthPage =
     $page.url.pathname.startsWith("/login") ||
     $page.url.pathname.startsWith("/reset-password")
-  // The onboarding prototype brings its own chrome.
-  $: isBare = $page.url.pathname.startsWith("/onboarding-preview")
+  // The onboarding and map prototypes bring their own chrome.
+  $: isBare =
+    $page.url.pathname.startsWith("/onboarding-preview") ||
+    $page.url.pathname.startsWith("/map-preview")
 </script>
 
 <svelte:head>
