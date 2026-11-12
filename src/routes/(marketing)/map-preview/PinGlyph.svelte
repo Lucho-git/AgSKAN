@@ -26,6 +26,8 @@
   {/if}
   <circle r="13.6" fill="#fff" stroke="#15261C" stroke-width="2.2" />
   <svg x="-9" y="-9" width="18" height="18" viewBox={glyph.viewBox}>
+    <!-- The app's own pin art, generated into glyphs.ts: not user input. -->
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html glyph.content}
   </svg>
 </svg>
