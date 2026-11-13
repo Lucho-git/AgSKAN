@@ -20,6 +20,7 @@
     ChevronUp,
     LoaderCircle,
     LocateFixed,
+    MessageCircle,
     Navigation,
     Pause,
     Play,
@@ -55,6 +56,7 @@
   import {
     pinChoices as allPinChoices,
     pinColour,
+    pinLabel,
     preferenceIconClass,
   } from "$lib/components/mapnext/pins"
   import {
@@ -81,7 +83,9 @@
     type Flash,
     type FarmChoice,
     type LivePin,
+    type Message,
     type Paddock,
+    type SharedPlace,
     type TrailInfo,
     type VehicleMarkerData,
   } from "./liveData"
@@ -95,6 +99,8 @@
   import PinCard from "./PinCard.svelte"
   import MachineCard from "./MachineCard.svelte"
   import PaddockCard from "./PaddockCard.svelte"
+  import Messages from "./Messages.svelte"
+  import { Messenger, type Conversation } from "./messenger"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
 
@@ -159,17 +165,21 @@
   const preferred = $userSettingsStore.defaultImagerySource
   let baseKey: string =
     savedBase &&
-    (savedBase === "paper" || savedBase === "satellite" || IMAGERY[savedBase])
+    (savedBase === "paper" ||
+      savedBase === "satellite" ||
+      savedBase === "dark" ||
+      IMAGERY[savedBase])
       ? savedBase
       : IMAGERY[preferred]
         ? preferred
         : "satellite"
   const lookOf = (key: string): BaseLook =>
-    key === "paper" ? "paper" : "satellite"
+    key === "paper" ? "paper" : key === "dark" ? "dark" : "satellite"
   const imageryOf = (key: string) => (IMAGERY[key] ? key : null)
   $: baseChoices = [
     { key: "satellite", label: "Satellite", note: "Real imagery, toned down" },
     { key: "paper", label: "Drawn", note: "Paddocks, lanes and contours" },
+    { key: "dark", label: "Dark", note: "Dark from afar, imagery up close" },
     ...Object.entries(IMAGERY)
       .filter(
         ([key]) =>
@@ -254,6 +264,18 @@
   let roadAsk = false
   let selectedCrewId: string | null = null
   let trails: TrailInfo[] = []
+
+  // ── Messages ──
+  const myName = $profileStore?.full_name || "Someone"
+  let messenger: Messenger | null = null
+  let conversations: Conversation[] = []
+  let unread = 0
+  let chatWith: string | null = null
+  let thread: Message[] = []
+  let chatLoading = false
+  let chatSending = false
+  /** Messages that came in while the messages weren't open, latest last. */
+  let notices: Message[] = []
   let farm = { paddocks: 0, ha: 0 }
   let loading: Loading = { paddocks: true, pins: true, trails: null }
   let recording: RecorderState = {
@@ -389,6 +411,34 @@
       }),
     )
     created.connect()
+
+    const post = new Messenger(mapId, userId, myName)
+    messenger = post
+    stop.push(
+      post.conversations.subscribe((v) => (conversations = v)),
+      post.unread.subscribe((v) => (unread = v)),
+      post.withId.subscribe((v) => (chatWith = v)),
+      post.thread.subscribe((v) => (thread = v)),
+      post.loading.subscribe((v) => (chatLoading = v)),
+      post.sending.subscribe((v) => (chatSending = v)),
+      post.arrived.subscribe((message) => {
+        if (!message) return
+        // One notice a person: their latest replaces their last.
+        notices = [
+          ...notices.filter((n) => n.from !== message.from),
+          message,
+        ].slice(-3)
+        navigator.vibrate?.(120)
+        post.arrived.set(null)
+      }),
+      post.problem.subscribe((text) => {
+        if (!text) return
+        say(text)
+        post.problem.set(null)
+      }),
+      () => post.destroy(),
+    )
+    post.start()
 
     // The engine shares nothing with the crew until it has been told what
     // this person drives, so a slow read can't replace their saved machine
@@ -655,6 +705,84 @@
           .catch(() => {}),
       1200,
     )
+  }
+
+  // ── Messages ──
+  // On screen means the panel is showing them (the rail always is).
+  $: messagesShown = (wide || panelOpen) && toolView === "messages"
+  $: messenger?.watch(messagesShown)
+  $: if (messagesShown) {
+    // Looking at the list, or at a conversation: nothing left to announce.
+    notices = chatWith ? notices.filter((n) => n.from !== chatWith) : []
+    if (chatWith) messenger?.seen()
+  }
+  $: chatName = chatWith
+    ? (crew.find((person) => person.id === chatWith)?.name ??
+      conversations.find((convo) => convo.id === chatWith)?.name ??
+      "Team member")
+    : ""
+  $: notice = notices[notices.length - 1] ?? null
+  $: sharePlaces = sharable(readout, selectedPin, selectedPaddock)
+
+  function openChat(id: string | null) {
+    messenger?.open(id)
+    openPanel("messages")
+  }
+
+  // What can be sent as a place right now: where this person is, and
+  // whatever they have picked on the map.
+  function sharable(
+    fix: Readout,
+    pin: LivePin | null,
+    paddock: Paddock | null,
+  ) {
+    const list: { key: string; label: string; place: SharedPlace }[] = []
+    const mine = engine?.myPosition()
+    if (mine && fix.hasFix && userId)
+      list.push({
+        key: "me",
+        label: "Where I am now",
+        place: {
+          at: mine,
+          label: `${myName.trim().split(/\s+/)[0]} is here`,
+          refType: "vehicle",
+          refId: userId,
+        },
+      })
+    if (pin) {
+      const what = pinLabel(pin.iconClass)
+      list.push({
+        key: "pin",
+        label: `The ${what.toLowerCase()} pin I've picked`,
+        place: {
+          at: pin.at,
+          label: pin.note ? `${what}: ${pin.note}`.slice(0, 60) : `${what} pin`,
+          refType: "marker",
+          refId: pin.id,
+        },
+      })
+    }
+    const at = paddock ? engine?.paddockPoint(paddock.id) : null
+    if (paddock && at)
+      list.push({
+        key: "paddock",
+        label: `${paddock.name}, the paddock I've picked`,
+        place: { at, label: paddock.name, refType: "field", refId: paddock.id },
+      })
+    return list
+  }
+
+  // ── A picked trail's direction marks ──
+  let trailMarks = load<{ centre: boolean; arrows: boolean }>(
+    "trail-marks",
+  ) ?? {
+    centre: false,
+    arrows: false,
+  }
+  $: engine?.setTrailMarks(trailMarks)
+  function toggleMark(mark: "centre" | "arrows") {
+    trailMarks = { ...trailMarks, [mark]: !trailMarks[mark] }
+    save("trail-marks", trailMarks)
   }
 
   // ── Measuring ──
@@ -963,7 +1091,9 @@
         <button
           type="button"
           class="mn-tools-button"
-          aria-label="Toolbox. {onlineCrew.length} of the crew on the map"
+          aria-label="Toolbox. {onlineCrew.length} of the crew on the map{unread
+            ? `, ${unread} unread ${unread === 1 ? 'message' : 'messages'}`
+            : ''}"
           on:click={() => openPanel("home")}
         >
           {#if onlineCrew.length}
@@ -974,8 +1104,45 @@
             </span>
           {/if}
           Tools
+          {#if unread}<span class="mn-badge">{unread}</span>{/if}
         </button>
       </div>
+    {/if}
+
+    {#if notice && !messagesShown}
+      <!-- ── A message has come in ── -->
+      {#key notice.id}
+        <div class="mn-notice" role="status" in:rise>
+          <button
+            type="button"
+            class="open"
+            on:click={() => notice && openChat(notice.from)}
+          >
+            <strong>
+              <MessageCircle size={15} />
+              {notice.fromName ?? "Team member"}{notices.length > 1
+                ? ` · ${notices.length - 1} more`
+                : ""}
+            </strong>
+            <span>{notice.body || notice.place?.label || ""}</span>
+          </button>
+          <button
+            type="button"
+            class="reply"
+            on:click={() => notice && openChat(notice.from)}
+          >
+            Reply
+          </button>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Put this message away"
+            on:click={() => (notices = [])}
+          >
+            <X size={20} />
+          </button>
+        </div>
+      {/key}
     {/if}
 
     <!-- On a phone a card takes the place of the bottom controls. -->
@@ -1421,6 +1588,23 @@
           />
         {/if}
 
+        <div class="mn-marks" role="group" aria-label="Show on this trail">
+          <button
+            type="button"
+            aria-pressed={trailMarks.centre}
+            on:click={() => toggleMark("centre")}
+          >
+            <span class="line" aria-hidden="true"></span> Centre line
+          </button>
+          <button
+            type="button"
+            aria-pressed={trailMarks.arrows}
+            on:click={() => toggleMark("arrows")}
+          >
+            <Navigation size={15} fill="currentColor" /> Arrows
+          </button>
+        </div>
+
         {#if !guest}
           {#if deleteAsk}
             <p class="mn-warning">
@@ -1583,6 +1767,12 @@
             >
               <LocateFixed size={18} /> Centre on them
             </button>
+            <button
+              type="button"
+              on:click={() => selectedCrew && openChat(selectedCrew.id)}
+            >
+              <MessageCircle size={18} /> Message
+            </button>
           </div>
         </div>
       {/key}
@@ -1662,6 +1852,9 @@
         {farm}
         {farms}
         currentFarmId={mapId}
+        {unread}
+        messageWith={chatName}
+        on:messagesBack={() => messenger?.open(null)}
         on:close={closePanel}
         on:locate={askForLocation}
         on:machine={(e) => changeMachine(e.detail)}
@@ -1698,7 +1891,39 @@
         }}
         on:farm={(e) => switchFarm(e.detail)}
         on:leave={(e) => leave(e.detail)}
-      />
+      >
+        <svelte:fragment slot="messages">
+          <Messages
+            me={userId}
+            {crew}
+            {conversations}
+            withId={chatWith}
+            {thread}
+            loading={chatLoading}
+            sending={chatSending}
+            places={sharePlaces}
+            on:open={(e) => messenger?.open(e.detail)}
+            on:send={(e) =>
+              chatWith &&
+              messenger?.send(
+                chatWith,
+                e.detail.body,
+                e.detail.place,
+                crew.find((person) => person.id === chatWith)?.online ?? false,
+              )}
+            on:show={(e) => {
+              engine?.showPlace(e.detail)
+              if (!wide) closePanel()
+            }}
+            on:look={(e) => {
+              if (engine?.lookAt(e.detail)) {
+                engine.pickCrew(e.detail)
+                if (!wide) closePanel()
+              }
+            }}
+          />
+        </svelte:fragment>
+      </Toolbox>
     {/if}
   {:else if machineRead}
     <LiveJoin

@@ -1177,3 +1177,192 @@ export async function loadFarmChoices(
   for (const row of (owned.data ?? []) as Row[]) add(row)
   return farms
 }
+
+// ── Messages ────────────────────────────────────────────────────────────
+// Direct messages between two people on a map: the `map_messages` table the
+// current viewer writes, so a conversation carries on across both viewers.
+
+/** A place sent with a message: a spot, or a pin, paddock or machine. */
+export type SharedPlace = {
+  at: LngLat
+  label: string
+  refType: "marker" | "field" | "vehicle" | null
+  refId: string | null
+}
+
+export type Message = {
+  id: number
+  from: string
+  fromName: string | null
+  to: string
+  body: string
+  place: SharedPlace | null
+  /** ms */
+  at: number
+  /** The other person has opened it. */
+  read: boolean
+}
+
+function messageFromRow(row: Row): Message {
+  const attachment = row.attachment as Row | null
+  const lng = Number(attachment?.lng)
+  const lat = Number(attachment?.lat)
+  return {
+    id: Number(row.id),
+    from: String(row.sender_id),
+    fromName: row.sender_name ?? null,
+    to: String(row.recipient_id),
+    body: row.body ?? "",
+    place:
+      attachment && Number.isFinite(lng) && Number.isFinite(lat)
+        ? {
+            at: [lng, lat],
+            label: attachment.label || "Shared location",
+            refType: attachment.refType ?? null,
+            refId: attachment.refId ?? null,
+          }
+        : null,
+    at: row.created_at ? Date.parse(row.created_at) : Date.now(),
+    read: !!row.read_at,
+  }
+}
+
+/** Everything I've sent or been sent on this map lately, newest first. */
+export async function loadMessages(
+  mapId: string,
+  userId: string,
+  limit = 300,
+): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from("map_messages")
+    .select("*")
+    .eq("master_map_id", mapId)
+    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+    .order("id", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return ((data ?? []) as Row[])
+    .map(messageFromRow)
+    .filter((m) => m.from === userId || m.to === userId)
+}
+
+/** One conversation, oldest first. */
+export async function loadConversation(
+  mapId: string,
+  userId: string,
+  otherId: string,
+  limit = 100,
+): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from("map_messages")
+    .select("*")
+    .eq("master_map_id", mapId)
+    .or(
+      `and(sender_id.eq.${userId},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${userId})`,
+    )
+    .order("id", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return ((data ?? []) as Row[])
+    .map(messageFromRow)
+    .filter(
+      (m) =>
+        (m.from === userId && m.to === otherId) ||
+        (m.from === otherId && m.to === userId),
+    )
+    .reverse()
+}
+
+/**
+ * Send a message. If the other person hasn't got the map open, their phone
+ * is buzzed as well, the way the current viewer does it.
+ */
+export async function sendMessage(message: {
+  mapId: string
+  from: string
+  fromName: string
+  to: string
+  body: string
+  place: SharedPlace | null
+  /** The other person has the map open right now. */
+  online: boolean
+}): Promise<Message> {
+  const { data, error } = await supabase
+    .from("map_messages")
+    .insert({
+      master_map_id: message.mapId,
+      sender_id: message.from,
+      sender_name: message.fromName,
+      recipient_id: message.to,
+      body: message.body,
+      attachment: message.place
+        ? {
+            kind: "location",
+            lng: message.place.at[0],
+            lat: message.place.at[1],
+            label: message.place.label,
+            refType: message.place.refType,
+            refId: message.place.refId,
+          }
+        : null,
+    })
+    .select("*")
+    .single()
+  if (error) throw error
+  if (!message.online)
+    supabase.functions
+      .invoke("send-message-push", {
+        body: {
+          recipient_id: message.to,
+          sender_name: message.fromName,
+          // A place sent on its own still says what it is.
+          body: message.body || message.place?.label || "",
+        },
+      })
+      .catch(() => {})
+  return messageFromRow(data as Row)
+}
+
+/** Mark everything one person has sent me as read. */
+export async function markMessagesRead(
+  mapId: string,
+  userId: string,
+  otherId: string,
+) {
+  const { error } = await supabase
+    .from("map_messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("master_map_id", mapId)
+    .eq("recipient_id", userId)
+    .eq("sender_id", otherId)
+    .is("read_at", null)
+  if (error) throw error
+}
+
+/** Hear messages sent to me on this map as they arrive. */
+export function watchMessages(
+  mapId: string,
+  userId: string,
+  arrived: (message: Message) => void,
+) {
+  const channel = supabase
+    .channel(`mapnext-messages-${mapId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "map_messages",
+        filter: `master_map_id=eq.${mapId}`,
+      },
+      (payload: Row) => {
+        const row = payload.new as Row | undefined
+        if (!row || row.recipient_id !== userId) return
+        arrived(messageFromRow(row))
+      },
+    )
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}

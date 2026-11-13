@@ -26,6 +26,7 @@ import {
   breathe,
   MEASURE_SOURCE,
   showLayers,
+  showPickedMarks,
   pickPaddock,
   pinPixels,
   pickTrail as paintPickedTrail,
@@ -50,7 +51,7 @@ import {
 } from "$lib/components/mapnext/geo"
 import { formatAgo, formatHa } from "$lib/components/mapnext/format"
 import { machineFor, type VehicleType } from "$lib/components/mapnext/machines"
-import { drawColour } from "$lib/components/mapnext/palette"
+import { blockColour, drawColour } from "$lib/components/mapnext/palette"
 import {
   loadPinGlyphs,
   pinDataUrl,
@@ -139,6 +140,7 @@ export type CrewRow = {
 
 export type ToolView =
   | "home"
+  | "messages"
   | "crew"
   | "machine"
   | "pins"
@@ -391,6 +393,8 @@ export class LiveEngine {
   private measured: LngLat[] = []
   /** Layers the person has switched off (the same keys the old viewer saves). */
   private shown: Record<string, boolean> = {}
+  /** Direction marks on the picked trail and its replay. */
+  private marks = { centre: false, arrows: false }
   private replaying: Replay | null = null
   private marchTick = 0
   private crewById = new Map<string, CrewEntry>()
@@ -483,6 +487,7 @@ export class LiveEngine {
       applyBase(this.map, this.base)
       setImagery(this.map, this.imagery, this.base)
       showLayers(this.map, this.shown, this.base)
+      showPickedMarks(this.map, this.marks)
       this.ready.set(true)
       this.drawPaddocks()
       this.drawPins()
@@ -719,6 +724,8 @@ export class LiveEngine {
     const features: unknown[] = []
     const labels: unknown[] = []
     for (const paddock of this.paddocks) {
+      // On the dark map a paddock with no colour takes its block's.
+      const glow = paddock.colour ?? blockColour(paddock.farmId ?? this.mapId)
       features.push({
         type: "Feature",
         properties: {
@@ -728,6 +735,9 @@ export class LiveEngine {
             : TONES[hash(paddock.id) % TONES.length],
           tint: paddock.colour ?? "#F4F1E6",
           wash: paddock.colour ? 0.2 : 0.07,
+          // Its fence is dashed in its own colour (white when it has none).
+          line: paddock.colour ?? null,
+          glow,
         },
         geometry: { type: "MultiPolygon", coordinates: paddock.polygons },
       })
@@ -753,6 +763,9 @@ export class LiveEngine {
             paddock.ha > 0 && this.shown.fieldHectares !== false
               ? `${formatHa(paddock.ha)} ha`
               : "",
+          // For the dot that stands in for it from far away on the dark map.
+          glow,
+          ha: paddock.ha,
         },
         geometry: { type: "Point", coordinates: labelPoint(biggest) },
       })
@@ -1384,6 +1397,46 @@ export class LiveEngine {
     return true
   }
 
+  /**
+   * Bring a place someone shared in a message into view, picking out the
+   * pin, paddock or machine it points at if that is still on the map.
+   */
+  showPlace(place: {
+    at: LngLat
+    refType?: string | null
+    refId?: string | null
+  }) {
+    const id = place.refId ?? ""
+    if (place.refType === "field" && this.pickPaddockById(id)) return
+    if (place.refType === "vehicle" && this.lookAt(id)) {
+      this.pickCrew(id)
+      return
+    }
+    this.clearSelection()
+    const pin = place.refType === "marker" ? this.pinsById.get(id) : undefined
+    if (pin) this.selectedPin.set(pin)
+    const at = pin?.at ?? place.at
+    this.setFollow("free")
+    this.map.easeTo({
+      center: at,
+      zoom: Math.max(this.map.getZoom(), 15.5),
+      // A pin opens its menu over the lower half of the map: sit above it.
+      offset: [this.insets.left / 2, -this.insets.bottom / 2 - (pin ? 150 : 0)],
+      duration: 900,
+    })
+    if (!pin) this.ripple(at)
+  }
+
+  /** Where a paddock's name sits: the spot a shared paddock points at. */
+  paddockPoint(id: string): LngLat | null {
+    const paddock = this.paddocks.find((p) => p.id === id)
+    if (!paddock) return null
+    return [
+      (paddock.bbox[0] + paddock.bbox[2]) / 2,
+      (paddock.bbox[1] + paddock.bbox[3]) / 2,
+    ]
+  }
+
   // ── Trails ──────────────────────────────────────────────────────────────
 
   /** Show the trails of one job (or none). */
@@ -1679,6 +1732,15 @@ export class LiveEngine {
       rate: 1,
       timed: timeline.timed,
     })
+  }
+
+  /**
+   * Draw the picked trail (and its replay) with a black line down its
+   * middle, with arrows the way it was driven, both, or neither.
+   */
+  setTrailMarks(marks: { centre: boolean; arrows: boolean }) {
+    this.marks = { ...marks }
+    if (get(this.ready)) showPickedMarks(this.map, this.marks)
   }
 
   pauseReplay() {
@@ -2560,6 +2622,11 @@ export class LiveEngine {
   /** Machines are drawn to scale up close and never shrink to a dot. */
   private onZoom = () => {
     const zoom = this.map.getZoom()
+    // Looking at a whole district, the crew's name tags pile up on one
+    // spot, and further out so do the machines: they step back in turn.
+    const classes = this.map.getContainer().classList
+    classes.toggle("mn-far", zoom < 9.5)
+    classes.toggle("mn-farther", zoom < 8)
     const ppm = pixelsPerMetre(zoom, this.map.getCenter().lat)
     // Zoomed right out, the whole crew sits close together: ease them down.
     const far = clamp((zoom - 10.5) / 3, 0.62, 1)

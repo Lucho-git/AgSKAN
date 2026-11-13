@@ -100,14 +100,17 @@ function brightness(hex: string) {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255
 }
 
+/** A pin nobody has given a colour: sky blue, which sits well on any map. */
+export const PIN_DEFAULT = "#38bdf8"
+
 /**
- * The disc a pin sits on. With no colour chosen it is the plain white disc;
- * with one, the disc is filled with it and the art turns white or ink,
- * whichever reads.
+ * The disc a pin sits on. With no colour chosen it is sky blue; with one,
+ * the disc is filled with it and the art turns white or ink, whichever
+ * reads. "white" is the plain white disc.
  */
 function disc(key: string) {
-  if (!key || key === "white")
-    return { defs: "", fill: "#fff", art: INK, ring: INK }
+  if (!key) return { defs: "", fill: PIN_DEFAULT, art: INK, ring: INK }
+  if (key === "white") return { defs: "", fill: "#fff", art: INK, ring: INK }
   if (key === "rainbow")
     return { defs: RAINBOW, fill: "url(#rb)", art: "#fff", ring: INK }
   const fill = key === "black" ? INK : markerColor(key, "circle-fill").dark
@@ -126,7 +129,7 @@ export function pinSvg(key: string, size = 96): string {
   const glyph = set[icon] ?? set[STAND_INS[icon] ?? ""]
   const bin = level !== ""
   // A grain bin keeps its white disc: its colour is the gauge round the rim.
-  const look = disc(bin ? "" : colour)
+  const look = disc(bin ? "white" : colour)
 
   let art: string
   if (glyph) {

@@ -6,12 +6,15 @@
  *   "paper"      a drawn map in the landing page's colours: cream ground,
  *                contour lines, lanes, and paddocks filled like the
  *                illustrated farm map
+ *   "dark"       the admin global map's look: Mapbox's dark map from far
+ *                away, with paddocks as blocks of bright colour, and the
+ *                imagery fading in as the map closes in on a paddock
  *
  * Both sets of layers live in the same style and are switched by visibility,
  * so changing look never reloads the map or drops the app's own layers.
  */
 
-export type BaseLook = "satellite" | "paper"
+export type BaseLook = "satellite" | "paper" | "dark"
 
 // mapbox-gl 1.x ships no type declarations in this repo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,7 +45,13 @@ export const MEASURE_SOURCE = "mv-measure"
 
 /** What the Layers tool can show and hide, and the style layers behind each. */
 export const LAYER_GROUPS: Record<string, string[]> = {
-  fields: ["mv-paddock-fill", "mv-scrub", "mv-fence"],
+  fields: [
+    "mv-paddock-fill",
+    "mv-scrub",
+    "mv-fence",
+    "mv-fence-solid",
+    "mv-paddock-dots",
+  ],
   fieldLabels: ["mv-paddock-name"],
   markers: ["mv-pins"],
   markerLabels: ["mv-pin-notes"],
@@ -50,7 +59,29 @@ export const LAYER_GROUPS: Record<string, string[]> = {
   activeTrails: ["mv-trails"],
 }
 
-/** Show or hide a group of layers. Pin notes also need their pins showing. */
+/** Layers that belong to some looks only. */
+const LOOK_ONLY: Record<string, BaseLook[]> = {
+  "mv-scrub": ["paper"],
+  "mv-fence": ["satellite", "paper"],
+  "mv-fence-solid": ["dark"],
+  "mv-paddock-dots": ["dark"],
+}
+
+/** The direction marks (centre line, then arrows) over each kind of trail. */
+const TRAIL_MARKS: Record<string, string[]> = {
+  historicalTrails: ["mv-history-centre", "mv-history-arrows"],
+  activeTrails: [
+    "mv-trails-centre",
+    "mv-trails-arrows",
+    "mv-my-trail-centre",
+    "mv-my-trail-arrows",
+  ],
+}
+
+/**
+ * Show or hide a group of layers. Pin notes also need their pins showing,
+ * and the direction arrows (off unless switched on) need their trails.
+ */
 export function showLayers(
   map: MapboxMap,
   shown: Record<string, boolean>,
@@ -60,11 +91,30 @@ export function showLayers(
     let visible = shown[group] !== false
     if (group === "markerLabels") visible = visible && shown.markers !== false
     for (const layer of layers) {
-      // The scrub patches belong to the drawn map only.
-      const on = visible && (layer !== "mv-scrub" || look === "paper")
+      const only = LOOK_ONLY[layer]
+      const on = visible && (!only || only.includes(look))
       map.setLayoutProperty(layer, "visibility", on ? "visible" : "none")
     }
   }
+  for (const [group, layers] of Object.entries(TRAIL_MARKS)) {
+    const on = shown.trailArrows === true && shown[group] !== false
+    for (const layer of layers)
+      map.setLayoutProperty(layer, "visibility", on ? "visible" : "none")
+  }
+}
+
+/**
+ * The direction marks on the one trail picked out or being replayed: its
+ * black centre line and its arrows, each switched on its own.
+ */
+export function showPickedMarks(
+  map: MapboxMap,
+  marks: { centre: boolean; arrows: boolean },
+) {
+  for (const id of ["mv-picked-centre", "mv-replay-centre"])
+    map.setLayoutProperty(id, "visibility", marks.centre ? "visible" : "none")
+  for (const id of ["mv-picked-arrows", "mv-replay-arrows"])
+    map.setLayoutProperty(id, "visibility", marks.arrows ? "visible" : "none")
 }
 
 /**
@@ -84,6 +134,18 @@ const empty = { type: "FeatureCollection", features: [] }
 // (how strong); without them its `fill` is used at a light wash.
 const SAT_FILL = ["coalesce", ["get", "tint"], ["get", "fill"]]
 const SAT_FILL_OPACITY = ["coalesce", ["get", "wash"], 0.16]
+// On the dark map a paddock is a block of its colour (`glow`): strong from
+// far away, where the farm is a handful of bright shapes, and easing back
+// as the imagery comes up underneath. The admin global map's numbers.
+const DARK_FILL = [
+  "coalesce",
+  ["get", "glow"],
+  ["get", "tint"],
+  ["get", "fill"],
+]
+const DARK_FILL_OPACITY = ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 0.3]
+// A fence is dashed in its paddock's own colour, white where it has none.
+const FENCE_COLOUR = ["coalesce", ["get", "line"], "#ffffff"]
 
 /** Trail width in metres → pixels, the same way the real viewer does it. */
 const trailWidthBy = (times: number) => [
@@ -127,6 +189,67 @@ const pauseLayer = (id: string, source: string) => ({
     "line-dasharray": [0.4, 2.2],
   },
 })
+
+/**
+ * A thin black line down the middle of a trail, as the current viewer draws
+ * with its direction arrows.
+ */
+const centreLayer = (id: string, source: string, filter: unknown) => ({
+  id,
+  type: "line",
+  source,
+  minzoom: 12,
+  filter,
+  layout: { "line-join": "round", "line-cap": "round", visibility: "none" },
+  paint: {
+    "line-color": "#000000",
+    "line-width": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      12,
+      0.6,
+      16,
+      1.4,
+      19,
+      2,
+    ],
+    "line-opacity": 0.8,
+  },
+})
+
+/**
+ * Arrows along a trail, pointing the way it was driven: the trail's own
+ * colour inside a black edge, a fixed distance apart on screen.
+ */
+const arrowLayer = (id: string, source: string, filter: unknown) => ({
+  id,
+  type: "symbol",
+  source,
+  minzoom: 13,
+  filter,
+  layout: {
+    "symbol-placement": "line",
+    "symbol-spacing": ["interpolate", ["linear"], ["zoom"], 13, 70, 17, 110],
+    "text-field": "\u27A4",
+    "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+    "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 16, 19, 19, 26],
+    "text-keep-upright": false,
+    "text-rotation-alignment": "map",
+    "text-pitch-alignment": "map",
+    "text-allow-overlap": true,
+    "text-ignore-placement": true,
+    "text-padding": 0,
+    visibility: "none",
+  },
+  paint: {
+    "text-color": ["get", "color"],
+    "text-halo-color": "rgba(0, 0, 0, 0.85)",
+    "text-halo-width": 1.3,
+  },
+})
+
+const NOT_HEAD = ["!=", ["get", "segment"], "head"]
 
 const TRAIL_LAYERS = ["mv-history", "mv-trails", "mv-my-trail"]
 
@@ -244,7 +367,12 @@ const ROADS = [
   false,
 ]
 
-const placeLabel = (id: string, color: string, halo: string) => ({
+const placeLabel = (
+  id: string,
+  color: string,
+  halo: string,
+  capitals = true,
+) => ({
   id,
   type: "symbol",
   source: "streets",
@@ -254,8 +382,8 @@ const placeLabel = (id: string, color: string, halo: string) => ({
     "text-field": ["get", "name"],
     "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Regular"],
     "text-size": ["interpolate", ["linear"], ["zoom"], 8, 11, 14, 15],
-    "text-letter-spacing": 0.08,
-    "text-transform": "uppercase",
+    "text-letter-spacing": capitals ? 0.08 : 0.01,
+    "text-transform": capitals ? "uppercase" : "none",
     "text-max-width": 8,
   },
   paint: {
@@ -421,7 +549,105 @@ export function buildStyle() {
         placeLabel("sat-place", "#F4F1E6", "rgba(21,38,28,0.85)"),
       ]),
 
-      // ── The farm: the same data in both looks ──
+      // ── Dark map (the admin global map's look) ──
+      // Mapbox's dark map from far away; the imagery fades in between zoom
+      // 8 and 10.5, as the map closes in on a paddock.
+      ...group("dark", [
+        {
+          id: "dark-ground",
+          type: "background",
+          paint: { "background-color": "hsl(55, 1%, 20%)" },
+        },
+        {
+          id: "dark-park",
+          type: "fill",
+          source: "streets",
+          "source-layer": "landuse_overlay",
+          minzoom: 5,
+          filter: ["==", ["get", "class"], "national_park"],
+          paint: { "fill-color": "hsl(132, 2%, 20%)", "fill-opacity": 0.5 },
+        },
+        {
+          id: "dark-water",
+          type: "fill",
+          source: "streets",
+          "source-layer": "water",
+          paint: { "fill-color": "hsl(185, 2%, 10%)" },
+        },
+        {
+          id: "dark-waterway",
+          type: "line",
+          source: "streets",
+          "source-layer": "waterway",
+          minzoom: 8,
+          paint: {
+            "line-color": "hsl(185, 2%, 10%)",
+            "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 16, 3],
+          },
+        },
+        {
+          id: "dark-road-case",
+          type: "line",
+          source: "streets",
+          "source-layer": "road",
+          filter: ROADS,
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "hsl(0, 0%, 17%)",
+            "line-width": roadWidth(0.9),
+          },
+        },
+        {
+          id: "dark-road",
+          type: "line",
+          source: "streets",
+          "source-layer": "road",
+          filter: ROADS,
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "hsl(0, 0%, 27%)",
+            "line-width": roadWidth(0.6),
+          },
+        },
+        {
+          id: "dark-border",
+          type: "line",
+          source: "streets",
+          "source-layer": "admin",
+          filter: [
+            "all",
+            ["==", ["get", "admin_level"], 1],
+            ["==", ["get", "maritime"], "false"],
+          ],
+          paint: { "line-color": "hsl(0, 0%, 35%)", "line-width": 0.8 },
+        },
+        {
+          id: "dark-imagery",
+          type: "raster",
+          source: "satellite",
+          minzoom: 8,
+          paint: {
+            "raster-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              8,
+              0,
+              10.5,
+              1,
+            ],
+            "raster-fade-duration": 200,
+          },
+        },
+        placeLabel(
+          "dark-place",
+          "hsl(0, 0%, 88%)",
+          "hsla(0, 0%, 10%, 0.75)",
+          false,
+        ),
+      ]),
+
+      // ── The farm: the same data in every look ──
       {
         id: "mv-paddock-fill",
         type: "fill",
@@ -446,16 +672,78 @@ export function buildStyle() {
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
       trailLayer("mv-my-trail", MY_TRAIL_SOURCE),
+      // Direction marks over every trail: off unless switched on in Layers.
+      centreLayer("mv-history-centre", HISTORY_SOURCE, NOT_PAUSED),
+      centreLayer("mv-trails-centre", TRAIL_SOURCE, NOT_PAUSED),
+      centreLayer("mv-my-trail-centre", MY_TRAIL_SOURCE, NOT_PAUSED),
+      arrowLayer("mv-history-arrows", HISTORY_SOURCE, NOT_PAUSED),
+      arrowLayer("mv-trails-arrows", TRAIL_SOURCE, NOT_PAUSED),
+      arrowLayer("mv-my-trail-arrows", MY_TRAIL_SOURCE, NOT_PAUSED),
       {
         id: "mv-fence",
         type: "line",
         source: FARM_SOURCE,
         layout: { "line-join": "round" },
         paint: {
-          "line-color": "#ffffff",
-          "line-opacity": 0.9,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.8, 15, 1.8],
+          "line-color": FENCE_COLOUR,
+          "line-opacity": 0.95,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1, 15, 2.2],
           "line-dasharray": [3, 2.4],
+        },
+      },
+      // The dark map draws a fence the way the admin global map does: a
+      // thin solid line in the paddock's colour, once the map is close.
+      {
+        id: "mv-fence-solid",
+        type: "line",
+        source: FARM_SOURCE,
+        minzoom: 8,
+        layout: { "line-join": "round", visibility: "none" },
+        paint: {
+          "line-color": DARK_FILL,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.4, 13, 1.8],
+        },
+      },
+      // From far away on the dark map a paddock is too small to see, so
+      // each stands in as a dot of its colour, never smaller than a couple
+      // of pixels: the farm reads as a cloud of paddocks long before their
+      // shapes do. (The admin global map's far-away view.)
+      {
+        id: "mv-paddock-dots",
+        type: "circle",
+        source: LABEL_SOURCE,
+        maxzoom: 11,
+        layout: { visibility: "none" },
+        paint: {
+          "circle-color": ["coalesce", ["get", "glow"], "#38bdf8"],
+          "circle-radius": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            4,
+            1.6,
+            7,
+            [
+              "max",
+              1.6,
+              ["*", 0.054, ["sqrt", ["coalesce", ["get", "ha"], 0]]],
+            ],
+            10,
+            [
+              "max",
+              1.6,
+              ["*", 0.434, ["sqrt", ["coalesce", ["get", "ha"], 0]]],
+            ],
+          ],
+          "circle-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            8.5,
+            0.85,
+            10.5,
+            0,
+          ],
         },
       },
       // The picked trail, the way the current viewer shows it: a soft white
@@ -495,6 +783,8 @@ export function buildStyle() {
           "line-opacity": 1,
         },
       },
+      centreLayer("mv-picked-centre", PICKED_TRAIL_SOURCE, NOT_PAUSED),
+      arrowLayer("mv-picked-arrows", PICKED_TRAIL_SOURCE, NOT_PAUSED),
       // A trail being replayed paints itself in again as the machine goes:
       // solid in its own colour inside a white edge, with the stretch just
       // laid still bright behind the machine.
@@ -532,6 +822,8 @@ export function buildStyle() {
           "line-opacity": 0.9,
         },
       },
+      centreLayer("mv-replay-centre", REPLAY_SOURCE, NOT_HEAD),
+      arrowLayer("mv-replay-arrows", REPLAY_SOURCE, NOT_HEAD),
       // The picked paddock's fence, on top of everything drawn in it: a
       // solid line over a soft glow that breathes.
       {
@@ -715,17 +1007,23 @@ export function applyBase(map: MapboxMap, look: BaseLook) {
     )
   }
   const paper = look === "paper"
+  const dark = look === "dark"
   map.setPaintProperty(
     "mv-paddock-fill",
     "fill-color",
-    paper ? ["get", "fill"] : SAT_FILL,
+    paper ? ["get", "fill"] : dark ? DARK_FILL : SAT_FILL,
   )
   map.setPaintProperty(
     "mv-paddock-fill",
     "fill-opacity",
-    paper ? 1 : SAT_FILL_OPACITY,
+    paper ? 1 : dark ? DARK_FILL_OPACITY : SAT_FILL_OPACITY,
   )
-  map.setLayoutProperty("mv-scrub", "visibility", paper ? "visible" : "none")
+  for (const [layer, looks] of Object.entries(LOOK_ONLY))
+    map.setLayoutProperty(
+      layer,
+      "visibility",
+      looks.includes(look) ? "visible" : "none",
+    )
   // (A picked trail's dimming is put back by the caller after this.)
   for (const id of TRAIL_LAYERS)
     map.setPaintProperty(id, "line-opacity", trailOpacity(look))
@@ -737,7 +1035,7 @@ export function applyBase(map: MapboxMap, look: BaseLook) {
       paper ? "rgba(230,222,194,0.9)" : "rgba(13,22,17,0.85)",
     )
   }
-  map.setPaintProperty("mv-fence", "line-opacity", paper ? 1 : 0.9)
+  map.setPaintProperty("mv-fence", "line-opacity", paper ? 1 : 0.95)
   map.setPaintProperty(
     "mv-accuracy",
     "fill-color",

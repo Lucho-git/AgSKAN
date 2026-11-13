@@ -79,3 +79,30 @@ export function drawColour(saved: string | null | undefined): string {
   if (/^(black|#000|#000000)$/i.test(raw)) return "#15261C"
   return raw
 }
+
+/**
+ * The colours the admin global map gives farms: bright, well separated, and
+ * readable on both its dark map and imagery. The dark look here uses them
+ * for paddocks that have no colour of their own, one per block of the farm.
+ */
+export const BLOCK_COLOURS = [
+  "#38bdf8",
+  "#f472b6",
+  "#a78bfa",
+  "#34d399",
+  "#fbbf24",
+  "#fb7185",
+  "#2dd4bf",
+  "#c084fc",
+  "#f97316",
+  "#60a5fa",
+  "#e879f9",
+  "#4ade80",
+]
+
+/** The same hash the admin global map uses, so an id keeps its colour. */
+export function blockColour(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+  return BLOCK_COLOURS[Math.abs(hash) % BLOCK_COLOURS.length]
+}

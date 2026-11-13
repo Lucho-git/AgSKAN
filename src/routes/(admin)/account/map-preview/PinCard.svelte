@@ -13,6 +13,7 @@
     markerColor,
   } from "$lib/components/map/markers/markerPalette"
   import {
+    PIN_DEFAULT,
     pinLabel,
     type PinChoice,
     type PinLook,
@@ -38,7 +39,9 @@
     remove: void
   }>()
 
-  // The colours the current viewer's pin menu offers, plus "none".
+  // The colours the current viewer's pin menu offers. "default" is no colour
+  // of its own: the pin takes this person's default, which is sky blue
+  // unless their marker settings say otherwise.
   const COLOURS = [
     "default",
     "red",
@@ -53,7 +56,7 @@
   ]
   const swatch = (key: string) =>
     key === "default"
-      ? "#ffffff"
+      ? PIN_DEFAULT
       : key === "black"
         ? "#15261C"
         : markerColor(key, "circle-fill").dark
@@ -205,9 +208,8 @@
           <button
             type="button"
             class:selected={(pin.colour || "default") === key}
-            class:none={key === "default"}
             style="--swatch: {swatch(key)}"
-            aria-label={key === "default" ? "No colour" : key}
+            aria-label={key === "default" ? "Default colour" : key}
             aria-pressed={(pin.colour || "default") === key}
             on:click={() =>
               (pin.colour || "default") !== key &&

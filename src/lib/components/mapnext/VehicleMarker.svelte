@@ -22,7 +22,10 @@
   export let tappable = false
   /** km/h, shown beside the name while the machine is moving. */
   export let speed = 0
-  /** Picked out on the map: a turning ring, and it sits a little larger. */
+  /**
+   * Picked out on the map: a turning ring that breathes, and the machine
+   * itself swells and rocks a little, as it does in the current viewer.
+   */
   export let selected = false
   /** Broadcasting to the crew: its word, in its colour, pulsing. */
   export let flash: { label: string; colour: string } | null = null
@@ -53,14 +56,16 @@
     >
   {/if}
   <div class="art" style="transform: rotate({heading}deg)">
-    <svelte:component
-      this={vehicles[art]}
-      size="{size}px"
-      bodyColor={colour}
-      outlineColor="#ffffff"
-      wheelColor="#15261C"
-      loadColor="#F7DB5C"
-    />
+    <span class="body">
+      <svelte:component
+        this={vehicles[art]}
+        size="{size}px"
+        bodyColor={colour}
+        outlineColor="#ffffff"
+        wheelColor="#15261C"
+        loadColor="#F7DB5C"
+      />
+    </span>
   </div>
   {#if label}
     <span class="tag">
@@ -96,7 +101,44 @@
     transform: translate(-50%, -50%);
     animation:
       mv-pick-in 0.32s cubic-bezier(0.3, 1.6, 0.5, 1) both,
-      mv-pick-turn 9s linear 0.32s infinite;
+      mv-pick-turn 9s linear 0.32s infinite,
+      mv-pick-glow 2s ease-in-out 0.32s infinite;
+  }
+  /* The machine itself: a slow swell and rock while it is picked (the
+     current viewer's grow-wobble). */
+  .body {
+    display: flex;
+  }
+  .selected .body {
+    animation: mv-pick-wobble 1.8s ease-in-out infinite;
+  }
+  @keyframes mv-pick-wobble {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.1) rotate(2deg);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    75% {
+      transform: scale(1.1) rotate(-2deg);
+    }
+  }
+  @keyframes mv-pick-glow {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1.5px rgba(21, 38, 28, 0.55),
+        0 0 10px 1px rgba(247, 219, 92, 0.45);
+    }
+    50% {
+      box-shadow:
+        0 0 0 1.5px rgba(21, 38, 28, 0.55),
+        0 0 22px 6px rgba(247, 219, 92, 0.85);
+    }
   }
   @keyframes mv-pick-in {
     from {
@@ -238,9 +280,16 @@
     background: #f7db5c;
     color: #15261c;
   }
+  /* From far away the crew's tags go first, then their machines; your own
+     stays, so you can always find yourself. */
+  :global(.mn-far) .mv-vehicle:not(.me):not(.selected) .tag,
+  :global(.mn-farther) .mv-vehicle:not(.me):not(.selected) {
+    display: none;
+  }
   @media (prefers-reduced-motion: reduce) {
     .pick,
-    .flash-ring {
+    .flash-ring,
+    .selected .body {
       animation: none;
     }
     .pulse {

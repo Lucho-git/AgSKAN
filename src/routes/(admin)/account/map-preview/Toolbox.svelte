@@ -15,6 +15,7 @@
     LocateFixed,
     Map as MapIcon,
     MapPinned,
+    MessageCircle,
     Play,
     RadioTower,
     Route,
@@ -89,6 +90,10 @@
   export let farm: { paddocks: number; ha: number } = { paddocks: 0, ha: 0 }
   export let farms: FarmChoice[] = []
   export let currentFarmId = ""
+  /** Messages this person hasn't opened. */
+  export let unread = 0
+  /** Who the open conversation is with (their name), if one is open. */
+  export let messageWith = ""
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -110,6 +115,7 @@
     fitFarm: void
     farm: string
     leave: "dashboard" | "viewer"
+    messagesBack: void
   }>()
 
   $: machine = machineFor(marker.type)
@@ -120,10 +126,13 @@
     pinChoices.find((choice) => choice.iconClass === pinKind)?.label ?? "Pin"
   $: baseLabel = baseChoices.find((choice) => choice.key === base)?.label ?? ""
   $: otherFarms = farms.filter((choice) => choice.id !== currentFarmId)
-  $: hidden = LAYERS.filter((layer) => layers[layer.key] === false).length
+  $: hidden = LAYERS.filter(
+    (layer) => !layer.extra && layers[layer.key] === false,
+  ).length
 
   const TITLES: Record<ToolView, string> = {
     home: "",
+    messages: "Messages",
     crew: "Crew",
     machine: "Your machine",
     pins: "Pins",
@@ -135,8 +144,16 @@
     farm: "Farm",
   }
 
-  /** What can be shown and hidden; the indented ones belong to the one above. */
-  const LAYERS: { key: string; label: string; part?: boolean }[] = [
+  /**
+   * What can be shown and hidden; the indented ones belong to the one above.
+   * An `extra` is off unless it has been switched on.
+   */
+  const LAYERS: {
+    key: string
+    label: string
+    part?: boolean
+    extra?: boolean
+  }[] = [
     { key: "fields", label: "Paddocks" },
     { key: "fieldLabels", label: "Paddock names", part: true },
     { key: "fieldHectares", label: "Hectares", part: true },
@@ -146,6 +163,7 @@
     { key: "vehicleLabels", label: "Name tags", part: true },
     { key: "historicalTrails", label: "Finished trails" },
     { key: "activeTrails", label: "Trails being laid" },
+    { key: "trailArrows", label: "Direction arrows on trails", extra: true },
   ]
 
   // ── Paddock list ──
@@ -186,6 +204,7 @@
       "linear-gradient(135deg, #4c5a3d 0%, #6f6a44 38%, #8a7a4f 62%, #57633f 100%)",
     paper:
       "repeating-linear-gradient(115deg, transparent 0 13px, rgba(21,38,28,0.14) 13px 14px), linear-gradient(135deg, #e6dec2, #e0c766 55%, #a9be7a)",
+    dark: "radial-gradient(circle at 30% 38%, #f472b6 0 9%, transparent 10%), radial-gradient(circle at 62% 58%, #38bdf8 0 12%, transparent 13%), radial-gradient(circle at 74% 28%, #fbbf24 0 6%, transparent 7%), linear-gradient(135deg, #333332 0 62%, #19191a 62%)",
     google_satellite:
       "linear-gradient(135deg, #3f5a45 0%, #7a744c 45%, #9a8a5c 70%, #4d6146 100%)",
     bing_aerial:
@@ -193,7 +212,11 @@
   }
 </script>
 
-<aside class="mn-panel" aria-label="Toolbox">
+<aside
+  class="mn-panel"
+  class:chat={view === "messages" && !!messageWith}
+  aria-label="Toolbox"
+>
   {#if view === "home"}
     <header class="mn-panel-head">
       <span class="mark"
@@ -226,6 +249,16 @@
         <span class="icon"><Users size={24} /></span>
         <strong>Crew</strong>
         <small>{online} on now</small>
+      </button>
+      <button
+        type="button"
+        class="mn-tile"
+        on:click={() => (view = "messages")}
+      >
+        {#if unread}<span class="mn-badge">{unread}</span>{/if}
+        <span class="icon"><MessageCircle size={24} /></span>
+        <strong>Messages</strong>
+        <small>{unread ? `${unread} new` : "talk to the crew"}</small>
       </button>
       {#if !guest}
         <button
@@ -347,12 +380,17 @@
       <button
         type="button"
         class="mn-icon-button back"
-        aria-label="Back to the tools"
-        on:click={() => (view = "home")}
+        aria-label={view === "messages" && messageWith
+          ? "Back to all messages"
+          : "Back to the tools"}
+        on:click={() =>
+          view === "messages" && messageWith
+            ? dispatch("messagesBack")
+            : (view = "home")}
       >
         <ArrowLeft size={22} />
       </button>
-      <h2>{TITLES[view]}</h2>
+      <h2>{view === "messages" && messageWith ? messageWith : TITLES[view]}</h2>
       {#if !wide}
         <button
           type="button"
@@ -365,7 +403,9 @@
       {/if}
     </header>
 
-    {#if view === "crew"}
+    {#if view === "messages"}
+      <slot name="messages" />
+    {:else if view === "crew"}
       <p class="lp-eyebrow">{online} on the map now · {crew.length} in all</p>
       {#if crew.length}
         <ul class="mn-crew">
@@ -623,7 +663,9 @@
       </p>
       <div class="mn-switches">
         {#each LAYERS as layer (layer.key)}
-          {@const on = layers[layer.key] !== false}
+          {@const on = layer.extra
+            ? layers[layer.key] === true
+            : layers[layer.key] !== false}
           <button
             type="button"
             class="mn-switch"

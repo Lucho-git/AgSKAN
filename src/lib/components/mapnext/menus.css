@@ -468,3 +468,388 @@
   text-transform: uppercase;
   color: var(--lp-ink-faint);
 }
+
+/* ── A count of something waiting (unread messages) ── */
+.mn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--lp-rust);
+  color: #fff;
+  font-family: var(--lp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mn-tile {
+  position: relative;
+}
+.mn-tile .mn-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.mn-tools-button .mn-badge {
+  margin-right: -6px;
+}
+
+/* ── Messages ── */
+.mn-inbox .art b {
+  font-family: var(--lp-mono);
+  font-size: 0.85rem;
+  color: var(--lp-ink);
+}
+.mn-inbox .doing.unread {
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+/* A conversation fills the panel: the messages scroll, the box to type in
+   stays put at the bottom. */
+.mn-panel.chat {
+  height: 88dvh;
+  overflow: hidden;
+}
+.mn.wide .mn-panel.chat {
+  height: auto;
+}
+.mn-convo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -8px;
+}
+.mn-convo-head .state {
+  overflow: hidden;
+  font-size: 0.82rem;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-convo-head .state.on::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #39d27a;
+}
+.mn-convo-head .mn-text-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  min-height: 32px;
+}
+.mn-thread {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--lp-paper);
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mn-thread .day {
+  align-self: center;
+  margin: 6px 0 2px;
+  font-family: var(--lp-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+.mn-thread .mn-empty {
+  margin: auto 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.mn-bubble {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 84%;
+  padding: 9px 12px 7px;
+  border-radius: 16px 16px 16px 5px;
+  background: var(--lp-card);
+  box-shadow: 0 0 0 1px var(--lp-line);
+  color: var(--lp-ink);
+}
+/* One carrying a place is as wide as a bubble gets, so its name fits. */
+.mn-bubble.placed {
+  width: 84%;
+}
+.mn-bubble.mine {
+  align-self: flex-end;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--lp-ink);
+  box-shadow: none;
+  color: var(--lp-paper);
+}
+.mn-bubble p {
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.mn-bubble small {
+  justify-self: end;
+  font-family: var(--lp-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  opacity: 0.65;
+}
+/* A place sent with a message: tap it and the map goes there. */
+.mn-bubble .place {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 6px 10px;
+  line-height: 1.2;
+  border-radius: 11px;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: left;
+}
+.mn-bubble.mine .place {
+  background: rgba(244, 241, 230, 0.16);
+  color: var(--lp-paper);
+}
+.mn-bubble .place span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mn-bubble .place svg {
+  flex-shrink: 0;
+}
+.mn-bubble .place b {
+  font-family: var(--lp-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Answers that take one tap. */
+.mn-quick {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin: 0 -2px;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mn-quick::-webkit-scrollbar {
+  display: none;
+}
+.mn-quick button {
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  background: var(--lp-card);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-quick button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-places {
+  display: grid;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.mn-places button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-places button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-attached {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 6px 0 12px;
+  border-radius: 12px;
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-attached span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-attached button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+.mn-compose {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.mn-compose input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  background: var(--lp-card);
+  font-size: 1rem;
+  color: var(--lp-ink);
+}
+.mn-compose input:focus {
+  border-color: var(--lp-ink);
+  outline: none;
+}
+.mn-compose button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--lp-ink);
+}
+.mn-compose .place {
+  border: 1.5px solid var(--lp-line);
+}
+.mn-compose .place.on {
+  border-color: var(--lp-ink);
+  background: var(--lp-yellow);
+}
+.mn-compose .send {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-compose .send:disabled {
+  opacity: 0.35;
+}
+
+/* A message that has just come in while the messages are closed. It stays
+   until it is answered or put away. */
+.mn-notice {
+  position: absolute;
+  top: calc(var(--mn-top) + 58px);
+  right: var(--mn-gap);
+  left: calc(var(--mn-rail) + var(--mn-gap));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: min(26rem, calc(100% - var(--mn-rail) - 2 * var(--mn-gap)));
+  margin-inline: auto;
+  padding: 6px 6px 6px 8px;
+  border-radius: 20px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 14px 30px -12px rgba(10, 25, 15, 0.85);
+}
+.mn-notice .open {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+  min-height: 46px;
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--lp-ink);
+}
+.mn-notice strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.mn-notice .open > span {
+  overflow: hidden;
+  font-size: 0.98rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-notice .reply {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* ── Direction marks on a picked trail: two small switches ── */
+.mn-marks {
+  display: flex;
+  gap: 6px;
+}
+.mn-marks button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--lp-ink-soft);
+}
+.mn-marks button[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-marks .line {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
