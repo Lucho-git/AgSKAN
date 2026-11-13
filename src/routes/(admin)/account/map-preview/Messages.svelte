@@ -43,6 +43,8 @@
   export let paddocks: Paddock[] = []
   export let drawings: PinDrawing[] = []
   export let guest = false
+  /** Every job on the map, to show the ones messages hand over. */
+  export let jobs: Job[] = []
 
   const dispatch = createEventDispatcher<{
     open: string | null
@@ -52,8 +54,12 @@
     /** Start putting a job together for this person. */
     job: void
     showJob: Job
-    moveJob: { id: number; status: "accepted" | "done" }
+    takeJob: string
+    finishJob: string
+    cancelJob: string
   }>()
+
+  $: jobById = new Map(jobs.map((job) => [job.id, job]))
 
   const QUICK = [
     "On my way",
@@ -131,8 +137,8 @@
   const preview = (message: Message) =>
     (message.from === me ? "You: " : "") +
     (message.body ||
-      (message.job
-        ? `Job: ${message.job.title}`
+      (message.jobRef
+        ? `Job: ${message.jobRef.title}`
         : message.place
           ? message.place.label
           : ""))
@@ -187,18 +193,23 @@
         class="mn-bubble"
         class:mine={message.from === me}
         class:placed={!!message.place}
-        class:job={!!message.job}
+        class:job={!!message.jobRef && jobById.has(message.jobRef.id)}
       >
-        {#if message.job}
-          <JobBlock
-            job={message.job}
-            mine={message.to === me}
-            {paddocks}
-            {drawings}
-            on:show={() => message.job && dispatch("showJob", message.job)}
-            on:move={(e) =>
-              dispatch("moveJob", { id: message.id, status: e.detail })}
-          />
+        {#if message.jobRef && jobById.has(message.jobRef.id)}
+          {@const job = jobById.get(message.jobRef.id)}
+          {#if job}
+            <JobBlock
+              {job}
+              {me}
+              {guest}
+              {paddocks}
+              {drawings}
+              on:show={() => dispatch("showJob", job)}
+              on:take={() => dispatch("takeJob", job.id)}
+              on:finish={() => dispatch("finishJob", job.id)}
+              on:cancel={() => dispatch("cancelJob", job.id)}
+            />
+          {/if}
         {:else if message.place}
           <button
             type="button"

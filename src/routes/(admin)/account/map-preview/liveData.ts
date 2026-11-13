@@ -1277,10 +1277,9 @@ export type JobItem = {
 }
 
 /**
- * A job given to someone: what to do and where. It travels as a message
- * (inside the message's attachment, beside a plain place, so the current
- * viewer shows it as a shared location), and whoever it was given to moves
- * it from open to "on it" to done.
+ * A job on the map (`map_jobs`): what to do and where. It is either given
+ * to one person or left open for anyone on the crew to take; whoever takes
+ * it moves it from open to "on it" to done.
  */
 export type Job = {
   id: string
@@ -1288,7 +1287,15 @@ export type Job = {
   note: string
   items: JobItem[]
   status: "open" | "accepted" | "done"
-  /** ms, when it was taken on and finished. */
+  createdBy: string
+  createdByName: string | null
+  /** Who it was given to; null when it is open to anyone. */
+  assignedTo: string | null
+  /** Who took it on. */
+  takenBy: string | null
+  takenByName: string | null
+  /** ms */
+  createdAt: number
   acceptedAt: number | null
   doneAt: number | null
 }
@@ -1300,39 +1307,12 @@ export type Message = {
   to: string
   body: string
   place: SharedPlace | null
-  job: Job | null
+  /** The job this message handed over, if it handed one over. */
+  jobRef: { id: string; title: string } | null
   /** ms */
   at: number
   /** The other person has opened it. */
   read: boolean
-}
-
-function jobFromAttachment(attachment: Row | null): Job | null {
-  const job = attachment?.job as Row | undefined
-  if (!job?.id || !job.title) return null
-  const items: JobItem[] = (Array.isArray(job.items) ? job.items : [])
-    .filter(
-      (item: Row) =>
-        Number.isFinite(Number(item?.lng)) &&
-        Number.isFinite(Number(item?.lat)),
-    )
-    .map((item: Row) => ({
-      type:
-        item.type === "field" || item.type === "marker" ? item.type : "spot",
-      id: item.id ? String(item.id) : null,
-      label: String(item.label ?? ""),
-      at: [Number(item.lng), Number(item.lat)] as LngLat,
-    }))
-  return {
-    id: String(job.id),
-    title: String(job.title),
-    note: String(job.note ?? ""),
-    items,
-    status:
-      job.status === "accepted" || job.status === "done" ? job.status : "open",
-    acceptedAt: job.accepted_at ? Date.parse(job.accepted_at) : null,
-    doneAt: job.done_at ? Date.parse(job.done_at) : null,
-  }
 }
 
 function messageFromRow(row: Row): Message {
@@ -1340,7 +1320,12 @@ function messageFromRow(row: Row): Message {
   const lng = Number(attachment?.lng)
   const lat = Number(attachment?.lat)
   return {
-    job: jobFromAttachment(attachment),
+    jobRef: attachment?.job?.id
+      ? {
+          id: String(attachment.job.id),
+          title: String(attachment.job.title ?? "Job"),
+        }
+      : null,
     id: Number(row.id),
     from: String(row.sender_id),
     fromName: row.sender_name ?? null,
@@ -1417,8 +1402,8 @@ export async function sendMessage(message: {
   to: string
   body: string
   place: SharedPlace | null
-  /** A job to give them; it goes out with its first place. */
-  job?: { id: string; title: string; note: string; items: JobItem[] } | null
+  /** A job being handed to them; the message points at it. */
+  job?: Job | null
   /** The other person has the map open right now. */
   online: boolean
 }): Promise<Message> {
@@ -1451,23 +1436,7 @@ export async function sendMessage(message: {
             label: place.label,
             refType: place.refType,
             refId: place.refId,
-            ...(job
-              ? {
-                  job: {
-                    id: job.id,
-                    title: job.title,
-                    note: job.note,
-                    status: "open",
-                    items: job.items.map((item) => ({
-                      type: item.type,
-                      id: item.id,
-                      label: item.label,
-                      lng: item.at[0],
-                      lat: item.at[1],
-                    })),
-                  },
-                }
-              : {}),
+            ...(job ? { job: { id: job.id, title: job.title } } : {}),
           }
         : null,
     })
@@ -1505,45 +1474,8 @@ export async function markMessagesRead(
 }
 
 /**
- * Say where a job given to me has got to. Only the person it was given to
- * can change a message, which is what makes "on it" and "done" theirs.
- */
-export async function setJobStatus(
-  messageId: number,
-  status: "accepted" | "done",
-): Promise<Message> {
-  const { data, error } = await supabase
-    .from("map_messages")
-    .select("attachment")
-    .eq("id", messageId)
-    .single()
-  if (error) throw error
-  const attachment = ((data as Row | null)?.attachment ?? {}) as Row
-  if (!attachment.job) throw new Error("Not a job")
-  const now = new Date().toISOString()
-  const { data: saved, error: failed } = await supabase
-    .from("map_messages")
-    .update({
-      attachment: {
-        ...attachment,
-        job: {
-          ...attachment.job,
-          status,
-          accepted_at: attachment.job.accepted_at ?? now,
-          ...(status === "done" ? { done_at: now } : {}),
-        },
-      },
-    })
-    .eq("id", messageId)
-    .select("*")
-    .single()
-  if (failed) throw failed
-  return messageFromRow(saved as Row)
-}
-
-/**
  * Hear messages on this map as they happen: one sent to me arriving, and
- * one of mine (either way) changing, such as being read or a job moving on.
+ * one of mine (either way) changing, such as being read.
  */
 export function watchMessages(
   mapId: string,
@@ -1961,4 +1893,174 @@ export async function removeFromMap(person: { id: string; guest: boolean }) {
   }
   const result = (await mapApi.kickUser(person.id)) as Row
   if (!result?.success) throw new Error(result?.message || "Couldn't remove")
+}
+
+// ── Jobs (`map_jobs`) ───────────────────────────────────────────────────
+
+function jobFromRow(row: Row): Job {
+  return {
+    id: String(row.id),
+    title: String(row.title ?? ""),
+    note: String(row.note ?? ""),
+    items: (Array.isArray(row.items) ? (row.items as Row[]) : [])
+      .filter(
+        (item) =>
+          Number.isFinite(Number(item?.lng)) &&
+          Number.isFinite(Number(item?.lat)),
+      )
+      .map((item) => ({
+        type:
+          item.type === "field" || item.type === "marker" ? item.type : "spot",
+        id: item.id ? String(item.id) : null,
+        label: String(item.label ?? ""),
+        at: [Number(item.lng), Number(item.lat)] as LngLat,
+      })),
+    status:
+      row.status === "accepted" || row.status === "done" ? row.status : "open",
+    createdBy: String(row.created_by),
+    createdByName: row.created_by_name ?? null,
+    assignedTo: row.assigned_to ? String(row.assigned_to) : null,
+    takenBy: row.taken_by ? String(row.taken_by) : null,
+    takenByName: row.taken_by_name ?? null,
+    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+    acceptedAt: row.taken_at ? Date.parse(row.taken_at) : null,
+    doneAt: row.done_at ? Date.parse(row.done_at) : null,
+  }
+}
+
+/** The jobs on this map that haven't been withdrawn, the newest first. */
+export async function loadJobs(mapId: string): Promise<Job[]> {
+  const { data, error } = await supabase
+    .from("map_jobs")
+    .select("*")
+    .eq("master_map_id", mapId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(200)
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as Row[])
+    .filter((row) => row.status !== "cancelled")
+    .map(jobFromRow)
+}
+
+/** Post a job: for one person, or (`assignedTo` null) for anyone to take. */
+export async function createJob(job: {
+  mapId: string
+  userId: string
+  name: string
+  assignedTo: string | null
+  title: string
+  note: string
+  items: JobItem[]
+}): Promise<Job> {
+  const { data, error } = await supabase
+    .from("map_jobs")
+    .insert({
+      master_map_id: job.mapId,
+      created_by: job.userId,
+      created_by_name: job.name,
+      assigned_to: job.assignedTo,
+      title: job.title,
+      note: job.note,
+      items: job.items.map((item) => ({
+        type: item.type,
+        id: item.id,
+        label: item.label,
+        lng: item.at[0],
+        lat: item.at[1],
+      })),
+    })
+    .select("*")
+    .single()
+  if (error) throw new Error(error.message)
+  return jobFromRow(data as Row)
+}
+
+/**
+ * Take a job on. Only a job nobody has started can be taken, so if two
+ * people tap at once one of them is told it has gone (null).
+ */
+export async function takeJob(
+  id: string,
+  userId: string,
+  name: string,
+): Promise<Job | null> {
+  const { data, error } = await supabase
+    .from("map_jobs")
+    .update({
+      status: "accepted",
+      taken_by: userId,
+      taken_by_name: name,
+      taken_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("status", "open")
+    .select("*")
+  if (error) throw new Error(error.message)
+  const row = ((data ?? []) as Row[])[0]
+  return row ? jobFromRow(row) : null
+}
+
+/** Say a job is done (taking it on first, if it was done straight off). */
+export async function finishJob(
+  job: Job,
+  userId: string,
+  name: string,
+): Promise<Job | null> {
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from("map_jobs")
+    .update({
+      status: "done",
+      done_at: now,
+      ...(job.takenBy
+        ? {}
+        : { taken_by: userId, taken_by_name: name, taken_at: now }),
+    })
+    .eq("id", job.id)
+    .neq("status", "done")
+    .select("*")
+  if (error) throw new Error(error.message)
+  const row = ((data ?? []) as Row[])[0]
+  return row ? jobFromRow(row) : null
+}
+
+/** Withdraw a job (whoever posted it). It is kept, marked cancelled. */
+export async function cancelJob(id: string) {
+  const { error } = await supabase
+    .from("map_jobs")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+  if (error) throw new Error(error.message)
+}
+
+/** Hear jobs on this map being posted, taken, finished and withdrawn. */
+export function watchJobs(
+  mapId: string,
+  handlers: { changed: (job: Job) => void; gone: (id: string) => void },
+) {
+  const channel = supabase
+    .channel(`mapnext-jobs-${mapId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "map_jobs",
+        filter: `master_map_id=eq.${mapId}`,
+      },
+      (payload: Row) => {
+        const row = payload.new as Row | undefined
+        if (payload.eventType === "DELETE" || row?.status === "cancelled") {
+          const id = row?.id ?? payload.old?.id
+          if (id) handlers.gone(String(id))
+          return
+        }
+        if (row?.id) handlers.changed(jobFromRow(row))
+      },
+    )
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }

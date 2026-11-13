@@ -9,9 +9,8 @@ import {
   loadMessages,
   markMessagesRead,
   sendMessage,
-  setJobStatus,
   watchMessages,
-  type JobItem,
+  type Job,
   type Message,
   type SharedPlace,
 } from "./liveData"
@@ -36,13 +35,10 @@ export class Messenger {
   readonly thread: Writable<Message[]> = writable([])
   readonly loading = writable(false)
   readonly sending = writable(false)
-  /** Every job given to me or by me, the newest first. */
-  readonly jobs: Writable<Message[]> = writable([])
   /** A message has just come in that isn't on screen (for a notice). */
   readonly arrived: Writable<Message | null> = writable(null)
   readonly problem: Writable<string | null> = writable(null)
-  /** A job I gave someone has just been taken on or finished. */
-  readonly jobMoved: Writable<Message | null> = writable(null)
+
   /** The message list is on screen, so an arriving message needs no notice. */
   private watching = false
 
@@ -66,19 +62,8 @@ export class Messenger {
         if (reading) this.markRead(message.from)
         else if (!this.watching) this.arrived.set(message)
       },
-      // Read by them, or a job taken on or finished.
-      changed: (message) => {
-        const before = this.byId.get(message.id)
-        this.merge([message])
-        const job = message.job
-        if (
-          job &&
-          message.from === this.userId &&
-          before?.job &&
-          before.job.status !== job.status
-        )
-          this.jobMoved.set(message)
-      },
+      // Read by them.
+      changed: (message) => this.merge([message]),
     })
   }
 
@@ -119,7 +104,6 @@ export class Messenger {
       [...found.values()].sort((a, b) => b.last.id - a.last.id),
     )
     this.unread.set(unread)
-    this.jobs.set(all.filter((message) => message.job).reverse())
     const open = get(this.withId)
     this.thread.set(
       open ? all.filter((m) => m.from === open || m.to === open) : [],
@@ -167,33 +151,13 @@ export class Messenger {
     markMessagesRead(this.mapId, this.userId, id).catch(() => {})
   }
 
-  /** Take on a job given to me, or say it is done. */
-  async moveJob(messageId: number, status: "accepted" | "done") {
-    try {
-      this.merge([await setJobStatus(messageId, status)])
-      return true
-    } catch {
-      this.problem.set(
-        navigator.onLine
-          ? "That didn't save. Try again."
-          : "No signal: that didn't save.",
-      )
-      return false
-    }
-  }
-
   /** Send a message, a place, a job, or words with either. */
   async send(
     to: string,
     body: string,
     place: SharedPlace | null,
     online: boolean,
-    job: {
-      id: string
-      title: string
-      note: string
-      items: JobItem[]
-    } | null = null,
+    job: Job | null = null,
   ) {
     const text = body.trim().slice(0, 500)
     if ((!text && !place && !job) || get(this.sending)) return false

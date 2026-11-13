@@ -81,6 +81,7 @@
     createGuestInvite,
     removeFromMap,
     flashLabel,
+    type Job,
     type JobItem,
     loadBroadcastChoices,
     loadFarmChoices,
@@ -111,6 +112,7 @@
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
   import JobThumb from "./JobThumb.svelte"
+  import { JobBoard } from "./jobBoard"
   import { Messenger, type Conversation } from "./messenger"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -300,7 +302,8 @@
   let pickedFeature: string | null = null
 
   // ── Jobs ──
-  let jobs: Message[] = []
+  let board: JobBoard | null = null
+  let jobs: Job[] = []
   /** A job being put together: taps on the map add to it. */
   let jobDraft: {
     to: string | null
@@ -491,19 +494,6 @@
       post.thread.subscribe((v) => (thread = v)),
       post.loading.subscribe((v) => (chatLoading = v)),
       post.sending.subscribe((v) => (chatSending = v)),
-      post.jobs.subscribe((v) => (jobs = v)),
-      post.jobMoved.subscribe((message) => {
-        const job = message?.job
-        if (!message || !job) return
-        const who =
-          crew.find((person) => person.id === message.to)?.name ?? "They"
-        say(
-          job.status === "done"
-            ? `${who.split(/\s+/)[0]} finished "${job.title}"`
-            : `${who.split(/\s+/)[0]} is on "${job.title}"`,
-        )
-        post.jobMoved.set(null)
-      }),
       post.arrived.subscribe((message) => {
         if (!message) return
         // One notice a person: their latest replaces their last.
@@ -522,6 +512,45 @@
       () => post.destroy(),
     )
     post.start()
+
+    const jobBoard = new JobBoard(mapId, userId, myName)
+    board = jobBoard
+    stop.push(
+      jobBoard.jobs.subscribe((v) => (jobs = v)),
+      // Someone has put a job up for anyone to take.
+      jobBoard.posted.subscribe((job) => {
+        if (!job) return
+        say(
+          `${(job.createdByName ?? "Someone").split(/\s+/)[0]} posted a job: ${job.title}`,
+          {
+            label: "See it",
+            run: () => {
+              snack = null
+              openPanel("jobs")
+            },
+          },
+        )
+        jobBoard.posted.set(null)
+      }),
+      // One of mine has been taken on or finished.
+      jobBoard.moved.subscribe((job) => {
+        if (!job) return
+        const who = (job.takenByName ?? "Someone").split(/\s+/)[0]
+        say(
+          job.status === "done"
+            ? `${who} finished "${job.title}"`
+            : `${who} is on "${job.title}"`,
+        )
+        jobBoard.moved.set(null)
+      }),
+      jobBoard.problem.subscribe((text) => {
+        if (!text) return
+        say(text)
+        jobBoard.problem.set(null)
+      }),
+      () => jobBoard.destroy(),
+    )
+    jobBoard.start()
 
     // The engine shares nothing with the crew until it has been told what
     // this person drives, so a slow read can't replace their saved machine
@@ -933,9 +962,16 @@
     return list
   }
 
-  // ── Jobs: something to do at a place, given to one of the crew ──
+  // ── Jobs: something to do at a place, for one person or for anyone ──
   $: jobsWaiting = jobs.filter(
-    (m) => m.to === userId && m.job?.status !== "done",
+    (job) =>
+      job.status !== "done" &&
+      (job.takenBy === userId ||
+        (job.assignedTo === userId && job.status === "open")),
+  ).length
+  $: jobsOpen = jobs.filter(
+    (job) =>
+      job.status === "open" && !job.assignedTo && job.createdBy !== userId,
   ).length
   $: jobCrew = crew.filter((person) => !person.guest)
 
@@ -964,25 +1000,32 @@
     }
   }
 
+  let giving = false
   async function giveJob() {
     const draft = jobDraft
     const title = draft?.title.trim() ?? ""
-    if (!draft?.to || !title || !draft.items.length || chatSending) return
-    const person = crew.find((member) => member.id === draft.to)
-    const given = await messenger?.send(
-      draft.to,
-      "",
-      null,
-      person?.online ?? false,
-      {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
-        title: title.slice(0, 60),
-        note: draft.note.trim().slice(0, 300),
-        items: draft.items,
-      },
+    if (!draft || !title || !draft.items.length || giving || !board) return
+    giving = true
+    const job = await board.post({
+      assignedTo: draft.to,
+      title: title.slice(0, 80),
+      note: draft.note.trim().slice(0, 500),
+      items: draft.items,
+    })
+    giving = false
+    if (!job) return
+    // Given to one person: it also lands in their messages, so they are
+    // told (and their phone is, if they haven't got the map open).
+    const person = draft.to
+      ? crew.find((member) => member.id === draft.to)
+      : null
+    if (draft.to)
+      await messenger?.send(draft.to, "", null, person?.online ?? false, job)
+    say(
+      person
+        ? `Job given to ${person.name.split(/\s+/)[0]}`
+        : "Job posted for anyone on the crew",
     )
-    if (!given) return
-    say(`Job given to ${person?.name.split(/\s+/)[0] ?? "them"}`)
     endJob()
   }
 
@@ -1557,7 +1600,7 @@
             </strong>
             <span>
               {notice.body ||
-                (notice.job ? `Job: ${notice.job.title}` : "") ||
+                (notice.jobRef ? `Job: ${notice.jobRef.title}` : "") ||
                 notice.place?.label ||
                 ""}
             </span>
@@ -1754,7 +1797,7 @@
           <label>
             <span class="lp-eyebrow">For</span>
             <select bind:value={jobDraft.to}>
-              <option value={null}>Choose who it's for</option>
+              <option value={null}>Anyone on the crew</option>
               {#each jobCrew as person (person.id)}
                 <option value={person.id}>{person.name}</option>
               {/each}
@@ -1768,13 +1811,13 @@
           <button
             type="button"
             class="lp-btn lp-btn-primary"
-            disabled={chatSending ||
-              !jobDraft.to ||
+            disabled={giving ||
               !jobDraft.title.trim() ||
               !jobDraft.items.length}
             on:click={giveJob}
           >
-            <ClipboardList size={18} /> Give job
+            <ClipboardList size={18} />
+            {jobDraft.to ? "Give job" : "Post job"}
           </button>
         </div>
       </div>
@@ -2772,6 +2815,7 @@
         pinLook={(pin) => engine?.pinLook(pin) ?? { iconClass: pin.iconClass }}
         typeColours={$userSettingsStore.markerTypeDefaultColors ?? {}}
         {jobsWaiting}
+        {jobsOpen}
         on:invite={openInvite}
         on:stale={(e) => setHideStale(e.detail)}
         on:typeColour={(e) =>
@@ -2832,12 +2876,15 @@
             {paddocks}
             {drawings}
             {guest}
+            {jobs}
             on:job={() => startJob(chatWith)}
             on:showJob={(e) => {
               engine?.showJob(e.detail.items)
               if (!wide) closePanel()
             }}
-            on:moveJob={(e) => messenger?.moveJob(e.detail.id, e.detail.status)}
+            on:takeJob={(e) => board?.take(e.detail)}
+            on:finishJob={(e) => board?.finish(e.detail)}
+            on:cancelJob={(e) => board?.cancel(e.detail)}
             on:open={(e) => messenger?.open(e.detail)}
             on:send={(e) =>
               chatWith &&
@@ -2872,7 +2919,11 @@
               engine?.showJob(e.detail.items)
               if (!wide) closePanel()
             }}
-            on:move={(e) => messenger?.moveJob(e.detail.id, e.detail.status)}
+            on:take={(e) => board?.take(e.detail)}
+            on:finish={(e) => board?.finish(e.detail)}
+            on:cancel={async (e) => {
+              if (await board?.cancel(e.detail)) say("Job withdrawn")
+            }}
           />
         </svelte:fragment>
       </Toolbox>

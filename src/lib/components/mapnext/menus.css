@@ -1505,3 +1505,15 @@
 .mn.wide .mn-thread {
   flex: 1 1 auto;
 }
+
+/* A job nobody has yet: it stands out, and it can be withdrawn. */
+.mn-job .status.grabs {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-job .moves .withdraw {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border-color: var(--lp-line);
+  color: var(--lp-ink-soft);
+}

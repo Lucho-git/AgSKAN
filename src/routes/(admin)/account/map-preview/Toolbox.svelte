@@ -114,8 +114,10 @@
   })
   /** The colour this person has set for each kind of pin. */
   export let typeColours: Record<string, string> = {}
-  /** Jobs given to this person that aren't finished. */
+  /** Jobs this person has on that aren't finished. */
   export let jobsWaiting = 0
+  /** Jobs anyone can take. */
+  export let jobsOpen = 0
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -296,8 +298,13 @@
         {#if jobsWaiting}<span class="mn-badge">{jobsWaiting}</span>{/if}
         <span class="icon"><ClipboardList size={24} /></span>
         <strong>Jobs</strong>
-        <small>{jobsWaiting ? `${jobsWaiting} for you` : "give and take"}</small
-        >
+        <small>
+          {jobsWaiting
+            ? `${jobsWaiting} for you`
+            : jobsOpen
+              ? `${jobsOpen} up for grabs`
+              : "give and take"}
+        </small>
       </button>
       {#if !guest}
         <button
