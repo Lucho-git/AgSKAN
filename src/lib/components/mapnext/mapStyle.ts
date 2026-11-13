@@ -56,6 +56,10 @@ export const FEATURE_SOURCE = "mv-paddock-features"
 export const FEATURE_LAYERS = ["mv-feature-fill", "mv-feature-line"]
 /** The places, lines and areas of the job being put together or shown. */
 export const JOB_SOURCE = "mv-job"
+/** The trail being followed: its whole path, drawn once. */
+export const GUIDE_SOURCE = "mv-guide"
+/** The stretch of it just ahead, the next turn, and the way back to it. */
+export const GUIDE_AHEAD_SOURCE = "mv-guide-ahead"
 /** The lasso drawn round pins to remove, and the pins it caught. */
 export const LASSO_SOURCE = "mv-lasso"
 /** Areas and lines drawn on the map and attached to a pin. */
@@ -491,6 +495,8 @@ export function buildStyle() {
       [FEATURE_SOURCE]: { type: "geojson", data: empty },
       [LASSO_SOURCE]: { type: "geojson", data: empty },
       [JOB_SOURCE]: { type: "geojson", data: empty },
+      [GUIDE_SOURCE]: { type: "geojson", data: empty },
+      [GUIDE_AHEAD_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
@@ -1044,6 +1050,63 @@ export function buildStyle() {
         filter: ["!=", ["geometry-type"], "Point"],
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#F7DB5C", "line-width": 3.5 },
+      },
+      // Following a trail: the whole path as a thin line, the stretch just
+      // ahead picked out, a dashed line back to it when you are off it, and
+      // a dot where the next turn starts.
+      {
+        id: "mv-guide-path-case",
+        type: "line",
+        source: GUIDE_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": INK, "line-opacity": 0.5, "line-width": 4.5 },
+      },
+      {
+        id: "mv-guide-path",
+        type: "line",
+        source: GUIDE_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 2 },
+      },
+      {
+        id: "mv-guide-ahead-case",
+        type: "line",
+        source: GUIDE_AHEAD_SOURCE,
+        filter: ["==", ["get", "kind"], "ahead"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": INK, "line-width": 10 },
+      },
+      {
+        id: "mv-guide-ahead",
+        type: "line",
+        source: GUIDE_AHEAD_SOURCE,
+        filter: ["==", ["get", "kind"], "ahead"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#F7DB5C", "line-width": 5.5 },
+      },
+      {
+        id: "mv-guide-join",
+        type: "line",
+        source: GUIDE_AHEAD_SOURCE,
+        filter: ["==", ["get", "kind"], "join"],
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": 3.5,
+          "line-dasharray": [0.2, 2],
+        },
+      },
+      {
+        id: "mv-guide-turn",
+        type: "circle",
+        source: GUIDE_AHEAD_SOURCE,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 7,
+          "circle-color": "#F7DB5C",
+          "circle-stroke-color": INK,
+          "circle-stroke-width": 2.5,
+        },
       },
       // The measure tool: the shape so far, its outline, and its corners.
       {

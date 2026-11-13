@@ -25,6 +25,7 @@
     Pause,
     Play,
     RotateCcw,
+    Route,
     SkipBack,
     SkipForward,
     Check,
@@ -78,6 +79,7 @@
     type Operation,
     type Readout,
     type ReplayState,
+    type Guide,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -112,6 +114,7 @@
   import Toolbox from "./Toolbox.svelte"
   import PinCard from "./PinCard.svelte"
   import MachineCard from "./MachineCard.svelte"
+  import GuideBar from "./GuideBar.svelte"
   import PaddockCard from "./PaddockCard.svelte"
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
@@ -273,6 +276,9 @@
   let selectedPaddock: Paddock | null = null
   let selectedTrail: TrailInfo | null = null
   let replay: ReplayState | null = null
+  // The trail being followed, and which one it is in words.
+  let guide: Guide | null = null
+  let guideLabel = ""
   let paddocks: Paddock[] = []
   let farmNames: FarmName[] = []
   let measure: Measure | null = null
@@ -452,6 +458,7 @@
       created.crewTrail.subscribe((v) => (crewTrail = v)),
       created.placing.subscribe((v) => (placing = v)),
       created.replay.subscribe((v) => (replay = v)),
+      created.guide.subscribe((v) => (guide = v)),
       created.paddockList.subscribe((v) => (paddocks = v)),
       created.farmNames.subscribe((v) => (farmNames = v)),
       created.measure.subscribe((v) => (measure = v)),
@@ -1538,6 +1545,12 @@
     const rest = minutes % 60
     return `${Math.floor(minutes / 60)} h${rest ? ` ${rest} min` : ""}`
   }
+  // Follow a trail that has already been driven, as a line to steer by.
+  function followTrail(trail: TrailInfo) {
+    guideLabel = [day(trail.start), trail.operator].filter(Boolean).join(" · ")
+    engine?.startGuide(trail)
+  }
+
   function trailFacts(trail: TrailInfo) {
     const facts = [trail.operator || "No operator"]
     if (trail.machine) facts.push(machineFor(trail.machine).label)
@@ -1717,7 +1730,15 @@
           </button>
         </p>
       {/if}
-      {#if readout.paddock}
+      {#if guide}
+        <GuideBar
+          {guide}
+          label={guideLabel}
+          on:stop={() => engine?.stopGuide()}
+          on:round={() => engine?.turnGuideRound()}
+          on:start={(e) => engine?.setGuideStart(e.detail)}
+        />
+      {:else if readout.paddock}
         <p class="mn-place">
           <b>{readout.paddock.name}</b><span
             >{formatHa(readout.paddock.ha)} ha</span
@@ -2556,6 +2577,19 @@
             <Navigation size={15} fill="currentColor" /> Arrows
           </button>
         </div>
+        <!-- Drive it again: the trail becomes a line to steer along. -->
+        <button
+          type="button"
+          class="mn-follow-trail"
+          disabled={guide?.phase === "loading"}
+          on:click={() => selectedTrail && followTrail(selectedTrail)}
+        >
+          <Route size={18} />
+          <span>
+            <strong>Follow this trail</strong>
+            <span>Steer along it, with the next turn and what is left</span>
+          </span>
+        </button>
 
         {#if !guest}
           {#if deleteAsk}

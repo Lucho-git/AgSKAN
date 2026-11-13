@@ -1777,3 +1777,214 @@
     animation: none;
   }
 }
+
+/* Following a trail: the bar at the top of the map that says where the line
+   is, what comes next and how much is left. */
+.mn-guide {
+  --tone: var(--lp-ink-soft);
+  display: grid;
+  gap: 8px;
+  width: min(25rem, calc(100vw - var(--mn-rail) - 2 * var(--mn-gap)));
+  padding: 10px 10px 12px 14px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    inset 0 5px 0 -1px var(--tone),
+    0 12px 30px -14px rgba(10, 25, 15, 0.75);
+}
+.mn-guide.good {
+  --tone: #1f8a4c;
+}
+.mn-guide.near {
+  --tone: #d99a06;
+}
+.mn-guide.far {
+  --tone: var(--lp-rust);
+}
+.mn-guide .top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.mn-guide .say {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0 0;
+  color: inherit;
+  text-align: left;
+}
+.mn-guide .say .lp-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-guide .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mn-guide .head strong {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.mn-guide .point {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--lp-ink);
+  color: var(--lp-yellow);
+}
+.mn-guide .more {
+  display: flex;
+  color: var(--lp-ink-faint);
+  transition: transform 0.15s;
+}
+.mn-guide .more.open {
+  transform: rotate(180deg);
+}
+.mn-guide .mn-icon-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+/* The middle is the machine; the mark is the line. */
+.mn-guide .bar {
+  position: relative;
+  height: 22px;
+  margin-right: 4px;
+  border-radius: 99px;
+  background:
+    linear-gradient(var(--lp-line), var(--lp-line)) 25% 50% / 1.5px 8px
+      no-repeat,
+    linear-gradient(var(--lp-line), var(--lp-line)) 75% 50% / 1.5px 8px
+      no-repeat,
+    var(--lp-paper-2);
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+}
+.mn-guide .bar .me {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--lp-ink);
+}
+.mn-guide .bar .line {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 2.5px var(--lp-card);
+  transition: left 0.2s linear;
+}
+.mn-guide .next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.mn-guide .next b {
+  font-weight: 800;
+}
+.mn-guide .next span {
+  margin-left: auto;
+  font-family: var(--lp-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  white-space: nowrap;
+}
+.mn-guide .warn {
+  margin: 0 4px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lp-rust) 14%, var(--lp-card));
+  color: var(--lp-rust);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-guide .moves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-right: 4px;
+}
+.mn-guide .moves button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--lp-paper-2);
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+  color: var(--lp-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-guide .moves button.strong {
+  background: var(--lp-yellow);
+  box-shadow: none;
+}
+.mn-guide .fine {
+  margin: 0 4px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--lp-ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-guide .bar .line,
+  .mn-guide .more {
+    transition: none;
+  }
+}
+/* On a trail's card: the way into following it. */
+.mn-follow-trail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-follow-trail:disabled {
+  opacity: 0.6;
+}
+.mn-follow-trail > span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.mn-follow-trail strong {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.mn-follow-trail span span {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  opacity: 0.8;
+}

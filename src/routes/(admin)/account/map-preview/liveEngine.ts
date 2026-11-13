@@ -32,6 +32,8 @@ import {
   FEATURE_LAYERS,
   FEATURE_SOURCE,
   JOB_SOURCE,
+  GUIDE_SOURCE,
+  GUIDE_AHEAD_SOURCE,
   LASSO_SOURCE,
   DRAWING_LAYERS,
   DRAWING_SOURCE,
@@ -58,6 +60,7 @@ import {
   projector,
   turn,
   type LngLat,
+  type Projector,
 } from "$lib/components/mapnext/geo"
 import { formatAgo, formatHa } from "$lib/components/mapnext/format"
 import { machineFor, type VehicleType } from "$lib/components/mapnext/machines"
@@ -278,6 +281,64 @@ type Replay = {
   /** Metres of trail before each stretch begins (for the arrows). */
   offsets: number[]
 }
+
+/**
+ * Following a trail that has already been driven: where the line is from
+ * the driver's seat, what the path does next, and how much of it is left.
+ */
+export type Guide = {
+  trailId: string
+  /**
+   * loading: fetching the path. waiting: no position yet. away: too far off
+   * to steer by (go to it first). on: steering along it. done: at its end.
+   */
+  phase: "loading" | "waiting" | "away" | "on" | "done"
+  /**
+   * Metres from the driver to the line: below zero it is to their left,
+   * above zero to their right.
+   */
+  offset: number
+  /** How far to the line, and which way on the screen, while away. */
+  away: { metres: number; screen: number } | null
+  /** The next turn in the path, if there is one coming. */
+  turn: { side: "left" | "right"; metres: number; back: boolean } | null
+  /** Metres still to go, and of the whole trail. */
+  left: number
+  total: number
+  /** Heading for the start of the trail rather than its nearest point. */
+  toStart: boolean
+  /** Following it backwards from the way it was driven. */
+  reversed: boolean
+  /** The machine is travelling against the way the guide is set. */
+  against: boolean
+  /** How good the position is, in metres, when the device says. */
+  accuracy: number | null
+}
+
+type GuidePath = {
+  info: TrailInfo
+  /** The path as recorded, joined end to end, in the order followed. */
+  raw: LngLat[]
+  flat: Projector
+  /** The path every few metres, in metres around `flat.anchor`. */
+  x: Float64Array
+  y: Float64Array
+  /** Metres from the start to each of those points. */
+  along: Float64Array
+  turns: { at: number; side: "left" | "right"; angle: number }[]
+  /** The stretch the machine was last matched to. */
+  index: number
+  /** It has been on (or near) the line at least once. */
+  joined: boolean
+  toStart: boolean
+  reversed: boolean
+  againstFor: number
+  told: number
+  searched: number
+}
+
+/** Metres between the points a followed path is cut into. */
+const GUIDE_STEP = 5
 
 type Vehicle = {
   marker: MapboxMap
@@ -582,6 +643,9 @@ export class LiveEngine {
    * A pin being placed by hand before it exists (the one dropped with a
    * drawing): what it will be. It is dragged like a pin being moved.
    */
+  /** The trail being followed, if one is. */
+  readonly guide: Writable<Guide | null> = writable(null)
+  private guiding: GuidePath | null = null
   readonly placing: Writable<{ iconClass: string; colour: string } | null> =
     writable(null)
   private draft: LivePin | null = null
@@ -3693,7 +3757,7 @@ export class LiveEngine {
     this.insets = { left, bottom }
   }
 
-  setFollow(mode: FollowMode) {
+  setFollow(mode: FollowMode, closest = 15.2) {
     const previous = get(this.follow)
     if (mode === previous) return
     this.follow.set(mode)
@@ -3711,7 +3775,7 @@ export class LiveEngine {
     this.followPausedUntil = performance.now() + 650
     this.map.easeTo({
       center: this.mine.pos,
-      zoom: Math.max(this.map.getZoom(), 15.2),
+      zoom: Math.max(this.map.getZoom(), closest),
       bearing: mode === "cab" ? this.mine.heading : 0,
       offset: this.followOffset(mode),
       duration: 650,
@@ -3724,6 +3788,421 @@ export class LiveEngine {
       this.insets.left / 2,
       -this.insets.bottom / 2 + (mode === "cab" ? height * 0.16 : 0),
     ]
+  }
+
+  // ── Following a trail ───────────────────────────────────────────────────
+
+  /**
+   * Follow a trail that has already been driven: its path becomes a line
+   * to steer along, with how far off it the machine is, the next turn and
+   * what is left. A phone's position is good to a few metres, so this is
+   * for keeping to a path, not for steering to the centimetre.
+   */
+  async startGuide(info: TrailInfo) {
+    this.stopGuide()
+    this.stopReplay()
+    this.guide.set({
+      trailId: info.id,
+      phase: "loading",
+      offset: 0,
+      away: null,
+      turn: null,
+      left: 0,
+      total: 0,
+      toStart: false,
+      reversed: false,
+      against: false,
+      accuracy: null,
+    })
+    const timeline = await loadTrailTimeline(info).catch(() => null)
+    // They stopped, or picked another, while it loaded.
+    if (get(this.guide)?.trailId !== info.id) return false
+    const raw: LngLat[] = []
+    for (const part of timeline?.parts ?? [])
+      for (const point of part) raw.push(point.at)
+    if (raw.length < 2) {
+      this.guide.set(null)
+      this.problem.set("This trail has no recorded path to follow.")
+      return false
+    }
+    this.layGuide(info, raw, false, false)
+    this.pickTrail(null)
+    if (this.mine) {
+      if (get(this.follow) === "cab")
+        this.map.easeTo({
+          zoom: Math.max(this.map.getZoom(), 17),
+          duration: 500,
+        })
+      else this.setFollow("cab", 17)
+    } else {
+      // Nowhere to follow from yet: show the whole of it.
+      let west = raw[0][0]
+      let east = raw[0][0]
+      let south = raw[0][1]
+      let north = raw[0][1]
+      for (const [lng, lat] of raw) {
+        west = Math.min(west, lng)
+        east = Math.max(east, lng)
+        south = Math.min(south, lat)
+        north = Math.max(north, lat)
+      }
+      this.map.fitBounds(
+        [
+          [west, south],
+          [east, north],
+        ],
+        {
+          padding: {
+            top: 150,
+            right: 60,
+            bottom: 60 + this.insets.bottom,
+            left: 60 + this.insets.left,
+          },
+          maxZoom: 16.5,
+          duration: 800,
+        },
+      )
+    }
+    return true
+  }
+
+  /** Cut the path into even steps, find its turns, and draw it. */
+  private layGuide(
+    info: TrailInfo,
+    raw: LngLat[],
+    reversed: boolean,
+    toStart: boolean,
+  ) {
+    const flat = projector(raw[0])
+    // A machine standing still wanders a metre or two on the record; leave
+    // that out, or it reads as path.
+    const kept: [number, number][] = []
+    for (const at of raw) {
+      const p = flat.toXY(at)
+      const last = kept[kept.length - 1]
+      if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) >= 2.5)
+        kept.push(p)
+    }
+    const end = flat.toXY(raw[raw.length - 1])
+    if (kept.length < 2) kept.push(end)
+    const xs: number[] = [kept[0][0]]
+    const ys: number[] = [kept[0][1]]
+    const alongs: number[] = [0]
+    let carried = 0
+    let travelled = 0
+    for (let i = 1; i < kept.length; i++) {
+      const [ax, ay] = kept[i - 1]
+      const [bx, by] = kept[i]
+      const length = Math.hypot(bx - ax, by - ay)
+      let at = GUIDE_STEP - carried
+      while (at <= length) {
+        xs.push(ax + ((bx - ax) * at) / length)
+        ys.push(ay + ((by - ay) * at) / length)
+        alongs.push(travelled + at)
+        at += GUIDE_STEP
+      }
+      carried = (carried + length) % GUIDE_STEP
+      travelled += length
+    }
+    const tail = kept[kept.length - 1]
+    if (travelled - alongs[alongs.length - 1] > 0.5 || xs.length < 2) {
+      xs.push(tail[0])
+      ys.push(tail[1])
+      alongs.push(Math.max(travelled, alongs[alongs.length - 1] + 0.5))
+    }
+    const count = xs.length
+
+    // Turns: where the path swings well off its line within a short
+    // distance. Each is followed through to where it straightens out, so a
+    // headland turn reads as one turn, and as a turn back when it is one.
+    const heading: number[] = []
+    for (let i = 0; i < count - 1; i++)
+      heading.push(
+        (Math.atan2(xs[i + 1] - xs[i], ys[i + 1] - ys[i]) * 180) / Math.PI,
+      )
+    const found: { at: number; end: number; swung: number }[] = []
+    const reach = 6
+    for (let i = 0; i + reach < heading.length; i++) {
+      if (Math.abs(turn(heading[i], heading[i + reach])) < 40) continue
+      let last = i + reach
+      let swung = turn(heading[i], heading[last])
+      while (
+        last + 2 < heading.length &&
+        last - i < 60 &&
+        Math.abs(turn(heading[last], heading[last + 2])) > 12
+      ) {
+        swung += turn(heading[last], heading[last + 2])
+        last += 2
+      }
+      if (Math.abs(swung) >= 40) {
+        // Two corners the same way close together are one turn: the square
+        // end of a run, out and back.
+        const before = found[found.length - 1]
+        if (
+          before &&
+          alongs[i] - before.end <= 60 &&
+          before.swung > 0 === swung > 0
+        ) {
+          before.end = alongs[last]
+          before.swung += swung
+        } else found.push({ at: alongs[i], end: alongs[last], swung })
+      }
+      i = last
+    }
+    const turns: GuidePath["turns"] = found.map((t) => ({
+      at: t.at,
+      side: t.swung > 0 ? "right" : "left",
+      angle: Math.abs(t.swung),
+    }))
+
+    this.guiding = {
+      info,
+      raw,
+      flat,
+      x: Float64Array.from(xs),
+      y: Float64Array.from(ys),
+      along: Float64Array.from(alongs),
+      turns,
+      index: 0,
+      joined: false,
+      toStart,
+      reversed,
+      againstFor: 0,
+      told: 0,
+      searched: 0,
+    }
+    const coords: LngLat[] = []
+    for (let i = 0; i < count; i++) coords.push(flat.toLngLat([xs[i], ys[i]]))
+    this.map.getSource(GUIDE_SOURCE)?.setData(
+      collection([
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: coords },
+        },
+      ]),
+    )
+    this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection([]))
+  }
+
+  /** Follow it the other way round. */
+  turnGuideRound() {
+    const g = this.guiding
+    if (!g) return
+    this.layGuide(g.info, [...g.raw].reverse(), !g.reversed, g.toStart)
+  }
+
+  /** Head for the start of the trail, or for the nearest point on it. */
+  setGuideStart(toStart: boolean) {
+    const g = this.guiding
+    if (!g) return
+    g.toStart = toStart
+    g.joined = false
+    g.index = 0
+    g.searched = 0
+    g.told = 0
+  }
+
+  stopGuide() {
+    if (!this.guiding && !get(this.guide)) return
+    this.guiding = null
+    this.guide.set(null)
+    this.map.getSource(GUIDE_SOURCE)?.setData(collection([]))
+    this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection([]))
+  }
+
+  /**
+   * The nearest place on the followed path between two of its points, to
+   * a spot in metres. Places further along than where the machine was last
+   * matched count as a little further off, so a pass alongside doesn't
+   * steal the match from the one being driven.
+   */
+  private nearestOnGuide(
+    g: GuidePath,
+    px: number,
+    py: number,
+    from: number,
+    to: number,
+    sticky: boolean,
+  ) {
+    let best = { index: from, f: 0, distance: Infinity, score: Infinity }
+    const here = g.along[g.index]
+    for (let i = from; i < to; i++) {
+      const ax = g.x[i]
+      const ay = g.y[i]
+      const dx = g.x[i + 1] - ax
+      const dy = g.y[i + 1] - ay
+      const length2 = dx * dx + dy * dy
+      const f = length2
+        ? clamp(((px - ax) * dx + (py - ay) * dy) / length2, 0, 1)
+        : 0
+      const distance = Math.hypot(px - (ax + dx * f), py - (ay + dy * f))
+      const score = sticky
+        ? distance + 0.03 * Math.max(0, Math.abs(g.along[i] - here) - 15)
+        : distance
+      if (score < best.score) best = { index: i, f, distance, score }
+    }
+    return best
+  }
+
+  /** Work out where the machine is against the trail it is following. */
+  private stepGuide(now: number) {
+    const g = this.guiding
+    if (!g) return
+    if (now - g.told < 200) return
+    g.told = now
+    const base = {
+      trailId: g.info.id,
+      offset: 0,
+      away: null,
+      turn: null,
+      left: g.along[g.along.length - 1],
+      total: g.along[g.along.length - 1],
+      toStart: g.toStart,
+      reversed: g.reversed,
+      against: false,
+      accuracy: this.lastFix?.accuracy ?? null,
+    }
+    const mine = this.mine
+    if (!mine) {
+      this.guide.set({ ...base, phase: "waiting" })
+      return
+    }
+    const [px, py] = g.flat.toXY(mine.pos)
+    const last = g.x.length - 1
+    const total = g.along[last]
+    const ahead: unknown[] = []
+    const lineTo = (x: number, y: number) => ({
+      type: "Feature",
+      properties: { kind: "join" },
+      geometry: {
+        type: "LineString",
+        coordinates: [mine.pos, g.flat.toLngLat([x, y])],
+      },
+    })
+    const stretch = (from: number, f: number, metres: number) => {
+      const coords: LngLat[] = [
+        g.flat.toLngLat([
+          lerp(g.x[from], g.x[from + 1], f),
+          lerp(g.y[from], g.y[from + 1], f),
+        ]),
+      ]
+      const until = g.along[from] + metres
+      for (let i = from + 1; i <= last && g.along[i] <= until; i++)
+        coords.push(g.flat.toLngLat([g.x[i], g.y[i]]))
+      return {
+        type: "Feature",
+        properties: { kind: "ahead" },
+        geometry: { type: "LineString", coordinates: coords },
+      }
+    }
+    const screen = (x: number, y: number) =>
+      (Math.atan2(x - px, y - py) * 180) / Math.PI - this.map.getBearing()
+
+    // Asked to begin at the beginning: head there until it is reached.
+    if (g.toStart && !g.joined) {
+      const metres = Math.hypot(g.x[0] - px, g.y[0] - py)
+      if (metres < 25) {
+        g.joined = true
+        g.index = 0
+      } else {
+        ahead.push(lineTo(g.x[0], g.y[0]), stretch(0, 0, 300))
+        this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection(ahead))
+        this.guide.set({
+          ...base,
+          phase: "away",
+          away: { metres, screen: screen(g.x[0], g.y[0]) },
+        })
+        return
+      }
+    }
+
+    // Look close to where it was last; look everywhere when it has never
+    // been on the line, or has strayed and may have gone to another pass.
+    let best = this.nearestOnGuide(
+      g,
+      px,
+      py,
+      Math.max(0, g.index - 6),
+      Math.min(last, g.index + 40),
+      true,
+    )
+    if ((!g.joined || best.distance > 12) && now - g.searched > 1000) {
+      g.searched = now
+      const anywhere = this.nearestOnGuide(g, px, py, 0, last, false)
+      if (!g.joined || anywhere.distance < best.distance - 8) best = anywhere
+    }
+    g.index = best.index
+    const nx = lerp(g.x[best.index], g.x[best.index + 1], best.f)
+    const ny = lerp(g.y[best.index], g.y[best.index + 1], best.f)
+    const gone =
+      g.along[best.index] +
+      (g.along[best.index + 1] - g.along[best.index]) * best.f
+    const left = Math.max(0, total - gone)
+
+    if (best.distance > 30) {
+      ahead.push(lineTo(nx, ny), stretch(best.index, best.f, 300))
+      this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection(ahead))
+      this.guide.set({
+        ...base,
+        phase: "away",
+        left,
+        away: { metres: best.distance, screen: screen(nx, ny) },
+      })
+      return
+    }
+    g.joined = true
+
+    // Which side the line is on, from the driver's seat: by the way the
+    // machine is travelling when that is known, else by the path's own way.
+    const pathHeading =
+      (Math.atan2(
+        g.x[best.index + 1] - g.x[best.index],
+        g.y[best.index + 1] - g.y[best.index],
+      ) *
+        180) /
+      Math.PI
+    const moving = this.headingKnown && this.speedKmh >= 2
+    const facing = moving ? mine.heading : pathHeading
+    const rad = (facing * Math.PI) / 180
+    // Metres to the right of the way it faces.
+    const offset = (nx - px) * Math.cos(rad) - (ny - py) * Math.sin(rad)
+
+    // Going the other way from how the guide is set, for a few seconds.
+    const wrongWay = moving && Math.abs(turn(mine.heading, pathHeading)) > 120
+    g.againstFor = wrongWay ? g.againstFor + 0.2 : 0
+
+    const next = g.turns.find((t) => t.at > gone + 2)
+    const done = left < 8
+    ahead.push(stretch(best.index, best.f, 300))
+    if (best.distance > 6) ahead.push(lineTo(nx, ny))
+    if (next && next.at - gone < 600) {
+      let i = best.index
+      while (i < last && g.along[i] < next.at) i++
+      ahead.push({
+        type: "Feature",
+        properties: { kind: "turn" },
+        geometry: {
+          type: "Point",
+          coordinates: g.flat.toLngLat([g.x[i], g.y[i]]),
+        },
+      })
+    }
+    this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection(ahead))
+    this.guide.set({
+      ...base,
+      phase: done ? "done" : "on",
+      offset,
+      left,
+      turn: next
+        ? {
+            side: next.side,
+            metres: next.at - gone,
+            back: next.angle >= 140,
+          }
+        : null,
+      against: g.againstFor >= 3,
+    })
   }
 
   /** Where the viewer's machine is drawn right now, if it is on the map. */
@@ -4083,6 +4562,7 @@ export class LiveEngine {
 
     this.stepReplay(dt, now)
     this.stepMove(dt)
+    this.stepGuide(now)
 
     // Whatever is picked out breathes: its glow swells and settles.
     if (this.marching) {
