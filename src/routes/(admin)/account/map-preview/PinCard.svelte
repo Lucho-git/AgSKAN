@@ -3,10 +3,24 @@
    * The menu for a picked pin: what it is, and what the current viewer lets
    * you do with one. Change its type or colour, write its note and choose
    * whether the note shows on the map, open or close a gate, mark a rock as
-   * picked, set how full a bin is, move it, or remove it.
+   * picked, set how full a bin is, move it, or remove it; and what is
+   * attached to it: photos, and areas and lines drawn on the map.
    */
   import { createEventDispatcher } from "svelte"
-  import { Check, Move, Shapes, Trash2, X } from "lucide-svelte"
+  import {
+    ArrowLeft,
+    Camera,
+    Check,
+    Hand,
+    LoaderCircle,
+    Move,
+    Paperclip,
+    Shapes,
+    Spline,
+    Trash2,
+    Pentagon,
+    X,
+  } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import {
     isGrainBinIcon,
@@ -18,8 +32,17 @@
     type PinChoice,
     type PinLook,
   } from "$lib/components/mapnext/pins"
-  import { formatAgo, formatDistance } from "$lib/components/mapnext/format"
-  import type { LivePin, PinPatch } from "./liveData"
+  import {
+    formatAgo,
+    formatDistance,
+    formatHa,
+  } from "$lib/components/mapnext/format"
+  import {
+    distanceM,
+    projector,
+    type LngLat,
+  } from "$lib/components/mapnext/geo"
+  import type { LivePin, PinDrawing, PinPatch, PinPhoto } from "./liveData"
 
   export let pin: LivePin
   /** How the pin is drawn for this person (their colour settings applied). */
@@ -29,14 +52,26 @@
   export let guest = false
   export let choices: PinChoice[] = []
   export let choiceLook: (iconClass: string) => PinLook
-  /** Waiting for a tap on the map to say where it goes. */
+  /** Being dragged to a new place on the map. */
   export let moving = false
+  /** The areas and lines attached to this pin. */
+  export let drawings: PinDrawing[] = []
+  /** Links to this pin's photos, by photo id, as they arrive. */
+  export let photoLinks: Record<string, string> = {}
+  /** A photo is on its way up. */
+  export let uploading = false
 
   const dispatch = createEventDispatcher<{
     close: void
     change: PinPatch & { note?: string }
     move: boolean
+    /** Put the pin down where it has been dragged to. */
+    place: void
     remove: void
+    draw: "polygon" | "line"
+    removeDrawing: string
+    photo: File
+    removePhoto: PinPhoto
   }>()
 
   // The colours the current viewer's pin menu offers. "default" is no colour
@@ -62,6 +97,11 @@
         : markerColor(key, "circle-fill").dark
 
   let picking = false
+  /** Looking at what is attached to it. */
+  let attaching = false
+  /** The photo opened to fill the screen. */
+  let viewing: PinPhoto | null = null
+  let fileInput: HTMLInputElement
   let note = pin.note
   let lastPin = pin.id
   let armed = false
@@ -71,7 +111,38 @@
     lastPin = pin.id
     note = pin.note
     picking = false
+    attaching = false
+    viewing = null
     armed = false
+  }
+  $: if (viewing && !pin.photos.some((photo) => photo.id === viewing?.id))
+    viewing = null
+  $: attached = pin.photos.length + drawings.length
+
+  // How big a drawing is: hectares inside an area, metres along a line.
+  function size(drawing: PinDrawing) {
+    const rings = drawing.geometry.coordinates as LngLat[] | LngLat[][]
+    if (drawing.kind === "line") {
+      const line = rings as LngLat[]
+      let metres = 0
+      for (let i = 1; i < line.length; i++)
+        metres += distanceM(line[i - 1], line[i])
+      return `Line · ${formatDistance(metres)}`
+    }
+    const ring = (rings as LngLat[][])[0] ?? []
+    if (ring.length < 3) return "Area"
+    const flat = projector(ring[0])
+    const xy = ring.map((point) => flat.toXY(point))
+    let twice = 0
+    for (let i = 0, j = xy.length - 1; i < xy.length; j = i++)
+      twice += xy[j][0] * xy[i][1] - xy[i][0] * xy[j][1]
+    return `Area · ${formatHa(Math.abs(twice) / 2 / 10000)} ha`
+  }
+
+  function chosen() {
+    const file = fileInput.files?.[0]
+    fileInput.value = ""
+    if (file) dispatch("photo", file)
   }
 
   $: bin = isGrainBinIcon(pin.iconClass)
@@ -116,14 +187,115 @@
   </div>
 
   {#if moving}
-    <p class="mn-warning">Tap the map where this pin should go.</p>
+    <p class="mn-move-hint"><Hand size={18} /> Drag the pin to move it</p>
+    <div class="mn-card-actions">
+      <button
+        type="button"
+        class="lp-btn lp-btn-ghost"
+        on:click={() => dispatch("move", false)}
+      >
+        Put it back
+      </button>
+      <button
+        type="button"
+        class="lp-btn lp-btn-primary"
+        on:click={() => dispatch("place")}
+      >
+        <Check size={18} strokeWidth={3} /> Place
+      </button>
+    </div>
+  {:else if attaching}
     <button
       type="button"
-      class="lp-btn lp-btn-ghost"
-      on:click={() => dispatch("move", false)}
+      class="mn-text-button"
+      on:click={() => (attaching = false)}
     >
-      Leave it where it is
+      <ArrowLeft size={16} /> Back to the pin
     </button>
+
+    {#if pin.photos.length}
+      <div class="mn-photos">
+        {#each pin.photos as photo (photo.id)}
+          <button
+            type="button"
+            aria-label="Open this photo"
+            style={photoLinks[photo.id]
+              ? `background-image: url("${photoLinks[photo.id]}")`
+              : ""}
+            on:click={() => (viewing = photo)}
+          ></button>
+        {/each}
+      </div>
+    {/if}
+
+    {#if drawings.length}
+      <ul class="mn-drawn">
+        {#each drawings as drawing (drawing.id)}
+          <li>
+            <span class="swatch" style="background: {drawing.colour}"></span>
+            <span class="what">{size(drawing)}</span>
+            {#if !guest}
+              <button
+                type="button"
+                aria-label="Remove this drawing"
+                on:click={() => dispatch("removeDrawing", drawing.id)}
+              >
+                <Trash2 size={17} />
+              </button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+      {#if !guest}
+        <button
+          type="button"
+          class="mn-switch"
+          role="switch"
+          aria-checked={pin.drawingsAlways}
+          on:click={() =>
+            dispatch("change", { drawingsAlways: !pin.drawingsAlways })}
+        >
+          <span>Always show its drawings</span>
+          <i></i>
+        </button>
+      {/if}
+    {/if}
+
+    {#if !attached}
+      <p class="mn-note">
+        Nothing attached yet. Add a photo, or draw an area or a line on the map
+        that belongs to this pin.
+      </p>
+    {/if}
+
+    {#if !guest}
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept="image/*"
+        hidden
+        on:change={chosen}
+      />
+      <div class="mn-menu-actions">
+        <button
+          type="button"
+          disabled={uploading}
+          on:click={() => fileInput.click()}
+        >
+          {#if uploading}
+            <span class="mn-spin"><LoaderCircle size={18} /></span> Sending
+          {:else}
+            <Camera size={18} /> Photo
+          {/if}
+        </button>
+        <button type="button" on:click={() => dispatch("draw", "polygon")}>
+          <Pentagon size={18} /> Area
+        </button>
+        <button type="button" on:click={() => dispatch("draw", "line")}>
+          <Spline size={18} /> Line
+        </button>
+      </div>
+    {/if}
   {:else if picking}
     <p class="lp-eyebrow">Change it to</p>
     <div class="mn-kinds all" style="margin: 0; padding: 0">
@@ -250,6 +422,12 @@
       </button>
     {/if}
 
+    <button type="button" class="mn-attach" on:click={() => (attaching = true)}>
+      <Paperclip size={18} />
+      <span>Photos and drawings</span>
+      <b>{attached || "Add"}</b>
+    </button>
+
     <div class="mn-menu-actions">
       <button type="button" on:click={() => (picking = true)}>
         <Shapes size={18} /> Change type
@@ -262,5 +440,37 @@
         {armed ? "Tap again" : "Remove"}
       </button>
     </div>
+  {:else if attached}
+    <!-- Someone looking on can still see what is attached. -->
+    <button type="button" class="mn-attach" on:click={() => (attaching = true)}>
+      <Paperclip size={18} />
+      <span>Photos and drawings</span>
+      <b>{attached}</b>
+    </button>
   {/if}
 </div>
+
+{#if viewing}
+  <!-- A photo, filling the screen. -->
+  <div class="mn-lightbox" role="dialog" aria-label="Photo">
+    {#if photoLinks[viewing.id]}
+      <img src={photoLinks[viewing.id]} alt="Attached to this pin" />
+    {:else}
+      <span class="mn-spin"><LoaderCircle size={32} /></span>
+    {/if}
+    <div class="bar">
+      {#if !guest}
+        <button
+          type="button"
+          class="danger"
+          on:click={() => viewing && dispatch("removePhoto", viewing)}
+        >
+          <Trash2 size={18} /> Remove
+        </button>
+      {/if}
+      <button type="button" on:click={() => (viewing = null)}>
+        <X size={18} /> Close
+      </button>
+    </div>
+  </div>
+{/if}

@@ -42,6 +42,23 @@ export const PICKED_TRAIL_SOURCE = "mv-picked-trail"
 export const REPLAY_SOURCE = "mv-replay"
 /** The line or shape being measured with the measure tool. */
 export const MEASURE_SOURCE = "mv-measure"
+/**
+ * Direction arrows: one point every so many metres along a trail, with the
+ * way it was heading. One source for every trail on the map, one for the
+ * trail picked out.
+ */
+export const ARROW_SOURCE = "mv-arrows"
+export const PICKED_ARROW_SOURCE = "mv-picked-arrows"
+export const ARROW_LAYER = "mv-arrows"
+export const PICKED_ARROW_LAYER = "mv-picked-arrows"
+/** Areas and lines drawn on the map and attached to a pin. */
+export const DRAWING_SOURCE = "mv-drawings"
+export const DRAWING_LAYERS = [
+  "mv-drawing-fill",
+  "mv-drawing-hair",
+  "mv-drawing-line",
+  "mv-drawing-dash",
+]
 
 /** What the Layers tool can show and hide, and the style layers behind each. */
 export const LAYER_GROUPS: Record<string, string[]> = {
@@ -55,6 +72,7 @@ export const LAYER_GROUPS: Record<string, string[]> = {
   fieldLabels: ["mv-paddock-name"],
   markers: ["mv-pins"],
   markerLabels: ["mv-pin-notes"],
+  markerDrawings: DRAWING_LAYERS,
   historicalTrails: ["mv-history", "mv-history-pause"],
   activeTrails: ["mv-trails"],
 }
@@ -67,15 +85,10 @@ const LOOK_ONLY: Record<string, BaseLook[]> = {
   "mv-paddock-dots": ["dark"],
 }
 
-/** The direction marks (centre line, then arrows) over each kind of trail. */
+/** The black centre line that goes with the arrows, by kind of trail. */
 const TRAIL_MARKS: Record<string, string[]> = {
-  historicalTrails: ["mv-history-centre", "mv-history-arrows"],
-  activeTrails: [
-    "mv-trails-centre",
-    "mv-trails-arrows",
-    "mv-my-trail-centre",
-    "mv-my-trail-arrows",
-  ],
+  historicalTrails: ["mv-history-centre"],
+  activeTrails: ["mv-trails-centre", "mv-my-trail-centre"],
 }
 
 /**
@@ -89,18 +102,49 @@ export function showLayers(
 ) {
   for (const [group, layers] of Object.entries(LAYER_GROUPS)) {
     let visible = shown[group] !== false
-    if (group === "markerLabels") visible = visible && shown.markers !== false
+    if (group === "markerLabels" || group === "markerDrawings")
+      visible = visible && shown.markers !== false
     for (const layer of layers) {
       const only = LOOK_ONLY[layer]
       const on = visible && (!only || only.includes(look))
       map.setLayoutProperty(layer, "visibility", on ? "visible" : "none")
     }
   }
+  const kinds: string[] = []
   for (const [group, layers] of Object.entries(TRAIL_MARKS)) {
     const on = shown.trailArrows === true && shown[group] !== false
+    if (on) kinds.push(group)
     for (const layer of layers)
       map.setLayoutProperty(layer, "visibility", on ? "visible" : "none")
   }
+  // Each arrow says which kind of trail it belongs to.
+  map.setLayoutProperty(
+    ARROW_LAYER,
+    "visibility",
+    kinds.length ? "visible" : "none",
+  )
+  map.setFilter(ARROW_LAYER, ["in", ["get", "kind"], ["literal", kinds]])
+}
+
+const DRAWING_KIND: Record<string, unknown> = {
+  "mv-drawing-fill": ["==", ["get", "kind"], "polygon"],
+  "mv-drawing-hair": true,
+  "mv-drawing-line": ["!", ["get", "dashed"]],
+  "mv-drawing-dash": ["get", "dashed"],
+}
+
+/**
+ * Which pins' drawings show: those set to show all the time, and those of
+ * the pin picked out (`null` for none).
+ */
+export function showDrawingsFor(map: MapboxMap, pinId: string | null) {
+  const showing = [
+    "any",
+    ["get", "always"],
+    ["==", ["get", "pin"], pinId ?? ""],
+  ]
+  for (const layer of DRAWING_LAYERS)
+    map.setFilter(layer, ["all", DRAWING_KIND[layer], showing])
 }
 
 /**
@@ -113,8 +157,22 @@ export function showPickedMarks(
 ) {
   for (const id of ["mv-picked-centre", "mv-replay-centre"])
     map.setLayoutProperty(id, "visibility", marks.centre ? "visible" : "none")
-  for (const id of ["mv-picked-arrows", "mv-replay-arrows"])
-    map.setLayoutProperty(id, "visibility", marks.arrows ? "visible" : "none")
+  map.setLayoutProperty(
+    PICKED_ARROW_LAYER,
+    "visibility",
+    marks.arrows ? "visible" : "none",
+  )
+}
+
+/**
+ * While a trail replays, its arrows appear as the machine passes them:
+ * only those within `metres` of the start show. `null` shows them all.
+ */
+export function showArrowsTo(map: MapboxMap, metres: number | null) {
+  map.setFilter(
+    PICKED_ARROW_LAYER,
+    metres === null ? null : ["<=", ["get", "d"], metres],
+  )
 }
 
 /**
@@ -194,58 +252,60 @@ const pauseLayer = (id: string, source: string) => ({
  * A thin black line down the middle of a trail, as the current viewer draws
  * with its direction arrows.
  */
+// Like the trail itself, the centre line and the arrows are a size on the
+// ground, not on the screen: they double with every zoom level, so they sit
+// still on the trail as the map zooms. The current viewer's numbers.
+const onGround = (atZoom16: number) => [
+  "interpolate",
+  ["exponential", 2],
+  ["zoom"],
+  10,
+  atZoom16 * Math.pow(2, -6),
+  24,
+  atZoom16 * Math.pow(2, 8),
+]
+
 const centreLayer = (id: string, source: string, filter: unknown) => ({
   id,
   type: "line",
   source,
-  minzoom: 12,
+  minzoom: 13,
   filter,
   layout: { "line-join": "round", "line-cap": "round", visibility: "none" },
   paint: {
     "line-color": "#000000",
-    "line-width": [
-      "interpolate",
-      ["linear"],
-      ["zoom"],
-      12,
-      0.6,
-      16,
-      1.4,
-      19,
-      2,
-    ],
+    "line-width": onGround(0.3),
     "line-opacity": 0.8,
   },
 })
 
 /**
- * Arrows along a trail, pointing the way it was driven: the trail's own
- * colour inside a black edge, a fixed distance apart on screen.
+ * Arrows along a trail, pointing the way it was driven, the way the current
+ * viewer draws them: one every 30 metres of ground (the points are worked
+ * out by the engine), in the trail's colour inside a black edge.
  */
-const arrowLayer = (id: string, source: string, filter: unknown) => ({
+const arrowLayer = (id: string, source: string) => ({
   id,
   type: "symbol",
   source,
   minzoom: 13,
-  filter,
   layout: {
-    "symbol-placement": "line",
-    "symbol-spacing": ["interpolate", ["linear"], ["zoom"], 13, 70, 17, 110],
     "text-field": "\u27A4",
-    "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-    "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 16, 19, 19, 26],
-    "text-keep-upright": false,
+    "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+    "text-size": onGround(9),
+    // The glyph points east; `rot` turns it to the trail's heading.
+    "text-rotate": ["get", "rot"],
     "text-rotation-alignment": "map",
     "text-pitch-alignment": "map",
     "text-allow-overlap": true,
     "text-ignore-placement": true,
-    "text-padding": 0,
+    "text-anchor": "center",
     visibility: "none",
   },
   paint: {
     "text-color": ["get", "color"],
-    "text-halo-color": "rgba(0, 0, 0, 0.85)",
-    "text-halo-width": 1.3,
+    "text-halo-color": "rgba(0, 0, 0, 0.8)",
+    "text-halo-width": 1,
   },
 })
 
@@ -416,6 +476,9 @@ export function buildStyle() {
       [PICKED_TRAIL_SOURCE]: { type: "geojson", data: empty },
       [REPLAY_SOURCE]: { type: "geojson", data: empty },
       [MEASURE_SOURCE]: { type: "geojson", data: empty },
+      [ARROW_SOURCE]: { type: "geojson", data: empty },
+      [DRAWING_SOURCE]: { type: "geojson", data: empty },
+      [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
       {
@@ -668,6 +731,48 @@ export function buildStyle() {
         filter: ["==", ["get", "id"], ""],
         paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.22 },
       },
+      // What people have drawn and attached to pins: over the paddocks,
+      // under the trails. An area is filled in its colour; outlines and lines
+      // are a width on the ground, as the current viewer draws them, with a
+      // hairline under them so they don't vanish from far away.
+      {
+        id: "mv-drawing-fill",
+        type: "fill",
+        source: DRAWING_SOURCE,
+        paint: {
+          "fill-color": ["get", "color"],
+          "fill-opacity": ["get", "fillOpacity"],
+        },
+      },
+      {
+        id: "mv-drawing-hair",
+        type: "line",
+        source: DRAWING_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 1.2,
+          "line-opacity": 0.9,
+        },
+      },
+      {
+        id: "mv-drawing-line",
+        type: "line",
+        source: DRAWING_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": trailWidth },
+      },
+      {
+        id: "mv-drawing-dash",
+        type: "line",
+        source: DRAWING_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": trailWidth,
+          "line-dasharray": [2, 2],
+        },
+      },
       trailLayer("mv-history", HISTORY_SOURCE),
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
@@ -676,9 +781,7 @@ export function buildStyle() {
       centreLayer("mv-history-centre", HISTORY_SOURCE, NOT_PAUSED),
       centreLayer("mv-trails-centre", TRAIL_SOURCE, NOT_PAUSED),
       centreLayer("mv-my-trail-centre", MY_TRAIL_SOURCE, NOT_PAUSED),
-      arrowLayer("mv-history-arrows", HISTORY_SOURCE, NOT_PAUSED),
-      arrowLayer("mv-trails-arrows", TRAIL_SOURCE, NOT_PAUSED),
-      arrowLayer("mv-my-trail-arrows", MY_TRAIL_SOURCE, NOT_PAUSED),
+      arrowLayer(ARROW_LAYER, ARROW_SOURCE),
       {
         id: "mv-fence",
         type: "line",
@@ -784,7 +887,6 @@ export function buildStyle() {
         },
       },
       centreLayer("mv-picked-centre", PICKED_TRAIL_SOURCE, NOT_PAUSED),
-      arrowLayer("mv-picked-arrows", PICKED_TRAIL_SOURCE, NOT_PAUSED),
       // A trail being replayed paints itself in again as the machine goes:
       // solid in its own colour inside a white edge, with the stretch just
       // laid still bright behind the machine.
@@ -823,7 +925,7 @@ export function buildStyle() {
         },
       },
       centreLayer("mv-replay-centre", REPLAY_SOURCE, NOT_HEAD),
-      arrowLayer("mv-replay-arrows", REPLAY_SOURCE, NOT_HEAD),
+      arrowLayer(PICKED_ARROW_LAYER, PICKED_ARROW_SOURCE),
       // The picked paddock's fence, on top of everything drawn in it: a
       // solid line over a soft glow that breathes.
       {
@@ -868,7 +970,10 @@ export function buildStyle() {
         type: "fill",
         source: MEASURE_SOURCE,
         filter: ["==", ["geometry-type"], "Polygon"],
-        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.22 },
+        paint: {
+          "fill-color": ["coalesce", ["get", "color"], "#F7DB5C"],
+          "fill-opacity": 0.3,
+        },
       },
       {
         id: "mv-measure-case",
@@ -884,7 +989,10 @@ export function buildStyle() {
         source: MEASURE_SOURCE,
         filter: ["==", ["geometry-type"], "LineString"],
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#F7DB5C", "line-width": 3 },
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], "#F7DB5C"],
+          "line-width": 3,
+        },
       },
       {
         id: "mv-measure-corner",
@@ -893,7 +1001,7 @@ export function buildStyle() {
         filter: ["==", ["geometry-type"], "Point"],
         paint: {
           "circle-radius": 6,
-          "circle-color": "#F7DB5C",
+          "circle-color": ["coalesce", ["get", "color"], "#F7DB5C"],
           "circle-stroke-color": INK,
           "circle-stroke-width": 2,
         },

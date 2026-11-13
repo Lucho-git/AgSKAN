@@ -17,7 +17,6 @@
   import { goto } from "$app/navigation"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
-    ChevronUp,
     LoaderCircle,
     LocateFixed,
     MessageCircle,
@@ -28,6 +27,7 @@
     SkipBack,
     SkipForward,
     Trash2,
+    Users,
     X,
   } from "lucide-svelte"
   import "../../../(marketing)/landing/landing-theme.css"
@@ -51,7 +51,7 @@
   import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
-  import { compassPoint, distanceM } from "$lib/components/mapnext/geo"
+  import { distanceM } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import {
     pinChoices as allPinChoices,
@@ -75,10 +75,14 @@
     type ToolView,
   } from "./liveEngine"
   import {
+    DRAWING_COLOURS,
     flashLabel,
     loadBroadcastChoices,
     loadFarmChoices,
     loadMyVehicle,
+    loadPhotoLinks,
+    type PinDrawing,
+    type PinPhoto,
     type FarmName,
     type Flash,
     type FarmChoice,
@@ -197,8 +201,14 @@
   ] as BaseChoice[]
 
   // ── Where we are in the flow ──
+  // Every visit starts the same way. If the browser isn't already allowed
+  // to say where this person is, the location prompt comes first; once on
+  // the map, anyone who can drive is asked to confirm who is driving.
   const joinedBefore = !!mapId && load<string[]>("joined")?.includes(mapId)
-  let phase: "join" | "map" = joinedBefore ? "map" : "join"
+  let phase: "join" | "map" = "join"
+  /** Whether location is already allowed, once that has been looked up. */
+  let allowed: boolean | null = null
+  let settled = false
   let step: "you" | "locate" | "farm" = "you"
   let switching: string | null = null
   let farms: FarmChoice[] = []
@@ -386,6 +396,7 @@
       created.farmNames.subscribe((v) => (farmNames = v)),
       created.measure.subscribe((v) => (measure = v)),
       created.movingPin.subscribe((v) => (movingPin = v)),
+      created.drawings.subscribe((v) => (drawings = v)),
       created.broadcast.subscribe((v) => (broadcast = v)),
       created.heard.subscribe((heard) => {
         if (!heard) return
@@ -456,9 +467,11 @@
           machineRead = true
           created.setMe(marker, false)
           created.resumeBroadcast(mine?.flash)
+          settle()
         })
         .catch(() => {
           machineRead = true
+          settle()
           readTimer = setTimeout(readMine, 5000)
         })
     readMine()
@@ -469,21 +482,35 @@
     const ticking = setInterval(() => (now = Date.now()), 1000)
     stop.push(() => clearInterval(ticking))
 
-    // Back again with location already allowed: no need to ask twice.
-    if (joinedBefore && secure) {
-      navigator.permissions
-        ?.query({ name: "geolocation" })
-        .then((result) => {
-          if (result.state === "granted" && gps === "idle") created.startGps()
-        })
-        .catch(() => {})
+    // Is location already allowed? (Browsers that can't say are asked.)
+    const known = (yes: boolean) => {
+      allowed = yes
+      settle()
     }
+    if (secure && navigator.permissions?.query)
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((result) => known(result.state === "granted"))
+        .catch(() => known(false))
+    else known(false)
   })
+
+  // Once it is known what they drive and whether location is on: with
+  // location on they go straight to the map (and are asked who is driving);
+  // otherwise the location prompt is the first thing they see.
+  function settle() {
+    if (settled || !machineRead || allowed === null) return
+    settled = true
+    if (allowed && gps === "idle") engine?.startGps()
+    // Someone only looking on isn't asked again once they have been in.
+    if (guest ? allowed || joinedBefore : allowed && hasMachine) enterMap()
+  }
 
   onDestroy(() => {
     clearTimeout(saveTimer)
     clearTimeout(readTimer)
     clearTimeout(snackTimer)
+    clearInterval(driverTimer)
     stop.forEach((fn) => fn())
     engine?.destroy()
   })
@@ -530,6 +557,68 @@
       if (!joined.includes(mapId)) save("joined", [...joined, mapId].slice(-20))
     }
     phase = "map"
+    askDriver()
+  }
+
+  // ── Who is driving: confirmed with a tap on every visit ──
+  const DRIVER_WAIT = 10
+  let driverAsked = false
+  /** The name on offer, and whether saying yes has to set it first. */
+  let driverOffer: { name: string; operator: Operator | null } | null = null
+  let driverLeft = 0
+  let driverTimer: ReturnType<typeof setInterval> | undefined
+
+  async function askDriver() {
+    if (driverAsked || guest || !mapId) return
+    driverAsked = true
+    // The account's own check for who is driving may still be on its way.
+    for (let i = 0; i < 8 && !$operatorStore.operator; i++)
+      await new Promise((done) => setTimeout(done, 250))
+    const current = $operatorStore.operator
+    if (current) {
+      driverOffer = { name: current.name, operator: null }
+    } else {
+      // Nobody set yet: offer their own name, from the list if it is there.
+      operators = await operatorApi.getMapOperators(mapId)
+      const mine = myName.trim().toLowerCase()
+      const match = operators.find((o) => o.name.trim().toLowerCase() === mine)
+      if (!$profileStore?.full_name) {
+        driverOnly = true
+        operatorAsk = true
+        return
+      }
+      driverOffer = { name: match?.name ?? myName, operator: match ?? null }
+    }
+    driverLeft = DRIVER_WAIT
+    clearInterval(driverTimer)
+    driverTimer = setInterval(() => {
+      driverLeft -= 1
+      if (driverLeft <= 0) confirmDriver(true)
+    }, 1000)
+  }
+
+  // Yes (or the wait ran out, which assumes yes when a driver was already
+  // set and changes nothing when one wasn't).
+  async function confirmDriver(expired = false) {
+    const offer = driverOffer
+    clearInterval(driverTimer)
+    driverOffer = null
+    if (!offer || !mapId) return
+    if ($operatorStore.operator) {
+      if (expired) say(`Driving as ${offer.name}`)
+      return
+    }
+    if (expired) return
+    const chosen = offer.operator
+      ? await operatorApi.selectOperator(offer.operator.id, mapId)
+      : await operatorApi.createAndSelectOperator(mapId, offer.name)
+    if (!chosen) say("Couldn't set who's driving. Try again from Driver.")
+  }
+
+  function someoneElse() {
+    clearInterval(driverTimer)
+    driverOffer = null
+    chooseDriver()
   }
 
   function askForLocation() {
@@ -772,6 +861,73 @@
     return list
   }
 
+  // ── What is attached to the picked pin ──
+  let drawings: PinDrawing[] = []
+  $: pinDrawings = selectedPin
+    ? drawings.filter((drawing) => drawing.pinId === selectedPin?.id)
+    : []
+  let photoLinks: Record<string, string> = {}
+  const linking = new Set<string>()
+  let uploading = false
+  let drawColourNow = load<string>("draw-colour") ?? DRAWING_COLOURS[0]
+  $: wantPhotos(selectedPin)
+
+  // The photo files are private: fetch a link for each one not yet seen.
+  function wantPhotos(pin: LivePin | null) {
+    const missing = (pin?.photos ?? []).filter(
+      (photo) => !photoLinks[photo.id] && !linking.has(photo.id),
+    )
+    if (!missing.length) return
+    missing.forEach((photo) => linking.add(photo.id))
+    loadPhotoLinks(missing)
+      .then((links) => (photoLinks = { ...photoLinks, ...links }))
+      .catch(() => {})
+      .finally(() => missing.forEach((photo) => linking.delete(photo.id)))
+  }
+
+  // A phone photo is far bigger than a pin needs: send a smaller copy.
+  async function shrink(file: File): Promise<Blob> {
+    try {
+      const picture = await createImageBitmap(file)
+      const scale = Math.min(1, 1600 / Math.max(picture.width, picture.height))
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.round(picture.width * scale)
+      canvas.height = Math.round(picture.height * scale)
+      canvas
+        .getContext("2d")
+        ?.drawImage(picture, 0, 0, canvas.width, canvas.height)
+      return await new Promise<Blob>((done) =>
+        canvas.toBlob((blob) => done(blob ?? file), "image/jpeg", 0.8),
+      )
+    } catch {
+      return file
+    }
+  }
+
+  async function addPhoto(file: File) {
+    const pin = selectedPin
+    if (!pin || !engine || uploading) return
+    uploading = true
+    const added = await engine.addPhoto(pin.id, await shrink(file))
+    uploading = false
+    if (added) say("Photo added")
+  }
+
+  async function removePhoto(photo: PinPhoto) {
+    if (selectedPin && (await engine?.removePhoto(selectedPin.id, photo)))
+      say("Photo removed")
+  }
+
+  function chooseDrawColour(colour: string) {
+    drawColourNow = colour
+    save("draw-colour", colour)
+    engine?.setDrawingColour(colour)
+  }
+
+  async function saveDrawing() {
+    if (await engine?.saveDrawing()) say("Drawing saved")
+  }
+
   // ── A picked trail's direction marks ──
   let trailMarks = load<{ centre: boolean; arrows: boolean }>(
     "trail-marks",
@@ -850,6 +1006,8 @@
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Escape") return
     if (pinning) stopPinning()
+    else if (driverOffer) confirmDriver()
+    else if (measure?.drawing) engine?.cancelDrawing()
     else if (measure) engine?.setMeasuring(false)
     else if (movingPin) engine?.movePin(null)
     else if (roadAsk) roadAsk = false
@@ -883,6 +1041,7 @@
   }
 
   $: cardOpen =
+    !!driverOffer ||
     pinning ||
     roadAsk ||
     stopAsk ||
@@ -1148,28 +1307,19 @@
     <!-- On a phone a card takes the place of the bottom controls. -->
     {#if !cardOpen}
       <div class="mn-corner bottom-left">
-        <button
-          type="button"
-          class="mn-me"
-          aria-label="You and the crew"
-          on:click={() => openPanel("home")}
-        >
-          <span class="figure">
-            <b>{Math.round(readout.speed)}</b><span>km/h</span>
-          </span>
-          {#if trailOn}
-            <span class="figure">
-              <b>{formatHa(readout.ha)}</b><span>ha</span>
-            </span>
-          {:else}
-            <span class="figure">
-              <b>{readout.hasFix ? compassPoint(readout.heading) : "–"}</b><span
-                >heading</span
-              >
-            </span>
-          {/if}
-          <ChevronUp size={18} />
-        </button>
+        {#if !wide}
+          <!-- On a tablet the crew is listed in the rail. -->
+          <button
+            type="button"
+            class="mn-crew-button"
+            aria-label="Crew. {onlineCrew.length} on the map now"
+            on:click={() => openPanel("crew")}
+          >
+            <Users size={22} />
+            <span>Crew</span>
+            {#if onlineCrew.length}<b>{onlineCrew.length}</b>{/if}
+          </button>
+        {/if}
         {#if !guest}
           <button
             type="button"
@@ -1230,7 +1380,33 @@
       </div>
     {/if}
 
-    {#if pinning}
+    {#if driverOffer}
+      <!-- ── Who is driving, confirmed on the way in ── -->
+      <div class="mn-card" in:rise>
+        <p class="lp-eyebrow">Driver</p>
+        <h2 class="mn-card-title">Driving as {driverOffer.name}?</h2>
+        <p class="mn-card-text">
+          Trails laid from this screen are signed with this name.
+        </p>
+        <div class="mn-card-actions">
+          <button
+            type="button"
+            class="lp-btn lp-btn-ghost"
+            on:click={someoneElse}
+          >
+            Someone else
+          </button>
+          <button
+            type="button"
+            class="lp-btn lp-btn-primary mn-count"
+            style="--left: {(driverLeft / DRIVER_WAIT) * 100}%"
+            on:click={() => confirmDriver()}
+          >
+            Yes · {driverLeft}
+          </button>
+        </div>
+      </div>
+    {:else if pinning}
       <!-- ── Dropping pins ── -->
       <div class="mn-card" in:rise>
         <div class="mn-card-head">
@@ -1339,7 +1515,7 @@
             class="lp-btn lp-btn-primary"
             disabled={operatorBusy || !operatorName.trim()}
           >
-            Start
+            {driverOnly ? "Set" : "Start"}
           </button>
         </form>
       </div>
@@ -1640,30 +1816,61 @@
       </div>
     {:else if measure}
       <!-- ── Measuring ── -->
+      {@const drawing = measure.drawing}
+      {@const line = drawing?.kind === "line"}
       <div class="mn-card mn-menu" in:rise>
         <div class="mn-card-head">
-          <p class="lp-eyebrow">Measure</p>
+          <p class="lp-eyebrow">
+            {drawing ? (line ? "Draw a line" : "Draw an area") : "Measure"}
+          </p>
           <p class="mn-hint">
-            {measure.points < 2
-              ? "Tap the map to mark each corner."
-              : measure.points < 3
-                ? "One more corner gives an area."
-                : `${measure.points} corners`}
+            {#if line}
+              {measure.points < 2
+                ? "Tap the map along the line."
+                : `${measure.points} points`}
+            {:else}
+              {measure.points < 2
+                ? "Tap the map to mark each corner."
+                : measure.points < 3
+                  ? "One more corner gives an area."
+                  : `${measure.points} corners`}
+            {/if}
           </p>
         </div>
+        {#if drawing}
+          <div
+            class="mn-swatches"
+            style="--across: 6"
+            role="group"
+            aria-label="Drawing colour"
+          >
+            {#each DRAWING_COLOURS as colour}
+              <button
+                type="button"
+                class:selected={drawing.colour === colour}
+                style="--swatch: {colour}"
+                aria-label="Colour {colour}"
+                aria-pressed={drawing.colour === colour}
+                on:click={() => chooseDrawColour(colour)}
+              ></button>
+            {/each}
+          </div>
+        {/if}
         <div class="mn-measure">
           <div>
             <b>{metres(measure.distance)}</b><span
               >{measure.distance >= 1000 ? "km" : "m"} along</span
             >
           </div>
-          <div>
-            <b>{measure.points > 2 ? measure.ha.toFixed(2) : "–"}</b><span
-              >ha inside</span
-            >
-          </div>
+          {#if !line}
+            <div>
+              <b>{measure.points > 2 ? measure.ha.toFixed(2) : "–"}</b><span
+                >ha inside</span
+              >
+            </div>
+          {/if}
         </div>
-        <div class="mn-card-actions">
+        <div class="mn-card-actions" class:three={!!drawing}>
           <button
             type="button"
             class="lp-btn lp-btn-ghost"
@@ -1672,13 +1879,31 @@
           >
             Undo
           </button>
-          <button
-            type="button"
-            class="lp-btn lp-btn-primary"
-            on:click={() => engine?.setMeasuring(false)}
-          >
-            Done
-          </button>
+          {#if drawing}
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              on:click={() => engine?.cancelDrawing()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="lp-btn lp-btn-primary"
+              disabled={drawing.saving || measure.points < (line ? 2 : 3)}
+              on:click={saveDrawing}
+            >
+              {drawing.saving ? "Saving…" : "Save"}
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="lp-btn lp-btn-primary"
+              on:click={() => engine?.setMeasuring(false)}
+            >
+              Done
+            </button>
+          {/if}
         </div>
       </div>
     {:else if selectedPin}
@@ -1694,6 +1919,20 @@
           choices={pinChoices}
           {choiceLook}
           moving={movingPin === selectedPin.id}
+          drawings={pinDrawings}
+          {photoLinks}
+          {uploading}
+          on:place={() => {
+            if (engine?.placePin()) say("Pin moved")
+          }}
+          on:draw={(e) =>
+            selectedPin &&
+            engine?.startDrawing(selectedPin.id, e.detail, drawColourNow)}
+          on:removeDrawing={async (e) => {
+            if (await engine?.removeDrawing(e.detail)) say("Drawing removed")
+          }}
+          on:photo={(e) => addPhoto(e.detail)}
+          on:removePhoto={(e) => removePhoto(e.detail)}
           on:close={() => {
             engine?.movePin(null)
             engine?.selectedPin.set(null)
@@ -1853,6 +2092,10 @@
         {farms}
         currentFarmId={mapId}
         {unread}
+        unreadBy={Object.fromEntries(
+          conversations.map((convo) => [convo.id, convo.unread]),
+        )}
+        on:messageCrew={(e) => openChat(e.detail)}
         messageWith={chatName}
         on:messagesBack={() => messenger?.open(null)}
         on:close={closePanel}

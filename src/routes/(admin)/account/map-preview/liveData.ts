@@ -191,7 +191,24 @@ export type LivePin = {
   capacity: number | null
   /** When it was dropped (ms). */
   t: number
+  /** Its drawings show all the time, or only while it is picked. */
+  drawingsAlways: boolean
+  photos: PinPhoto[]
 }
+
+/** A photo attached to a pin: where its file is kept. */
+export type PinPhoto = { id: string; path: string; created_at: string }
+
+const photosOf = (properties: Row | null | undefined): PinPhoto[] =>
+  Array.isArray(properties?.photos)
+    ? (properties.photos as Row[])
+        .filter((photo) => photo?.id && photo.path)
+        .map((photo) => ({
+          id: String(photo.id),
+          path: String(photo.path),
+          created_at: String(photo.created_at ?? ""),
+        }))
+    : []
 
 function pinFromRow(row: Row): LivePin | null {
   const coordinates = row.marker_data?.geometry?.coordinates
@@ -212,6 +229,10 @@ function pinFromRow(row: Row): LivePin | null {
     grainColour: m.grainColor || "yellow",
     capacity: m.capacityTonnes ?? null,
     t: new Date(m.created_at || row.updated_at || Date.now()).getTime(),
+    drawingsAlways:
+      (row.marker_data?.properties?.drawings_visibility ?? "always") ===
+      "always",
+    photos: photosOf(row.marker_data?.properties),
   }
 }
 
@@ -332,6 +353,8 @@ export type PinPatch = {
   grainType?: string
   /** A new place for it. */
   at?: LngLat
+  /** Show its drawings all the time, or only while it is picked. */
+  drawingsAlways?: boolean
 }
 
 /**
@@ -362,6 +385,10 @@ export async function patchPin(id: string, userId: string, change: PinPatch) {
     properties.note_label_visible = change.noteVisible
   if (change.fill !== undefined) properties.silo_fill = change.fill
   if (change.grainType !== undefined) properties.grain_type = change.grainType
+  if (change.drawingsAlways !== undefined)
+    properties.drawings_visibility = change.drawingsAlways
+      ? "always"
+      : "selected"
   const next: Row = { ...current, properties }
   if (change.at)
     next.geometry = {
@@ -1365,4 +1392,226 @@ export function watchMessages(
   return () => {
     supabase.removeChannel(channel)
   }
+}
+
+// ── Things attached to a pin: drawings and photos ───────────────────────
+// The same rows and files the current viewer keeps, so what is attached on
+// either viewer shows on both.
+
+/** An area or a line drawn on the map and attached to a pin. */
+export type PinDrawing = {
+  id: string
+  pinId: string
+  kind: "polygon" | "line"
+  geometry: { type: string; coordinates: unknown }
+  colour: string
+  fillOpacity: number
+  /** A multiplier of the map's scale, as the current viewer saves it. */
+  width: number
+  dashed: boolean
+  /** ms */
+  t: number
+}
+
+/** The colours a drawing can be (the current viewer's six). */
+export const DRAWING_COLOURS = [
+  "#0ea5e9",
+  "#22c55e",
+  "#ef4444",
+  "#eab308",
+  "#a855f7",
+  "#f97316",
+]
+
+function drawingFromRow(row: Row): PinDrawing | null {
+  let geometry = row.geometry
+  if (typeof geometry === "string") {
+    try {
+      geometry = JSON.parse(geometry)
+    } catch {
+      return null
+    }
+  }
+  if (!geometry?.type || !geometry.coordinates) return null
+  const style = (row.style ?? {}) as Row
+  return {
+    id: String(row.id),
+    pinId: String(row.marker_id),
+    kind: row.drawing_type === "line" ? "line" : "polygon",
+    geometry,
+    colour: style.strokeColor || style.fillColor || DRAWING_COLOURS[0],
+    fillOpacity: Number.isFinite(Number(style.fillOpacity))
+      ? Number(style.fillOpacity)
+      : 0.5,
+    width: Number(style.strokeWidth) || 3,
+    dashed: style.strokeStyle === "dashed",
+    t: row.created_at ? Date.parse(row.created_at) : Date.now(),
+  }
+}
+
+/** Every drawing on this map whose pin is still there, oldest first. */
+export async function loadDrawings(mapId: string): Promise<PinDrawing[]> {
+  const { data, error } = await supabase
+    .from("marker_drawings")
+    .select(
+      "id, marker_id, drawing_type, style, created_at, geometry:geometry_geojson, map_markers(deleted)",
+    )
+    .eq("master_map_id", mapId)
+    .or("deleted.is.null,deleted.eq.false")
+    .order("created_at", { ascending: true })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as Row[])
+    .filter((row) => row.deleted !== true && !row.map_markers?.deleted)
+    .map(drawingFromRow)
+    .filter((drawing): drawing is PinDrawing => !!drawing)
+}
+
+/** Hear that a drawing on this map was added, changed or removed. */
+export function watchDrawings(mapId: string, changed: () => void) {
+  const channel = supabase
+    .channel(`mapnext-drawings-${mapId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "marker_drawings",
+        filter: `master_map_id=eq.${mapId}`,
+      },
+      () => changed(),
+    )
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}
+
+/**
+ * Attach an area (three or more corners) or a line (two or more points) to
+ * a pin, through the same database function the current viewer calls.
+ */
+export async function createDrawing(drawing: {
+  mapId: string
+  userId: string
+  pinId: string
+  kind: "polygon" | "line"
+  points: LngLat[]
+  colour: string
+}): Promise<string> {
+  const text = (points: LngLat[]) =>
+    points.map(([lng, lat]) => `${lng} ${lat}`).join(", ")
+  const wkt =
+    drawing.kind === "polygon"
+      ? `POLYGON((${text([...drawing.points, drawing.points[0]])}))`
+      : `LINESTRING(${text(drawing.points)})`
+  const { data, error } = await supabase.rpc("insert_marker_drawing", {
+    p_marker_id: drawing.pinId,
+    p_master_map_id: drawing.mapId,
+    p_drawing_type: drawing.kind,
+    p_geometry_wkt: wkt,
+    p_style: {
+      fillColor: drawing.colour,
+      strokeColor: drawing.colour,
+      fillOpacity: 0.5,
+      strokeWidth: 3,
+      strokeStyle: "solid",
+    },
+    p_user_id: drawing.userId,
+  })
+  if (error) throw new Error(error.message)
+  return String(data)
+}
+
+/** Take a drawing off its pin (kept in the table, marked deleted). */
+export async function deleteDrawing(id: string, userId: string) {
+  const { error } = await supabase
+    .from("marker_drawings")
+    .update({
+      deleted: true,
+      deleted_at: new Date().toISOString(),
+      update_user_id: userId,
+    })
+    .eq("id", id)
+  if (error) throw new Error(error.message)
+}
+
+const PHOTO_BUCKET = "user_files_bucket"
+
+/** Links to a pin's photos, good for an hour (the files are private). */
+export async function loadPhotoLinks(
+  photos: PinPhoto[],
+): Promise<Record<string, string>> {
+  const links: Record<string, string> = {}
+  await Promise.all(
+    photos.map(async (photo) => {
+      const { data } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrl(photo.path, 3600)
+      if (data?.signedUrl) links[photo.id] = data.signedUrl
+    }),
+  )
+  return links
+}
+
+/** Read a pin's photo list, change it, and write it back. */
+async function writePhotos(
+  pinId: string,
+  userId: string,
+  change: (photos: PinPhoto[]) => PinPhoto[],
+) {
+  const { data, error } = await supabase
+    .from("map_markers")
+    .select("marker_data")
+    .eq("id", pinId)
+    .single()
+  if (error) throw new Error(error.message)
+  const current = ((data as Row | null)?.marker_data ?? {}) as Row
+  const photos = change(photosOf(current.properties))
+  const { error: failed } = await supabase
+    .from("map_markers")
+    .update({
+      marker_data: {
+        ...current,
+        properties: { ...(current.properties ?? {}), photos },
+      },
+      updated_at: new Date().toISOString(),
+      update_user_id: userId,
+    })
+    .eq("id", pinId)
+  if (failed) throw new Error(failed.message)
+  return photos
+}
+
+/** Add a photo to a pin: the file goes up first, then the pin lists it. */
+export async function addPinPhoto(
+  mapId: string,
+  pinId: string,
+  userId: string,
+  image: Blob,
+): Promise<PinPhoto[]> {
+  const id = uuidv4() as string
+  const path = `maps/${mapId}/marker-photos/${pinId}/${id}.${
+    image.type === "image/png" ? "png" : "jpg"
+  }`
+  const { error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, image, {
+      contentType: image.type || "image/jpeg",
+      upsert: false,
+    })
+  if (error) throw new Error(error.message)
+  const photo: PinPhoto = { id, path, created_at: new Date().toISOString() }
+  return writePhotos(pinId, userId, (photos) => [...photos, photo])
+}
+
+/** Remove a photo from a pin, and its file. */
+export async function removePinPhoto(
+  pinId: string,
+  userId: string,
+  photo: PinPhoto,
+): Promise<PinPhoto[]> {
+  await supabase.storage.from(PHOTO_BUCKET).remove([photo.path])
+  return writePhotos(pinId, userId, (photos) =>
+    photos.filter((p) => p.id !== photo.id),
+  )
 }

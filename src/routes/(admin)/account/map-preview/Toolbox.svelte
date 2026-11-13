@@ -5,6 +5,9 @@
    * the panel and has a way back. New tools are new tiles, so the grid grows
    * across as well as down. A side rail on a cab tablet, a pull-up sheet on
    * a phone.
+   *
+   * On the rail the grid is kept small and the crew is listed under it, so
+   * who is where is always on screen; a phone has its own Crew button.
    */
   import { createEventDispatcher } from "svelte"
   import {
@@ -27,10 +30,11 @@
   } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
+  import CrewRows from "./CrewRows.svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
-  import { formatDistance, formatHa } from "$lib/components/mapnext/format"
+  import { formatHa } from "$lib/components/mapnext/format"
   import type { PinChoice, PinLook } from "$lib/components/mapnext/pins"
   import type {
     BaseChoice,
@@ -94,6 +98,8 @@
   export let unread = 0
   /** Who the open conversation is with (their name), if one is open. */
   export let messageWith = ""
+  /** Messages not yet opened, by who sent them. */
+  export let unreadBy: Record<string, number> = {}
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -116,6 +122,7 @@
     farm: string
     leave: "dashboard" | "viewer"
     messagesBack: void
+    messageCrew: string
   }>()
 
   $: machine = machineFor(marker.type)
@@ -159,6 +166,7 @@
     { key: "fieldHectares", label: "Hectares", part: true },
     { key: "markers", label: "Pins" },
     { key: "markerLabels", label: "Pin notes", part: true },
+    { key: "markerDrawings", label: "Pin drawings", part: true },
     { key: "vehicles", label: "Crew machines" },
     { key: "vehicleLabels", label: "Name tags", part: true },
     { key: "historicalTrails", label: "Finished trails" },
@@ -245,11 +253,13 @@
     </header>
 
     <nav class="mn-grid" aria-label="Tools">
-      <button type="button" class="mn-tile" on:click={() => (view = "crew")}>
-        <span class="icon"><Users size={24} /></span>
-        <strong>Crew</strong>
-        <small>{online} on now</small>
-      </button>
+      {#if !wide}
+        <button type="button" class="mn-tile" on:click={() => (view = "crew")}>
+          <span class="icon"><Users size={24} /></span>
+          <strong>Crew</strong>
+          <small>{online} on now</small>
+        </button>
+      {/if}
       <button
         type="button"
         class="mn-tile"
@@ -359,6 +369,28 @@
       </button>
     </nav>
 
+    {#if wide}
+      <!-- The crew, always in view under the tools. -->
+      <section class="mn-home-crew" aria-label="Crew">
+        <p class="lp-eyebrow">
+          Crew · {online} on now{crew.length ? ` of ${crew.length}` : ""}
+        </p>
+        {#if crew.length}
+          <CrewRows
+            {crew}
+            {unreadBy}
+            on:look={(e) => dispatch("lookCrew", e.detail)}
+            on:message={(e) => dispatch("messageCrew", e.detail)}
+          />
+        {:else}
+          <p class="mn-empty">
+            Nobody else has joined this farm yet. Invite the crew from the
+            dashboard and they'll show up here.
+          </p>
+        {/if}
+      </section>
+    {/if}
+
     <footer class="mn-panel-foot">
       <p>
         Map data ©
@@ -408,41 +440,12 @@
     {:else if view === "crew"}
       <p class="lp-eyebrow">{online} on the map now · {crew.length} in all</p>
       {#if crew.length}
-        <ul class="mn-crew">
-          {#each crew as person (person.id)}
-            <li>
-              <button
-                type="button"
-                disabled={!person.placed}
-                on:click={() => dispatch("lookCrew", person.id)}
-              >
-                <span class="art" class:away={person.away}>
-                  <svelte:component
-                    this={vehicles[person.type]}
-                    size="40px"
-                    bodyColor={person.colour}
-                    outlineColor="#ffffff"
-                    wheelColor="#15261C"
-                    loadColor="#F7DB5C"
-                  />
-                  {#if person.online}<i aria-label="On the map now"></i>{/if}
-                </span>
-                <span class="who">
-                  <strong>{person.name}{person.guest ? " (guest)" : ""}</strong>
-                  <span class="doing">{person.doing}</span>
-                </span>
-                <span class="where">
-                  {#if person.distance !== null}
-                    <span class="far">{formatDistance(person.distance)}</span>
-                  {/if}
-                  {#if person.speed > 0}
-                    <span class="pace">{person.speed} km/h</span>
-                  {/if}
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
+        <CrewRows
+          {crew}
+          {unreadBy}
+          on:look={(e) => dispatch("lookCrew", e.detail)}
+          on:message={(e) => dispatch("messageCrew", e.detail)}
+        />
       {:else}
         <p class="mn-empty">
           Nobody else has joined this farm yet. Invite the crew from the

@@ -27,6 +27,12 @@ import {
   MEASURE_SOURCE,
   showLayers,
   showPickedMarks,
+  showArrowsTo,
+  showDrawingsFor,
+  DRAWING_LAYERS,
+  DRAWING_SOURCE,
+  ARROW_SOURCE,
+  PICKED_ARROW_SOURCE,
   pickPaddock,
   pinPixels,
   pickTrail as paintPickedTrail,
@@ -73,6 +79,14 @@ import {
   deleteTrail,
   patchPin,
   setPinNote,
+  loadDrawings,
+  watchDrawings,
+  createDrawing,
+  deleteDrawing,
+  addPinPhoto,
+  removePinPhoto,
+  type PinDrawing,
+  type PinPhoto,
   type PinPatch,
   patchPaddock,
   deletePaddock,
@@ -165,6 +179,13 @@ export type Measure = {
   distance: number
   /** Hectares inside it, once there are three corners. */
   ha: number
+  /** Set when what is being tapped out will be attached to a pin. */
+  drawing?: {
+    pinId: string
+    kind: "polygon" | "line"
+    colour: string
+    saving: boolean
+  }
 }
 
 export type Loading = {
@@ -222,6 +243,8 @@ type Replay = {
   colour: string
   drawn: number
   told: number
+  /** Metres of trail before each stretch begins (for the arrows). */
+  offsets: number[]
 }
 
 type Vehicle = {
@@ -288,6 +311,67 @@ const collection = (features: unknown[]) => ({
   type: "FeatureCollection",
   features,
 })
+
+/** Metres of ground between direction arrows (the current viewer's 30). */
+const ARROW_EVERY = 30
+
+/**
+ * Direction arrows for a trail: a point every 30 metres along it, each with
+ * the way the trail was heading there (`rot`, for a glyph that points east)
+ * and how far along the trail it is (`d`, metres). The spacing carries
+ * across the trail's stretches, so none land in a gap. Worked out from the
+ * ground, not the screen, so the arrows stay put as the map zooms.
+ */
+function arrowsAlong(
+  parts: LngLat[][],
+  color: string,
+  extra: Record<string, unknown> = {},
+) {
+  const arrows: unknown[] = []
+  let since = 0
+  let travelled = 0
+  for (const part of parts)
+    for (let i = 0; i < part.length - 1; i++) {
+      const a = part[i]
+      const b = part[i + 1]
+      const length = distanceM(a, b)
+      if (!(length > 0)) continue
+      since += length
+      while (since >= ARROW_EVERY) {
+        const along = length - (since - ARROW_EVERY)
+        const f = along / length
+        arrows.push({
+          type: "Feature",
+          properties: {
+            color,
+            rot: bearingDeg(a, b) - 90,
+            d: travelled + along,
+            ...extra,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [lerp(a[0], b[0], f), lerp(a[1], b[1], f)],
+          },
+        })
+        since -= ARROW_EVERY
+      }
+      travelled += length
+    }
+  return arrows
+}
+
+/** A line or multi-line feature's stretches. */
+const partsOf = (feature: unknown): LngLat[][] => {
+  const geometry = (
+    feature as { geometry?: { type: string; coordinates: unknown } }
+  ).geometry
+  if (!geometry) return []
+  return (
+    geometry.type === "LineString"
+      ? [geometry.coordinates]
+      : geometry.coordinates
+  ) as LngLat[][]
+}
 
 const hash = (text: string) => {
   let h = 0
@@ -386,8 +470,20 @@ export class LiveEngine {
   /** The tapped pin, lifted off the layer as an animated marker. */
   private picked: { id: string; marker: MapboxMap; view: SelectedPin } | null =
     null
-  /** The pin being moved: the next tap on the map is its new place. */
+  /** The pin being moved (dragged to a new place, then placed). */
   readonly movingPin: Writable<string | null> = writable(null)
+  private move: {
+    id: string
+    origin: LngLat
+    live: LngLat
+    /** Where the finger is, in screen pixels: the pin eases towards it. */
+    target: [number, number] | null
+    dragging: boolean
+    ring: MapboxMap
+    stop: () => void
+  } | null = null
+  /** Every drawing attached to a pin on this map. */
+  readonly drawings: Writable<PinDrawing[]> = writable([])
   /** Something is picked out with marching dashes: keep them moving. */
   private marching = false
   private measured: LngLat[] = []
@@ -395,6 +491,9 @@ export class LiveEngine {
   private shown: Record<string, boolean> = {}
   /** Direction marks on the picked trail and its replay. */
   private marks = { centre: false, arrows: false }
+  /** Direction arrows for every trail: worked out once per trail, on demand. */
+  private historyArrows = new Map<string, unknown[]>()
+  private arrowsDrawn = ""
   private replaying: Replay | null = null
   private marchTick = 0
   private crewById = new Map<string, CrewEntry>()
@@ -488,6 +587,7 @@ export class LiveEngine {
       setImagery(this.map, this.imagery, this.base)
       showLayers(this.map, this.shown, this.base)
       showPickedMarks(this.map, this.marks)
+      showDrawingsFor(this.map, get(this.selectedPin)?.id ?? null)
       this.ready.set(true)
       this.drawPaddocks()
       this.drawPins()
@@ -533,14 +633,8 @@ export class LiveEngine {
           this.drawMeasure()
           return
         }
-        const moving = get(this.movingPin)
-        if (moving) {
-          const at: LngLat = [e.lngLat.lng, e.lngLat.lat]
-          this.movePin(null)
-          this.updatePin(moving, { at })
-          this.ripple(at)
-          return
-        }
+        // A pin being moved is dragged, not tapped into place.
+        if (this.move) return
         if (this.armed) {
           this.dropPin(this.armed, [e.lngLat.lng, e.lngLat.lat])
           return
@@ -557,7 +651,15 @@ export class LiveEngine {
             )
           : []
         const id = hits[0]?.properties?.id as string | undefined
-        const pin = id ? this.pinsById.get(id) : undefined
+        let pin = id ? this.pinsById.get(id) : undefined
+        // A tap on something drawn picks the pin it belongs to.
+        if (!pin && this.map.getLayer(DRAWING_LAYERS[0])) {
+          const drawn = this.map.queryRenderedFeatures([e.point.x, e.point.y], {
+            layers: DRAWING_LAYERS,
+          })[0]?.properties?.pin as string | undefined
+          if (drawn && drawn !== get(this.selectedPin)?.id)
+            pin = this.pinsById.get(drawn)
+        }
         this.tapped(pin ?? null, [e.lngLat.lng, e.lngLat.lat])
       },
     )
@@ -567,7 +669,12 @@ export class LiveEngine {
     this.map.on("mouseleave", PIN_LAYER, () => {
       if (!this.armed) this.map.getCanvas().style.cursor = ""
     })
-    this.selectedPin.subscribe((pin) => this.showPicked(pin))
+    this.selectedPin.subscribe((pin) => {
+      // Letting go of a pin while moving it puts it back.
+      if (this.move && pin?.id !== this.move.id) this.endMove(false)
+      this.showPicked(pin)
+      if (get(this.ready)) showDrawingsFor(this.map, pin?.id ?? null)
+    })
     this.selectedCrew.subscribe((id) => {
       for (const [crewId, entry] of this.crewById)
         entry.vehicle?.view.$set({ selected: crewId === id })
@@ -675,6 +782,9 @@ export class LiveEngine {
         remove: (id) => this.forgetPin(id),
       }),
     )
+
+    this.refreshDrawings()
+    this.stops.push(watchDrawings(this.mapId, () => this.refreshDrawings()))
 
     this.refreshCrew()
     this.link.start()
@@ -858,7 +968,8 @@ export class LiveEngine {
     }
     if (this.picked) {
       this.picked.view.$set(props)
-      this.picked.marker.setLngLat(pin.at)
+      // Mid-move it is wherever it has been dragged to.
+      if (this.move?.id !== pin.id) this.picked.marker.setLngLat(pin.at)
       return
     }
     const el = document.createElement("div")
@@ -882,9 +993,9 @@ export class LiveEngine {
   }
 
   /** Rings spreading from a spot: a pin has just landed there. */
-  private ripple(at: LngLat) {
+  private ripple(at: LngLat, moved = false) {
     const el = document.createElement("div")
-    el.className = "mn-ripple"
+    el.className = moved ? "mn-ripple moved" : "mn-ripple"
     el.innerHTML = "<i></i><i></i>"
     const marker = new mapboxgl.Marker({ element: el })
       .setLngLat(at)
@@ -913,6 +1024,9 @@ export class LiveEngine {
       ...(rest.fill !== undefined ? { fill: rest.fill } : {}),
       ...(rest.grainType !== undefined ? { grainType: rest.grainType } : {}),
       ...(rest.at ? { at: rest.at } : {}),
+      ...(rest.drawingsAlways !== undefined
+        ? { drawingsAlways: rest.drawingsAlways }
+        : {}),
       ...(note !== undefined ? { note: note.trim().slice(0, 500) } : {}),
     }
     const show = (pin: LivePin) => {
@@ -936,10 +1050,293 @@ export class LiveEngine {
     }
   }
 
-  /** Start (or cancel) moving a pin: the next tap on the map places it. */
+  // ── Moving a pin ────────────────────────────────────────────────────────
+  // The current viewer's way: the picked pin is dragged with a finger and
+  // eases after it, a dashed ring marks where it started, and nothing is
+  // saved until it is placed. Away from the pin the map pans as usual.
+
+  /** Start moving the picked pin, or (null) put it back where it was. */
   movePin(id: string | null) {
+    this.endMove(false)
+    const pin = id ? this.pinsById.get(id) : undefined
+    if (!id || !pin || this.picked?.id !== id) return
+
+    const el = document.createElement("div")
+    el.className = "mn-origin"
+    const ring = new mapboxgl.Marker({ element: el })
+      .setLngLat(pin.at)
+      .addTo(this.map)
+    ring.getElement().style.zIndex = "1"
+
+    const container = this.map.getContainer() as HTMLElement
+    const pointOf = (e: MouseEvent | TouchEvent): [number, number] | null => {
+      const touch = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e
+      if (!touch) return null
+      const box = container.getBoundingClientRect()
+      return [touch.clientX - box.left, touch.clientY - box.top]
+    }
+    const down = (e: MouseEvent | TouchEvent) => {
+      const move = this.move
+      const at = pointOf(e)
+      if (!move || !at || ("touches" in e && e.touches.length > 1)) return
+      // Only a press on the pin itself drags it; anywhere else pans.
+      const on = this.map.project(move.live)
+      if (Math.hypot(at[0] - on.x, at[1] - on.y) > 32) return
+      e.preventDefault()
+      e.stopPropagation()
+      move.dragging = true
+      move.target = at
+    }
+    const drag = (e: MouseEvent | TouchEvent) => {
+      const move = this.move
+      const at = pointOf(e)
+      if (!move?.dragging || !at) return
+      if (e.cancelable) e.preventDefault()
+      move.target = at
+    }
+    const up = () => {
+      if (this.move) this.move.dragging = false
+    }
+    container.addEventListener("mousedown", down, true)
+    container.addEventListener("touchstart", down, {
+      capture: true,
+      passive: false,
+    })
+    window.addEventListener("mousemove", drag)
+    window.addEventListener("touchmove", drag, { passive: false })
+    window.addEventListener("mouseup", up)
+    window.addEventListener("touchend", up)
+    window.addEventListener("touchcancel", up)
+    this.move = {
+      id,
+      origin: pin.at,
+      live: pin.at,
+      target: null,
+      dragging: false,
+      ring,
+      stop: () => {
+        container.removeEventListener("mousedown", down, true)
+        container.removeEventListener("touchstart", down, true)
+        window.removeEventListener("mousemove", drag)
+        window.removeEventListener("touchmove", drag)
+        window.removeEventListener("mouseup", up)
+        window.removeEventListener("touchend", up)
+        window.removeEventListener("touchcancel", up)
+      },
+    }
     this.movingPin.set(id)
-    this.map.getCanvas().style.cursor = id ? "crosshair" : ""
+  }
+
+  /** Leave move mode; unless `keep`, the pin goes back where it started. */
+  private endMove(keep: boolean) {
+    const move = this.move
+    if (!move) return
+    this.move = null
+    move.stop()
+    move.ring.remove()
+    this.movingPin.set(null)
+    if (!keep && this.picked?.id === move.id)
+      this.picked.marker.setLngLat(move.origin)
+  }
+
+  /**
+   * Put the pin being moved down where it has been dragged to and save it.
+   * As in the current viewer, the pin is let go of afterwards.
+   */
+  placePin() {
+    const move = this.move
+    if (!move) return false
+    const { id, live, origin } = move
+    this.endMove(true)
+    const moved = live[0] !== origin[0] || live[1] !== origin[1]
+    if (moved) {
+      this.updatePin(id, { at: live })
+      this.ripple(live, true)
+    }
+    this.selectedPin.set(null)
+    return moved
+  }
+
+  /** Each frame of a move: the pin eases towards the finger. */
+  private stepMove(dt: number) {
+    const move = this.move
+    if (!move || this.picked?.id !== move.id) return
+    if (move.target) {
+      const now = this.map.project(move.live)
+      const ease = 1 - Math.pow(0.65, (dt * 1000) / 16.7)
+      let x = lerp(now.x, move.target[0], ease)
+      let y = lerp(now.y, move.target[1], ease)
+      if (Math.hypot(move.target[0] - x, move.target[1] - y) < 0.5) {
+        ;[x, y] = move.target
+        if (!move.dragging) move.target = null
+      }
+      const at = this.map.unproject([x, y])
+      move.live = [at.lng, at.lat]
+      this.picked.marker.setLngLat(move.live)
+    }
+    const from = this.map.project(move.origin)
+    const to = this.map.project(move.live)
+    move.ring
+      .getElement()
+      .classList.toggle("moved", Math.hypot(to.x - from.x, to.y - from.y) > 22)
+  }
+
+  // ── What is attached to a pin: drawings and photos ──────────────────────
+
+  private async refreshDrawings() {
+    try {
+      const drawings = await loadDrawings(this.mapId)
+      if (this.destroyed) return
+      this.drawings.set(drawings)
+      this.drawDrawings()
+    } catch {
+      // What is already drawn stays; the next change tries again.
+    }
+  }
+
+  private drawDrawings() {
+    if (!get(this.ready)) return
+    const features = get(this.drawings).flatMap((drawing) => {
+      const pin = this.pinsById.get(drawing.pinId)
+      if (!pin) return []
+      return [
+        {
+          type: "Feature",
+          properties: {
+            id: drawing.id,
+            pin: drawing.pinId,
+            kind: drawing.kind,
+            color: drawing.colour,
+            fillOpacity: drawing.fillOpacity,
+            width: drawing.width,
+            dashed: drawing.dashed,
+            always: pin.drawingsAlways,
+          },
+          geometry: drawing.geometry,
+        },
+      ]
+    })
+    this.map.getSource(DRAWING_SOURCE)?.setData(collection(features))
+  }
+
+  /**
+   * Start drawing an area or a line to attach to a pin: taps on the map add
+   * its corners, the same way the measure tool works.
+   */
+  startDrawing(pinId: string, kind: "polygon" | "line", colour: string) {
+    this.endMove(false)
+    this.measured = []
+    this.armPin(null)
+    this.measure.set({
+      points: 0,
+      distance: 0,
+      ha: 0,
+      drawing: { pinId, kind, colour, saving: false },
+    })
+    this.map.getCanvas().style.cursor = "crosshair"
+    this.drawMeasure()
+  }
+
+  setDrawingColour(colour: string) {
+    this.measure.update((m) =>
+      m?.drawing ? { ...m, drawing: { ...m.drawing, colour } } : m,
+    )
+    this.drawMeasure()
+  }
+
+  /** Stop drawing without keeping it. */
+  cancelDrawing() {
+    this.measured = []
+    this.measure.set(null)
+    this.map.getCanvas().style.cursor = ""
+    this.drawMeasure()
+  }
+
+  /** Attach what has been drawn to its pin. */
+  async saveDrawing() {
+    const drawing = get(this.measure)?.drawing
+    const points = [...this.measured]
+    if (!drawing || drawing.saving) return false
+    if (points.length < (drawing.kind === "polygon" ? 3 : 2)) return false
+    const saving = (on: boolean) =>
+      this.measure.update((m) =>
+        m?.drawing ? { ...m, drawing: { ...m.drawing, saving: on } } : m,
+      )
+    saving(true)
+    try {
+      await createDrawing({
+        mapId: this.mapId,
+        userId: this.userId,
+        pinId: drawing.pinId,
+        kind: drawing.kind,
+        points,
+        colour: drawing.colour,
+      })
+    } catch {
+      saving(false)
+      this.problem.set(
+        navigator.onLine
+          ? "That drawing didn't save. Try again."
+          : "No signal: that drawing didn't save.",
+      )
+      return false
+    }
+    this.cancelDrawing()
+    await this.refreshDrawings()
+    return true
+  }
+
+  /** Take a drawing off its pin. */
+  async removeDrawing(id: string) {
+    const before = get(this.drawings)
+    this.drawings.set(before.filter((drawing) => drawing.id !== id))
+    this.drawDrawings()
+    try {
+      await deleteDrawing(id, this.userId)
+      return true
+    } catch {
+      this.drawings.set(before)
+      this.drawDrawings()
+      this.problem.set("That drawing couldn't be removed. Try again.")
+      return false
+    }
+  }
+
+  private setPhotos(pinId: string, photos: PinPhoto[]) {
+    const pin = this.pinsById.get(pinId)
+    if (!pin) return
+    const next = { ...pin, photos }
+    this.pinsById.set(pinId, next)
+    if (get(this.selectedPin)?.id === pinId) this.selectedPin.set(next)
+  }
+
+  /** Add a photo to a pin. */
+  async addPhoto(pinId: string, image: Blob) {
+    try {
+      this.setPhotos(
+        pinId,
+        await addPinPhoto(this.mapId, pinId, this.userId, image),
+      )
+      return true
+    } catch {
+      this.problem.set(
+        navigator.onLine
+          ? "That photo didn't upload. Try again."
+          : "No signal: that photo didn't upload.",
+      )
+      return false
+    }
+  }
+
+  /** Remove a photo from a pin. */
+  async removePhoto(pinId: string, photo: PinPhoto) {
+    try {
+      this.setPhotos(pinId, await removePinPhoto(pinId, this.userId, photo))
+      return true
+    } catch {
+      this.problem.set("That photo couldn't be removed. Try again.")
+      return false
+    }
   }
 
   /**
@@ -1144,6 +1541,8 @@ export class LiveEngine {
 
   /** Redraw the pin layer, drawing any pin art it hasn't used before first. */
   private async drawPins() {
+    // A drawing shows or hides with its pin.
+    this.drawDrawings()
     this.pinCount.set(this.pinsById.size)
     if (!get(this.ready)) return
     const turnNumber = ++this.pinDraw
@@ -1601,8 +2000,10 @@ export class LiveEngine {
     // Chosen from the list before its shape has arrived: nothing to show.
     if (info && !features.length) return false
     this.selectedTrail.set(info ?? null)
-    if (get(this.ready))
+    if (get(this.ready)) {
       this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection(features))
+      this.pickedArrows(features.flatMap(partsOf), info?.colour)
+    }
     this.paintPicked()
     this.keepMarching()
     if (info) this.lookAtTrail(info.id)
@@ -1719,11 +2120,26 @@ export class LiveEngine {
       colour: drawColour(info.colour),
       drawn: -1,
       told: 0,
+      offsets: parts.map((_, index) =>
+        parts
+          .slice(0, index)
+          .reduce(
+            (sum, part) =>
+              sum + points[part.from + part.coords.length - 1].along,
+            0,
+          ),
+      ),
     }
     this.onZoom()
     this.paintPicked()
-    // The marching line steps aside: the trail paints itself in instead.
+    // The marching line steps aside: the trail paints itself in instead,
+    // and its arrows show as the machine passes them.
     this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection([]))
+    this.pickedArrows(
+      parts.map((part) => part.coords),
+      info.colour,
+    )
+    showArrowsTo(this.map, 0)
     this.replay.set({
       trailId: info.id,
       phase: "playing",
@@ -1773,10 +2189,18 @@ export class LiveEngine {
     running.vehicle.marker.remove()
     this.replaying = null
     this.map.getSource(REPLAY_SOURCE)?.setData(collection([]))
-    this.map
-      .getSource(PICKED_TRAIL_SOURCE)
-      ?.setData(collection(this.trailFeatures(running.info.id)))
+    const features = this.trailFeatures(running.info.id)
+    this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection(features))
+    this.pickedArrows(features.flatMap(partsOf), running.info.colour)
     this.paintPicked()
+  }
+
+  /** Lay out the picked trail's direction arrows, all of them showing. */
+  private pickedArrows(parts: LngLat[][], colour: string | null | undefined) {
+    this.map
+      .getSource(PICKED_ARROW_SOURCE)
+      ?.setData(collection(arrowsAlong(parts, drawColour(colour))))
+    showArrowsTo(this.map, null)
   }
 
   /** Where the replay's machine is `along` metres into its current stretch. */
@@ -1826,6 +2250,8 @@ export class LiveEngine {
     const b = points[Math.min(running.index + 1, last)]
     let at = a.at
     let time = a.t
+    // How far along the whole trail the machine is, for its arrows.
+    let travelled = running.offsets[a.part] + a.along
     if (b.part === a.part && b.axis > a.axis) {
       const f = clamp((running.cursor - a.axis) / (b.axis - a.axis), 0, 1)
       at = [lerp(a.at[0], b.at[0], f), lerp(a.at[1], b.at[1], f)]
@@ -1835,6 +2261,7 @@ export class LiveEngine {
       // a headland at any replay speed, and GPS wobble between two points a
       // few metres apart can't swing it about.
       const here = lerp(a.along, b.along, f)
+      travelled = running.offsets[a.part] + here
       const reach = clamp(machineFor(running.info.machine).span * 0.45, 5, 14)
       const behind = this.replayAt(running, here - reach)
       const ahead = this.replayAt(running, here + reach)
@@ -1844,6 +2271,7 @@ export class LiveEngine {
       // The end of a stretch: the machine picks up where the next begins.
       at = b.at
       time = b.t
+      travelled = running.offsets[b.part] + b.along
     }
 
     const { vehicle } = running
@@ -1888,6 +2316,7 @@ export class LiveEngine {
           line(fresh, running.colour, running.info.width, { segment: "head" }),
         )
       this.map.getSource(REPLAY_SOURCE)?.setData(collection(features))
+      showArrowsTo(this.map, travelled)
     }
     if (now - running.told > 70) {
       running.told = now
@@ -1949,6 +2378,7 @@ export class LiveEngine {
   }
 
   private drawTrails() {
+    const changed = this.historyDirty || this.liveDirty
     if (this.historyDirty) {
       this.historyDirty = false
       this.map.getSource(HISTORY_SOURCE)?.setData(collection(this.history))
@@ -1958,6 +2388,11 @@ export class LiveEngine {
     const points = recording ? this.recorder.points : []
     const colour = recording ? drawColour(recording.colour) : ""
     const width = recording?.width ?? 0
+    this.drawArrows(
+      changed,
+      points.map((p) => p.at),
+      colour,
+    )
 
     // Long trails are drawn in stretches. The finished stretches of my own
     // trail ride along with the crew's live trails, which change seldom; only
@@ -2006,6 +2441,58 @@ export class LiveEngine {
     if (drawn === this.myTrailDrawn) return
     this.myTrailDrawn = drawn
     this.map.getSource(MY_TRAIL_SOURCE)?.setData(collection(mineLines))
+  }
+
+  /**
+   * Direction arrows over every trail, when they are switched on in Layers.
+   * A finished trail's arrows are worked out once and kept; the trails still
+   * being laid are redone as they grow.
+   */
+  private drawArrows(changed: boolean, mine: LngLat[], mineColour: string) {
+    const source = this.map.getSource(ARROW_SOURCE)
+    if (!source) return
+    if (this.shown.trailArrows !== true) {
+      if (!this.arrowsDrawn) return
+      this.arrowsDrawn = ""
+      this.historyArrows.clear()
+      source.setData(collection([]))
+      return
+    }
+    const drawn = `on|${mine.length}`
+    if (!changed && drawn === this.arrowsDrawn) return
+    this.arrowsDrawn = drawn
+
+    const arrows: unknown[] = []
+    for (const id of [...this.historyArrows.keys()])
+      if (!this.historyIds.has(id)) this.historyArrows.delete(id)
+    for (const feature of this.history) {
+      const properties = (
+        feature as {
+          properties: { id: string; color: string; segment?: string }
+        }
+      ).properties
+      if (properties.segment === "pause") continue
+      let kept = this.historyArrows.get(properties.id)
+      if (!kept) {
+        kept = arrowsAlong(partsOf(feature), properties.color, {
+          kind: "historicalTrails",
+        })
+        this.historyArrows.set(properties.id, kept)
+      }
+      for (const arrow of kept) arrows.push(arrow)
+    }
+    for (const trail of this.liveTrails.values())
+      for (const arrow of arrowsAlong(
+        [trail.points.map((p) => p.at)],
+        drawColour(trail.info.colour),
+        { kind: "activeTrails" },
+      ))
+        arrows.push(arrow)
+    for (const arrow of arrowsAlong([mine], mineColour, {
+      kind: "activeTrails",
+    }))
+      arrows.push(arrow)
+    source.setData(collection(arrows))
   }
 
   /** A trail is running, so each fix lays a point. */
@@ -2147,9 +2634,13 @@ export class LiveEngine {
 
   private drawMeasure() {
     const points = this.measured
+    // Drawing for a pin: in its colour, and a line stays open.
+    const drawing = get(this.measure)?.drawing
+    const properties = drawing ? { color: drawing.colour } : {}
+    const closed = points.length > 2 && drawing?.kind !== "line"
     const features: unknown[] = points.map((at) => ({
       type: "Feature",
-      properties: {},
+      properties,
       geometry: { type: "Point", coordinates: at },
     }))
     let distance = 0
@@ -2159,16 +2650,16 @@ export class LiveEngine {
     if (points.length > 1)
       features.push({
         type: "Feature",
-        properties: {},
+        properties,
         geometry: {
           type: "LineString",
-          coordinates: points.length > 2 ? [...points, points[0]] : points,
+          coordinates: closed ? [...points, points[0]] : points,
         },
       })
-    if (points.length > 2) {
+    if (closed) {
       features.push({
         type: "Feature",
-        properties: {},
+        properties,
         geometry: { type: "Polygon", coordinates: [[...points, points[0]]] },
       })
       // Area on flat ground around the first corner: plenty for a paddock.
@@ -2181,8 +2672,9 @@ export class LiveEngine {
     }
     if (get(this.ready))
       this.map.getSource(MEASURE_SOURCE)?.setData(collection(features))
-    if (get(this.measure))
-      this.measure.set({ points: points.length, distance, ha })
+    this.measure.update((m) =>
+      m ? { ...m, points: points.length, distance, ha } : m,
+    )
   }
 
   /** Space the chrome covers, so "centred" means centred in what's left. */
@@ -2556,6 +3048,7 @@ export class LiveEngine {
     }
 
     this.stepReplay(dt, now)
+    this.stepMove(dt)
 
     // Whatever is picked out breathes: its glow swells and settles.
     if (this.marching) {
@@ -2645,6 +3138,7 @@ export class LiveEngine {
 
   destroy() {
     this.destroyed = true
+    this.endMove(false)
     cancelAnimationFrame(this.raf)
     document.removeEventListener("visibilitychange", this.onVisibility)
     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId)

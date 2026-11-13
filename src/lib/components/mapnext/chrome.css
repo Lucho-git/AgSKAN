@@ -67,6 +67,30 @@
   animation-duration: 1.2s;
   animation-delay: 0.15s;
 }
+/* A pin has just been moved here: the same rings, in amber. */
+.mn-ripple.moved i {
+  border-color: rgba(245, 158, 11, 0.95);
+}
+/* Where a pin being moved started from: a dashed ring that darkens once
+   the pin has left it (the current viewer's mark). */
+.mn-origin {
+  width: 40px;
+  height: 40px;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.mn-origin.moved {
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+    0 0 0 5px rgba(0, 0, 0, 0.18);
+}
 @keyframes mn-ripple {
   0% {
     transform: scale(0);

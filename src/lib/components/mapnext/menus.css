@@ -853,3 +853,257 @@
   border-radius: 2px;
   background: currentColor;
 }
+
+/* ── Moving a pin: what to do, in the current viewer's amber ── */
+.mn-move-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 1.5px dashed rgba(217, 119, 6, 0.6);
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* ── What is attached to a pin: photos, areas, lines ── */
+.mn-attach {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  color: var(--lp-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: left;
+}
+.mn-attach:hover {
+  border-color: var(--lp-ink);
+}
+.mn-attach span {
+  flex: 1;
+}
+.mn-attach b {
+  min-width: 26px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-family: var(--lp-mono);
+  font-size: 0.75rem;
+  text-align: center;
+}
+.mn-menu > .mn-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  min-height: 34px;
+}
+.mn-photos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.mn-photos button {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: var(--lp-paper-2) center / cover no-repeat;
+  box-shadow: 0 0 0 1px var(--lp-line);
+}
+.mn-drawn {
+  display: grid;
+  gap: 6px;
+}
+.mn-drawn li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+}
+.mn-drawn .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.25);
+}
+.mn-drawn .what {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.mn-drawn button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--lp-rust);
+}
+.mn-menu-actions button:disabled {
+  opacity: 0.6;
+}
+/* A photo opened to fill the screen. */
+.mn-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) 14px
+    max(14px, env(safe-area-inset-bottom));
+  background: rgba(8, 14, 10, 0.94);
+  color: #f4f1e6;
+}
+.mn-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.mn-lightbox .bar {
+  display: flex;
+  gap: 10px;
+}
+.mn-lightbox .bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 99px;
+  background: #f4f1e6;
+  color: #15261c;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.mn-lightbox .bar .danger {
+  background: transparent;
+  box-shadow: 0 0 0 1.5px rgba(244, 241, 230, 0.6);
+  color: #f4f1e6;
+}
+
+/* ── The rail's front page: a small grid of tools, the crew under it ── */
+.mn.wide .mn-grid {
+  gap: 6px;
+}
+.mn.wide .mn-tile {
+  min-height: 82px;
+  padding: 7px 4px 6px;
+  border-radius: 15px;
+}
+.mn.wide .mn-tile .icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 1px;
+  border-radius: 11px;
+}
+.mn.wide .mn-tile .icon svg {
+  max-width: 28px;
+  max-height: 28px;
+}
+.mn.wide .mn-tile strong {
+  font-size: 0.86rem;
+}
+.mn.wide .mn-tile small {
+  font-size: 0.68rem;
+}
+.mn-home-crew {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1.5px solid var(--lp-line);
+}
+/* A crew row: finding them takes the row, messaging them the button. */
+.mn-crew li {
+  display: flex;
+  gap: 5px;
+}
+.mn-crew li > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.mn-crew .msg {
+  position: relative;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 3.1rem;
+  padding: 0;
+}
+.mn-crew .msg .mn-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+.mn-crew .msg:disabled {
+  opacity: 1;
+}
+
+/* ── The crew button (phone): bottom left, beside the trail button ── */
+.mn-crew-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+}
+.mn-crew-button span {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+.mn-crew-button b {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 2px solid var(--lp-card);
+  border-radius: 99px;
+  background: #39d27a;
+  color: #0d1611;
+  font-family: var(--lp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ── A yes that counts itself down: the bar under the word drains ── */
+.mn-count {
+  position: relative;
+  overflow: hidden;
+}
+.mn-count::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--left, 100%);
+  height: 5px;
+  background: rgba(21, 38, 28, 0.45);
+  transition: width 1s linear;
+}
+.mn-card-actions.three {
+  grid-template-columns: 1fr 1fr 1.3fr;
+}
