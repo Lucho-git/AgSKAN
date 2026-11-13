@@ -1517,3 +1517,263 @@
   border-color: var(--lp-line);
   color: var(--lp-ink-soft);
 }
+
+/* ── Fourth pass ────────────────────────────────────────────────────────── */
+/* A job's steps: a numbered list, each ticked off by whoever has the job. */
+.mn-job .steps {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 5px;
+}
+.mn-job .steps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.mn-job .steps li.ticked > span {
+  color: var(--lp-ink-faint);
+  text-decoration: line-through;
+}
+.mn-job .steps small {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+  text-decoration: none;
+}
+.mn-job .steps .tick {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--lp-ink);
+  border-radius: 50%;
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.mn-job .steps .ticked .tick {
+  background: #1f8a4c;
+  border-color: #1f8a4c;
+  color: #fff;
+}
+.mn-job .steps .tick:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* Putting a multi-step job together: a row a step, the one being added to
+   marked. */
+.mn-steps {
+  display: grid;
+  gap: 6px;
+}
+.mn-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 6px 6px 6px 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+}
+.mn-step.current {
+  border-color: var(--lp-ink);
+  background: var(--lp-paper);
+}
+.mn-step .n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.mn-step input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 10px;
+  background: var(--lp-card);
+  font-size: 0.95rem;
+}
+.mn-step .mn-job-items {
+  grid-column: 2 / -1;
+}
+.mn-step .mn-job-items:empty {
+  display: none;
+}
+.mn-job-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-job-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+.mn-job-tools button:hover {
+  border-color: var(--lp-ink);
+}
+
+/* The note's "show on the map" switch: an eye in the corner of the note. */
+.mn-note-field .eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  transform: translateY(-50%);
+}
+.mn-note-field .eye.off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--lp-line);
+  color: var(--lp-ink-faint);
+}
+
+/* Crew: the heading with its settings button, and the settings list. */
+.mn-crew-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+.mn-crew-head .mn-icon-button {
+  width: 36px;
+  height: 36px;
+  margin: -6px -6px -6px 0;
+  color: var(--lp-ink);
+}
+.mn-tool.armed {
+  border-color: var(--lp-rust);
+  background: color-mix(in srgb, var(--lp-rust) 12%, var(--lp-card));
+  color: var(--lp-rust);
+}
+/* A paddock's crop and variety share a line; what has been used before is
+   offered underneath. */
+.mn-crop {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.mn-crop input:disabled {
+  opacity: 0.5;
+}
+.mn-ideas button {
+  min-height: 34px;
+  background: var(--lp-yellow);
+  border-color: transparent;
+  font-family: inherit;
+}
+
+/* A machine laying a trail: how long, how much, in the trailing green. */
+.mn-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #1f8a4c;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.mn-trailing i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b9f5cf;
+  animation: mn-trailing 1.2s ease-in-out infinite;
+}
+/* Following one of the crew: a marker on the right edge for as long as it
+   lasts. Tapping it lets go. */
+.mn-tailing {
+  position: absolute;
+  top: 34%;
+  right: var(--mn-gap);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  color: #fff;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+  animation: mn-tailing 2s ease-in-out infinite;
+}
+.mn-tailing.cab {
+  background: var(--lp-ink);
+}
+.mn-tailing .art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+}
+.mn-tailing .words {
+  display: grid;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: left;
+}
+.mn-tailing .words b {
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+@keyframes mn-tailing {
+  50% {
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 7px rgba(31, 138, 76, 0.35),
+      0 10px 24px -10px rgba(10, 25, 15, 0.8);
+  }
+}
+.mn-chip.tail.job {
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+}
+.mn-chip.tail.job button {
+  background: rgba(21, 38, 28, 0.15);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-tailing,
+  .mn-trailing i {
+    animation: none;
+  }
+}

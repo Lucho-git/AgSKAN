@@ -26,6 +26,7 @@
     take: string
     finish: string
     cancel: string
+    tick: { id: string; index: number; done: boolean }
   }>()
 
   $: names = new Map(crew.map((person) => [person.id, person.name]))
@@ -109,6 +110,7 @@
             on:take={() => dispatch("take", job.id)}
             on:finish={() => dispatch("finish", job.id)}
             on:cancel={() => dispatch("cancel", job.id)}
+            on:tick={(e) => dispatch("tick", { id: job.id, ...e.detail })}
           />
         {/each}
       </div>

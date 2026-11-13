@@ -25,6 +25,9 @@
     Route,
     Ruler,
     Search,
+    Settings,
+    UserMinus,
+    UserPlus,
     UserRound,
     Users,
     X,
@@ -143,12 +146,31 @@
     messageCrew: string
     invite: void
     stale: boolean
+    removeCrew: { id: string; guest: boolean; name: string }
     typeColour: { iconClass: string; colour: string }
     lookPin: string
     lasso: void
   }>()
 
   $: names = Object.fromEntries(crew.map((person) => [person.id, person.name]))
+
+  // Removing someone takes a second tap on their row.
+  let removing: string | null = null
+  let removingTimer: ReturnType<typeof setTimeout>
+  function removePerson(person: CrewRow) {
+    if (removing !== person.id) {
+      removing = person.id
+      clearTimeout(removingTimer)
+      removingTimer = setTimeout(() => (removing = null), 3000)
+      return
+    }
+    removing = null
+    dispatch("removeCrew", {
+      id: person.id,
+      guest: person.guest,
+      name: person.name,
+    })
+  }
 
   $: machine = machineFor(marker.type)
   $: colour = drawColour(marker.bodyColor)
@@ -165,6 +187,7 @@
     messages: "Messages",
     jobs: "Jobs",
     crew: "Crew",
+    crewSettings: "Crew settings",
     machine: "Your machine",
     pins: "Pins",
     trails: "Trails",
@@ -408,9 +431,21 @@
     {#if wide}
       <!-- The crew, always in view under the tools. -->
       <section class="mn-home-crew" aria-label="Crew">
-        <p class="lp-eyebrow">
-          Crew · {online} on now{crew.length ? ` of ${crew.length}` : ""}
-        </p>
+        <div class="mn-crew-head">
+          <p class="lp-eyebrow">
+            Crew · {online} on now{crew.length ? ` of ${crew.length}` : ""}
+          </p>
+          {#if !guest}
+            <button
+              type="button"
+              class="mn-icon-button"
+              aria-label="Crew settings"
+              on:click={() => (view = "crewSettings")}
+            >
+              <Settings size={20} />
+            </button>
+          {/if}
+        </div>
         {#if crew.length || self || !guest}
           <CrewRows
             {crew}
@@ -421,7 +456,6 @@
             on:look={(e) => dispatch("lookCrew", e.detail)}
             on:message={(e) => dispatch("messageCrew", e.detail)}
             on:invite={() => dispatch("invite")}
-            on:stale={(e) => dispatch("stale", e.detail)}
           />
         {:else}
           <p class="mn-empty">
@@ -459,7 +493,7 @@
         on:click={() =>
           view === "messages" && messageWith
             ? dispatch("messagesBack")
-            : (view = "home")}
+            : (view = view === "crewSettings" && !wide ? "crew" : "home")}
       >
         <ArrowLeft size={22} />
       </button>
@@ -480,8 +514,77 @@
       <slot name="messages" />
     {:else if view === "jobs"}
       <slot name="jobs" />
+    {:else if view === "crewSettings"}
+      <!-- ── Crew settings: who is on the map ── -->
+      <button
+        type="button"
+        class="lp-btn lp-btn-primary"
+        on:click={() => dispatch("invite")}
+      >
+        <UserPlus size={18} /> Invite someone
+      </button>
+      <button
+        type="button"
+        class="mn-switch"
+        role="switch"
+        aria-checked={hideStale}
+        on:click={() => dispatch("stale", !hideStale)}
+      >
+        <span>Hide anyone not seen in 10 days</span>
+        <i></i>
+      </button>
+      <section class="mn-section">
+        <p class="lp-eyebrow">Take someone off this map</p>
+        {#if !crew.length}
+          <p class="mn-empty">Nobody else is on this farm yet.</p>
+        {:else}
+          {#if !isOwner}
+            <p class="mn-note">
+              You can remove guests. Only the farm's owner can remove one of the
+              crew.
+            </p>
+          {/if}
+          <div class="mn-tools">
+            {#each crew as person (person.id)}
+              <button
+                type="button"
+                class="mn-tool"
+                class:armed={removing === person.id}
+                disabled={!person.guest && !isOwner}
+                on:click={() => removePerson(person)}
+              >
+                <span class="text">
+                  <strong>{person.name}</strong>
+                  <span>
+                    {removing === person.id
+                      ? "Tap again to take them off the map"
+                      : person.guest
+                        ? "Guest"
+                        : person.machineLabel}
+                  </span>
+                </span>
+                <UserMinus size={19} />
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </section>
     {:else if view === "crew"}
-      <p class="lp-eyebrow">{online} on the map now · {crew.length} in all</p>
+      <div class="mn-crew-head">
+        <p class="lp-eyebrow">
+          {online} on the map now · {crew.length} in all
+        </p>
+        {#if !guest}
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Crew settings"
+            on:click={() => (view = "crewSettings")}
+          >
+            <Settings size={20} />
+          </button>
+        {/if}
+      </div>
       {#if crew.length || self || !guest}
         <CrewRows
           {crew}
@@ -492,7 +595,6 @@
           on:look={(e) => dispatch("lookCrew", e.detail)}
           on:message={(e) => dispatch("messageCrew", e.detail)}
           on:invite={() => dispatch("invite")}
-          on:stale={(e) => dispatch("stale", e.detail)}
         />
       {:else}
         <p class="mn-empty">

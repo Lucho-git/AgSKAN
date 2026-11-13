@@ -31,6 +31,7 @@ import {
   showDrawingsFor,
   FEATURE_LAYERS,
   FEATURE_SOURCE,
+  JOB_SOURCE,
   LASSO_SOURCE,
   DRAWING_LAYERS,
   DRAWING_SOURCE,
@@ -87,6 +88,7 @@ import {
   addPaddockFeature,
   removePaddockFeature,
   cutPaddock,
+  createPaddock,
   type JobItem,
   createDrawing,
   deleteDrawing,
@@ -172,6 +174,7 @@ export type ToolView =
   | "messages"
   | "jobs"
   | "crew"
+  | "crewSettings"
   | "machine"
   | "pins"
   | "trails"
@@ -201,6 +204,10 @@ export type Measure = {
   paddock: { id: string; name: string } | null
   /** Being kept: a save is on its way. */
   keeping?: boolean
+  /** The colour it is drawn in (and kept in). */
+  colour?: string
+  /** Being drawn for the job that is being put together. */
+  forJob?: boolean
   /** Set when what is being tapped out will be attached to a pin. */
   drawing?: {
     pinId: string
@@ -265,6 +272,9 @@ type Replay = {
   colour: string
   drawn: number
   told: number
+  /** km/h the machine was doing here, from the trail's own timing. */
+  speed: number
+  shownSpeed: number
   /** Metres of trail before each stretch begins (for the arrows). */
   offsets: number[]
 }
@@ -300,6 +310,8 @@ export const BROADCAST_FOR = 5 * 60_000
 
 /** `selectedCrew` holds this when the viewer's own machine is picked. */
 export const ME = "me"
+/** The id of a pin that is being placed and doesn't exist yet. */
+const DRAFT = "__draft"
 
 const AUSTRALIA: LngLat = [133.7751, -25.2744]
 const DAY = 86_400_000
@@ -566,6 +578,22 @@ export class LiveEngine {
   readonly paddockTrails: Writable<TrailInfo[]> = writable([])
   /** The thing kept on a paddock that was last tapped. */
   readonly pickedFeature: Writable<string | null> = writable(null)
+  /**
+   * A pin being placed by hand before it exists (the one dropped with a
+   * drawing): what it will be. It is dragged like a pin being moved.
+   */
+  readonly placing: Writable<{ iconClass: string; colour: string } | null> =
+    writable(null)
+  private draft: LivePin | null = null
+  /** The trail the picked crew member is laying right now, in figures. */
+  readonly crewTrail: Writable<{
+    since: number
+    metres: number
+    ha: number
+  } | null> = writable(null)
+  private crewTrailDrawn = ""
+  private historyDrawnAt = 0
+  private arrowsStale = false
   /** Something is picked out with marching dashes: keep them moving. */
   private marching = false
   private measured: LngLat[] = []
@@ -712,6 +740,8 @@ export class LiveEngine {
         point: { x: number; y: number }
         lngLat: { lng: number; lat: number }
       }) => {
+        // A pin being dragged into place takes no taps.
+        if (this.move) return
         if (get(this.measure)) {
           this.measured.push([e.lngLat.lng, e.lngLat.lat])
           this.drawMeasure()
@@ -806,6 +836,7 @@ export class LiveEngine {
       for (const [crewId, entry] of this.crewById)
         entry.vehicle?.view.$set({ selected: crewId === id })
       this.mine?.view.$set({ selected: id === ME })
+      this.showCrewTrail()
     })
     this.selectedPaddock.subscribe((paddock) => {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
@@ -1228,11 +1259,15 @@ export class LiveEngine {
     this.endMove(false)
     const pin = id ? this.pinsById.get(id) : undefined
     if (!id || !pin || this.picked?.id !== id) return
+    this.beginDrag(id, pin.at)
+  }
 
+  /** Make the lifted pin (a real one, or one being placed) draggable. */
+  private beginDrag(id: string, from: LngLat) {
     const el = document.createElement("div")
     el.className = "mn-origin"
     const ring = new mapboxgl.Marker({ element: el })
-      .setLngLat(pin.at)
+      .setLngLat(from)
       .addTo(this.map)
     ring.getElement().style.zIndex = "1"
 
@@ -1277,8 +1312,8 @@ export class LiveEngine {
     window.addEventListener("touchcancel", up)
     this.move = {
       id,
-      origin: pin.at,
-      live: pin.at,
+      origin: from,
+      live: from,
       target: null,
       dragging: false,
       ring,
@@ -1292,7 +1327,116 @@ export class LiveEngine {
         window.removeEventListener("touchcancel", up)
       },
     }
-    this.movingPin.set(id)
+    if (id !== DRAFT) this.movingPin.set(id)
+  }
+
+  // ── Placing a pin that doesn't exist yet ────────────────────────────────
+  // A pin dropped with a drawing starts in the drawing's middle and is
+  // dragged to where it should sit; what kind it is and its colour are
+  // chosen while it is still loose. Nothing is saved until it is placed.
+
+  startPlacing(iconClass: string, colour = "default") {
+    const drawn = this.drawn()
+    if (!drawn) return false
+    this.endMove(false)
+    this.selectedPin.set(null)
+    const draft: LivePin = {
+      id: DRAFT,
+      at: middle(drawn.points),
+      iconClass,
+      note: "",
+      noteVisible: true,
+      colour,
+      gateOpen: false,
+      rockPicked: false,
+      fill: 0,
+      grainType: "",
+      grainColour: "yellow",
+      capacity: null,
+      t: Date.now(),
+      drawingsAlways: true,
+      photos: [],
+      by: null,
+    }
+    this.draft = draft
+    this.showPicked(draft)
+    this.beginDrag(DRAFT, draft.at)
+    this.placing.set({ iconClass, colour })
+    this.map.getCanvas().style.cursor = ""
+    // Bring the pin up into the open part of the map, clear of the card
+    // that asks where it goes.
+    this.setFollow("free")
+    this.map.easeTo({
+      center: draft.at,
+      offset: [
+        this.insets.left / 2,
+        -Math.round(this.map.getCanvas().clientHeight * 0.24),
+      ],
+      duration: 600,
+    })
+    return true
+  }
+
+  /** Change what the pin being placed will be. */
+  setPlacing(look: { iconClass?: string; colour?: string }) {
+    if (!this.draft) return
+    this.draft = {
+      ...this.draft,
+      ...look,
+      at: this.move?.live ?? this.draft.at,
+    }
+    // (showPicked leaves a pin mid-drag where it has been dragged to.)
+    this.showPicked(this.draft)
+    this.placing.set({
+      iconClass: this.draft.iconClass,
+      colour: this.draft.colour,
+    })
+  }
+
+  private endPlacing() {
+    const at = this.move?.live ?? this.draft?.at ?? null
+    this.endMove(true)
+    this.draft = null
+    this.showPicked(null)
+    this.placing.set(null)
+    return at
+  }
+
+  /** Give up placing the pin; what was drawn is still there to keep. */
+  cancelPlacing() {
+    if (!this.draft) return
+    this.endPlacing()
+    if (get(this.measure)) this.map.getCanvas().style.cursor = "crosshair"
+  }
+
+  /** Put the pin down where it has been dragged to, with the drawing on it. */
+  confirmPlacing(note: string, drawColour: string) {
+    const draft = this.draft
+    const drawn = this.drawn()
+    if (!draft || !drawn) return Promise.resolve(false)
+    const at = this.endPlacing() ?? draft.at
+    return this.keep(async () => {
+      const pin = await createPin(this.mapId, this.userId, draft.iconClass, at)
+      this.pinsById.set(pin.id, pin)
+      this.drawPins()
+      this.ripple(at)
+      if (draft.colour !== "default" || note.trim())
+        await this.updatePin(pin.id, {
+          ...(draft.colour !== "default" ? { colour: draft.colour } : {}),
+          ...(note.trim() ? { note } : {}),
+        })
+      await createDrawing({
+        mapId: this.mapId,
+        userId: this.userId,
+        pinId: pin.id,
+        kind: drawn.state.kind,
+        points: drawn.points,
+        colour: drawColour,
+      })
+      await this.refreshDrawings()
+      const made = this.pinsById.get(pin.id)
+      if (made) this.selectedPin.set(made)
+    }, "that didn't save. Try again.")
   }
 
   /** Leave move mode; unless `keep`, the pin goes back where it started. */
@@ -1560,6 +1704,7 @@ export class LiveEngine {
       ...before,
       ...(change.name !== undefined ? { name: change.name } : {}),
       ...(change.crop !== undefined ? { crop: change.crop } : {}),
+      ...(change.variety !== undefined ? { variety: change.variety } : {}),
       ...(change.colour !== undefined ? { colour: change.colour } : {}),
       ...(change.farmId !== undefined
         ? {
@@ -1667,7 +1812,60 @@ export class LiveEngine {
   }
 
   private keepMarching() {
-    this.marching = !!get(this.selectedPaddock) || !!get(this.selectedTrail)
+    this.marching =
+      !!get(this.selectedPaddock) ||
+      !!get(this.selectedTrail) ||
+      !!get(this.crewTrail)
+  }
+
+  /**
+   * Picking a machine that is laying a trail picks that trail out too (as a
+   * finished trail is when it is picked) and gives its figures: how long it
+   * has been going, how far, how many hectares.
+   */
+  private showCrewTrail() {
+    const id = get(this.selectedCrew)
+    if (get(this.selectedTrail)) {
+      if (!id) return
+      this.pickTrail(null)
+    }
+    let coords: LngLat[] = []
+    let info: TrailInfo | null = null
+    if (id === ME) {
+      info = get(this.recorder.state).trail
+      coords = info ? this.recorder.points.map((p) => p.at) : []
+      if (this.mine && coords.length) coords.push(this.mine.pos)
+    } else if (id) {
+      const live = [...this.liveTrails.values()].find(
+        (trail) => trail.info.vehicleId === id,
+      )
+      info = live?.info ?? null
+      coords = live?.points.map((p) => p.at) ?? []
+    }
+    const drawn = info ? `${info.id}|${coords.length}` : ""
+    if (drawn === this.crewTrailDrawn) return
+    this.crewTrailDrawn = drawn
+    if (!get(this.ready)) return
+    const showing = !!info && coords.length > 1
+    this.map
+      .getSource(PICKED_TRAIL_SOURCE)
+      ?.setData(
+        collection(
+          showing && info
+            ? [line(coords, drawColour(info.colour), info.width)]
+            : [],
+        ),
+      )
+    this.pickedArrows(showing ? [coords] : [], info?.colour)
+    if (showing && info) {
+      const metres = lengthM(coords)
+      this.crewTrail.set({
+        since: info.start,
+        metres,
+        ha: (metres * info.width) / 10000,
+      })
+    } else this.crewTrail.set(null)
+    this.keepMarching()
   }
 
   /** Bring a paddock into view. */
@@ -2517,6 +2715,8 @@ export class LiveEngine {
       colour: drawColour(info.colour),
       drawn: -1,
       told: 0,
+      speed: 0,
+      shownSpeed: -1,
       offsets: parts.map((_, index) =>
         parts
           .slice(0, index)
@@ -2659,6 +2859,17 @@ export class LiveEngine {
       // few metres apart can't swing it about.
       const here = lerp(a.along, b.along, f)
       travelled = running.offsets[a.part] + here
+      // How fast it was going here: the ground between two recorded points
+      // over the time between them. (Only when the trail kept its timing;
+      // leaving points out can't inflate it, since the ground is measured
+      // along the points that remain.)
+      const took = b.t - a.t
+      if (state.timed && took > 300 && took < 60_000)
+        running.speed = lerp(
+          running.speed,
+          ((b.along - a.along) / (took / 1000)) * 3.6,
+          1 - Math.exp(-dt * 4),
+        )
       const reach = clamp(machineFor(running.info.machine).span * 0.45, 5, 14)
       const behind = this.replayAt(running, here - reach)
       const ahead = this.replayAt(running, here + reach)
@@ -2718,6 +2929,12 @@ export class LiveEngine {
     if (now - running.told > 70) {
       running.told = now
       const done = running.cursor >= running.total
+      const speed =
+        state.timed && state.phase === "playing" ? Math.round(running.speed) : 0
+      if (speed !== running.shownSpeed) {
+        running.shownSpeed = speed
+        running.vehicle.view.$set({ speed })
+      }
       this.replay.update((r) =>
         r
           ? {
@@ -2775,11 +2992,20 @@ export class LiveEngine {
   }
 
   private drawTrails() {
-    const changed = this.historyDirty || this.liveDirty
-    if (this.historyDirty) {
+    // While a job's trails are still arriving, the map is handed the lot
+    // again only every second or so: each hand-over is a pause, and one per
+    // trail made the map stutter.
+    const loading = !!get(this.loading).trails
+    const now = performance.now()
+    const flush =
+      this.historyDirty && (!loading || now - this.historyDrawnAt > 1200)
+    const changed = flush || this.liveDirty
+    if (flush) {
       this.historyDirty = false
+      this.historyDrawnAt = now
       this.map.getSource(HISTORY_SOURCE)?.setData(collection(this.history))
     }
+    if (this.liveDirty || get(this.selectedCrew)) this.showCrewTrail()
 
     const recording = get(this.recorder.state).trail
     const points = recording ? this.recorder.points : []
@@ -2855,9 +3081,16 @@ export class LiveEngine {
       source.setData(collection([]))
       return
     }
+    // Arrows for every trail are the heaviest thing on the map: they are
+    // worked out once the trails have all arrived, not after each one.
+    if (get(this.loading).trails) {
+      this.arrowsStale = this.arrowsStale || changed
+      return
+    }
     const drawn = `on|${mine.length}`
-    if (!changed && drawn === this.arrowsDrawn) return
+    if (!changed && !this.arrowsStale && drawn === this.arrowsDrawn) return
     this.arrowsDrawn = drawn
+    this.arrowsStale = false
 
     const arrows: unknown[] = []
     for (const id of [...this.historyArrows.keys()])
@@ -3017,12 +3250,19 @@ export class LiveEngine {
    * Start (or stop) the measure and draw tool: taps on the map add corners
    * of an area, or points along a line. What is drawn can then be kept.
    */
-  setMeasuring(on: boolean, kind: "polygon" | "line" = "polygon") {
+  setMeasuring(
+    on: boolean,
+    kind: "polygon" | "line" = "polygon",
+    forJob = false,
+  ) {
+    if (this.draft) this.endPlacing()
     this.measured = []
     this.clearSelection()
     this.armPin(null)
     this.measure.set(
-      on ? { points: 0, distance: 0, ha: 0, kind, paddock: null } : null,
+      on
+        ? { points: 0, distance: 0, ha: 0, kind, paddock: null, forJob }
+        : null,
     )
     this.map.getCanvas().style.cursor = on ? "crosshair" : ""
     this.drawMeasure()
@@ -3032,6 +3272,57 @@ export class LiveEngine {
   setMeasureKind(kind: "polygon" | "line") {
     this.measure.update((m) => (m ? { ...m, kind } : m))
     this.drawMeasure()
+  }
+
+  /** The colour what is being drawn shows in (and will be kept in). */
+  setMeasureColour(colour: string) {
+    this.measure.update((m) => (m ? { ...m, colour } : m))
+    this.drawMeasure()
+  }
+
+  /** Hand over what has been drawn (for a job) and stop drawing. */
+  takeDrawn() {
+    const drawn = this.drawn()
+    if (!drawn) return null
+    const taken = { kind: drawn.state.kind, points: drawn.points }
+    this.cancelDrawing()
+    return taken
+  }
+
+  /**
+   * Show a job's places on the map: a numbered dot for each (the number is
+   * its step), and any line or area drawn for it. Null clears them.
+   */
+  setJobShapes(steps: { items: JobItem[] }[] | null) {
+    const features: unknown[] = []
+    const many = (steps?.length ?? 0) > 1
+    steps?.forEach((step, index) => {
+      for (const item of step.items) {
+        if (item.points && item.points.length > 1)
+          features.push({
+            type: "Feature",
+            properties: {},
+            geometry:
+              item.type === "area"
+                ? {
+                    type: "Polygon",
+                    coordinates: [[...item.points, item.points[0]]],
+                  }
+                : { type: "LineString", coordinates: item.points },
+          })
+        // A lone step needs no number: only the drawn shapes are marked.
+        if (many || item.points)
+          features.push({
+            type: "Feature",
+            properties: { n: many ? String(index + 1) : "" },
+            geometry: {
+              type: "Point",
+              coordinates: item.points ? item.points[0] : item.at,
+            },
+          })
+      }
+    })
+    this.map.getSource(JOB_SOURCE)?.setData(collection(features))
   }
 
   /** What has been tapped out, if there is enough of it to keep. */
@@ -3113,6 +3404,31 @@ export class LiveEngine {
       if (!cut) throw new Error("Nothing to cut")
       this.setPaddock(paddock.id, { polygons: cut.polygons, ha: cut.ha })
     }, "that couldn't be cut out. Try again.")
+  }
+
+  /** Make what has been drawn (an area) into a new paddock. */
+  keepAsPaddock(name: string) {
+    const drawn = this.drawn()
+    if (!drawn || drawn.state.kind !== "polygon") return Promise.resolve(false)
+    return this.keep(async () => {
+      // On a map with one farm the paddock joins it; with several it is
+      // left for the owner to file.
+      const farms = get(this.farmNames)
+      const paddock = await createPaddock(
+        this.mapId,
+        name.trim().slice(0, 60) || "New paddock",
+        drawn.points,
+        farms.length === 1 ? farms[0].id : null,
+      )
+      this.paddocks = [...this.paddocks, paddock]
+      this.paddockList.set(this.paddocks)
+      this.farm.set({
+        paddocks: this.paddocks.length,
+        ha: this.paddocks.reduce((sum, p) => sum + p.ha, 0),
+      })
+      this.drawPaddocks()
+      this.selectedPaddock.set(paddock)
+    }, "that paddock didn't save. Is the name already used?")
   }
 
   /** Keep what has been drawn on a new pin dropped in its middle. */
@@ -3317,7 +3633,8 @@ export class LiveEngine {
     // Drawing for a pin: in its colour. A line stays open either way.
     const state = get(this.measure)
     const drawing = state?.drawing
-    const properties = drawing ? { color: drawing.colour } : {}
+    const colour = drawing?.colour ?? state?.colour
+    const properties = colour ? { color: colour } : {}
     const closed =
       points.length > 2 && (drawing?.kind ?? state?.kind) !== "line"
     const features: unknown[] = points.map((at) => ({

@@ -11,11 +11,13 @@
     ArrowLeft,
     Camera,
     Check,
+    Eye,
+    EyeOff,
     Hand,
     LoaderCircle,
     Move,
     Paperclip,
-    Shapes,
+    Pencil,
     Spline,
     Trash2,
     Pentagon,
@@ -297,31 +299,47 @@
       </div>
     {/if}
   {:else if picking}
-    <p class="lp-eyebrow">Change it to</p>
+    <!-- ── Editing the pin: its colour, and what kind it is ── -->
+    <button
+      type="button"
+      class="mn-text-button"
+      on:click={() => (picking = false)}
+    >
+      <ArrowLeft size={16} /> Back to the pin
+    </button>
+    {#if !bin}
+      <p class="lp-eyebrow">Colour</p>
+      <div class="mn-swatches" role="group" aria-label="Pin colour">
+        {#each COLOURS as key}
+          <button
+            type="button"
+            class:selected={(pin.colour || "default") === key}
+            style="--swatch: {swatch(key)}"
+            aria-label={key === "default" ? "Default colour" : key}
+            aria-pressed={(pin.colour || "default") === key}
+            on:click={() =>
+              (pin.colour || "default") !== key &&
+              dispatch("change", { colour: key })}
+          ></button>
+        {/each}
+      </div>
+    {/if}
+    <p class="lp-eyebrow">Kind of pin</p>
     <div class="mn-kinds all" style="margin: 0; padding: 0">
       {#each choices as choice (choice.iconClass)}
         <button
           type="button"
           class="mn-kind"
           class:selected={pin.iconClass === choice.iconClass}
-          on:click={() => {
-            picking = false
-            if (choice.iconClass !== pin.iconClass)
-              dispatch("change", { iconClass: choice.iconClass })
-          }}
+          on:click={() =>
+            choice.iconClass !== pin.iconClass &&
+            dispatch("change", { iconClass: choice.iconClass })}
         >
           <PinArt look={choiceLook(choice.iconClass)} size={34} />
           {choice.label}
         </button>
       {/each}
     </div>
-    <button
-      type="button"
-      class="lp-btn lp-btn-ghost"
-      on:click={() => (picking = false)}
-    >
-      Keep it as it is
-    </button>
   {:else if !guest}
     {#if gate}
       <div class="mn-pair" role="group" aria-label="Gate">
@@ -374,21 +392,6 @@
             dispatch("change", { fill: Number(e.currentTarget.value) })}
         />
       </label>
-    {:else}
-      <div class="mn-swatches" role="group" aria-label="Pin colour">
-        {#each COLOURS as key}
-          <button
-            type="button"
-            class:selected={(pin.colour || "default") === key}
-            style="--swatch: {swatch(key)}"
-            aria-label={key === "default" ? "Default colour" : key}
-            aria-pressed={(pin.colour || "default") === key}
-            on:click={() =>
-              (pin.colour || "default") !== key &&
-              dispatch("change", { colour: key })}
-          ></button>
-        {/each}
-      </div>
     {/if}
 
     <div class="mn-note-field">
@@ -407,20 +410,24 @@
         >
           <Check size={20} strokeWidth={3} />
         </button>
+      {:else if pin.note}
+        <!-- Whether the note shows on the map: one small button. -->
+        <button
+          type="button"
+          class="eye"
+          class:off={!pin.noteVisible}
+          role="switch"
+          aria-checked={pin.noteVisible}
+          aria-label="Show the note on the map"
+          title={pin.noteVisible
+            ? "The note shows on the map"
+            : "The note is hidden on the map"}
+          on:click={() => dispatch("change", { noteVisible: !pin.noteVisible })}
+        >
+          {#if pin.noteVisible}<Eye size={19} />{:else}<EyeOff size={19} />{/if}
+        </button>
       {/if}
     </div>
-    {#if pin.note}
-      <button
-        type="button"
-        class="mn-switch"
-        role="switch"
-        aria-checked={pin.noteVisible}
-        on:click={() => dispatch("change", { noteVisible: !pin.noteVisible })}
-      >
-        <span>Show the note on the map</span>
-        <i></i>
-      </button>
-    {/if}
 
     <button type="button" class="mn-attach" on:click={() => (attaching = true)}>
       <Paperclip size={18} />
@@ -430,7 +437,7 @@
 
     <div class="mn-menu-actions">
       <button type="button" on:click={() => (picking = true)}>
-        <Shapes size={18} /> Change type
+        <Pencil size={18} /> Edit
       </button>
       <button type="button" on:click={() => dispatch("move", true)}>
         <Move size={18} /> Move

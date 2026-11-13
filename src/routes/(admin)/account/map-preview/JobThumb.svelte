@@ -36,6 +36,8 @@
       )
     for (const drawing of extra)
       for (const point of flat(drawing.geometry.coordinates)) points.push(point)
+    for (const item of list)
+      for (const point of item.points ?? []) points.push(point)
     if (!points.length) return null
     let w = Math.min(...points.map((p) => p[0]))
     let e = Math.max(...points.map((p) => p[0]))
@@ -138,7 +140,33 @@
       {/if}
     {/each}
     {#each items as item}
-      {#if item.type !== "field"}
+      {#if item.points && item.type === "area"}
+        <path
+          d={path([item.points], view)}
+          fill="#f7db5c"
+          fill-opacity="0.6"
+          stroke="#15261c"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+        />
+      {:else if item.points}
+        <path
+          d={path([item.points], view, false)}
+          fill="none"
+          stroke="#15261c"
+          stroke-width="4.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d={path([item.points], view, false)}
+          fill="none"
+          stroke="#f7db5c"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      {:else if item.type !== "field"}
         {@const [x, y] = view(item.at)}
         {#if item.type === "marker"}
           <circle

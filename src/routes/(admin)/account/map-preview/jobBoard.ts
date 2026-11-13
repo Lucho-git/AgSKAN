@@ -10,6 +10,7 @@ import {
   finishJob,
   loadJobs,
   takeJob,
+  tickJobStep,
   watchJobs,
   type Job,
   type JobItem,
@@ -85,7 +86,7 @@ export class JobBoard {
     assignedTo: string | null
     title: string
     note: string
-    items: JobItem[]
+    steps: { title: string; items: JobItem[] }[]
   }) {
     try {
       const posted = await createJob({
@@ -125,6 +126,20 @@ export class JobBoard {
       const done = await finishJob(job, this.userId, this.myName)
       if (done) this.keep(done)
       return !!done
+    } catch {
+      this.failed("that didn't save. Try again.")
+      return false
+    }
+  }
+
+  /** Tick a step of a job off (or back on). */
+  async tick(id: string, index: number, done: boolean) {
+    const job = this.byId.get(id)
+    if (!job) return false
+    try {
+      const ticked = await tickJobStep(job, index, done)
+      if (ticked) this.keep(ticked)
+      return !!ticked
     } catch {
       this.failed("that didn't save. Try again.")
       return false

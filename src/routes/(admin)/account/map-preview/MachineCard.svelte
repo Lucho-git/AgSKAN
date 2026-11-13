@@ -18,6 +18,8 @@
   export let marker: VehicleMarkerData
   /** A trail is running: it keeps the colour and width it started with. */
   export let locked = false
+  /** What the trail being laid has done so far, in words. */
+  export let trailing = ""
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -67,6 +69,9 @@
     </button>
   </div>
 
+  {#if trailing}
+    <p class="mn-trailing"><i></i>{trailing}</p>
+  {/if}
   {#if locked}
     <p class="mn-warning">
       A trail keeps the machine, colour and width it started with. Stop the

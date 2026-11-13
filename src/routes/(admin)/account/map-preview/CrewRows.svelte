@@ -27,7 +27,6 @@
     look: string
     message: string
     invite: void
-    stale: boolean
   }>()
 
   const STALE = 10 * 86_400_000
@@ -111,17 +110,8 @@
   {/if}
 </ul>
 
-{#if stale.length}
-  <button
-    type="button"
-    class="mn-switch"
-    role="switch"
-    aria-checked={hideStale}
-    on:click={() => dispatch("stale", !hideStale)}
-  >
-    <span>
-      Hide {stale.length} not seen in 10 days
-    </span>
-    <i></i>
-  </button>
+{#if hideStale && stale.length}
+  <p class="mn-note">
+    {stale.length} not seen in 10 days {stale.length === 1 ? "is" : "are"} hidden.
+  </p>
 {/if}

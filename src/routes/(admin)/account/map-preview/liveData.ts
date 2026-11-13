@@ -75,6 +75,8 @@ export type Paddock = {
   farmId: string | null
   /** What is in it ("Wheat", "Canola"…), if anyone has said. */
   crop: string
+  /** Which variety of it ("Vixen", "Scepter"…), if anyone has said. */
+  variety: string
   /** The owner's chosen colour, if any. */
   colour: string | null
   /** Polygon rings, outer first; a paddock in several parts has several. */
@@ -136,6 +138,7 @@ export async function loadFarmNames(mapId: string): Promise<FarmName[]> {
 export type PaddockPatch = {
   name?: string
   crop?: string
+  variety?: string
   /** A hex colour, or null for the default. */
   colour?: string | null
   farmId?: string
@@ -148,6 +151,20 @@ export async function patchPaddock(id: string, change: PaddockPatch) {
   if (change.crop !== undefined) updates.field_type = change.crop
   if (change.colour !== undefined) updates.color = change.colour ?? "default"
   if (change.farmId !== undefined) updates.farm_id = change.farmId
+  if (change.variety !== undefined) {
+    // The variety sits in the paddock's own properties, beside whatever
+    // its import left there (the table has no column for it).
+    const { data, error } = await supabase
+      .from("fields")
+      .select("properties")
+      .eq("field_id", id)
+      .single()
+    if (error) throw new Error(error.message)
+    updates.properties = {
+      ...(((data as Row | null)?.properties ?? {}) as Row),
+      agskan_variety: change.variety,
+    }
+  }
   const result = (await fileApi.updateField(id, updates)) as Row
   if (result?.error || result?.success === false)
     throw new Error(result.message || result.error || "Couldn't save")
@@ -160,6 +177,47 @@ export async function deletePaddock(id: string) {
     throw new Error(result.message || result.error || "Couldn't delete")
 }
 
+/** One row of `fields` as a paddock; null if it has no shape to draw. */
+function paddockFromField(
+  field: Row,
+  farmNames: Map<string, string>,
+): Paddock | null {
+  const polygons = polygonsOf(field.boundary)
+  if (!polygons.length) return null
+  let w = Infinity
+  let s = Infinity
+  let e = -Infinity
+  let n = -Infinity
+  for (const polygon of polygons)
+    for (const [lng, lat] of polygon[0] ?? []) {
+      if (lng < w) w = lng
+      if (lng > e) e = lng
+      if (lat < s) s = lat
+      if (lat > n) n = lat
+    }
+  if (!Number.isFinite(w)) return null
+  const colour =
+    typeof field.color === "string" && /^#[0-9a-f]{3,8}$/i.test(field.color)
+      ? field.color
+      : null
+  return {
+    id: String(field.field_id),
+    name: field.name || "Paddock",
+    ha: Number(field.area) || 0,
+    farm:
+      farmNames.size > 1 && field.farm_id
+        ? (farmNames.get(field.farm_id) ?? null)
+        : null,
+    farmId: field.farm_id ?? null,
+    crop: field.field_type ?? "",
+    variety: String(field.properties?.agskan_variety ?? ""),
+    colour,
+    polygons,
+    bbox: [w, s, e, n],
+    features: featuresOf(field.properties),
+  }
+}
+
 export async function loadPaddocks(mapId: string): Promise<Paddock[]> {
   const [fields, farms] = await Promise.all([
     fileApi.loadFields(),
@@ -169,43 +227,41 @@ export async function loadPaddocks(mapId: string): Promise<Paddock[]> {
   const farmNames = new Map<string, string>(
     (farms.farms ?? []).map((f: Row) => [f.id, f.name]),
   )
-  const paddocks: Paddock[] = []
-  for (const field of (fields.fields ?? []) as Row[]) {
-    const polygons = polygonsOf(field.boundary)
-    if (!polygons.length) continue
-    let w = Infinity
-    let s = Infinity
-    let e = -Infinity
-    let n = -Infinity
-    for (const polygon of polygons)
-      for (const [lng, lat] of polygon[0] ?? []) {
-        if (lng < w) w = lng
-        if (lng > e) e = lng
-        if (lat < s) s = lat
-        if (lat > n) n = lat
-      }
-    if (!Number.isFinite(w)) continue
-    const colour =
-      typeof field.color === "string" && /^#[0-9a-f]{3,8}$/i.test(field.color)
-        ? field.color
-        : null
-    paddocks.push({
-      id: String(field.field_id),
-      name: field.name || "Paddock",
-      ha: Number(field.area) || 0,
-      farm:
-        farmNames.size > 1 && field.farm_id
-          ? (farmNames.get(field.farm_id) ?? null)
-          : null,
-      farmId: field.farm_id ?? null,
-      crop: field.field_type ?? "",
-      colour,
-      polygons,
-      bbox: [w, s, e, n],
-      features: featuresOf(field.properties),
-    })
+  return ((fields.fields ?? []) as Row[])
+    .map((field) => paddockFromField(field, farmNames))
+    .filter((paddock): paddock is Paddock => !!paddock)
+}
+
+/**
+ * Make a new paddock from an area drawn on the map, through the same call
+ * the current viewer's upload uses.
+ */
+export async function createPaddock(
+  mapId: string,
+  name: string,
+  area: LngLat[],
+  farmId: string | null,
+): Promise<Paddock> {
+  const boundary = {
+    type: "Polygon",
+    coordinates: [[...area, area[0]]],
   }
-  return paddocks
+  const result = (await fileApi.uploadFields(mapId, [
+    {
+      name,
+      area: turfArea(boundary as never) / 10_000,
+      boundary,
+      properties: { Name: name, createdFrom: "map-drawing" },
+      status: "accepted",
+      ...(farmId ? { farm_id: farmId } : {}),
+    } as never,
+  ])) as Row
+  const row = (result?.insertedFields ?? [])[0] as Row | undefined
+  if (!result?.success || !row)
+    throw new Error(result?.message || "Couldn't make the paddock")
+  const paddock = paddockFromField(row, new Map())
+  if (!paddock) throw new Error("Couldn't make the paddock")
+  return paddock
 }
 
 // ── Pins (`map_markers`) ──────────────────────────────────────────────────
@@ -1268,12 +1324,25 @@ export type SharedPlace = {
   refId: string | null
 }
 
-/** One thing a job points at: a paddock, a pin, or just a spot. */
+/**
+ * One thing a job points at: a paddock, a pin, a spot, or something drawn
+ * for it, a line to follow or an area to work.
+ */
 export type JobItem = {
-  type: "field" | "marker" | "spot"
+  type: "field" | "marker" | "spot" | "line" | "area"
   id: string | null
   label: string
   at: LngLat
+  /** A drawn line's points, or a drawn area's corners. */
+  points?: LngLat[]
+}
+
+/** One step of a job: what to do, where, and whether it has been done. */
+export type JobStep = {
+  title: string
+  items: JobItem[]
+  /** ms, when it was ticked off. */
+  doneAt: number | null
 }
 
 /**
@@ -1285,7 +1354,10 @@ export type Job = {
   id: string
   title: string
   note: string
+  /** Every place the job points at, across its steps. */
   items: JobItem[]
+  /** Its steps, in order. A simple job has one, with no words of its own. */
+  steps: JobStep[]
   status: "open" | "accepted" | "done"
   createdBy: string
   createdByName: string | null
@@ -1416,8 +1488,14 @@ export async function sendMessage(message: {
       ? {
           at: first.at,
           label: `Job: ${job.title}`.slice(0, 80),
-          refType: first.type === "spot" ? null : first.type,
-          refId: first.id,
+          // Only a paddock or a pin is something the map can look up; a
+          // spot or a drawn shape is just where it is.
+          refType:
+            first.type === "field" || first.type === "marker"
+              ? first.type
+              : null,
+          refId:
+            first.type === "field" || first.type === "marker" ? first.id : null,
         }
       : message.place
   const { data, error } = await supabase
@@ -1897,24 +1975,59 @@ export async function removeFromMap(person: { id: string; guest: boolean }) {
 
 // ── Jobs (`map_jobs`) ───────────────────────────────────────────────────
 
+const KINDS = ["field", "marker", "line", "area"]
+
+function itemsFromRows(rows: unknown): JobItem[] {
+  return (Array.isArray(rows) ? (rows as Row[]) : [])
+    .filter(
+      (item) =>
+        Number.isFinite(Number(item?.lng)) &&
+        Number.isFinite(Number(item?.lat)),
+    )
+    .map((item) => ({
+      type: KINDS.includes(item.type) ? item.type : "spot",
+      id: item.id ? String(item.id) : null,
+      label: String(item.label ?? ""),
+      at: [Number(item.lng), Number(item.lat)] as LngLat,
+      ...(Array.isArray(item.points) && item.points.length > 1
+        ? { points: item.points as LngLat[] }
+        : {}),
+    }))
+}
+
+const itemsToRows = (items: JobItem[]) =>
+  items.map((item) => ({
+    type: item.type,
+    id: item.id,
+    label: item.label,
+    lng: item.at[0],
+    lat: item.at[1],
+    ...(item.points ? { points: item.points } : {}),
+  }))
+
+const stepsToRows = (steps: JobStep[]) =>
+  steps.map((step) => ({
+    title: step.title,
+    done_at: step.doneAt ? new Date(step.doneAt).toISOString() : null,
+    items: itemsToRows(step.items),
+  }))
+
 function jobFromRow(row: Row): Job {
+  const items = itemsFromRows(row.items)
+  const steps: JobStep[] = (
+    Array.isArray(row.steps) ? (row.steps as Row[]) : []
+  ).map((step) => ({
+    title: String(step?.title ?? ""),
+    items: itemsFromRows(step?.items),
+    doneAt: step?.done_at ? Date.parse(step.done_at) : null,
+  }))
   return {
     id: String(row.id),
     title: String(row.title ?? ""),
     note: String(row.note ?? ""),
-    items: (Array.isArray(row.items) ? (row.items as Row[]) : [])
-      .filter(
-        (item) =>
-          Number.isFinite(Number(item?.lng)) &&
-          Number.isFinite(Number(item?.lat)),
-      )
-      .map((item) => ({
-        type:
-          item.type === "field" || item.type === "marker" ? item.type : "spot",
-        id: item.id ? String(item.id) : null,
-        label: String(item.label ?? ""),
-        at: [Number(item.lng), Number(item.lat)] as LngLat,
-      })),
+    items,
+    // A job saved before steps existed is one step holding everything.
+    steps: steps.length ? steps : [{ title: "", items, doneAt: null }],
     status:
       row.status === "accepted" || row.status === "done" ? row.status : "open",
     createdBy: String(row.created_by),
@@ -1951,7 +2064,7 @@ export async function createJob(job: {
   assignedTo: string | null
   title: string
   note: string
-  items: JobItem[]
+  steps: { title: string; items: JobItem[] }[]
 }): Promise<Job> {
   const { data, error } = await supabase
     .from("map_jobs")
@@ -1962,13 +2075,8 @@ export async function createJob(job: {
       assigned_to: job.assignedTo,
       title: job.title,
       note: job.note,
-      items: job.items.map((item) => ({
-        type: item.type,
-        id: item.id,
-        label: item.label,
-        lng: item.at[0],
-        lat: item.at[1],
-      })),
+      items: itemsToRows(job.steps.flatMap((step) => step.items)),
+      steps: stepsToRows(job.steps.map((step) => ({ ...step, doneAt: null }))),
     })
     .select("*")
     .single()
@@ -2019,6 +2127,25 @@ export async function finishJob(
     })
     .eq("id", job.id)
     .neq("status", "done")
+    .select("*")
+  if (error) throw new Error(error.message)
+  const row = ((data ?? []) as Row[])[0]
+  return row ? jobFromRow(row) : null
+}
+
+/** Tick one step of a job off, or untick it. */
+export async function tickJobStep(
+  job: Job,
+  index: number,
+  done: boolean,
+): Promise<Job | null> {
+  const steps = job.steps.map((step, i) =>
+    i === index ? { ...step, doneAt: done ? Date.now() : null } : step,
+  )
+  const { data, error } = await supabase
+    .from("map_jobs")
+    .update({ steps: stepsToRows(steps) })
+    .eq("id", job.id)
     .select("*")
   if (error) throw new Error(error.message)
   const row = ((data ?? []) as Row[])[0]

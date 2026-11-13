@@ -25,12 +25,17 @@
     take: void
     finish: void
     cancel: void
+    /** Tick a step off (or back on). */
+    tick: { index: number; done: boolean }
   }>()
 
   let withdrawing = false
   let timer: ReturnType<typeof setTimeout>
 
   $: places = job.items.map((item) => item.label).filter(Boolean)
+  $: stepped = job.steps.length > 1
+  // Whoever has the job ticks its steps off.
+  $: canTick = !guest && job.status !== "done" && job.takenBy === me
   $: open = job.status === "open"
   $: forMe = job.assignedTo === me
   $: canTake = !guest && open && (forMe || !job.assignedTo)
@@ -75,12 +80,40 @@
       {status}
     </p>
     <strong>{job.title}</strong>
-    {#if places.length}
+    {#if places.length && !stepped}
       <span class="places"><MapPin size={13} /> {places.join(", ")}</span>
     {/if}
     {#if job.note}<span class="note">{job.note}</span>{/if}
     {#if who}<span class="who">{who}</span>{/if}
   </div>
+  {#if stepped}
+    <ol class="steps">
+      {#each job.steps as step, index}
+        <li class:ticked={!!step.doneAt}>
+          <button
+            type="button"
+            class="tick"
+            disabled={!canTick}
+            aria-label={step.doneAt
+              ? `Step ${index + 1} done. Tap to undo`
+              : `Mark step ${index + 1} done`}
+            on:click={() => dispatch("tick", { index, done: !step.doneAt })}
+          >
+            {#if step.doneAt}<Check
+                size={15}
+                strokeWidth={3.5}
+              />{:else}{index + 1}{/if}
+          </button>
+          <span>
+            {step.title || `Step ${index + 1}`}
+            {#if step.items.length}
+              <small>{step.items.map((item) => item.label).join(", ")}</small>
+            {/if}
+          </span>
+        </li>
+      {/each}
+    </ol>
+  {/if}
   {#if canTake || canFinish || canCancel}
     <div class="moves">
       {#if canCancel}

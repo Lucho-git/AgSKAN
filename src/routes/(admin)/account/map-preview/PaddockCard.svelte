@@ -31,6 +31,11 @@
   export let operation = ""
   /** The thing kept on it that was tapped on the map, if one was. */
   export let pickedFeature: string | null = null
+  /**
+   * What has been written in for other paddocks on this map: each crop, and
+   * the varieties entered with it, the most used first.
+   */
+  export let crops: { crop: string; varieties: string[] }[] = []
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -64,22 +69,46 @@
 
   let name = paddock.name
   let crop = paddock.crop
+  let variety = paddock.variety
   let last = paddock.id
   let deleting = false
+  /** Which of the two is being typed in, for the suggestions under them. */
+  let typing: "crop" | "variety" | null = null
   $: if (paddock.id !== last) {
     last = paddock.id
     name = paddock.name
     crop = paddock.crop
+    variety = paddock.variety
     deleting = false
+    typing = null
   }
+  const starts = (option: string, typed: string) =>
+    option.toLowerCase().startsWith(typed.trim().toLowerCase()) &&
+    option.toLowerCase() !== typed.trim().toLowerCase()
+  // Crops already used on this map that match what has been typed so far.
+  $: cropIdeas = crops
+    .map((entry) => entry.crop)
+    .filter((option) => starts(option, crop))
+    .slice(0, 6)
+  // Varieties already entered with this crop.
+  $: varietyIdeas = (
+    crops.find(
+      (entry) => entry.crop.toLowerCase() === crop.trim().toLowerCase(),
+    )?.varieties ?? []
+  )
+    .filter((option) => starts(option, variety))
+    .slice(0, 6)
   $: changed =
     (name.trim() && name.trim() !== paddock.name) ||
-    crop.trim() !== paddock.crop
+    crop.trim() !== paddock.crop ||
+    variety.trim() !== paddock.variety
 
   function save() {
     const change: PaddockPatch = {}
     if (name.trim() && name.trim() !== paddock.name) change.name = name.trim()
     if (crop.trim() !== paddock.crop) change.crop = crop.trim()
+    if (variety.trim() !== paddock.variety) change.variety = variety.trim()
+    typing = null
     if (Object.keys(change).length) dispatch("change", change)
   }
 </script>
@@ -92,7 +121,9 @@
       <p>
         {[
           ...(paddock.ha > 0 ? [`${formatHa(paddock.ha)} ha`] : []),
-          ...(paddock.crop ? [paddock.crop] : []),
+          ...(paddock.crop
+            ? [paddock.crop + (paddock.variety ? ` (${paddock.variety})` : "")]
+            : []),
           ...(paddock.farm ? [paddock.farm] : []),
           ...(here ? ["You're in it"] : []),
         ].join(" · ") || "Paddock"}
@@ -155,15 +186,61 @@
           <span class="lp-eyebrow">Name</span>
           <input type="text" bind:value={name} maxlength="60" />
         </label>
-        <label>
-          <span class="lp-eyebrow">What's in it</span>
-          <input
-            type="text"
-            bind:value={crop}
-            maxlength="60"
-            placeholder="Wheat, canola, hay…"
-          />
-        </label>
+        <div class="mn-crop">
+          <label>
+            <span class="lp-eyebrow">What's in it</span>
+            <input
+              type="text"
+              bind:value={crop}
+              maxlength="40"
+              placeholder="Wheat, canola, hay…"
+              autocomplete="off"
+              on:focus={() => (typing = "crop")}
+            />
+          </label>
+          <label>
+            <span class="lp-eyebrow">Variety</span>
+            <input
+              type="text"
+              bind:value={variety}
+              maxlength="40"
+              placeholder={crop.trim() ? "Add variety" : "—"}
+              autocomplete="off"
+              disabled={!crop.trim()}
+              on:focus={() => (typing = "variety")}
+            />
+          </label>
+        </div>
+        <!-- What has been used on this map before, a tap away. -->
+        {#if typing === "crop" && cropIdeas.length}
+          <div
+            class="mn-chips mn-ideas"
+            role="group"
+            aria-label="Crops used here"
+          >
+            {#each cropIdeas as option}
+              <button
+                type="button"
+                on:click={() => {
+                  crop = option
+                  typing = "variety"
+                }}>{option}</button
+              >
+            {/each}
+          </div>
+        {:else if typing === "variety" && varietyIdeas.length}
+          <div
+            class="mn-chips mn-ideas"
+            role="group"
+            aria-label="Varieties used here"
+          >
+            {#each varietyIdeas as option}
+              <button type="button" on:click={() => (variety = option)}
+                >{option}</button
+              >
+            {/each}
+          </div>
+        {/if}
         {#if farms.length > 1}
           <label>
             <span class="lp-eyebrow">Farm</span>

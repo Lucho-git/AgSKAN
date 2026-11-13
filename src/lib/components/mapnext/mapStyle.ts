@@ -54,6 +54,8 @@ export const PICKED_ARROW_LAYER = "mv-picked-arrows"
 /** Areas and lines kept on a paddock, each with a name. */
 export const FEATURE_SOURCE = "mv-paddock-features"
 export const FEATURE_LAYERS = ["mv-feature-fill", "mv-feature-line"]
+/** The places, lines and areas of the job being put together or shown. */
+export const JOB_SOURCE = "mv-job"
 /** The lasso drawn round pins to remove, and the pins it caught. */
 export const LASSO_SOURCE = "mv-lasso"
 /** Areas and lines drawn on the map and attached to a pin. */
@@ -292,11 +294,11 @@ const centreLayer = (id: string, source: string, filter: unknown) => ({
  * viewer draws them: one every 30 metres of ground (the points are worked
  * out by the engine), in the trail's colour inside a black edge.
  */
-const arrowLayer = (id: string, source: string) => ({
+const arrowLayer = (id: string, source: string, minzoom = 13) => ({
   id,
   type: "symbol",
   source,
-  minzoom: 13,
+  minzoom,
   layout: {
     "text-field": "\u27A4",
     "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
@@ -488,6 +490,7 @@ export function buildStyle() {
       [DRAWING_SOURCE]: { type: "geojson", data: empty },
       [FEATURE_SOURCE]: { type: "geojson", data: empty },
       [LASSO_SOURCE]: { type: "geojson", data: empty },
+      [JOB_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
@@ -791,7 +794,9 @@ export function buildStyle() {
       centreLayer("mv-history-centre", HISTORY_SOURCE, NOT_PAUSED),
       centreLayer("mv-trails-centre", TRAIL_SOURCE, NOT_PAUSED),
       centreLayer("mv-my-trail-centre", MY_TRAIL_SOURCE, NOT_PAUSED),
-      arrowLayer(ARROW_LAYER, ARROW_SOURCE),
+      // Every trail's arrows at once is a lot to draw: they wait until the
+      // map is close enough for them to be worth reading.
+      arrowLayer(ARROW_LAYER, ARROW_SOURCE, 14),
       {
         id: "mv-fence",
         type: "line",
@@ -1015,6 +1020,31 @@ export function buildStyle() {
           "line-dasharray": [2, 1.4],
         },
       },
+      // A job's own lines and areas, and a numbered dot on each place it
+      // points at (the number is the step).
+      {
+        id: "mv-job-fill",
+        type: "fill",
+        source: JOB_SOURCE,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.3 },
+      },
+      {
+        id: "mv-job-case",
+        type: "line",
+        source: JOB_SOURCE,
+        filter: ["!=", ["geometry-type"], "Point"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": INK, "line-opacity": 0.7, "line-width": 7 },
+      },
+      {
+        id: "mv-job-line",
+        type: "line",
+        source: JOB_SOURCE,
+        filter: ["!=", ["geometry-type"], "Point"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#F7DB5C", "line-width": 3.5 },
+      },
       // The measure tool: the shape so far, its outline, and its corners.
       {
         id: "mv-measure-fill",
@@ -1190,6 +1220,32 @@ export function buildStyle() {
           "text-halo-color": "rgba(0,0,0,0.8)",
           "text-halo-width": 1.6,
         },
+      },
+      {
+        id: "mv-job-dot",
+        type: "circle",
+        source: JOB_SOURCE,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 13,
+          "circle-color": "#F7DB5C",
+          "circle-stroke-color": INK,
+          "circle-stroke-width": 2.5,
+        },
+      },
+      {
+        id: "mv-job-number",
+        type: "symbol",
+        source: JOB_SOURCE,
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "text-field": ["get", "n"],
+          "text-font": ["DIN Offc Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 14,
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: { "text-color": INK },
       },
       // The pins a lasso has caught, ringed in red.
       {

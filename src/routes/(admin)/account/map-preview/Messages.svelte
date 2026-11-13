@@ -57,6 +57,7 @@
     takeJob: string
     finishJob: string
     cancelJob: string
+    tickJob: { id: string; index: number; done: boolean }
   }>()
 
   $: jobById = new Map(jobs.map((job) => [job.id, job]))
@@ -208,6 +209,7 @@
               on:take={() => dispatch("takeJob", job.id)}
               on:finish={() => dispatch("finishJob", job.id)}
               on:cancel={() => dispatch("cancelJob", job.id)}
+              on:tick={(e) => dispatch("tickJob", { id: job.id, ...e.detail })}
             />
           {/if}
         {:else if message.place}

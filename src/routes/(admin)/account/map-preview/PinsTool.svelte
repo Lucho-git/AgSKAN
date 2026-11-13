@@ -5,7 +5,7 @@
    * them to remove.
    */
   import { createEventDispatcher } from "svelte"
-  import { ArrowLeft, Lasso, List, Search } from "lucide-svelte"
+  import { ArrowLeft, List, Search, Trash2 } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { markerColor } from "$lib/components/map/markers/markerPalette"
   import {
@@ -57,7 +57,6 @@
   // viewer's choices, in its order.
   const COLOURS = [
     "default",
-    "random",
     "red",
     "blue",
     "green",
@@ -66,6 +65,7 @@
     "purple",
     "pink",
     "skyblue",
+    "random",
   ]
   const swatch = (key: string) =>
     key === "default"
@@ -172,7 +172,23 @@
     >
       Drop {kindWords}
     </button>
-
+  {/if}
+  <div class="mn-menu-actions">
+    <button type="button" on:click={() => (listing = true)}>
+      <List size={18} /> My pins
+    </button>
+    {#if !guest}
+      <button
+        type="button"
+        class="danger"
+        disabled={!pins.length}
+        on:click={() => dispatch("lasso")}
+      >
+        <Trash2 size={18} /> Delete pins
+      </button>
+    {/if}
+  </div>
+  {#if !guest}
     <!-- The kind chosen: what it does, and the colour its pins get. -->
     <section class="mn-pin-kind">
       <div class="top">
@@ -205,21 +221,6 @@
       </div>
     </section>
   {/if}
-
-  <div class="mn-menu-actions">
-    <button type="button" on:click={() => (listing = true)}>
-      <List size={18} /> All {pins.length} pins
-    </button>
-    {#if !guest}
-      <button
-        type="button"
-        disabled={!pins.length}
-        on:click={() => dispatch("lasso")}
-      >
-        <Lasso size={18} /> Remove several
-      </button>
-    {/if}
-  </div>
 
   {#if !guest}
     {#if special.length}
